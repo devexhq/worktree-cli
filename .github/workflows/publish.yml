@@ -1,0 +1,36 @@
+name: Publish to PyPI
+
+on:
+  release:
+    types: [published] # Triggers automatically when you hit "Publish Release" on GitHub
+
+jobs:
+  pypi-publish:
+    name: Build and Upload to PyPI
+    runs-on: ubuntu-latest
+
+    # CRITICAL: This grants the security token permission required for Trusted Publishing
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python Environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Compiling Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build wheel setuptools
+
+      - name: Build Distribution Packages
+        run: python -m build
+
+      - name: Deploy Securely to PyPI
+        uses: pypa/gha-backend-to-pypi@v1
+        with:
+          repository-url: https://pypi.org
