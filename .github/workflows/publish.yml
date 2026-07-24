@@ -31,6 +31,6 @@ jobs:
         run: python -m build
 
       - name: Deploy Securely to PyPI
-        uses: pypa/gha-backend-to-pypi@v1
+        uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://pypi.org
