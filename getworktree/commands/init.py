@@ -5,9 +5,10 @@ Handles local workspace initialization (`wt init`), setting up isolated
 caching directories, default configuration files, and git safety rules.
 """
 
-from datetime import datetime, timezone
 import json
+from datetime import datetime, timezone
 from pathlib import Path
+
 import typer
 from rich.console import Console
 from rich.panel import Panel
