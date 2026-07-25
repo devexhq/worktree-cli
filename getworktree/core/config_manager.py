@@ -52,7 +52,7 @@ def get_current_git_branch(cwd: Path) -> str:
             cwd=cwd,
             capture_output=True,
             text=True,
-            check=True
+            check=True,
         )
         branch = result.stdout.strip()
         return branch if branch else "HEAD (detached)"
@@ -68,10 +68,10 @@ def load_raw_config(config_path: Path) -> dict[str, Any]:
         )
 
     try:
-        with open(config_path, "r", encoding="utf-8") as f:
+        with open(config_path, encoding="utf-8") as f:
             return json.load(f)
     except json.JSONDecodeError as e:
-        raise ValueError(f"Malformed config.json file at '{config_path}': {e}")
+        raise ValueError(f"Malformed config.json file at '{config_path}': {e}") from e
 
 
 def parse_and_validate_config(raw: dict[str, Any]) -> WorktreeConfig:
@@ -85,7 +85,7 @@ def parse_and_validate_config(raw: dict[str, Any]) -> WorktreeConfig:
     sandbox_raw = raw.get("sandbox", {})
     sandbox_cfg = SandboxConfig(
         auto_clean=bool(sandbox_raw.get("auto_clean", True)),
-        max_background_runs=int(sandbox_raw.get("max_background_runs", 3))
+        max_background_runs=int(sandbox_raw.get("max_background_runs", 3)),
     )
 
     # Audit config parsing
@@ -100,7 +100,7 @@ def parse_and_validate_config(raw: dict[str, Any]) -> WorktreeConfig:
         created_at=created_at,
         model_path=model_path,
         sandbox=sandbox_cfg,
-        audit=audit_cfg
+        audit=audit_cfg,
     )
 
 
@@ -133,9 +133,7 @@ def load_context(cwd: Path | None = None) -> WorktreeContext:
         )
 
     return WorktreeContext(
-        config=config,
-        current_branch=current_branch,
-        warnings=warnings
+        config=config, current_branch=current_branch, warnings=warnings
     )
 
 

@@ -1,0 +1,59 @@
+# Target Python version matching modern standards
+target-version = "py311"
+
+# Line length matching default formatter standards
+line-length = 88
+
+# Files/directories to exclude
+exclude = [
+    ".git",
+    ".worktree",
+    "__pycache__",
+    "build",
+    "dist",
+    ".venv",
+    "venv",
+]
+
+# ------------------------------------------------------------------------------
+# LINTING CONFIGURATION
+# ------------------------------------------------------------------------------
+[lint]
+# Selected rule sets:
+# F  -> Pyflakes (fundamental syntax and logic errors)
+# E/W -> pycodestyle (PEP8 errors and warnings)
+# I  -> isort (import sorting)
+# B  -> flake8-bugbear (common bug patterns & design smells)
+# C4 -> flake8-comprehensions (simplifies list/dict comprehensions)
+# UP -> pyupgrade (enforces modern Python syntax)
+select = ["E", "W", "F", "I", "B", "C4", "UP"]
+
+# Rules to ignore:
+# E501 -> Line length violations (handled cleanly by the formatter instead)
+ignore = ["E501"]
+
+# Ignore unused variables when prefixed with an underscore (e.g., `_`, `_ctx`)
+dummy-variable-rgx = "^_$"
+
+[lint.per-file-ignores]
+# Allow unused imports in __init__.py files (useful for module exports)
+"__init__.py" = ["F401"]
+# Allow assertions in test files
+"tests/*" = ["S101"]
+
+# ------------------------------------------------------------------------------
+# IMPORT SORTING (isort compatibility)
+# ------------------------------------------------------------------------------
+[isort]
+combine-as-imports = true
+known-first-party = ["getworktree"]
+split-on-trailing-comma = true
+
+# ------------------------------------------------------------------------------
+# FORMATTER CONFIGURATION (Black compatibility)
+# ------------------------------------------------------------------------------
+[format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"

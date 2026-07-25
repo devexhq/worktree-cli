@@ -43,13 +43,11 @@ setup(
     # Automatically finds the code sub-folders inside your repository
     packages=find_packages(exclude=["tests*", "docs*"]),
     python_requires=">=3.9",
-
     # Baseline external libraries your CLI needs to run
     install_requires=[
         "typer[all]>=0.9.0",  # Automatically bundles rich and shellingham out of the box
-        "requests>=2.28.0",   # For optional API polling / metrics updates
+        "requests>=2.28.0",  # For optional API polling / metrics updates
     ],
-
     # CRITICAL: Maps the terminal execution command
     # Typing 'wt' in the terminal will run the main() function inside getworktree/cli.py
     entry_points={
