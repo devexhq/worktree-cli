@@ -1,0 +1,191 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://getworktree.io/schemas/config_v1.json",
+  "title": "Worktree Config V1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "version",
+    "project",
+    "paths",
+    "sandbox",
+    "loop",
+    "agent",
+    "patch",
+    "approval",
+    "history",
+    "doctor",
+    "prune",
+    "telemetry"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["name", "initialized_at"],
+      "properties": {
+        "name": { "type": ["string", "null"] },
+        "initialized_at": { "type": ["string", "null"] }
+      }
+    },
+    "paths": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "root_dir",
+        "loops_dir",
+        "sessions_dir",
+        "artifacts_dir",
+        "db_path"
+      ],
+      "properties": {
+        "root_dir": { "type": "string" },
+        "loops_dir": { "type": "string" },
+        "sessions_dir": { "type": "string" },
+        "artifacts_dir": { "type": "string" },
+        "db_path": { "type": "string" }
+      }
+    },
+    "sandbox": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "base_ref",
+        "auto_clean",
+        "keep_on_failure",
+        "max_active_sandboxes",
+        "default_timeout_seconds"
+      ],
+      "properties": {
+        "base_ref": { "type": "string" },
+        "auto_clean": { "type": "boolean" },
+        "keep_on_failure": { "type": "boolean" },
+        "max_active_sandboxes": { "type": "integer", "minimum": 1 },
+        "default_timeout_seconds": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "loop": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "default_max_attempts",
+        "default_trigger_timeout_seconds",
+        "default_agent_timeout_seconds",
+        "max_attempts_hard_limit",
+        "detect_repeat_failures"
+      ],
+      "properties": {
+        "default_max_attempts": { "type": "integer", "minimum": 1 },
+        "default_trigger_timeout_seconds": { "type": "integer", "minimum": 1 },
+        "default_agent_timeout_seconds": { "type": "integer", "minimum": 1 },
+        "max_attempts_hard_limit": { "type": "integer", "minimum": 1 },
+        "detect_repeat_failures": { "type": "boolean" }
+      }
+    },
+    "agent": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "provider",
+        "model",
+        "endpoint",
+        "temperature",
+        "max_tokens"
+      ],
+      "properties": {
+        "provider": { "type": "string" },
+        "model": { "type": ["string", "null"] },
+        "endpoint": { "type": ["string", "null"] },
+        "temperature": { "type": "number" },
+        "max_tokens": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "patch": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "strategy",
+        "max_files",
+        "max_patch_kb",
+        "reject_binary_changes"
+      ],
+      "properties": {
+        "strategy": { "type": "string" },
+        "max_files": { "type": "integer", "minimum": 1 },
+        "max_patch_kb": { "type": "integer", "minimum": 1 },
+        "reject_binary_changes": { "type": "boolean" }
+      }
+    },
+    "approval": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["require_before_apply", "require_before_final_apply"],
+      "properties": {
+        "require_before_apply": { "type": "boolean" },
+        "require_before_final_apply": { "type": "boolean" }
+      }
+    },
+    "history": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "save_attempt_logs",
+        "save_agent_payloads",
+        "save_final_diff",
+        "max_sessions"
+      ],
+      "properties": {
+        "save_attempt_logs": { "type": "boolean" },
+        "save_agent_payloads": { "type": "boolean" },
+        "save_final_diff": { "type": "boolean" },
+        "max_sessions": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "doctor": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "check_git",
+        "check_paths_writable",
+        "check_config_schema",
+        "check_stale_worktrees",
+        "check_required_binaries"
+      ],
+      "properties": {
+        "check_git": { "type": "boolean" },
+        "check_paths_writable": { "type": "boolean" },
+        "check_config_schema": { "type": "boolean" },
+        "check_stale_worktrees": { "type": "boolean" },
+        "check_required_binaries": { "type": "boolean" }
+      }
+    },
+    "prune": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "remove_stale_worktrees",
+        "remove_orphaned_sandboxes",
+        "remove_expired_artifacts",
+        "artifact_ttl_days"
+      ],
+      "properties": {
+        "remove_stale_worktrees": { "type": "boolean" },
+        "remove_orphaned_sandboxes": { "type": "boolean" },
+        "remove_expired_artifacts": { "type": "boolean" },
+        "artifact_ttl_days": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "telemetry": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["enabled"],
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    }
+  }
+}

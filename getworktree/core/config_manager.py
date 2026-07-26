@@ -1,8 +1,6 @@
-"""getworktree/core/config_manager.py.
+"""Handles loading, validating, and extracting repository context from config."""
 
-Handles loading, validating, and extracting repository context from ./.worktree/config.json
-and active Git branch states.
-"""
+from __future__ import annotations
 
 import json
 import subprocess
@@ -12,34 +10,66 @@ from typing import Any
 
 from rich.console import Console
 
+from getworktree.core.config_schema import validate_config_v1
+
 console = Console()
 
 
 @dataclass
-class SandboxConfig:
-    """Background sandbox lifecycle settings from config.json."""
+class ProjectConfig:
+    """Project identity fields from config V1."""
 
-    auto_clean: bool = True
-    max_background_runs: int = 3
+    name: str
+    initialized_at: str | None = None
 
 
 @dataclass
-class AuditConfig:
-    """Token audit database path settings."""
+class PathsConfig:
+    """Filesystem layout paths from config V1."""
 
+    root_dir: str = ".worktree"
+    loops_dir: str = ".worktree/loops"
+    sessions_dir: str = ".worktree/sessions"
+    artifacts_dir: str = ".worktree/artifacts"
     db_path: str = ".worktree/token_audit.db"
 
 
 @dataclass
-class WorktreeConfig:
-    """Parsed `.worktree/config.json` payload."""
+class SandboxConfig:
+    """Background sandbox lifecycle settings."""
 
-    version: str
-    project_name: str
-    created_at: str | None = None
-    model_path: str | None = None
+    base_ref: str = "HEAD"
+    auto_clean: bool = True
+    keep_on_failure: bool = True
+    max_active_sandboxes: int = 3
+    default_timeout_seconds: int = 900
+
+
+@dataclass
+class AgentConfig:
+    """Agent provider settings."""
+
+    provider: str = "local"
+    model: str | None = None
+    endpoint: str | None = None
+    temperature: float = 0.2
+    max_tokens: int = 4096
+
+
+@dataclass
+class WorktreeConfig:
+    """Parsed `.worktree/config.json` V1 payload."""
+
+    version: int
+    project: ProjectConfig
+    paths: PathsConfig = field(default_factory=PathsConfig)
     sandbox: SandboxConfig = field(default_factory=SandboxConfig)
-    audit: AuditConfig = field(default_factory=AuditConfig)
+    agent: AgentConfig = field(default_factory=AgentConfig)
+
+    @property
+    def project_name(self) -> str:
+        """Compatibility alias for project display name."""
+        return self.project.name
 
 
 @dataclass
@@ -76,46 +106,65 @@ def load_raw_config(config_path: Path) -> dict[str, Any]:
 
     try:
         with open(config_path, encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
     except json.JSONDecodeError as e:
         raise ValueError(f"Malformed config.json file at '{config_path}': {e}") from e
+    if not isinstance(data, dict):
+        raise ValueError(
+            f"Malformed config.json file at '{config_path}': root must be an object"
+        )
+    return data
 
 
 def parse_and_validate_config(raw: dict[str, Any]) -> WorktreeConfig:
-    """Validate JSON payload layout and map into strongly-typed data structures."""
-    version = raw.get("version", "1.0.0")
-    project_name = raw.get("project_name", "unnamed_project")
-    created_at = raw.get("created_at")
-    model_path = raw.get("model_path")
+    """Validate against V1 schema and map into typed structures."""
+    validation = validate_config_v1(raw)
+    if not validation.ok:
+        detail = "; ".join(validation.errors)
+        raise ValueError(f"Config schema validation failed: {detail}")
 
-    # Sandbox config parsing
+    project_raw = raw.get("project", {})
+    paths_raw = raw.get("paths", {})
     sandbox_raw = raw.get("sandbox", {})
-    sandbox_cfg = SandboxConfig(
-        auto_clean=bool(sandbox_raw.get("auto_clean", True)),
-        max_background_runs=int(sandbox_raw.get("max_background_runs", 3)),
-    )
+    agent_raw = raw.get("agent", {})
 
-    # Audit config parsing
-    audit_raw = raw.get("audit", {})
-    audit_cfg = AuditConfig(
-        db_path=str(audit_raw.get("db_path", ".worktree/token_audit.db"))
+    project = ProjectConfig(
+        name=str(project_raw.get("name") or "unnamed_project"),
+        initialized_at=project_raw.get("initialized_at"),
+    )
+    paths = PathsConfig(
+        root_dir=str(paths_raw.get("root_dir", ".worktree")),
+        loops_dir=str(paths_raw.get("loops_dir", ".worktree/loops")),
+        sessions_dir=str(paths_raw.get("sessions_dir", ".worktree/sessions")),
+        artifacts_dir=str(paths_raw.get("artifacts_dir", ".worktree/artifacts")),
+        db_path=str(paths_raw.get("db_path", ".worktree/token_audit.db")),
+    )
+    sandbox = SandboxConfig(
+        base_ref=str(sandbox_raw.get("base_ref", "HEAD")),
+        auto_clean=bool(sandbox_raw.get("auto_clean", True)),
+        keep_on_failure=bool(sandbox_raw.get("keep_on_failure", True)),
+        max_active_sandboxes=int(sandbox_raw.get("max_active_sandboxes", 3)),
+        default_timeout_seconds=int(sandbox_raw.get("default_timeout_seconds", 900)),
+    )
+    agent = AgentConfig(
+        provider=str(agent_raw.get("provider", "local")),
+        model=agent_raw.get("model"),
+        endpoint=agent_raw.get("endpoint"),
+        temperature=float(agent_raw.get("temperature", 0.2)),
+        max_tokens=int(agent_raw.get("max_tokens", 4096)),
     )
 
     return WorktreeConfig(
-        version=version,
-        project_name=project_name,
-        created_at=created_at,
-        model_path=model_path,
-        sandbox=sandbox_cfg,
-        audit=audit_cfg,
+        version=int(raw["version"]),
+        project=project,
+        paths=paths,
+        sandbox=sandbox,
+        agent=agent,
     )
 
 
 def load_context(cwd: Path | None = None) -> WorktreeContext:
-    """Load config and repo context.
-
-    Aggregates unified developer warnings (branch, model path, etc.).
-    """
+    """Load config and repo context with unified developer warnings."""
     root_dir = (cwd or Path.cwd()).resolve()
     config_path = root_dir / ".worktree" / "config.json"
 
@@ -125,18 +174,17 @@ def load_context(cwd: Path | None = None) -> WorktreeContext:
 
     warnings: list[str] = []
 
-    # Check warning bounds
-    if not config.model_path:
-        warnings.append("Model path is not configured (model_path is null).")
+    if not config.agent.model:
+        warnings.append("Agent model is not configured (agent.model is null).")
 
     if current_branch in ("main", "master"):
         warnings.append(
             f"Active branch is '{current_branch}'. Automated loops on primary branches are discouraged."
         )
 
-    if config.sandbox.max_background_runs > 5:
+    if config.sandbox.max_active_sandboxes > 5:
         warnings.append(
-            f"max_background_runs ({config.sandbox.max_background_runs}) is unusually high."
+            f"max_active_sandboxes ({config.sandbox.max_active_sandboxes}) is unusually high."
         )
 
     return WorktreeContext(
@@ -145,7 +193,7 @@ def load_context(cwd: Path | None = None) -> WorktreeContext:
 
 
 def display_context_warnings(context: WorktreeContext) -> None:
-    """Utility helper to print Rich-formatted warnings to stderr/stdout."""
+    """Print Rich-formatted warnings to stderr/stdout."""
     if context.warnings:
         console.print("[yellow]⚠️  Configuration & Context Warnings:[/yellow]")
         for w in context.warnings:

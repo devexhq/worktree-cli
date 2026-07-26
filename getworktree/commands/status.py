@@ -24,12 +24,14 @@ def status_command():
     table.add_column("Property", style="cyan")
     table.add_column("Value", style="bold green")
 
-    table.add_row("Project Name", ctx.config.project_name)
-    table.add_row("Config Version", ctx.config.version)
+    table.add_row("Project Name", ctx.config.project.name)
+    table.add_row("Config Version", str(ctx.config.version))
     table.add_row("Active Git Branch", ctx.current_branch)
-    table.add_row("Model Path", ctx.config.model_path or "[dim]Not Configured[/dim]")
+    table.add_row("Agent Model", ctx.config.agent.model or "[dim]Not Configured[/dim]")
     table.add_row("Auto Clean Sandboxes", str(ctx.config.sandbox.auto_clean))
-    table.add_row("Max Background Runs", str(ctx.config.sandbox.max_background_runs))
+    table.add_row(
+        "Max Active Sandboxes", str(ctx.config.sandbox.max_active_sandboxes)
+    )
 
     console.print(table)
     console.print()

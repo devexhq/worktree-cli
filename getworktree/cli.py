@@ -79,17 +79,25 @@ def main(
 
 
 @app.command(name="init")
-def init_workspace(ctx: typer.Context):
+def init_workspace(
+    ctx: typer.Context,
+    overwrite: bool = typer.Option(
+        False,
+        "--overwrite",
+        help="Replace an existing config with fresh V1 defaults (destructive).",
+    ),
+    repair: bool = typer.Option(
+        False,
+        "--repair",
+        help="Add missing required config keys without overwriting user values.",
+    ),
+):
     """Provision a secure local hidden folder path and tracking schemas."""
-    """
-    verbose = ctx.obj.get("verbose", False)
-    console.print("\n[bold blue]⏳ Provisioning secure environment configurations...[/bold blue]")
-    console.print("[dim zinc-400]Target tracking issue: #2[/dim zinc-400]")
-    if verbose:
-        console.print("[dim yellow][TELEMETRY] Initialization hook loaded successfully.[/dim yellow]")
-    # Core system verification and file tree generation logic hooks here in Issue #2
-    """
-    init_command(tool_version=__version__)
+    init_command(
+        tool_version=__version__,
+        overwrite=overwrite,
+        repair=repair,
+    )
 
 
 @app.command(name="status")

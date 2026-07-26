@@ -151,7 +151,7 @@ def loop_command(
             )
 
         # 4. Record token financial usage into SQLite audit database (Issue #4)
-        model_id = ctx.config.model_path or "default_llm_router"
+        model_id = ctx.config.agent.model or "default_llm_router"
         record_token_usage(
             session_id=session_id,
             branch_name=ctx.current_branch,
@@ -160,6 +160,7 @@ def loop_command(
             completion_tokens=mock_completion_tokens,
             estimated_usd_cost=mock_cost,
             cwd=cwd,
+            db_rel_path=ctx.config.paths.db_path,
         )
 
         session_cost = get_session_total_cost(session_id, cwd=cwd)

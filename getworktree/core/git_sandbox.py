@@ -76,11 +76,11 @@ class GitSandboxManager:
 
         # Enforce execution limits from Issue #3 config
         active_sandboxes = self.get_active_sandboxes()
-        max_allowed = self.context.config.sandbox.max_background_runs
+        max_allowed = self.context.config.sandbox.max_active_sandboxes
         if len(active_sandboxes) >= max_allowed:
             raise RuntimeError(
                 f"Maximum active background sandboxes reached ({len(active_sandboxes)}/{max_allowed}). "
-                "Prune existing sandboxes or adjust 'max_background_runs' in .worktree/config.json."
+                "Prune existing sandboxes or adjust 'sandbox.max_active_sandboxes' in .worktree/config.json."
             )
 
         sid = session_id or f"sbx_{uuid.uuid4().hex[:8]}"
