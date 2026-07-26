@@ -47,7 +47,10 @@ setup(
     install_requires=[
         "typer[all]>=0.9.0",  # Automatically bundles rich and shellingham out of the box
         "requests>=2.28.0",  # For optional API polling / metrics updates
+        "jsonschema>=4.0.0",
     ],
+    package_data={"getworktree": ["schemas/*.json"]},
+    include_package_data=True,
     # CRITICAL: Maps the terminal execution command
     # Typing 'wt' in the terminal will run the main() function inside getworktree/cli.py
     entry_points={

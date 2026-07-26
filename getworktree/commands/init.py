@@ -1,11 +1,6 @@
-"""getworktree/commands/init.py.
-
-Handles local workspace initialization (`wt init`), setting up isolated
-caching directories, default configuration files, and git safety rules.
-"""
+"""Handles local workspace initialization (`wt init`)."""
 
 import json
-from datetime import UTC, datetime
 from pathlib import Path
 
 import typer
@@ -18,16 +13,11 @@ from getworktree.common.utils import (
     print_success,
 )
 from getworktree.core.bootstrap import bootstrap_worktree
+from getworktree.core.config_generator import (
+    CANONICAL_V1_DEFAULTS,
+    generate_default_config,
+)
 from getworktree.core.db import init_database
-
-# Baseline JSON configuration for new worktree projects
-DEFAULT_CONFIG = {
-    "version": "1.0.0",
-    "created_at": None,  # Dynamically set on initialization
-    "model_path": None,
-    "sandbox": {"auto_clean": True, "max_background_runs": 3},
-    "audit": {"db_path": ".worktree/token_audit.db"},
-}
 
 GITIGNORE_ENTRY = "\n# Worktree CLI cache and local databases\n/.worktree/\n"
 
@@ -38,25 +28,12 @@ def is_git_repository(path: Path) -> bool:
     return git_path.exists()
 
 
-def ensure_config_file(config_path: Path, project_name: str) -> bool:
-    """Generate default config.json if missing."""
-    if not config_path.exists():
-        config_data = DEFAULT_CONFIG.copy()
-        config_data["project_name"] = project_name
-        config_data["created_at"] = datetime.now(UTC).isoformat()
-
-        with open(config_path, "w", encoding="utf-8") as f:
-            json.dump(config_data, f, indent=2)
-        return True
-    return False
-
-
 def update_gitignore(gitignore_path: Path) -> bool:
-    """Ensure /.worktree/ is excluded in .gitignore to prevent pushing cache profiles."""
+    """Ensure /.worktree/ is excluded in .gitignore."""
     if gitignore_path.exists():
         content = gitignore_path.read_text(encoding="utf-8")
         if "/.worktree/" in content or ".worktree" in content:
-            return False  # Already present
+            return False
 
         prefix = "" if content.endswith("\n") else "\n"
         with open(gitignore_path, "a", encoding="utf-8") as f:
@@ -73,6 +50,45 @@ def _display_path(cwd: Path, path: Path) -> str:
         return path.relative_to(cwd).as_posix()
     except ValueError:
         return path.as_posix()
+
+
+def _resolve_db_rel_path(config_file: Path) -> str:
+    default = CANONICAL_V1_DEFAULTS["paths"]["db_path"]
+    if not config_file.is_file():
+        return default
+    try:
+        with open(config_file, encoding="utf-8") as f:
+            raw = json.load(f)
+        if isinstance(raw, dict):
+            paths = raw.get("paths")
+            if isinstance(paths, dict) and paths.get("db_path"):
+                return str(paths["db_path"])
+    except (OSError, json.JSONDecodeError):
+        pass
+    return default
+
+
+def _render_config_failure(errors: list[str]) -> None:
+    lines = "\n".join(f"- {err}" for err in errors)
+    print_error_panel("Failed to generate config:", lines)
+
+
+def _render_config_result(cwd: Path, result) -> None:
+    if not result.config_path:
+        return
+    label = f"./{_display_path(cwd, result.config_path)}"
+    if result.created:
+        print_dim_bullet(f"Generated config: [cyan]{label}[/cyan]")
+    elif result.overwritten:
+        print_dim_bullet(f"Regenerated config: [cyan]{label}[/cyan]")
+    elif result.repaired:
+        print_dim_bullet(f"Repaired config: [cyan]{label}[/cyan]")
+        if result.inserted_keys:
+            print_dim("  Added missing keys:")
+            for key in result.inserted_keys:
+                print_dim_bullet(f"[cyan]{key}[/cyan]")
+    elif result.skipped_existing:
+        print_dim_bullet(f"Config exists: [cyan]{label}[/cyan]")
 
 
 def _render_bootstrap_failure(cwd: Path, errors: list[str]) -> None:
@@ -108,7 +124,12 @@ def _render_bootstrap_success(cwd: Path, result) -> None:
     print_dim("No changes required.")
 
 
-def init_command(*, tool_version: str | None = None):
+def init_command(
+    *,
+    tool_version: str | None = None,
+    overwrite: bool = False,
+    repair: bool = False,
+):
     """Initialize a local project workspace for Worktree CLI and desktop sync."""
     cwd = Path.cwd().resolve()
 
@@ -132,18 +153,19 @@ def init_command(*, tool_version: str | None = None):
     if result.root_created:
         update_gitignore(gitignore_file)
 
-    ensure_config_file(config_file, project_name=cwd.name)
-    init_database(cwd=cwd)
+    config_result = generate_default_config(
+        config_file,
+        project_name=cwd.name,
+        overwrite=overwrite,
+        repair=repair,
+    )
+    if not config_result.ok:
+        _render_config_failure(config_result.errors)
+        raise typer.Exit(code=1)
+
+    db_rel = _resolve_db_rel_path(config_file)
+    init_database(cwd=cwd, db_rel_path=db_rel)
 
     print_spacer()
     _render_bootstrap_success(cwd, result)
-
-
-app = typer.Typer()
-
-
-@app.callback(invoke_without_command=True)
-def main(ctx: typer.Context):
-    """Default entry: run init when no subcommand is given."""
-    if ctx.invoked_subcommand is None:
-        init_command()
+    _render_config_result(cwd, config_result)
