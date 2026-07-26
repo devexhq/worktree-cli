@@ -61,9 +61,7 @@ def ensure_dir(path: Path, *, allow_symlink: bool = False) -> DirEnsureOutcome:
                         f"{_path_label(path)} is a symlink that does not resolve to a directory."
                     )
                 return DirEnsureOutcome.EXISTING
-            raise ValueError(
-                f"{_path_label(path)} must be a directory, not a symlink."
-            )
+            raise ValueError(f"{_path_label(path)} must be a directory, not a symlink.")
         if path.is_file():
             raise ValueError(
                 f"{_path_label(path)} exists but is a file, not a directory."
@@ -187,7 +185,11 @@ def bootstrap_worktree(
     elif result.root_created or result.dirs_created:
         status = "initialized"
     else:
-        status = str(prior_meta.get("status", "initialized")) if prior_meta else "initialized"
+        status = (
+            str(prior_meta.get("status", "initialized"))
+            if prior_meta
+            else "initialized"
+        )
 
     initialized_at: str | None = None
     if prior_meta and prior_meta.get("initialized_at"):

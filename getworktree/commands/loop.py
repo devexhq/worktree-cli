@@ -86,7 +86,7 @@ def loop_command(
     ),
     mock_prompt_tokens: int = 500,
     mock_completion_tokens: int = 200,
-    mock_cost: float = 0.002
+    mock_cost: float = 0.002,
     # mock_prompt_tokens: int = typer.Option(
     #     500,
     #     "--prompt-tokens",
@@ -100,7 +100,7 @@ def loop_command(
     # mock_cost: float = typer.Option(
     #     0.002, "--cost", help="Estimated USD cost for model execution."
     # ),
-    ):
+):
     """
     Run automated commands in an isolated background worktree and intercept failures.
     """

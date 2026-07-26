@@ -100,7 +100,9 @@ def _render_bootstrap_success(cwd: Path, result) -> None:
         print_dim("Created:")
         for path in result.dirs_created:
             print_dim_bullet(f"[cyan]{_display_path(cwd, path)}[/cyan]")
-        print_dim("\nNext: run [bold cyan]wt config show[/bold cyan] or [bold cyan]wt loop list[/bold cyan]")
+        print_dim(
+            "\nNext: run [bold cyan]wt config show[/bold cyan] or [bold cyan]wt loop list[/bold cyan]"
+        )
         return
 
     print_success(f"Worktree already initialized at {worktree_label}")

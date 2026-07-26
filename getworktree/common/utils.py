@@ -7,6 +7,7 @@ console = Console()
 def print_spacer() -> None:
     console.print()
 
+
 def print_success(message: str) -> None:
     console.print(f"[bold green]✔  {message}[/bold green]")
 
