@@ -1,5 +1,4 @@
-"""
-getworktree/commands/loop.py
+"""getworktree/commands/loop.py.
 
 Executes target command strings (e.g. test suites) inside an isolated background sandbox,
 captures failure diagnostics into formatted payload blocks, and logs token financial audits.
@@ -24,6 +23,8 @@ console = Console()
 
 @dataclass
 class ExecutionResult:
+    """Captured stdout/stderr from a command run inside a sandbox."""
+
     command: str
     returncode: int
     stdout: str
@@ -50,7 +51,7 @@ def run_command_in_sandbox(command: str, sandbox_path: Path) -> ExecutionResult:
             stderr=process.stderr.strip(),
             passed=passed,
         )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return ExecutionResult(
             command=command,
             returncode=1,
@@ -86,7 +87,7 @@ def loop_command(
     ),
     mock_prompt_tokens: int = 500,
     mock_completion_tokens: int = 200,
-    mock_cost: float = 0.002
+    mock_cost: float = 0.002,
     # mock_prompt_tokens: int = typer.Option(
     #     500,
     #     "--prompt-tokens",
@@ -100,17 +101,15 @@ def loop_command(
     # mock_cost: float = typer.Option(
     #     0.002, "--cost", help="Estimated USD cost for model execution."
     # ),
-    ):
-    """
-    Run automated commands in an isolated background worktree and intercept failures.
-    """
+):
+    """Run automated commands in an isolated background worktree and intercept failures."""
     cwd = Path.cwd().resolve()
     session_id = f"loop_{uuid.uuid4().hex[:8]}"
 
     # 1. Load context & display pre-flight warnings (Issue #3)
     try:
         ctx = load_context(cwd)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         console.print(f"[bold red]Initialization Error:[/bold red] {e}")
         raise typer.Exit(code=1) from e
 
@@ -179,5 +178,6 @@ def main(
     ctx: typer.Context,
     command: str = typer.Argument("pytest", help="Command to execute in sandbox."),
 ):
+    """Default entry: run the loop command when no subcommand is given."""
     if ctx.invoked_subcommand is None:
         loop_command(command)

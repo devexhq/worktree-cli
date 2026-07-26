@@ -1,5 +1,4 @@
-"""
-getworktree/commands/init.py
+"""getworktree/commands/init.py.
 
 Handles local workspace initialization (`wt init`), setting up isolated
 caching directories, default configuration files, and git safety rules.
@@ -18,6 +17,7 @@ from getworktree.common.utils import (
     print_spacer,
     print_success,
 )
+from getworktree.core.bootstrap import bootstrap_worktree
 from getworktree.core.db import init_database
 
 # Baseline JSON configuration for new worktree projects
@@ -36,14 +36,6 @@ def is_git_repository(path: Path) -> bool:
     """Check whether the given directory contains a .git directory or file."""
     git_path = path / ".git"
     return git_path.exists()
-
-
-def ensure_worktree_dir(worktree_path: Path) -> bool:
-    """Create .worktree directory if it doesn't already exist."""
-    if not worktree_path.exists():
-        worktree_path.mkdir(parents=True, exist_ok=True)
-        return True
-    return False
 
 
 def ensure_config_file(config_path: Path, project_name: str) -> bool:
@@ -66,25 +58,60 @@ def update_gitignore(gitignore_path: Path) -> bool:
         if "/.worktree/" in content or ".worktree" in content:
             return False  # Already present
 
-        # Ensure proper trailing newline before appending
         prefix = "" if content.endswith("\n") else "\n"
         with open(gitignore_path, "a", encoding="utf-8") as f:
             f.write(f"{prefix}{GITIGNORE_ENTRY}")
         return True
-    else:
-        # Create new .gitignore if it doesn't exist
-        with open(gitignore_path, "w", encoding="utf-8") as f:
-            f.write(GITIGNORE_ENTRY.lstrip())
-        return True
+
+    with open(gitignore_path, "w", encoding="utf-8") as f:
+        f.write(GITIGNORE_ENTRY.lstrip())
+    return True
 
 
-def init_command():
-    """
-    Initialize a local project workspace for Worktree CLI and desktop sync.
-    """
+def _display_path(cwd: Path, path: Path) -> str:
+    try:
+        return path.relative_to(cwd).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def _render_bootstrap_failure(cwd: Path, errors: list[str]) -> None:
+    lines = "\n".join(f"  {err}" for err in errors)
+    remediation = (
+        "\nFix:\n"
+        "  resolve the path conflict above, then rerun [bold cyan]wt init[/bold cyan]."
+    )
+    print_error_panel("Failed to initialize Worktree:", f"{lines}{remediation}")
+
+
+def _render_bootstrap_success(cwd: Path, result) -> None:
+    worktree_label = _display_path(cwd, cwd / ".worktree")
+
+    if result.repaired:
+        print_success(f"Worktree structure repaired at {worktree_label}")
+        print_dim("Created missing:")
+        for path in result.dirs_created:
+            print_dim_bullet(f"[cyan]{_display_path(cwd, path)}[/cyan]")
+        return
+
+    if result.root_created or result.dirs_created:
+        print_success(f"Initialized Worktree at {worktree_label}")
+        print_dim("Created:")
+        for path in result.dirs_created:
+            print_dim_bullet(f"[cyan]{_display_path(cwd, path)}[/cyan]")
+        print_dim(
+            "\nNext: run [bold cyan]wt config show[/bold cyan] or [bold cyan]wt loop list[/bold cyan]"
+        )
+        return
+
+    print_success(f"Worktree already initialized at {worktree_label}")
+    print_dim("No changes required.")
+
+
+def init_command(*, tool_version: str | None = None):
+    """Initialize a local project workspace for Worktree CLI and desktop sync."""
     cwd = Path.cwd().resolve()
 
-    # 1. Verify valid Git repository
     if not is_git_repository(cwd):
         print_error_panel(
             "Initialization Failed!",
@@ -97,43 +124,26 @@ def init_command():
     config_file = worktree_dir / "config.json"
     gitignore_file = cwd / ".gitignore"
 
-    # 2. Provision directory & config
-    dir_created = ensure_worktree_dir(worktree_dir)
-    config_created = ensure_config_file(config_file, project_name=cwd.name)
-    gitignore_updated = update_gitignore(gitignore_file)
+    result = bootstrap_worktree(worktree_dir, tool_version=tool_version)
+    if not result.ok:
+        _render_bootstrap_failure(cwd, result.errors)
+        raise typer.Exit(code=1)
 
-    # 3. Output Status Report
-    print_spacer()
-    print_success("Worktree Workspace Initialized")
+    if result.root_created:
+        update_gitignore(gitignore_file)
 
-    if dir_created:
-        print_dim_bullet("Created directory: [cyan]./.worktree/[/cyan]")
-    else:
-        print_dim_bullet("Directory exists:  [dim]./.worktree/[/dim]")
-
-    if config_created:
-        print_dim_bullet("Generated config:  [cyan]./.worktree/config.json[/cyan]")
-    else:
-        print_dim_bullet("Config exists:     [dim]./.worktree/config.json[/dim]")
-
-    if gitignore_updated:
-        print_dim_bullet("Updated exclusions: [cyan].gitignore[/cyan]")
-    else:
-        print_dim_bullet("Ignore state:     [dim].gitignore already configured[/dim]")
-
-    # Provision DB schema alongside config file
+    ensure_config_file(config_file, project_name=cwd.name)
     init_database(cwd=cwd)
 
-    print_dim_bullet("Database status:  [cyan]./.worktree/token_audit.db[/cyan]")
+    print_spacer()
+    _render_bootstrap_success(cwd, result)
 
-    print_dim("\nReady for local context extraction and agent runs.")
 
-
-# Typer command registration hook
 app = typer.Typer()
 
 
 @app.callback(invoke_without_command=True)
 def main(ctx: typer.Context):
+    """Default entry: run init when no subcommand is given."""
     if ctx.invoked_subcommand is None:
         init_command()

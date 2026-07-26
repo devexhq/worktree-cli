@@ -1,5 +1,4 @@
-"""
-getworktree/core/config_manager.py
+"""getworktree/core/config_manager.py.
 
 Handles loading, validating, and extracting repository context from ./.worktree/config.json
 and active Git branch states.
@@ -18,17 +17,23 @@ console = Console()
 
 @dataclass
 class SandboxConfig:
+    """Background sandbox lifecycle settings from config.json."""
+
     auto_clean: bool = True
     max_background_runs: int = 3
 
 
 @dataclass
 class AuditConfig:
+    """Token audit database path settings."""
+
     db_path: str = ".worktree/token_audit.db"
 
 
 @dataclass
 class WorktreeConfig:
+    """Parsed `.worktree/config.json` payload."""
+
     version: str
     project_name: str
     created_at: str | None = None
@@ -39,6 +44,8 @@ class WorktreeConfig:
 
 @dataclass
 class WorktreeContext:
+    """Config plus live Git branch and aggregated warnings."""
+
     config: WorktreeConfig
     current_branch: str
     warnings: list[str] = field(default_factory=list)
@@ -105,9 +112,9 @@ def parse_and_validate_config(raw: dict[str, Any]) -> WorktreeConfig:
 
 
 def load_context(cwd: Path | None = None) -> WorktreeContext:
-    """
-    Primary API entry point to extract local repo state, load config,
-    and aggregate unified developer warnings.
+    """Load config and repo context.
+
+    Aggregates unified developer warnings (branch, model path, etc.).
     """
     root_dir = (cwd or Path.cwd()).resolve()
     config_path = root_dir / ".worktree" / "config.json"

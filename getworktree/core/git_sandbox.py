@@ -1,5 +1,4 @@
-"""
-getworktree/core/git_sandbox.py
+"""getworktree/core/git_sandbox.py.
 
 Orchestrates native Git worktree operations to spawn isolated background directories
 where agent execution loops run safely without polluting uncommitted working tree changes.
@@ -22,6 +21,8 @@ console = Console()
 
 @dataclass
 class SandboxSession:
+    """Metadata for one isolated background git worktree."""
+
     session_id: str
     target_branch: str
     sandbox_path: Path
@@ -32,6 +33,7 @@ class GitSandboxManager:
     """Manages creation, execution context, and pruning of background Git worktrees."""
 
     def __init__(self, cwd: Path | None = None):
+        """Bind to a repository root and load workspace context."""
         self.cwd = (cwd or Path.cwd()).resolve()
         # Hook into Issue #3: Load workspace context and config settings
         self.context = load_context(self.cwd)
@@ -46,7 +48,7 @@ class GitSandboxManager:
         target_dir = cwd or self.cwd
         try:
             result = subprocess.run(
-                ["git"] + args,
+                ["git", *args],
                 cwd=target_dir,
                 capture_output=True,
                 text=True,
@@ -66,8 +68,8 @@ class GitSandboxManager:
         return [p for p in self.sandbox_base_dir.iterdir() if p.is_dir()]
 
     def create_sandbox(self, session_id: str | None = None) -> SandboxSession:
-        """
-        Spawn an isolated background git worktree targeting a dynamic branch.
+        """Spawn an isolated background git worktree targeting a dynamic branch.
+
         Enforces `max_background_runs` bounds loaded from config_manager.
         """
         self._ensure_sandbox_dir()
@@ -113,9 +115,9 @@ class GitSandboxManager:
         return session
 
     def cleanup_sandbox(self, session: SandboxSession, force: bool = True) -> None:
-        """
-        Detach git worktree, remove sandbox directory, delete temporary branch,
-        and run git worktree prune.
+        """Detach git worktree, remove sandbox directory, and delete temporary branch.
+
+        Runs `git worktree prune` when finished.
         """
         if session.sandbox_path.exists():
             # 1. Remove git worktree link
@@ -148,9 +150,9 @@ class GitSandboxManager:
 
 @contextmanager
 def sandbox_scope(cwd: Path | None = None, session_id: str | None = None):
-    """
-    Context manager providing safe execution inside a sandbox.
-    Automatically handles setup and teardown based on config `auto_clean`.
+    """Context manager for sandbox execution with optional auto-cleanup.
+
+    Teardown respects the workspace `auto_clean` setting.
     """
     manager = GitSandboxManager(cwd=cwd)
     session = manager.create_sandbox(session_id=session_id)

@@ -1,6 +1,4 @@
-"""
-getworktree/commands/status.py
-"""
+"""getworktree/commands/status.py."""
 
 from pathlib import Path
 
@@ -17,7 +15,7 @@ def status_command():
     """Inspect active worktree configuration and repository context."""
     try:
         ctx = load_context(Path.cwd())
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         console.print(f"[bold red]Context Error:[/bold red] {e}")
         raise typer.Exit(code=1) from e
 
