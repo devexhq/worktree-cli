@@ -1,5 +1,4 @@
-"""
-Filesystem bootstrap for the local Worktree home directory (`.worktree/`).
+"""Filesystem bootstrap for the local Worktree home directory (`.worktree/`).
 
 Symlink policy: the `.worktree` root may be a symlink to a directory; required
 subdirectories must be real directories (not symlinks).
@@ -28,12 +27,16 @@ REQUIRED_SUBDIRS = (
 
 
 class DirEnsureOutcome(Enum):
+    """Result of attempting to ensure a directory exists."""
+
     CREATED = "created"
     EXISTING = "existing"
 
 
 @dataclass
 class BootstrapResult:
+    """Outcome of bootstrapping the `.worktree/` directory tree."""
+
     root_path: Path
     root_created: bool = False
     dirs_created: list[Path] = field(default_factory=list)
@@ -44,12 +47,12 @@ class BootstrapResult:
 
     @property
     def ok(self) -> bool:
+        """True when bootstrap completed without errors."""
         return not self.errors
 
 
 def ensure_dir(path: Path, *, allow_symlink: bool = False) -> DirEnsureOutcome:
-    """
-    Create a directory if missing.
+    """Create a directory if missing.
 
     Raises ValueError with an actionable message when the path is invalid.
     """
@@ -92,6 +95,7 @@ def assert_writable(path: Path) -> None:
 
 
 def load_existing_bootstrap_metadata(meta_path: Path) -> dict | None:
+    """Load `.meta/bootstrap.json` if present and valid."""
     if not meta_path.is_file():
         return None
     try:
@@ -110,6 +114,7 @@ def write_bootstrap_metadata(
     tool_version: str | None,
     initialized_at: str | None,
 ) -> None:
+    """Write bootstrap metadata for diagnostics and idempotent init."""
     now = datetime.now(UTC).isoformat()
     payload: dict[str, object] = {
         "schema_version": BOOTSTRAP_SCHEMA_VERSION,
@@ -129,8 +134,7 @@ def bootstrap_worktree(
     *,
     tool_version: str | None = None,
 ) -> BootstrapResult:
-    """
-    Create and validate the Worktree home layout under ``root_path`` (typically ``.worktree``).
+    """Create and validate the Worktree home layout under ``root_path`` (typically ``.worktree``).
 
     Idempotent: safe to run multiple times; never deletes user data.
     """

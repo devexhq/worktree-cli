@@ -1,3 +1,5 @@
+"""Typer CLI entrypoint for the Worktree (`wt`) command."""
+
 import typer
 from rich.console import Console
 from rich.panel import Panel
@@ -79,7 +81,6 @@ def main(
 @app.command(name="init")
 def init_workspace(ctx: typer.Context):
     """Provision a secure local hidden folder path and tracking schemas."""
-
     """
     verbose = ctx.obj.get("verbose", False)
     console.print("\n[bold blue]⏳ Provisioning secure environment configurations...[/bold blue]")

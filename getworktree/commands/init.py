@@ -1,5 +1,4 @@
-"""
-getworktree/commands/init.py
+"""getworktree/commands/init.py.
 
 Handles local workspace initialization (`wt init`), setting up isolated
 caching directories, default configuration files, and git safety rules.
@@ -110,9 +109,7 @@ def _render_bootstrap_success(cwd: Path, result) -> None:
 
 
 def init_command(*, tool_version: str | None = None):
-    """
-    Initialize a local project workspace for Worktree CLI and desktop sync.
-    """
+    """Initialize a local project workspace for Worktree CLI and desktop sync."""
     cwd = Path.cwd().resolve()
 
     if not is_git_repository(cwd):
@@ -147,5 +144,6 @@ app = typer.Typer()
 
 @app.callback(invoke_without_command=True)
 def main(ctx: typer.Context):
+    """Default entry: run init when no subcommand is given."""
     if ctx.invoked_subcommand is None:
         init_command()

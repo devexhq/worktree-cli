@@ -1,5 +1,4 @@
-"""
-getworktree/core/db.py
+"""getworktree/core/db.py.
 
 Handles offline SQLite connection pooling, database migrations, and financial token
 usage tracking for automated agent loops.
@@ -76,8 +75,8 @@ def record_token_usage(
     cwd: Path | None = None,
     db_rel_path: str = DEFAULT_DB_REL_PATH,
 ) -> int:
-    """
-    Log token consumption and dollar costs for an execution step.
+    """Log token consumption and dollar costs for an execution step.
+
     Returns the auto-incremented primary key ID of the inserted record.
     """
     db_path = init_database(cwd, db_rel_path)
