@@ -88,7 +88,7 @@ def init_workspace(ctx: typer.Context):
         console.print("[dim yellow][TELEMETRY] Initialization hook loaded successfully.[/dim yellow]")
     # Core system verification and file tree generation logic hooks here in Issue #2
     """
-    init_command()
+    init_command(tool_version=__version__)
 
 
 @app.command(name="status")
