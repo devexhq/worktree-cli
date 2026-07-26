@@ -10,12 +10,15 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import typer
-from rich.console import Console
-from rich.panel import Panel
 
+from getworktree.common.utils import (
+    print_dim,
+    print_dim_bullet,
+    print_error_panel,
+    print_spacer,
+    print_success,
+)
 from getworktree.core.db import init_database
-
-console = Console()
 
 # Baseline JSON configuration for new worktree projects
 DEFAULT_CONFIG = {
@@ -83,13 +86,10 @@ def init_command():
 
     # 1. Verify valid Git repository
     if not is_git_repository(cwd):
-        console.print(
-            Panel.fit(
-                "[bold red]Initialization Failed![/bold red]\n"
-                "The current directory is not a valid Git repository.\n"
-                "Run [bold cyan]git init[/bold cyan] before running [bold cyan]wt init[/bold cyan].",
-                border_style="red",
-            )
+        print_error_panel(
+            "Initialization Failed!",
+            "The current directory is not a valid Git repository.\n"
+            "Run [bold cyan]git init[/bold cyan] before running [bold cyan]wt init[/bold cyan].",
         )
         raise typer.Exit(code=1)
 
@@ -103,43 +103,30 @@ def init_command():
     gitignore_updated = update_gitignore(gitignore_file)
 
     # 3. Output Status Report
-    console.print("[bold green]✔ Worktree Workspace Initialized[/bold green]\n")
+    print_spacer()
+    print_success("Worktree Workspace Initialized")
 
     if dir_created:
-        console.print("  [dim]•[/dim] Created directory: [cyan]./.worktree/[/cyan]")
+        print_dim_bullet("Created directory: [cyan]./.worktree/[/cyan]")
     else:
-        console.print("  [dim]•[/dim] Directory exists:  [dim]./.worktree/[/dim]")
+        print_dim_bullet("Directory exists:  [dim]./.worktree/[/dim]")
 
     if config_created:
-        console.print(
-            "  [dim]•[/dim] Generated config:  [cyan]./.worktree/config.json[/cyan]"
-        )
+        print_dim_bullet("Generated config:  [cyan]./.worktree/config.json[/cyan]")
     else:
-        console.print(
-            "  [dim]•[/dim] Config exists:     [dim]./.worktree/config.json[/dim]"
-        )
+        print_dim_bullet("Config exists:     [dim]./.worktree/config.json[/dim]")
 
     if gitignore_updated:
-        console.print("  [dim]•[/dim] Updated exclusions: [cyan].gitignore[/cyan]")
+        print_dim_bullet("Updated exclusions: [cyan].gitignore[/cyan]")
     else:
-        console.print(
-            "  [dim]•[/dim] Ignore state:     [dim].gitignore already configured[/dim]"
-        )
-
-    console.print(
-        "\n[bold dim]Ready for local context extraction and agent runs.[/bold dim]"
-    )
+        print_dim_bullet("Ignore state:     [dim].gitignore already configured[/dim]")
 
     # Provision DB schema alongside config file
     init_database(cwd=cwd)
 
-    console.print("[bold green]✔ Worktree Workspace Initialized[/bold green]\n")
-    console.print(
-        "  [dim]•[/dim] Config status:    [cyan]./.worktree/config.json[/cyan]"
-    )
-    console.print(
-        "  [dim]•[/dim] Database status:  [cyan]./.worktree/token_audit.db[/cyan]"
-    )
+    print_dim_bullet("Database status:  [cyan]./.worktree/token_audit.db[/cyan]")
+
+    print_dim("\nReady for local context extraction and agent runs.")
 
 
 # Typer command registration hook
