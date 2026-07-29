@@ -18,6 +18,7 @@ from getworktree.common.constants import (
     BOOTSTRAP_SCHEMA_VERSION,
     REQUIRED_SUBDIRS,
 )
+from getworktree.common.utils import display_path
 
 
 class DirEnsureOutcome(Enum):
@@ -50,40 +51,38 @@ def ensure_dir(path: Path, *, allow_symlink: bool = False) -> DirEnsureOutcome:
 
     Raises ValueError with an actionable message when the path is invalid.
     """
-    if path.exists():
-        if path.is_symlink():
-            if allow_symlink:
-                if not path.is_dir():
-                    raise ValueError(
-                        f"{_path_label(path)} is a symlink that does not resolve to a directory."
-                    )
-                return DirEnsureOutcome.EXISTING
-            raise ValueError(f"{_path_label(path)} must be a directory, not a symlink.")
-        if path.is_file():
+    if not path.exists():
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
             raise ValueError(
-                f"{_path_label(path)} exists but is a file, not a directory."
-            )
-        if not path.is_dir():
-            raise ValueError(f"{_path_label(path)} is not a usable directory.")
-        return DirEnsureOutcome.EXISTING
+                f"Could not create {display_path(path)}: {exc}. "
+                "Check directory permissions and try again."
+            ) from exc
+        return DirEnsureOutcome.CREATED
 
-    try:
-        path.mkdir(parents=True, exist_ok=True)
-    except OSError as exc:
-        raise ValueError(
-            f"Could not create {_path_label(path)}: {exc}. "
-            "Check directory permissions and try again."
-        ) from exc
-    return DirEnsureOutcome.CREATED
+    if path.is_symlink():
+        if allow_symlink:
+            if not path.is_dir():
+                raise ValueError(
+                    f"{display_path(path)} is a symlink that does not resolve to a directory."
+                )
+            return DirEnsureOutcome.EXISTING
+        raise ValueError(f"{display_path(path)} must be a directory, not a symlink.")
+    if path.is_file():
+        raise ValueError(f"{display_path(path)} exists but is a file, not a directory.")
+    if not path.is_dir():
+        raise ValueError(f"{display_path(path)} is not a usable directory.")
+    return DirEnsureOutcome.EXISTING
 
 
 def assert_writable(path: Path) -> None:
     """Verify that an existing path is writable."""
     if not path.exists():
-        raise ValueError(f"{_path_label(path)} does not exist.")
+        raise ValueError(f"{display_path(path)} does not exist.")
     if not os.access(path, os.W_OK):
         raise ValueError(
-            f"{_path_label(path)} is not writable. "
+            f"{display_path(path)} is not writable. "
             "Check directory permissions and try again."
         )
 
@@ -203,7 +202,7 @@ def bootstrap_worktree(
         )
     except OSError as exc:
         result.errors.append(
-            f"Could not write bootstrap metadata at {_path_label(meta_path)}: {exc}"
+            f"Could not write bootstrap metadata at {display_path(meta_path)}: {exc}"
         )
 
     return result
@@ -211,11 +210,3 @@ def bootstrap_worktree(
 
 def _ensure_worktree_root(root_path: Path) -> DirEnsureOutcome:
     return ensure_dir(root_path, allow_symlink=True)
-
-
-def _path_label(path: Path) -> str:
-    """Stable display label; prefer POSIX-style relative segments when possible."""
-    try:
-        return path.as_posix()
-    except Exception:
-        return str(path)

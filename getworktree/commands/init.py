@@ -13,7 +13,7 @@ from getworktree.common.fs import (
 )
 from getworktree.common.utils import (
     RichOutput,
-    display_relative_path,
+    display_path,
     resolve_path_from_config,
 )
 from getworktree.core.bootstrap import bootstrap_worktree
@@ -26,7 +26,7 @@ rich_output = RichOutput()
 def _render_config_result(cwd: Path, result) -> None:
     if not result.config_path:
         return
-    label = f"./{display_relative_path(cwd, result.config_path)}"
+    label = f"./{display_path(result.config_path, cwd)}"
     if result.created:
         rich_output.dim_bullet(f"Generated config: [cyan]{label}[/cyan]")
     elif result.overwritten:
@@ -51,20 +51,20 @@ def _render_bootstrap_failure(cwd: Path, errors: list[str]) -> None:
 
 
 def _render_bootstrap_success(cwd: Path, result) -> None:
-    worktree_label = display_relative_path(cwd, cwd / ".worktree")
+    worktree_label = display_path(cwd / ".worktree", cwd)
 
     if result.repaired:
         rich_output.success(f"Worktree structure repaired at {worktree_label}")
         rich_output.dim_text("Created missing:")
         for path in result.dirs_created:
-            rich_output.dim_bullet(f"[cyan]{display_relative_path(cwd, path)}[/cyan]")
+            rich_output.dim_bullet(f"[cyan]{display_path(path, cwd)}[/cyan]")
         return
 
     if result.root_created or result.dirs_created:
         rich_output.success(f"Initialized Worktree at {worktree_label}")
         rich_output.dim_text("Created:")
         for path in result.dirs_created:
-            rich_output.dim_bullet(f"[cyan]{display_relative_path(cwd, path)}[/cyan]")
+            rich_output.dim_bullet(f"[cyan]{display_path(path, cwd)}[/cyan]")
         rich_output.dim_text(
             "\nNext: run [bold cyan]wt config show[/bold cyan] or [bold cyan]wt loop list[/bold cyan]"
         )
