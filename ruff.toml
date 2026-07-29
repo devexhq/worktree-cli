@@ -36,7 +36,7 @@ select = ["E", "W", "F", "I", "B", "C4", "UP", "RUF", "FA", "D"]
 # FA100 -> Allow modules without `from __future__ import annotations`
 # D104  -> Package __init__ docstrings not required
 # D105  -> Magic methods
-ignore = ["E501", "FA100", "D104", "D105"]
+ignore = ["E501", "FA100", "D100", "D104", "D105", "D107"]
 
 # Ignore unused variables when prefixed with an underscore (e.g., `_`, `_ctx`)
 dummy-variable-rgx = "^_$"

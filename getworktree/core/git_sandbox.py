@@ -14,7 +14,7 @@ from pathlib import Path
 
 from rich.console import Console
 
-from getworktree.core.config_manager import load_context
+from getworktree.core.config.manager import load_context
 
 console = Console()
 
@@ -70,7 +70,7 @@ class GitSandboxManager:
     def create_sandbox(self, session_id: str | None = None) -> SandboxSession:
         """Spawn an isolated background git worktree targeting a dynamic branch.
 
-        Enforces `max_background_runs` bounds loaded from config_manager.
+        Enforces `max_background_runs` bounds loaded from config.manager.
         """
         self._ensure_sandbox_dir()
 
@@ -159,6 +159,6 @@ def sandbox_scope(cwd: Path | None = None, session_id: str | None = None):
     try:
         yield session
     finally:
-        # Respect auto_clean setting from Issue #3 config_manager
+        # Respect auto_clean setting from config.manager
         if manager.context.config.sandbox.auto_clean:
             manager.cleanup_sandbox(session)

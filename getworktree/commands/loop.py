@@ -10,15 +10,15 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import typer
-from rich.console import Console
 from rich.panel import Panel
 from rich.syntax import Syntax
 
-from getworktree.core.config_manager import display_context_warnings, load_context
+from getworktree.common.utils import RichOutput
+from getworktree.core.config.manager import display_context_warnings, load_context
 from getworktree.core.db import get_session_total_cost, record_token_usage
 from getworktree.core.git_sandbox import sandbox_scope
 
-console = Console()
+rich_output = RichOutput()
 
 
 @dataclass
@@ -110,24 +110,24 @@ def loop_command(
     try:
         ctx = load_context(cwd)
     except Exception as e:
-        console.print(f"[bold red]Initialization Error:[/bold red] {e}")
+        rich_output.error(f"[bold red]Initialization Error:[/bold red] {e}")
         raise typer.Exit(code=1) from e
 
     display_context_warnings(ctx)
 
-    console.print(
+    rich_output.info(
         f"\n[bold cyan]🔄 Initializing self-healing loop session:[/bold cyan] [dim]{session_id}[/dim]"
     )
-    console.print(f"[bold]Target Command:[/bold] [yellow]{command}[/yellow]\n")
+    rich_output.info(f"[bold]Target Command:[/bold] [yellow]{command}[/yellow]\n")
 
     # 2. Execute within isolated background sandbox (Issue #5)
     with sandbox_scope(cwd=cwd, session_id=session_id) as session:
-        console.print("🧪 Executing command in isolated sandbox...")
+        rich_output.info("🧪 Executing command in isolated sandbox...")
         result = run_command_in_sandbox(command, session.sandbox_path)
 
         # 3. Handle Results
         if result.passed:
-            console.print(
+            rich_output.info(
                 Panel.fit(
                     "[bold green]✔ Execution Passed Perfectly![/bold green]\n"
                     f"Command [bold]{command}[/bold] completed with exit code 0.",
@@ -135,14 +135,14 @@ def loop_command(
                 )
             )
         else:
-            console.print(
+            rich_output.error(
                 f"[bold red]❌ Command execution failed (Exit Code {result.returncode}).[/bold red]\n"
             )
 
             # Format diagnostic payload block
             payload = format_error_payload(result, ctx.current_branch, session_id)
 
-            console.print(
+            rich_output.info(
                 Panel(
                     Syntax(payload, "text", theme="monokai", word_wrap=True),
                     title="[bold yellow]Self-Healing LLM Diagnostic Payload[/bold yellow]",
@@ -164,7 +164,7 @@ def loop_command(
         )
 
         session_cost = get_session_total_cost(session_id, cwd=cwd)
-        console.print(
+        rich_output.info(
             f"\n[dim]💾 Audited Session Spend:[/dim] [green]${session_cost['total_usd_cost']:.4f}[/green] "
             f"([dim]{session_cost['total_tokens']} tokens logged to .worktree/token_audit.db[/dim])"
         )

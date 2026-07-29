@@ -13,16 +13,10 @@ from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
 
-BOOTSTRAP_SCHEMA_VERSION = 1
-BOOTSTRAP_META_REL = ".meta/bootstrap.json"
-
-REQUIRED_SUBDIRS = (
-    ".meta",
-    "loops",
-    "sessions",
-    "artifacts",
-    "tmp",
-    "logs",
+from getworktree.common.constants import (
+    BOOTSTRAP_META_REL,
+    BOOTSTRAP_SCHEMA_VERSION,
+    REQUIRED_SUBDIRS,
 )
 
 
