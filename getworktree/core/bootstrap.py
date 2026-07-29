@@ -31,6 +31,7 @@ class DirEnsureOutcome(Enum):
 @dataclass
 class LoopSeedResult:
     """Outcome of seeding loop files."""
+
     created_files: list[Path] = field(default_factory=list)
     skipped_existing_files: list[Path] = field(default_factory=list)
     overwritten_files: list[Path] = field(default_factory=list)
@@ -58,6 +59,7 @@ class BootstrapResult:
 
 
 def seed_starter_loops(loops_dir: Path, force: bool = False) -> LoopSeedResult:
+    """Seed starter loops."""
     return LoopSeedResult(
         created_files=[],
         skipped_existing_files=[],
@@ -65,7 +67,6 @@ def seed_starter_loops(loops_dir: Path, force: bool = False) -> LoopSeedResult:
         warnings=[],
         errors=[],
     )
-
 
 
 def ensure_dir(path: Path, *, allow_symlink: bool = False) -> DirEnsureOutcome:
@@ -229,7 +230,9 @@ def bootstrap_worktree(
         )
 
     try:
-        result.loop_seed_result = seed_starter_loops(loops_path, force=False)  # TODO: Wire in `force`.
+        result.loop_seed_result = seed_starter_loops(
+            loops_path, force=False
+        )  # TODO: Wire in `force`.
     except OSError as exc:
         result.errors.append(
             f"Could not write seed loops at {display_path(loops_path)}: {exc}"
