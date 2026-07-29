@@ -13,10 +13,10 @@ import typer
 from rich.panel import Panel
 from rich.syntax import Syntax
 
+from getworktree.common.utils import RichOutput
 from getworktree.core.config.manager import display_context_warnings, load_context
 from getworktree.core.db import get_session_total_cost, record_token_usage
 from getworktree.core.git_sandbox import sandbox_scope
-from getworktree.common.utils import RichOutput
 
 rich_output = RichOutput()
 

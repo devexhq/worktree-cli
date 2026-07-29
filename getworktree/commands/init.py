@@ -4,15 +4,24 @@ from pathlib import Path
 
 import typer
 
+from getworktree.common.fs import (
+    get_gitignore_file,
+    get_worktree_config_file,
+    get_worktree_dir,
+    is_git_repository,
+    update_gitignore,
+)
 from getworktree.common.utils import (
-    RichOutput, display_relative_path, resolve_path_from_config
+    RichOutput,
+    display_relative_path,
+    resolve_path_from_config,
 )
 from getworktree.core.bootstrap import bootstrap_worktree
 from getworktree.core.config.generator import generate_default_config
 from getworktree.core.db import init_database
-from getworktree.common.fs import get_worktree_dir, get_worktree_config_file, get_gitignore_file,update_gitignore, is_git_repository
 
 rich_output = RichOutput()
+
 
 def _render_config_result(cwd: Path, result) -> None:
     if not result.config_path:
@@ -48,7 +57,7 @@ def _render_bootstrap_success(cwd: Path, result) -> None:
         rich_output.success(f"Worktree structure repaired at {worktree_label}")
         rich_output.dim_text("Created missing:")
         for path in result.dirs_created:
-            rich_output.dim_bullet(f"[cyan]{_display_path(cwd, path)}[/cyan]")
+            rich_output.dim_bullet(f"[cyan]{display_relative_path(cwd, path)}[/cyan]")
         return
 
     if result.root_created or result.dirs_created:
@@ -63,6 +72,11 @@ def _render_bootstrap_success(cwd: Path, result) -> None:
 
     rich_output.success(f"Worktree already initialized at {worktree_label}")
     rich_output.dim_text("No changes required.")
+
+
+def _render_config_failure(errors: list[str]) -> None:
+    lines = "\n".join(f"- {err}" for err in errors)
+    rich_output.error_panel("Failed to generate config:", lines)
 
 
 def init_command(
@@ -100,7 +114,9 @@ def init_command(
         _render_config_failure(config_result.errors)
         raise typer.Exit(code=1)
 
-    db_rel = resolve_path_from_config(get_worktree_config_file(cwd), 'db_path', get_worktree_dir(cwd) / 'db.sqlite')
+    db_rel = resolve_path_from_config(
+        get_worktree_config_file(cwd), "db_path", get_worktree_dir(cwd) / "db.sqlite"
+    )
     init_database(cwd=cwd, db_rel_path=str(db_rel))
 
     rich_output.spacer()

@@ -10,8 +10,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from getworktree.core.config.schema import validate_config_v1
 from getworktree.common.fs import atomic_write_json
+from getworktree.core.config.schema import validate_config_v1
 
 CANONICAL_V1_DEFAULTS: dict[str, Any] = {
     "version": 1,
@@ -123,9 +123,7 @@ def merge_missing_keys(
             existing[key] = copy.deepcopy(default_val)
             inserted.append(path)
         elif isinstance(default_val, dict) and isinstance(existing.get(key), dict):
-            inserted.extend(
-                merge_missing_keys(existing[key], default_val, prefix=path)
-            )
+            inserted.extend(merge_missing_keys(existing[key], default_val, prefix=path))
     return inserted
 
 

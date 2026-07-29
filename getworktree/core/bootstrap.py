@@ -13,7 +13,11 @@ from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
 
-from getworktree.common.constants import BOOTSTRAP_SCHEMA_VERSION, BOOTSTRAP_META_REL, REQUIRED_SUBDIRS
+from getworktree.common.constants import (
+    BOOTSTRAP_META_REL,
+    BOOTSTRAP_SCHEMA_VERSION,
+    REQUIRED_SUBDIRS,
+)
 
 
 class DirEnsureOutcome(Enum):

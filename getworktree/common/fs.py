@@ -1,21 +1,27 @@
 """File system paths for the worktree CLI."""
 
 import json
+import os
 from pathlib import Path
 from typing import Any
-import os
 
 from getworktree.common.constants import GITIGNORE_ENTRY
 
 
 def get_worktree_dir(cwd: Path) -> Path:
+    """Return the worktree root path, relative to the CWD."""
     return cwd / ".worktree"
 
+
 def get_worktree_config_file(cwd: Path) -> Path:
+    """Return the worktree config file path, relative to CWD."""
     return get_worktree_dir(cwd) / "config.json"
 
+
 def get_gitignore_file(cwd: Path) -> Path:
+    """Return the .gitignore file path, relative to CWD."""
     return cwd / ".gitignore"
+
 
 def atomic_write_json(path: Path, data: dict[str, Any]) -> None:
     """Write JSON atomically with indent=2, UTF-8, and trailing newline."""
@@ -27,6 +33,7 @@ def atomic_write_json(path: Path, data: dict[str, Any]) -> None:
         f.flush()
         os.fsync(f.fileno())
     tmp_path.replace(path)
+
 
 def is_git_repository(path: Path) -> bool:
     """Check whether the given directory contains a .git directory or file."""
