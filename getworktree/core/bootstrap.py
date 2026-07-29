@@ -29,6 +29,16 @@ class DirEnsureOutcome(Enum):
 
 
 @dataclass
+class LoopSeedResult:
+    """Outcome of seeding loop files."""
+    created_files: list[Path] = field(default_factory=list)
+    skipped_existing_files: list[Path] = field(default_factory=list)
+    overwritten_files: list[Path] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+
+
+@dataclass
 class BootstrapResult:
     """Outcome of bootstrapping the `.worktree/` directory tree."""
 
@@ -39,11 +49,23 @@ class BootstrapResult:
     repaired: bool = False
     warnings: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+    loop_seed_result: LoopSeedResult = field(default_factory=LoopSeedResult)
 
     @property
     def ok(self) -> bool:
         """True when bootstrap completed without errors."""
         return not self.errors
+
+
+def seed_starter_loops(loops_dir: Path, force: bool = False) -> LoopSeedResult:
+    return LoopSeedResult(
+        created_files=[],
+        skipped_existing_files=[],
+        overwritten_files=[],
+        warnings=[],
+        errors=[],
+    )
+
 
 
 def ensure_dir(path: Path, *, allow_symlink: bool = False) -> DirEnsureOutcome:
@@ -134,6 +156,7 @@ def bootstrap_worktree(
     root_path = root_path.resolve()
     result = BootstrapResult(root_path=root_path)
     meta_path = root_path / BOOTSTRAP_META_REL
+    loops_path = root_path / "loops"
     prior_meta = load_existing_bootstrap_metadata(meta_path)
 
     try:
@@ -203,6 +226,13 @@ def bootstrap_worktree(
     except OSError as exc:
         result.errors.append(
             f"Could not write bootstrap metadata at {display_path(meta_path)}: {exc}"
+        )
+
+    try:
+        result.loop_seed_result = seed_starter_loops(loops_path, force=False)  # TODO: Wire in `force`.
+    except OSError as exc:
+        result.errors.append(
+            f"Could not write seed loops at {display_path(loops_path)}: {exc}"
         )
 
     return result

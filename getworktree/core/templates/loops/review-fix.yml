@@ -1,0 +1,38 @@
+version: 1
+name: review-fix
+description: Iteratively remediate review findings until trigger passes
+
+trigger:
+  command: wt-internal-review-check
+  args: []
+  timeout_seconds: 300
+
+agent:
+  provider: local
+  mode: review_remediation
+  timeout_seconds: 120
+
+iteration:
+  max_attempts: 5
+  stop_when:
+    - trigger_passes
+    - unfixable
+    - user_abort
+
+sandbox:
+  auto_clean: true
+  keep_on_failure: true
+
+approval:
+  require_before_apply: true
+
+context:
+  include:
+    - trigger_output
+    - changed_files
+    - relevant_source
+
+patch:
+  strategy: unified_diff
+  max_files: 20
+  max_patch_kb: 512
