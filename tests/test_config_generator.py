@@ -9,14 +9,14 @@ from pathlib import Path
 
 import pytest
 
-from getworktree.core.config_generator import (
+from getworktree.core.config.generator import (
     CANONICAL_V1_DEFAULTS,
-    atomic_write_json,
-    build_default_config,
     generate_default_config,
+    build_default_config,
     merge_missing_keys,
 )
-from getworktree.core.config_schema import validate_config_v1
+from getworktree.core.config.schema import validate_config_v1
+from getworktree.common.fs import atomic_write_json
 
 
 def test_build_default_config_sets_runtime_fields():

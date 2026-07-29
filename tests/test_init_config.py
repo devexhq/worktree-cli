@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from getworktree.commands.init import init_command
-from getworktree.core.config_schema import validate_config_v1
+from getworktree.core.config.schema import validate_config_v1
 
 
 @pytest.fixture

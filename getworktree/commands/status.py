@@ -3,12 +3,12 @@
 from pathlib import Path
 
 import typer
-from rich.console import Console
 from rich.table import Table
 
-from getworktree.core.config_manager import display_context_warnings, load_context
+from getworktree.common.utils import RichOutput
+from getworktree.core.config.manager import display_context_warnings, load_context
 
-console = Console()
+rich_output = RichOutput()
 
 
 def status_command():
@@ -16,7 +16,7 @@ def status_command():
     try:
         ctx = load_context(Path.cwd())
     except Exception as e:
-        console.print(f"[bold red]Context Error:[/bold red] {e}")
+        rich_output.error(f"[bold red]Context Error:[/bold red] {e}")
         raise typer.Exit(code=1) from e
 
     # Context Overview Table
@@ -33,8 +33,8 @@ def status_command():
         "Max Active Sandboxes", str(ctx.config.sandbox.max_active_sandboxes)
     )
 
-    console.print(table)
-    console.print()
+    rich_output.info(table)
+    rich_output.spacer()
 
     # Print active warnings if any exist
     display_context_warnings(ctx)

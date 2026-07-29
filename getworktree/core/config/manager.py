@@ -10,7 +10,7 @@ from typing import Any
 
 from rich.console import Console
 
-from getworktree.core.config_schema import validate_config_v1
+from getworktree.core.config.schema import validate_config_v1
 
 console = Console()
 

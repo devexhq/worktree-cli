@@ -10,7 +10,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from getworktree.core.config_schema import validate_config_v1
+from getworktree.core.config.schema import validate_config_v1
+from getworktree.common.fs import atomic_write_json
 
 CANONICAL_V1_DEFAULTS: dict[str, Any] = {
     "version": 1,
@@ -126,18 +127,6 @@ def merge_missing_keys(
                 merge_missing_keys(existing[key], default_val, prefix=path)
             )
     return inserted
-
-
-def atomic_write_json(path: Path, data: dict[str, Any]) -> None:
-    """Write JSON atomically with indent=2, UTF-8, and trailing newline."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = path.with_name(f"{path.name}.tmp")
-    with open(tmp_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
-        f.flush()
-        os.fsync(f.fileno())
-    tmp_path.replace(path)
 
 
 def _preflight_config_path(config_path: Path) -> list[str]:
