@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
 from importlib import resources
 from pathlib import Path
 from typing import Any
 
 import yaml
+from pydantic import BaseModel, Field
 
 from getworktree.common.schema_validation import SchemaValidator
 from getworktree.common.utils import display_path
@@ -18,15 +18,19 @@ LOOP_VALIDATOR = SchemaValidator(
 )
 
 
-@dataclass
-class LoopSeedResult:
+class LoopSeedResult(BaseModel):
     """Outcome of seeding starter loop files."""
 
-    created_files: list[Path] = field(default_factory=list)
-    skipped_existing_files: list[Path] = field(default_factory=list)
-    overwritten_files: list[Path] = field(default_factory=list)
-    warnings: list[str] = field(default_factory=list)
-    errors: list[str] = field(default_factory=list)
+    model_config = {
+        "extra": "forbid",
+        "strict": True,
+    }
+
+    created_files: list[Path] = Field(default_factory=list)
+    skipped_existing_files: list[Path] = Field(default_factory=list)
+    overwritten_files: list[Path] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:

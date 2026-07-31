@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import json
 import subprocess
-from dataclasses import dataclass, field
 from importlib import resources
 from pathlib import Path
 from typing import Any
 
+from pydantic import BaseModel, Field
 from rich.console import Console
 
 from getworktree.common.schema_validation import SchemaValidator
@@ -19,17 +19,19 @@ CONFIG_VALIDATOR = SchemaValidator(
 )
 
 
-@dataclass
-class ProjectConfig:
+class ProjectConfig(BaseModel):
     """Project identity fields from config V1."""
+
+    model_config = {"extra": "forbid", "strict": True}
 
     name: str
     initialized_at: str | None = None
 
 
-@dataclass
-class PathsConfig:
+class PathsConfig(BaseModel):
     """Filesystem layout paths from config V1."""
+
+    model_config = {"extra": "forbid", "strict": True}
 
     root_dir: str = ".worktree"
     loops_dir: str = ".worktree/loops"
@@ -38,9 +40,10 @@ class PathsConfig:
     db_path: str = ".worktree/token_audit.db"
 
 
-@dataclass
-class SandboxConfig:
+class SandboxConfig(BaseModel):
     """Background sandbox lifecycle settings."""
+
+    model_config = {"extra": "forbid", "strict": True}
 
     base_ref: str = "HEAD"
     auto_clean: bool = True
@@ -49,9 +52,10 @@ class SandboxConfig:
     default_timeout_seconds: int = 900
 
 
-@dataclass
-class AgentConfig:
+class AgentConfig(BaseModel):
     """Agent provider settings."""
+
+    model_config = {"extra": "forbid", "strict": True}
 
     provider: str = "local"
     model: str | None = None
@@ -60,15 +64,16 @@ class AgentConfig:
     max_tokens: int = 4096
 
 
-@dataclass
-class WorktreeConfig:
+class WorktreeConfig(BaseModel):
     """Parsed `.worktree/config.json` V1 payload."""
+
+    model_config = {"extra": "forbid", "strict": True}
 
     version: int
     project: ProjectConfig
-    paths: PathsConfig = field(default_factory=PathsConfig)
-    sandbox: SandboxConfig = field(default_factory=SandboxConfig)
-    agent: AgentConfig = field(default_factory=AgentConfig)
+    paths: PathsConfig = Field(default_factory=PathsConfig)
+    sandbox: SandboxConfig = Field(default_factory=SandboxConfig)
+    agent: AgentConfig = Field(default_factory=AgentConfig)
 
     @property
     def project_name(self) -> str:
@@ -76,13 +81,14 @@ class WorktreeConfig:
         return self.project.name
 
 
-@dataclass
-class WorktreeContext:
+class WorktreeContext(BaseModel):
     """Config plus live Git branch and aggregated warnings."""
+
+    model_config = {"extra": "forbid", "strict": True}
 
     config: WorktreeConfig
     current_branch: str
-    warnings: list[str] = field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
 
 
 def get_current_git_branch(cwd: Path) -> str:
