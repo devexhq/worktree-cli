@@ -26,6 +26,7 @@ jobs:
           pip install -e .[dev]
 
       - name: Run tests with coverage
+        # fail_under=80 is configured in pyproject.toml [tool.coverage.report]
         run: python -m pytest --cov=getworktree --cov-report=term-missing --cov-report=xml tests/ -q
 
   lint:

@@ -25,5 +25,23 @@ inv test --fast-fail           # stop on first failure
 python -m pytest tests/ -q     # equivalent, no invoke dependency
 ```
 
+Total coverage must stay at **≥ 80%** (`fail_under = 80` in
+[pyproject.toml](../../pyproject.toml) under `[tool.coverage.report]`). Coverage
+runs fail the process if the floor is missed.
+
+### Coverage philosophy
+
+The 80% floor is a **regression backstop**, not an optimization target.
+
+- **Do** add tests for changed behavior, public command contracts, failure exits,
+  and state-corrupting paths (real `git` / `tmp_path` when practical).
+- **Do not** add tests solely to move a line from red to green, assert on
+  incidental Rich copy, or over-mock until the test only proves the mock ran.
+- If coverage drops below 80% after a real change: cover the **risk** you
+  introduced, or deliberately leave defensive/unreachable code uncovered—do not
+  pad with low-value tests.
+- Treat missing lines in the coverage report as a **review checklist**, not a
+  ticket queue.
+
 CI runs `python -m pytest --cov=getworktree --cov-report=term-missing --cov-report=xml tests/ -q`
 — match this locally before pushing.
