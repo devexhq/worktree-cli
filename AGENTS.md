@@ -39,4 +39,5 @@ the sake of it, and stale content should be removed rather than left in place.
 | [docs/agents/testing.md](docs/agents/testing.md) | Adding or running tests |
 | [docs/agents/schemas-and-config.md](docs/agents/schemas-and-config.md) | Changing `config.json` or loop YAML schemas/defaults |
 | [docs/agents/git-and-pr-conventions.md](docs/agents/git-and-pr-conventions.md) | Committing changes or opening a PR |
+| [docs/agents/github-issues.md](docs/agents/github-issues.md) | Creating or updating GitHub issues (structure, tone, required sections) |
 | [docs/agents/ci-and-tooling.md](docs/agents/ci-and-tooling.md) | Understanding lint/CI requirements or release versioning |

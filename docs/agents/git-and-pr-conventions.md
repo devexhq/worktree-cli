@@ -14,3 +14,8 @@ attribution before finishing.
 
 - Branch names follow `<username>/<short-description>` (e.g. `ljb/refactor-tests`).
 - PRs are merged via merge commits, not squashed.
+
+## GitHub issues
+
+For opening or revising issues (required sections, tone, skeleton), see
+[github-issues.md](github-issues.md).
