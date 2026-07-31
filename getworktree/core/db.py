@@ -74,7 +74,7 @@ def record_token_usage(
     estimated_usd_cost: float,
     cwd: Path | None = None,
     db_rel_path: str = DEFAULT_DB_REL_PATH,
-) -> int:
+) -> int | None:
     """Log token consumption and dollar costs for an execution step.
 
     Returns the auto-incremented primary key ID of the inserted record.

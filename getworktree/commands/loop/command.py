@@ -1,8 +1,9 @@
-"""getworktree/commands/loop.py.
+"""Execute target commands inside an isolated background sandbox.
 
-Executes target command strings (e.g. test suites) inside an isolated background sandbox,
-captures failure diagnostics into formatted payload blocks, and logs token financial audits.
+Captures failure diagnostics into structured payload blocks for downstream tools.
 """
+
+from __future__ import annotations
 
 import subprocess
 import uuid
@@ -15,13 +16,25 @@ from rich.syntax import Syntax
 from getworktree.commands.loop.dto import ExecutionResult
 from getworktree.common.utils import RichOutput
 from getworktree.core.config.manager import display_context_warnings, load_context
-from getworktree.core.db import get_session_total_cost, record_token_usage
 from getworktree.core.git_sandbox import sandbox_scope
 
 rich_output = RichOutput()
 
 
-def run_command_in_sandbox(command: str, sandbox_path: Path) -> ExecutionResult:
+def _decode_output(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode(errors="replace")
+    return value
+
+
+def run_command_in_sandbox(
+    command: str,
+    sandbox_path: Path,
+    *,
+    timeout_seconds: int | None = None,
+) -> ExecutionResult:
     """Execute a target shell command inside the background sandbox directory."""
     try:
         process = subprocess.run(
@@ -31,14 +44,26 @@ def run_command_in_sandbox(command: str, sandbox_path: Path) -> ExecutionResult:
             capture_output=True,
             text=True,
             check=False,
+            timeout=timeout_seconds,
         )
-        passed = process.returncode == 0
         return ExecutionResult(
             command=command,
             returncode=process.returncode,
             stdout=process.stdout.strip(),
             stderr=process.stderr.strip(),
-            passed=passed,
+            passed=process.returncode == 0,
+        )
+    except subprocess.TimeoutExpired as exc:
+        stdout = _decode_output(exc.stdout).strip()
+        stderr = _decode_output(exc.stderr).strip()
+        timeout_note = f"Command timed out after {timeout_seconds}s"
+        stderr = f"{stderr}\n{timeout_note}".strip() if stderr else timeout_note
+        return ExecutionResult(
+            command=command,
+            returncode=124,
+            stdout=stdout,
+            stderr=stderr,
+            passed=False,
         )
     except Exception as e:
         return ExecutionResult(
@@ -53,32 +78,26 @@ def run_command_in_sandbox(command: str, sandbox_path: Path) -> ExecutionResult:
 def format_error_payload(
     result: ExecutionResult, branch_name: str, session_id: str
 ) -> str:
-    """Format structured diagnostic payload block for downstream LLM routers."""
+    """Format structured diagnostic payload block for downstream consumers."""
     diagnostics = result.stderr if result.stderr else result.stdout
     if not diagnostics:
         diagnostics = "No output captured on stderr or stdout."
 
-    payload = f"""--- AGENT SELF-HEALING DIAGNOSTIC PAYLOAD ---
-Session ID: {session_id}
-Git Branch: {branch_name}
-Executed Command: `{result.command}`
-Process Exit Code: {result.returncode}
+    return (
+        "--- LOOP FAILURE DIAGNOSTIC PAYLOAD ---\n"
+        f"Session ID: {session_id}\n"
+        f"Git Branch: {branch_name}\n"
+        f"Executed Command: `{result.command}`\n"
+        f"Process Exit Code: {result.returncode}\n"
+        "\n"
+        "--- ERROR DIAGNOSTICS & TRACEBACK ---\n"
+        f"{diagnostics}\n"
+        "---------------------------------------------"
+    )
 
---- ERROR DIAGNOSTICS & TRACEBACK ---
-{diagnostics}
----------------------------------------------"""
-    return payload
 
-
-def loop_command(
-    command: str = typer.Argument(
-        ..., help="Target command string to run inside sandbox (e.g. 'pytest tests/')."
-    ),
-    mock_prompt_tokens: int = 500,
-    mock_completion_tokens: int = 200,
-    mock_cost: float = 0.002,
-):
-    """Run automated commands in an isolated background worktree and intercept failures."""
+def loop_command(command: str) -> None:
+    """Run a command in an isolated background worktree and surface failures."""
     cwd = Path.cwd().resolve()
     session_id = f"loop_{uuid.uuid4().hex[:8]}"
 
@@ -91,64 +110,37 @@ def loop_command(
     display_context_warnings(ctx)
 
     rich_output.info(
-        f"\n[bold cyan]🔄 Initializing self-healing loop session:[/bold cyan] [dim]{session_id}[/dim]"
+        f"\n[bold cyan]🔄 Starting sandbox loop session:[/bold cyan] [dim]{session_id}[/dim]"
     )
     rich_output.info(f"[bold]Target Command:[/bold] [yellow]{command}[/yellow]\n")
 
     with sandbox_scope(cwd=cwd, session_id=session_id) as session:
         rich_output.info("🧪 Executing command in isolated sandbox...")
-        result = run_command_in_sandbox(command, session.sandbox_path)
+        result = run_command_in_sandbox(
+            command,
+            session.sandbox_path,
+            timeout_seconds=ctx.config.sandbox.default_timeout_seconds,
+        )
+        session.command_passed = result.passed
 
         if result.passed:
             rich_output.info(
                 Panel.fit(
-                    "[bold green]✔ Execution Passed Perfectly![/bold green]\n"
+                    "[bold green]✔ Execution passed[/bold green]\n"
                     f"Command [bold]{command}[/bold] completed with exit code 0.",
                     border_style="green",
                 )
             )
         else:
             rich_output.error(
-                f"[bold red]❌ Command execution failed (Exit Code {result.returncode}).[/bold red]\n"
+                f"[bold red]❌ Command execution failed "
+                f"(Exit Code {result.returncode}).[/bold red]\n"
             )
-
             payload = format_error_payload(result, ctx.current_branch, session_id)
-
             rich_output.info(
                 Panel(
                     Syntax(payload, "text", theme="monokai", word_wrap=True),
-                    title="[bold yellow]Self-Healing LLM Diagnostic Payload[/bold yellow]",
+                    title="[bold yellow]Failure Diagnostic Payload[/bold yellow]",
                     border_style="yellow",
                 )
             )
-
-        model_id = ctx.config.agent.model or "default_llm_router"
-        record_token_usage(
-            session_id=session_id,
-            branch_name=ctx.current_branch,
-            model_id=model_id,
-            prompt_tokens=mock_prompt_tokens,
-            completion_tokens=mock_completion_tokens,
-            estimated_usd_cost=mock_cost,
-            cwd=cwd,
-            db_rel_path=ctx.config.paths.db_path,
-        )
-
-        session_cost = get_session_total_cost(session_id, cwd=cwd)
-        rich_output.info(
-            f"\n[dim]💾 Audited Session Spend:[/dim] [green]${session_cost['total_usd_cost']:.4f}[/green] "
-            f"([dim]{session_cost['total_tokens']} tokens logged to .worktree/token_audit.db[/dim])"
-        )
-
-
-app = typer.Typer()
-
-
-@app.callback(invoke_without_command=True)
-def main(
-    ctx: typer.Context,
-    command: str = typer.Argument("pytest", help="Command to execute in sandbox."),
-):
-    """Default entry: run the loop command when no subcommand is given."""
-    if ctx.invoked_subcommand is None:
-        loop_command(command)

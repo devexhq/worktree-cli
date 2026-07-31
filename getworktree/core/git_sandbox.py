@@ -1,22 +1,18 @@
-"""getworktree/core/git_sandbox.py.
+"""Orchestrate native Git worktree sandboxes for isolated command execution."""
 
-Orchestrates native Git worktree operations to spawn isolated background directories
-where agent execution loops run safely without polluting uncommitted working tree changes.
-"""
+from __future__ import annotations
 
 import shutil
 import subprocess
 import uuid
+from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
 from pydantic import BaseModel
-from rich.console import Console
 
 from getworktree.core.config.manager import load_context
-
-console = Console()
 
 
 class SandboxSession(BaseModel):
@@ -28,6 +24,7 @@ class SandboxSession(BaseModel):
     target_branch: str
     sandbox_path: Path
     created_at: str
+    command_passed: bool | None = None
 
 
 class GitSandboxManager:
@@ -36,7 +33,6 @@ class GitSandboxManager:
     def __init__(self, cwd: Path | None = None):
         """Bind to a repository root and load workspace context."""
         self.cwd = (cwd or Path.cwd()).resolve()
-        # Hook into Issue #3: Load workspace context and config settings
         self.context = load_context(self.cwd)
         self.sandbox_base_dir = self.cwd / ".worktree" / "sandboxes"
 
@@ -69,28 +65,29 @@ class GitSandboxManager:
         return [p for p in self.sandbox_base_dir.iterdir() if p.is_dir()]
 
     def create_sandbox(self, session_id: str | None = None) -> SandboxSession:
-        """Spawn an isolated background git worktree targeting a dynamic branch.
-
-        Enforces `max_background_runs` bounds loaded from config.manager.
-        """
+        """Spawn an isolated background git worktree targeting a dynamic branch."""
         self._ensure_sandbox_dir()
 
-        # Enforce execution limits from Issue #3 config
         active_sandboxes = self.get_active_sandboxes()
         max_allowed = self.context.config.sandbox.max_active_sandboxes
         if len(active_sandboxes) >= max_allowed:
             raise RuntimeError(
-                f"Maximum active background sandboxes reached ({len(active_sandboxes)}/{max_allowed}). "
-                "Prune existing sandboxes or adjust 'sandbox.max_active_sandboxes' in .worktree/config.json."
+                f"Maximum active background sandboxes reached "
+                f"({len(active_sandboxes)}/{max_allowed}). "
+                "Prune existing sandboxes or adjust "
+                "'sandbox.max_active_sandboxes' in .worktree/config.json."
             )
 
         sid = session_id or f"sbx_{uuid.uuid4().hex[:8]}"
         sandbox_path = self.sandbox_base_dir / sid
         temp_branch = f"worktree/sandbox-{sid}"
 
-        # Execute native git worktree creation
-        # git worktree add -b <temp_branch> <path> <source_branch>
         source_branch = self.context.current_branch
+        base_ref = (
+            source_branch
+            if source_branch not in ("unknown", "HEAD (detached)")
+            else self.context.config.sandbox.base_ref
+        )
         self._run_git_cmd(
             [
                 "worktree",
@@ -98,51 +95,34 @@ class GitSandboxManager:
                 "-b",
                 temp_branch,
                 str(sandbox_path),
-                source_branch if source_branch != "unknown" else "HEAD",
+                base_ref,
             ]
         )
 
-        session = SandboxSession(
+        return SandboxSession(
             session_id=sid,
             target_branch=temp_branch,
             sandbox_path=sandbox_path,
             created_at=datetime.now(UTC).isoformat(),
         )
 
-        console.print(
-            f"[bold green]✔ Spawned isolated sandbox:[/bold green] [cyan]{sandbox_path.relative_to(self.cwd)}[/cyan] "
-            f"([dim]Branch: {temp_branch}[/dim])"
-        )
-        return session
-
     def cleanup_sandbox(self, session: SandboxSession, force: bool = True) -> None:
-        """Detach git worktree, remove sandbox directory, and delete temporary branch.
-
-        Runs `git worktree prune` when finished.
-        """
+        """Detach git worktree, remove sandbox directory, and delete temporary branch."""
         if session.sandbox_path.exists():
-            # 1. Remove git worktree link
             cmd = ["worktree", "remove", str(session.sandbox_path)]
             if force:
                 cmd.append("--force")
             try:
                 self._run_git_cmd(cmd)
             except RuntimeError:
-                # Fallback to direct directory removal if worktree command fails
                 shutil.rmtree(session.sandbox_path, ignore_errors=True)
 
-        # 2. Delete temporary branch spawned for the sandbox
         try:
             self._run_git_cmd(["branch", "-D", session.target_branch])
         except RuntimeError:
-            pass  # Branch may already be deleted or not checked out
+            pass
 
-        # 3. Clean stale worktree references
         self.prune()
-
-        console.print(
-            f"[dim]• Cleaned up background sandbox: {session.session_id}[/dim]"
-        )
 
     def prune(self) -> None:
         """Prune all stale Git worktrees."""
@@ -150,16 +130,22 @@ class GitSandboxManager:
 
 
 @contextmanager
-def sandbox_scope(cwd: Path | None = None, session_id: str | None = None):
+def sandbox_scope(
+    cwd: Path | None = None, session_id: str | None = None
+) -> Generator[SandboxSession]:
     """Context manager for sandbox execution with optional auto-cleanup.
 
-    Teardown respects the workspace `auto_clean` setting.
+    Teardown respects ``auto_clean`` and ``keep_on_failure`` sandbox settings.
     """
     manager = GitSandboxManager(cwd=cwd)
     session = manager.create_sandbox(session_id=session_id)
     try:
         yield session
     finally:
-        # Respect auto_clean setting from config.manager
-        if manager.context.config.sandbox.auto_clean:
+        sandbox_cfg = manager.context.config.sandbox
+        should_clean = sandbox_cfg.auto_clean
+        failed = session.command_passed is False
+        if failed and sandbox_cfg.keep_on_failure:
+            should_clean = False
+        if should_clean:
             manager.cleanup_sandbox(session)

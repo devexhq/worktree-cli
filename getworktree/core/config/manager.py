@@ -4,19 +4,15 @@ from __future__ import annotations
 
 import json
 import subprocess
-from importlib import resources
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
 from rich.console import Console
 
-from getworktree.common.schema_validation import SchemaValidator
+from getworktree.common.schema_validation import CONFIG_VALIDATOR
 
 console = Console()
-CONFIG_VALIDATOR = SchemaValidator(
-    resources.files("getworktree.schemas") / "config_v1.json"
-)
 
 
 class ProjectConfig(BaseModel):
@@ -52,6 +48,18 @@ class SandboxConfig(BaseModel):
     default_timeout_seconds: int = 900
 
 
+class LoopConfig(BaseModel):
+    """Loop attempt and timeout defaults."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    default_max_attempts: int = 5
+    default_trigger_timeout_seconds: int = 600
+    default_agent_timeout_seconds: int = 120
+    max_attempts_hard_limit: int = 20
+    detect_repeat_failures: bool = True
+
+
 class AgentConfig(BaseModel):
     """Agent provider settings."""
 
@@ -64,6 +72,68 @@ class AgentConfig(BaseModel):
     max_tokens: int = 4096
 
 
+class PatchConfig(BaseModel):
+    """Patch application limits and strategy."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    strategy: str = "unified_diff"
+    max_files: int = 30
+    max_patch_kb: int = 1024
+    reject_binary_changes: bool = True
+
+
+class ApprovalConfig(BaseModel):
+    """Human-approval gates before applying changes."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    require_before_apply: bool = True
+    require_before_final_apply: bool = True
+
+
+class HistoryConfig(BaseModel):
+    """Session history retention settings."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    save_attempt_logs: bool = True
+    save_agent_payloads: bool = True
+    save_final_diff: bool = True
+    max_sessions: int = 1000
+
+
+class DoctorConfig(BaseModel):
+    """Doctor command check toggles."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    check_git: bool = True
+    check_paths_writable: bool = True
+    check_config_schema: bool = True
+    check_stale_worktrees: bool = True
+    check_required_binaries: bool = True
+
+
+class PruneConfig(BaseModel):
+    """Prune command cleanup toggles."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    remove_stale_worktrees: bool = True
+    remove_orphaned_sandboxes: bool = True
+    remove_expired_artifacts: bool = False
+    artifact_ttl_days: int = 30
+
+
+class TelemetryConfig(BaseModel):
+    """Optional telemetry settings."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    enabled: bool = False
+
+
 class WorktreeConfig(BaseModel):
     """Parsed `.worktree/config.json` V1 payload."""
 
@@ -73,7 +143,14 @@ class WorktreeConfig(BaseModel):
     project: ProjectConfig
     paths: PathsConfig = Field(default_factory=PathsConfig)
     sandbox: SandboxConfig = Field(default_factory=SandboxConfig)
+    loop: LoopConfig = Field(default_factory=LoopConfig)
     agent: AgentConfig = Field(default_factory=AgentConfig)
+    patch: PatchConfig = Field(default_factory=PatchConfig)
+    approval: ApprovalConfig = Field(default_factory=ApprovalConfig)
+    history: HistoryConfig = Field(default_factory=HistoryConfig)
+    doctor: DoctorConfig = Field(default_factory=DoctorConfig)
+    prune: PruneConfig = Field(default_factory=PruneConfig)
+    telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig)
 
     @property
     def project_name(self) -> str:
@@ -133,44 +210,16 @@ def parse_and_validate_config(raw: dict[str, Any]) -> WorktreeConfig:
         detail = "; ".join(validation.errors)
         raise ValueError(f"Config schema validation failed: {detail}")
 
-    project_raw = raw.get("project", {})
-    paths_raw = raw.get("paths", {})
-    sandbox_raw = raw.get("sandbox", {})
-    agent_raw = raw.get("agent", {})
-
-    project = ProjectConfig(
-        name=str(project_raw.get("name") or "unnamed_project"),
-        initialized_at=project_raw.get("initialized_at"),
-    )
-    paths = PathsConfig(
-        root_dir=str(paths_raw.get("root_dir", ".worktree")),
-        loops_dir=str(paths_raw.get("loops_dir", ".worktree/loops")),
-        sessions_dir=str(paths_raw.get("sessions_dir", ".worktree/sessions")),
-        artifacts_dir=str(paths_raw.get("artifacts_dir", ".worktree/artifacts")),
-        db_path=str(paths_raw.get("db_path", ".worktree/token_audit.db")),
-    )
-    sandbox = SandboxConfig(
-        base_ref=str(sandbox_raw.get("base_ref", "HEAD")),
-        auto_clean=bool(sandbox_raw.get("auto_clean", True)),
-        keep_on_failure=bool(sandbox_raw.get("keep_on_failure", True)),
-        max_active_sandboxes=int(sandbox_raw.get("max_active_sandboxes", 3)),
-        default_timeout_seconds=int(sandbox_raw.get("default_timeout_seconds", 900)),
-    )
-    agent = AgentConfig(
-        provider=str(agent_raw.get("provider", "local")),
-        model=agent_raw.get("model"),
-        endpoint=agent_raw.get("endpoint"),
-        temperature=float(agent_raw.get("temperature", 0.2)),
-        max_tokens=int(agent_raw.get("max_tokens", 4096)),
-    )
-
-    return WorktreeConfig(
-        version=int(raw["version"]),
-        project=project,
-        paths=paths,
-        sandbox=sandbox,
-        agent=agent,
-    )
+    project_raw = raw.get("project") or {}
+    project_name = project_raw.get("name") or "unnamed_project"
+    normalized = {
+        **raw,
+        "project": {
+            **project_raw,
+            "name": str(project_name),
+        },
+    }
+    return WorktreeConfig.model_validate(normalized)
 
 
 def load_context(cwd: Path | None = None) -> WorktreeContext:

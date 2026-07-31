@@ -13,6 +13,7 @@ def test(context, path="tests/", coverage=False, fast_fail=False):
     cmd = [sys.executable, "-m", "pytest", path]
 
     if coverage:
+        # fail_under=80 lives in pyproject.toml [tool.coverage.report]
         cmd.extend(["--cov=getworktree", "--cov-report=term-missing"])
 
     if fast_fail:

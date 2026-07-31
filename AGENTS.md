@@ -14,8 +14,15 @@ ruff format .                   # format
 ```
 
 Use `inv test` during development. Before committing, all of these must pass:
-`inv test -c` (coverage), `ruff format`, `ruff check`. Fix any failure before
-retrying the commit.
+`inv test -c` (coverage, **≥ 80%** via `fail_under` in `pyproject.toml`),
+`ruff format`, `ruff check`. Fix any failure before retrying the commit.
+
+Coverage is a **backstop**, not a goal. Do **not** add tests only to raise the
+percentage. Prefer tests that lock real behavior and regressions; see
+[docs/agents/testing.md](docs/agents/testing.md).
+
+Lint/format config lives in `pyproject.toml` under `[tool.ruff]` (no separate
+`ruff.toml`).
 
 ## Documentation
 

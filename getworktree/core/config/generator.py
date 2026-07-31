@@ -6,18 +6,13 @@ import copy
 import json
 import os
 from datetime import UTC, datetime
-from importlib import resources
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 from getworktree.common.fs import atomic_write_json
-from getworktree.common.schema_validation import SchemaValidator
-
-CONFIG_VALIDATOR = SchemaValidator(
-    resources.files("getworktree.schemas") / "config_v1.json"
-)
+from getworktree.common.schema_validation import CONFIG_VALIDATOR
 
 CANONICAL_V1_DEFAULTS: dict[str, Any] = {
     "version": 1,

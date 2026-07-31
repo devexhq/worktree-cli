@@ -17,9 +17,14 @@ from getworktree.common.fs import (
     is_git_repository,
     update_gitignore,
 )
-from getworktree.common.utils import RichOutput, resolve_path_from_config
+from getworktree.common.utils import RichOutput
 from getworktree.core.bootstrap import bootstrap_worktree
 from getworktree.core.config.generator import generate_default_config
+from getworktree.core.config.manager import (
+    PathsConfig,
+    load_raw_config,
+    parse_and_validate_config,
+)
 from getworktree.core.db import init_database
 from getworktree.core.loops.seeder import seed_starter_loops
 
@@ -61,10 +66,16 @@ def init_command(
         render_init_config_failure(config_result.errors, rich_output=rich_output)
         raise typer.Exit(code=1)
 
-    db_rel = resolve_path_from_config(
-        get_worktree_config_file(cwd), "db_path", get_worktree_dir(cwd) / "db.sqlite"
-    )
-    init_database(cwd=cwd, db_rel_path=str(db_rel))
+    db_rel = PathsConfig().db_path
+    config_file = get_worktree_config_file(cwd)
+    if config_file.is_file():
+        try:
+            db_rel = parse_and_validate_config(
+                load_raw_config(config_file)
+            ).paths.db_path
+        except (OSError, ValueError):
+            db_rel = PathsConfig().db_path
+    init_database(cwd=cwd, db_rel_path=db_rel)
 
     loop_seed_result = seed_starter_loops(get_worktree_dir(cwd) / "loops")
     if loop_seed_result.errors:

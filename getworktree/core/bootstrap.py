@@ -19,6 +19,7 @@ from getworktree.common.constants import (
     BOOTSTRAP_SCHEMA_VERSION,
     REQUIRED_SUBDIRS,
 )
+from getworktree.common.fs import atomic_write_json
 from getworktree.common.utils import display_path
 from getworktree.core.loops.seeder import LoopSeedResult
 
@@ -124,9 +125,7 @@ def write_bootstrap_metadata(
         "status": status,
         "root_path": str(root_path),
     }
-    meta_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(meta_path, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2)
+    atomic_write_json(meta_path, payload)
 
 
 def bootstrap_worktree(
@@ -177,8 +176,11 @@ def bootstrap_worktree(
         result.errors.append(str(exc))
         return result
 
-    result.repaired = bool(result.dirs_created) and (
-        bool(result.dirs_existing) or not result.root_created or prior_meta is not None
+    result.repaired = _is_repair(
+        root_created=result.root_created,
+        dirs_created=result.dirs_created,
+        dirs_existing=result.dirs_existing,
+        prior_meta=prior_meta,
     )
 
     if result.errors:
@@ -214,6 +216,20 @@ def bootstrap_worktree(
 
     result.loop_seed_result = LoopSeedResult()
     return result
+
+
+def _is_repair(
+    *,
+    root_created: bool,
+    dirs_created: list[Path],
+    dirs_existing: list[Path],
+    prior_meta: dict | None,
+) -> bool:
+    """True when missing pieces were added to an already-present worktree layout."""
+    if not dirs_created:
+        return False
+    # Partial tree, re-init after prior bootstrap, or root already existed.
+    return bool(dirs_existing) or prior_meta is not None or not root_created
 
 
 def _ensure_worktree_root(root_path: Path) -> DirEnsureOutcome:
