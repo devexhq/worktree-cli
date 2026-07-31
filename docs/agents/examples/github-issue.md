@@ -199,6 +199,7 @@ def resolve_config_path(
 ) -> Path:
     """Return absolute path to config.json."""
 
+
 def load_config_result(
     cwd: Path | None = None,
     *,
@@ -206,11 +207,14 @@ def load_config_result(
 ) -> ConfigLoadResult:
     """Non-raising load + validate. Primary API."""
 
+
 def load_raw_config(config_path: Path) -> dict[str, Any]:
     """Load JSON object or raise with classified message."""
 
+
 def parse_and_validate_config(raw: dict[str, Any]) -> WorktreeConfig:
     """Schema + Pydantic mapping; raise on failure."""
+
 
 def load_config(
     cwd: Path | None = None,
