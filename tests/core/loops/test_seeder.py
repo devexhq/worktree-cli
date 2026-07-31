@@ -37,9 +37,7 @@ class SeedStarterLoopsTests:
         assert target in result.skipped_existing_files
         assert target.read_text(encoding="utf-8") == "custom\n"
 
-    def test_seed_starter_loops_overwrites_in_force_mode(
-        self, tmp_path: Path
-    ) -> None:
+    def test_seed_starter_loops_overwrites_in_force_mode(self, tmp_path: Path) -> None:
         loops_dir = tmp_path / "loops"
         loops_dir.mkdir(parents=True, exist_ok=True)
         target = loops_dir / "review-fix.yml"

@@ -112,9 +112,7 @@ class BootstrapWorktreeTests:
     def test_initialized_at_stable_across_reruns(self, project_tmp: Path):
         root = project_tmp / ".worktree"
         bootstrap_worktree(root)
-        first_meta = json.loads(
-            (root / BOOTSTRAP_META_REL).read_text(encoding="utf-8")
-        )
+        first_meta = json.loads((root / BOOTSTRAP_META_REL).read_text(encoding="utf-8"))
         first_init = first_meta["initialized_at"]
 
         bootstrap_worktree(root)
