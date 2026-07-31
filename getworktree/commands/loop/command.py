@@ -6,30 +6,19 @@ captures failure diagnostics into formatted payload blocks, and logs token finan
 
 import subprocess
 import uuid
-from dataclasses import dataclass
 from pathlib import Path
 
 import typer
 from rich.panel import Panel
 from rich.syntax import Syntax
 
+from getworktree.commands.loop.dto import ExecutionResult
 from getworktree.common.utils import RichOutput
 from getworktree.core.config.manager import display_context_warnings, load_context
 from getworktree.core.db import get_session_total_cost, record_token_usage
 from getworktree.core.git_sandbox import sandbox_scope
 
 rich_output = RichOutput()
-
-
-@dataclass
-class ExecutionResult:
-    """Captured stdout/stderr from a command run inside a sandbox."""
-
-    command: str
-    returncode: int
-    stdout: str
-    stderr: str
-    passed: bool
 
 
 def run_command_in_sandbox(command: str, sandbox_path: Path) -> ExecutionResult:
@@ -88,25 +77,11 @@ def loop_command(
     mock_prompt_tokens: int = 500,
     mock_completion_tokens: int = 200,
     mock_cost: float = 0.002,
-    # mock_prompt_tokens: int = typer.Option(
-    #     500,
-    #     "--prompt-tokens",
-    #     help="Prompt tokens used for this loop step (mocked/estimated).",
-    # ),
-    # mock_completion_tokens: int = typer.Option(
-    #     200,
-    #     "--completion-tokens",
-    #     help="Completion tokens used for this loop step (mocked/estimated).",
-    # ),
-    # mock_cost: float = typer.Option(
-    #     0.002, "--cost", help="Estimated USD cost for model execution."
-    # ),
 ):
     """Run automated commands in an isolated background worktree and intercept failures."""
     cwd = Path.cwd().resolve()
     session_id = f"loop_{uuid.uuid4().hex[:8]}"
 
-    # 1. Load context & display pre-flight warnings (Issue #3)
     try:
         ctx = load_context(cwd)
     except Exception as e:
@@ -120,12 +95,10 @@ def loop_command(
     )
     rich_output.info(f"[bold]Target Command:[/bold] [yellow]{command}[/yellow]\n")
 
-    # 2. Execute within isolated background sandbox (Issue #5)
     with sandbox_scope(cwd=cwd, session_id=session_id) as session:
         rich_output.info("🧪 Executing command in isolated sandbox...")
         result = run_command_in_sandbox(command, session.sandbox_path)
 
-        # 3. Handle Results
         if result.passed:
             rich_output.info(
                 Panel.fit(
@@ -139,7 +112,6 @@ def loop_command(
                 f"[bold red]❌ Command execution failed (Exit Code {result.returncode}).[/bold red]\n"
             )
 
-            # Format diagnostic payload block
             payload = format_error_payload(result, ctx.current_branch, session_id)
 
             rich_output.info(
@@ -150,7 +122,6 @@ def loop_command(
                 )
             )
 
-        # 4. Record token financial usage into SQLite audit database (Issue #4)
         model_id = ctx.config.agent.model or "default_llm_router"
         record_token_usage(
             session_id=session_id,
@@ -170,7 +141,6 @@ def loop_command(
         )
 
 
-# Typer command registration hook
 app = typer.Typer()
 
 

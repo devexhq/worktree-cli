@@ -5,9 +5,9 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
-from getworktree.commands.init import init_command
-from getworktree.commands.loop import loop_command
-from getworktree.commands.status import status_command
+from getworktree.commands.init.command import init_command
+from getworktree.commands.loop.command import loop_command
+from getworktree.commands.status.command import status_command
 
 # Initialize a central styling console for high-utility layout parsing
 console = Console()
