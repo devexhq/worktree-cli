@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from getworktree.core.loop_schema import validate_loop_v1
+from getworktree.core.loops.schema import validate_loop_v1
 
 
 def test_validate_loop_v1_accepts_starter_template() -> None:

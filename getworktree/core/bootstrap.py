@@ -19,7 +19,7 @@ from getworktree.common.constants import (
     REQUIRED_SUBDIRS,
 )
 from getworktree.common.utils import display_path
-from getworktree.core.loop_seeder import LoopSeedResult
+from getworktree.core.loops.seeder import LoopSeedResult
 
 
 class DirEnsureOutcome(Enum):

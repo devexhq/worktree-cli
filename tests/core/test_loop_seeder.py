@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from getworktree.core.loop_seeder import seed_starter_loops
+from getworktree.core.loops.seeder import seed_starter_loops
 
 
 def test_seed_starter_loops_creates_missing_files(tmp_path: Path) -> None:

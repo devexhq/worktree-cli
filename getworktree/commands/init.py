@@ -19,7 +19,7 @@ from getworktree.common.utils import (
 from getworktree.core.bootstrap import bootstrap_worktree
 from getworktree.core.config.generator import generate_default_config
 from getworktree.core.db import init_database
-from getworktree.core.loop_seeder import seed_starter_loops
+from getworktree.core.loops.seeder import seed_starter_loops
 
 rich_output = RichOutput()
 
