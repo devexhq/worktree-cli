@@ -77,6 +77,106 @@ class InitCommandConfigTests:
         assert "telemetry" in repaired
         assert CONFIG_VALIDATOR.validate(repaired).ok
 
+    def test_init_overwrite_replaces_config(
+        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(git_repo)
+        init_command(tool_version="0.1.1")
+        config_path = git_repo / ".worktree" / "config.json"
+        data = json.loads(config_path.read_text(encoding="utf-8"))
+        data["project"]["name"] = "stale-name"
+        data["custom_user_key"] = True
+        config_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+        init_command(tool_version="0.1.1", overwrite=True)
+
+        replaced = json.loads(config_path.read_text(encoding="utf-8"))
+        assert replaced["project"]["name"] == git_repo.name
+        assert "custom_user_key" not in replaced
+        assert CONFIG_VALIDATOR.validate(replaced).ok
+
+
+class InitCommandGuardrailTests:
+    """Init guardrails: git preflight, layout repair, non-destructive defaults."""
+
+    def test_fresh_init_creates_full_layout(
+        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(git_repo)
+
+        init_command(tool_version="0.1.1")
+
+        root = git_repo / ".worktree"
+        assert root.is_dir()
+        for name in (
+            ".meta",
+            "loops",
+            "sessions",
+            "artifacts",
+            "tmp",
+            "logs",
+        ):
+            assert (root / name).is_dir()
+
+        meta_path = root / ".meta" / "bootstrap.json"
+        assert meta_path.is_file()
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        assert meta["schema_version"] == 1
+        assert meta["status"] == "initialized"
+        assert meta["tool_version"] == "0.1.1"
+        assert meta["initialized_at"]
+
+        assert (root / "config.json").is_file()
+        assert (root / "loops" / "fix-tests.yml").is_file()
+        assert (root / "loops" / "review-fix.yml").is_file()
+        assert "/.worktree/" in (git_repo / ".gitignore").read_text(encoding="utf-8")
+
+    def test_second_init_is_non_destructive(
+        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(git_repo)
+        init_command(tool_version="0.1.1")
+
+        config_path = git_repo / ".worktree" / "config.json"
+        loop_path = git_repo / ".worktree" / "loops" / "fix-tests.yml"
+        config_before = config_path.read_text(encoding="utf-8")
+        loop_path.write_text("edited by user\n", encoding="utf-8")
+        meta_before = json.loads(
+            (git_repo / ".worktree" / ".meta" / "bootstrap.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        init_command(tool_version="0.1.1")
+
+        assert config_path.read_text(encoding="utf-8") == config_before
+        assert loop_path.read_text(encoding="utf-8") == "edited by user\n"
+        meta_after = json.loads(
+            (git_repo / ".worktree" / ".meta" / "bootstrap.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert meta_after["initialized_at"] == meta_before["initialized_at"]
+
+    def test_repairs_missing_subdirectory(
+        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(git_repo)
+        init_command(tool_version="0.1.1")
+        sessions = git_repo / ".worktree" / "sessions"
+        sessions.rmdir()
+        assert not sessions.exists()
+
+        init_command(tool_version="0.1.1")
+
+        assert sessions.is_dir()
+        meta = json.loads(
+            (git_repo / ".worktree" / ".meta" / "bootstrap.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert meta["status"] == "repaired"
+
 
 class InitCommandLoopSeedingTests:
     """Tests for starter loop seeding behavior triggered by `wt init`."""
@@ -109,13 +209,38 @@ class InitCommandLoopSeedingTests:
 class InitCommandFailureTests:
     """Failure and edge paths for init_command."""
 
-    def test_not_a_git_repo_exits(
+    def test_not_a_git_repo_exits_without_creating_worktree(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.chdir(tmp_path)
         with pytest.raises(typer.Exit) as exc:
             init_command(tool_version="0.1.1")
         assert exc.value.exit_code == 1
+        assert not (tmp_path / ".worktree").exists()
+
+    def test_accepts_gitfile_style_repository(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Linked worktrees / some submodules use a `.git` file, not a directory."""
+        (tmp_path / ".git").write_text("gitdir: /tmp/fake\n", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+
+        init_command(tool_version="0.1.1")
+
+        assert (tmp_path / ".worktree" / "config.json").is_file()
+
+    def test_bootstrap_path_collision_exits(
+        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(git_repo)
+        collision = git_repo / ".worktree"
+        collision.write_text("not-a-directory\n", encoding="utf-8")
+
+        with pytest.raises(typer.Exit) as exc:
+            init_command(tool_version="0.1.1")
+        assert exc.value.exit_code == 1
+        assert collision.is_file()
+        assert collision.read_text(encoding="utf-8") == "not-a-directory\n"
 
     def test_bootstrap_failure_exits(
         self, git_repo: Path, monkeypatch: pytest.MonkeyPatch

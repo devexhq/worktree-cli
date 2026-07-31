@@ -151,6 +151,36 @@ class GenerateDefaultConfigTests:
 
         os.chmod(worktree, stat.S_IRWXU)
 
+    def test_parent_missing(self, project_tmp: Path):
+        config_path = project_tmp / ".worktree" / "config.json"
+
+        result = generate_default_config(config_path, "demo")
+        assert not result.ok
+        assert any("CONFIG_PARENT_MISSING" in e for e in result.errors)
+
+    def test_overwrite_ignores_repair_with_warning(self, project_tmp: Path):
+        config_path = project_tmp / ".worktree" / "config.json"
+        config_path.parent.mkdir(parents=True)
+        atomic_write_json(config_path, build_default_config("old"))
+
+        result = generate_default_config(
+            config_path, "new", overwrite=True, repair=True
+        )
+        assert result.ok
+        assert result.overwritten
+        assert any("repair ignored" in w for w in result.warnings)
+        data = json.loads(config_path.read_text(encoding="utf-8"))
+        assert data["project"]["name"] == "new"
+
+    def test_repair_non_object_json_errors(self, project_tmp: Path):
+        config_path = project_tmp / ".worktree" / "config.json"
+        config_path.parent.mkdir(parents=True)
+        config_path.write_text("[1, 2, 3]\n", encoding="utf-8")
+
+        result = generate_default_config(config_path, "demo", repair=True)
+        assert not result.ok
+        assert any("CONFIG_INVALID_JSON" in e for e in result.errors)
+
 
 class AtomicWriteJsonTests:
     """Tests for `atomic_write_json` as used by config generation."""

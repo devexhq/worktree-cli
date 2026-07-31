@@ -34,6 +34,20 @@ class GitignoreTests:
         update_gitignore(path)
         assert update_gitignore(path) is False
 
+    def test_appends_when_missing_entry(self, tmp_path: Path) -> None:
+        path = tmp_path / ".gitignore"
+        path.write_text("node_modules/\n", encoding="utf-8")
+        assert update_gitignore(path) is True
+        text = path.read_text(encoding="utf-8")
+        assert text.startswith("node_modules/\n")
+        assert "/.worktree/" in text
+
+    def test_noop_when_worktree_already_listed(self, tmp_path: Path) -> None:
+        path = tmp_path / ".gitignore"
+        path.write_text(".worktree\n", encoding="utf-8")
+        assert update_gitignore(path) is False
+        assert path.read_text(encoding="utf-8") == ".worktree\n"
+
 
 class DisplayPathTests:
     """Tests for display_path."""
@@ -69,3 +83,9 @@ class IsGitRepositoryTests:
         (tmp_path / ".git").mkdir()
         assert is_git_repository(tmp_path) is True
         assert is_git_repository(tmp_path / "nope") is False
+
+    def test_detects_git_file(self, tmp_path: Path) -> None:
+        (tmp_path / ".git").write_text(
+            "gitdir: ../.git/worktrees/feature\n", encoding="utf-8"
+        )
+        assert is_git_repository(tmp_path) is True
