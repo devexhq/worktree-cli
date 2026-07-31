@@ -3,19 +3,23 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
 from importlib import resources
 from typing import Any
 
 from jsonschema import Draft202012Validator
+from pydantic import BaseModel, Field
 
 
-@dataclass
-class ValidationResult:
+class ValidationResult(BaseModel):
     """Outcome of validating a document against a JSON schema."""
 
+    model_config = {
+        "extra": "forbid",
+        "strict": True,
+    }
+
     ok: bool
-    errors: list[str] = field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
 
 
 class SchemaValidator:

@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from pydantic import BaseModel
 
 
-@dataclass
-class ExecutionResult:
+class ExecutionResult(BaseModel):
     """Captured stdout/stderr from a command run inside a sandbox."""
+
+    model_config = {
+        "extra": "forbid",
+        "strict": True,
+    }
 
     command: str
     returncode: int

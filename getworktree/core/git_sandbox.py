@@ -8,10 +8,10 @@ import shutil
 import subprocess
 import uuid
 from contextlib import contextmanager
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
+from pydantic import BaseModel
 from rich.console import Console
 
 from getworktree.core.config.manager import load_context
@@ -19,9 +19,10 @@ from getworktree.core.config.manager import load_context
 console = Console()
 
 
-@dataclass
-class SandboxSession:
+class SandboxSession(BaseModel):
     """Metadata for one isolated background git worktree."""
+
+    model_config = {"extra": "forbid", "strict": True}
 
     session_id: str
     target_branch: str

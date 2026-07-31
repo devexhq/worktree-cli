@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
+
+from pydantic import BaseModel, Field
 
 from getworktree.common.constants import (
     BOOTSTRAP_META_REL,
@@ -29,18 +30,22 @@ class DirEnsureOutcome(Enum):
     EXISTING = "existing"
 
 
-@dataclass
-class BootstrapResult:
+class BootstrapResult(BaseModel):
     """Outcome of bootstrapping the `.worktree/` directory tree."""
+
+    model_config = {
+        "extra": "forbid",
+        "strict": True,
+    }
 
     root_path: Path
     root_created: bool = False
-    dirs_created: list[Path] = field(default_factory=list)
-    dirs_existing: list[Path] = field(default_factory=list)
+    dirs_created: list[Path] = Field(default_factory=list)
+    dirs_existing: list[Path] = Field(default_factory=list)
     repaired: bool = False
-    warnings: list[str] = field(default_factory=list)
-    errors: list[str] = field(default_factory=list)
-    loop_seed_result: LoopSeedResult = field(default_factory=LoopSeedResult)
+    warnings: list[str] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
+    loop_seed_result: LoopSeedResult = Field(default_factory=LoopSeedResult)
 
     @property
     def ok(self) -> bool:

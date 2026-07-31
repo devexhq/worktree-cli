@@ -5,11 +5,12 @@ from __future__ import annotations
 import copy
 import json
 import os
-from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from importlib import resources
 from pathlib import Path
 from typing import Any
+
+from pydantic import BaseModel, Field
 
 from getworktree.common.fs import atomic_write_json
 from getworktree.common.schema_validation import SchemaValidator
@@ -87,18 +88,22 @@ CANONICAL_V1_DEFAULTS: dict[str, Any] = {
 }
 
 
-@dataclass
-class ConfigGenerationResult:
+class ConfigGenerationResult(BaseModel):
     """Outcome of attempting to create, skip, repair, or overwrite config."""
+
+    model_config = {
+        "extra": "forbid",
+        "strict": True,
+    }
 
     created: bool = False
     skipped_existing: bool = False
     repaired: bool = False
     overwritten: bool = False
-    inserted_keys: list[str] = field(default_factory=list)
+    inserted_keys: list[str] = Field(default_factory=list)
     config_path: Path | None = None
-    warnings: list[str] = field(default_factory=list)
-    errors: list[str] = field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:

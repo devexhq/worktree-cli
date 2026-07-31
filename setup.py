@@ -49,6 +49,7 @@ setup(
         "requests>=2.28.0",  # For optional API polling / metrics updates
         "jsonschema>=4.0.0",
         "pyyaml>=6.0.0",
+        "pydantic>=2.0.0",
     ],
     package_data={"getworktree": ["schemas/*.json", "core/templates/loops/*.yml"]},
     include_package_data=True,
