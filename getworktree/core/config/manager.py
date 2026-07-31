@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
-
 from rich.console import Console
 
 from getworktree.common.schema_validation import SchemaValidator

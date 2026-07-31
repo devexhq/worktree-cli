@@ -7,9 +7,8 @@ from importlib import resources
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field
-
 import yaml
+from pydantic import BaseModel, Field
 
 from getworktree.common.schema_validation import SchemaValidator
 from getworktree.common.utils import display_path

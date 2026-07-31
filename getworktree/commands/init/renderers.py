@@ -14,6 +14,7 @@ from getworktree.core.loops.seeder import LoopSeedResult
 def render_init_bootstrap_failure(
     cwd: Path, errors: list[str], *, rich_output: RichOutput | None = None
 ) -> None:
+    """Render the bootstrap failure panel for a failed init run."""
     rich_output = rich_output or RichOutput()
     lines = "\n".join(f"  {err}" for err in errors)
     remediation = (
@@ -26,6 +27,7 @@ def render_init_bootstrap_failure(
 def render_init_config_failure(
     errors: list[str], *, rich_output: RichOutput | None = None
 ) -> None:
+    """Render the config generation failure panel for a failed init run."""
     rich_output = rich_output or RichOutput()
     lines = "\n".join(f"- {err}" for err in errors)
     rich_output.error_panel("Failed to generate config:", lines)
@@ -107,6 +109,7 @@ def render_init_outcome(
     *,
     rich_output: RichOutput | None = None,
 ) -> None:
+    """Render the full success summary for an init command outcome."""
     rich_output = rich_output or RichOutput()
     rich_output.spacer()
     _render_bootstrap_success(cwd, outcome.bootstrap_result, rich_output=rich_output)
