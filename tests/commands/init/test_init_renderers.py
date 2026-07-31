@@ -7,7 +7,7 @@ from pathlib import Path
 
 from rich.console import Console
 
-from getworktree.commands.init.dto import InitCommandOutcome
+from getworktree.commands.init.models import InitCommandOutcome
 from getworktree.commands.init.renderers import (
     render_init_bootstrap_failure,
     render_init_config_failure,

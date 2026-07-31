@@ -1,4 +1,4 @@
-"""DTOs for the init command."""
+"""Models for the init command."""
 
 from __future__ import annotations
 

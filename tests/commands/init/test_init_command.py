@@ -14,7 +14,7 @@ from getworktree.commands.init import init_command
 from getworktree.common.schema_validation import SchemaValidator
 from getworktree.core.bootstrap import BootstrapResult
 from getworktree.core.config.generator import ConfigGenerationResult
-from getworktree.core.config.manager import PathsConfig
+from getworktree.core.config.models import PathsConfig
 from getworktree.core.loops.seeder import LoopSeedResult
 
 CONFIG_VALIDATOR = SchemaValidator(

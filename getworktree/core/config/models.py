@@ -1,18 +1,8 @@
-"""Handles loading, validating, and extracting repository context from config."""
+"""Pydantic models for `.worktree/config.json` V1."""
 
 from __future__ import annotations
 
-import json
-import subprocess
-from pathlib import Path
-from typing import Any
-
 from pydantic import BaseModel, Field
-from rich.console import Console
-
-from getworktree.common.schema_validation import CONFIG_VALIDATOR
-
-console = Console()
 
 
 class ProjectConfig(BaseModel):
@@ -166,94 +156,3 @@ class WorktreeContext(BaseModel):
     config: WorktreeConfig
     current_branch: str
     warnings: list[str] = Field(default_factory=list)
-
-
-def get_current_git_branch(cwd: Path) -> str:
-    """Extract current active Git branch using standard Git CLI."""
-    try:
-        result = subprocess.run(
-            ["git", "branch", "--show-current"],
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        branch = result.stdout.strip()
-        return branch if branch else "HEAD (detached)"
-    except (subprocess.SubprocessError, FileNotFoundError):
-        return "unknown"
-
-
-def load_raw_config(config_path: Path) -> dict[str, Any]:
-    """Safely load JSON configuration file from disk."""
-    if not config_path.exists():
-        raise FileNotFoundError(
-            f"Configuration file not found at '{config_path}'. Run 'wt init' first."
-        )
-
-    try:
-        with open(config_path, encoding="utf-8") as f:
-            data = json.load(f)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Malformed config.json file at '{config_path}': {e}") from e
-    if not isinstance(data, dict):
-        raise ValueError(
-            f"Malformed config.json file at '{config_path}': root must be an object"
-        )
-    return data
-
-
-def parse_and_validate_config(raw: dict[str, Any]) -> WorktreeConfig:
-    """Validate against V1 schema and map into typed structures."""
-    validation = CONFIG_VALIDATOR.validate(raw)
-    if not validation.ok:
-        detail = "; ".join(validation.errors)
-        raise ValueError(f"Config schema validation failed: {detail}")
-
-    project_raw = raw.get("project") or {}
-    project_name = project_raw.get("name") or "unnamed_project"
-    normalized = {
-        **raw,
-        "project": {
-            **project_raw,
-            "name": str(project_name),
-        },
-    }
-    return WorktreeConfig.model_validate(normalized)
-
-
-def load_context(cwd: Path | None = None) -> WorktreeContext:
-    """Load config and repo context with unified developer warnings."""
-    root_dir = (cwd or Path.cwd()).resolve()
-    config_path = root_dir / ".worktree" / "config.json"
-
-    raw_json = load_raw_config(config_path)
-    config = parse_and_validate_config(raw_json)
-    current_branch = get_current_git_branch(root_dir)
-
-    warnings: list[str] = []
-
-    if not config.agent.model:
-        warnings.append("Agent model is not configured (agent.model is null).")
-
-    if current_branch in ("main", "master"):
-        warnings.append(
-            f"Active branch is '{current_branch}'. Automated loops on primary branches are discouraged."
-        )
-
-    if config.sandbox.max_active_sandboxes > 5:
-        warnings.append(
-            f"max_active_sandboxes ({config.sandbox.max_active_sandboxes}) is unusually high."
-        )
-
-    return WorktreeContext(
-        config=config, current_branch=current_branch, warnings=warnings
-    )
-
-
-def display_context_warnings(context: WorktreeContext) -> None:
-    """Print Rich-formatted warnings to stderr/stdout."""
-    if context.warnings:
-        console.print("[yellow]⚠️  Configuration & Context Warnings:[/yellow]")
-        for w in context.warnings:
-            console.print(f"  [dim]•[/dim] [yellow]{w}[/yellow]")

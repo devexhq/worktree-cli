@@ -12,7 +12,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from getworktree.core.config.manager import load_context
+from getworktree.core.config.context import load_context
 
 
 class SandboxSession(BaseModel):
