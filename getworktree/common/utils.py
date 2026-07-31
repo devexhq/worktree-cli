@@ -43,14 +43,17 @@ class RichOutput:
         self.console.print(f"[bold dim]{message}[/bold dim]")
 
 
-def display_relative_path(cwd: Path, path: Path) -> str:
-    """Display a path relative to the current working directory.
+def display_path(path: Path, cwd: Path | None = None) -> str:
+    """Display a path, preferring POSIX-style relative segments when possible."""
+    if cwd:
+        try:
+            return path.relative_to(cwd).as_posix()
+        except ValueError:
+            return str(path)
 
-    If the path is not relative to the current working directory, return the absolute path.
-    """
     try:
-        return str(path.relative_to(cwd))
-    except ValueError:
+        return path.as_posix()
+    except Exception:
         return str(path)
 
 

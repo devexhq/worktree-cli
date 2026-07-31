@@ -7,11 +7,16 @@ import json
 import os
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from importlib import resources
 from pathlib import Path
 from typing import Any
 
 from getworktree.common.fs import atomic_write_json
-from getworktree.core.config.schema import validate_config_v1
+from getworktree.common.schema_validation import SchemaValidator
+
+CONFIG_VALIDATOR = SchemaValidator(
+    resources.files("getworktree.schemas") / "config_v1.json"
+)
 
 CANONICAL_V1_DEFAULTS: dict[str, Any] = {
     "version": 1,
@@ -170,7 +175,7 @@ def generate_default_config(
 
     if overwrite or not existed_before:
         payload = build_default_config(project_name)
-        validation = validate_config_v1(payload)
+        validation = CONFIG_VALIDATOR.validate(payload)
         if not validation.ok:
             result.errors.extend(
                 [f"CONFIG_VALIDATION_FAILED: {e}" for e in validation.errors]
@@ -212,7 +217,7 @@ def generate_default_config(
         defaults["project"]["name"] = existing["project"]["name"]
 
     inserted = merge_missing_keys(existing, defaults)
-    validation = validate_config_v1(existing)
+    validation = CONFIG_VALIDATOR.validate(existing)
     if not validation.ok:
         result.errors.extend(
             [f"CONFIG_VALIDATION_FAILED: {e}" for e in validation.errors]

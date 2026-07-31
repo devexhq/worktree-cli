@@ -5,14 +5,18 @@ from __future__ import annotations
 import json
 import subprocess
 from dataclasses import dataclass, field
+from importlib import resources
 from pathlib import Path
 from typing import Any
 
 from rich.console import Console
 
-from getworktree.core.config.schema import validate_config_v1
+from getworktree.common.schema_validation import SchemaValidator
 
 console = Console()
+CONFIG_VALIDATOR = SchemaValidator(
+    resources.files("getworktree.schemas") / "config_v1.json"
+)
 
 
 @dataclass
@@ -118,7 +122,7 @@ def load_raw_config(config_path: Path) -> dict[str, Any]:
 
 def parse_and_validate_config(raw: dict[str, Any]) -> WorktreeConfig:
     """Validate against V1 schema and map into typed structures."""
-    validation = validate_config_v1(raw)
+    validation = CONFIG_VALIDATOR.validate(raw)
     if not validation.ok:
         detail = "; ".join(validation.errors)
         raise ValueError(f"Config schema validation failed: {detail}")

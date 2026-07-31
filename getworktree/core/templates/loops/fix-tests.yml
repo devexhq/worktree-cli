@@ -1,0 +1,38 @@
+version: 1
+name: fix-tests
+description: Iteratively fix failing tests until they pass or attempts are exhausted
+
+trigger:
+  command: pytest
+  args: []
+  timeout_seconds: 600
+
+agent:
+  provider: local
+  mode: fix_failure
+  timeout_seconds: 120
+
+iteration:
+  max_attempts: 5
+  stop_when:
+    - trigger_passes
+    - unfixable
+    - user_abort
+
+sandbox:
+  auto_clean: true
+  keep_on_failure: true
+
+approval:
+  require_before_apply: true
+
+context:
+  include:
+    - trigger_output
+    - changed_files
+    - relevant_source
+
+patch:
+  strategy: unified_diff
+  max_files: 30
+  max_patch_kb: 1024
