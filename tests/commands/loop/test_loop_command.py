@@ -15,7 +15,7 @@ from getworktree.commands.loop.command import (
     loop_command,
     run_command_in_sandbox,
 )
-from getworktree.commands.loop.dto import ExecutionResult
+from getworktree.commands.loop.models import ExecutionResult
 from getworktree.core.config.generator import generate_default_config
 from getworktree.core.git_sandbox import SandboxSession
 

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import typer
 
-from getworktree.commands.init.dto import InitCommandOutcome
+from getworktree.commands.init.models import InitCommandOutcome
 from getworktree.commands.init.renderers import (
     render_init_bootstrap_failure,
     render_init_config_failure,
@@ -20,11 +20,8 @@ from getworktree.common.fs import (
 from getworktree.common.utils import RichOutput
 from getworktree.core.bootstrap import bootstrap_worktree
 from getworktree.core.config.generator import generate_default_config
-from getworktree.core.config.manager import (
-    PathsConfig,
-    load_raw_config,
-    parse_and_validate_config,
-)
+from getworktree.core.config.loader import load_config_result
+from getworktree.core.config.models import PathsConfig
 from getworktree.core.db import init_database
 from getworktree.core.loops.seeder import seed_starter_loops
 
@@ -67,14 +64,9 @@ def init_command(
         raise typer.Exit(code=1)
 
     db_rel = PathsConfig().db_path
-    config_file = get_worktree_config_file(cwd)
-    if config_file.is_file():
-        try:
-            db_rel = parse_and_validate_config(
-                load_raw_config(config_file)
-            ).paths.db_path
-        except (OSError, ValueError):
-            db_rel = PathsConfig().db_path
+    loaded = load_config_result(cwd=cwd)
+    if loaded.ok and loaded.config is not None:
+        db_rel = loaded.config.paths.db_path
     init_database(cwd=cwd, db_rel_path=db_rel)
 
     loop_seed_result = seed_starter_loops(get_worktree_dir(cwd) / "loops")

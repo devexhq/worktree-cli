@@ -2,7 +2,7 @@
 
 ## Pydantic models
 
-Every DTO/result model sets:
+Every result/outcome model sets:
 
 ```python
 model_config = {"extra": "forbid", "strict": True}

@@ -13,9 +13,9 @@ import typer
 from rich.panel import Panel
 from rich.syntax import Syntax
 
-from getworktree.commands.loop.dto import ExecutionResult
+from getworktree.commands.loop.models import ExecutionResult
 from getworktree.common.utils import RichOutput
-from getworktree.core.config.manager import display_context_warnings, load_context
+from getworktree.core.config.context import display_context_warnings, load_context
 from getworktree.core.git_sandbox import sandbox_scope
 
 rich_output = RichOutput()

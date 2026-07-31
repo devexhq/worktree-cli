@@ -6,11 +6,12 @@
 getworktree/cli.py                 Typer entrypoint, wires flags to commands
 getworktree/commands/<name>/       One package per CLI subcommand
   command.py                       Orchestration: calls core/common, handles typer.Exit
-  dto.py                           Pydantic outcome model(s) for the command
+  models.py                        Pydantic outcome model(s) for the command
   renderers.py                     Rich console rendering, kept out of command.py
 getworktree/core/                  Business logic, no Typer/CLI concerns
   bootstrap.py                     Creates/repairs the .worktree/ directory tree
-  config/{generator,manager}.py    Default config generation + load/validate
+  config/{generator,loader,models,context}.py
+                                   Defaults write + load/validate + typed models + repo context
   db.py                            SQLite token-usage ledger (for future metering)
   git_sandbox.py                   Isolated `git worktree` sandbox lifecycle
   loops/seeder.py                  Seeds packaged starter loop YAML files
@@ -21,11 +22,11 @@ getworktree/schemas/                Versioned JSON Schemas (config_v1.json, loop
 ```
 
 Not every command has all three files (e.g. `status` has only `command.py`) — add
-`dto.py`/`renderers.py` when a command's output/result grows non-trivial.
+`models.py`/`renderers.py` when a command's output/result grows non-trivial.
 
 ## Adding a new command
 
-1. Create `getworktree/commands/<name>/{__init__.py,command.py}` (add `dto.py`/
+1. Create `getworktree/commands/<name>/{__init__.py,command.py}` (add `models.py`/
    `renderers.py` once output grows past a couple of lines).
 2. Implement `<name>_command(...)` in `command.py`, following the
    [Result/Outcome pattern](code-conventions.md) for anything that can partially fail.

@@ -6,7 +6,7 @@ import typer
 from rich.table import Table
 
 from getworktree.common.utils import RichOutput
-from getworktree.core.config.manager import display_context_warnings, load_context
+from getworktree.core.config.context import display_context_warnings, load_context
 
 rich_output = RichOutput()
 

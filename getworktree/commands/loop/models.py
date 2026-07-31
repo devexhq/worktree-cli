@@ -1,4 +1,4 @@
-"""DTOs for the loop command."""
+"""Models for the loop command."""
 
 from __future__ import annotations
 
