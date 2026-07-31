@@ -51,6 +51,14 @@ setup(
         "pyyaml>=6.0.0",
         "pydantic>=2.0.0",
     ],
+    extras_require={
+        "dev": [
+            "pytest>=8.0.0",
+            "pytest-cov>=4.0.0",
+            "ruff>=0.6.0",
+            "invoke>=2.0.0",
+        ],
+    },
     package_data={"getworktree": ["schemas/*.json", "core/templates/loops/*.yml"]},
     include_package_data=True,
     # CRITICAL: Maps the terminal execution command
