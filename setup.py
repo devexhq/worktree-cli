@@ -32,9 +32,7 @@ setup(
     },
     classifiers=[
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.9",
-        "Programming Language :: Python :: 3.10",
-        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.13",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
         "Environment :: Console",
@@ -42,7 +40,7 @@ setup(
     ],
     # Automatically finds the code sub-folders inside your repository
     packages=find_packages(exclude=["tests*", "docs*"]),
-    python_requires=">=3.9",
+    python_requires=">=3.13",
     # Baseline external libraries your CLI needs to run
     install_requires=[
         "typer[all]>=0.9.0",  # Automatically bundles rich and shellingham out of the box

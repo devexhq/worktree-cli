@@ -1,5 +1,5 @@
 # Target Python version matching modern standards
-target-version = "py311"
+target-version = "py313"
 
 # Line length matching default formatter standards
 line-length = 88
