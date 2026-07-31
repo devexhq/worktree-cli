@@ -19,6 +19,7 @@ from getworktree.common.constants import (
     REQUIRED_SUBDIRS,
 )
 from getworktree.common.utils import display_path
+from getworktree.core.loop_seeder import LoopSeedResult
 
 
 class DirEnsureOutcome(Enum):
@@ -26,17 +27,6 @@ class DirEnsureOutcome(Enum):
 
     CREATED = "created"
     EXISTING = "existing"
-
-
-@dataclass
-class LoopSeedResult:
-    """Outcome of seeding loop files."""
-
-    created_files: list[Path] = field(default_factory=list)
-    skipped_existing_files: list[Path] = field(default_factory=list)
-    overwritten_files: list[Path] = field(default_factory=list)
-    warnings: list[str] = field(default_factory=list)
-    errors: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -56,17 +46,6 @@ class BootstrapResult:
     def ok(self) -> bool:
         """True when bootstrap completed without errors."""
         return not self.errors
-
-
-def seed_starter_loops(loops_dir: Path, force: bool = False) -> LoopSeedResult:
-    """Seed starter loops."""
-    return LoopSeedResult(
-        created_files=[],
-        skipped_existing_files=[],
-        overwritten_files=[],
-        warnings=[],
-        errors=[],
-    )
 
 
 def ensure_dir(path: Path, *, allow_symlink: bool = False) -> DirEnsureOutcome:
@@ -229,15 +208,7 @@ def bootstrap_worktree(
             f"Could not write bootstrap metadata at {display_path(meta_path)}: {exc}"
         )
 
-    try:
-        result.loop_seed_result = seed_starter_loops(
-            loops_path, force=False
-        )  # TODO: Wire in `force`.
-    except OSError as exc:
-        result.errors.append(
-            f"Could not write seed loops at {display_path(loops_path)}: {exc}"
-        )
-
+    result.loop_seed_result = LoopSeedResult()
     return result
 
 
