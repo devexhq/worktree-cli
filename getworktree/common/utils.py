@@ -10,8 +10,8 @@ from rich.panel import Panel
 class RichOutput:
     """Rich console helpers for consistent CLI output."""
 
-    def __init__(self):
-        self.console = Console()
+    def __init__(self, console: Console | None = None):
+        self.console = console or Console()
 
     def spacer(self) -> None:
         """Print a blank line."""

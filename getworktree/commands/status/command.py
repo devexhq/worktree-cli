@@ -19,7 +19,6 @@ def status_command():
         rich_output.error(f"[bold red]Context Error:[/bold red] {e}")
         raise typer.Exit(code=1) from e
 
-    # Context Overview Table
     table = Table(title="Worktree Local Workspace Status", show_header=True)
     table.add_column("Property", style="cyan")
     table.add_column("Value", style="bold green")
@@ -34,5 +33,4 @@ def status_command():
     rich_output.info(table)
     rich_output.spacer()
 
-    # Print active warnings if any exist
     display_context_warnings(ctx)
