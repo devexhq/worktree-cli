@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from getworktree.core.loops.schema import validate_loop_v1
+from importlib import resources
+
+from getworktree.common.schema_validation import SchemaValidator
+
+LOOP_VALIDATOR = SchemaValidator(resources.files("getworktree.schemas") / "loop_v1.json")
 
 
 def test_validate_loop_v1_accepts_starter_template() -> None:
@@ -39,7 +43,7 @@ def test_validate_loop_v1_accepts_starter_template() -> None:
         },
     }
 
-    result = validate_loop_v1(loop_obj)
+    result = LOOP_VALIDATOR.validate(loop_obj)
 
     assert result.ok
     assert result.errors == []
@@ -80,7 +84,7 @@ def test_validate_loop_v1_reports_readable_errors() -> None:
         },
     }
 
-    result = validate_loop_v1(invalid_loop)
+    result = LOOP_VALIDATOR.validate(invalid_loop)
 
     assert not result.ok
     assert any("name" in error for error in result.errors)

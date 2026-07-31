@@ -16,7 +16,11 @@ from getworktree.core.config.generator import (
     generate_default_config,
     merge_missing_keys,
 )
-from getworktree.core.config.schema import validate_config_v1
+from importlib import resources
+
+from getworktree.common.schema_validation import SchemaValidator
+
+CONFIG_VALIDATOR = SchemaValidator(resources.files("getworktree.schemas") / "config_v1.json")
 
 
 def test_build_default_config_sets_runtime_fields():
@@ -24,13 +28,13 @@ def test_build_default_config_sets_runtime_fields():
     assert config["version"] == 1
     assert config["project"]["name"] == "my-repo"
     assert config["project"]["initialized_at"]
-    validation = validate_config_v1(config)
+    validation = CONFIG_VALIDATOR.validate(config)
     assert validation.ok
 
 
 def test_canonical_defaults_validate():
     config = build_default_config("x")
-    validation = validate_config_v1(config)
+    validation = CONFIG_VALIDATOR.validate(config)
     assert validation.ok, validation.errors
 
 
@@ -45,7 +49,7 @@ def test_creates_config_when_missing(project_tmp: Path):
     assert config_path.is_file()
     data = json.loads(config_path.read_text(encoding="utf-8"))
     assert data["project"]["name"] == "demo"
-    assert validate_config_v1(data).ok
+    assert CONFIG_VALIDATOR.validate(data).ok
 
 
 def test_skips_when_existing(project_tmp: Path):
@@ -106,7 +110,7 @@ def test_repair_inserts_missing_keys(project_tmp: Path):
     assert data["project"]["name"] == "keep-me"
     assert data["sandbox"]["auto_clean"] is False
     assert data["loop"]["default_max_attempts"] == 5
-    assert validate_config_v1(data).ok
+    assert CONFIG_VALIDATOR.validate(data).ok
 
 
 def test_repair_invalid_json_errors(project_tmp: Path):

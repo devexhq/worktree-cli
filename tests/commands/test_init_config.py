@@ -9,7 +9,11 @@ from pathlib import Path
 import pytest
 
 from getworktree.commands.init import init_command
-from getworktree.core.config.schema import validate_config_v1
+from importlib import resources
+
+from getworktree.common.schema_validation import SchemaValidator
+
+CONFIG_VALIDATOR = SchemaValidator(resources.files("getworktree.schemas") / "config_v1.json")
 
 
 @pytest.fixture
@@ -33,7 +37,7 @@ def test_init_creates_v1_config(git_repo: Path, monkeypatch: pytest.MonkeyPatch)
     data = json.loads(config_path.read_text(encoding="utf-8"))
     assert data["version"] == 1
     assert data["project"]["name"] == git_repo.name
-    assert validate_config_v1(data).ok
+    assert CONFIG_VALIDATOR.validate(data).ok
 
 
 def test_init_idempotent_config(git_repo: Path, monkeypatch: pytest.MonkeyPatch):
@@ -58,4 +62,4 @@ def test_init_repair_partial_config(git_repo: Path, monkeypatch: pytest.MonkeyPa
     init_command(tool_version="0.1.1", repair=True)
     repaired = json.loads(config_path.read_text(encoding="utf-8"))
     assert "telemetry" in repaired
-    assert validate_config_v1(repaired).ok
+    assert CONFIG_VALIDATOR.validate(repaired).ok

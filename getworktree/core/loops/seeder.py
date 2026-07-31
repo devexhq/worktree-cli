@@ -10,8 +10,13 @@ from typing import Any
 
 import yaml
 
+from importlib import resources
+
+from getworktree.common.schema_validation import SchemaValidator
 from getworktree.common.utils import display_path
-from getworktree.core.loops.schema import validate_loop_v1
+
+
+LOOP_VALIDATOR = SchemaValidator(resources.files("getworktree.schemas") / "loop_v1.json")
 
 
 @dataclass
@@ -63,7 +68,7 @@ def _load_and_validate_template(template_name: str) -> dict[str, Any]:
     if not isinstance(parsed, dict):
         raise ValueError(f"{template_name} must contain a YAML mapping at the root")
 
-    validation = validate_loop_v1(parsed)
+    validation = LOOP_VALIDATOR.validate(parsed)
     if not validation.ok:
         raise ValueError("; ".join(validation.errors))
     return parsed
