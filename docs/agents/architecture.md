@@ -11,7 +11,7 @@ getworktree/commands/<name>/       One package per CLI subcommand
 getworktree/core/                  Business logic, no Typer/CLI concerns
   bootstrap.py                     Creates/repairs the .worktree/ directory tree
   config/{generator,manager}.py    Default config generation + load/validate
-  db.py                            SQLite token-usage tracking
+  db.py                            SQLite token-usage ledger (for future metering)
   git_sandbox.py                   Isolated `git worktree` sandbox lifecycle
   loops/seeder.py                  Seeds packaged starter loop YAML files
   templates/loops/*.yml            Packaged starter loop definitions
@@ -54,11 +54,14 @@ subdirectories and repairs metadata.
 `GitSandboxManager` / `sandbox_scope` ([getworktree/core/git_sandbox.py](../../getworktree/core/git_sandbox.py))
 spawn real `git worktree` checkouts under `.worktree/sandboxes/<id>` on a throwaway
 `worktree/sandbox-<id>` branch, bounded by `sandbox.max_active_sandboxes` from config.
-Cleanup removes the worktree, deletes the branch, and prunes stale refs.
+Cleanup removes the worktree, deletes the branch, and prunes stale refs when
+`sandbox.auto_clean` is true; failed runs are retained when `sandbox.keep_on_failure`
+is also true.
 
 ## Packaged resources
 
 Schemas and loop templates ship inside the installed package and are read via
-`importlib.resources.files(...)` (see `CONFIG_VALIDATOR`/`LOOP_VALIDATOR` in
-`core/config/generator.py` and `core/loops/seeder.py`) rather than relative
-filesystem paths, so they work correctly when installed as a wheel.
+`importlib.resources.files(...)` (see shared `CONFIG_VALIDATOR` in
+`common/schema_validation.py` and `LOOP_VALIDATOR` in `core/loops/seeder.py`)
+rather than relative filesystem paths, so they work correctly when installed as a
+wheel.

@@ -30,6 +30,10 @@ class RichOutput:
             )
         )
 
+    def error(self, message: str) -> None:
+        """Print an error message."""
+        self.console.print(message)
+
     def info(self, message: str) -> None:
         """Print a plain message."""
         self.console.print(message)

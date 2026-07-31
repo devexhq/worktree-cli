@@ -39,3 +39,10 @@ class SchemaValidator:
             path = ".".join(str(p) for p in error.path) if error.path else "(root)"
             messages.append(f"{path}: {error.message}")
         return ValidationResult(ok=not messages, errors=messages)
+
+
+def _config_schema_path() -> resources.Traversable:
+    return resources.files("getworktree.schemas") / "config_v1.json"
+
+
+CONFIG_VALIDATOR = SchemaValidator(_config_schema_path())

@@ -44,7 +44,6 @@ setup(
     # Baseline external libraries your CLI needs to run
     install_requires=[
         "typer[all]>=0.9.0",  # Automatically bundles rich and shellingham out of the box
-        "requests>=2.28.0",  # For optional API polling / metrics updates
         "jsonschema>=4.0.0",
         "pyyaml>=6.0.0",
         "pydantic>=2.0.0",

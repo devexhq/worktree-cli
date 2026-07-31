@@ -29,9 +29,7 @@ def print_welcome_banner():
     banner_text = Text()
     banner_text.append("🌳 Worktree CLI ", style="bold green")
     banner_text.append(f"v{__version__}\n", style="dim cyan")
-    banner_text.append(
-        "Isolated Git Workspaces & Self-Healing Agent Loops", style="italic zinc-400"
-    )
+    banner_text.append("Isolated Git Workspaces & Agent Loops", style="italic dim")
 
     console.print(
         Panel(banner_text, border_style="green", expand=False, padding=(1, 4))
@@ -113,28 +111,6 @@ def loop(
     """Run command in isolated sandbox and extract error diagnostic payloads."""
     loop_command(command)
 
-
-# @app.command(name="loop")
-# def execute_loop(
-#     ctx: typer.Context,
-#     step_command: str = typer.Argument(
-#         ...,
-#         help="The target terminal execution hook (e.g. 'pytest tests/')"
-#     ),
-#     max_loops: int = typer.Option(
-#         5,
-#         "--max-loops", "-m",
-#         help="Maximum iterative self-healing agent repair sequences."
-#     )
-# ):
-#     """Execute a self-healing background automation sequence against a target pipeline."""
-#     verbose = ctx.obj.get("verbose", False)
-#     console.print("\n[bold green]🌳 Initializing isolated background context thread...[/bold green]")
-#     console.print(f"[bold white]Target Execution Hook:[/bold white] `{step_command}`")
-#     console.print(f"[dim zinc-400]Maximum loop constraints set to: {max_loops}[/dim zinc-400]")
-#     if verbose:
-#         console.print("[dim yellow][TELEMETRY] Sandbox validation pass complete.[/dim yellow]")
-#     # Background worktree spawning and subprocess piping hooks here in Issue #6
 
 if __name__ == "__main__":
     app()

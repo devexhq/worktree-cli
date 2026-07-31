@@ -19,8 +19,11 @@ is the single source of default values. `generate_default_config` has three mode
   preserving existing user values (including `project.initialized_at`).
 
 `core/config/manager.py` loads and re-validates the file at runtime into typed
-`WorktreeConfig`/`WorktreeContext` Pydantic models and surfaces developer warnings
-(e.g. missing agent model, running on `main`/`master`, unusually high sandbox limits).
+`WorktreeConfig`/`WorktreeContext` Pydantic models covering the full V1 surface
+(project, paths, sandbox, loop, agent, patch, approval, history, doctor, prune,
+telemetry) and surfaces developer warnings (e.g. missing agent model, running on
+`main`/`master`, unusually high sandbox limits). Schema validation uses the shared
+`CONFIG_VALIDATOR` from `common/schema_validation.py`.
 
 ## Changing config or loop shape
 
