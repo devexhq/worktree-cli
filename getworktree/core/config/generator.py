@@ -7,10 +7,9 @@ import json
 import os
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from importlib import resources
 from pathlib import Path
 from typing import Any
-
-from importlib import resources
 
 from getworktree.common.fs import atomic_write_json
 from getworktree.common.schema_validation import SchemaValidator

@@ -27,7 +27,7 @@ rich_output = RichOutput()
 def _render_config_result(cwd: Path, result) -> None:
     if not result.config_path:
         return
-    
+
     rich_output.spacer()
 
     label = f"./{display_path(result.config_path, cwd)}"

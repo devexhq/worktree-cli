@@ -4,16 +4,17 @@ from __future__ import annotations
 
 import json
 import subprocess
+from importlib import resources
 from pathlib import Path
 
 import pytest
 
 from getworktree.commands.init import init_command
-from importlib import resources
-
 from getworktree.common.schema_validation import SchemaValidator
 
-CONFIG_VALIDATOR = SchemaValidator(resources.files("getworktree.schemas") / "config_v1.json")
+CONFIG_VALIDATOR = SchemaValidator(
+    resources.files("getworktree.schemas") / "config_v1.json"
+)
 
 
 @pytest.fixture

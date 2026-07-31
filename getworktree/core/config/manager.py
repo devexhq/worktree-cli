@@ -5,17 +5,18 @@ from __future__ import annotations
 import json
 import subprocess
 from dataclasses import dataclass, field
+from importlib import resources
 from pathlib import Path
 from typing import Any
-
-from importlib import resources
 
 from rich.console import Console
 
 from getworktree.common.schema_validation import SchemaValidator
 
 console = Console()
-CONFIG_VALIDATOR = SchemaValidator(resources.files("getworktree.schemas") / "config_v1.json")
+CONFIG_VALIDATOR = SchemaValidator(
+    resources.files("getworktree.schemas") / "config_v1.json"
+)
 
 
 @dataclass

@@ -5,22 +5,23 @@ from __future__ import annotations
 import json
 import os
 import stat
+from importlib import resources
 from pathlib import Path
 
 import pytest
 
 from getworktree.common.fs import atomic_write_json
+from getworktree.common.schema_validation import SchemaValidator
 from getworktree.core.config.generator import (
     CANONICAL_V1_DEFAULTS,
     build_default_config,
     generate_default_config,
     merge_missing_keys,
 )
-from importlib import resources
 
-from getworktree.common.schema_validation import SchemaValidator
-
-CONFIG_VALIDATOR = SchemaValidator(resources.files("getworktree.schemas") / "config_v1.json")
+CONFIG_VALIDATOR = SchemaValidator(
+    resources.files("getworktree.schemas") / "config_v1.json"
+)
 
 
 def test_build_default_config_sets_runtime_fields():

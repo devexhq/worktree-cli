@@ -10,13 +10,12 @@ from typing import Any
 
 import yaml
 
-from importlib import resources
-
 from getworktree.common.schema_validation import SchemaValidator
 from getworktree.common.utils import display_path
 
-
-LOOP_VALIDATOR = SchemaValidator(resources.files("getworktree.schemas") / "loop_v1.json")
+LOOP_VALIDATOR = SchemaValidator(
+    resources.files("getworktree.schemas") / "loop_v1.json"
+)
 
 
 @dataclass

@@ -136,7 +136,6 @@ def bootstrap_worktree(
     root_path = root_path.resolve()
     result = BootstrapResult(root_path=root_path)
     meta_path = root_path / BOOTSTRAP_META_REL
-    loops_path = root_path / "loops"
     prior_meta = load_existing_bootstrap_metadata(meta_path)
 
     try:
