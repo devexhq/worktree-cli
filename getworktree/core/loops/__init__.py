@@ -43,6 +43,11 @@ from getworktree.core.loops.resolve import (
     resolve_loop_by_name,
 )
 from getworktree.core.loops.seeder import LoopSeedResult, seed_starter_loops
+from getworktree.core.loops.trigger import (
+    TriggerRunResult,
+    TriggerRunStatus,
+    run_trigger,
+)
 from getworktree.core.loops.validate import (
     LOOP_VALIDATOR,
     LoopValidationResult,
@@ -79,6 +84,8 @@ __all__ = [
     "LoopTrigger",
     "LoopValidationResult",
     "LoopValidationStatus",
+    "TriggerRunResult",
+    "TriggerRunStatus",
     "build_loop_inventory",
     "discover_loop_files",
     "format_loop_show_resolve_failure",
@@ -88,6 +95,7 @@ __all__ = [
     "parse_loop_metadata",
     "resolve_loop_by_name",
     "resolve_loops_dir",
+    "run_trigger",
     "seed_starter_loops",
     "validate_loop_document",
     "validate_loop_result",
