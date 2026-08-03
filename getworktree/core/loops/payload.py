@@ -11,9 +11,19 @@ from pydantic import BaseModel, Field
 from getworktree.core.loops.models import LoopContextInclude
 from getworktree.core.loops.trigger import TriggerRunResult
 
-DEFAULT_MAX_TRIGGER_CHARS = 80_000
+DEFAULT_MAX_TRIGGER_CHARS = 20_000
 DEFAULT_MAX_FILE_BYTES = 64_000
 DEFAULT_MAX_FILES = 20
+
+# Prefer pytest-style failure lines when selecting relevant_source files.
+_PYTEST_NODE_RE = re.compile(
+    r"^(?:FAILED|ERROR)\s+(?P<path>(?:[A-Za-z]:)?(?:(?:\.\.?/)|/)?(?:[\w.-]+/)*[\w.-]+\.py)"
+    r"(?:::[^\s]+)?",
+    re.MULTILINE,
+)
+_PYTEST_FILE_LINE_RE = re.compile(
+    r"(?P<path>(?:[A-Za-z]:)?(?:(?:\.\.?/)|/)?(?:[\w.-]+/)*[\w.-]+\.py):\d+"
+)
 
 _SOURCE_SUFFIXES = (
     ".py",
@@ -87,17 +97,28 @@ class AgentFailurePayload(BaseModel):
     omissions: list[PayloadOmission] = Field(default_factory=list)
 
 
-def _truncate_text(text: str, max_chars: int) -> tuple[str, bool]:
-    """Truncate ``text`` to ``max_chars`` and append a marker when shortened."""
+def _truncate_text(
+    text: str,
+    max_chars: int,
+    *,
+    keep: Literal["head", "tail"] = "tail",
+) -> tuple[str, bool]:
+    """Truncate ``text`` to ``max_chars`` and mark when shortened.
+
+    Defaults to keeping the *tail* because failure details (e.g. pytest
+    summaries and traces) usually appear at the end of trigger output.
+    """
     if max_chars < 1:
-        marker = f"\n...[truncated, original_chars={len(text)}]"
+        marker = f"...[truncated, original_chars={len(text)}]\n"
         return marker, True
     if len(text) <= max_chars:
         return text, False
-    marker = f"\n...[truncated, original_chars={len(text)}]"
-    # Keep total returned length close to max_chars + marker; body is capped.
-    body = text[:max_chars]
-    return body + marker, True
+    marker = f"...[truncated, original_chars={len(text)}]\n"
+    if keep == "head":
+        body = text[:max_chars]
+        return body + "\n" + marker.rstrip("\n"), True
+    body = text[-max_chars:]
+    return marker + body, True
 
 
 def _extract_path_candidates(text: str) -> list[str]:
@@ -105,6 +126,36 @@ def _extract_path_candidates(text: str) -> list[str]:
     if not text:
         return []
     return [match.group("path") for match in _PATH_CANDIDATE_RE.finditer(text)]
+
+
+def _extract_failing_test_files(*streams: str) -> list[str]:
+    """Return ordered unique test file paths inferred from failure output.
+
+    Prefers explicit pytest ``FAILED`` / ``ERROR`` node lines, then falls back
+    to ``file.py:line`` markers. Does not use generic path scraping.
+    """
+    ordered: list[str] = []
+    seen: set[str] = set()
+
+    def _add(raw: str) -> None:
+        path = _posix_rel(raw.strip())
+        if not path or path in seen:
+            return
+        seen.add(path)
+        ordered.append(path)
+
+    joined = "\n".join(stream for stream in streams if stream)
+    if not joined:
+        return []
+
+    for match in _PYTEST_NODE_RE.finditer(joined):
+        _add(match.group("path"))
+    if ordered:
+        return ordered
+
+    for match in _PYTEST_FILE_LINE_RE.finditer(joined):
+        _add(match.group("path"))
+    return ordered
 
 
 def _posix_rel(path: str) -> str:
@@ -256,10 +307,18 @@ def build_failure_payload(
     omissions: list[PayloadOmission] = []
 
     if "relevant_source" in include_set:
+        # Prefer focused failing-test files when the trigger output identifies
+        # them (common pytest case). A single failing test file becomes the
+        # only source attachment. Fall back to broad path scraping + changed
+        # files when no failing test path can be inferred.
+        failing_tests = _extract_failing_test_files(trigger.stdout, trigger.stderr)
         raw_candidates: list[str] = []
-        raw_candidates.extend(_extract_path_candidates(trigger.stdout))
-        raw_candidates.extend(_extract_path_candidates(trigger.stderr))
-        raw_candidates.extend(caller_changed)
+        if failing_tests:
+            raw_candidates.extend(failing_tests)
+        else:
+            raw_candidates.extend(_extract_path_candidates(trigger.stdout))
+            raw_candidates.extend(_extract_path_candidates(trigger.stderr))
+            raw_candidates.extend(caller_changed)
 
         rel_order: list[str] = []
         seen_rel: set[str] = set()

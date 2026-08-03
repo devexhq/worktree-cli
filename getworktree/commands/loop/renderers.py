@@ -150,6 +150,19 @@ def format_progress_event(event_name: str, payload: dict[str, Any]) -> str | Non
         detail = provider if not mode else f"{provider}/{mode}"
         return f"  Agent:   running ({detail})...\n"
 
+    if event_name == "agent_prompt_dumped":
+        path = str(payload.get("path") or "").strip()
+        if path:
+            return f"  Agent:   prompt dumped to {path}\n"
+        return "  Agent:   prompt dumped\n"
+
+    if event_name == "agent_prompt_dump_error":
+        errors = [str(e) for e in (payload.get("errors") or [])]
+        line = "  Agent:   prompt dump failed"
+        for err_line in format_error_lines(errors):
+            line += "\n" + err_line
+        return line + "\n"
+
     if event_name == "agent":
         line = format_agent_line(
             status=payload.get("status"),

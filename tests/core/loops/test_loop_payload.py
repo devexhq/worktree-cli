@@ -85,8 +85,8 @@ class BuildFailurePayloadTests:
         assert payload.omissions == []
 
     def test_trigger_output_include_and_truncation(self, sandbox: Path) -> None:
-        long_out = "x" * 100
-        long_err = "y" * 50
+        long_out = ("x" * 80) + ("Z" * 20)
+        long_err = ("y" * 30) + ("E" * 20)
         trigger = _trigger(cwd=sandbox, stdout=long_out, stderr=long_err)
         payload = build_failure_payload(
             trigger=trigger,
@@ -98,11 +98,11 @@ class BuildFailurePayloadTests:
         assert payload.stderr is not None
         assert payload.stdout_truncated is True
         assert payload.stderr_truncated is True
-        assert payload.stdout.startswith("x" * 20)
-        assert payload.stdout.endswith("...[truncated, original_chars=100]")
-        assert payload.stderr.startswith("y" * 20)
-        assert payload.stderr.endswith("...[truncated, original_chars=50]")
-        assert "original_chars=100" in payload.stdout
+        # Keep the tail (failure details are usually at the end).
+        assert payload.stdout.startswith("...[truncated, original_chars=100]")
+        assert payload.stdout.endswith("Z" * 20)
+        assert payload.stderr.startswith("...[truncated, original_chars=50]")
+        assert payload.stderr.endswith("E" * 20)
         assert payload.files == []
 
     def test_trigger_output_no_truncation_under_cap(self, sandbox: Path) -> None:
@@ -329,9 +329,71 @@ class BuildFailurePayloadTests:
         assert {f.path for f in payload.files} == {"pkg/mod.py", "tests/test_mod.py"}
 
     def test_defaults_match_issue_caps(self) -> None:
-        assert DEFAULT_MAX_TRIGGER_CHARS == 80_000
+        assert DEFAULT_MAX_TRIGGER_CHARS == 20_000
         assert DEFAULT_MAX_FILE_BYTES == 64_000
         assert DEFAULT_MAX_FILES == 20
+
+    def test_single_failing_test_prefers_only_that_file(self, sandbox: Path) -> None:
+        (sandbox / "other.py").write_text("print('other')\n", encoding="utf-8")
+        trigger = _trigger(
+            cwd=sandbox,
+            stdout=(
+                "=========================== FAILURES ===========================\n"
+                "____________________________ test_x ____________________________\n"
+                "tests/test_mod.py:2: in test_x\n"
+                "    assert False\n"
+                "FAILED tests/test_mod.py::test_x - assert False\n"
+            ),
+            stderr="",
+        )
+        payload = build_failure_payload(
+            trigger=trigger,
+            sandbox_path=sandbox,
+            include=["relevant_source"],
+            changed_files=["pkg/mod.py", "other.py"],
+        )
+        assert [f.path for f in payload.files] == ["tests/test_mod.py"]
+        assert payload.files[0].content == "def test_x():\n    assert False\n"
+
+    def test_multiple_failing_tests_include_only_those_files(
+        self, sandbox: Path
+    ) -> None:
+        (sandbox / "tests" / "test_other.py").write_text(
+            "def test_y():\n    assert False\n", encoding="utf-8"
+        )
+        (sandbox / "noise.py").write_text("print('noise')\n", encoding="utf-8")
+        trigger = _trigger(
+            cwd=sandbox,
+            stdout=(
+                "FAILED tests/test_mod.py::test_x - assert False\n"
+                "FAILED tests/test_other.py::test_y - assert False\n"
+            ),
+        )
+        payload = build_failure_payload(
+            trigger=trigger,
+            sandbox_path=sandbox,
+            include=["relevant_source"],
+            changed_files=["noise.py", "pkg/mod.py"],
+        )
+        assert [f.path for f in payload.files] == [
+            "tests/test_mod.py",
+            "tests/test_other.py",
+        ]
+
+    def test_no_failing_test_falls_back_to_paths_and_changed(
+        self, sandbox: Path
+    ) -> None:
+        trigger = _trigger(
+            cwd=sandbox,
+            stdout="see pkg/mod.py for details\n",
+        )
+        payload = build_failure_payload(
+            trigger=trigger,
+            sandbox_path=sandbox,
+            include=["relevant_source"],
+            changed_files=["tests/test_mod.py"],
+        )
+        assert [f.path for f in payload.files] == ["pkg/mod.py", "tests/test_mod.py"]
 
     def test_payload_model_forbids_extra(self) -> None:
         with pytest.raises(ValidationError):

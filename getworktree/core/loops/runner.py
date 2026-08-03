@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import os
 import subprocess
 import threading
 from collections.abc import Callable
@@ -185,6 +187,78 @@ def _trigger_summary(result: TriggerRunResult) -> str:
     return result.status.value
 
 
+def _render_agent_input_dump(*, provider: str, request: Any) -> tuple[str, str]:
+    """Return ``(suffix, content)`` for a provider-specific agent-input dump."""
+    if provider in {"cursor", "gemini", "copilot"}:
+        from getworktree.core.agents.cli_mutation import build_mutation_prompt
+
+        return ("txt", build_mutation_prompt(request))
+    if provider == "local":
+        payload = request.model_dump(mode="json")
+        return ("json", json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
+    if provider == "ollama":
+        from getworktree.core.agents.ollama import (
+            DEFAULT_MAX_TOKENS,
+            DEFAULT_TEMPERATURE,
+            build_ollama_messages,
+            resolve_ollama_endpoint,
+        )
+
+        body_obj = {
+            "model": request.model or "",
+            "stream": False,
+            "messages": build_ollama_messages(request),
+            "options": {
+                "temperature": (
+                    float(request.temperature)
+                    if request.temperature is not None
+                    else DEFAULT_TEMPERATURE
+                ),
+                "num_predict": (
+                    int(request.max_tokens)
+                    if request.max_tokens is not None
+                    else DEFAULT_MAX_TOKENS
+                ),
+            },
+            "endpoint": resolve_ollama_endpoint(request.endpoint),
+        }
+        return ("json", json.dumps(body_obj, indent=2, ensure_ascii=False) + "\n")
+    payload = request.model_dump(mode="json")
+    return ("json", json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
+
+
+def _dump_agent_input(
+    *,
+    provider: str,
+    request: Any,
+    dump_dir: Path,
+    session_id: str,
+    attempt: int,
+) -> tuple[Path | None, str | None]:
+    """Write one provider-specific agent-input dump file.
+
+    Returns:
+        Tuple of ``(path, error)`` where exactly one item is non-None.
+    """
+    suffix, content = _render_agent_input_dump(provider=provider, request=request)
+    dump_root = dump_dir.expanduser().resolve()
+    filename = f"wt-agent-prompt-{session_id}-attempt-{attempt:02d}.{suffix}"
+    output_path = dump_root / filename
+
+    try:
+        dump_root.mkdir(parents=True, exist_ok=True)
+        fd = os.open(output_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(content)
+    except OSError as exc:
+        return (
+            None,
+            f"Failed to write agent input dump '{output_path}': {exc}",
+        )
+
+    return (output_path, None)
+
+
 def run_loop_iteration(
     *,
     loop: LoopDefinition,
@@ -211,6 +285,7 @@ def run_loop_iteration(
     session_timeout_seconds: int | None = None,
     detect_repeat_failures: bool | None = None,
     include_wip: bool = False,
+    prompt_dump_dir: Path | None = None,
 ) -> LoopRunResult:
     """Run one full loop session attempt cycle.
 
@@ -245,6 +320,8 @@ def run_loop_iteration(
         detect_repeat_failures: Override config ``loop.detect_repeat_failures``.
         include_wip: When True, overlay uncommitted working-tree changes into
             the sandbox after create (``--wip``).
+        prompt_dump_dir: Optional directory to write provider-specific
+            agent-input dumps (one file per attempt) before each agent call.
 
     Returns:
         Structured :class:`LoopRunResult` (never raises for classified paths).
@@ -556,6 +633,31 @@ def run_loop_iteration(
                 max_patch_kb=max_patch_kb,
                 reject_binary_changes=reject_binary,
             )
+            if prompt_dump_dir is not None:
+                dumped_path, dump_error = _dump_agent_input(
+                    provider=loop.agent.provider,
+                    request=agent_request,
+                    dump_dir=prompt_dump_dir,
+                    session_id=sid,
+                    attempt=attempt_idx,
+                )
+                if dumped_path is not None:
+                    _emit(
+                        on_event,
+                        "agent_prompt_dumped",
+                        attempt=attempt_idx,
+                        provider=loop.agent.provider,
+                        path=dumped_path.as_posix(),
+                    )
+                if dump_error is not None:
+                    record.errors.append(dump_error)
+                    _emit(
+                        on_event,
+                        "agent_prompt_dump_error",
+                        attempt=attempt_idx,
+                        provider=loop.agent.provider,
+                        errors=[dump_error],
+                    )
             _emit(
                 on_event,
                 "agent_start",

@@ -184,6 +184,14 @@ class RendererTests:
             {"status": "applied", "touched_files": ["a.py", "b.py"]},
         )
         assert patch == "  Patch:   applied (2 files)\n"
+        dumped = format_progress_event(
+            "agent_prompt_dumped",
+            {"path": "/tmp/wt-agent-prompt-sbx_deadbeef-attempt-01.txt"},
+        )
+        assert (
+            dumped
+            == "  Agent:   prompt dumped to /tmp/wt-agent-prompt-sbx_deadbeef-attempt-01.txt\n"
+        )
         assert format_progress_event("unknown", {}) is None
 
     def test_progress_event_lines_include_error_detail(self) -> None:
@@ -350,6 +358,8 @@ class LoopRunCliTests:
         assert "--no-approve-each" in opts
         assert "--wip" in opts
         assert "--no-wip" in opts
+        assert "--dump-prompt" in opts
+        assert "--no-dump-prompt" in opts
 
     def test_wip_flag_passed_to_controller(
         self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
@@ -371,6 +381,27 @@ class LoopRunCliTests:
         result = runner.invoke(app, ["loop", "run", "fix-tests", "--wip"])
         assert result.exit_code == 0
         assert captured.get("include_wip") is True
+
+    def test_dump_prompt_flag_passed_to_controller(
+        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(git_repo)
+        _init_with_loops(git_repo)
+        captured: dict[str, object] = {}
+
+        def fake_run(**kwargs):
+            captured.update(kwargs)
+            return _fixture_result(
+                LoopFinalStatus.PASSED, stop_reason="trigger_passed", attempts=[]
+            )
+
+        monkeypatch.setattr(
+            "getworktree.commands.loop.command.run_loop_iteration",
+            fake_run,
+        )
+        result = runner.invoke(app, ["loop", "run", "fix-tests", "--dump-prompt"])
+        assert result.exit_code == 0
+        assert captured.get("prompt_dump_dir") == Path("/tmp")
 
     def test_resolve_failure(
         self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
