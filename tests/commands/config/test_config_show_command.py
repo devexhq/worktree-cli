@@ -29,10 +29,33 @@ def git_repo(tmp_path: Path) -> Path:
     return tmp_path
 
 
+def _split_show_stdout(stdout: str) -> tuple[str, str]:
+    """Split success stdout into header block and JSON body."""
+    header, sep, body = stdout.partition("\n\n")
+    assert sep == "\n\n", "success stdout must contain a blank line after header"
+    return header, body
+
+
+def _assert_success_header(header: str, config_path: Path) -> None:
+    lines = header.splitlines()
+    assert lines == [
+        f"Config: {config_path.resolve().as_posix()}",
+        "Status: valid",
+    ]
+
+
+def _assert_no_success_header(stdout: str) -> None:
+    assert "Status: valid" not in stdout
+    assert not any(
+        line.startswith("Config: ") and line.endswith("config.json")
+        for line in stdout.splitlines()
+    )
+
+
 class ConfigShowCommandTests:
     """Direct command tests for config show."""
 
-    def test_success_prints_parseable_effective_json(
+    def test_success_prints_header_and_parseable_effective_json(
         self,
         git_repo: Path,
         monkeypatch: pytest.MonkeyPatch,
@@ -45,21 +68,30 @@ class ConfigShowCommandTests:
         assert gen.ok
 
         config_show_command(cwd=git_repo)
-        data = json.loads(capsys.readouterr().out)
+        header, body = _split_show_stdout(capsys.readouterr().out)
+        _assert_success_header(header, config_path)
+        data = json.loads(body)
         assert data["version"] == 1
         assert data["project"]["name"] == git_repo.name
         assert data["paths"]["root_dir"] == ".worktree"
 
     def test_missing_config_exits_nonzero(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
+        self,
+        git_repo: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
     ) -> None:
         monkeypatch.chdir(git_repo)
         with pytest.raises(typer.Exit) as exc_info:
             config_show_command(cwd=git_repo)
         assert exc_info.value.exit_code == 1
+        _assert_no_success_header(capsys.readouterr().out)
 
     def test_schema_invalid_exits_nonzero(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
+        self,
+        git_repo: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
     ) -> None:
         monkeypatch.chdir(git_repo)
         config_path = git_repo / ".worktree" / "config.json"
@@ -69,6 +101,7 @@ class ConfigShowCommandTests:
         with pytest.raises(typer.Exit) as exc_info:
             config_show_command(cwd=git_repo)
         assert exc_info.value.exit_code == 1
+        _assert_no_success_header(capsys.readouterr().out)
 
 
 class ConfigShowCliTests:
@@ -83,7 +116,10 @@ class ConfigShowCliTests:
 
         result = runner.invoke(app, ["config", "show"])
         assert result.exit_code == 0
-        data = json.loads(result.stdout)
+        config_path = git_repo / ".worktree" / "config.json"
+        header, body = _split_show_stdout(result.stdout)
+        _assert_success_header(header, config_path)
+        data = json.loads(body)
         assert data["version"] == 1
         assert data["project"]["name"] == git_repo.name
         assert "paths" in data
@@ -98,6 +134,7 @@ class ConfigShowCliTests:
         assert result.exit_code == 1
         combined = result.stdout + result.stderr
         assert "CONFIG_NOT_FOUND" in combined or "not found" in combined.lower()
+        _assert_no_success_header(result.stdout)
         # Must not look like a successful effective JSON object dump.
         with pytest.raises(json.JSONDecodeError):
             json.loads(result.stdout)
@@ -114,6 +151,7 @@ class ConfigShowCliTests:
         assert result.exit_code == 1
         combined = result.stdout + result.stderr
         assert "schema" in combined.lower() or "CONFIG_SCHEMA_INVALID" in combined
+        _assert_no_success_header(result.stdout)
         with pytest.raises(json.JSONDecodeError):
             json.loads(result.stdout)
 

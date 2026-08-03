@@ -121,12 +121,24 @@ Helpers in
 `"unnamed_project"`). Optional unset strings (`agent.model`, `agent.endpoint`,
 `project.initialized_at`) serialize as JSON `null`.
 
-### CLI success body
+### CLI success layout (`wt config show`)
 
-`wt config show` loads via `load_config_result`, then prints **only** the
-serialized JSON body on success (exit `0`). No source-path / validation header
-in this command surface yet. On non-ok load it prints `ConfigLoadResult.errors`
-(error panel) and exits `1` without emitting partial JSON. Show never creates or
+`wt config show` loads via `load_config_result`. On success (`status=ok`, exit
+`0`) stdout is exactly:
+
+1. Source-metadata header (fixed labels, this order):
+   - `Config: <absolute-path>` — `ConfigLoadResult.config_path` as an absolute
+     path string
+   - `Status: valid` — only for the success path
+2. One blank line
+3. Effective config JSON from `as_json(result.config)` (pretty JSON, trailing
+   newline; no Rich markup/highlight)
+
+Split success stdout on the first blank line: first block is the header,
+remainder is parseable with `json.loads`.
+
+On non-ok load it prints `ConfigLoadResult.errors` (error panel) and exits `1`
+with **no** success header and **no** partial JSON. Show never creates or
 mutates config files.
 
 Command entry: `getworktree.commands.config.command.config_show_command`.
