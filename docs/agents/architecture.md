@@ -10,6 +10,7 @@ getworktree/commands/<name>/       One package per CLI subcommand
   renderers.py                     Rich console rendering, kept out of command.py
 getworktree/core/                  Business logic, no Typer/CLI concerns
   bootstrap.py                     Creates/repairs the .worktree/ directory tree
+  agents/{base,local,factory}.py   Agent adapter protocol + local provider
   config/{generator,loader,models,context}.py
                                    Defaults write + load/validate + typed models + repo context
   db.py                            SQLite token-usage ledger (for future metering)
@@ -151,6 +152,35 @@ Identity fields always set: `command`, `args`, `trigger_status`, `exit_code`,
   `missing` | `outside_sandbox` | `directory` | `binary` | `max_files` |
   `max_file_bytes`
 - Symlink escape outside the sandbox → `outside_sandbox` (no content)
+
+## Agent adapter
+
+`getworktree/core/agents/` owns the provider boundary for loop fix requests.
+
+### Contract
+- Protocol: `AgentAdapter.propose_fix(request: AgentRequest) -> AgentResponse`
+- Factory: `get_agent_adapter(provider, *, config=None)` — **v1 supports `local`
+  only**; any other provider raises `ValueError` (`AGENT_PROVIDER_UNSUPPORTED`)
+- Request carries `mode`, `AgentFailurePayload`, `sandbox_path`,
+  `timeout_seconds`, and optional model/endpoint/temperature/max_tokens
+- Response statuses: `proposed_patch` | `no_op` | `unfixable` | `timeout` |
+  `provider_error` (`ok` only for `proposed_patch`)
+- Adapters must not apply patches or mutate the sandbox beyond the child process
+
+### Local provider (`LocalAgentAdapter`)
+Resolves argv from `WORKTREE_LOCAL_AGENT_CMD` (`shlex.split`) or default
+`worktree-local-agent` on `PATH`.
+
+| Channel | Content |
+|---------|---------|
+| cwd | `request.sandbox_path` |
+| stdin | JSON serialization of `AgentRequest` (UTF-8) |
+| stdout | JSON matching `LocalAgentStdout` (`extra=forbid`) |
+| timeout | wall clock `request.timeout_seconds` → status `timeout` |
+
+Stdout mapping: `unfixable=true` → `unfixable`; non-empty `unified_diff` →
+`proposed_patch`; else `no_op`. Invalid/missing JSON, spawn failures, and schema
+violations → `provider_error`. Classified outcomes never raise.
 
 ## Packaged resources
 
