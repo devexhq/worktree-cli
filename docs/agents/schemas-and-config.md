@@ -398,6 +398,75 @@ path string as tiebreaker. Contents are never opened.
 Callers should use this API instead of ad-hoc `glob`/`iterdir` scans. Seeder
 write paths remain separate.
 
+## Loop metadata parse API
+
+Minimal list metadata for one loop YAML file lives in
+[getworktree/core/loops/metadata.py](../../getworktree/core/loops/metadata.py).
+This layer reads a single path with `yaml.safe_load` and extracts identity
+fields only. It does **not** run full `loop_v1.json` validation, discover
+siblings, print, call `sys.exit`, or mutate files.
+
+### Primary API
+
+`parse_loop_metadata(path: Path) -> LoopMetadataParseResult`
+
+```python
+class LoopMetadataStatus(StrEnum):
+    OK = "ok"
+    NOT_FOUND = "not_found"
+    NOT_A_FILE = "not_a_file"
+    UNREADABLE = "unreadable"
+    MALFORMED_YAML = "malformed_yaml"
+    ROOT_NOT_MAPPING = "root_not_mapping"
+    INVALID_METADATA = "invalid_metadata"
+
+
+class LoopListMetadata(BaseModel):
+    version: int
+    name: str
+    description: str
+    source_path: Path  # absolute
+
+
+class LoopMetadataParseResult(BaseModel):
+    status: LoopMetadataStatus
+    source_path: Path  # absolute
+    metadata: LoopListMetadata | None
+    errors: list[str]
+
+    @property
+    def ok(self) -> bool: ...  # status == OK
+```
+
+Minimal field contract (all checked; collect every problem):
+
+| Field | Rules |
+|-------|--------|
+| `version` | present; JSON/YAML integer `1` only (`bool` invalid) |
+| `name` | present; non-empty string matching `^[a-z0-9][a-z0-9-]*$` |
+| `description` | present; non-empty string (`len >= 1`, no strip) |
+
+Unknown extra root keys are allowed here. Incomplete full loop bodies that
+still satisfy the three identity fields are `ok` at this layer.
+
+### Error codes
+
+| Code | Status |
+|------|--------|
+| `LOOP_META_NOT_FOUND` | `not_found` |
+| `LOOP_META_NOT_A_FILE` | `not_a_file` |
+| `LOOP_META_UNREADABLE` | `unreadable` |
+| `LOOP_META_MALFORMED_YAML` | `malformed_yaml` |
+| `LOOP_META_ROOT_NOT_MAPPING` | `root_not_mapping` |
+| `LOOP_META_MISSING_VERSION` | `invalid_metadata` |
+| `LOOP_META_INVALID_VERSION` | `invalid_metadata` |
+| `LOOP_META_MISSING_NAME` | `invalid_metadata` |
+| `LOOP_META_INVALID_NAME` | `invalid_metadata` |
+| `LOOP_META_MISSING_DESCRIPTION` | `invalid_metadata` |
+| `LOOP_META_INVALID_DESCRIPTION` | `invalid_metadata` |
+
+Codes appear in `errors` strings so callers and tests can key off them.
+
 ## Changing config or loop shape
 
 1. Update the relevant JSON Schema (`config_v1.json` or `loop_v1.json`).
