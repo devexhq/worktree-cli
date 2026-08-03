@@ -12,6 +12,7 @@ import typer
 
 from getworktree.commands.loop.renderers import (
     exit_code_for_status,
+    format_progress_event,
     format_run_output,
 )
 from getworktree.common.utils import RichOutput
@@ -187,10 +188,26 @@ def loop_run_command(
     require_before_apply: bool | None = approve_each
 
     attempt_holder: dict[str, int] = {"attempt": 1}
+    streamed_progress = False
+
+    def _print_plain(text: str) -> None:
+        rich_output.console.print(
+            text,
+            end="",
+            markup=False,
+            highlight=False,
+            soft_wrap=True,
+        )
 
     def on_event(event_name: str, payload: dict[str, Any]) -> None:
+        nonlocal streamed_progress
         if event_name == "attempt_start":
             attempt_holder["attempt"] = int(payload.get("attempt", 1))
+        line = format_progress_event(event_name, payload)
+        if line is None:
+            return
+        streamed_progress = True
+        _print_plain(line)
 
     approve_cb = None
     effective_require = (
@@ -221,11 +238,7 @@ def loop_run_command(
     except KeyboardInterrupt:
         abort_event.set()
         if result is None:
-            rich_output.console.print(
-                "Interrupted.\n",
-                markup=False,
-                highlight=False,
-            )
+            _print_plain("Interrupted.\n")
             raise typer.Exit(code=130) from None
 
     assert result is not None
@@ -236,12 +249,14 @@ def loop_run_command(
         for err in result.errors:
             rich_output.error_panel("Loop Run Failed", err)
 
-    text = format_run_output(result, cwd=root)
-    rich_output.console.print(
-        text,
-        end="",
-        markup=False,
-        highlight=False,
-        soft_wrap=True,
+    # Live hooks already printed attempt lines; only reprint them when no
+    # progress was streamed (e.g. injected controller without on_event).
+    text = format_run_output(
+        result,
+        cwd=root,
+        include_attempts=not streamed_progress,
     )
+    if streamed_progress and text:
+        _print_plain("\n")
+    _print_plain(text)
     raise typer.Exit(code=exit_code_for_status(result.status))
