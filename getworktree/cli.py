@@ -159,6 +159,14 @@ def loop_run(
         "--approve-each/--no-approve-each",
         help="Require (or skip) approval before each patch apply.",
     ),
+    wip: bool = typer.Option(
+        False,
+        "--wip/--no-wip",
+        help=(
+            "Include uncommitted working-tree changes in the sandbox "
+            "(tracked + untracked; not ignored)."
+        ),
+    ),
 ):
     """Run a loop in an isolated git worktree sandbox."""
     loop_run_command(
@@ -166,6 +174,7 @@ def loop_run(
         max_attempts=max_attempts,
         keep=keep if keep else None,
         approve_each=approve_each,
+        wip=wip,
     )
 
 

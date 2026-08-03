@@ -125,6 +125,7 @@ def loop_run_command(
     max_attempts: int | None = None,
     keep: bool | None = None,
     approve_each: bool | None = None,
+    wip: bool = False,
     cwd: Path | None = None,
     run_loop_fn: Callable[..., LoopRunResult] | None = None,
 ) -> None:
@@ -135,6 +136,7 @@ def loop_run_command(
         max_attempts: Optional ``--max-attempts`` override (≥1).
         keep: When True, force ``auto_clean=False``; when False/None, leave default.
         approve_each: When set, override loop approval.require_before_apply.
+        wip: When True, overlay uncommitted working-tree changes into sandbox.
         cwd: Repository root.
         run_loop_fn: Injectable controller (tests); defaults to
             ``run_loop_iteration``.
@@ -234,6 +236,7 @@ def loop_run_command(
             on_event=on_event,
             session_timeout_seconds=config.sandbox.default_timeout_seconds,
             detect_repeat_failures=config.loop.detect_repeat_failures,
+            include_wip=wip,
         )
     except KeyboardInterrupt:
         abort_event.set()

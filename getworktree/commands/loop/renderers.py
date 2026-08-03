@@ -98,6 +98,10 @@ def format_progress_event(event_name: str, payload: dict[str, Any]) -> str | Non
             lines.append(f"Session:  {session_id}")
         if max_attempts is not None:
             lines.append(f"Budget:   {max_attempts} attempt(s)")
+        if payload.get("wip"):
+            wip_paths = payload.get("wip_paths") or []
+            count = len(wip_paths) if isinstance(wip_paths, list) else 0
+            lines.append(f"WIP:      included ({count} path(s))")
         return "\n".join(lines) + "\n\n"
 
     if event_name == "attempt_start":

@@ -67,10 +67,14 @@ own the V1 sandbox lifecycle used by loop execution.
 
 ### Create
 - Primary API: `create_sandbox_result` → `SandboxCreateResult` (`ok` /
-  `capacity_exceeded` / `git_failed` / `not_initialized` / `unreadable_config`)
+  `capacity_exceeded` / `git_failed` / `not_initialized` / `unreadable_config` /
+  `wip_failed`)
 - `create_sandbox` is a thin raise-on-error wrapper over the result API
 - Base ref: current branch when it is a real branch name; otherwise
   `sandbox.base_ref` from config (default `HEAD`)
+- Optional `include_wip=True`: after worktree create, overlay uncommitted
+  tracked + untracked (non-ignored) paths from the primary checkout into the
+  sandbox (`apply_wip_to_sandbox`). Default remains committed tip only.
 - Refuses create when active sandbox **directories** ≥
   `sandbox.max_active_sandboxes` (default `3`) without leaving a partial
   session claim on the capacity path
@@ -322,6 +326,8 @@ triggers/agents do not look stalled. After the run, only the summary is reprinte
 - `--keep / --no-keep` → `--keep` forces `auto_clean=False`
 - `--approve-each / --no-approve-each` → override approval gate; default follows
   loop `approval.require_before_apply` (non-TTY deny)
+- `--wip / --no-wip` → overlay uncommitted working-tree changes into the sandbox
+  (tracked + untracked, not ignored); default off
 
 ### Exit codes
 | Final status | Exit |

@@ -28,6 +28,8 @@ class SandboxSession(BaseModel):
     sandbox_path: Path
     created_at: str
     command_passed: bool | None = None
+    wip_applied: bool = False
+    wip_paths: list[str] = Field(default_factory=list)
 
 
 class SandboxCreateStatus(StrEnum):
@@ -38,6 +40,7 @@ class SandboxCreateStatus(StrEnum):
     GIT_FAILED = "git_failed"
     NOT_INITIALIZED = "not_initialized"
     UNREADABLE_CONFIG = "unreadable_config"
+    WIP_FAILED = "wip_failed"
 
 
 class SandboxCreateResult(BaseModel):
@@ -114,6 +117,104 @@ def _git_failed_error(detail: str) -> str:
     )
 
 
+def _wip_failed_error(detail: str) -> str:
+    return (
+        f"Failed to overlay uncommitted WIP into sandbox "
+        f"(SANDBOX_WIP_FAILED): {detail}\n"
+        "Fix:\n"
+        "- resolve local conflicts / binary issues and retry, or\n"
+        "- omit --wip and commit changes first"
+    )
+
+
+def _normalize_repo_rel(path: str) -> str:
+    return path.strip().replace("\\", "/")
+
+
+def _list_wip_paths(repo_root: Path) -> list[str]:
+    """Return sorted repo-relative paths with uncommitted changes.
+
+    Includes tracked modifications/deletions and untracked non-ignored files.
+    """
+    try:
+        completed = subprocess.run(
+            ["git", "status", "--porcelain", "-u"],
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return []
+
+    paths: set[str] = set()
+    for raw in completed.stdout.splitlines():
+        if len(raw) < 4:
+            continue
+        entry = raw[3:]
+        if " -> " in entry:
+            entry = entry.split(" -> ", 1)[1]
+        entry = entry.strip().strip('"')
+        rel = _normalize_repo_rel(entry)
+        if rel:
+            paths.add(rel)
+    return sorted(paths)
+
+
+def _copy_wip_file(source_root: Path, dest_root: Path, rel: str) -> None:
+    src = source_root / rel
+    dst = dest_root / rel
+    if not src.exists():
+        if dst.exists() or dst.is_symlink():
+            if dst.is_dir() and not dst.is_symlink():
+                shutil.rmtree(dst)
+            else:
+                dst.unlink()
+        return
+    if src.is_dir() and not src.is_symlink():
+        return
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    if src.is_symlink():
+        if dst.exists() or dst.is_symlink():
+            if dst.is_dir() and not dst.is_symlink():
+                shutil.rmtree(dst)
+            else:
+                dst.unlink()
+        dst.symlink_to(src.readlink())
+        return
+    shutil.copy2(src, dst)
+
+
+def apply_wip_to_sandbox(*, source_root: Path, sandbox_path: Path) -> list[str]:
+    """Overlay uncommitted working-tree changes into an existing sandbox.
+
+    Copies tracked and untracked (non-ignored) paths from ``source_root`` into
+    ``sandbox_path``. Deleted tracked files are removed in the sandbox.
+
+    Args:
+        source_root: Primary repository checkout (WIP source).
+        sandbox_path: Sandbox worktree path.
+
+    Returns:
+        Sorted list of repo-relative paths touched by the overlay.
+
+    Raises:
+        RuntimeError: When overlay fails.
+    """
+    root = source_root.expanduser().resolve()
+    dest = sandbox_path.expanduser().resolve()
+    if not dest.is_dir():
+        raise RuntimeError(f"sandbox path does not exist: {dest}")
+
+    paths = _list_wip_paths(root)
+    try:
+        for rel in paths:
+            _copy_wip_file(root, dest, rel)
+    except OSError as exc:
+        raise RuntimeError(str(exc)) from exc
+    return paths
+
+
 class GitSandboxManager:
     """Manages creation, cleanup, and pruning of background Git worktrees."""
 
@@ -174,13 +275,34 @@ class GitSandboxManager:
             return []
         return [p for p in self.sandbox_base_dir.iterdir() if p.is_dir()]
 
+    def _discard_partial_sandbox(self, sandbox_path: Path, temp_branch: str) -> None:
+        """Best-effort remove of a partial worktree/branch after failed create."""
+        if sandbox_path.exists():
+            try:
+                self._run_git_cmd(["worktree", "remove", "--force", str(sandbox_path)])
+            except RuntimeError:
+                shutil.rmtree(sandbox_path, ignore_errors=True)
+        try:
+            self._run_git_cmd(["branch", "-D", temp_branch])
+        except RuntimeError:
+            pass
+        try:
+            self._run_git_cmd(["worktree", "prune"])
+        except RuntimeError:
+            pass
+
     def create_sandbox_result(
-        self, session_id: str | None = None
+        self,
+        session_id: str | None = None,
+        *,
+        include_wip: bool = False,
     ) -> SandboxCreateResult:
         """Create a sandbox without raising for classified failures.
 
         Args:
             session_id: Optional fixed session id; otherwise ``sbx_`` + 8 hex.
+            include_wip: When True, overlay uncommitted working-tree changes
+                from the primary checkout into the new sandbox.
 
         Returns:
             Structured create result with session on success.
@@ -233,31 +355,47 @@ class GitSandboxManager:
                 ]
             )
         except RuntimeError as exc:
-            # Best-effort cleanup if git left a partial path.
-            if sandbox_path.exists():
-                shutil.rmtree(sandbox_path, ignore_errors=True)
-            try:
-                self._run_git_cmd(["worktree", "prune"])
-            except RuntimeError:
-                pass
+            self._discard_partial_sandbox(sandbox_path, temp_branch)
             return SandboxCreateResult(
                 status=SandboxCreateStatus.GIT_FAILED,
                 errors=[_git_failed_error(str(exc))],
             )
+
+        wip_paths: list[str] = []
+        if include_wip:
+            try:
+                wip_paths = apply_wip_to_sandbox(
+                    source_root=self.cwd,
+                    sandbox_path=sandbox_path,
+                )
+            except RuntimeError as exc:
+                self._discard_partial_sandbox(sandbox_path, temp_branch)
+                return SandboxCreateResult(
+                    status=SandboxCreateStatus.WIP_FAILED,
+                    errors=[_wip_failed_error(str(exc))],
+                )
 
         session = SandboxSession(
             session_id=sid,
             target_branch=temp_branch,
             sandbox_path=sandbox_path,
             created_at=datetime.now(UTC).isoformat(),
+            wip_applied=bool(include_wip),
+            wip_paths=wip_paths,
         )
         return SandboxCreateResult(status=SandboxCreateStatus.OK, session=session)
 
-    def create_sandbox(self, session_id: str | None = None) -> SandboxSession:
+    def create_sandbox(
+        self,
+        session_id: str | None = None,
+        *,
+        include_wip: bool = False,
+    ) -> SandboxSession:
         """Create a sandbox or raise with the classified error message.
 
         Args:
             session_id: Optional fixed session id.
+            include_wip: When True, overlay uncommitted working-tree changes.
 
         Returns:
             Created session metadata.
@@ -265,7 +403,10 @@ class GitSandboxManager:
         Raises:
             RuntimeError: When creation fails for any classified reason.
         """
-        result = self.create_sandbox_result(session_id=session_id)
+        result = self.create_sandbox_result(
+            session_id=session_id,
+            include_wip=include_wip,
+        )
         if not result.ok or result.session is None:
             message = (
                 result.errors[0]
@@ -313,6 +454,7 @@ def sandbox_scope(
     *,
     auto_clean: bool | None = None,
     keep_on_failure: bool | None = None,
+    include_wip: bool = False,
 ) -> Generator[SandboxSession]:
     """Create a sandbox and optionally clean it up on exit.
 
@@ -324,6 +466,7 @@ def sandbox_scope(
         session_id: Optional fixed session id.
         auto_clean: Override config auto_clean when not None.
         keep_on_failure: Override config keep_on_failure when not None.
+        include_wip: Overlay uncommitted working-tree changes when True.
 
     Yields:
         The created ``SandboxSession``.
@@ -332,7 +475,10 @@ def sandbox_scope(
         RuntimeError: When sandbox creation fails.
     """
     manager = GitSandboxManager(cwd=cwd)
-    result = manager.create_sandbox_result(session_id=session_id)
+    result = manager.create_sandbox_result(
+        session_id=session_id,
+        include_wip=include_wip,
+    )
     if not result.ok or result.session is None:
         message = (
             result.errors[0]
