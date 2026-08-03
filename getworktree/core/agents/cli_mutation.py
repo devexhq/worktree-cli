@@ -1,0 +1,207 @@
+"""Shared direct-mutation agent adapter base and DTOs."""
+
+from __future__ import annotations
+
+import json
+import time
+from collections.abc import Callable
+from pathlib import Path
+from typing import Literal
+
+from pydantic import BaseModel
+
+from getworktree.core.agents.base import (
+    AgentRequest,
+    AgentResponse,
+    AgentResponseStatus,
+)
+from getworktree.core.agents.local import _timeout_error
+from getworktree.core.agents.mutation_git import (
+    MutationGitError,
+    capture_diff_since,
+    discard_since,
+    resolve_pre_agent_baseline,
+)
+from getworktree.core.loops.patch import PatchApplyStatus, validate_patch_text
+
+CliMutationRunStatus = Literal['finished', 'timeout', 'error']
+
+DEFAULT_MAX_FILES = 30
+DEFAULT_MAX_PATCH_KB = 1024
+DEFAULT_REJECT_BINARY_CHANGES = True
+
+
+class CliMutationRunRequest(BaseModel):
+    """Normalized inputs for invoking a direct-mutation CLI/SDK runner."""
+
+    model_config = {'extra': 'forbid', 'strict': True}
+
+    sandbox_path: Path
+    prompt: str
+    model: str | None = None
+    timeout_seconds: float
+
+
+class CliMutationOutcome(BaseModel):
+    """Normalized result from a direct-mutation CLI/SDK runner."""
+
+    model_config = {'extra': 'forbid', 'strict': True}
+
+    status: CliMutationRunStatus
+    result_text: str | None = None
+    error_detail: str | None = None
+
+
+CliMutationRunFn = Callable[[CliMutationRunRequest], CliMutationOutcome]
+
+
+def _provider_error(detail: str) -> str:
+    return f'Agent provider error (AGENT_PROVIDER_ERROR): {detail}'
+
+
+def build_mutation_prompt(request: AgentRequest) -> str:
+    """Build the agent prompt from the mode and failure payload."""
+    instructions = (
+        "You are a coding agent running directly in this sandbox checkout. "
+        "Fix the failure described below.\n"
+        "- Make the smallest change that fixes the failure.\n"
+        "- Stay inside this working directory; do not push, open a PR, or "
+        "touch remotes.\n"
+        "- Prefer leaving tests green.\n"
+        "- Do not modify files under .worktree/.\n"
+        "- When finished, leave the working tree containing only the fix.\n\n"
+    )
+    body = {
+        'mode': request.mode,
+        'sandbox_path': str(request.sandbox_path),
+        'payload': request.payload.model_dump(mode='json'),
+    }
+    return instructions + json.dumps(body, indent=2, ensure_ascii=False)
+
+
+class CliDirectMutationAdapter:
+    """Shared safety flow for providers that mutate the sandbox directly."""
+
+    def __init__(self, *, run_fn: CliMutationRunFn | None = None) -> None:
+        self._run_fn = run_fn or self._default_run
+
+    def _default_run(self, request: CliMutationRunRequest) -> CliMutationOutcome:
+        raise NotImplementedError
+
+    def _preflight(self, request: AgentRequest) -> str | None:
+        return None
+
+    def _provider_name(self) -> str:
+        return 'direct-mutation'
+
+    def propose_fix(self, request: AgentRequest) -> AgentResponse:
+        """Run the provider in the sandbox; never raises for classified outcomes."""
+        started = time.monotonic()
+
+        preflight_error = self._preflight(request)
+        if preflight_error is not None:
+            return AgentResponse(
+                status=AgentResponseStatus.PROVIDER_ERROR,
+                duration_ms=_elapsed_ms(started),
+                errors=[_provider_error(preflight_error)],
+            )
+
+        try:
+            baseline = resolve_pre_agent_baseline(request.sandbox_path)
+        except MutationGitError as exc:
+            return AgentResponse(
+                status=AgentResponseStatus.PROVIDER_ERROR,
+                duration_ms=_elapsed_ms(started),
+                errors=[
+                    _provider_error(f'failed to resolve sandbox baseline: {exc}')
+                ],
+            )
+
+        prompt = build_mutation_prompt(request)
+        outcome = self._run_fn(
+            CliMutationRunRequest(
+                sandbox_path=request.sandbox_path,
+                prompt=prompt,
+                model=request.model,
+                timeout_seconds=float(request.timeout_seconds),
+            )
+        )
+        duration_ms = _elapsed_ms(started)
+
+        if outcome.status == 'timeout':
+            return AgentResponse(
+                status=AgentResponseStatus.TIMEOUT,
+                duration_ms=duration_ms,
+                mutation_baseline_ref=baseline,
+                raw_text=outcome.result_text,
+                errors=[
+                    _timeout_error(request.timeout_seconds, provider=self._provider_name())
+                ],
+            )
+
+        if outcome.status == 'error':
+            detail = outcome.error_detail or 'direct-mutation runner returned error'
+            return AgentResponse(
+                status=AgentResponseStatus.PROVIDER_ERROR,
+                duration_ms=duration_ms,
+                mutation_baseline_ref=baseline,
+                raw_text=outcome.result_text,
+                errors=[_provider_error(detail)],
+            )
+
+        try:
+            diff, _ = capture_diff_since(request.sandbox_path, baseline)
+        except MutationGitError as exc:
+            return AgentResponse(
+                status=AgentResponseStatus.PROVIDER_ERROR,
+                duration_ms=duration_ms,
+                mutation_baseline_ref=baseline,
+                raw_text=outcome.result_text,
+                errors=[_provider_error(f'failed to capture sandbox diff: {exc}')],
+            )
+
+        if not diff.strip():
+            return AgentResponse(
+                status=AgentResponseStatus.NO_OP,
+                duration_ms=duration_ms,
+                mutation_baseline_ref=baseline,
+                raw_text=outcome.result_text,
+            )
+
+        gate = validate_patch_text(
+            diff,
+            max_files=request.max_files or DEFAULT_MAX_FILES,
+            max_patch_kb=request.max_patch_kb or DEFAULT_MAX_PATCH_KB,
+            reject_binary_changes=(
+                request.reject_binary_changes
+                if request.reject_binary_changes is not None
+                else DEFAULT_REJECT_BINARY_CHANGES
+            ),
+            sandbox_path=request.sandbox_path,
+        )
+        if gate.status != PatchApplyStatus.CHECKED_OK:
+            try:
+                discard_since(request.sandbox_path, baseline)
+            except MutationGitError as exc:
+                gate.errors.append(
+                    _provider_error(f'failed to discard rejected sandbox edit: {exc}')
+                )
+            return AgentResponse(
+                status=AgentResponseStatus.PROVIDER_ERROR,
+                duration_ms=duration_ms,
+                mutation_baseline_ref=baseline,
+                raw_text=outcome.result_text,
+                errors=list(gate.errors),
+            )
+
+        return AgentResponse(
+            status=AgentResponseStatus.PROPOSED_PATCH,
+            unified_diff=diff,
+            duration_ms=duration_ms,
+            mutation_baseline_ref=baseline,
+            raw_text=outcome.result_text,
+        )
+
+
+def _elapsed_ms(started: float) -> int:
+    return int((time.monotonic() - started) * 1000)

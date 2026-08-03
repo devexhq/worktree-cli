@@ -71,6 +71,8 @@ class ConfigV1SchemaAcceptTests:
             "local",
             "ollama",
             "cursor",
+            "gemini",
+            "copilot",
             "openai",
             "anthropic",
             "azure_openai",

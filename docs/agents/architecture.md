@@ -199,22 +199,29 @@ atomic (working tree unchanged on failure) → status `conflict`. Success →
 ### Contract
 - Protocol: `AgentAdapter.propose_fix(request: AgentRequest) -> AgentResponse`
 - Factory: `get_agent_adapter(provider, *, config=None)` — **v1 supports `local`,
-  `ollama`, and `cursor`**; any other provider raises `ValueError`
-  (`AGENT_PROVIDER_UNSUPPORTED`)
+  `ollama`, `cursor`, `gemini`, and `copilot`**; any other provider raises
+  `ValueError` (`AGENT_PROVIDER_UNSUPPORTED`)
 - **Loop** `agent.provider` selects the adapter; **config** `agent.model` /
-  `endpoint` / `temperature` / `max_tokens` populate `AgentRequest` (they need
-  not match `config.agent.provider`)
+  `endpoint` / `temperature` / `max_tokens` populate `AgentRequest`
 - Request carries `mode`, `AgentFailurePayload`, `sandbox_path`,
   `timeout_seconds`, optional model/endpoint/temperature/max_tokens, and
-  optional `max_files`/`max_patch_kb`/`reject_binary_changes` (patch limits,
-  populated by the runner; used by direct-mutation providers' post-hoc gate)
+  optional `max_files`/`max_patch_kb`/`reject_binary_changes`
 - Response statuses: `proposed_patch` | `no_op` | `unfixable` | `timeout` |
   `provider_error` (`ok` only for `proposed_patch`); response also carries
   optional `mutation_baseline_ref` (set only by direct-mutation providers)
 - Diff-returning adapters (`local`, `ollama`) must not apply patches or mutate
   the sandbox beyond the child process / HTTP client. Direct-mutation adapters
-  (`cursor`) mutate the sandbox directly but must baseline first and gate
-  before returning `proposed_patch` (see below)
+  (`cursor`, `gemini`, `copilot`) mutate the sandbox directly through the shared
+  base described below
+
+### Shared direct-mutation base (`CliDirectMutationAdapter`)
+- Shared module: `getworktree/core/agents/cli_mutation.py`
+- Shared DTOs: `CliMutationRunRequest`, `CliMutationOutcome`,
+  `CliMutationRunFn`
+- Shared prompt builder: `build_mutation_prompt(request)`
+- Shared flow: preflight → baseline → run → capture diff → gate → classify
+- Gate violations call `discard_since` and return `provider_error`; the runner
+  later uses `mutation_baseline_ref` to reset the sandbox when needed
 
 ### Local provider (`LocalAgentAdapter`)
 Resolves argv from `WORKTREE_LOCAL_AGENT_CMD` (`shlex.split`) or default
@@ -257,26 +264,15 @@ filesystem access run on this machine (`LocalAgentOptions(cwd=sandbox_path)`);
 the model itself is always Cursor-hosted. Auth via `CURSOR_API_KEY`; the SDK is
 an optional install (`pip install getworktree[cursor]`), imported lazily.
 
-Flow per `propose_fix`:
+### Gemini provider (`GeminiAgentAdapter`)
+Direct-mutation provider backed by the `gemini` CLI subprocess. Auth via
+`GEMINI_API_KEY`. The CLI runs in the sandbox working directory and returns JSON
+output that is mapped to the same direct-mutation base flow.
 
-1. **Baseline** ([getworktree/core/agents/mutation_git.py](../../getworktree/core/agents/mutation_git.py)
-   `resolve_pre_agent_baseline`) — clean sandbox tree baselines to `HEAD`; a
-   dirty tree (e.g. a `--wip` overlay) baselines to an internal marker commit,
-   so a later reset never discards state that predates the agent.
-2. **Run** the SDK agent with a wall-clock `request.timeout_seconds` (thread +
-   `run.cancel()` on expiry). The SDK call itself is injectable
-   (`CursorRunFn`) so tests never invoke the real SDK or bridge binary.
-3. **Capture** (`capture_diff_since`) — `git add -A` then diff the index
-   against baseline; covers uncommitted edits and any commits the agent made.
-4. **Gate** (`validate_patch_text` from `getworktree/core/loops/patch.py`) —
-   the same size/file-count/binary/unsafe-path checks used as the pre-`git
-   apply` gate for `local`/`ollama`, run here against already-applied changes.
-   A violation calls `discard_since` (reset to baseline + clean) and returns
-   `provider_error`; `mutation_baseline_ref` is still set so a caller can
-   inspect what was rejected.
-5. **Map**: empty diff → `no_op`; gate passed → `proposed_patch` with the
-   captured diff and `mutation_baseline_ref` set; SDK `error`/`expired` →
-   `provider_error`; SDK `cancelled` or wall-clock timeout → `timeout`.
+### Copilot provider (`CopilotAgentAdapter`)
+Direct-mutation provider backed by `gh copilot`. Auth via `GH_TOKEN` or
+`GITHUB_TOKEN`. The CLI runs in the sandbox working directory and returns
+JSONL output that is mapped to the same direct-mutation base flow.
 
 The runner (`run_loop_iteration`) treats any response with
 `mutation_baseline_ref is not None` as direct-mutation: on approval it skips
