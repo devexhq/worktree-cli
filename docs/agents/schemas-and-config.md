@@ -701,6 +701,66 @@ is optional (`bool | None`) to match the schema; packaged templates may omit it.
 Commands must call this API rather than ad-hoc `yaml.safe_load` + schema for
 full validation. Metadata/inventory remain the lighter list layer.
 
+## `wt loop show`
+
+Command entry: `getworktree.commands.loop.command.loop_show_command`.
+Registration: `wt loop show` under `loop_app` in
+[getworktree/cli.py](../../getworktree/cli.py).
+
+Read-only: resolve by name, full-validate the chosen file, print a human
+summary or classified errors. Never mutates loop/config files, starts sandboxes,
+or runs triggers. No `--path` / `--json` in this surface.
+
+Pipeline:
+
+1. `resolve_loop_by_name(name, cwd=cwd)`
+2. On resolve failure → error panel, exit `1` (no validate)
+3. `validate_loop_result(resolved.entry.source_path)`
+4. On validate failure → error panel, exit `1` (resolve warnings may print after)
+5. On success → plain-text summary, exit `0` (warnings allowed)
+
+Pure formatters (no IO/print/exit) live in
+[getworktree/core/loops/render.py](../../getworktree/core/loops/render.py):
+
+- `format_loop_show_success(loop, *, source_path, warnings=None) -> str`
+- `format_loop_show_resolve_failure(result) -> str`
+- `format_loop_show_validate_failure(result) -> str`
+
+### Exit codes
+
+| Condition | Exit |
+|-----------|------|
+| resolve ok + validate ok (warnings allowed) | `0` |
+| resolve not ok | `1` |
+| validate not ok | `1` |
+| unexpected internal exception | non-zero (never silent `0`) |
+
+### Success layout
+
+Plain text (no Rich markup), trailing newline. Header:
+
+```text
+Loop: <name>
+Source: <absolute-source-path>
+Status: valid
+```
+
+or `Status: valid with warnings` plus a `Warnings:` bullet list when
+`resolved.warnings + validated.warnings` is non-empty. Then sections in order:
+`Description`, `Trigger`, `Agent`, `Iteration`, `Sandbox`, `Approval`,
+`Context`, `Patch` (field labels/casing as in the issue / render module).
+Booleans are `true`/`false`; lists use `json.dumps`; optional
+`reject_binary_changes` is `null` when unset.
+
+### Failure layout
+
+- Exit `1`
+- Rich error panel titled exactly `Loop Show Failed`
+- Resolve body: `"\n\n".join(errors)` or `Failed to resolve loop.`
+- Validate body: `"\n\n".join(errors)` or `Loop definition is invalid.`
+- No success header on failure
+- If resolve warnings exist on a validate failure, print them after the panel
+
 ## Changing config or loop shape
 
 1. Update the relevant JSON Schema (`config_v1.json` or `loop_v1.json`).
