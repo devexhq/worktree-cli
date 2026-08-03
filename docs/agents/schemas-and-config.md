@@ -327,6 +327,77 @@ mutates config files.
 
 Command entry: `getworktree.commands.config.command.config_show_command`.
 
+## Loop file discovery API
+
+Filesystem discovery for loop definition candidates lives in
+[getworktree/core/loops/discovery.py](../../getworktree/core/loops/discovery.py).
+This layer only resolves the loops directory and enumerates candidate YAML
+paths. It does **not** parse YAML, validate `loop_v1.json`, print, call
+`sys.exit`, or create/mutate loop files.
+
+Default relative directory: `.worktree/loops` (`DEFAULT_LOOPS_DIR`).
+Config key: `paths.loops_dir`. Explicit `loops_dir` wins over config.
+
+### Primary API
+
+`discover_loop_files(cwd=None, *, loops_dir=None, use_config=True) -> LoopDiscoveryResult`
+is the primary surface for later `wt loop list|show|run`.
+
+`resolve_loops_dir(cwd=None, *, loops_dir=None, use_config=True) -> tuple[Path, list[str]]`
+returns `(absolute_loops_dir, resolution_errors)` using the same resolution
+rules.
+
+```python
+class LoopDiscoveryStatus(StrEnum):
+    OK = "ok"
+    NOT_FOUND = "not_found"
+    NOT_A_DIRECTORY = "not_a_directory"
+    UNREADABLE = "unreadable"
+    CONFIG_UNAVAILABLE = "config_unavailable"
+
+
+class LoopDiscoveryResult(BaseModel):
+    status: LoopDiscoveryStatus
+    loops_dir: Path  # absolute path resolved / attempted
+    paths: list[Path]  # absolute candidate file paths
+    errors: list[str]
+
+    @property
+    def ok(self) -> bool: ...  # status == OK
+```
+
+Resolution order:
+
+1. Explicit `loops_dir` (absolute as-is after resolve; relative against `cwd`)
+2. Else if `use_config`: `load_config_result` → `config.paths.loops_dir`
+3. Else: `cwd / ".worktree/loops"`
+
+When config is required and load is not ok, status is `config_unavailable`
+(no second config parser). Empty directories are success with `paths=[]`.
+
+### Candidate inclusion (non-recursive)
+
+Only direct children of `loops_dir`. Include when all are true:
+
+- regular file (`Path.is_file()`; skip dirs/sockets; broken symlinks skipped)
+- name ends with `.yml` or `.yaml` (case-sensitive)
+- name does not start with `.` or `_`
+
+`paths` sorted by `Path.name` ascending (Unicode code-point), then absolute
+path string as tiebreaker. Contents are never opened.
+
+### Error codes
+
+| Code | Status |
+|------|--------|
+| `LOOP_DIR_NOT_FOUND` | `not_found` |
+| `LOOP_DIR_NOT_A_DIRECTORY` | `not_a_directory` |
+| `LOOP_DIR_UNREADABLE` | `unreadable` |
+| `LOOP_CONFIG_UNAVAILABLE` | `config_unavailable` |
+
+Callers should use this API instead of ad-hoc `glob`/`iterdir` scans. Seeder
+write paths remain separate.
+
 ## Changing config or loop shape
 
 1. Update the relevant JSON Schema (`config_v1.json` or `loop_v1.json`).
