@@ -17,6 +17,7 @@ getworktree/core/                  Business logic, no Typer/CLI concerns
   git_sandbox.py                   Isolated `git worktree` sandbox lifecycle
   loops/seeder.py                  Seeds packaged starter loop YAML files
   loops/patch.py                   Unified-diff validate/apply in sandbox
+  loops/runner.py                  Iteration controller (attempt state machine)
   templates/loops/*.yml            Packaged starter loop definitions
 getworktree/common/                Shared, dependency-light helpers
   constants.py, fs.py, utils.py, schema_validation.py
@@ -214,6 +215,66 @@ Resolves argv from `WORKTREE_LOCAL_AGENT_CMD` (`shlex.split`) or default
 Stdout mapping: `unfixable=true` → `unfixable`; non-empty `unified_diff` →
 `proposed_patch`; else `no_op`. Invalid/missing JSON, spawn failures, and schema
 violations → `provider_error`. Classified outcomes never raise.
+
+## Iteration controller
+
+`run_loop_iteration` ([getworktree/core/loops/runner.py](../../getworktree/core/loops/runner.py))
+owns one full loop **session** attempt cycle. No Rich printing; returns
+`LoopRunResult` only. Engines are injected for tests (`run_trigger_fn`,
+`apply_patch_fn`, `agent`, sandbox create/cleanup, etc.).
+
+### Attempt flowchart
+
+```mermaid
+flowchart TD
+  start[Create sandbox once] --> checkAbort{Aborted?}
+  checkAbort -->|yes| aborted[ABORTED / user_abort]
+  checkAbort -->|no| trigger[Run trigger in sandbox]
+  trigger --> passed{Trigger passed?}
+  passed -->|yes| ok[PASSED / trigger_passed]
+  passed -->|no| abort2{Aborted?}
+  abort2 -->|yes| aborted
+  abort2 -->|no| payload[Build failure payload]
+  payload --> agent[Agent propose_fix]
+  agent --> unfix{unfixable and in stop_when?}
+  unfix -->|yes| unf[UNFIXABLE / agent_unfixable]
+  unfix -->|no| soft{timeout / provider_error / no_op?}
+  soft -->|yes| nextOrFail{Attempts remain?}
+  soft -->|no| patchPath{proposed_patch}
+  patchPath --> approve{require_before_apply?}
+  approve -->|yes, reject or missing cb| nextOrFail
+  approve -->|no or approved| apply[apply_patch_result]
+  apply --> nextOrFail
+  nextOrFail -->|yes| checkAbort
+  nextOrFail -->|no| fail[FAILED / max_attempts_exhausted]
+```
+
+### Max attempts
+```text
+effective = caller_max_attempts or loop.iteration.max_attempts
+effective = min(effective, config.loop.max_attempts_hard_limit)
+```
+`effective < 1` → `configuration_error` (no attempts).
+
+### Final statuses / stop_reason
+| status | stop_reason examples |
+|--------|----------------------|
+| `PASSED` | `trigger_passed` |
+| `FAILED` | `max_attempts_exhausted`, `sandbox_create_failed`, `configuration_error` |
+| `UNFIXABLE` | `agent_unfixable` |
+| `ABORTED` | `user_abort` (terminal even if `user_abort` missing from `stop_when`) |
+
+### Sandbox / approval
+- One sandbox per session; `session.command_passed` is `True` only on final
+  `PASSED`, `False` on FAILED/UNFIXABLE, `None` on ABORTED
+- Cleanup via `should_cleanup_sandbox` using loop sandbox flags (overridable)
+- When `approval.require_before_apply` is true: call `approve_patch(diff)`;
+  missing callback → `configuration_error` / `approval_callback_missing`
+
+### Hooks
+- `abort_event` / `is_aborted` checked before attempt, after trigger, after
+  agent, before/after patch
+- `on_event(name, payload)` and `on_attempt_end(record)` for UX/history
 
 ## Packaged resources
 
