@@ -97,10 +97,11 @@ class GeminiRunTests:
     ) -> None:
         captured: dict[str, object] = {}
 
-        def fake_run(cmd, cwd, env, capture_output, text, shell, timeout, check):
+        def fake_run(cmd, cwd, env, input, capture_output, text, shell, timeout, check):
             captured["cmd"] = cmd
             captured["cwd"] = cwd
             captured["env_key"] = env[GEMINI_API_KEY_ENV]
+            captured["input"] = input
             captured["timeout"] = timeout
 
             class Result:
@@ -125,7 +126,9 @@ class GeminiRunTests:
         assert outcome.result_text == "pong"
         assert captured["cwd"] == str(sandbox)
         assert captured["env_key"] == "test-key"
+        assert captured["input"] == b"hi"
         assert "-m" in captured["cmd"]
+        assert captured["cmd"][0:3] == ["gemini", "-p", ""]
 
     def test_missing_binary(
         self, sandbox: Path, monkeypatch: pytest.MonkeyPatch

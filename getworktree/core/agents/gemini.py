@@ -53,7 +53,8 @@ def default_gemini_run(request: CliMutationRunRequest) -> CliMutationOutcome:
             error_detail=f"missing {GEMINI_API_KEY_ENV}",
         )
 
-    cmd = ["gemini", "-p", request.prompt, "-o", "json", "--yolo"]
+    # Keep prompt off argv to avoid OS argument length limits on large payloads.
+    cmd = ["gemini", "-p", "", "-o", "json", "--yolo"]
     if request.model:
         cmd.extend(["-m", request.model])
 
@@ -65,6 +66,7 @@ def default_gemini_run(request: CliMutationRunRequest) -> CliMutationOutcome:
             cmd,
             cwd=str(request.sandbox_path),
             env=env,
+            input=request.prompt.encode("utf-8"),
             capture_output=True,
             text=False,
             shell=False,

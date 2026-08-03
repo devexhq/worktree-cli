@@ -97,9 +97,10 @@ class CopilotRunTests:
     ) -> None:
         captured: dict[str, object] = {}
 
-        def fake_run(cmd, cwd, env, capture_output, text, shell, timeout, check):
+        def fake_run(cmd, cwd, env, input, capture_output, text, shell, timeout, check):
             captured["cmd"] = cmd
             captured["cwd"] = cwd
+            captured["input"] = input
             captured["timeout"] = timeout
 
             class Result:
@@ -120,7 +121,10 @@ class CopilotRunTests:
         assert outcome.status == "finished"
         assert outcome.result_text == "hello"
         assert captured["cwd"] == str(sandbox)
+        assert captured["input"] == b"hi"
         assert captured["cmd"][0] == "gh"
+        assert captured["cmd"][0:3] == ["gh", "copilot", "--"]
+        assert captured["cmd"][3:6] == ["-p", "", "--output-format"]
 
     def test_missing_binary(
         self, sandbox: Path, monkeypatch: pytest.MonkeyPatch
