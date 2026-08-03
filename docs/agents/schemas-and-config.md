@@ -143,6 +143,90 @@ They raise `FileNotFoundError` for `not_found`, `OSError` for `unreadable`, and
 current branch + warnings) via `load_config`. Warning policy (missing agent model,
 primary branch, high sandbox limits) is separate from load classification.
 
+## Config validate API
+
+Validate-oriented reads go through
+[getworktree/core/config/validate.py](../../getworktree/core/config/validate.py).
+The engine reuses `load_config_result` for path resolution, IO/parse/schema
+classification, and typed mapping, then applies semantic rules that are not
+expressed in `config_v1.json`. It does not print, call `sys.exit`, or mutate
+files.
+
+### Primary API
+
+`validate_config_result(cwd=None, *, config_path=None) -> ConfigValidationResult`
+is the primary surface for `wt config validate` and later doctor/checks.
+
+```python
+class ConfigValidationStatus(StrEnum):
+    VALID = "valid"
+    INVALID = "invalid"
+    NOT_FOUND = "not_found"
+    MALFORMED_JSON = "malformed_json"
+    ROOT_NOT_OBJECT = "root_not_object"
+    PATH_IS_DIRECTORY = "path_is_directory"
+    UNREADABLE = "unreadable"
+
+
+class ConfigValidationResult(BaseModel):
+    status: ConfigValidationStatus
+    config_path: Path  # absolute
+    raw: dict[str, Any] | None
+    config: WorktreeConfig | None
+    errors: list[str]
+    warnings: list[str]
+
+    @property
+    def ok(self) -> bool: ...  # status == VALID
+```
+
+Path resolution matches the loader: default
+`get_worktree_config_file(cwd)` → `<repo>/.worktree/config.json`; explicit
+`config_path` wins. Result always carries an absolute `config_path`.
+
+### Status mapping from load
+
+| Load-style condition | Validation `status` |
+|----------------------|---------------------|
+| success after schema + map + no semantic errors | `valid` |
+| schema / mapping failure, or semantic errors | `invalid` |
+| missing file / missing parents | `not_found` |
+| malformed JSON | `malformed_json` |
+| root not object | `root_not_object` |
+| path is directory | `path_is_directory` |
+| unreadable | `unreadable` |
+
+IO/parse failures preserve loader error message text and codes; `warnings` is
+empty and `config` is `null`. Schema failures use the grouped
+`CONFIG_SCHEMA_INVALID` block from the loader. On success, `config` is a
+populated `WorktreeConfig`, `raw` is the parsed object, and `errors` is empty
+(warnings may still be present). Semantic errors yield `status=invalid`,
+`ok=false`, `config=null`, with non-empty `errors` (warnings may still be set).
+
+### Error / warning codes
+
+| Code | Kind | When |
+|------|------|------|
+| `CONFIG_NOT_FOUND` | error | missing config |
+| `CONFIG_MALFORMED_JSON` | error | JSON parse failure |
+| `CONFIG_ROOT_NOT_OBJECT` | error | root not object |
+| `CONFIG_PATH_IS_DIRECTORY` | error | path is directory |
+| `CONFIG_UNREADABLE` | error | read failure |
+| `CONFIG_SCHEMA_INVALID` | error | schema or pydantic mapping failure |
+| `CONFIG_SEMANTIC_MAX_ATTEMPTS` | error | `loop.default_max_attempts` > hard limit |
+| `CONFIG_SEMANTIC_PATH_INVALID` | error | any `paths.*` value has NUL/newline |
+| `CONFIG_WARN_AGENT_MODEL_MISSING` | warning | non-`local` provider without model |
+| `CONFIG_WARN_AGENT_ENDPOINT` | warning | non-null endpoint not absolute http(s) URL |
+| `CONFIG_WARN_SANDBOX_LIMIT` | warning | `sandbox.max_active_sandboxes` > 10 |
+
+Warnings never alone make `ok=false`. Ordering: IO/parse single error first;
+else structural block; then semantic errors (max-attempts, then path keys in
+field order). Warnings follow FR-7 rule order (model, endpoint, sandbox limit).
+
+Commands must call this API rather than re-implementing schema or semantic
+loops. CLI wiring, stdout layout, and process exit codes are owned by the
+validate command issue, not this engine.
+
 ## Config serialization and `wt config show`
 
 Runtime display of configuration uses the full V1 surface after model defaults
