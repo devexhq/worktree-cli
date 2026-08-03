@@ -5,6 +5,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
+from getworktree.commands.config.command import config_show_command
 from getworktree.commands.init.command import init_command
 from getworktree.commands.loop.command import loop_command
 from getworktree.commands.status.command import status_command
@@ -22,6 +23,12 @@ app = typer.Typer(
     add_completion=True,
     rich_markup_mode="rich",
 )
+
+config_app = typer.Typer(
+    name="config",
+    help="Inspect effective Worktree configuration.",
+)
+app.add_typer(config_app, name="config")
 
 
 def print_welcome_banner():
@@ -102,6 +109,12 @@ def init_workspace(
 def workspace_status(ctx: typer.Context):
     """Workspace Status."""
     status_command()
+
+
+@config_app.command("show")
+def config_show(ctx: typer.Context):
+    """Display the full normalized effective configuration as JSON."""
+    config_show_command()
 
 
 @app.command(name="loop")

@@ -101,6 +101,36 @@ They raise `FileNotFoundError` for `not_found`, `OSError` for `unreadable`, and
 current branch + warnings) via `load_config`. Warning policy (missing agent model,
 primary branch, high sandbox limits) is separate from load classification.
 
+## Config serialization and `wt config show`
+
+Runtime display of configuration uses the full V1 surface after model defaults
+and load normalizations (not a sparse dump of on-disk keys).
+
+Helpers in
+[getworktree/core/config/serialize.py](../../getworktree/core/config/serialize.py):
+
+- `serialize_config(config: WorktreeConfig) -> dict` — plain dict, no I/O, no
+  print/exit; top-level key order is
+  `version`, `project`, `paths`, `sandbox`, `loop`, `agent`, `patch`,
+  `approval`, `history`, `doctor`, `prune`, `telemetry`. Nested keys follow the
+  Pydantic model / `CANONICAL_V1_DEFAULTS` field order.
+- `as_json(config) -> str` — pretty JSON (`indent=2`, `ensure_ascii=False`) with
+  a trailing newline. Parseable by `json.loads`.
+
+`project.name` is never JSON `null` in serialized output (load maps null to
+`"unnamed_project"`). Optional unset strings (`agent.model`, `agent.endpoint`,
+`project.initialized_at`) serialize as JSON `null`.
+
+### CLI success body
+
+`wt config show` loads via `load_config_result`, then prints **only** the
+serialized JSON body on success (exit `0`). No source-path / validation header
+in this command surface yet. On non-ok load it prints `ConfigLoadResult.errors`
+(error panel) and exits `1` without emitting partial JSON. Show never creates or
+mutates config files.
+
+Command entry: `getworktree.commands.config.command.config_show_command`.
+
 ## Changing config or loop shape
 
 1. Update the relevant JSON Schema (`config_v1.json` or `loop_v1.json`).
