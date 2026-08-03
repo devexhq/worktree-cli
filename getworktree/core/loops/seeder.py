@@ -10,12 +10,8 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, Field
 
-from getworktree.common.schema_validation import SchemaValidator
 from getworktree.common.utils import display_path
-
-LOOP_VALIDATOR = SchemaValidator(
-    resources.files("getworktree.schemas") / "loop_v1.json"
-)
+from getworktree.core.loops.validate import LOOP_VALIDATOR
 
 
 class LoopSeedResult(BaseModel):
