@@ -338,6 +338,15 @@ def run_loop_iteration(
     run_errors: list[str] = []
     command_passed: bool | None = None
 
+    _emit(
+        on_event,
+        "session_start",
+        session_id=sid,
+        sandbox_path=str(sandbox_path),
+        loop_name=loop_name,
+        max_attempts=max_attempts,
+    )
+
     if agent is None:
         try:
             agent = get_agent_adapter(loop.agent.provider, config=config.agent)
@@ -437,6 +446,14 @@ def run_loop_iteration(
             )
 
             # --- trigger ---
+            _emit(
+                on_event,
+                "trigger_start",
+                attempt=attempt_idx,
+                command=loop.trigger.command,
+                args=list(loop.trigger.args),
+                timeout_seconds=loop.trigger.timeout_seconds,
+            )
             trigger_result = trigger_runner(
                 command=loop.trigger.command,
                 args=list(loop.trigger.args),
@@ -519,6 +536,14 @@ def run_loop_iteration(
                 endpoint=config.agent.endpoint,
                 temperature=config.agent.temperature,
                 max_tokens=config.agent.max_tokens,
+            )
+            _emit(
+                on_event,
+                "agent_start",
+                attempt=attempt_idx,
+                provider=loop.agent.provider,
+                mode=loop.agent.mode,
+                timeout_seconds=loop.agent.timeout_seconds,
             )
             agent_response = agent.propose_fix(agent_request)
             record.agent_status = agent_response.status.value
@@ -629,6 +654,11 @@ def run_loop_iteration(
                 stop_reason = "user_abort"
                 break
 
+            _emit(
+                on_event,
+                "patch_start",
+                attempt=attempt_idx,
+            )
             patch_result = patch_applier(
                 sandbox_path=sandbox_path,
                 unified_diff=agent_response.unified_diff,

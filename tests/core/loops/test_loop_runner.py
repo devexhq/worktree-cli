@@ -527,6 +527,11 @@ class RunLoopIterationTests:
             on_event=on_event,
         )
         names = [n for n, _ in events]
+        assert names[0] == "session_start"
         assert "attempt_start" in names
+        assert "trigger_start" in names
         assert "trigger" in names
+        assert "agent_start" in names
         assert "agent" in names
+        assert names.index("trigger_start") < names.index("trigger")
+        assert names.index("agent_start") < names.index("agent")

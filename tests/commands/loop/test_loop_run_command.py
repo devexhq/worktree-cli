@@ -13,6 +13,7 @@ from getworktree.cli import app
 from getworktree.commands.loop.renderers import (
     exit_code_for_status,
     format_attempt_block,
+    format_progress_event,
     format_run_summary,
 )
 from getworktree.core.config.generator import generate_default_config
@@ -118,6 +119,59 @@ class ExitCodeTests:
 
 
 class RendererTests:
+    def test_progress_event_lines(self) -> None:
+        start = format_progress_event(
+            "session_start",
+            {
+                "loop_name": "fix-tests",
+                "session_id": "sbx_deadbeef",
+                "max_attempts": 5,
+            },
+        )
+        assert start is not None
+        assert "Running loop fix-tests" in start
+        assert "Session:  sbx_deadbeef" in start
+        assert "Budget:   5 attempt(s)" in start
+
+        attempt = format_progress_event(
+            "attempt_start", {"attempt": 2, "max_attempts": 5}
+        )
+        assert attempt == "Attempt 2/5\n"
+
+        trigger_start = format_progress_event(
+            "trigger_start",
+            {"command": "pytest", "args": ["-q"], "timeout_seconds": 60},
+        )
+        assert trigger_start == "  Trigger: running (pytest -q)...\n"
+
+        trigger = format_progress_event(
+            "trigger",
+            {"status": "failed", "exit_code": 1, "duration_ms": 12400},
+        )
+        assert trigger == "  Trigger: failed (exit 1) 12.4s\n"
+
+        agent_start = format_progress_event(
+            "agent_start",
+            {"provider": "local", "mode": "fix_failure"},
+        )
+        assert agent_start == "  Agent:   running (local/fix_failure)...\n"
+
+        agent = format_progress_event(
+            "agent",
+            {"status": "proposed_patch", "duration_ms": 3100},
+        )
+        assert agent == "  Agent:   proposed_patch 3.1s\n"
+
+        patch_start = format_progress_event("patch_start", {"attempt": 1})
+        assert patch_start == "  Patch:   applying...\n"
+
+        patch = format_progress_event(
+            "patch",
+            {"status": "applied", "touched_files": ["a.py", "b.py"]},
+        )
+        assert patch == "  Patch:   applied (2 files)\n"
+        assert format_progress_event("unknown", {}) is None
+
     def test_attempt_block_failed_then_agent_patch(self) -> None:
         rec = AttemptRecord(
             attempt=1,
@@ -256,6 +310,80 @@ class LoopRunCliTests:
         assert "Attempt 1/5" in result.stdout
         assert "Trigger: failed (exit 1) 12.4s" in result.stdout
         assert "Stop:       trigger_passed" in result.stdout
+
+    def test_live_progress_streams_and_skips_duplicate_attempts(
+        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(git_repo)
+        _init_with_loops(git_repo)
+        fixture = _fixture_result(LoopFinalStatus.PASSED, stop_reason="trigger_passed")
+
+        def fake_run(**kwargs):
+            on_event = kwargs.get("on_event")
+            assert on_event is not None
+            on_event(
+                "session_start",
+                {
+                    "loop_name": "fix-tests",
+                    "session_id": "sbx_a1b2c3d4",
+                    "max_attempts": 5,
+                },
+            )
+            on_event("attempt_start", {"attempt": 1, "max_attempts": 5})
+            on_event(
+                "trigger_start",
+                {"command": "pytest", "args": [], "timeout_seconds": 600},
+            )
+            on_event(
+                "trigger",
+                {"status": "failed", "exit_code": 1, "duration_ms": 12400},
+            )
+            on_event(
+                "agent_start",
+                {"provider": "local", "mode": "fix_failure"},
+            )
+            on_event(
+                "agent",
+                {"status": "proposed_patch", "duration_ms": 3100},
+            )
+            on_event("patch_start", {"attempt": 1})
+            on_event(
+                "patch",
+                {
+                    "status": "applied",
+                    "touched_files": ["a.py", "b.py", "c.py"],
+                },
+            )
+            on_event("attempt_start", {"attempt": 2, "max_attempts": 5})
+            on_event(
+                "trigger_start",
+                {"command": "pytest", "args": [], "timeout_seconds": 600},
+            )
+            on_event(
+                "trigger",
+                {"status": "passed", "exit_code": 0, "duration_ms": 10100},
+            )
+            return fixture
+
+        monkeypatch.setattr(
+            "getworktree.commands.loop.command.run_loop_iteration",
+            fake_run,
+        )
+        result = runner.invoke(app, ["loop", "run", "fix-tests"])
+        assert result.exit_code == 0
+        out = result.stdout
+        assert "Running loop fix-tests" in out
+        assert "Trigger: running (pytest)..." in out
+        assert "Agent:   running (local/fix_failure)..." in out
+        assert "Patch:   applying..." in out
+        assert "Trigger: failed (exit 1) 12.4s" in out
+        assert "Status:     PASSED" in out
+        # Attempt header once per attempt (live only), not duplicated in summary.
+        assert out.count("Attempt 1/5") == 1
+        assert out.count("Attempt 2/5") == 1
+        assert out.index("Trigger: running (pytest)...") < out.index(
+            "── Loop run summary"
+        )
 
     def test_failed_exit_code(
         self, git_repo: Path, monkeypatch: pytest.MonkeyPatch

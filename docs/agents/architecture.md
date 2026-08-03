@@ -310,6 +310,13 @@ cleanup (`should_cleanup_sandbox` with `command_passed=None` on abort).
 orchestrates resolve → validate → `run_loop_iteration` → render. Formatting lives
 in [renderers.py](../../getworktree/commands/loop/renderers.py) (no bare `print`).
 
+### Live progress
+The CLI registers `on_event` and prints plain progress as the controller emits:
+`session_start`, `attempt_start`, `trigger_start` / `trigger`, `agent_start` /
+`agent`, `patch_start` / `patch`. Start events use a `running...` line so long
+triggers/agents do not look stalled. After the run, only the summary is reprinted
+(attempt blocks are not duplicated when progress streamed).
+
 ### Flags
 - `--max-attempts INT` (≥1) → controller `caller_max_attempts`
 - `--keep / --no-keep` → `--keep` forces `auto_clean=False`
