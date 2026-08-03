@@ -34,6 +34,9 @@ class AgentRequest(BaseModel):
     endpoint: str | None = None
     temperature: float | None = None
     max_tokens: int | None = None
+    max_files: int | None = None
+    max_patch_kb: int | None = None
+    reject_binary_changes: bool | None = None
 
 
 class AgentResponse(BaseModel):
@@ -48,6 +51,7 @@ class AgentResponse(BaseModel):
     raw_text: str | None = None
     duration_ms: int = 0
     errors: list[str] = Field(default_factory=list)
+    mutation_baseline_ref: str | None = None
 
     @property
     def ok(self) -> bool:

@@ -125,6 +125,17 @@ class ValidateLoopResultSuccessTests:
         assert result.loop is not None
         assert result.loop.patch.reject_binary_changes is True
 
+    def test_valid_with_cursor_provider(self, tmp_path: Path) -> None:
+        raw = _valid_raw()
+        raw["agent"]["provider"] = "cursor"
+        path = _dump_yaml(tmp_path / "cursor-provider.yml", raw)
+
+        result = validate_loop_result(path)
+
+        assert result.ok
+        assert result.loop is not None
+        assert result.loop.agent.provider == "cursor"
+
     def test_validate_loop_document_memory_source_path(self) -> None:
         raw = _valid_raw()
         source = Path("in-memory")

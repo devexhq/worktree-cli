@@ -70,6 +70,7 @@ class ConfigV1SchemaAcceptTests:
         for provider in (
             "local",
             "ollama",
+            "cursor",
             "openai",
             "anthropic",
             "azure_openai",

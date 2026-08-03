@@ -102,6 +102,7 @@
           "enum": [
             "local",
             "ollama",
+            "cursor",
             "openai",
             "anthropic",
             "azure_openai",

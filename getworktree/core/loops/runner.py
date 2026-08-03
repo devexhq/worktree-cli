@@ -25,6 +25,7 @@ from getworktree.core.loops.patch import (
     PatchApplyResult,
     PatchApplyStatus,
     apply_patch_result,
+    validate_patch_text,
 )
 from getworktree.core.loops.payload import AgentFailurePayload, build_failure_payload
 from getworktree.core.loops.safety import (
@@ -44,6 +45,7 @@ ApprovePatchFn = Callable[[str], bool]
 ListChangedFilesFn = Callable[[Path], list[str]]
 RunTriggerFn = Callable[..., TriggerRunResult]
 ApplyPatchFn = Callable[..., PatchApplyResult]
+DiscardMutationFn = Callable[[Path, str], None]
 BuildPayloadFn = Callable[..., AgentFailurePayload]
 OnAttemptEndFn = Callable[["AttemptRecord"], None]
 OnEventFn = Callable[[str, dict[str, Any]], None]
@@ -199,6 +201,7 @@ def run_loop_iteration(
     list_changed_files: ListChangedFilesFn | None = None,
     run_trigger_fn: RunTriggerFn | None = None,
     apply_patch_fn: ApplyPatchFn | None = None,
+    discard_mutation_fn: DiscardMutationFn | None = None,
     build_payload_fn: BuildPayloadFn | None = None,
     create_sandbox_fn: CreateSandboxFn | None = None,
     cleanup_sandbox_fn: CleanupSandboxFn | None = None,
@@ -229,6 +232,8 @@ def run_loop_iteration(
         list_changed_files: Callable returning sandbox-relative changed paths.
         run_trigger_fn: Injected trigger runner (tests).
         apply_patch_fn: Injected patch apply (tests).
+        discard_mutation_fn: Injected sandbox reset for direct-mutation
+            providers (tests); defaults to ``discard_since``.
         build_payload_fn: Injected payload builder (tests).
         create_sandbox_fn: Injected sandbox create (tests).
         cleanup_sandbox_fn: Injected sandbox cleanup (tests).
@@ -247,6 +252,7 @@ def run_loop_iteration(
     # Lazy imports avoid circular dependency: agents.base → loops.payload → loops.
     from getworktree.core.agents.base import AgentRequest, AgentResponseStatus
     from getworktree.core.agents.factory import get_agent_adapter
+    from getworktree.core.agents.mutation_git import discard_since
 
     root = (cwd or Path.cwd()).expanduser().resolve()
     loop_name = loop.name
@@ -307,6 +313,7 @@ def run_loop_iteration(
     stop_when = set(loop.iteration.stop_when)
     trigger_runner = run_trigger_fn or run_trigger
     patch_applier = apply_patch_fn or apply_patch_result
+    mutation_discarder = discard_mutation_fn or discard_since
     payload_builder = build_payload_fn or build_failure_payload
     changed_files_fn = list_changed_files or default_list_changed_files
 
@@ -544,6 +551,9 @@ def run_loop_iteration(
                 endpoint=config.agent.endpoint,
                 temperature=config.agent.temperature,
                 max_tokens=config.agent.max_tokens,
+                max_files=max_files,
+                max_patch_kb=max_patch_kb,
+                reject_binary_changes=reject_binary,
             )
             _emit(
                 on_event,
@@ -572,6 +582,10 @@ def run_loop_iteration(
             if agent_response.status == AgentResponseStatus.UNFIXABLE:
                 if agent_response.unfixable_reason:
                     record.errors.append(agent_response.unfixable_reason)
+                if agent_response.mutation_baseline_ref is not None:
+                    mutation_discarder(
+                        sandbox_path, agent_response.mutation_baseline_ref
+                    )
                 _finish_attempt(record)
                 if "unfixable" in stop_when:
                     final_status = LoopFinalStatus.UNFIXABLE
@@ -597,6 +611,10 @@ def run_loop_iteration(
                 AgentResponseStatus.PROVIDER_ERROR,
                 AgentResponseStatus.NO_OP,
             }:
+                if agent_response.mutation_baseline_ref is not None:
+                    mutation_discarder(
+                        sandbox_path, agent_response.mutation_baseline_ref
+                    )
                 _finish_attempt(record)
                 if _is_aborted(abort_event=abort_event, is_aborted=is_aborted):
                     final_status = LoopFinalStatus.ABORTED
@@ -613,6 +631,10 @@ def run_loop_iteration(
             if not agent_response.unified_diff:
                 record.errors.append("Agent proposed_patch without unified_diff")
                 record.patch_status = PatchApplyStatus.EMPTY_DIFF.value
+                if agent_response.mutation_baseline_ref is not None:
+                    mutation_discarder(
+                        sandbox_path, agent_response.mutation_baseline_ref
+                    )
                 _finish_attempt(record)
                 if attempt_idx >= max_attempts:
                     final_status = LoopFinalStatus.FAILED
@@ -642,6 +664,10 @@ def run_loop_iteration(
                 if not approved:
                     record.patch_status = "approval_rejected"
                     record.errors.append("Patch apply skipped: approval rejected")
+                    if agent_response.mutation_baseline_ref is not None:
+                        mutation_discarder(
+                            sandbox_path, agent_response.mutation_baseline_ref
+                        )
                     _finish_attempt(record)
                     _emit(
                         on_event,
@@ -667,14 +693,37 @@ def run_loop_iteration(
                 "patch_start",
                 attempt=attempt_idx,
             )
-            patch_result = patch_applier(
-                sandbox_path=sandbox_path,
-                unified_diff=agent_response.unified_diff,
-                max_files=max_files,
-                max_patch_kb=max_patch_kb,
-                reject_binary_changes=reject_binary,
-                check_only=False,
-            )
+            if agent_response.mutation_baseline_ref is not None:
+                # Direct-mutation provider: the agent already edited files on
+                # disk. Do not re-`git apply` (it would conflict); the
+                # captured diff already passed the adapter's post-hoc gate,
+                # so re-derive touched files from the same pure check.
+                validation = validate_patch_text(
+                    agent_response.unified_diff,
+                    max_files=max_files,
+                    max_patch_kb=max_patch_kb,
+                    reject_binary_changes=reject_binary,
+                    sandbox_path=sandbox_path,
+                )
+                if validation.status == PatchApplyStatus.CHECKED_OK:
+                    patch_result = PatchApplyResult(
+                        status=PatchApplyStatus.APPLIED,
+                        touched_files=list(validation.touched_files),
+                    )
+                else:
+                    mutation_discarder(
+                        sandbox_path, agent_response.mutation_baseline_ref
+                    )
+                    patch_result = validation
+            else:
+                patch_result = patch_applier(
+                    sandbox_path=sandbox_path,
+                    unified_diff=agent_response.unified_diff,
+                    max_files=max_files,
+                    max_patch_kb=max_patch_kb,
+                    reject_binary_changes=reject_binary,
+                    check_only=False,
+                )
             record.patch_status = patch_result.status.value
             record.patch_touched_files = list(patch_result.touched_files)
             if patch_result.errors:

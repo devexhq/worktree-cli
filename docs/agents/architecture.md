@@ -198,18 +198,23 @@ atomic (working tree unchanged on failure) → status `conflict`. Success →
 
 ### Contract
 - Protocol: `AgentAdapter.propose_fix(request: AgentRequest) -> AgentResponse`
-- Factory: `get_agent_adapter(provider, *, config=None)` — **v1 supports `local`
-  and `ollama`**; any other provider raises `ValueError`
+- Factory: `get_agent_adapter(provider, *, config=None)` — **v1 supports `local`,
+  `ollama`, and `cursor`**; any other provider raises `ValueError`
   (`AGENT_PROVIDER_UNSUPPORTED`)
 - **Loop** `agent.provider` selects the adapter; **config** `agent.model` /
   `endpoint` / `temperature` / `max_tokens` populate `AgentRequest` (they need
   not match `config.agent.provider`)
 - Request carries `mode`, `AgentFailurePayload`, `sandbox_path`,
-  `timeout_seconds`, and optional model/endpoint/temperature/max_tokens
+  `timeout_seconds`, optional model/endpoint/temperature/max_tokens, and
+  optional `max_files`/`max_patch_kb`/`reject_binary_changes` (patch limits,
+  populated by the runner; used by direct-mutation providers' post-hoc gate)
 - Response statuses: `proposed_patch` | `no_op` | `unfixable` | `timeout` |
-  `provider_error` (`ok` only for `proposed_patch`)
-- Adapters must not apply patches or mutate the sandbox beyond the child process
-  / HTTP client
+  `provider_error` (`ok` only for `proposed_patch`); response also carries
+  optional `mutation_baseline_ref` (set only by direct-mutation providers)
+- Diff-returning adapters (`local`, `ollama`) must not apply patches or mutate
+  the sandbox beyond the child process / HTTP client. Direct-mutation adapters
+  (`cursor`) mutate the sandbox directly but must baseline first and gate
+  before returning `proposed_patch` (see below)
 
 ### Local provider (`LocalAgentAdapter`)
 Resolves argv from `WORKTREE_LOCAL_AGENT_CMD` (`shlex.split`) or default
@@ -244,6 +249,42 @@ Model must return JSON fields `unfixable`, `unfixable_reason`,
 **unparseable model text → `unfixable`** with reason `model_output_unparseable`
 (not `provider_error`). Transport/HTTP failures → `provider_error`; wall timeout
 → `timeout`.
+
+### Cursor provider (`CursorAgentAdapter`)
+Direct-mutation provider: the Cursor SDK agent edits sandbox files on disk
+instead of returning a diff. "Local runtime" means the agent loop and
+filesystem access run on this machine (`LocalAgentOptions(cwd=sandbox_path)`);
+the model itself is always Cursor-hosted. Auth via `CURSOR_API_KEY`; the SDK is
+an optional install (`pip install getworktree[cursor]`), imported lazily.
+
+Flow per `propose_fix`:
+
+1. **Baseline** ([getworktree/core/agents/mutation_git.py](../../getworktree/core/agents/mutation_git.py)
+   `resolve_pre_agent_baseline`) — clean sandbox tree baselines to `HEAD`; a
+   dirty tree (e.g. a `--wip` overlay) baselines to an internal marker commit,
+   so a later reset never discards state that predates the agent.
+2. **Run** the SDK agent with a wall-clock `request.timeout_seconds` (thread +
+   `run.cancel()` on expiry). The SDK call itself is injectable
+   (`CursorRunFn`) so tests never invoke the real SDK or bridge binary.
+3. **Capture** (`capture_diff_since`) — `git add -A` then diff the index
+   against baseline; covers uncommitted edits and any commits the agent made.
+4. **Gate** (`validate_patch_text` from `getworktree/core/loops/patch.py`) —
+   the same size/file-count/binary/unsafe-path checks used as the pre-`git
+   apply` gate for `local`/`ollama`, run here against already-applied changes.
+   A violation calls `discard_since` (reset to baseline + clean) and returns
+   `provider_error`; `mutation_baseline_ref` is still set so a caller can
+   inspect what was rejected.
+5. **Map**: empty diff → `no_op`; gate passed → `proposed_patch` with the
+   captured diff and `mutation_baseline_ref` set; SDK `error`/`expired` →
+   `provider_error`; SDK `cancelled` or wall-clock timeout → `timeout`.
+
+The runner (`run_loop_iteration`) treats any response with
+`mutation_baseline_ref is not None` as direct-mutation: on approval it skips
+re-`git apply` (files are already correct) and only re-derives touched files
+via `validate_patch_text`; on any other terminal outcome (reject, timeout,
+unfixable, no-op) it calls `discard_since` to reset the sandbox back to
+baseline before the next attempt. `local`/`ollama` never set
+`mutation_baseline_ref`, so their code path is unchanged.
 
 ## Iteration controller
 
