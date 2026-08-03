@@ -8,21 +8,107 @@
 [![Python versions](https://img.shields.io/pypi/pyversions/getworktree.svg)](https://pypi.org/project/getworktree/)
 [![Stars](https://img.shields.io/github/stars/getworktree/getworktree.svg?style=social)](https://github.com/getworktree/getworktree/stargazers)
 
-Isolated git worktree developer loops and autonomous AI agent workspaces. 
+Isolated git worktree developer loops and autonomous AI agent workspaces.
 
-Worktree allows humans and AI agents to build, test, and review code in parallel without disrupting the active uncommitted workspace.
+Worktree helps humans and agents build, test, and remediate in parallel without disturbing your active local branch.
 
-## Quick Start
+## Installation
 
 ```bash
 pip install getworktree
 ```
 
+Optional provider extras:
+
+```bash
+pip install "getworktree[cursor]"
+```
+
+## Requirements
+
+- Python 3.13+
+- Git
+- For provider-specific loop runs:
+  - Cursor: `CURSOR_API_KEY` (+ `getworktree[cursor]`)
+  - Gemini: Gemini CLI on `PATH` + `GEMINI_API_KEY`
+  - Copilot: GitHub CLI (`gh`) on `PATH` + `GH_TOKEN` or `GITHUB_TOKEN`
+
+## Quick start
+
+```bash
+wt init
+wt status
+wt config validate
+wt loop show fix-tests
+wt loop run fix-tests
+```
+
+## Current command surface
+
+### Top-level
+
+- `wt init`
+- `wt status`
+
+### Config
+
+- `wt config show`
+- `wt config validate`
+
+### Loop
+
+- `wt loop show <name>`
+- `wt loop run <name>`
+
+## Agent providers for loop runs
+
+Loop definitions support these providers:
+
+- `local`
+- `ollama`
+- `cursor`
+- `gemini`
+- `copilot`
+
+Provider behavior:
+
+- `local` and `ollama` return unified diffs
+- `cursor`, `gemini`, and `copilot` run as direct-mutation providers with shared safety gates before patches are accepted
+
+## Project layout
+
+Worktree initializes and uses:
+
+- `.worktree/config.json`
+- `.worktree/loops/*.yml`
+- `.worktree/sessions/`
+- `.worktree/artifacts/`
+
+## Development
+
+```bash
+pip install -e .[dev]
+inv test
+ruff format .
+ruff check .
+```
+
+## Documentation
+
+- CLI plan: [docs/cli-plan.md](docs/cli-plan.md)
+- Schemas and config: [docs/agents/schemas-and-config.md](docs/agents/schemas-and-config.md)
+- Architecture: [docs/agents/architecture.md](docs/agents/architecture.md)
+
+## Project status
+
+This README reflects the currently implemented surface in `main`.
+Additional commands listed in `docs/cli-plan.md` may still be in progress.
+
 ## License
 
-Distributed under the MIT License. See `LICENSE` for more information.
+Distributed under the MIT License. See [`LICENSE`](LICENSE) for details.
 
 ## Links
 
-* **Website**: [getworktree.io](https://getworktree.io)
-* **GitHub Organization**: [://github.com](https://://github.com)
+- Website: [getworktree.io](https://getworktree.io)
+- GitHub Organization: [github.com/getworktree](https://github.com/getworktree)
