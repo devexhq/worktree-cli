@@ -7,7 +7,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 LoopAgentMode = Literal["fix_failure", "review_remediation"]
-LoopAgentProvider = Literal["local"]
+LoopAgentProvider = Literal["local", "ollama"]
 LoopContextInclude = Literal["trigger_output", "changed_files", "relevant_source"]
 LoopPatchStrategy = Literal["unified_diff"]
 LoopStopWhen = Literal["trigger_passes", "unfixable", "user_abort"]

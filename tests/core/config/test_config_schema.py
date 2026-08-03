@@ -69,6 +69,7 @@ class ConfigV1SchemaAcceptTests:
     def test_all_allowed_providers(self) -> None:
         for provider in (
             "local",
+            "ollama",
             "openai",
             "anthropic",
             "azure_openai",

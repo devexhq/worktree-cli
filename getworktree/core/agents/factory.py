@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from getworktree.core.agents.base import AgentAdapter
 from getworktree.core.agents.local import LocalAgentAdapter
+from getworktree.core.agents.ollama import OllamaAgentAdapter
 from getworktree.core.config.models import AgentConfig
 
-_SUPPORTED_V1 = ("local",)
+_SUPPORTED_V1 = ("local", "ollama")
 
 
 def get_agent_adapter(
@@ -15,9 +16,9 @@ def get_agent_adapter(
     """Return an adapter for ``provider``.
 
     Args:
-        provider: Provider id from loop/config (v1 supports ``local`` only).
-        config: Optional agent config; unused for local today, reserved for
-            future providers.
+        provider: Provider id from loop/config (v1: ``local``, ``ollama``).
+        config: Optional agent config; unused by current adapters (request
+            fields are populated by the runner from config).
 
     Returns:
         An ``AgentAdapter`` implementation.
@@ -25,9 +26,11 @@ def get_agent_adapter(
     Raises:
         ValueError: When ``provider`` is not supported in v1.
     """
-    _ = config  # reserved for future non-local providers
+    _ = config  # reserved; request carries resolved model/endpoint fields
     if provider == "local":
         return LocalAgentAdapter()
+    if provider == "ollama":
+        return OllamaAgentAdapter()
     supported = ", ".join(_SUPPORTED_V1)
     raise ValueError(
         f"Unsupported agent provider '{provider}' "

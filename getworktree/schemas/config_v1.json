@@ -99,7 +99,14 @@
       "properties": {
         "provider": {
           "type": "string",
-          "enum": ["local", "openai", "anthropic", "azure_openai", "custom"]
+          "enum": [
+            "local",
+            "ollama",
+            "openai",
+            "anthropic",
+            "azure_openai",
+            "custom"
+          ]
         },
         "model": { "type": ["string", "null"], "minLength": 1 },
         "endpoint": { "type": ["string", "null"], "minLength": 1 },

@@ -50,7 +50,7 @@
       "properties": {
         "provider": {
           "type": "string",
-          "enum": ["local"]
+          "enum": ["local", "ollama"]
         },
         "mode": {
           "type": "string",
