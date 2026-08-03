@@ -8,6 +8,7 @@ from getworktree.core.agents.base import (
 )
 from getworktree.core.agents.factory import get_agent_adapter
 from getworktree.core.agents.local import LocalAgentAdapter, LocalAgentStdout
+from getworktree.core.agents.ollama import OllamaAgentAdapter
 
 __all__ = [
     "AgentAdapter",
@@ -16,5 +17,6 @@ __all__ = [
     "AgentResponseStatus",
     "LocalAgentAdapter",
     "LocalAgentStdout",
+    "OllamaAgentAdapter",
     "get_agent_adapter",
 ]

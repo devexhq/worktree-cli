@@ -199,12 +199,17 @@ atomic (working tree unchanged on failure) → status `conflict`. Success →
 ### Contract
 - Protocol: `AgentAdapter.propose_fix(request: AgentRequest) -> AgentResponse`
 - Factory: `get_agent_adapter(provider, *, config=None)` — **v1 supports `local`
-  only**; any other provider raises `ValueError` (`AGENT_PROVIDER_UNSUPPORTED`)
+  and `ollama`**; any other provider raises `ValueError`
+  (`AGENT_PROVIDER_UNSUPPORTED`)
+- **Loop** `agent.provider` selects the adapter; **config** `agent.model` /
+  `endpoint` / `temperature` / `max_tokens` populate `AgentRequest` (they need
+  not match `config.agent.provider`)
 - Request carries `mode`, `AgentFailurePayload`, `sandbox_path`,
   `timeout_seconds`, and optional model/endpoint/temperature/max_tokens
 - Response statuses: `proposed_patch` | `no_op` | `unfixable` | `timeout` |
   `provider_error` (`ok` only for `proposed_patch`)
 - Adapters must not apply patches or mutate the sandbox beyond the child process
+  / HTTP client
 
 ### Local provider (`LocalAgentAdapter`)
 Resolves argv from `WORKTREE_LOCAL_AGENT_CMD` (`shlex.split`) or default
@@ -220,6 +225,25 @@ Resolves argv from `WORKTREE_LOCAL_AGENT_CMD` (`shlex.split`) or default
 Stdout mapping: `unfixable=true` → `unfixable`; non-empty `unified_diff` →
 `proposed_patch`; else `no_op`. Invalid/missing JSON, spawn failures, and schema
 violations → `provider_error`. Classified outcomes never raise.
+
+### Ollama provider (`OllamaAgentAdapter`)
+In-process HTTP client (stdlib `urllib`) — no `WORKTREE_LOCAL_AGENT_CMD`.
+
+| Setting | Resolution |
+|---------|------------|
+| model | `request.model` (required; else `provider_error` — set `agent.model` in config) |
+| endpoint | `request.endpoint` → env `OLLAMA_HOST` → `http://127.0.0.1:11434` |
+| temperature | `request.temperature` or `0.2` |
+| max tokens | `request.max_tokens` or `4096` → Ollama `options.num_predict` |
+
+`POST {base}/api/chat` with `stream: false`, system+user messages, wall-clock
+`request.timeout_seconds`. Endpoint must be absolute `http://` or `https://`.
+
+Model must return JSON fields `unfixable`, `unfixable_reason`,
+`unified_diff`, `summary` (fences stripped). Mapping matches local stdout rules;
+**unparseable model text → `unfixable`** with reason `model_output_unparseable`
+(not `provider_error`). Transport/HTTP failures → `provider_error`; wall timeout
+→ `timeout`.
 
 ## Iteration controller
 

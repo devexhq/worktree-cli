@@ -24,8 +24,15 @@ Strictness:
 
 Enums (exact tokens):
 
-- `agent.provider`: `local` | `openai` | `anthropic` | `azure_openai` | `custom`
+- Config `agent.provider`: `local` | `ollama` | `openai` | `anthropic` |
+  `azure_openai` | `custom` (runtime factory supports **`local`** and
+  **`ollama`** only; other tokens remain schema-valid for future providers)
+- Loop `agent.provider` (`loop_v1.json`): `local` | `ollama`
 - `patch.strategy`: `unified_diff`
+
+For `wt loop run`, **loop** `agent.provider` selects the adapter; **config**
+`agent.model` / `endpoint` / `temperature` / `max_tokens` fill the request.
+Ollama requires a non-empty `config.agent.model`.
 
 Notable bounds / string rules:
 

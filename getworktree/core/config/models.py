@@ -6,7 +6,9 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-AgentProvider = Literal["local", "openai", "anthropic", "azure_openai", "custom"]
+AgentProvider = Literal[
+    "local", "ollama", "openai", "anthropic", "azure_openai", "custom"
+]
 PatchStrategy = Literal["unified_diff"]
 
 
