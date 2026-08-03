@@ -224,8 +224,66 @@ else structural block; then semantic errors (max-attempts, then path keys in
 field order). Warnings follow FR-7 rule order (model, endpoint, sandbox limit).
 
 Commands must call this API rather than re-implementing schema or semantic
-loops. CLI wiring, stdout layout, and process exit codes are owned by the
-validate command issue, not this engine.
+loops.
+
+## `wt config validate` CLI
+
+Command entry: `getworktree.commands.config.command.config_validate_command`.
+Registration: `wt config validate` under `config_app` in
+[getworktree/cli.py](../../getworktree/cli.py).
+
+The command is **read-only**: it never creates, repairs, overwrites, or deletes
+config files. It calls `validate_config_result` only (no second schema/semantic
+implementation in the command module). No `--path`, `--json`, or repair flags.
+
+### Exit codes
+
+| Condition | Exit code |
+|-----------|-----------|
+| `result.ok` (status `valid`), zero or more warnings | `0` |
+| not ok (missing / malformed / schema / semantic / IO) | `1` |
+| unexpected internal exception not converted by the engine | non-zero (must not silently exit `0`) |
+
+Warnings never cause a non-zero exit by themselves.
+
+### Success report (no warnings)
+
+```text
+Config: <absolute-path>
+Status: valid
+
+Config is valid.
+```
+
+`<absolute-path>` is `result.config_path` as an absolute POSIX path
+(`Path.as_posix()`). No JSON dump of the config body.
+
+### Success report (with warnings)
+
+```text
+Config: <absolute-path>
+Status: valid with warnings
+
+Warnings:
+- <warning 1>
+- <warning 2>
+
+Config is valid.
+```
+
+Warning bullets are `result.warnings` in engine order. Multi-line entries keep
+the first line on the bullet; continuation lines are indented by two spaces.
+Trailing line is always exactly `Config is valid.` on ok paths.
+
+### Failure report
+
+- Exit `1`
+- Rich error panel titled exactly `Config Validation Failed`
+- Panel body is `"\n\n".join(result.errors)`, or fallback
+  `Configuration validation failed.` when `errors` is empty
+- No success header (`Config:` / `Status: valid`) and no `Config is valid.`
+- If `warnings` is non-empty on an invalid result, print them after the panel on
+  stdout as a `Warnings:` bullet list (same bullet formatting as success)
 
 ## Config serialization and `wt config show`
 

@@ -5,7 +5,10 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
-from getworktree.commands.config.command import config_show_command
+from getworktree.commands.config.command import (
+    config_show_command,
+    config_validate_command,
+)
 from getworktree.commands.init.command import init_command
 from getworktree.commands.loop.command import loop_command
 from getworktree.commands.status.command import status_command
@@ -26,7 +29,7 @@ app = typer.Typer(
 
 config_app = typer.Typer(
     name="config",
-    help="Inspect effective Worktree configuration.",
+    help="Inspect and validate Worktree configuration.",
 )
 app.add_typer(config_app, name="config")
 
@@ -115,6 +118,12 @@ def workspace_status(ctx: typer.Context):
 def config_show(ctx: typer.Context):
     """Display the full normalized effective configuration as JSON."""
     config_show_command()
+
+
+@config_app.command("validate")
+def config_validate(ctx: typer.Context):
+    """Validate .worktree/config.json against the V1 schema and semantic rules."""
+    config_validate_command()
 
 
 @app.command(name="loop")
