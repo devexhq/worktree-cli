@@ -32,6 +32,11 @@ from getworktree.core.loops.models import (
     LoopSandbox,
     LoopTrigger,
 )
+from getworktree.core.loops.patch import (
+    PatchApplyResult,
+    PatchApplyStatus,
+    apply_patch_result,
+)
 from getworktree.core.loops.payload import (
     AgentFailurePayload,
     PayloadFile,
@@ -91,10 +96,13 @@ __all__ = [
     "LoopTrigger",
     "LoopValidationResult",
     "LoopValidationStatus",
+    "PatchApplyResult",
+    "PatchApplyStatus",
     "PayloadFile",
     "PayloadOmission",
     "TriggerRunResult",
     "TriggerRunStatus",
+    "apply_patch_result",
     "build_failure_payload",
     "build_loop_inventory",
     "discover_loop_files",

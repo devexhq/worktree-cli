@@ -16,6 +16,7 @@ getworktree/core/                  Business logic, no Typer/CLI concerns
   db.py                            SQLite token-usage ledger (for future metering)
   git_sandbox.py                   Isolated `git worktree` sandbox lifecycle
   loops/seeder.py                  Seeds packaged starter loop YAML files
+  loops/patch.py                   Unified-diff validate/apply in sandbox
   templates/loops/*.yml            Packaged starter loop definitions
 getworktree/common/                Shared, dependency-light helpers
   constants.py, fs.py, utils.py, schema_validation.py
@@ -152,6 +153,38 @@ Identity fields always set: `command`, `args`, `trigger_status`, `exit_code`,
   `missing` | `outside_sandbox` | `directory` | `binary` | `max_files` |
   `max_file_bytes`
 - Symlink escape outside the sandbox → `outside_sandbox` (no content)
+
+## Patch apply engine
+
+`apply_patch_result` ([getworktree/core/loops/patch.py](../../getworktree/core/loops/patch.py))
+validates and applies agent patches to a sandbox tree. Strategy is
+**`unified_diff` only**. Callers pass limits; the engine does not load config.
+Never commits or stages. Classified outcomes do not raise.
+
+### API
+`apply_patch_result(*, sandbox_path, unified_diff, max_files, max_patch_kb,
+reject_binary_changes=True, check_only=False) -> PatchApplyResult`
+
+### Pre-apply validation order
+1. empty/whitespace diff → `empty_diff`
+2. UTF-8 byte size > `max_patch_kb * 1024` → `too_large`
+3. parse failure → `invalid_diff`
+4. distinct target files > `max_files` → `too_many_files`
+5. binary markers (`Binary files … differ`, `GIT binary patch`) when
+   `reject_binary_changes` → `binary_rejected`
+6. absolute / `..` / sandbox escape paths → `unsafe_path`
+7. missing sandbox directory → `sandbox_missing`
+
+### Apply
+Uses `git apply --verbose` with `cwd=sandbox_path` (no `--unsafe-paths`).
+`check_only=True` adds `--check` and does not write. `git apply` reject is
+atomic (working tree unchanged on failure) → status `conflict`. Success →
+`applied` or `checked_ok` with sorted unique POSIX `touched_files`.
+
+### Statuses
+`applied` | `checked_ok` | `empty_diff` | `too_large` | `too_many_files` |
+`binary_rejected` | `unsafe_path` | `invalid_diff` | `conflict` |
+`sandbox_missing` (`ok` only for `applied` / `checked_ok`).
 
 ## Agent adapter
 
