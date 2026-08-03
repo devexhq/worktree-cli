@@ -490,6 +490,7 @@ def run_loop_iteration(
                 status=record.trigger_status,
                 exit_code=trigger_result.exit_code,
                 duration_ms=trigger_result.duration_ms,
+                errors=list(trigger_result.errors),
             )
 
             if trigger_result.ok:
@@ -566,8 +567,14 @@ def run_loop_iteration(
             agent_response = agent.propose_fix(agent_request)
             record.agent_status = agent_response.status.value
             record.agent_duration_ms = agent_response.duration_ms
-            if agent_response.errors:
-                record.errors.extend(agent_response.errors)
+            agent_errors = list(agent_response.errors)
+            if (
+                agent_response.status == AgentResponseStatus.UNFIXABLE
+                and agent_response.unfixable_reason
+            ):
+                agent_errors.append(agent_response.unfixable_reason)
+            if agent_errors:
+                record.errors.extend(agent_errors)
 
             _emit(
                 on_event,
@@ -575,13 +582,12 @@ def run_loop_iteration(
                 attempt=attempt_idx,
                 status=record.agent_status,
                 duration_ms=agent_response.duration_ms,
+                errors=agent_errors,
             )
 
             no_op_stop = record_agent_status(safety, agent_response.status.value)
 
             if agent_response.status == AgentResponseStatus.UNFIXABLE:
-                if agent_response.unfixable_reason:
-                    record.errors.append(agent_response.unfixable_reason)
                 if agent_response.mutation_baseline_ref is not None:
                     mutation_discarder(
                         sandbox_path, agent_response.mutation_baseline_ref
@@ -663,7 +669,8 @@ def run_loop_iteration(
                 approved = bool(approve_patch(agent_response.unified_diff))
                 if not approved:
                     record.patch_status = "approval_rejected"
-                    record.errors.append("Patch apply skipped: approval rejected")
+                    rejection_error = "Patch apply skipped: approval rejected"
+                    record.errors.append(rejection_error)
                     if agent_response.mutation_baseline_ref is not None:
                         mutation_discarder(
                             sandbox_path, agent_response.mutation_baseline_ref
@@ -674,6 +681,7 @@ def run_loop_iteration(
                         "patch",
                         attempt=attempt_idx,
                         status="approval_rejected",
+                        errors=[rejection_error],
                     )
                     if attempt_idx >= max_attempts:
                         final_status = LoopFinalStatus.FAILED
@@ -735,6 +743,7 @@ def run_loop_iteration(
                 attempt=attempt_idx,
                 status=record.patch_status,
                 touched_files=list(patch_result.touched_files),
+                errors=list(patch_result.errors),
             )
 
             _finish_attempt(record)

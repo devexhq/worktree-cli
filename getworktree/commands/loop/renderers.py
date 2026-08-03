@@ -78,6 +78,17 @@ def format_patch_line(
     return f"  Patch:   {status}"
 
 
+def format_error_lines(errors: list[str]) -> list[str]:
+    """Format step error detail as indented continuation lines."""
+    lines: list[str] = []
+    for err in errors:
+        parts = err.splitlines() or [""]
+        lines.append(f"  Error:   {parts[0]}")
+        for continuation in parts[1:]:
+            lines.append(f"           {continuation}")
+    return lines
+
+
 def format_attempt_header(*, attempt: int, max_attempts: int) -> str:
     """Return the attempt header line with trailing newline."""
     return f"Attempt {attempt}/{max_attempts}\n"
@@ -120,7 +131,8 @@ def format_progress_event(event_name: str, payload: dict[str, Any]) -> str | Non
         return "  Trigger: running...\n"
 
     if event_name == "trigger":
-        return (
+        errors = [str(e) for e in (payload.get("errors") or [])]
+        line = (
             format_trigger_line(
                 status=payload.get("status"),
                 exit_code=payload.get("exit_code"),
@@ -128,6 +140,9 @@ def format_progress_event(event_name: str, payload: dict[str, Any]) -> str | Non
             )
             + "\n"
         )
+        for err_line in format_error_lines(errors):
+            line += err_line + "\n"
+        return line
 
     if event_name == "agent_start":
         provider = str(payload.get("provider") or "agent")
@@ -140,7 +155,12 @@ def format_progress_event(event_name: str, payload: dict[str, Any]) -> str | Non
             status=payload.get("status"),
             duration_ms=payload.get("duration_ms"),
         )
-        return None if line is None else line + "\n"
+        if line is None:
+            return None
+        errors = [str(e) for e in (payload.get("errors") or [])]
+        for err_line in format_error_lines(errors):
+            line += "\n" + err_line
+        return line + "\n"
 
     if event_name == "patch_start":
         return "  Patch:   applying...\n"
@@ -153,7 +173,12 @@ def format_progress_event(event_name: str, payload: dict[str, Any]) -> str | Non
             status=payload.get("status"),
             touched_files=[str(p) for p in touched],
         )
-        return None if line is None else line + "\n"
+        if line is None:
+            return None
+        errors = [str(e) for e in (payload.get("errors") or [])]
+        for err_line in format_error_lines(errors):
+            line += "\n" + err_line
+        return line + "\n"
 
     return None
 
@@ -181,6 +206,7 @@ def format_attempt_block(record: AttemptRecord, *, max_attempts: int) -> str:
     )
     if patch_line is not None:
         lines.append(patch_line)
+    lines.extend(format_error_lines(record.errors))
     return "\n".join(lines) + "\n"
 
 

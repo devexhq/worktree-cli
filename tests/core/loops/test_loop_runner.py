@@ -546,6 +546,76 @@ class RunLoopIterationTests:
         assert names.index("trigger_start") < names.index("trigger")
         assert names.index("agent_start") < names.index("agent")
 
+    def test_on_event_payloads_carry_error_detail(self, sandbox: Path) -> None:
+        events: dict[str, dict] = {}
+
+        def on_event(name: str, payload: dict) -> None:
+            events[name] = payload
+
+        run_loop_iteration(
+            loop=_loop(max_attempts=1),
+            cwd=sandbox.parent,
+            config=_config(),
+            agent=_FakeAgent(
+                [
+                    AgentResponse(
+                        status=AgentResponseStatus.PROVIDER_ERROR,
+                        duration_ms=1,
+                        errors=["missing CURSOR_API_KEY"],
+                    )
+                ]
+            ),
+            list_changed_files=lambda _p: [],
+            run_trigger_fn=lambda **_k: _trigger(TriggerRunStatus.FAILED),
+            apply_patch_fn=lambda **_k: PatchApplyResult(
+                status=PatchApplyStatus.APPLIED
+            ),
+            build_payload_fn=lambda **_k: _payload(),
+            create_sandbox_fn=lambda: SandboxCreateResult(
+                status=SandboxCreateStatus.OK,
+                session=_session(sandbox),
+            ),
+            cleanup_sandbox_fn=lambda _s: None,
+            on_event=on_event,
+        )
+        assert events["trigger"]["errors"] == ["trigger failed"]
+        assert events["agent"]["errors"] == ["missing CURSOR_API_KEY"]
+
+    def test_on_event_unfixable_reason_included_once(self, sandbox: Path) -> None:
+        events: dict[str, dict] = {}
+
+        def on_event(name: str, payload: dict) -> None:
+            events[name] = payload
+
+        result = run_loop_iteration(
+            loop=_loop(max_attempts=1),
+            cwd=sandbox.parent,
+            config=_config(),
+            agent=_FakeAgent(
+                [
+                    AgentResponse(
+                        status=AgentResponseStatus.UNFIXABLE,
+                        duration_ms=1,
+                        unfixable_reason="cannot fix",
+                    )
+                ]
+            ),
+            list_changed_files=lambda _p: [],
+            run_trigger_fn=lambda **_k: _trigger(TriggerRunStatus.FAILED),
+            apply_patch_fn=lambda **_k: PatchApplyResult(
+                status=PatchApplyStatus.APPLIED
+            ),
+            build_payload_fn=lambda **_k: _payload(),
+            create_sandbox_fn=lambda: SandboxCreateResult(
+                status=SandboxCreateStatus.OK,
+                session=_session(sandbox),
+            ),
+            cleanup_sandbox_fn=lambda _s: None,
+            on_event=on_event,
+        )
+        assert events["agent"]["errors"] == ["cannot fix"]
+        assert result.attempts[0].errors.count("cannot fix") == 1
+
 
 class DirectMutationProviderTests:
     """Runner behavior for providers that set ``mutation_baseline_ref``."""
