@@ -6,6 +6,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from typer.main import get_command
 from typer.testing import CliRunner
 
 from getworktree.cli import app
@@ -206,15 +207,24 @@ class RendererTests:
 
 
 class LoopRunCliTests:
-    def test_help_text(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        # Rich truncates option names when COLUMNS is narrow (common in CI).
-        monkeypatch.setenv("COLUMNS", "120")
+    def test_help_text(self) -> None:
+        # Assert registration via Click metadata. Do not parse Rich --help text:
+        # narrow CI terminals wrap/truncate option names and the docstring.
         result = runner.invoke(app, ["loop", "run", "--help"])
         assert result.exit_code == 0
-        assert "Run a loop in an isolated git worktree sandbox." in result.stdout
-        assert "--max-attempts" in result.stdout
-        assert "--keep" in result.stdout
-        assert "--approve-each" in result.stdout
+
+        run_cmd = get_command(app).get_command(None, "loop").get_command(None, "run")
+        assert run_cmd.help == "Run a loop in an isolated git worktree sandbox."
+        opts: set[str] = set()
+        for param in run_cmd.params:
+            opts.update(param.opts)
+            secondary = getattr(param, "secondary_opts", None) or ()
+            opts.update(secondary)
+        assert "--max-attempts" in opts
+        assert "--keep" in opts
+        assert "--no-keep" in opts
+        assert "--approve-each" in opts
+        assert "--no-approve-each" in opts
 
     def test_resolve_failure(
         self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
