@@ -207,6 +207,7 @@ def run_loop_iteration(
     session_id: str | None = None,
     session_timeout_seconds: int | None = None,
     detect_repeat_failures: bool | None = None,
+    include_wip: bool = False,
 ) -> LoopRunResult:
     """Run one full loop session attempt cycle.
 
@@ -237,6 +238,8 @@ def run_loop_iteration(
         session_timeout_seconds: Session wall-clock cap; defaults to
             ``config.sandbox.default_timeout_seconds``.
         detect_repeat_failures: Override config ``loop.detect_repeat_failures``.
+        include_wip: When True, overlay uncommitted working-tree changes into
+            the sandbox after create (``--wip``).
 
     Returns:
         Structured :class:`LoopRunResult` (never raises for classified paths).
@@ -314,7 +317,10 @@ def run_loop_iteration(
         create_result = create_sandbox_fn()
     else:
         manager = GitSandboxManager(cwd=root)
-        create_result = manager.create_sandbox_result(session_id=session_id)
+        create_result = manager.create_sandbox_result(
+            session_id=session_id,
+            include_wip=include_wip,
+        )
 
     if not create_result.ok or create_result.session is None:
         errors = list(create_result.errors) or [
@@ -345,6 +351,8 @@ def run_loop_iteration(
         sandbox_path=str(sandbox_path),
         loop_name=loop_name,
         max_attempts=max_attempts,
+        wip=session.wip_applied,
+        wip_paths=list(session.wip_paths),
     )
 
     if agent is None:

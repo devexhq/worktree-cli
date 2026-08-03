@@ -132,6 +132,20 @@ class RendererTests:
         assert "Running loop fix-tests" in start
         assert "Session:  sbx_deadbeef" in start
         assert "Budget:   5 attempt(s)" in start
+        assert "WIP:" not in start
+
+        wip_start = format_progress_event(
+            "session_start",
+            {
+                "loop_name": "fix-tests",
+                "session_id": "sbx_deadbeef",
+                "max_attempts": 5,
+                "wip": True,
+                "wip_paths": ["a.py", "b.py"],
+            },
+        )
+        assert wip_start is not None
+        assert "WIP:      included (2 path(s))" in wip_start
 
         attempt = format_progress_event(
             "attempt_start", {"attempt": 2, "max_attempts": 5}
@@ -224,7 +238,7 @@ class RendererTests:
             attempts=[
                 AttemptRecord(attempt=i, trigger_status="failed") for i in range(1, 6)
             ],
-            max_attempts=5,
+            max_attempts=1,
             retained=True,
             sandbox_path=sbx,
         )
@@ -279,6 +293,29 @@ class LoopRunCliTests:
         assert "--no-keep" in opts
         assert "--approve-each" in opts
         assert "--no-approve-each" in opts
+        assert "--wip" in opts
+        assert "--no-wip" in opts
+
+    def test_wip_flag_passed_to_controller(
+        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(git_repo)
+        _init_with_loops(git_repo)
+        captured: dict[str, object] = {}
+
+        def fake_run(**kwargs):
+            captured.update(kwargs)
+            return _fixture_result(
+                LoopFinalStatus.PASSED, stop_reason="trigger_passed", attempts=[]
+            )
+
+        monkeypatch.setattr(
+            "getworktree.commands.loop.command.run_loop_iteration",
+            fake_run,
+        )
+        result = runner.invoke(app, ["loop", "run", "fix-tests", "--wip"])
+        assert result.exit_code == 0
+        assert captured.get("include_wip") is True
 
     def test_resolve_failure(
         self, git_repo: Path, monkeypatch: pytest.MonkeyPatch

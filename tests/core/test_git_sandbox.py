@@ -283,3 +283,39 @@ class GitSandboxManagerTests:
         ).stdout.strip()
         assert tip_main == tip_sbx
         manager.cleanup_sandbox(session)
+
+    def test_include_wip_copies_uncommitted_changes(self, repo: Path) -> None:
+        (repo / "f.txt").write_text("dirty\n", encoding="utf-8")
+        (repo / "new.txt").write_text("untracked\n", encoding="utf-8")
+
+        manager = GitSandboxManager(cwd=repo)
+        clean = manager.create_sandbox_result(session_id="sbx_nowip")
+        assert clean.ok and clean.session is not None
+        assert clean.session.wip_applied is False
+        assert (clean.session.sandbox_path / "f.txt").read_text(encoding="utf-8") == (
+            "x\n"
+        )
+        assert not (clean.session.sandbox_path / "new.txt").exists()
+        manager.cleanup_sandbox(clean.session)
+
+        wip = manager.create_sandbox_result(session_id="sbx_wip", include_wip=True)
+        assert wip.ok and wip.session is not None
+        assert wip.session.wip_applied is True
+        assert "f.txt" in wip.session.wip_paths
+        assert "new.txt" in wip.session.wip_paths
+        assert (wip.session.sandbox_path / "f.txt").read_text(encoding="utf-8") == (
+            "dirty\n"
+        )
+        assert (wip.session.sandbox_path / "new.txt").read_text(
+            encoding="utf-8"
+        ) == "untracked\n"
+        manager.cleanup_sandbox(wip.session)
+
+    def test_include_wip_deletes_removed_tracked_file(self, repo: Path) -> None:
+        (repo / "f.txt").unlink()
+        manager = GitSandboxManager(cwd=repo)
+        result = manager.create_sandbox_result(session_id="sbx_del", include_wip=True)
+        assert result.ok and result.session is not None
+        assert "f.txt" in result.session.wip_paths
+        assert not (result.session.sandbox_path / "f.txt").exists()
+        manager.cleanup_sandbox(result.session)
