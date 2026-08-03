@@ -13,11 +13,13 @@ from getworktree.core.agents import (
     CursorAgentAdapter,
     get_agent_adapter,
 )
+from getworktree.core.agents.cli_mutation import (
+    CliMutationOutcome,
+    CliMutationRunRequest,
+    build_mutation_prompt,
+)
 from getworktree.core.agents.cursor import (
     CURSOR_API_KEY_ENV,
-    CursorRunOutcome,
-    CursorRunRequest,
-    build_cursor_prompt,
     default_cursor_run,
     resolve_cursor_api_key,
 )
@@ -78,14 +80,14 @@ def _fake_run(
     error_detail: str | None = None,
     result_text: str | None = "done",
 ):
-    def _run(request: CursorRunRequest) -> CursorRunOutcome:
+    def _run(request: CliMutationRunRequest) -> CliMutationOutcome:
         if edits:
-            cwd = Path(request.cwd)
+            cwd = request.sandbox_path
             for rel, content in edits.items():
                 path = cwd / rel
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(content, encoding="utf-8")
-        return CursorRunOutcome(
+        return CliMutationOutcome(
             status=status, result_text=result_text, error_detail=error_detail
         )
 
@@ -119,7 +121,7 @@ class ResolveApiKeyTests:
 
 class BuildPromptTests:
     def test_includes_mode_and_payload(self, sandbox: Path) -> None:
-        prompt = build_cursor_prompt(_request(sandbox))
+        prompt = build_mutation_prompt(_request(sandbox))
         assert "fix_failure" in prompt
         assert "pytest" in prompt
         assert "boom" in prompt
@@ -128,7 +130,7 @@ class BuildPromptTests:
 
 class CursorAdapterTests:
     def test_proposed_patch(self, sandbox: Path) -> None:
-        adapter = CursorAgentAdapter(cursor_run=_fake_run(edits={"a.txt": "fixed\n"}))
+        adapter = CursorAgentAdapter(run_fn=_fake_run(edits={"a.txt": "fixed\n"}))
 
         resp = adapter.propose_fix(_request(sandbox))
 
@@ -140,7 +142,7 @@ class CursorAdapterTests:
         assert (sandbox / "a.txt").read_text(encoding="utf-8") == "fixed\n"
 
     def test_no_op_when_no_edits(self, sandbox: Path) -> None:
-        adapter = CursorAgentAdapter(cursor_run=_fake_run())
+        adapter = CursorAgentAdapter(run_fn=_fake_run())
 
         resp = adapter.propose_fix(_request(sandbox))
 
@@ -148,7 +150,7 @@ class CursorAdapterTests:
         assert resp.mutation_baseline_ref is not None
 
     def test_missing_model(self, sandbox: Path) -> None:
-        adapter = CursorAgentAdapter(cursor_run=_fake_run())
+        adapter = CursorAgentAdapter(run_fn=_fake_run())
 
         resp = adapter.propose_fix(_request(sandbox, model=None))
 
@@ -160,7 +162,7 @@ class CursorAdapterTests:
         self, sandbox: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.delenv(CURSOR_API_KEY_ENV, raising=False)
-        adapter = CursorAgentAdapter(cursor_run=_fake_run())
+        adapter = CursorAgentAdapter(run_fn=_fake_run())
 
         resp = adapter.propose_fix(_request(sandbox))
 
@@ -170,7 +172,7 @@ class CursorAdapterTests:
 
     def test_sdk_error_status(self, sandbox: Path) -> None:
         adapter = CursorAgentAdapter(
-            cursor_run=_fake_run(status="error", error_detail="auth failed")
+            run_fn=_fake_run(status="error", error_detail="auth failed")
         )
 
         resp = adapter.propose_fix(_request(sandbox))
@@ -180,7 +182,7 @@ class CursorAdapterTests:
         assert resp.mutation_baseline_ref is not None
 
     def test_timeout(self, sandbox: Path) -> None:
-        adapter = CursorAgentAdapter(cursor_run=_fake_run(status="timeout"))
+        adapter = CursorAgentAdapter(run_fn=_fake_run(status="timeout"))
 
         resp = adapter.propose_fix(_request(sandbox))
 
@@ -189,7 +191,7 @@ class CursorAdapterTests:
         assert resp.mutation_baseline_ref is not None
 
     def test_cancelled_maps_to_timeout(self, sandbox: Path) -> None:
-        adapter = CursorAgentAdapter(cursor_run=_fake_run(status="cancelled"))
+        adapter = CursorAgentAdapter(run_fn=_fake_run(status="timeout"))
 
         resp = adapter.propose_fix(_request(sandbox))
 
@@ -197,7 +199,7 @@ class CursorAdapterTests:
 
     def test_gate_violation_discards_edits(self, sandbox: Path) -> None:
         adapter = CursorAgentAdapter(
-            cursor_run=_fake_run(edits={"a.txt": "edit one\n", "b.txt": "edit two\n"})
+            run_fn=_fake_run(edits={"a.txt": "edit one\n", "b.txt": "edit two\n"})
         )
 
         resp = adapter.propose_fix(_request(sandbox, max_files=1))
@@ -211,7 +213,7 @@ class CursorAdapterTests:
     def test_gate_violation_preserves_wip(self, sandbox: Path) -> None:
         (sandbox / "a.txt").write_text("wip content\n", encoding="utf-8")
         adapter = CursorAgentAdapter(
-            cursor_run=_fake_run(edits={"a.txt": "edit one\n", "b.txt": "edit two\n"})
+            run_fn=_fake_run(edits={"a.txt": "edit one\n", "b.txt": "edit two\n"})
         )
 
         resp = adapter.propose_fix(_request(sandbox, max_files=1))
@@ -223,12 +225,11 @@ class CursorAdapterTests:
 
 
 class DefaultCursorRunTests:
-    def test_missing_sdk_is_provider_error(self) -> None:
+    def test_missing_sdk_is_provider_error(self, sandbox: Path) -> None:
         outcome = default_cursor_run(
-            CursorRunRequest(
+            CliMutationRunRequest(
                 model="composer-2.5",
-                api_key="k",
-                cwd="/tmp",
+                sandbox_path=sandbox,
                 prompt="fix it",
                 timeout_seconds=1.0,
             )

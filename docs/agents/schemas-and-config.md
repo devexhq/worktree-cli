@@ -24,18 +24,21 @@ Strictness:
 
 Enums (exact tokens):
 
-- Config `agent.provider`: `local` | `ollama` | `cursor` | `openai` |
-  `anthropic` | `azure_openai` | `custom` (runtime factory supports
-  **`local`**, **`ollama`**, and **`cursor`**; other tokens remain
-  schema-valid for future providers)
-- Loop `agent.provider` (`loop_v1.json`): `local` | `ollama` | `cursor`
+- Config `agent.provider`: `local` | `ollama` | `cursor` | `gemini` |
+  `copilot` | `openai` | `anthropic` | `azure_openai` | `custom` (runtime
+  factory supports **`local`**, **`ollama`**, **`cursor`**, **`gemini`**, and
+  **`copilot`**; other tokens remain schema-valid for future providers)
+- Loop `agent.provider` (`loop_v1.json`): `local` | `ollama` | `cursor` |
+  `gemini` | `copilot`
 - `patch.strategy`: `unified_diff`
 
 For `wt loop run`, **loop** `agent.provider` selects the adapter; **config**
 `agent.model` / `endpoint` / `temperature` / `max_tokens` fill the request.
-Ollama and cursor both require a non-empty `config.agent.model`. Cursor also
-requires `CURSOR_API_KEY` in the process environment (never stored in
-`config.json`) and the optional `getworktree[cursor]` install extra.
+Ollama uses `config.agent.model` + `config.agent.endpoint` (or `OLLAMA_HOST`).
+Cursor uses `config.agent.model` and `CURSOR_API_KEY`. Gemini uses
+`GEMINI_API_KEY`. Copilot uses `GH_TOKEN` or `GITHUB_TOKEN`. Cursor, Gemini,
+and Copilot mutate the sandbox directly through the shared base in
+`core/agents/cli_mutation.py`; local and Ollama still return diffs.
 
 Notable bounds / string rules:
 

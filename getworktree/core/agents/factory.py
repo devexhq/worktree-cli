@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from getworktree.core.agents.base import AgentAdapter
+from getworktree.core.agents.copilot import CopilotAgentAdapter
 from getworktree.core.agents.cursor import CursorAgentAdapter
+from getworktree.core.agents.gemini import GeminiAgentAdapter
 from getworktree.core.agents.local import LocalAgentAdapter
 from getworktree.core.agents.ollama import OllamaAgentAdapter
 from getworktree.core.config.models import AgentConfig
 
-_SUPPORTED_V1 = ("local", "ollama", "cursor")
+_SUPPORTED_V1 = ("local", "ollama", "cursor", "gemini", "copilot")
 
 
 def get_agent_adapter(
@@ -18,7 +20,7 @@ def get_agent_adapter(
 
     Args:
         provider: Provider id from loop/config (v1: ``local``, ``ollama``,
-            ``cursor``).
+            ``cursor``, ``gemini``, ``copilot``).
         config: Optional agent config; unused by current adapters (request
             fields are populated by the runner from config).
 
@@ -35,6 +37,10 @@ def get_agent_adapter(
         return OllamaAgentAdapter()
     if provider == "cursor":
         return CursorAgentAdapter()
+    if provider == "gemini":
+        return GeminiAgentAdapter()
+    if provider == "copilot":
+        return CopilotAgentAdapter()
     supported = ", ".join(_SUPPORTED_V1)
     raise ValueError(
         f"Unsupported agent provider '{provider}' "

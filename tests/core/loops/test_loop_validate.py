@@ -136,6 +136,28 @@ class ValidateLoopResultSuccessTests:
         assert result.loop is not None
         assert result.loop.agent.provider == "cursor"
 
+    def test_valid_with_gemini_provider(self, tmp_path: Path) -> None:
+        raw = _valid_raw()
+        raw["agent"]["provider"] = "gemini"
+        path = _dump_yaml(tmp_path / "gemini-provider.yml", raw)
+
+        result = validate_loop_result(path)
+
+        assert result.ok
+        assert result.loop is not None
+        assert result.loop.agent.provider == "gemini"
+
+    def test_valid_with_copilot_provider(self, tmp_path: Path) -> None:
+        raw = _valid_raw()
+        raw["agent"]["provider"] = "copilot"
+        path = _dump_yaml(tmp_path / "copilot-provider.yml", raw)
+
+        result = validate_loop_result(path)
+
+        assert result.ok
+        assert result.loop is not None
+        assert result.loop.agent.provider == "copilot"
+
     def test_validate_loop_document_memory_source_path(self) -> None:
         raw = _valid_raw()
         source = Path("in-memory")

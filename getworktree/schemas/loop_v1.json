@@ -50,7 +50,7 @@
       "properties": {
         "provider": {
           "type": "string",
-          "enum": ["local", "ollama", "cursor"]
+          "enum": ["local", "ollama", "cursor", "gemini", "copilot"]
         },
         "mode": {
           "type": "string",

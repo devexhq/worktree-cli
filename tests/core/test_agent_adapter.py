@@ -12,6 +12,8 @@ from getworktree.core.agents import (
     AgentRequest,
     AgentResponse,
     AgentResponseStatus,
+    CopilotAgentAdapter,
+    GeminiAgentAdapter,
     LocalAgentAdapter,
     get_agent_adapter,
 )
@@ -72,8 +74,21 @@ class GetAgentAdapterTests:
     def test_unsupported_provider(self) -> None:
         with pytest.raises(ValueError, match="AGENT_PROVIDER_UNSUPPORTED") as exc:
             get_agent_adapter("openai")
-        assert "local" in str(exc.value)
-        assert "openai" in str(exc.value)
+        msg = str(exc.value)
+        assert "local" in msg
+        assert "ollama" in msg
+        assert "cursor" in msg
+        assert "gemini" in msg
+        assert "copilot" in msg
+        assert "openai" in msg
+
+    def test_gemini_provider(self) -> None:
+        adapter = get_agent_adapter("gemini")
+        assert isinstance(adapter, GeminiAgentAdapter)
+
+    def test_copilot_provider(self) -> None:
+        adapter = get_agent_adapter("copilot")
+        assert isinstance(adapter, CopilotAgentAdapter)
 
     def test_config_optional(self) -> None:
         from getworktree.core.config.models import AgentConfig
