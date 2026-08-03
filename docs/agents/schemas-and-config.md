@@ -8,6 +8,48 @@ validated through `SchemaValidator` ([getworktree/common/schema_validation.py](.
 a thin wrapper over `jsonschema.Draft202012Validator` that returns a
 `ValidationResult(ok, errors)` instead of raising.
 
+### Config V1 contract
+
+`config_v1.json` is the **only** structural source of truth for config V1
+(draft 2020-12). Runtime validation uses packaged `CONFIG_VALIDATOR`; do not
+duplicate the schema in Python.
+
+Strictness:
+
+- Root and every nested object use `additionalProperties: false` (unknown keys
+  fail validation).
+- Top-level `required`: `version`, `project`, `paths`, `sandbox`, `loop`,
+  `agent`, `patch`, `approval`, `history`, `doctor`, `prune`, `telemetry`.
+- `version` is integer `const: 1`.
+
+Enums (exact tokens):
+
+- `agent.provider`: `local` | `openai` | `anthropic` | `azure_openai` | `custom`
+- `patch.strategy`: `unified_diff`
+
+Notable bounds / string rules:
+
+- Path strings (`paths.*`, `sandbox.base_ref`): non-empty (`minLength: 1`)
+- Positive integers (`minimum: 1`): sandbox/loop attempt and timeout fields,
+  `agent.max_tokens`, `patch.max_files` / `max_patch_kb`, `history.max_sessions`
+- `agent.temperature`: number in `[0, 2]`
+- `prune.artifact_ttl_days`: integer `minimum: 0`
+- `agent.model` / `agent.endpoint`: `string | null`; non-null strings must be
+  non-empty
+- `project.name` / `project.initialized_at`: `string | null` (loader maps null
+  name to `"unnamed_project"` after schema validation)
+
+Not expressed in the JSON Schema (validator-engine / runtime territory):
+
+- Cross-field limits (e.g. `loop.default_max_attempts <= max_attempts_hard_limit`)
+- Filesystem existence or writability of path values
+- Provider-specific required `model` / `endpoint`
+
+Pydantic models in
+[getworktree/core/config/models.py](../../getworktree/core/config/models.py)
+mirror the same enums, bounds, and `extra: "forbid"`. Defaults live in
+`CANONICAL_V1_DEFAULTS` and must remain schema-valid after generation.
+
 ## Config generation
 
 `CANONICAL_V1_DEFAULTS` in [getworktree/core/config/generator.py](../../getworktree/core/config/generator.py)

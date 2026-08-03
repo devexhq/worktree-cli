@@ -3,7 +3,7 @@
   "$id": "https://getworktree.io/schemas/config_v1.json",
   "title": "Worktree Config V1",
   "type": "object",
-  "additionalProperties": true,
+  "additionalProperties": false,
   "required": [
     "version",
     "project",
@@ -25,7 +25,7 @@
     },
     "project": {
       "type": "object",
-      "additionalProperties": true,
+      "additionalProperties": false,
       "required": ["name", "initialized_at"],
       "properties": {
         "name": { "type": ["string", "null"] },
@@ -34,7 +34,7 @@
     },
     "paths": {
       "type": "object",
-      "additionalProperties": true,
+      "additionalProperties": false,
       "required": [
         "root_dir",
         "loops_dir",
@@ -43,16 +43,16 @@
         "db_path"
       ],
       "properties": {
-        "root_dir": { "type": "string" },
-        "loops_dir": { "type": "string" },
-        "sessions_dir": { "type": "string" },
-        "artifacts_dir": { "type": "string" },
-        "db_path": { "type": "string" }
+        "root_dir": { "type": "string", "minLength": 1 },
+        "loops_dir": { "type": "string", "minLength": 1 },
+        "sessions_dir": { "type": "string", "minLength": 1 },
+        "artifacts_dir": { "type": "string", "minLength": 1 },
+        "db_path": { "type": "string", "minLength": 1 }
       }
     },
     "sandbox": {
       "type": "object",
-      "additionalProperties": true,
+      "additionalProperties": false,
       "required": [
         "base_ref",
         "auto_clean",
@@ -61,7 +61,7 @@
         "default_timeout_seconds"
       ],
       "properties": {
-        "base_ref": { "type": "string" },
+        "base_ref": { "type": "string", "minLength": 1 },
         "auto_clean": { "type": "boolean" },
         "keep_on_failure": { "type": "boolean" },
         "max_active_sandboxes": { "type": "integer", "minimum": 1 },
@@ -70,7 +70,7 @@
     },
     "loop": {
       "type": "object",
-      "additionalProperties": true,
+      "additionalProperties": false,
       "required": [
         "default_max_attempts",
         "default_trigger_timeout_seconds",
@@ -88,7 +88,7 @@
     },
     "agent": {
       "type": "object",
-      "additionalProperties": true,
+      "additionalProperties": false,
       "required": [
         "provider",
         "model",
@@ -97,16 +97,19 @@
         "max_tokens"
       ],
       "properties": {
-        "provider": { "type": "string" },
-        "model": { "type": ["string", "null"] },
-        "endpoint": { "type": ["string", "null"] },
-        "temperature": { "type": "number" },
+        "provider": {
+          "type": "string",
+          "enum": ["local", "openai", "anthropic", "azure_openai", "custom"]
+        },
+        "model": { "type": ["string", "null"], "minLength": 1 },
+        "endpoint": { "type": ["string", "null"], "minLength": 1 },
+        "temperature": { "type": "number", "minimum": 0, "maximum": 2 },
         "max_tokens": { "type": "integer", "minimum": 1 }
       }
     },
     "patch": {
       "type": "object",
-      "additionalProperties": true,
+      "additionalProperties": false,
       "required": [
         "strategy",
         "max_files",
@@ -114,7 +117,10 @@
         "reject_binary_changes"
       ],
       "properties": {
-        "strategy": { "type": "string" },
+        "strategy": {
+          "type": "string",
+          "enum": ["unified_diff"]
+        },
         "max_files": { "type": "integer", "minimum": 1 },
         "max_patch_kb": { "type": "integer", "minimum": 1 },
         "reject_binary_changes": { "type": "boolean" }
@@ -122,7 +128,7 @@
     },
     "approval": {
       "type": "object",
-      "additionalProperties": true,
+      "additionalProperties": false,
       "required": ["require_before_apply", "require_before_final_apply"],
       "properties": {
         "require_before_apply": { "type": "boolean" },
@@ -131,7 +137,7 @@
     },
     "history": {
       "type": "object",
-      "additionalProperties": true,
+      "additionalProperties": false,
       "required": [
         "save_attempt_logs",
         "save_agent_payloads",
@@ -147,7 +153,7 @@
     },
     "doctor": {
       "type": "object",
-      "additionalProperties": true,
+      "additionalProperties": false,
       "required": [
         "check_git",
         "check_paths_writable",
@@ -165,7 +171,7 @@
     },
     "prune": {
       "type": "object",
-      "additionalProperties": true,
+      "additionalProperties": false,
       "required": [
         "remove_stale_worktrees",
         "remove_orphaned_sandboxes",
@@ -181,7 +187,7 @@
     },
     "telemetry": {
       "type": "object",
-      "additionalProperties": true,
+      "additionalProperties": false,
       "required": ["enabled"],
       "properties": {
         "enabled": { "type": "boolean" }
