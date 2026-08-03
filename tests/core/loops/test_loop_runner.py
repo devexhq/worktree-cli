@@ -86,7 +86,7 @@ def _session(path: Path, sid: str = "sbx_test01") -> SandboxSession:
 
 
 def _trigger(
-    status: TriggerRunStatus,
+    status: TriggerRunStatus = TriggerRunStatus.FAILED,
     *,
     exit_code: int | None = 1,
     stdout: str = "out",
@@ -260,16 +260,21 @@ class RunLoopIterationTests:
         assert result.sandbox_retained is True
 
     def test_failed_max_attempts(self, sandbox: Path) -> None:
+        # Use provider_error (not no_op) so safety no-op streak does not trip first.
         result, agent, _ = _run(
             sandbox=sandbox,
             loop=_loop(max_attempts=2),
             triggers=[
-                _trigger(TriggerRunStatus.FAILED),
-                _trigger(TriggerRunStatus.FAILED),
+                _trigger(TriggerRunStatus.FAILED, stdout="a", stderr="a"),
+                _trigger(TriggerRunStatus.FAILED, stdout="b", stderr="b"),
             ],
             agent_responses=[
-                AgentResponse(status=AgentResponseStatus.NO_OP, duration_ms=1),
-                AgentResponse(status=AgentResponseStatus.NO_OP, duration_ms=1),
+                AgentResponse(
+                    status=AgentResponseStatus.PROVIDER_ERROR, duration_ms=1
+                ),
+                AgentResponse(
+                    status=AgentResponseStatus.PROVIDER_ERROR, duration_ms=1
+                ),
             ],
         )
         assert not result.ok
