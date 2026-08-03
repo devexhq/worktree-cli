@@ -304,6 +304,30 @@ checkpoint still stops with `session_timeout`.
 CLI should set the same abort flag on SIGINT and let the controller finish
 cleanup (`should_cleanup_sandbox` with `command_passed=None` on abort).
 
+## Loop run CLI UX
+
+`wt loop run NAME` ([getworktree/commands/loop/command.py](../../getworktree/commands/loop/command.py))
+orchestrates resolve → validate → `run_loop_iteration` → render. Formatting lives
+in [renderers.py](../../getworktree/commands/loop/renderers.py) (no bare `print`).
+
+### Flags
+- `--max-attempts INT` (≥1) → controller `caller_max_attempts`
+- `--keep / --no-keep` → `--keep` forces `auto_clean=False`
+- `--approve-each / --no-approve-each` → override approval gate; default follows
+  loop `approval.require_before_apply` (non-TTY deny)
+
+### Exit codes
+| Final status | Exit |
+|--------------|------|
+| `PASSED` | 0 |
+| `FAILED` | 1 |
+| `UNFIXABLE` | 2 |
+| `ABORTED` | 130 |
+| pre-run resolve/validate/config failure | 1 |
+
+Summary labels: `Loop:`, `Status:`, `Session:`, `Attempts:`, `Stop:`,
+`Sandbox:`, `Artifacts:`, `Next:`.
+
 ## Packaged resources
 
 Schemas and loop templates ship inside the installed package and are read via

@@ -10,7 +10,7 @@ from getworktree.commands.config.command import (
     config_validate_command,
 )
 from getworktree.commands.init.command import init_command
-from getworktree.commands.loop.command import loop_show_command
+from getworktree.commands.loop.command import loop_run_command, loop_show_command
 from getworktree.commands.status.command import status_command
 
 # Initialize a central styling console for high-utility layout parsing
@@ -138,6 +138,35 @@ def loop_show(
 ):
     """Show a human-readable summary of a loop definition."""
     loop_show_command(name)
+
+
+@loop_app.command("run")
+def loop_run(
+    name: str = typer.Argument(..., help="Logical loop name to run."),
+    max_attempts: int | None = typer.Option(
+        None,
+        "--max-attempts",
+        help="Override effective max attempts (>= 1).",
+        min=1,
+    ),
+    keep: bool = typer.Option(
+        False,
+        "--keep/--no-keep",
+        help="When --keep, force retain the sandbox (auto_clean=False).",
+    ),
+    approve_each: bool | None = typer.Option(
+        None,
+        "--approve-each/--no-approve-each",
+        help="Require (or skip) approval before each patch apply.",
+    ),
+):
+    """Run a loop in an isolated git worktree sandbox."""
+    loop_run_command(
+        name,
+        max_attempts=max_attempts,
+        keep=keep if keep else None,
+        approve_each=approve_each,
+    )
 
 
 if __name__ == "__main__":
