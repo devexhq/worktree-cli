@@ -14,7 +14,7 @@ from getworktree.core.agents.cli_mutation import (
     CliMutationRunRequest,
 )
 
-COPILOT_TOKEN_ENVS = ('GH_TOKEN', 'GITHUB_TOKEN')
+COPILOT_TOKEN_ENVS = ("GH_TOKEN", "GITHUB_TOKEN")
 
 
 def resolve_copilot_token(env: dict[str, str] | None = None) -> str | None:
@@ -31,15 +31,15 @@ def _extract_text(value: object) -> str | None:
     if isinstance(value, str):
         return value
     if isinstance(value, dict):
-        content = value.get('content')
+        content = value.get("content")
         if isinstance(content, str):
             return content
-        response = value.get('response')
+        response = value.get("response")
         if isinstance(response, str):
             return response
-        message = value.get('message')
+        message = value.get("message")
         if isinstance(message, dict):
-            nested = message.get('content')
+            nested = message.get("content")
             if isinstance(nested, str):
                 return nested
     return None
@@ -55,21 +55,21 @@ def _parse_jsonl(stdout_text: str) -> tuple[str | None, int | None, str | None]:
         try:
             data = json.loads(line)
         except json.JSONDecodeError as exc:
-            return None, None, f'invalid JSONL from Copilot CLI: {exc}'
+            return None, None, f"invalid JSONL from Copilot CLI: {exc}"
         if not isinstance(data, dict):
             continue
-        event_type = data.get('type')
-        if event_type == 'assistant.message':
-            payload = data.get('data')
+        event_type = data.get("type")
+        if event_type == "assistant.message":
+            payload = data.get("data")
             text = _extract_text(payload)
             if text is not None:
                 assistant_text = text
-        elif event_type == 'result':
-            payload = data.get('data')
+        elif event_type == "result":
+            payload = data.get("data")
             if isinstance(payload, dict):
-                raw_exit = payload.get('exitCode')
+                raw_exit = payload.get("exitCode")
                 if raw_exit is None:
-                    raw_exit = payload.get('exit_code')
+                    raw_exit = payload.get("exit_code")
                 if isinstance(raw_exit, int):
                     result_exit_code = raw_exit
                 elif isinstance(raw_exit, str) and raw_exit.isdigit():
@@ -85,28 +85,28 @@ def default_copilot_run(request: CliMutationRunRequest) -> CliMutationOutcome:
     token = resolve_copilot_token()
     if token is None:
         return CliMutationOutcome(
-            status='error',
-            error_detail='missing GH_TOKEN or GITHUB_TOKEN',
+            status="error",
+            error_detail="missing GH_TOKEN or GITHUB_TOKEN",
         )
 
     cmd = [
-        'gh',
-        'copilot',
-        '--',
-        '-p',
+        "gh",
+        "copilot",
+        "--",
+        "-p",
         request.prompt,
-        '--output-format',
-        'json',
-        '--silent',
-        '--allow-all-tools',
-        '--allow-all-paths',
-        '--allow-all-urls',
+        "--output-format",
+        "json",
+        "--silent",
+        "--allow-all-tools",
+        "--allow-all-paths",
+        "--allow-all-urls",
     ]
     env = os.environ.copy()
-    env.setdefault('GH_TOKEN', token)
-    env.setdefault('GITHUB_TOKEN', token)
+    env.setdefault("GH_TOKEN", token)
+    env.setdefault("GITHUB_TOKEN", token)
     if request.model:
-        env['COPILOT_MODEL'] = request.model
+        env["COPILOT_MODEL"] = request.model
 
     try:
         completed = subprocess.run(
@@ -120,38 +120,42 @@ def default_copilot_run(request: CliMutationRunRequest) -> CliMutationOutcome:
             check=False,
         )
     except subprocess.TimeoutExpired:
-        return CliMutationOutcome(status='timeout')
+        return CliMutationOutcome(status="timeout")
     except FileNotFoundError as exc:
         return CliMutationOutcome(
-            status='error',
+            status="error",
             error_detail=(
-                f'gh is not installed or not on PATH: {exc}. '
-                'Fix: install the GitHub CLI (https://cli.github.com)'
+                f"gh is not installed or not on PATH: {exc}. "
+                "Fix: install the GitHub CLI (https://cli.github.com)"
             ),
         )
     except OSError as exc:
-        return CliMutationOutcome(status='error', error_detail=str(exc))
+        return CliMutationOutcome(status="error", error_detail=str(exc))
 
-    stdout_text = (completed.stdout or b'').decode('utf-8', errors='replace')
-    stderr_text = (completed.stderr or b'').decode('utf-8', errors='replace')
+    stdout_text = (completed.stdout or b"").decode("utf-8", errors="replace")
+    stderr_text = (completed.stderr or b"").decode("utf-8", errors="replace")
     if completed.returncode != 0:
-        detail = stderr_text.strip() or stdout_text.strip() or f'exit {completed.returncode}'
-        return CliMutationOutcome(status='error', error_detail=detail)
+        detail = (
+            stderr_text.strip() or stdout_text.strip() or f"exit {completed.returncode}"
+        )
+        return CliMutationOutcome(status="error", error_detail=detail)
 
     assistant_text, exit_code, parse_error = _parse_jsonl(stdout_text)
     if parse_error is not None:
-        return CliMutationOutcome(status='error', error_detail=parse_error)
+        return CliMutationOutcome(status="error", error_detail=parse_error)
     if exit_code is not None and exit_code != 0:
         return CliMutationOutcome(
-            status='error',
-            error_detail=f'Copilot CLI result exit code {exit_code}',
+            status="error",
+            error_detail=f"Copilot CLI result exit code {exit_code}",
             result_text=assistant_text,
         )
     if assistant_text is None and not stdout_text.strip():
-        return CliMutationOutcome(status='error', error_detail='empty Copilot CLI output')
+        return CliMutationOutcome(
+            status="error", error_detail="empty Copilot CLI output"
+        )
     if assistant_text is None:
         assistant_text = stdout_text.strip() or None
-    return CliMutationOutcome(status='finished', result_text=assistant_text)
+    return CliMutationOutcome(status="finished", result_text=assistant_text)
 
 
 class CopilotAgentAdapter(CliDirectMutationAdapter):
@@ -162,11 +166,11 @@ class CopilotAgentAdapter(CliDirectMutationAdapter):
 
     def _preflight(self, request: AgentRequest) -> str | None:
         if resolve_copilot_token() is None:
-            return 'missing GH_TOKEN or GITHUB_TOKEN. Fix: export GH_TOKEN=...'
+            return "missing GH_TOKEN or GITHUB_TOKEN. Fix: export GH_TOKEN=..."
         return None
 
     def _provider_name(self) -> str:
-        return 'copilot'
+        return "copilot"
 
     def _default_run(self, request: CliMutationRunRequest) -> CliMutationOutcome:
         return default_copilot_run(request)

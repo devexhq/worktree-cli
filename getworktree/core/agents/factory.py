@@ -10,7 +10,7 @@ from getworktree.core.agents.local import LocalAgentAdapter
 from getworktree.core.agents.ollama import OllamaAgentAdapter
 from getworktree.core.config.models import AgentConfig
 
-_SUPPORTED_V1 = ('local', 'ollama', 'cursor', 'gemini', 'copilot')
+_SUPPORTED_V1 = ("local", "ollama", "cursor", "gemini", "copilot")
 
 
 def get_agent_adapter(
@@ -31,17 +31,17 @@ def get_agent_adapter(
         ValueError: When ``provider`` is not supported in v1.
     """
     _ = config  # reserved; request carries resolved model/endpoint fields
-    if provider == 'local':
+    if provider == "local":
         return LocalAgentAdapter()
-    if provider == 'ollama':
+    if provider == "ollama":
         return OllamaAgentAdapter()
-    if provider == 'cursor':
+    if provider == "cursor":
         return CursorAgentAdapter()
-    if provider == 'gemini':
+    if provider == "gemini":
         return GeminiAgentAdapter()
-    if provider == 'copilot':
+    if provider == "copilot":
         return CopilotAgentAdapter()
-    supported = ', '.join(_SUPPORTED_V1)
+    supported = ", ".join(_SUPPORTED_V1)
     raise ValueError(
         f"Unsupported agent provider '{provider}' "
         f"(AGENT_PROVIDER_UNSUPPORTED). "

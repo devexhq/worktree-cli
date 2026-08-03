@@ -79,16 +79,22 @@ class GeminiAuthTests:
     def test_resolve_missing(self) -> None:
         assert resolve_gemini_api_key({}) is None
 
-    def test_preflight_requires_key(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_preflight_requires_key(
+        self, sandbox: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.delenv(GEMINI_API_KEY_ENV, raising=False)
-        adapter = GeminiAgentAdapter(run_fn=lambda req: CliMutationOutcome(status="finished"))
+        adapter = GeminiAgentAdapter(
+            run_fn=lambda req: CliMutationOutcome(status="finished")
+        )
         resp = adapter.propose_fix(_request(sandbox))
         assert resp.status == AgentResponseStatus.PROVIDER_ERROR
         assert any(GEMINI_API_KEY_ENV in err for err in resp.errors)
 
 
 class GeminiRunTests:
-    def test_default_run_parses_json(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_default_run_parses_json(
+        self, sandbox: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         captured: dict[str, object] = {}
 
         def fake_run(cmd, cwd, env, capture_output, text, shell, timeout, check):
@@ -100,7 +106,7 @@ class GeminiRunTests:
             class Result:
                 returncode = 0
                 stdout = b'{"response": "pong"}'
-                stderr = b''
+                stderr = b""
 
             return Result()
 
@@ -121,13 +127,17 @@ class GeminiRunTests:
         assert captured["env_key"] == "test-key"
         assert "-m" in captured["cmd"]
 
-    def test_missing_binary(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_missing_binary(
+        self, sandbox: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         def fake_run(*args, **kwargs):
             raise FileNotFoundError("gemini")
 
         monkeypatch.setattr(subprocess, "run", fake_run)
         outcome = default_gemini_run(
-            CliMutationRunRequest(sandbox_path=sandbox, prompt="hi", model=None, timeout_seconds=3)
+            CliMutationRunRequest(
+                sandbox_path=sandbox, prompt="hi", model=None, timeout_seconds=3
+            )
         )
         assert outcome.status == "error"
         assert "install the Gemini CLI" in (outcome.error_detail or "")
@@ -138,7 +148,9 @@ class GeminiRunTests:
 
         monkeypatch.setattr(subprocess, "run", fake_run)
         outcome = default_gemini_run(
-            CliMutationRunRequest(sandbox_path=sandbox, prompt="hi", model=None, timeout_seconds=3)
+            CliMutationRunRequest(
+                sandbox_path=sandbox, prompt="hi", model=None, timeout_seconds=3
+            )
         )
         assert outcome.status == "timeout"
 

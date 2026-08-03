@@ -14,7 +14,7 @@ from getworktree.core.agents.cli_mutation import (
     CliMutationRunRequest,
 )
 
-GEMINI_API_KEY_ENV = 'GEMINI_API_KEY'
+GEMINI_API_KEY_ENV = "GEMINI_API_KEY"
 
 
 def resolve_gemini_api_key(env: dict[str, str] | None = None) -> str | None:
@@ -29,19 +29,19 @@ def resolve_gemini_api_key(env: dict[str, str] | None = None) -> str | None:
 def _decode_json_response(stdout_text: str) -> tuple[str | None, str | None]:
     text = stdout_text.strip()
     if not text:
-        return None, 'empty Gemini output'
+        return None, "empty Gemini output"
     try:
         data = json.loads(text)
     except json.JSONDecodeError as exc:
-        return None, f'invalid JSON from Gemini CLI: {exc}'
+        return None, f"invalid JSON from Gemini CLI: {exc}"
     if not isinstance(data, dict):
-        return None, 'Gemini CLI returned a non-object'
-    response = data.get('response')
+        return None, "Gemini CLI returned a non-object"
+    response = data.get("response")
     if isinstance(response, str):
         return response, None
-    if isinstance(data.get('content'), str):
-        return str(data['content']), None
-    return None, 'Gemini CLI JSON missing response'
+    if isinstance(data.get("content"), str):
+        return str(data["content"]), None
+    return None, "Gemini CLI JSON missing response"
 
 
 def default_gemini_run(request: CliMutationRunRequest) -> CliMutationOutcome:
@@ -49,13 +49,13 @@ def default_gemini_run(request: CliMutationRunRequest) -> CliMutationOutcome:
     api_key = resolve_gemini_api_key()
     if api_key is None:
         return CliMutationOutcome(
-            status='error',
-            error_detail=f'missing {GEMINI_API_KEY_ENV}',
+            status="error",
+            error_detail=f"missing {GEMINI_API_KEY_ENV}",
         )
 
-    cmd = ['gemini', '-p', request.prompt, '-o', 'json', '--yolo']
+    cmd = ["gemini", "-p", request.prompt, "-o", "json", "--yolo"]
     if request.model:
-        cmd.extend(['-m', request.model])
+        cmd.extend(["-m", request.model])
 
     env = os.environ.copy()
     env[GEMINI_API_KEY_ENV] = api_key
@@ -72,28 +72,30 @@ def default_gemini_run(request: CliMutationRunRequest) -> CliMutationOutcome:
             check=False,
         )
     except subprocess.TimeoutExpired:
-        return CliMutationOutcome(status='timeout')
+        return CliMutationOutcome(status="timeout")
     except FileNotFoundError as exc:
         return CliMutationOutcome(
-            status='error',
+            status="error",
             error_detail=(
-                f'gemini is not installed or not on PATH: {exc}. '
-                'Fix: install the Gemini CLI (https://github.com/google-gemini/gemini-cli)'
+                f"gemini is not installed or not on PATH: {exc}. "
+                "Fix: install the Gemini CLI (https://github.com/google-gemini/gemini-cli)"
             ),
         )
     except OSError as exc:
-        return CliMutationOutcome(status='error', error_detail=str(exc))
+        return CliMutationOutcome(status="error", error_detail=str(exc))
 
-    stdout_text = (completed.stdout or b'').decode('utf-8', errors='replace')
-    stderr_text = (completed.stderr or b'').decode('utf-8', errors='replace')
+    stdout_text = (completed.stdout or b"").decode("utf-8", errors="replace")
+    stderr_text = (completed.stderr or b"").decode("utf-8", errors="replace")
     if completed.returncode != 0:
-        detail = stderr_text.strip() or stdout_text.strip() or f'exit {completed.returncode}'
-        return CliMutationOutcome(status='error', error_detail=detail)
+        detail = (
+            stderr_text.strip() or stdout_text.strip() or f"exit {completed.returncode}"
+        )
+        return CliMutationOutcome(status="error", error_detail=detail)
 
     result_text, parse_error = _decode_json_response(stdout_text)
     if parse_error is not None:
-        return CliMutationOutcome(status='error', error_detail=parse_error)
-    return CliMutationOutcome(status='finished', result_text=result_text)
+        return CliMutationOutcome(status="error", error_detail=parse_error)
+    return CliMutationOutcome(status="finished", result_text=result_text)
 
 
 class GeminiAgentAdapter(CliDirectMutationAdapter):
@@ -104,11 +106,11 @@ class GeminiAgentAdapter(CliDirectMutationAdapter):
 
     def _preflight(self, request: AgentRequest) -> str | None:
         if resolve_gemini_api_key() is None:
-            return f'missing {GEMINI_API_KEY_ENV}. Fix: export {GEMINI_API_KEY_ENV}=...'
+            return f"missing {GEMINI_API_KEY_ENV}. Fix: export {GEMINI_API_KEY_ENV}=..."
         return None
 
     def _provider_name(self) -> str:
-        return 'gemini'
+        return "gemini"
 
     def _default_run(self, request: CliMutationRunRequest) -> CliMutationOutcome:
         return default_gemini_run(request)

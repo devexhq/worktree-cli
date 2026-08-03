@@ -78,17 +78,23 @@ class CopilotAuthTests:
     def test_resolve_missing(self) -> None:
         assert resolve_copilot_token({}) is None
 
-    def test_preflight_requires_token(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_preflight_requires_token(
+        self, sandbox: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.delenv("GH_TOKEN", raising=False)
         monkeypatch.delenv("GITHUB_TOKEN", raising=False)
-        adapter = CopilotAgentAdapter(run_fn=lambda req: CliMutationOutcome(status="finished"))
+        adapter = CopilotAgentAdapter(
+            run_fn=lambda req: CliMutationOutcome(status="finished")
+        )
         resp = adapter.propose_fix(_request(sandbox))
         assert resp.status == AgentResponseStatus.PROVIDER_ERROR
         assert any("GH_TOKEN" in err for err in resp.errors)
 
 
 class CopilotRunTests:
-    def test_default_run_parses_jsonl(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_default_run_parses_jsonl(
+        self, sandbox: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         captured: dict[str, object] = {}
 
         def fake_run(cmd, cwd, env, capture_output, text, shell, timeout, check):
@@ -99,14 +105,16 @@ class CopilotRunTests:
             class Result:
                 returncode = 0
                 stdout = b'{"type":"assistant.message","data":{"content":"hello"}}\n{"type":"result","data":{"exitCode":0}}\n'
-                stderr = b''
+                stderr = b""
 
             return Result()
 
         monkeypatch.setattr(subprocess, "run", fake_run)
 
         outcome = default_copilot_run(
-            CliMutationRunRequest(sandbox_path=sandbox, prompt="hi", model=None, timeout_seconds=3)
+            CliMutationRunRequest(
+                sandbox_path=sandbox, prompt="hi", model=None, timeout_seconds=3
+            )
         )
 
         assert outcome.status == "finished"
@@ -114,13 +122,17 @@ class CopilotRunTests:
         assert captured["cwd"] == str(sandbox)
         assert captured["cmd"][0] == "gh"
 
-    def test_missing_binary(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_missing_binary(
+        self, sandbox: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         def fake_run(*args, **kwargs):
             raise FileNotFoundError("gh")
 
         monkeypatch.setattr(subprocess, "run", fake_run)
         outcome = default_copilot_run(
-            CliMutationRunRequest(sandbox_path=sandbox, prompt="hi", model=None, timeout_seconds=3)
+            CliMutationRunRequest(
+                sandbox_path=sandbox, prompt="hi", model=None, timeout_seconds=3
+            )
         )
         assert outcome.status == "error"
         assert "GitHub CLI" in (outcome.error_detail or "")
@@ -131,7 +143,9 @@ class CopilotRunTests:
 
         monkeypatch.setattr(subprocess, "run", fake_run)
         outcome = default_copilot_run(
-            CliMutationRunRequest(sandbox_path=sandbox, prompt="hi", model=None, timeout_seconds=3)
+            CliMutationRunRequest(
+                sandbox_path=sandbox, prompt="hi", model=None, timeout_seconds=3
+            )
         )
         assert outcome.status == "timeout"
 

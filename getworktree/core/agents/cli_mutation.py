@@ -24,7 +24,7 @@ from getworktree.core.agents.mutation_git import (
 )
 from getworktree.core.loops.patch import PatchApplyStatus, validate_patch_text
 
-CliMutationRunStatus = Literal['finished', 'timeout', 'error']
+CliMutationRunStatus = Literal["finished", "timeout", "error"]
 
 DEFAULT_MAX_FILES = 30
 DEFAULT_MAX_PATCH_KB = 1024
@@ -34,7 +34,7 @@ DEFAULT_REJECT_BINARY_CHANGES = True
 class CliMutationRunRequest(BaseModel):
     """Normalized inputs for invoking a direct-mutation CLI/SDK runner."""
 
-    model_config = {'extra': 'forbid', 'strict': True}
+    model_config = {"extra": "forbid", "strict": True}
 
     sandbox_path: Path
     prompt: str
@@ -45,7 +45,7 @@ class CliMutationRunRequest(BaseModel):
 class CliMutationOutcome(BaseModel):
     """Normalized result from a direct-mutation CLI/SDK runner."""
 
-    model_config = {'extra': 'forbid', 'strict': True}
+    model_config = {"extra": "forbid", "strict": True}
 
     status: CliMutationRunStatus
     result_text: str | None = None
@@ -56,7 +56,7 @@ CliMutationRunFn = Callable[[CliMutationRunRequest], CliMutationOutcome]
 
 
 def _provider_error(detail: str) -> str:
-    return f'Agent provider error (AGENT_PROVIDER_ERROR): {detail}'
+    return f"Agent provider error (AGENT_PROVIDER_ERROR): {detail}"
 
 
 def build_mutation_prompt(request: AgentRequest) -> str:
@@ -72,9 +72,9 @@ def build_mutation_prompt(request: AgentRequest) -> str:
         "- When finished, leave the working tree containing only the fix.\n\n"
     )
     body = {
-        'mode': request.mode,
-        'sandbox_path': str(request.sandbox_path),
-        'payload': request.payload.model_dump(mode='json'),
+        "mode": request.mode,
+        "sandbox_path": str(request.sandbox_path),
+        "payload": request.payload.model_dump(mode="json"),
     }
     return instructions + json.dumps(body, indent=2, ensure_ascii=False)
 
@@ -92,7 +92,7 @@ class CliDirectMutationAdapter:
         return None
 
     def _provider_name(self) -> str:
-        return 'direct-mutation'
+        return "direct-mutation"
 
     def propose_fix(self, request: AgentRequest) -> AgentResponse:
         """Run the provider in the sandbox; never raises for classified outcomes."""
@@ -112,9 +112,7 @@ class CliDirectMutationAdapter:
             return AgentResponse(
                 status=AgentResponseStatus.PROVIDER_ERROR,
                 duration_ms=_elapsed_ms(started),
-                errors=[
-                    _provider_error(f'failed to resolve sandbox baseline: {exc}')
-                ],
+                errors=[_provider_error(f"failed to resolve sandbox baseline: {exc}")],
             )
 
         prompt = build_mutation_prompt(request)
@@ -128,19 +126,21 @@ class CliDirectMutationAdapter:
         )
         duration_ms = _elapsed_ms(started)
 
-        if outcome.status == 'timeout':
+        if outcome.status == "timeout":
             return AgentResponse(
                 status=AgentResponseStatus.TIMEOUT,
                 duration_ms=duration_ms,
                 mutation_baseline_ref=baseline,
                 raw_text=outcome.result_text,
                 errors=[
-                    _timeout_error(request.timeout_seconds, provider=self._provider_name())
+                    _timeout_error(
+                        request.timeout_seconds, provider=self._provider_name()
+                    )
                 ],
             )
 
-        if outcome.status == 'error':
-            detail = outcome.error_detail or 'direct-mutation runner returned error'
+        if outcome.status == "error":
+            detail = outcome.error_detail or "direct-mutation runner returned error"
             return AgentResponse(
                 status=AgentResponseStatus.PROVIDER_ERROR,
                 duration_ms=duration_ms,
@@ -157,7 +157,7 @@ class CliDirectMutationAdapter:
                 duration_ms=duration_ms,
                 mutation_baseline_ref=baseline,
                 raw_text=outcome.result_text,
-                errors=[_provider_error(f'failed to capture sandbox diff: {exc}')],
+                errors=[_provider_error(f"failed to capture sandbox diff: {exc}")],
             )
 
         if not diff.strip():
@@ -184,7 +184,7 @@ class CliDirectMutationAdapter:
                 discard_since(request.sandbox_path, baseline)
             except MutationGitError as exc:
                 gate.errors.append(
-                    _provider_error(f'failed to discard rejected sandbox edit: {exc}')
+                    _provider_error(f"failed to discard rejected sandbox edit: {exc}")
                 )
             return AgentResponse(
                 status=AgentResponseStatus.PROVIDER_ERROR,
