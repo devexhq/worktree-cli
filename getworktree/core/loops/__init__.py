@@ -32,6 +32,12 @@ from getworktree.core.loops.models import (
     LoopSandbox,
     LoopTrigger,
 )
+from getworktree.core.loops.payload import (
+    AgentFailurePayload,
+    PayloadFile,
+    PayloadOmission,
+    build_failure_payload,
+)
 from getworktree.core.loops.render import (
     format_loop_show_resolve_failure,
     format_loop_show_success,
@@ -62,6 +68,7 @@ __all__ = [
     "LOOP_FILE_SUFFIXES",
     "LOOP_NAME_PATTERN",
     "LOOP_VALIDATOR",
+    "AgentFailurePayload",
     "LoopAgent",
     "LoopApproval",
     "LoopContext",
@@ -84,8 +91,11 @@ __all__ = [
     "LoopTrigger",
     "LoopValidationResult",
     "LoopValidationStatus",
+    "PayloadFile",
+    "PayloadOmission",
     "TriggerRunResult",
     "TriggerRunStatus",
+    "build_failure_payload",
     "build_loop_inventory",
     "discover_loop_files",
     "format_loop_show_resolve_failure",
