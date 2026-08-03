@@ -467,6 +467,67 @@ still satisfy the three identity fields are `ok` at this layer.
 
 Codes appear in `errors` strings so callers and tests can key off them.
 
+## Loop inventory API
+
+Composition of discovery + per-file metadata parse lives in
+[getworktree/core/loops/inventory.py](../../getworktree/core/loops/inventory.py).
+This layer builds a partial-success inventory for future `wt loop list`. It does
+**not** run full `loop_v1` validation, print, call `sys.exit`, or mutate files.
+
+### Primary API
+
+`build_loop_inventory(cwd=None, *, loops_dir=None, use_config=True) -> LoopInventoryResult`
+
+```python
+class LoopInventoryStatus(StrEnum):
+    OK = "ok"
+    DISCOVERY_FAILED = "discovery_failed"
+
+
+class LoopInventoryValidEntry(BaseModel):
+    name: str
+    description: str
+    version: int
+    source_path: Path  # absolute
+
+
+class LoopInventoryInvalidEntry(BaseModel):
+    source_path: Path  # absolute
+    status: str  # LoopMetadataStatus value
+    errors: list[str]
+    name: None = None
+    description: None = None
+
+
+class LoopInventoryResult(BaseModel):
+    status: LoopInventoryStatus
+    loops_dir: Path  # absolute
+    valid: list[LoopInventoryValidEntry]
+    invalid: list[LoopInventoryInvalidEntry]
+    warnings: list[str]
+    errors: list[str]
+
+    @property
+    def ok(self) -> bool: ...  # status == OK
+```
+
+Semantics:
+
+- Discovery not ok → `status=discovery_failed`, empty partitions, top-level
+  `errors` copied from discovery; no per-file parses.
+- Discovery ok (including empty dir, or some/all invalid files) → `status=ok`,
+  top-level `errors` empty; per-file problems live only on `invalid` entries.
+- `ok` means discovery succeeded and inventory was built. It does **not** mean
+  `invalid` is empty. “All healthy” is `ok and not invalid`.
+- On success: `len(valid) + len(invalid) == len(discovery.paths)`.
+- `valid` sorted by `name`, then `source_path.as_posix()`.
+- `invalid` sorted by `source_path.name`, then full path POSIX string.
+- Duplicate logical names among **valid** entries remain listed; one warning per
+  duplicated name:
+  `Duplicate loop name 'fix-tests' in multiple files: a.yml, b.yml`
+  (file names sorted, comma-space separated). Invalid entries do not join
+  duplicate-name warnings.
+
 ## Changing config or loop shape
 
 1. Update the relevant JSON Schema (`config_v1.json` or `loop_v1.json`).
