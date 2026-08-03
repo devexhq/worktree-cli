@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
+
+AgentProvider = Literal["local", "openai", "anthropic", "azure_openai", "custom"]
+PatchStrategy = Literal["unified_diff"]
 
 
 class ProjectConfig(BaseModel):
@@ -19,11 +24,11 @@ class PathsConfig(BaseModel):
 
     model_config = {"extra": "forbid", "strict": True}
 
-    root_dir: str = ".worktree"
-    loops_dir: str = ".worktree/loops"
-    sessions_dir: str = ".worktree/sessions"
-    artifacts_dir: str = ".worktree/artifacts"
-    db_path: str = ".worktree/token_audit.db"
+    root_dir: str = Field(default=".worktree", min_length=1)
+    loops_dir: str = Field(default=".worktree/loops", min_length=1)
+    sessions_dir: str = Field(default=".worktree/sessions", min_length=1)
+    artifacts_dir: str = Field(default=".worktree/artifacts", min_length=1)
+    db_path: str = Field(default=".worktree/token_audit.db", min_length=1)
 
 
 class SandboxConfig(BaseModel):
@@ -31,11 +36,11 @@ class SandboxConfig(BaseModel):
 
     model_config = {"extra": "forbid", "strict": True}
 
-    base_ref: str = "HEAD"
+    base_ref: str = Field(default="HEAD", min_length=1)
     auto_clean: bool = True
     keep_on_failure: bool = True
-    max_active_sandboxes: int = 3
-    default_timeout_seconds: int = 900
+    max_active_sandboxes: int = Field(default=3, ge=1)
+    default_timeout_seconds: int = Field(default=900, ge=1)
 
 
 class LoopConfig(BaseModel):
@@ -43,10 +48,10 @@ class LoopConfig(BaseModel):
 
     model_config = {"extra": "forbid", "strict": True}
 
-    default_max_attempts: int = 5
-    default_trigger_timeout_seconds: int = 600
-    default_agent_timeout_seconds: int = 120
-    max_attempts_hard_limit: int = 20
+    default_max_attempts: int = Field(default=5, ge=1)
+    default_trigger_timeout_seconds: int = Field(default=600, ge=1)
+    default_agent_timeout_seconds: int = Field(default=120, ge=1)
+    max_attempts_hard_limit: int = Field(default=20, ge=1)
     detect_repeat_failures: bool = True
 
 
@@ -55,11 +60,11 @@ class AgentConfig(BaseModel):
 
     model_config = {"extra": "forbid", "strict": True}
 
-    provider: str = "local"
-    model: str | None = None
-    endpoint: str | None = None
-    temperature: float = 0.2
-    max_tokens: int = 4096
+    provider: AgentProvider = "local"
+    model: str | None = Field(default=None, min_length=1)
+    endpoint: str | None = Field(default=None, min_length=1)
+    temperature: float = Field(default=0.2, ge=0, le=2)
+    max_tokens: int = Field(default=4096, ge=1)
 
 
 class PatchConfig(BaseModel):
@@ -67,9 +72,9 @@ class PatchConfig(BaseModel):
 
     model_config = {"extra": "forbid", "strict": True}
 
-    strategy: str = "unified_diff"
-    max_files: int = 30
-    max_patch_kb: int = 1024
+    strategy: PatchStrategy = "unified_diff"
+    max_files: int = Field(default=30, ge=1)
+    max_patch_kb: int = Field(default=1024, ge=1)
     reject_binary_changes: bool = True
 
 
@@ -90,7 +95,7 @@ class HistoryConfig(BaseModel):
     save_attempt_logs: bool = True
     save_agent_payloads: bool = True
     save_final_diff: bool = True
-    max_sessions: int = 1000
+    max_sessions: int = Field(default=1000, ge=1)
 
 
 class DoctorConfig(BaseModel):
@@ -113,7 +118,7 @@ class PruneConfig(BaseModel):
     remove_stale_worktrees: bool = True
     remove_orphaned_sandboxes: bool = True
     remove_expired_artifacts: bool = False
-    artifact_ttl_days: int = 30
+    artifact_ttl_days: int = Field(default=30, ge=0)
 
 
 class TelemetryConfig(BaseModel):
