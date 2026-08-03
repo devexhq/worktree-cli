@@ -269,12 +269,8 @@ class RunLoopIterationTests:
                 _trigger(TriggerRunStatus.FAILED, stdout="b", stderr="b"),
             ],
             agent_responses=[
-                AgentResponse(
-                    status=AgentResponseStatus.PROVIDER_ERROR, duration_ms=1
-                ),
-                AgentResponse(
-                    status=AgentResponseStatus.PROVIDER_ERROR, duration_ms=1
-                ),
+                AgentResponse(status=AgentResponseStatus.PROVIDER_ERROR, duration_ms=1),
+                AgentResponse(status=AgentResponseStatus.PROVIDER_ERROR, duration_ms=1),
             ],
         )
         assert not result.ok
