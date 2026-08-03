@@ -124,6 +124,34 @@ Written atomically under `log_dir`:
 Artifact I/O failures become `warnings` and do **not** reclassify a successful
 process outcome.
 
+## Failure payload builder
+
+`build_failure_payload` ([getworktree/core/loops/payload.py](../../getworktree/core/loops/payload.py))
+turns a `TriggerRunResult` plus sandbox path into a bounded
+`AgentFailurePayload` for agent adapters. Pure data assembly: no network, no
+agent calls, no sandbox/git mutation.
+
+### Include tokens (`context.include`)
+| Token | Effect |
+|-------|--------|
+| `trigger_output` | Attach truncated `stdout`/`stderr` with `*_truncated` flags |
+| `changed_files` | Copy caller-supplied path list onto the payload (no git) |
+| `relevant_source` | Read selected source files into `files[]` |
+
+Identity fields always set: `command`, `args`, `trigger_status`, `exit_code`,
+`timed_out`, `duration_ms`. `include=[]` yields identity only.
+
+### Caps (defaults)
+- `max_trigger_chars=80_000` per stream; truncated streams append
+  `\n...[truncated, original_chars=<n>]`
+- `max_files=20`, `max_file_bytes=64_000` for `relevant_source`
+- Candidate paths: regex extract from trigger streams (common source suffixes)
+  ∪ caller `changed_files`; normalized under sandbox; sorted; de-duped
+- Skips recorded in `omissions` with reason:
+  `missing` | `outside_sandbox` | `directory` | `binary` | `max_files` |
+  `max_file_bytes`
+- Symlink escape outside the sandbox → `outside_sandbox` (no content)
+
 ## Packaged resources
 
 Schemas and loop templates ship inside the installed package and are read via
