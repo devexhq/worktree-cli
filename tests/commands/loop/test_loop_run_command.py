@@ -238,7 +238,7 @@ class RendererTests:
             attempts=[
                 AttemptRecord(attempt=i, trigger_status="failed") for i in range(1, 6)
             ],
-            max_attempts=1,
+            max_attempts=5,
             retained=True,
             sandbox_path=sbx,
         )
