@@ -53,11 +53,44 @@ subdirectories and repairs metadata.
 ## Sandboxes
 
 `GitSandboxManager` / `sandbox_scope` ([getworktree/core/git_sandbox.py](../../getworktree/core/git_sandbox.py))
-spawn real `git worktree` checkouts under `.worktree/sandboxes/<id>` on a throwaway
-`worktree/sandbox-<id>` branch, bounded by `sandbox.max_active_sandboxes` from config.
-Cleanup removes the worktree, deletes the branch, and prunes stale refs when
-`sandbox.auto_clean` is true; failed runs are retained when `sandbox.keep_on_failure`
-is also true.
+own the V1 sandbox lifecycle used by loop execution.
+
+### On-disk layout
+- Base directory: `.worktree/sandboxes/`
+- Checkout path: `.worktree/sandboxes/<session_id>/`
+- Throwaway branch: `worktree/sandbox-<session_id>`
+- Default `session_id`: `sbx_` + 8 lowercase hex chars
+
+### Create
+- Primary API: `create_sandbox_result` → `SandboxCreateResult` (`ok` /
+  `capacity_exceeded` / `git_failed` / `not_initialized` / `unreadable_config`)
+- `create_sandbox` is a thin raise-on-error wrapper over the result API
+- Base ref: current branch when it is a real branch name; otherwise
+  `sandbox.base_ref` from config (default `HEAD`)
+- Refuses create when active sandbox **directories** ≥
+  `sandbox.max_active_sandboxes` (default `3`) without leaving a partial
+  session claim on the capacity path
+
+### Cleanup policy
+`should_cleanup_sandbox(auto_clean, keep_on_failure, command_passed)`:
+
+| auto_clean | keep_on_failure | command_passed | clean? |
+|------------|-----------------|----------------|--------|
+| false | * | * | no |
+| true | false | * | yes |
+| true | true | True | yes |
+| true | true | False | no (retain failed run) |
+| true | true | None | yes (unclassified / aborted early) |
+
+`cleanup_sandbox` is idempotent: `git worktree remove` (force by default),
+best-effort `git branch -D`, then `git worktree prune`. Partial state (missing
+dir or branch) must not raise.
+
+### Context manager
+`sandbox_scope(cwd, session_id=None, *, auto_clean=None, keep_on_failure=None)`
+creates one sandbox, yields `SandboxSession`, and on exit applies the policy
+above. Explicit kwargs override config; callers set `session.command_passed`
+before leaving the scope. Body exceptions are never swallowed.
 
 ## Packaged resources
 
