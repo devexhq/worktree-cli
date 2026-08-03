@@ -92,6 +92,38 @@ creates one sandbox, yields `SandboxSession`, and on exit applies the policy
 above. Explicit kwargs override config; callers set `session.command_passed`
 before leaving the scope. Body exceptions are never swallowed.
 
+
+## Trigger runner
+
+`run_trigger` ([getworktree/core/loops/trigger.py](../../getworktree/core/loops/trigger.py))
+executes a loop trigger as **argv only** (`shell=False`) with `cwd` set to the
+sandbox (or any working directory the caller provides).
+
+### Inputs
+- `command` + `args` (list; empty allowed)
+- `cwd` — must be an existing directory or result is `cwd_missing`
+- `timeout_seconds` (≥ 1) — kills the direct child on expiry
+- `env` — `None` inherits the parent env; a mapping **replaces** the child env
+- `log_dir` — optional artifact directory
+
+### Result (`TriggerRunResult`)
+Statuses: `passed`, `failed`, `timeout`, `spawn_failed`, `cwd_missing`.
+`ok` is true only for `passed`. Captures full stdout/stderr (UTF-8 with
+replacement), `exit_code` (`None` on timeout/spawn/cwd miss), `timed_out`,
+`duration_ms`, and ISO-8601 `started_at` / `finished_at`.
+
+Never prints or calls `sys.exit`. Classified outcomes do not raise.
+
+### Artifacts (when `log_dir` is set)
+Written atomically under `log_dir`:
+- `trigger_stdout.log`
+- `trigger_stderr.log`
+- `trigger_meta.json` — `command`, `args`, `cwd`, `exit_code`, `timed_out`,
+  `status`, `duration_ms`, `started_at`, `finished_at` (`indent=2`)
+
+Artifact I/O failures become `warnings` and do **not** reclassify a successful
+process outcome.
+
 ## Packaged resources
 
 Schemas and loop templates ship inside the installed package and are read via
