@@ -8,6 +8,13 @@ from getworktree.core.loops.discovery import (
     discover_loop_files,
     resolve_loops_dir,
 )
+from getworktree.core.loops.inventory import (
+    LoopInventoryInvalidEntry,
+    LoopInventoryResult,
+    LoopInventoryStatus,
+    LoopInventoryValidEntry,
+    build_loop_inventory,
+)
 from getworktree.core.loops.metadata import (
     LOOP_NAME_PATTERN,
     LoopListMetadata,
@@ -23,10 +30,15 @@ __all__ = [
     "LOOP_NAME_PATTERN",
     "LoopDiscoveryResult",
     "LoopDiscoveryStatus",
+    "LoopInventoryInvalidEntry",
+    "LoopInventoryResult",
+    "LoopInventoryStatus",
+    "LoopInventoryValidEntry",
     "LoopListMetadata",
     "LoopMetadataParseResult",
     "LoopMetadataStatus",
     "LoopSeedResult",
+    "build_loop_inventory",
     "discover_loop_files",
     "parse_loop_metadata",
     "resolve_loops_dir",
