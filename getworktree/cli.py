@@ -10,7 +10,7 @@ from getworktree.commands.config.command import (
     config_validate_command,
 )
 from getworktree.commands.init.command import init_command
-from getworktree.commands.loop.command import loop_command
+from getworktree.commands.loop.command import loop_show_command
 from getworktree.commands.status.command import status_command
 
 # Initialize a central styling console for high-utility layout parsing
@@ -32,6 +32,12 @@ config_app = typer.Typer(
     help="Inspect and validate Worktree configuration.",
 )
 app.add_typer(config_app, name="config")
+
+loop_app = typer.Typer(
+    name="loop",
+    help="Inspect and manage Worktree loop definitions.",
+)
+app.add_typer(loop_app, name="loop")
 
 
 def print_welcome_banner():
@@ -126,12 +132,12 @@ def config_validate(ctx: typer.Context):
     config_validate_command()
 
 
-@app.command(name="loop")
-def loop(
-    command: str = typer.Argument(..., help="Target test or build command string."),
+@loop_app.command("show")
+def loop_show(
+    name: str = typer.Argument(..., help="Logical loop name to show."),
 ):
-    """Run command in isolated sandbox and extract error diagnostic payloads."""
-    loop_command(command)
+    """Show a human-readable summary of a loop definition."""
+    loop_show_command(name)
 
 
 if __name__ == "__main__":

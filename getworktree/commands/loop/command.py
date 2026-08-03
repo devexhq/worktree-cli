@@ -1,4 +1,4 @@
-"""Execute target commands inside an isolated background sandbox.
+"""Loop command handlers: show summaries and experimental sandbox execution.
 
 Captures failure diagnostics into structured payload blocks for downstream tools.
 """
@@ -17,6 +17,13 @@ from getworktree.commands.loop.models import ExecutionResult
 from getworktree.common.utils import RichOutput
 from getworktree.core.config.context import display_context_warnings, load_context
 from getworktree.core.git_sandbox import sandbox_scope
+from getworktree.core.loops.render import (
+    format_loop_show_resolve_failure,
+    format_loop_show_success,
+    format_loop_show_validate_failure,
+)
+from getworktree.core.loops.resolve import resolve_loop_by_name
+from getworktree.core.loops.validate import validate_loop_result
 
 rich_output = RichOutput()
 
@@ -94,6 +101,75 @@ def format_error_payload(
         f"{diagnostics}\n"
         "---------------------------------------------"
     )
+
+
+def loop_show_command(name: str, *, cwd: Path | None = None) -> None:
+    """Resolve, validate, and print a human-readable loop summary.
+
+    Read-only: does not mutate loop files, start sandboxes, or run triggers.
+    Exit ``0`` when resolve and validate succeed (warnings allowed); exit ``1``
+    on resolve or validate failure.
+
+    Args:
+        name: Logical loop name to show.
+        cwd: Repository root. Defaults to process CWD.
+    """
+    root = (cwd or Path.cwd()).resolve()
+    resolved = resolve_loop_by_name(name, cwd=root)
+
+    if not resolved.ok:
+        rich_output.error_panel(
+            "Loop Show Failed",
+            format_loop_show_resolve_failure(resolved),
+        )
+        raise typer.Exit(code=1)
+
+    assert resolved.entry is not None
+    validated = validate_loop_result(resolved.entry.source_path)
+
+    if not validated.ok:
+        rich_output.error_panel(
+            "Loop Show Failed",
+            format_loop_show_validate_failure(validated),
+        )
+        if resolved.warnings:
+            warning_block = "Warnings:\n" + "\n".join(
+                _format_warning_bullets(resolved.warnings)
+            )
+            rich_output.console.print(
+                warning_block,
+                markup=False,
+                highlight=False,
+                soft_wrap=True,
+            )
+        raise typer.Exit(code=1)
+
+    assert validated.loop is not None
+    warnings = [*resolved.warnings, *validated.warnings]
+    payload = format_loop_show_success(
+        validated.loop,
+        source_path=validated.source_path,
+        warnings=warnings,
+    )
+    rich_output.console.print(
+        payload,
+        end="",
+        markup=False,
+        highlight=False,
+        soft_wrap=True,
+    )
+    raise typer.Exit(code=0)
+
+
+def _format_warning_bullets(warnings: list[str]) -> list[str]:
+    """Format engine warnings as bullet lines with indented continuations."""
+    lines: list[str] = []
+    for warning in warnings:
+        parts = warning.splitlines() or [""]
+        lines.append(f"- {parts[0]}")
+        for continuation in parts[1:]:
+            lines.append(f"  {continuation}")
+    return lines
 
 
 def loop_command(command: str) -> None:

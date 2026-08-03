@@ -32,6 +32,11 @@ from getworktree.core.loops.models import (
     LoopSandbox,
     LoopTrigger,
 )
+from getworktree.core.loops.render import (
+    format_loop_show_resolve_failure,
+    format_loop_show_success,
+    format_loop_show_validate_failure,
+)
 from getworktree.core.loops.resolve import (
     LoopResolveResult,
     LoopResolveStatus,
@@ -76,6 +81,9 @@ __all__ = [
     "LoopValidationStatus",
     "build_loop_inventory",
     "discover_loop_files",
+    "format_loop_show_resolve_failure",
+    "format_loop_show_success",
+    "format_loop_show_validate_failure",
     "load_loop_definition",
     "parse_loop_metadata",
     "resolve_loop_by_name",
