@@ -318,27 +318,28 @@ def _run_git_apply(
     return completed.returncode == 0, detail
 
 
-def apply_patch_result(
-    *,
-    sandbox_path: Path,
+def validate_patch_text(
     unified_diff: str,
+    *,
     max_files: int,
     max_patch_kb: int,
-    reject_binary_changes: bool = True,
-    check_only: bool = False,
+    reject_binary_changes: bool,
+    sandbox_path: Path,
 ) -> PatchApplyResult:
-    """Validate and optionally apply a unified diff inside ``sandbox_path``.
+    """Validate diff text against size/count/binary/path limits, no git apply.
 
-    Classified outcomes never raise. Successful apply uses ``git apply`` with
-    cwd set to the sandbox so reject failures leave the tree unchanged.
+    Returns ``PatchApplyResult(status=CHECKED_OK, touched_files=...)`` when all
+    checks pass; otherwise a result carrying the failing status. Reused both as
+    the pre-``git apply`` gate for diff-returning providers and as the
+    post-hoc gate for direct-mutation providers, whose changes are already
+    reflected on disk.
 
     Args:
-        sandbox_path: Directory that receives the patch (sandbox root).
         unified_diff: Full unified diff text.
         max_files: Maximum distinct target files allowed.
         max_patch_kb: Maximum UTF-8 byte size of the diff in KiB.
         reject_binary_changes: When True, reject binary file markers.
-        check_only: When True, validate + ``git apply --check`` only.
+        sandbox_path: Sandbox root used for the unsafe-path check.
 
     Returns:
         Structured :class:`PatchApplyResult` with status, touched files, errors.
@@ -396,6 +397,47 @@ def apply_patch_result(
                 errors=[_unsafe_path_error(rel)],
             )
 
+    return PatchApplyResult(
+        status=PatchApplyStatus.CHECKED_OK,
+        touched_files=list(touched),
+    )
+
+
+def apply_patch_result(
+    *,
+    sandbox_path: Path,
+    unified_diff: str,
+    max_files: int,
+    max_patch_kb: int,
+    reject_binary_changes: bool = True,
+    check_only: bool = False,
+) -> PatchApplyResult:
+    """Validate and optionally apply a unified diff inside ``sandbox_path``.
+
+    Classified outcomes never raise. Successful apply uses ``git apply`` with
+    cwd set to the sandbox so reject failures leave the tree unchanged.
+
+    Args:
+        sandbox_path: Directory that receives the patch (sandbox root).
+        unified_diff: Full unified diff text.
+        max_files: Maximum distinct target files allowed.
+        max_patch_kb: Maximum UTF-8 byte size of the diff in KiB.
+        reject_binary_changes: When True, reject binary file markers.
+        check_only: When True, validate + ``git apply --check`` only.
+
+    Returns:
+        Structured :class:`PatchApplyResult` with status, touched files, errors.
+    """
+    validation = validate_patch_text(
+        unified_diff,
+        max_files=max_files,
+        max_patch_kb=max_patch_kb,
+        reject_binary_changes=reject_binary_changes,
+        sandbox_path=sandbox_path,
+    )
+    if validation.status != PatchApplyStatus.CHECKED_OK:
+        return validation
+
     success, detail = _run_git_apply(
         sandbox_path=sandbox_path,
         unified_diff=unified_diff,
@@ -404,16 +446,16 @@ def apply_patch_result(
     if not success:
         return PatchApplyResult(
             status=PatchApplyStatus.CONFLICT,
-            touched_files=list(touched),
+            touched_files=list(validation.touched_files),
             errors=[_conflict_error(detail)],
         )
 
     if check_only:
         return PatchApplyResult(
             status=PatchApplyStatus.CHECKED_OK,
-            touched_files=list(touched),
+            touched_files=list(validation.touched_files),
         )
     return PatchApplyResult(
         status=PatchApplyStatus.APPLIED,
-        touched_files=list(touched),
+        touched_files=list(validation.touched_files),
     )

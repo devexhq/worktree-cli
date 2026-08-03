@@ -55,6 +55,9 @@ setup(
             "ruff>=0.6.0",
             "invoke>=2.0.0",
         ],
+        "cursor": [
+            "cursor-sdk>=1.0.26,<2",
+        ],
     },
     package_data={"getworktree": ["schemas/*.json", "core/templates/loops/*.yml"]},
     include_package_data=True,

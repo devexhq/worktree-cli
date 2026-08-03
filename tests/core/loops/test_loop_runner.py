@@ -157,6 +157,8 @@ def _run(
     create_status: SandboxCreateStatus = SandboxCreateStatus.OK,
     create_errors: list[str] | None = None,
     require_before_apply: bool | None = None,
+    discard_mutation_fn=None,
+    spy: dict[str, list] | None = None,
 ):
     loop = loop or _loop()
     config = config or _config()
@@ -182,7 +184,8 @@ def _run(
         return trigger_queue.pop(0)
 
     def patch_fn(**kwargs):
-        _ = kwargs
+        if spy is not None:
+            spy.setdefault("patch_calls", []).append(kwargs)
         if not patch_queue:
             return PatchApplyResult(
                 status=PatchApplyStatus.APPLIED, touched_files=["a.py"]
@@ -204,6 +207,12 @@ def _run(
         ]
     )
 
+    def _discard_fn(path: Path, baseline: str) -> None:
+        if spy is not None:
+            spy.setdefault("discard_calls", []).append((path, baseline))
+        if discard_mutation_fn is not None:
+            discard_mutation_fn(path, baseline)
+
     result = run_loop_iteration(
         loop=loop,
         cwd=sandbox.parent,
@@ -216,6 +225,7 @@ def _run(
         list_changed_files=lambda _p: [],
         run_trigger_fn=trigger_fn,
         apply_patch_fn=patch_fn,
+        discard_mutation_fn=_discard_fn,
         build_payload_fn=payload_fn,
         create_sandbox_fn=create_fn,
         cleanup_sandbox_fn=cleaned.append,
@@ -535,3 +545,133 @@ class RunLoopIterationTests:
         assert "agent" in names
         assert names.index("trigger_start") < names.index("trigger")
         assert names.index("agent_start") < names.index("agent")
+
+
+class DirectMutationProviderTests:
+    """Runner behavior for providers that set ``mutation_baseline_ref``."""
+
+    def test_approved_skips_patch_applier(self, sandbox: Path) -> None:
+        spy: dict[str, list] = {}
+        result, _, _ = _run(
+            sandbox=sandbox,
+            loop=_loop(max_attempts=2),
+            triggers=[
+                _trigger(TriggerRunStatus.FAILED),
+                _trigger(TriggerRunStatus.PASSED),
+            ],
+            agent_responses=[
+                AgentResponse(
+                    status=AgentResponseStatus.PROPOSED_PATCH,
+                    unified_diff="diff --git a/a.py b/a.py\n",
+                    mutation_baseline_ref="baseline-sha",
+                    duration_ms=3,
+                )
+            ],
+            spy=spy,
+        )
+        assert result.status == LoopFinalStatus.PASSED
+        assert result.attempts[0].patch_status == "applied"
+        assert result.attempts[0].patch_touched_files == ["a.py"]
+        assert "patch_calls" not in spy
+        assert "discard_calls" not in spy
+
+    def test_rejected_discards_to_baseline(self, sandbox: Path) -> None:
+        spy: dict[str, list] = {}
+        result, _, _ = _run(
+            sandbox=sandbox,
+            loop=_loop(max_attempts=1, require_before_apply=True),
+            triggers=[_trigger(TriggerRunStatus.FAILED)],
+            agent_responses=[
+                AgentResponse(
+                    status=AgentResponseStatus.PROPOSED_PATCH,
+                    unified_diff="diff --git a/a.py b/a.py\n",
+                    mutation_baseline_ref="baseline-sha",
+                )
+            ],
+            approve_patch=lambda _diff: False,
+            spy=spy,
+        )
+        assert result.status == LoopFinalStatus.FAILED
+        assert result.attempts[0].patch_status == "approval_rejected"
+        assert "patch_calls" not in spy
+        assert spy["discard_calls"] == [(sandbox, "baseline-sha")]
+
+    def test_timeout_discards_to_baseline(self, sandbox: Path) -> None:
+        spy: dict[str, list] = {}
+        result, _, _ = _run(
+            sandbox=sandbox,
+            loop=_loop(max_attempts=1),
+            triggers=[_trigger(TriggerRunStatus.FAILED)],
+            agent_responses=[
+                AgentResponse(
+                    status=AgentResponseStatus.TIMEOUT,
+                    mutation_baseline_ref="baseline-sha",
+                    errors=["Agent timed out"],
+                )
+            ],
+            spy=spy,
+        )
+        assert result.status == LoopFinalStatus.FAILED
+        assert spy["discard_calls"] == [(sandbox, "baseline-sha")]
+
+    def test_unfixable_discards_to_baseline(self, sandbox: Path) -> None:
+        spy: dict[str, list] = {}
+        result, _, _ = _run(
+            sandbox=sandbox,
+            loop=_loop(max_attempts=1),
+            triggers=[_trigger(TriggerRunStatus.FAILED)],
+            agent_responses=[
+                AgentResponse(
+                    status=AgentResponseStatus.UNFIXABLE,
+                    mutation_baseline_ref="baseline-sha",
+                    unfixable_reason="cannot fix",
+                )
+            ],
+            spy=spy,
+        )
+        assert result.status == LoopFinalStatus.UNFIXABLE
+        assert spy["discard_calls"] == [(sandbox, "baseline-sha")]
+
+    def test_gate_failure_from_adapter_does_not_double_discard(
+        self, sandbox: Path
+    ) -> None:
+        # Adapter-side gate failures already discarded and return
+        # PROVIDER_ERROR without a baseline; runner must not call discard
+        # again with no baseline available.
+        spy: dict[str, list] = {}
+        result, _, _ = _run(
+            sandbox=sandbox,
+            loop=_loop(max_attempts=1),
+            triggers=[_trigger(TriggerRunStatus.FAILED)],
+            agent_responses=[
+                AgentResponse(
+                    status=AgentResponseStatus.PROVIDER_ERROR,
+                    errors=["gate violation"],
+                )
+            ],
+            spy=spy,
+        )
+        assert result.status == LoopFinalStatus.FAILED
+        assert "discard_calls" not in spy
+
+    def test_local_provider_response_unaffected(self, sandbox: Path) -> None:
+        spy: dict[str, list] = {}
+        result, _, _ = _run(
+            sandbox=sandbox,
+            loop=_loop(max_attempts=2),
+            triggers=[
+                _trigger(TriggerRunStatus.FAILED),
+                _trigger(TriggerRunStatus.PASSED),
+            ],
+            agent_responses=[
+                AgentResponse(
+                    status=AgentResponseStatus.PROPOSED_PATCH,
+                    unified_diff="diff --git a/a.py b/a.py\n",
+                    duration_ms=3,
+                )
+            ],
+            spy=spy,
+        )
+        assert result.status == LoopFinalStatus.PASSED
+        assert len(spy["patch_calls"]) == 1
+        assert "discard_calls" not in spy

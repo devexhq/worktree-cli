@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from getworktree.core.agents.base import AgentAdapter
+from getworktree.core.agents.cursor import CursorAgentAdapter
 from getworktree.core.agents.local import LocalAgentAdapter
 from getworktree.core.agents.ollama import OllamaAgentAdapter
 from getworktree.core.config.models import AgentConfig
 
-_SUPPORTED_V1 = ("local", "ollama")
+_SUPPORTED_V1 = ("local", "ollama", "cursor")
 
 
 def get_agent_adapter(
@@ -16,7 +17,8 @@ def get_agent_adapter(
     """Return an adapter for ``provider``.
 
     Args:
-        provider: Provider id from loop/config (v1: ``local``, ``ollama``).
+        provider: Provider id from loop/config (v1: ``local``, ``ollama``,
+            ``cursor``).
         config: Optional agent config; unused by current adapters (request
             fields are populated by the runner from config).
 
@@ -31,6 +33,8 @@ def get_agent_adapter(
         return LocalAgentAdapter()
     if provider == "ollama":
         return OllamaAgentAdapter()
+    if provider == "cursor":
+        return CursorAgentAdapter()
     supported = ", ".join(_SUPPORTED_V1)
     raise ValueError(
         f"Unsupported agent provider '{provider}' "
