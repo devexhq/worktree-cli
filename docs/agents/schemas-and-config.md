@@ -528,6 +528,68 @@ Semantics:
   (file names sorted, comma-space separated). Invalid entries do not join
   duplicate-name warnings.
 
+## Loop resolve API
+
+Name → path resolution on top of inventory lives in
+[getworktree/core/loops/resolve.py](../../getworktree/core/loops/resolve.py).
+This layer maps a logical loop `name` to exactly one
+`LoopInventoryValidEntry`. It does **not** parse full `loop_v1` bodies, print,
+call `sys.exit`, or mutate files.
+
+### Primary API
+
+`resolve_loop_by_name(name, cwd=None, *, loops_dir=None, use_config=True) -> LoopResolveResult`
+
+Resolution always goes through `build_loop_inventory` (same `cwd` / `loops_dir`
+/ `use_config`). Match is exact, case-sensitive equality on valid entry `name`
+only. Invalid inventory entries never win.
+
+```python
+class LoopResolveStatus(StrEnum):
+    OK = "ok"
+    NOT_FOUND = "not_found"
+    INVALID_NAME = "invalid_name"
+    DISCOVERY_FAILED = "discovery_failed"
+
+
+class LoopResolveResult(BaseModel):
+    status: LoopResolveStatus
+    name: str  # requested name echo
+    loops_dir: Path  # absolute
+    entry: LoopInventoryValidEntry | None
+    matches: list[LoopInventoryValidEntry]
+    errors: list[str]
+    warnings: list[str]
+
+    @property
+    def ok(self) -> bool: ...  # status == OK
+```
+
+### Status semantics
+
+| Condition | `status` |
+|-----------|----------|
+| requested name fails `^[a-z0-9][a-z0-9-]*$` (before inventory IO) | `invalid_name` |
+| inventory `discovery_failed` | `discovery_failed` (errors copied) |
+| inventory ok, zero valid matches | `not_found` |
+| inventory ok, one or more valid matches | `ok` (deterministic winner) |
+
+Duplicate valid names do **not** fail: winner sort key is
+`(source_path.name, source_path.as_posix())`; `matches` lists all matches in
+that order; `entry` is `matches[0]`.
+
+### Error / warning codes
+
+| Code | Where | Status |
+|------|--------|--------|
+| `LOOP_RESOLVE_INVALID_NAME` | `errors` | `invalid_name` |
+| `LOOP_RESOLVE_NOT_FOUND` | `errors` | `not_found` |
+| `LOOP_RESOLVE_DUPLICATE_NAME` | `warnings` | `ok` (duplicate case) |
+
+Discovery failures keep inventory/discovery codes already present in those
+`errors`. Inventory warnings are passed through; the resolver-specific
+duplicate warning is appended after them when the requested name collides.
+
 ## Changing config or loop shape
 
 1. Update the relevant JSON Schema (`config_v1.json` or `loop_v1.json`).

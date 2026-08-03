@@ -22,6 +22,11 @@ from getworktree.core.loops.metadata import (
     LoopMetadataStatus,
     parse_loop_metadata,
 )
+from getworktree.core.loops.resolve import (
+    LoopResolveResult,
+    LoopResolveStatus,
+    resolve_loop_by_name,
+)
 from getworktree.core.loops.seeder import LoopSeedResult, seed_starter_loops
 
 __all__ = [
@@ -37,10 +42,13 @@ __all__ = [
     "LoopListMetadata",
     "LoopMetadataParseResult",
     "LoopMetadataStatus",
+    "LoopResolveResult",
+    "LoopResolveStatus",
     "LoopSeedResult",
     "build_loop_inventory",
     "discover_loop_files",
     "parse_loop_metadata",
+    "resolve_loop_by_name",
     "resolve_loops_dir",
     "seed_starter_loops",
 ]
