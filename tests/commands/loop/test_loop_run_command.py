@@ -186,6 +186,48 @@ class RendererTests:
         assert patch == "  Patch:   applied (2 files)\n"
         assert format_progress_event("unknown", {}) is None
 
+    def test_progress_event_lines_include_error_detail(self) -> None:
+        trigger = format_progress_event(
+            "trigger",
+            {
+                "status": "failed",
+                "exit_code": 1,
+                "duration_ms": 100,
+                "errors": ["boom"],
+            },
+        )
+        assert trigger == "  Trigger: failed (exit 1) 0.1s\n  Error:   boom\n"
+
+        agent = format_progress_event(
+            "agent",
+            {
+                "status": "provider_error",
+                "duration_ms": 400,
+                "errors": [
+                    "Agent provider error (AGENT_PROVIDER_ERROR): missing "
+                    "CURSOR_API_KEY.\nFix: export CURSOR_API_KEY=..."
+                ],
+            },
+        )
+        assert agent == (
+            "  Agent:   provider_error 0.4s\n"
+            "  Error:   Agent provider error (AGENT_PROVIDER_ERROR): "
+            "missing CURSOR_API_KEY.\n"
+            "           Fix: export CURSOR_API_KEY=...\n"
+        )
+
+        patch = format_progress_event(
+            "patch",
+            {"status": "conflict", "touched_files": [], "errors": ["conflict"]},
+        )
+        assert patch == "  Patch:   conflict\n  Error:   conflict\n"
+
+        # Existing callers omitting "errors" from the payload are unaffected.
+        no_errors = format_progress_event(
+            "agent", {"status": "proposed_patch", "duration_ms": 3100}
+        )
+        assert no_errors == "  Agent:   proposed_patch 3.1s\n"
+
     def test_attempt_block_failed_then_agent_patch(self) -> None:
         rec = AttemptRecord(
             attempt=1,
@@ -213,6 +255,19 @@ class RendererTests:
         assert "Attempt 2/5" in text
         assert "Trigger: passed 10.1s" in text
         assert "Agent:" not in text
+
+    def test_attempt_block_includes_error_detail(self) -> None:
+        rec = AttemptRecord(
+            attempt=1,
+            trigger_status="failed",
+            agent_status="provider_error",
+            agent_duration_ms=400,
+            errors=["missing CURSOR_API_KEY", "line one\nline two"],
+        )
+        text = format_attempt_block(rec, max_attempts=3)
+        assert "  Error:   missing CURSOR_API_KEY" in text
+        assert "  Error:   line one" in text
+        assert "           line two" in text
 
     def test_summary_passed(self, tmp_path: Path) -> None:
         result = _fixture_result(LoopFinalStatus.PASSED, stop_reason="trigger_passed")
