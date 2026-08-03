@@ -89,12 +89,13 @@ def default_copilot_run(request: CliMutationRunRequest) -> CliMutationOutcome:
             error_detail="missing GH_TOKEN or GITHUB_TOKEN",
         )
 
+    # Keep prompt off argv to avoid OS argument length limits on large payloads.
     cmd = [
         "gh",
         "copilot",
         "--",
         "-p",
-        request.prompt,
+        "",
         "--output-format",
         "json",
         "--silent",
@@ -113,6 +114,7 @@ def default_copilot_run(request: CliMutationRunRequest) -> CliMutationOutcome:
             cmd,
             cwd=str(request.sandbox_path),
             env=env,
+            input=request.prompt.encode("utf-8"),
             capture_output=True,
             text=False,
             shell=False,
