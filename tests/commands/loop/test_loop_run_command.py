@@ -206,7 +206,9 @@ class RendererTests:
 
 
 class LoopRunCliTests:
-    def test_help_text(self) -> None:
+    def test_help_text(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # Rich truncates option names when COLUMNS is narrow (common in CI).
+        monkeypatch.setenv("COLUMNS", "120")
         result = runner.invoke(app, ["loop", "run", "--help"])
         assert result.exit_code == 0
         assert "Run a loop in an isolated git worktree sandbox." in result.stdout
