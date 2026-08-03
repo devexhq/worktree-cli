@@ -590,12 +590,124 @@ Discovery failures keep inventory/discovery codes already present in those
 `errors`. Inventory warnings are passed through; the resolver-specific
 duplicate warning is appended after them when the requested name collides.
 
+## Loop validation API
+
+Full `loop_v1` validation for one definition lives in
+[getworktree/core/loops/validate.py](../../getworktree/core/loops/validate.py).
+Typed models live in
+[getworktree/core/loops/models.py](../../getworktree/core/loops/models.py).
+This engine is the authority for “is this loop runnable / showable as valid.”
+It does **not** print, call `sys.exit`, discover siblings, resolve names, or
+create/mutate loop files.
+
+Shared schema binding:
+
+```python
+LOOP_VALIDATOR = SchemaValidator(
+    resources.files("getworktree.schemas") / "loop_v1.json"
+)
+```
+
+Exported from `getworktree.core.loops`. Seeder imports the same
+`LOOP_VALIDATOR` (no private duplicate binding).
+
+### Primary API
+
+`validate_loop_result(path: Path) -> LoopValidationResult` is the primary
+non-raising path-based surface.
+
+`validate_loop_document(raw: dict[str, Any], *, source_path: Path) -> LoopValidationResult`
+runs the same schema + semantic + model pipeline without reading disk.
+`source_path` is required identity (not required to exist); store as given after
+`Path` coercion.
+
+`load_loop_definition(path: Path) -> LoopDefinition` is a thin raising wrapper:
+`FileNotFoundError` for `not_found`, `OSError` for `unreadable`, `ValueError`
+otherwise.
+
+```python
+class LoopValidationStatus(StrEnum):
+    VALID = "valid"
+    INVALID = "invalid"
+    NOT_FOUND = "not_found"
+    NOT_A_FILE = "not_a_file"
+    UNREADABLE = "unreadable"
+    MALFORMED_YAML = "malformed_yaml"
+    ROOT_NOT_MAPPING = "root_not_mapping"
+
+
+class LoopValidationResult(BaseModel):
+    status: LoopValidationStatus
+    source_path: Path
+    raw: dict[str, Any] | None
+    loop: LoopDefinition | None
+    errors: list[str]
+    warnings: list[str]
+
+    @property
+    def ok(self) -> bool: ...  # status == VALID
+```
+
+Path success: readable regular file, YAML root mapping, `loop_v1` schema pass,
+semantic pass, Pydantic map → `status=valid`, populated `raw` + `loop`, empty
+`errors`. Multi-document YAML uses the first `safe_load` document only. Empty
+file / `None` root → `root_not_mapping` (no schema run).
+
+### Error codes
+
+| Code | Status |
+|------|--------|
+| `LOOP_INVALID_NOT_FOUND` | `not_found` |
+| `LOOP_INVALID_NOT_A_FILE` | `not_a_file` |
+| `LOOP_INVALID_UNREADABLE` | `unreadable` |
+| `LOOP_INVALID_MALFORMED_YAML` | `malformed_yaml` |
+| `LOOP_INVALID_ROOT_NOT_MAPPING` | `root_not_mapping` |
+| `LOOP_INVALID_SCHEMA` | `invalid` |
+| `LOOP_INVALID_MODEL` | `invalid` (defensive Pydantic failure after schema) |
+| `LOOP_SEM_STOP_WHEN_EMPTY` | `invalid` |
+| `LOOP_SEM_MAX_ATTEMPTS` | `invalid` |
+| `LOOP_SEM_TIMEOUT` | `invalid` |
+| `LOOP_SEM_PATCH_LIMIT` | `invalid` |
+
+Schema failures use one grouped error entry:
+
+```text
+Loop schema validation failed (LOOP_INVALID_SCHEMA):
+- <jsonschema path>: <message>
+- ...
+```
+
+Path formatting matches `SchemaValidator` (`".".join(path)` or `(root)`). On
+schema failure, semantic rules do not run. IO/parse errors include absolute path
+and a short Fix hint.
+
+### Semantic rules (after schema success)
+
+1. `LOOP_SEM_MAX_ATTEMPTS` — `iteration.max_attempts >= 1`
+2. `LOOP_SEM_TIMEOUT` — `trigger.timeout_seconds >= 1` and
+   `agent.timeout_seconds >= 1`
+3. `LOOP_SEM_PATCH_LIMIT` — `patch.max_files >= 1` and `patch.max_patch_kb >= 1`
+4. `LOOP_SEM_STOP_WHEN_EMPTY` — `len(iteration.stop_when) >= 1`
+
+v1 requires no semantic warnings (`warnings` is always `[]`).
+
+### Typed model
+
+`LoopDefinition` covers the full V1 surface: `version`, `name`, `description`,
+`trigger`, `agent`, `iteration`, `sandbox`, `approval`, `context`, `patch`.
+Nested models use `extra=forbid` / strict config. `patch.reject_binary_changes`
+is optional (`bool | None`) to match the schema; packaged templates may omit it.
+
+Commands must call this API rather than ad-hoc `yaml.safe_load` + schema for
+full validation. Metadata/inventory remain the lighter list layer.
+
 ## Changing config or loop shape
 
 1. Update the relevant JSON Schema (`config_v1.json` or `loop_v1.json`).
 2. Update `CANONICAL_V1_DEFAULTS` (config) or the packaged template under
    `core/templates/loops/*.yml` (loops).
-3. Update the corresponding Pydantic model in `core/config/models.py`.
+3. Update the corresponding Pydantic model in `core/config/models.py` or
+   `core/loops/models.py`.
 4. Add/adjust tests in `tests/core/config/` or `tests/core/loops/`.
 
 Bump the schema version (`config_v2.json`, etc.) instead of making breaking
