@@ -18,6 +18,7 @@ getworktree/core/                  Business logic, no Typer/CLI concerns
   loops/seeder.py                  Seeds packaged starter loop YAML files
   loops/patch.py                   Unified-diff validate/apply in sandbox
   loops/runner.py                  Iteration controller (attempt state machine)
+  loops/safety.py                  Repeat-failure / no-op / session-timeout policy
   templates/loops/*.yml            Packaged starter loop definitions
 getworktree/common/                Shared, dependency-light helpers
   constants.py, fs.py, utils.py, schema_validation.py
@@ -275,6 +276,33 @@ effective = min(effective, config.loop.max_attempts_hard_limit)
 - `abort_event` / `is_aborted` checked before attempt, after trigger, after
   agent, before/after patch
 - `on_event(name, payload)` and `on_attempt_end(record)` for UX/history
+
+## Safety controls
+
+`getworktree/core/loops/safety.py` holds pure helpers + `SafetyState`; the
+iteration controller evaluates them at checkpoints.
+
+| Tripwire | Threshold | Config | `stop_reason` | Final status |
+|----------|-----------|--------|---------------|--------------|
+| Repeat failure signature | 3 consecutive identical failed triggers | `loop.detect_repeat_failures` (false disables **only** this) | `repeat_failure_signature` | `FAILED` |
+| Agent no-op streak | 2 consecutive `no_op` | always on | `agent_no_op_streak` | `FAILED` |
+| Session wall-clock | `session_timeout_seconds` (default `sandbox.default_timeout_seconds`) | always on when > 0 | `session_timeout` | `FAILED` |
+| User abort | abort event / `is_aborted` | always on | `user_abort` | `ABORTED` |
+
+### Failure signature
+`failure_signature(trigger_status, exit_code, stdout, stderr)` → full sha256 hex
+of `status|exit_code|stdout_tail|stderr_tail` (tails: last 4000 chars, whitespace
+collapsed). Successful trigger resets the consecutive signature counter; a
+different signature also resets it.
+
+### Session timeout checkpoints
+Checked before each attempt starts and before the agent call. Does not cancel an
+in-flight trigger/agent; if the agent returns after the deadline, the next
+checkpoint still stops with `session_timeout`.
+
+### Abort
+CLI should set the same abort flag on SIGINT and let the controller finish
+cleanup (`should_cleanup_sandbox` with `command_passed=None` on abort).
 
 ## Packaged resources
 

@@ -27,6 +27,14 @@ from getworktree.core.loops.patch import (
     apply_patch_result,
 )
 from getworktree.core.loops.payload import AgentFailurePayload, build_failure_payload
+from getworktree.core.loops.safety import (
+    SafetyState,
+    failure_signature,
+    record_agent_status,
+    record_trigger_failure,
+    record_trigger_success,
+    session_timed_out,
+)
 from getworktree.core.loops.trigger import TriggerRunResult, run_trigger
 
 if TYPE_CHECKING:
@@ -197,6 +205,8 @@ def run_loop_iteration(
     on_attempt_end: OnAttemptEndFn | None = None,
     on_event: OnEventFn | None = None,
     session_id: str | None = None,
+    session_timeout_seconds: int | None = None,
+    detect_repeat_failures: bool | None = None,
 ) -> LoopRunResult:
     """Run one full loop session attempt cycle.
 
@@ -224,6 +234,9 @@ def run_loop_iteration(
         on_attempt_end: Optional hook after each attempt record is finalized.
         on_event: Optional structured event callback for UX streaming.
         session_id: Optional fixed sandbox session id.
+        session_timeout_seconds: Session wall-clock cap; defaults to
+            ``config.sandbox.default_timeout_seconds``.
+        detect_repeat_failures: Override config ``loop.detect_repeat_failures``.
 
     Returns:
         Structured :class:`LoopRunResult` (never raises for classified paths).
@@ -382,11 +395,37 @@ def run_loop_iteration(
     max_files = loop.patch.max_files
     max_patch_kb = loop.patch.max_patch_kb
 
+    resolved_session_timeout = (
+        session_timeout_seconds
+        if session_timeout_seconds is not None
+        else config.sandbox.default_timeout_seconds
+    )
+    resolved_detect_repeat = (
+        detect_repeat_failures
+        if detect_repeat_failures is not None
+        else config.loop.detect_repeat_failures
+    )
+    safety = SafetyState()
+
+    def _finish_attempt(rec: AttemptRecord) -> None:
+        rec.finished_at = _now_iso()
+        attempts.append(rec)
+        if on_attempt_end is not None:
+            on_attempt_end(rec)
+
     try:
         for attempt_idx in range(1, max_attempts + 1):
             if _is_aborted(abort_event=abort_event, is_aborted=is_aborted):
                 final_status = LoopFinalStatus.ABORTED
                 stop_reason = "user_abort"
+                break
+
+            if session_timed_out(
+                safety, session_timeout_seconds=resolved_session_timeout
+            ):
+                final_status = LoopFinalStatus.FAILED
+                stop_reason = "session_timeout"
+                command_passed = False
                 break
 
             record = AttemptRecord(attempt=attempt_idx, started_at=_now_iso())
@@ -422,23 +461,45 @@ def run_loop_iteration(
             )
 
             if trigger_result.ok:
-                record.finished_at = _now_iso()
-                attempts.append(record)
-                if on_attempt_end is not None:
-                    on_attempt_end(record)
+                record_trigger_success(safety)
+                _finish_attempt(record)
                 # Trigger pass is always terminal success (FR-1 / FR-4).
                 final_status = LoopFinalStatus.PASSED
                 stop_reason = "trigger_passed"
                 command_passed = True
                 break
 
+            sig = failure_signature(
+                record.trigger_status or "failed",
+                trigger_result.exit_code,
+                trigger_result.stdout,
+                trigger_result.stderr,
+            )
+            repeat_stop = record_trigger_failure(
+                safety,
+                signature=sig,
+                detect_repeat_failures=resolved_detect_repeat,
+            )
+            if repeat_stop is not None:
+                _finish_attempt(record)
+                final_status = LoopFinalStatus.FAILED
+                stop_reason = repeat_stop
+                command_passed = False
+                break
+
             if _is_aborted(abort_event=abort_event, is_aborted=is_aborted):
-                record.finished_at = _now_iso()
-                attempts.append(record)
-                if on_attempt_end is not None:
-                    on_attempt_end(record)
+                _finish_attempt(record)
                 final_status = LoopFinalStatus.ABORTED
                 stop_reason = "user_abort"
+                break
+
+            if session_timed_out(
+                safety, session_timeout_seconds=resolved_session_timeout
+            ):
+                _finish_attempt(record)
+                final_status = LoopFinalStatus.FAILED
+                stop_reason = "session_timeout"
+                command_passed = False
                 break
 
             # --- payload + agent ---
@@ -473,13 +534,12 @@ def run_loop_iteration(
                 duration_ms=agent_response.duration_ms,
             )
 
+            no_op_stop = record_agent_status(safety, agent_response.status.value)
+
             if agent_response.status == AgentResponseStatus.UNFIXABLE:
                 if agent_response.unfixable_reason:
                     record.errors.append(agent_response.unfixable_reason)
-                record.finished_at = _now_iso()
-                attempts.append(record)
-                if on_attempt_end is not None:
-                    on_attempt_end(record)
+                _finish_attempt(record)
                 if "unfixable" in stop_when:
                     final_status = LoopFinalStatus.UNFIXABLE
                     stop_reason = "agent_unfixable"
@@ -492,15 +552,19 @@ def run_loop_iteration(
                     break
                 continue
 
+            if no_op_stop is not None:
+                _finish_attempt(record)
+                final_status = LoopFinalStatus.FAILED
+                stop_reason = no_op_stop
+                command_passed = False
+                break
+
             if agent_response.status in {
                 AgentResponseStatus.TIMEOUT,
                 AgentResponseStatus.PROVIDER_ERROR,
                 AgentResponseStatus.NO_OP,
             }:
-                record.finished_at = _now_iso()
-                attempts.append(record)
-                if on_attempt_end is not None:
-                    on_attempt_end(record)
+                _finish_attempt(record)
                 if _is_aborted(abort_event=abort_event, is_aborted=is_aborted):
                     final_status = LoopFinalStatus.ABORTED
                     stop_reason = "user_abort"
@@ -516,10 +580,7 @@ def run_loop_iteration(
             if not agent_response.unified_diff:
                 record.errors.append("Agent proposed_patch without unified_diff")
                 record.patch_status = PatchApplyStatus.EMPTY_DIFF.value
-                record.finished_at = _now_iso()
-                attempts.append(record)
-                if on_attempt_end is not None:
-                    on_attempt_end(record)
+                _finish_attempt(record)
                 if attempt_idx >= max_attempts:
                     final_status = LoopFinalStatus.FAILED
                     stop_reason = "max_attempts_exhausted"
@@ -528,10 +589,7 @@ def run_loop_iteration(
                 continue
 
             if _is_aborted(abort_event=abort_event, is_aborted=is_aborted):
-                record.finished_at = _now_iso()
-                attempts.append(record)
-                if on_attempt_end is not None:
-                    on_attempt_end(record)
+                _finish_attempt(record)
                 final_status = LoopFinalStatus.ABORTED
                 stop_reason = "user_abort"
                 break
@@ -541,10 +599,7 @@ def run_loop_iteration(
                 if approve_patch is None:
                     record.errors.append(_approval_callback_missing_error())
                     record.patch_status = "approval_callback_missing"
-                    record.finished_at = _now_iso()
-                    attempts.append(record)
-                    if on_attempt_end is not None:
-                        on_attempt_end(record)
+                    _finish_attempt(record)
                     final_status = LoopFinalStatus.FAILED
                     stop_reason = "configuration_error"
                     run_errors.append(_approval_callback_missing_error())
@@ -554,10 +609,7 @@ def run_loop_iteration(
                 if not approved:
                     record.patch_status = "approval_rejected"
                     record.errors.append("Patch apply skipped: approval rejected")
-                    record.finished_at = _now_iso()
-                    attempts.append(record)
-                    if on_attempt_end is not None:
-                        on_attempt_end(record)
+                    _finish_attempt(record)
                     _emit(
                         on_event,
                         "patch",
@@ -572,10 +624,7 @@ def run_loop_iteration(
                     continue
 
             if _is_aborted(abort_event=abort_event, is_aborted=is_aborted):
-                record.finished_at = _now_iso()
-                attempts.append(record)
-                if on_attempt_end is not None:
-                    on_attempt_end(record)
+                _finish_attempt(record)
                 final_status = LoopFinalStatus.ABORTED
                 stop_reason = "user_abort"
                 break
@@ -601,10 +650,7 @@ def run_loop_iteration(
                 touched_files=list(patch_result.touched_files),
             )
 
-            record.finished_at = _now_iso()
-            attempts.append(record)
-            if on_attempt_end is not None:
-                on_attempt_end(record)
+            _finish_attempt(record)
 
             if _is_aborted(abort_event=abort_event, is_aborted=is_aborted):
                 final_status = LoopFinalStatus.ABORTED
