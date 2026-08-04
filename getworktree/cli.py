@@ -11,7 +11,9 @@ from getworktree.commands.config.command import (
 )
 from getworktree.commands.init.command import init_command
 from getworktree.commands.loop.command import loop_run_command, loop_show_command
+from getworktree.commands.sandbox.command import sandbox_list_command
 from getworktree.commands.status.command import status_command
+from getworktree.core.db import SandboxStatus
 
 # Initialize a central styling console for high-utility layout parsing
 console = Console()
@@ -38,6 +40,12 @@ loop_app = typer.Typer(
     help="Inspect and manage Worktree loop definitions.",
 )
 app.add_typer(loop_app, name="loop")
+
+sandbox_app = typer.Typer(
+    name="sandbox",
+    help="Inspect and manage git worktree sandboxes.",
+)
+app.add_typer(sandbox_app, name="sandbox")
 
 
 def print_welcome_banner():
@@ -185,6 +193,22 @@ def loop_run(
         wip=wip,
         dump_prompt=dump_prompt,
     )
+
+
+_SANDBOX_STATUS_OPTION = typer.Option(
+    None,
+    "--status",
+    help="Filter by lifecycle status (active, merged, cleaned, conflict).",
+    case_sensitive=False,
+)
+
+
+@sandbox_app.command("list")
+def sandbox_list(
+    status: SandboxStatus | None = _SANDBOX_STATUS_OPTION,
+):
+    """List tracked sandboxes and their lifecycle status."""
+    sandbox_list_command(status=status.value if status is not None else None)
 
 
 if __name__ == "__main__":

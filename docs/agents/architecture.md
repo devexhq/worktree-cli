@@ -78,13 +78,33 @@ Typed surface:
 
 Helpers call `init_database` first (same pattern as `record_token_usage`).
 Duplicate `id` on insert raises `ValueError`. Missing ids return `None` /
-`False` rather than raising. No CLI yet — `git_sandbox.py` owns create/cleanup
-writes (below).
+`False` rather than raising. `git_sandbox.py` owns create/cleanup writes
+(below). CLI inspection starts with `wt sandbox list` (below).
 
 ## Sandboxes
 
 `GitSandboxManager` / `sandbox_scope` ([getworktree/core/git_sandbox.py](../../getworktree/core/git_sandbox.py))
 own the V1 sandbox lifecycle used by loop execution.
+
+### CLI: `wt sandbox list`
+
+Command package: [getworktree/commands/sandbox/](../../getworktree/commands/sandbox/)
+(`command.py`, `models.py`, `renderers.py`), registered as `sandbox_app` on
+[getworktree/cli.py](../../getworktree/cli.py).
+
+- Initialization gate: `load_config_result`; on failure print red panel
+  **Worktree Not Initialized** and exit `1` without creating DB/state files
+- Reconciliation (always, before filter): every `active` row whose
+  `sandbox_path` is not an existing directory → `update_sandbox_status(..., CLEANED)`
+- Optional `--status` (`active` / `merged` / `cleaned` / `conflict`); Typer
+  rejects unknown values before the command body
+- Table **Worktree Sandboxes**: columns `ID`, `Name`, `Branch`, `Status`,
+  `Created` (`created_at` DESC; `Name` is dim `-` when null; `Created` is the
+  raw DB timestamp string)
+- Empty (filtered) set → `No sandboxes found.`, exit `0`, no table
+- Only DB rows are shown (orphan on-disk sandbox dirs without a row are ignored)
+- Read-only except the reconciliation status write; no create/show/delete in
+  this command group yet
 
 ### On-disk layout
 - Base directory: `.worktree/sandboxes/`
