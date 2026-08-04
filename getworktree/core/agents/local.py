@@ -31,19 +31,6 @@ class LocalAgentStdout(BaseModel):
     summary: str | None = None
 
 
-def _timeout_error(timeout_seconds: int, *, provider: str = "local") -> str:
-    return (
-        f"Agent timed out after {timeout_seconds}s (provider={provider}).\n"
-        "Fix:\n"
-        "- raise agent.timeout_seconds on the loop, or\n"
-        "- raise loop.default_agent_timeout_seconds in .worktree/config.json"
-    )
-
-
-def _provider_error(detail: str) -> str:
-    return f"Agent provider error (AGENT_PROVIDER_ERROR): {detail}"
-
-
 def _resolve_local_argv() -> list[str]:
     """Resolve local agent argv from env or default command name."""
     raw = os.environ.get(LOCAL_AGENT_CMD_ENV)
@@ -114,7 +101,10 @@ class LocalAgentAdapter:
             return AgentResponse(
                 status=AgentResponseStatus.PROVIDER_ERROR,
                 duration_ms=duration_ms,
-                errors=[_provider_error("timeout_seconds must be an integer >= 1")],
+                errors=[
+                    "Agent provider error (AGENT_PROVIDER_ERROR): "
+                    "timeout_seconds must be an integer >= 1"
+                ],
             )
 
         if not sandbox_cwd.is_dir():
@@ -123,10 +113,9 @@ class LocalAgentAdapter:
                 status=AgentResponseStatus.PROVIDER_ERROR,
                 duration_ms=duration_ms,
                 errors=[
-                    _provider_error(
-                        f"sandbox path does not exist or is not a directory: "
-                        f"'{sandbox_cwd}'"
-                    )
+                    "Agent provider error (AGENT_PROVIDER_ERROR): "
+                    f"sandbox path does not exist or is not a directory: "
+                    f"'{sandbox_cwd}'"
                 ],
             )
 
@@ -147,21 +136,34 @@ class LocalAgentAdapter:
             return AgentResponse(
                 status=AgentResponseStatus.TIMEOUT,
                 duration_ms=duration_ms,
-                errors=[_timeout_error(request.timeout_seconds)],
+                errors=[
+                    f"Agent timed out after {request.timeout_seconds}s "
+                    f"(provider=local).\n"
+                    "Fix:\n"
+                    "- raise agent.timeout_seconds on the loop, or\n"
+                    "- raise loop.default_agent_timeout_seconds in "
+                    ".worktree/config.json"
+                ],
             )
         except FileNotFoundError as exc:
             duration_ms = int((time.monotonic() - started) * 1000)
             return AgentResponse(
                 status=AgentResponseStatus.PROVIDER_ERROR,
                 duration_ms=duration_ms,
-                errors=[_provider_error(f"failed to start '{argv[0]}': {exc}")],
+                errors=[
+                    "Agent provider error (AGENT_PROVIDER_ERROR): "
+                    f"failed to start '{argv[0]}': {exc}"
+                ],
             )
         except OSError as exc:
             duration_ms = int((time.monotonic() - started) * 1000)
             return AgentResponse(
                 status=AgentResponseStatus.PROVIDER_ERROR,
                 duration_ms=duration_ms,
-                errors=[_provider_error(f"failed to start '{argv[0]}': {exc}")],
+                errors=[
+                    "Agent provider error (AGENT_PROVIDER_ERROR): "
+                    f"failed to start '{argv[0]}': {exc}"
+                ],
             )
 
         duration_ms = int((time.monotonic() - started) * 1000)
@@ -179,7 +181,7 @@ class LocalAgentAdapter:
                 status=AgentResponseStatus.PROVIDER_ERROR,
                 raw_text=stdout_text or None,
                 duration_ms=duration_ms,
-                errors=[_provider_error(detail)],
+                errors=[f"Agent provider error (AGENT_PROVIDER_ERROR): {detail}"],
             )
 
         if data is None:
@@ -190,7 +192,7 @@ class LocalAgentAdapter:
                 status=AgentResponseStatus.PROVIDER_ERROR,
                 raw_text=stdout_text or None,
                 duration_ms=duration_ms,
-                errors=[_provider_error(detail)],
+                errors=[f"Agent provider error (AGENT_PROVIDER_ERROR): {detail}"],
             )
 
         try:
@@ -201,7 +203,8 @@ class LocalAgentAdapter:
                 raw_text=stdout_text,
                 duration_ms=duration_ms,
                 errors=[
-                    _provider_error(f"stdout JSON failed schema validation: {exc}")
+                    "Agent provider error (AGENT_PROVIDER_ERROR): "
+                    f"stdout JSON failed schema validation: {exc}"
                 ],
             )
 

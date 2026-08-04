@@ -25,7 +25,6 @@ from getworktree.core.loops.patch import (
 )
 from getworktree.core.loops.runner.helpers import (
     _advance_or_exhaust,
-    _approval_callback_missing_error,
     _dump_agent_input,
     _emit,
     _is_aborted,
@@ -409,10 +408,17 @@ def _run_approval_step(
     """
     if ctx.resolved_require:
         if ctx.approve_patch is None:
-            record.errors.append(_approval_callback_missing_error())
+            missing = (
+                "approval.require_before_apply is true but no approve_patch "
+                "callback was provided (approval_callback_missing).\n"
+                "Fix:\n"
+                "- pass approve_patch=... to run_loop_iteration, or\n"
+                "- set approval.require_before_apply false on the loop/config"
+            )
+            record.errors.append(missing)
             record.patch_status = "approval_callback_missing"
             ctx.finish_attempt(record)
-            ctx.run_errors.append(_approval_callback_missing_error())
+            ctx.run_errors.append(missing)
             return StepOutcome(
                 continue_loop=False,
                 final_status=LoopFinalStatus.FAILED,

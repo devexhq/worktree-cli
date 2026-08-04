@@ -19,7 +19,6 @@ from getworktree.core.agents.base import (
     AgentResponse,
     AgentResponseStatus,
 )
-from getworktree.core.agents.local import _timeout_error
 
 DEFAULT_OLLAMA_ENDPOINT = "http://127.0.0.1:11434"
 OLLAMA_HOST_ENV = "OLLAMA_HOST"
@@ -44,10 +43,6 @@ class OllamaModelStdout(BaseModel):
     unfixable_reason: str | None = None
     unified_diff: str | None = None
     summary: str | None = None
-
-
-def _provider_error(detail: str) -> str:
-    return f"Agent provider error (AGENT_PROVIDER_ERROR): {detail}"
 
 
 def _is_timeout_reason(reason: object) -> bool:
@@ -261,10 +256,9 @@ class OllamaAgentAdapter:
                 status=AgentResponseStatus.PROVIDER_ERROR,
                 duration_ms=duration_ms,
                 errors=[
-                    _provider_error(
-                        "ollama requires a non-empty model. "
-                        "Fix: set agent.model in .worktree/config.json"
-                    )
+                    "Agent provider error (AGENT_PROVIDER_ERROR): "
+                    "ollama requires a non-empty model. "
+                    "Fix: set agent.model in .worktree/config.json"
                 ],
             )
 
@@ -275,7 +269,9 @@ class OllamaAgentAdapter:
             return AgentResponse(
                 status=AgentResponseStatus.PROVIDER_ERROR,
                 duration_ms=duration_ms,
-                errors=[_provider_error(endpoint_error)],
+                errors=[
+                    f"Agent provider error (AGENT_PROVIDER_ERROR): {endpoint_error}"
+                ],
             )
 
         temperature = (
@@ -308,7 +304,14 @@ class OllamaAgentAdapter:
             return AgentResponse(
                 status=AgentResponseStatus.TIMEOUT,
                 duration_ms=duration_ms,
-                errors=[_timeout_error(request.timeout_seconds, provider="ollama")],
+                errors=[
+                    f"Agent timed out after {request.timeout_seconds}s "
+                    f"(provider=ollama).\n"
+                    "Fix:\n"
+                    "- raise agent.timeout_seconds on the loop, or\n"
+                    "- raise loop.default_agent_timeout_seconds in "
+                    ".worktree/config.json"
+                ],
             )
         except urllib.error.URLError as exc:
             duration_ms = int((time.monotonic() - started) * 1000)
@@ -317,13 +320,21 @@ class OllamaAgentAdapter:
                 return AgentResponse(
                     status=AgentResponseStatus.TIMEOUT,
                     duration_ms=duration_ms,
-                    errors=[_timeout_error(request.timeout_seconds, provider="ollama")],
+                    errors=[
+                        f"Agent timed out after {request.timeout_seconds}s "
+                        f"(provider=ollama).\n"
+                        "Fix:\n"
+                        "- raise agent.timeout_seconds on the loop, or\n"
+                        "- raise loop.default_agent_timeout_seconds in "
+                        ".worktree/config.json"
+                    ],
                 )
             return AgentResponse(
                 status=AgentResponseStatus.PROVIDER_ERROR,
                 duration_ms=duration_ms,
                 errors=[
-                    _provider_error(f"failed to reach Ollama at '{base}': {reason}")
+                    "Agent provider error (AGENT_PROVIDER_ERROR): "
+                    f"failed to reach Ollama at '{base}': {reason}"
                 ],
             )
         except OSError as exc:
@@ -332,12 +343,22 @@ class OllamaAgentAdapter:
                 return AgentResponse(
                     status=AgentResponseStatus.TIMEOUT,
                     duration_ms=duration_ms,
-                    errors=[_timeout_error(request.timeout_seconds, provider="ollama")],
+                    errors=[
+                        f"Agent timed out after {request.timeout_seconds}s "
+                        f"(provider=ollama).\n"
+                        "Fix:\n"
+                        "- raise agent.timeout_seconds on the loop, or\n"
+                        "- raise loop.default_agent_timeout_seconds in "
+                        ".worktree/config.json"
+                    ],
                 )
             return AgentResponse(
                 status=AgentResponseStatus.PROVIDER_ERROR,
                 duration_ms=duration_ms,
-                errors=[_provider_error(f"failed to reach Ollama at '{base}': {exc}")],
+                errors=[
+                    "Agent provider error (AGENT_PROVIDER_ERROR): "
+                    f"failed to reach Ollama at '{base}': {exc}"
+                ],
             )
 
         duration_ms = int((time.monotonic() - started) * 1000)
@@ -350,7 +371,7 @@ class OllamaAgentAdapter:
                 status=AgentResponseStatus.PROVIDER_ERROR,
                 raw_text=text or None,
                 duration_ms=duration_ms,
-                errors=[_provider_error(detail)],
+                errors=[f"Agent provider error (AGENT_PROVIDER_ERROR): {detail}"],
             )
 
         try:
@@ -360,14 +381,20 @@ class OllamaAgentAdapter:
                 status=AgentResponseStatus.PROVIDER_ERROR,
                 raw_text=text or None,
                 duration_ms=duration_ms,
-                errors=[_provider_error(f"invalid JSON from Ollama chat API: {exc}")],
+                errors=[
+                    "Agent provider error (AGENT_PROVIDER_ERROR): "
+                    f"invalid JSON from Ollama chat API: {exc}"
+                ],
             )
         if not isinstance(data, dict):
             return AgentResponse(
                 status=AgentResponseStatus.PROVIDER_ERROR,
                 raw_text=text or None,
                 duration_ms=duration_ms,
-                errors=[_provider_error("Ollama chat API returned a non-object")],
+                errors=[
+                    "Agent provider error (AGENT_PROVIDER_ERROR): "
+                    "Ollama chat API returned a non-object"
+                ],
             )
 
         content = _chat_content_from_response(data)
@@ -377,7 +404,8 @@ class OllamaAgentAdapter:
                 raw_text=text or None,
                 duration_ms=duration_ms,
                 errors=[
-                    _provider_error("Ollama chat API response missing message.content")
+                    "Agent provider error (AGENT_PROVIDER_ERROR): "
+                    "Ollama chat API response missing message.content"
                 ],
             )
 
