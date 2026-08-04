@@ -87,11 +87,23 @@ Duplicate `id` on insert raises `ValueError`. Missing ids return `None` /
 `GitSandboxManager` / `sandbox_scope` ([getworktree/core/git_sandbox.py](../../getworktree/core/git_sandbox.py))
 own the V1 sandbox lifecycle used by loop execution.
 
-### CLI: `wt sandbox create` / `wt sandbox list` / `wt sandbox show`
+### CLI: Sandbox command group
 
 Command package: [getworktree/commands/sandbox/](../../getworktree/commands/sandbox/)
 (`command.py`, `models.py`, `renderers.py`), registered as `sandbox_app` on
 [getworktree/cli.py](../../getworktree/cli.py).
+
+Surface: `wt sandbox create|list|show|delete`. Shared patterns:
+
+- Initialization gate (list/show/delete): `load_config_result`; on failure red
+  panel **Worktree Not Initialized**, exit `1`, no DB/state files created
+- Unknown id (show/delete): red panel **Sandbox Not Found**
+  (`Sandbox '<id>' not found.` + fix to run `wt sandbox list`), exit `1`
+- Console output via `RichOutput` / shared Rich console
+- Lifecycle mutation for delete goes through `GitSandboxManager.cleanup_sandbox`
+  only (command does not write the `sandboxes` table directly)
+
+`wt diff`, `wt accept`, `wt commit`, and `wt discard` are not part of this group.
 
 #### `wt sandbox create`
 
@@ -106,12 +118,10 @@ Command package: [getworktree/commands/sandbox/](../../getworktree/commands/sand
   (fallback `Sandbox creation failed.`), exit `1`. All
   `SandboxCreateStatus` failures map here (no uncaught exceptions)
 - Does not re-implement manager error copy; renders `result.errors` as-is
-- `wt sandbox delete` is not part of this surface yet
 
 #### `wt sandbox list`
 
-- Initialization gate: `load_config_result`; on failure print red panel
-  **Worktree Not Initialized** and exit `1` without creating DB/state files
+- Initialization gate as above
 - Reconciliation (always, before filter): every `active` row whose
   `sandbox_path` is not an existing directory → `update_sandbox_status(..., CLEANED)`
 - Optional `--status` (`active` / `merged` / `cleaned` / `conflict`); Typer
@@ -125,8 +135,7 @@ Command package: [getworktree/commands/sandbox/](../../getworktree/commands/sand
 
 #### `wt sandbox show <sandbox-id>`
 
-- Same initialization gate as list; unknown id → red panel **Sandbox Not Found**
-  (`Sandbox '<id>' not found` + fix to run `wt sandbox list`), exit `1`
+- Initialization gate and not-found panel as above
 - Lookup via `get_sandbox`; when the row is `active` and `sandbox_path` is not
   a directory → `update_sandbox_status(..., CLEANED)` for that id only, then
   render with a trailing note:
@@ -135,7 +144,25 @@ Command package: [getworktree/commands/sandbox/](../../getworktree/commands/sand
 - Detail fields in order: `ID`, `Name` (`-` when null), `Branch`, `Base Commit`,
   `Path`, `Status`, `Disk` (`present` / `missing` from `Path.exists()` at render
   time), `Created`, `Updated` (raw DB timestamp strings)
-- Read-only except the single-row reconciliation write; no delete yet
+- Read-only except the single-row reconciliation write
+
+#### `wt sandbox delete <sandbox-id> [--force]`
+
+- Initialization gate and not-found panel as above
+- Lookup via `get_sandbox` only (no stale-active reconciliation on this path)
+- Already `cleaned` → `Sandbox '<id>' is already cleaned; nothing to remove.`,
+  exit `0`, no prompt, no `cleanup_sandbox`
+- Other statuses (`active` / `merged` / `conflict`): unless `--force`, confirm
+  with default **no**:
+  `Delete sandbox '<id>' (branch <branch>, path <path>)?`
+  `This removes the git worktree and branch. [y/N]:`
+  Decline or EOF → `Aborted.`, exit `1`, no mutation
+- On confirm / `--force`: rebuild `SandboxSession` from the row
+  (`session_id`, `target_branch`, `sandbox_path`, `base_commit`, `name`,
+  `created_at`) and call `GitSandboxManager(cwd).cleanup_sandbox(session)`
+- Success: green `Sandbox deleted: <id>`, exit `0`
+- Missing on-disk directory is still success (`cleanup_sandbox` is idempotent;
+  row ends `cleaned`)
 
 ### On-disk layout
 - Base directory: `.worktree/sandboxes/`

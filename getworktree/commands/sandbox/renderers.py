@@ -171,3 +171,28 @@ def render_sandbox_show(
     output.info(build_sandbox_detail_table(sandbox, disk_present=disk_present))
     if reconciled:
         output.info("Note: sandbox directory is missing; status updated to 'cleaned'.")
+
+
+def render_sandbox_already_cleaned(
+    sandbox_id: str, *, rich_output: RichOutput | None = None
+) -> None:
+    """Render the idempotent already-cleaned message for delete."""
+    output = rich_output or _DEFAULT_RICH_OUTPUT
+    output.info(f"Sandbox '{sandbox_id}' is already cleaned; nothing to remove.")
+
+
+def render_sandbox_delete_success(
+    sandbox_id: str, *, rich_output: RichOutput | None = None
+) -> None:
+    """Render success line after a sandbox is deleted."""
+    output = rich_output or _DEFAULT_RICH_OUTPUT
+    output.success(f"Sandbox deleted: {sandbox_id}")
+
+
+def sandbox_delete_confirm_prompt(sandbox: SandboxRecord) -> str:
+    """Build the confirmation prompt text for ``wt sandbox delete``."""
+    return (
+        f"Delete sandbox '{sandbox.id}' (branch {sandbox.branch_name}, "
+        f"path {sandbox.sandbox_path})?\n"
+        "This removes the git worktree and branch."
+    )
