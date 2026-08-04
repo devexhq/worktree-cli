@@ -47,13 +47,12 @@ from getworktree.cli import app
 
 runner = CliRunner()
 
+
 def test_list_help() -> None:
     result = runner.invoke(app, ["sandbox", "list", "--help"])
     assert result.exit_code == 0
 
-    list_cmd = (
-        get_command(app).get_command(None, "sandbox").get_command(None, "list")
-    )
+    list_cmd = get_command(app).get_command(None, "sandbox").get_command(None, "list")
     assert list_cmd.help == "List tracked sandboxes and their lifecycle status."
     opts: set[str] = set()
     for param in list_cmd.params:
