@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -682,6 +683,101 @@ class RunLoopIterationTests:
         assert dump_payload["path"].endswith(
             "wt-agent-prompt-sbx_test01-attempt-01.json"
         )
+
+    def test_direct_mutation_validation_failure_discards(self, sandbox: Path) -> None:
+        # Direct-mutation provider's diff fails the post-hoc validation gate
+        # (too many touched files) -> runner must discard to baseline instead
+        # of treating the mutation as applied.
+        spy: dict[str, list] = {}
+        many_files_diff = "".join(
+            f"diff --git a/f{i}.py b/f{i}.py\n" for i in range(11)
+        )
+        result, _, _ = _run(
+            sandbox=sandbox,
+            loop=_loop(max_attempts=1),
+            triggers=[_trigger(TriggerRunStatus.FAILED)],
+            agent_responses=[
+                AgentResponse(
+                    status=AgentResponseStatus.PROPOSED_PATCH,
+                    unified_diff=many_files_diff,
+                    mutation_baseline_ref="baseline-sha",
+                )
+            ],
+            spy=spy,
+        )
+        assert result.status == LoopFinalStatus.FAILED
+        assert result.attempts[0].patch_status == "too_many_files"
+        assert "patch_calls" not in spy
+        assert spy["discard_calls"] == [(sandbox, "baseline-sha")]
+
+    def test_abort_after_approval_before_patch_apply(self, sandbox: Path) -> None:
+        # Abort observed right after approval is granted, before the patch is
+        # applied: must stop as ABORTED without invoking the patch applier.
+        event = threading.Event()
+
+        def approve(_diff: str) -> bool:
+            event.set()
+            return True
+
+        spy: dict[str, list] = {}
+        result, _, _ = _run(
+            sandbox=sandbox,
+            loop=_loop(max_attempts=2, require_before_apply=True),
+            triggers=[_trigger(TriggerRunStatus.FAILED)],
+            agent_responses=[
+                AgentResponse(
+                    status=AgentResponseStatus.PROPOSED_PATCH,
+                    unified_diff="diff --git a/a.py b/a.py\n",
+                )
+            ],
+            approve_patch=approve,
+            abort_event=event,
+            spy=spy,
+        )
+        assert result.status == LoopFinalStatus.ABORTED
+        assert result.stop_reason == "user_abort"
+        assert len(result.attempts) == 1
+        assert result.attempts[0].patch_status is None
+        assert "patch_calls" not in spy
+
+    def test_session_timeout_between_attempts(self, sandbox: Path) -> None:
+        # Timeout tripped at the top of the loop, between attempts, once a
+        # full attempt (fast trigger/agent, slow patch apply) has elapsed —
+        # distinct from the mid-attempt check in
+        # test_session_timeout_before_agent.
+        def slow_patch(**_k: object) -> PatchApplyResult:
+            time.sleep(1.05)
+            return PatchApplyResult(status=PatchApplyStatus.APPLIED)
+
+        result = run_loop_iteration(
+            loop=_loop(max_attempts=3),
+            cwd=sandbox.parent,
+            config=_config(),
+            agent=_FakeAgent(
+                [
+                    AgentResponse(
+                        status=AgentResponseStatus.PROPOSED_PATCH,
+                        unified_diff="diff --git a/a.py b/a.py\n",
+                        duration_ms=1,
+                    )
+                ]
+            ),
+            list_changed_files=lambda _p: [],
+            run_trigger_fn=lambda **_k: _trigger(TriggerRunStatus.FAILED),
+            apply_patch_fn=slow_patch,
+            build_payload_fn=lambda **_k: _payload(),
+            create_sandbox_fn=lambda: SandboxCreateResult(
+                status=SandboxCreateStatus.OK, session=_session(sandbox)
+            ),
+            cleanup_sandbox_fn=lambda _s: None,
+            session_timeout_seconds=1,
+            detect_repeat_failures=False,
+        )
+        assert result.status == LoopFinalStatus.FAILED
+        assert result.stop_reason == "session_timeout"
+        # First attempt completes (patch applied); second attempt never
+        # starts because the between-attempts timeout check trips first.
+        assert len(result.attempts) == 1
 
 
 class DirectMutationProviderTests:

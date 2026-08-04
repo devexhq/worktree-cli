@@ -17,7 +17,7 @@ getworktree/core/                  Business logic, no Typer/CLI concerns
   git_sandbox.py                   Isolated `git worktree` sandbox lifecycle
   loops/seeder.py                  Seeds packaged starter loop YAML files
   loops/patch.py                   Unified-diff validate/apply in sandbox
-  loops/runner.py                  Iteration controller (attempt state machine)
+  loops/runner/                    Iteration controller (package: models/helpers/steps/orchestrator)
   loops/safety.py                  Repeat-failure / no-op / session-timeout policy
   templates/loops/*.yml            Packaged starter loop definitions
 getworktree/common/                Shared, dependency-light helpers
@@ -291,10 +291,15 @@ baseline before the next attempt. `local`/`ollama` never set
 
 ## Iteration controller
 
-`run_loop_iteration` ([getworktree/core/loops/runner.py](../../getworktree/core/loops/runner.py))
+`run_loop_iteration` ([getworktree/core/loops/runner/runner.py](../../getworktree/core/loops/runner/runner.py))
 owns one full loop **session** attempt cycle. No Rich printing; returns
 `LoopRunResult` only. Engines are injected for tests (`run_trigger_fn`,
-`apply_patch_fn`, `agent`, sandbox create/cleanup, etc.).
+`apply_patch_fn`, `agent`, sandbox create/cleanup, etc.). The `runner` package
+also has `runner_models.py` (run-result models and callback type aliases,
+a sibling module), `helpers.py` (stateless utilities), and `steps.py`
+(`_LoopContext` plus the per-attempt `_run_*_step` functions);
+`getworktree.core.loops.runner` re-exports the full public API, so external
+imports are unaffected by this internal layout.
 
 ### Attempt flowchart
 

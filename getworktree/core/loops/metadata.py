@@ -59,30 +59,6 @@ def _resolve_source_path(path: Path) -> Path:
         return path.expanduser().absolute()
 
 
-def _error_not_found(path: Path) -> str:
-    return f"Loop definition not found at '{path}' (LOOP_META_NOT_FOUND)."
-
-
-def _error_not_a_file(path: Path) -> str:
-    return (
-        f"Loop path exists but is not a regular file: '{path}' (LOOP_META_NOT_A_FILE)."
-    )
-
-
-def _error_unreadable(path: Path, detail: str) -> str:
-    return (
-        f"Unable to read loop definition at '{path}': {detail} (LOOP_META_UNREADABLE)."
-    )
-
-
-def _error_malformed_yaml(path: Path, detail: str) -> str:
-    return f"Malformed loop YAML at '{path}': {detail} (LOOP_META_MALFORMED_YAML)."
-
-
-def _error_root_not_mapping(path: Path) -> str:
-    return f"Loop YAML root must be a mapping at '{path}' (LOOP_META_ROOT_NOT_MAPPING)."
-
-
 def _validate_minimal_fields(raw: dict[str, Any]) -> list[str]:
     errors: list[str] = []
 
@@ -140,14 +116,19 @@ def parse_loop_metadata(path: Path) -> LoopMetadataParseResult:
         return LoopMetadataParseResult(
             status=LoopMetadataStatus.NOT_A_FILE,
             source_path=source_path,
-            errors=[_error_not_a_file(source_path)],
+            errors=[
+                f"Loop path exists but is not a regular file: "
+                f"'{source_path}' (LOOP_META_NOT_A_FILE)."
+            ],
         )
 
     if not source_path.exists():
         return LoopMetadataParseResult(
             status=LoopMetadataStatus.NOT_FOUND,
             source_path=source_path,
-            errors=[_error_not_found(source_path)],
+            errors=[
+                f"Loop definition not found at '{source_path}' (LOOP_META_NOT_FOUND)."
+            ],
         )
 
     try:
@@ -156,7 +137,10 @@ def parse_loop_metadata(path: Path) -> LoopMetadataParseResult:
         return LoopMetadataParseResult(
             status=LoopMetadataStatus.UNREADABLE,
             source_path=source_path,
-            errors=[_error_unreadable(source_path, str(exc))],
+            errors=[
+                f"Unable to read loop definition at '{source_path}': "
+                f"{exc} (LOOP_META_UNREADABLE)."
+            ],
         )
 
     try:
@@ -165,14 +149,20 @@ def parse_loop_metadata(path: Path) -> LoopMetadataParseResult:
         return LoopMetadataParseResult(
             status=LoopMetadataStatus.MALFORMED_YAML,
             source_path=source_path,
-            errors=[_error_malformed_yaml(source_path, str(exc))],
+            errors=[
+                f"Malformed loop YAML at '{source_path}': "
+                f"{exc} (LOOP_META_MALFORMED_YAML)."
+            ],
         )
 
     if not isinstance(parsed, dict):
         return LoopMetadataParseResult(
             status=LoopMetadataStatus.ROOT_NOT_MAPPING,
             source_path=source_path,
-            errors=[_error_root_not_mapping(source_path)],
+            errors=[
+                f"Loop YAML root must be a mapping at "
+                f"'{source_path}' (LOOP_META_ROOT_NOT_MAPPING)."
+            ],
         )
 
     field_errors = _validate_minimal_fields(parsed)

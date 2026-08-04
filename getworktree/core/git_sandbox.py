@@ -82,51 +82,6 @@ def should_cleanup_sandbox(
     return True
 
 
-def _capacity_error(active: int, max_allowed: int) -> str:
-    return (
-        f"Maximum active sandboxes reached ({active}/{max_allowed}).\n"
-        "Fix:\n"
-        "- run `wt prune` to remove stale sandboxes, or\n"
-        "- raise sandbox.max_active_sandboxes in .worktree/config.json"
-    )
-
-
-def _not_initialized_error(config_path: Path) -> str:
-    return (
-        f"Worktree is not initialized; config missing at '{config_path}' "
-        f"(SANDBOX_NOT_INITIALIZED).\n"
-        "Fix:\n"
-        "- run `wt init` to create `.worktree/config.json`"
-    )
-
-
-def _unreadable_config_error(detail: str) -> str:
-    return (
-        f"Unable to load Worktree config for sandbox create "
-        f"(SANDBOX_CONFIG_UNREADABLE): {detail}\n"
-        "Fix:\n"
-        "- repair `.worktree/config.json` or run `wt init --repair`"
-    )
-
-
-def _git_failed_error(detail: str) -> str:
-    return (
-        f"Git worktree operation failed (SANDBOX_GIT_FAILED): {detail}\n"
-        "Fix:\n"
-        "- ensure this directory is a Git repository with a valid base ref"
-    )
-
-
-def _wip_failed_error(detail: str) -> str:
-    return (
-        f"Failed to overlay uncommitted WIP into sandbox "
-        f"(SANDBOX_WIP_FAILED): {detail}\n"
-        "Fix:\n"
-        "- resolve local conflicts / binary issues and retry, or\n"
-        "- omit --wip and commit changes first"
-    )
-
-
 def _normalize_repo_rel(path: str) -> str:
     return path.strip().replace("\\", "/")
 
@@ -311,13 +266,23 @@ class GitSandboxManager:
         if load.status == ConfigLoadStatus.NOT_FOUND:
             return SandboxCreateResult(
                 status=SandboxCreateStatus.NOT_INITIALIZED,
-                errors=[_not_initialized_error(load.config_path)],
+                errors=[
+                    f"Worktree is not initialized; config missing at "
+                    f"'{load.config_path}' (SANDBOX_NOT_INITIALIZED).\n"
+                    "Fix:\n"
+                    "- run `wt init` to create `.worktree/config.json`"
+                ],
             )
         if not load.ok or load.config is None:
             detail = load.errors[0] if load.errors else str(load.status)
             return SandboxCreateResult(
                 status=SandboxCreateStatus.UNREADABLE_CONFIG,
-                errors=[_unreadable_config_error(detail)],
+                errors=[
+                    f"Unable to load Worktree config for sandbox create "
+                    f"(SANDBOX_CONFIG_UNREADABLE): {detail}\n"
+                    "Fix:\n"
+                    "- repair `.worktree/config.json` or run `wt init --repair`"
+                ],
             )
 
         config = load.config
@@ -329,7 +294,13 @@ class GitSandboxManager:
         if len(active_sandboxes) >= max_allowed:
             return SandboxCreateResult(
                 status=SandboxCreateStatus.CAPACITY_EXCEEDED,
-                errors=[_capacity_error(len(active_sandboxes), max_allowed)],
+                errors=[
+                    f"Maximum active sandboxes reached "
+                    f"({len(active_sandboxes)}/{max_allowed}).\n"
+                    "Fix:\n"
+                    "- run `wt prune` to remove stale sandboxes, or\n"
+                    "- raise sandbox.max_active_sandboxes in .worktree/config.json"
+                ],
             )
 
         sid = session_id or f"sbx_{uuid.uuid4().hex[:8]}"
@@ -358,7 +329,12 @@ class GitSandboxManager:
             self._discard_partial_sandbox(sandbox_path, temp_branch)
             return SandboxCreateResult(
                 status=SandboxCreateStatus.GIT_FAILED,
-                errors=[_git_failed_error(str(exc))],
+                errors=[
+                    f"Git worktree operation failed (SANDBOX_GIT_FAILED): {exc}\n"
+                    "Fix:\n"
+                    "- ensure this directory is a Git repository with a valid "
+                    "base ref"
+                ],
             )
 
         wip_paths: list[str] = []
@@ -372,7 +348,13 @@ class GitSandboxManager:
                 self._discard_partial_sandbox(sandbox_path, temp_branch)
                 return SandboxCreateResult(
                     status=SandboxCreateStatus.WIP_FAILED,
-                    errors=[_wip_failed_error(str(exc))],
+                    errors=[
+                        f"Failed to overlay uncommitted WIP into sandbox "
+                        f"(SANDBOX_WIP_FAILED): {exc}\n"
+                        "Fix:\n"
+                        "- resolve local conflicts / binary issues and retry, or\n"
+                        "- omit --wip and commit changes first"
+                    ],
                 )
 
         session = SandboxSession(
