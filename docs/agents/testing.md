@@ -16,6 +16,75 @@ via `subprocess.run(["git", "init"], ...)` and use `monkeypatch.chdir` to point
 commands at it. See [tests/commands/init/test_init_command.py](../../tests/commands/init/test_init_command.py)
 for the canonical `git_repo` fixture.
 
+## CLI help and Rich output
+
+CI runners often use a **narrow `COLUMNS`**. Rich help and tables wrap or
+truncate option names, headers, and cell values there, so substring asserts on
+rendered text flake even when the command is correct.
+
+### Typer / Click registration and `--help`
+
+- Prefer **Click metadata** over parsing `CliRunner` stdout from `--help`.
+- Use `typer.main.get_command(app)` and walk subcommands with
+  `.get_command(None, "…")`.
+- Assert `cmd.help` and option names from `param.opts` /
+  `param.secondary_opts` (and `list_commands` for groups).
+- Still invoke `--help` once and assert `exit_code == 0` if you want a smoke
+  check that help renders without raising.
+
+Canonical examples:
+
+- [tests/commands/loop/test_loop_run_command.py](../../tests/commands/loop/test_loop_run_command.py)
+  (`LoopRunCliTests.test_help_text`)
+- [tests/commands/sandbox/test_sandbox_list_command.py](../../tests/commands/sandbox/test_sandbox_list_command.py)
+  (`SandboxListCliTests`)
+
+```python
+from typer.main import get_command
+from typer.testing import CliRunner
+
+from getworktree.cli import app
+
+runner = CliRunner()
+
+def test_list_help() -> None:
+    result = runner.invoke(app, ["sandbox", "list", "--help"])
+    assert result.exit_code == 0
+
+    list_cmd = (
+        get_command(app).get_command(None, "sandbox").get_command(None, "list")
+    )
+    assert list_cmd.help == "List tracked sandboxes and their lifecycle status."
+    opts: set[str] = set()
+    for param in list_cmd.params:
+        opts.update(param.opts)
+        secondary = getattr(param, "secondary_opts", None) or ()
+        opts.update(secondary)
+    assert "--status" in opts
+```
+
+Do **not** assert `assert "--status" in result.stdout` (or similar) for Rich
+help — under small terminals the flag can wrap mid-token and disappear from a
+simple substring check.
+
+### Tables and other Rich renderers
+
+- Prefer asserting **structured results** from collect/core helpers (row order,
+  statuses, exit codes) rather than ambient `capsys` table dumps for business
+  logic.
+- When you must lock renderer copy or columns, inject a
+  `RichOutput(Console(file=StringIO(), width=…, force_terminal=False, …))`
+  (or an equivalent fixed-width console) so layout does not depend on CI
+  `COLUMNS`.
+- See init/sandbox renderer tests for the fixed-console pattern:
+  [tests/commands/init/test_init_renderers.py](../../tests/commands/init/test_init_renderers.py),
+  [tests/commands/sandbox/test_sandbox_list_command.py](../../tests/commands/sandbox/test_sandbox_list_command.py)
+  (`SandboxListRenderTests`).
+
+Stable empty-state / panel titles (`No sandboxes found.`,
+`Worktree Not Initialized`) are fine to assert on stdout; full table cell
+contents and help option lists are not, unless width is controlled.
+
 ## Running tests
 
 ```bash
