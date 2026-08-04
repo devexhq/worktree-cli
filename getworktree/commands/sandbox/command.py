@@ -1,4 +1,4 @@
-"""Sandbox command handlers: list tracked worktree sandboxes."""
+"""Sandbox command handlers: list and show tracked worktree sandboxes."""
 
 from __future__ import annotations
 
@@ -6,13 +6,25 @@ from pathlib import Path
 
 import typer
 
-from getworktree.commands.sandbox.models import SandboxListResult, SandboxListStatus
+from getworktree.commands.sandbox.models import (
+    SandboxListResult,
+    SandboxListStatus,
+    SandboxShowResult,
+    SandboxShowStatus,
+)
 from getworktree.commands.sandbox.renderers import (
     render_not_initialized,
     render_sandbox_list,
+    render_sandbox_not_found,
+    render_sandbox_show,
 )
 from getworktree.core.config.loader import load_config_result
-from getworktree.core.db import SandboxStatus, list_sandboxes, update_sandbox_status
+from getworktree.core.db import (
+    SandboxStatus,
+    get_sandbox,
+    list_sandboxes,
+    update_sandbox_status,
+)
 
 
 def _reconcile_stale_active_sandboxes(*, cwd: Path) -> None:
@@ -79,4 +91,80 @@ def sandbox_list_command(
         raise typer.Exit(code=1)
 
     render_sandbox_list(result.sandboxes)
+    raise typer.Exit(code=0)
+
+
+def collect_sandbox_show(
+    sandbox_id: str,
+    *,
+    cwd: Path | None = None,
+) -> SandboxShowResult:
+    """Load config, look up one sandbox, and reconcile a stale active row.
+
+    Args:
+        sandbox_id: Sandbox primary key to show.
+        cwd: Repository root. Defaults to process CWD.
+
+    Returns:
+        Structured show result. Does not print or exit.
+    """
+    root = (cwd or Path.cwd()).resolve()
+    load = load_config_result(cwd=root)
+    if not load.ok:
+        return SandboxShowResult(
+            status=SandboxShowStatus.NOT_INITIALIZED,
+            errors=list(load.errors),
+        )
+
+    row = get_sandbox(sandbox_id, cwd=root)
+    if row is None:
+        return SandboxShowResult(status=SandboxShowStatus.NOT_FOUND)
+
+    reconciled = False
+    if row.status is SandboxStatus.ACTIVE and not Path(row.sandbox_path).is_dir():
+        updated = update_sandbox_status(row.id, SandboxStatus.CLEANED, cwd=root)
+        if updated is not None:
+            row = updated
+        else:
+            row = row.model_copy(update={"status": SandboxStatus.CLEANED})
+        reconciled = True
+
+    disk_present = Path(row.sandbox_path).exists()
+    return SandboxShowResult(
+        status=SandboxShowStatus.OK,
+        sandbox=row,
+        disk_present=disk_present,
+        reconciled=reconciled,
+    )
+
+
+def sandbox_show_command(
+    sandbox_id: str,
+    *,
+    cwd: Path | None = None,
+) -> None:
+    """Show detail for one tracked sandbox.
+
+    Read-only aside from reconciling a stale ``active`` row whose sandbox
+    directory was removed out-of-band. Exit ``0`` when found (including after
+    reconciliation); exit ``1`` when not initialized or not found.
+
+    Args:
+        sandbox_id: Sandbox primary key to show.
+        cwd: Repository root. Defaults to process CWD.
+    """
+    result = collect_sandbox_show(sandbox_id, cwd=cwd)
+    if result.status is SandboxShowStatus.NOT_INITIALIZED:
+        render_not_initialized(result.errors)
+        raise typer.Exit(code=1)
+    if result.status is SandboxShowStatus.NOT_FOUND:
+        render_sandbox_not_found(sandbox_id)
+        raise typer.Exit(code=1)
+
+    assert result.sandbox is not None
+    render_sandbox_show(
+        result.sandbox,
+        disk_present=result.disk_present,
+        reconciled=result.reconciled,
+    )
     raise typer.Exit(code=0)

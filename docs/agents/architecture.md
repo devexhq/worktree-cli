@@ -79,18 +79,20 @@ Typed surface:
 Helpers call `init_database` first (same pattern as `record_token_usage`).
 Duplicate `id` on insert raises `ValueError`. Missing ids return `None` /
 `False` rather than raising. `git_sandbox.py` owns create/cleanup writes
-(below). CLI inspection starts with `wt sandbox list` (below).
+(below). CLI inspection: `wt sandbox list` and `wt sandbox show` (below).
 
 ## Sandboxes
 
 `GitSandboxManager` / `sandbox_scope` ([getworktree/core/git_sandbox.py](../../getworktree/core/git_sandbox.py))
 own the V1 sandbox lifecycle used by loop execution.
 
-### CLI: `wt sandbox list`
+### CLI: `wt sandbox list` / `wt sandbox show`
 
 Command package: [getworktree/commands/sandbox/](../../getworktree/commands/sandbox/)
 (`command.py`, `models.py`, `renderers.py`), registered as `sandbox_app` on
 [getworktree/cli.py](../../getworktree/cli.py).
+
+#### `wt sandbox list`
 
 - Initialization gate: `load_config_result`; on failure print red panel
   **Worktree Not Initialized** and exit `1` without creating DB/state files
@@ -103,8 +105,21 @@ Command package: [getworktree/commands/sandbox/](../../getworktree/commands/sand
   raw DB timestamp string)
 - Empty (filtered) set → `No sandboxes found.`, exit `0`, no table
 - Only DB rows are shown (orphan on-disk sandbox dirs without a row are ignored)
-- Read-only except the reconciliation status write; no create/show/delete in
-  this command group yet
+- Read-only except the reconciliation status write
+
+#### `wt sandbox show <sandbox-id>`
+
+- Same initialization gate as list; unknown id → red panel **Sandbox Not Found**
+  (`Sandbox '<id>' not found` + fix to run `wt sandbox list`), exit `1`
+- Lookup via `get_sandbox`; when the row is `active` and `sandbox_path` is not
+  a directory → `update_sandbox_status(..., CLEANED)` for that id only, then
+  render with a trailing note:
+  `Note: sandbox directory is missing; status updated to 'cleaned'.`
+  (exit `0`; other statuses are shown as-is with no note)
+- Detail fields in order: `ID`, `Name` (`-` when null), `Branch`, `Base Commit`,
+  `Path`, `Status`, `Disk` (`present` / `missing` from `Path.exists()` at render
+  time), `Created`, `Updated` (raw DB timestamp strings)
+- Read-only except the single-row reconciliation write; no create/delete yet
 
 ### On-disk layout
 - Base directory: `.worktree/sandboxes/`
