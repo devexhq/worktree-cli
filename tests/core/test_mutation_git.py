@@ -75,6 +75,18 @@ class ResolvePreAgentBaselineTests:
         with pytest.raises(MutationGitError):
             resolve_pre_agent_baseline(not_a_repo)
 
+    def test_raises_on_git_timeout(
+        self, repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import getworktree.core.agents.mutation_git as mutation_mod
+
+        def _timeout(*_args: object, **_kwargs: object) -> object:
+            raise subprocess.TimeoutExpired(cmd=["git"], timeout=120)
+
+        monkeypatch.setattr(mutation_mod.subprocess, "run", _timeout)
+        with pytest.raises(MutationGitError, match="GIT_TIMEOUT"):
+            resolve_pre_agent_baseline(repo)
+
 
 class CaptureDiffSinceTests:
     def test_captures_modified_and_new_files(self, repo: Path) -> None:

@@ -238,6 +238,24 @@ class ApplyPatchResultTests:
         assert result.ok is False
         assert result.touched_files == []
 
+    def test_git_timeout_on_apply(
+        self, sandbox: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import getworktree.core.loops.patch as patch_mod
+
+        def _timeout(**_kwargs: object) -> tuple[bool, str, bool]:
+            return False, "git apply timed out after 120s", True
+
+        monkeypatch.setattr(patch_mod, "_run_git_apply", _timeout)
+        result = _apply(sandbox, _mod_diff())
+        assert result.status == PatchApplyStatus.GIT_TIMEOUT
+        assert result.ok is False
+        assert result.touched_files == ["pkg/mod.py"]
+        assert any("PATCH_GIT_TIMEOUT" in e for e in result.errors)
+        assert (sandbox / "pkg" / "mod.py").read_text(
+            encoding="utf-8"
+        ) == "print('old')\n"
+
     def test_conflict_leaves_tree_unchanged(self, sandbox: Path) -> None:
         before = (sandbox / "pkg" / "mod.py").read_text(encoding="utf-8")
         # Hunk context does not match file contents.

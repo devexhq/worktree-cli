@@ -16,6 +16,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from getworktree.common.constants import GIT_SUBPROCESS_TIMEOUT_SECONDS
 from getworktree.core.config.models import WorktreeConfig
 from getworktree.core.loops.models import LoopDefinition
 from getworktree.core.loops.runner_models import (
@@ -86,8 +87,9 @@ def default_list_changed_files(sandbox_path: Path) -> list[str]:
             capture_output=True,
             text=True,
             check=False,
+            timeout=GIT_SUBPROCESS_TIMEOUT_SECONDS,
         )
-    except OSError:
+    except (OSError, subprocess.TimeoutExpired):
         return []
     if completed.returncode != 0:
         return []
