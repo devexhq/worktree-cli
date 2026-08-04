@@ -13,6 +13,7 @@ from getworktree.commands.init.command import init_command
 from getworktree.commands.loop.command import loop_run_command, loop_show_command
 from getworktree.commands.sandbox.command import (
     sandbox_create_command,
+    sandbox_delete_command,
     sandbox_list_command,
     sandbox_show_command,
 )
@@ -249,6 +250,19 @@ def sandbox_show(
 ):
     """Show full detail for one tracked sandbox."""
     sandbox_show_command(sandbox_id)
+
+
+@sandbox_app.command("delete")
+def sandbox_delete(
+    sandbox_id: str = typer.Argument(..., help="Sandbox id to delete."),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Skip the confirmation prompt and delete immediately.",
+    ),
+):
+    """Delete a sandbox worktree and branch after confirmation."""
+    sandbox_delete_command(sandbox_id, force=force)
 
 
 if __name__ == "__main__":
