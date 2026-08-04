@@ -7,11 +7,14 @@ from rich.table import Table
 from getworktree.common.utils import RichOutput
 from getworktree.core.db import SandboxRecord
 
-rich_output = RichOutput()
+_DEFAULT_RICH_OUTPUT = RichOutput()
 
 
-def render_not_initialized(errors: list[str]) -> None:
+def render_not_initialized(
+    errors: list[str], *, rich_output: RichOutput | None = None
+) -> None:
     """Render the not-initialized error panel for sandbox commands."""
+    output = rich_output or _DEFAULT_RICH_OUTPUT
     message = (
         "\n\n".join(errors)
         if errors
@@ -21,12 +24,13 @@ def render_not_initialized(errors: list[str]) -> None:
             "- run `wt init` to create `.worktree/config.json`"
         )
     )
-    rich_output.error_panel("Worktree Not Initialized", message)
+    output.error_panel("Worktree Not Initialized", message)
 
 
-def render_empty_list() -> None:
+def render_empty_list(*, rich_output: RichOutput | None = None) -> None:
     """Render the empty-state line when no sandboxes match."""
-    rich_output.info("No sandboxes found.")
+    output = rich_output or _DEFAULT_RICH_OUTPUT
+    output.info("No sandboxes found.")
 
 
 def build_sandbox_table(sandboxes: list[SandboxRecord]) -> Table:
@@ -57,9 +61,12 @@ def build_sandbox_table(sandboxes: list[SandboxRecord]) -> Table:
     return table
 
 
-def render_sandbox_list(sandboxes: list[SandboxRecord]) -> None:
+def render_sandbox_list(
+    sandboxes: list[SandboxRecord], *, rich_output: RichOutput | None = None
+) -> None:
     """Render empty state or the sandboxes table."""
+    output = rich_output or _DEFAULT_RICH_OUTPUT
     if not sandboxes:
-        render_empty_list()
+        render_empty_list(rich_output=output)
         return
-    rich_output.info(build_sandbox_table(sandboxes))
+    output.info(build_sandbox_table(sandboxes))
