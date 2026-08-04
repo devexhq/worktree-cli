@@ -1,0 +1,42 @@
+# VCS / IDE
+.git/
+.vscode/
+.idea/
+
+# Python envs & caches
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.cache/
+
+# Build / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+wheels/
+*.egg
+
+# Local runtime state (wt)
+.worktree/
+
+# Secrets / local env
+.env
+.env.*
+!.env.example
+
+# Logs / temp
+*.log
+*.tmp
+tmp/
+temp/
