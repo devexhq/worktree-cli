@@ -24,7 +24,7 @@ from getworktree.core.loops.render import (
     format_loop_show_validate_failure,
 )
 from getworktree.core.loops.resolve import resolve_loop_by_name
-from getworktree.core.loops.runner import LoopRunResult, run_loop_iteration
+from getworktree.core.loops.runner import LoopRunResult, StopReason, run_loop_iteration
 from getworktree.core.loops.validate import validate_loop_result
 
 rich_output = RichOutput()
@@ -251,8 +251,8 @@ def loop_run_command(
 
     assert result is not None
     if result.errors and result.stop_reason in {
-        "sandbox_create_failed",
-        "configuration_error",
+        StopReason.SANDBOX_CREATE_FAILED,
+        StopReason.CONFIGURATION_ERROR,
     }:
         for err in result.errors:
             rich_output.error_panel("Loop Run Failed", err)
