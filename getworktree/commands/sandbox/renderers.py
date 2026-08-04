@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from rich.table import Table
 
-from getworktree.common.utils import RichOutput
+from getworktree.common.utils import RichOutput, display_path
 from getworktree.core.db import SandboxRecord
+from getworktree.core.git_sandbox import SandboxSession
 
 _DEFAULT_RICH_OUTPUT = RichOutput()
 
@@ -37,6 +40,33 @@ def render_not_initialized(
         )
     )
     output.error_panel("Worktree Not Initialized", message)
+
+
+def render_sandbox_create_failed(
+    errors: list[str], *, rich_output: RichOutput | None = None
+) -> None:
+    """Render the create-failed error panel for ``wt sandbox create``."""
+    output = rich_output or _DEFAULT_RICH_OUTPUT
+    message = "\n\n".join(errors) if errors else "Sandbox creation failed."
+    output.error_panel("Sandbox Create Failed", message)
+
+
+def render_sandbox_create_success(
+    session: SandboxSession,
+    *,
+    warnings: list[str] | None = None,
+    cwd: Path | None = None,
+    rich_output: RichOutput | None = None,
+) -> None:
+    """Render success block and optional non-fatal warnings for create."""
+    output = rich_output or _DEFAULT_RICH_OUTPUT
+    root = (cwd or Path.cwd()).resolve()
+    path_label = display_path(session.sandbox_path, root)
+    output.success(f"Sandbox created: {session.session_id}")
+    output.info(f"   Branch: {session.target_branch}")
+    output.info(f"   Path: {path_label}")
+    for warning in warnings or []:
+        output.dim_bullet(warning)
 
 
 def render_sandbox_not_found(

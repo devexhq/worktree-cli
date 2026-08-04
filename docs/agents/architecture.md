@@ -79,18 +79,34 @@ Typed surface:
 Helpers call `init_database` first (same pattern as `record_token_usage`).
 Duplicate `id` on insert raises `ValueError`. Missing ids return `None` /
 `False` rather than raising. `git_sandbox.py` owns create/cleanup writes
-(below). CLI inspection: `wt sandbox list` and `wt sandbox show` (below).
+(below). CLI: `wt sandbox create`, `wt sandbox list`, and `wt sandbox show`
+(below).
 
 ## Sandboxes
 
 `GitSandboxManager` / `sandbox_scope` ([getworktree/core/git_sandbox.py](../../getworktree/core/git_sandbox.py))
 own the V1 sandbox lifecycle used by loop execution.
 
-### CLI: `wt sandbox list` / `wt sandbox show`
+### CLI: `wt sandbox create` / `wt sandbox list` / `wt sandbox show`
 
 Command package: [getworktree/commands/sandbox/](../../getworktree/commands/sandbox/)
 (`command.py`, `models.py`, `renderers.py`), registered as `sandbox_app` on
 [getworktree/cli.py](../../getworktree/cli.py).
+
+#### `wt sandbox create`
+
+- Flags: `--name TEXT` (optional), `--base-ref TEXT` (optional),
+  `--wip/--no-wip` (default `--no-wip`)
+- Body: `GitSandboxManager(cwd).create_sandbox_result(name=…, base_ref=…,
+  include_wip=wip)`
+- Success: green `Sandbox created: <id>` plus indented `Branch:` /
+  `Path:` (`display_path` relative to cwd). Non-empty `warnings` print as dim
+  bullets after the block; exit `0`
+- Failure: red panel **Sandbox Create Failed** with `"\n\n".join(result.errors)`
+  (fallback `Sandbox creation failed.`), exit `1`. All
+  `SandboxCreateStatus` failures map here (no uncaught exceptions)
+- Does not re-implement manager error copy; renders `result.errors` as-is
+- `wt sandbox delete` is not part of this surface yet
 
 #### `wt sandbox list`
 
@@ -119,7 +135,7 @@ Command package: [getworktree/commands/sandbox/](../../getworktree/commands/sand
 - Detail fields in order: `ID`, `Name` (`-` when null), `Branch`, `Base Commit`,
   `Path`, `Status`, `Disk` (`present` / `missing` from `Path.exists()` at render
   time), `Created`, `Updated` (raw DB timestamp strings)
-- Read-only except the single-row reconciliation write; no create/delete yet
+- Read-only except the single-row reconciliation write; no delete yet
 
 ### On-disk layout
 - Base directory: `.worktree/sandboxes/`
@@ -132,8 +148,11 @@ Command package: [getworktree/commands/sandbox/](../../getworktree/commands/sand
   `capacity_exceeded` / `git_failed` / `git_timeout` / `not_initialized` /
   `unreadable_config` / `wip_failed`; optional `warnings` never affect `ok`)
 - `create_sandbox` is a thin raise-on-error wrapper over the result API
-- Base ref: current branch when it is a real branch name; otherwise
-  `sandbox.base_ref` from config (default `HEAD`)
+- Optional `base_ref=` override: when provided and non-empty after strip, used
+  verbatim as the git ref for `git worktree add`. `None` / whitespace-only falls
+  back to current branch when it is a real branch name; otherwise
+  `sandbox.base_ref` from config (default `HEAD`). `wt loop run` continues to
+  omit `base_ref` (unchanged behavior)
 - After successful `git worktree add`, resolve `base_commit` via
   `git rev-parse HEAD` in the sandbox (required on `SandboxSession`). Failure
   is `git_failed` / `git_timeout` and the partial worktree is discarded
