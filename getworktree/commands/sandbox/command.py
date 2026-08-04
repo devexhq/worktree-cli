@@ -74,7 +74,7 @@ def sandbox_list_command(
         cwd: Repository root. Defaults to process CWD.
     """
     result = collect_sandbox_list(status, cwd=cwd)
-    if not result.ok:
+    if result.status is SandboxListStatus.NOT_INITIALIZED:
         render_not_initialized(result.errors)
         raise typer.Exit(code=1)
 
