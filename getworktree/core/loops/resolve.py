@@ -44,24 +44,6 @@ class LoopResolveResult(BaseModel):
         return self.status == LoopResolveStatus.OK
 
 
-def _error_invalid_name(name: str) -> str:
-    return (
-        f"Invalid loop name '{name}' (LOOP_RESOLVE_INVALID_NAME).\n"
-        "Fix:\n"
-        f"- use a name matching {LOOP_NAME_PATTERN.pattern}"
-    )
-
-
-def _error_not_found(name: str, loops_dir: Path) -> str:
-    return (
-        f"No loop named '{name}' in '{loops_dir.as_posix()}' "
-        f"(LOOP_RESOLVE_NOT_FOUND).\n"
-        "Fix:\n"
-        "- run `wt loop list` to see available loops\n"
-        "- add a definition under the loops directory"
-    )
-
-
 def _warning_duplicate_name(
     name: str,
     winner: LoopInventoryValidEntry,
@@ -142,7 +124,11 @@ def resolve_loop_by_name(
                 loops_dir=loops_dir,
                 use_config=use_config,
             ),
-            errors=[_error_invalid_name(echo)],
+            errors=[
+                f"Invalid loop name '{echo}' (LOOP_RESOLVE_INVALID_NAME).\n"
+                "Fix:\n"
+                f"- use a name matching {LOOP_NAME_PATTERN.pattern}"
+            ],
         )
 
     inventory = build_loop_inventory(
@@ -171,7 +157,14 @@ def resolve_loop_by_name(
             status=LoopResolveStatus.NOT_FOUND,
             name=requested,
             loops_dir=inventory.loops_dir,
-            errors=[_error_not_found(requested, inventory.loops_dir)],
+            errors=[
+                f"No loop named '{requested}' in "
+                f"'{inventory.loops_dir.as_posix()}' "
+                f"(LOOP_RESOLVE_NOT_FOUND).\n"
+                "Fix:\n"
+                "- run `wt loop list` to see available loops\n"
+                "- add a definition under the loops directory"
+            ],
             warnings=warnings,
         )
 

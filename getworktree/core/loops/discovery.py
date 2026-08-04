@@ -50,31 +50,6 @@ def _resolve_path(path: Path | str, *, cwd: Path) -> Path:
     return candidate.resolve()
 
 
-def _error_not_found(path: Path) -> str:
-    return (
-        f"Loop directory not found at '{path}' (LOOP_DIR_NOT_FOUND).\n"
-        "Fix:\n"
-        "- run `wt init` to create starter loops\n"
-        "- or create the directory and add loop YAML files"
-    )
-
-
-def _error_not_a_directory(path: Path) -> str:
-    return (
-        f"Loop path exists as a file, not a directory: '{path}' "
-        f"(LOOP_DIR_NOT_A_DIRECTORY)."
-    )
-
-
-def _error_unreadable(path: Path, detail: str) -> str:
-    return (
-        f"Unable to read loop directory at '{path}': {detail} "
-        f"(LOOP_DIR_UNREADABLE).\n"
-        "Fix:\n"
-        "- check directory permissions and that the path is listable"
-    )
-
-
 def _error_config_unavailable(messages: list[str]) -> str:
     detail = "; ".join(msg.splitlines()[0] for msg in messages if msg) or (
         "configuration could not be loaded"
@@ -178,14 +153,23 @@ def discover_loop_files(
         return LoopDiscoveryResult(
             status=LoopDiscoveryStatus.NOT_A_DIRECTORY,
             loops_dir=resolved_dir,
-            errors=[_error_not_a_directory(resolved_dir)],
+            errors=[
+                f"Loop path exists as a file, not a directory: '{resolved_dir}' "
+                f"(LOOP_DIR_NOT_A_DIRECTORY)."
+            ],
         )
 
     if not resolved_dir.exists():
         return LoopDiscoveryResult(
             status=LoopDiscoveryStatus.NOT_FOUND,
             loops_dir=resolved_dir,
-            errors=[_error_not_found(resolved_dir)],
+            errors=[
+                f"Loop directory not found at '{resolved_dir}' "
+                f"(LOOP_DIR_NOT_FOUND).\n"
+                "Fix:\n"
+                "- run `wt init` to create starter loops\n"
+                "- or create the directory and add loop YAML files"
+            ],
         )
 
     try:
@@ -194,7 +178,12 @@ def discover_loop_files(
         return LoopDiscoveryResult(
             status=LoopDiscoveryStatus.UNREADABLE,
             loops_dir=resolved_dir,
-            errors=[_error_unreadable(resolved_dir, str(exc))],
+            errors=[
+                f"Unable to read loop directory at '{resolved_dir}': {exc} "
+                f"(LOOP_DIR_UNREADABLE).\n"
+                "Fix:\n"
+                "- check directory permissions and that the path is listable"
+            ],
         )
 
     candidates: list[Path] = []

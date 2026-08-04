@@ -55,61 +55,6 @@ def _resolve_source_path(path: Path) -> Path:
         return path.expanduser().absolute()
 
 
-def _error_not_found(path: Path) -> str:
-    return (
-        f"Loop definition not found at '{path}' (LOOP_INVALID_NOT_FOUND).\n"
-        "Fix:\n"
-        "- run `wt loop list` to see available loops\n"
-        "- create the definition file or fix the path"
-    )
-
-
-def _error_not_a_file(path: Path) -> str:
-    return (
-        f"Loop path exists but is not a regular file: '{path}' "
-        f"(LOOP_INVALID_NOT_A_FILE).\n"
-        "Fix:\n"
-        "- point the path at a loop YAML file, not a directory"
-    )
-
-
-def _error_unreadable(path: Path, detail: str) -> str:
-    return (
-        f"Unable to read loop definition at '{path}': {detail} "
-        f"(LOOP_INVALID_UNREADABLE).\n"
-        "Fix:\n"
-        "- check file permissions and that the path is readable"
-    )
-
-
-def _error_malformed_yaml(path: Path, detail: str) -> str:
-    return (
-        f"Malformed loop YAML at '{path}': {detail} "
-        f"(LOOP_INVALID_MALFORMED_YAML).\n"
-        "Fix:\n"
-        "- repair YAML syntax, or restore the definition from a template"
-    )
-
-
-def _error_root_not_mapping(path: Path) -> str:
-    return (
-        f"Loop YAML root must be a mapping at '{path}' "
-        f"(LOOP_INVALID_ROOT_NOT_MAPPING).\n"
-        "Fix:\n"
-        "- ensure the file is a YAML object, not an array or scalar"
-    )
-
-
-def _error_schema_invalid(messages: list[str]) -> str:
-    lines = ["Loop schema validation failed (LOOP_INVALID_SCHEMA):"]
-    lines.extend(f"- {msg}" for msg in messages)
-    return "\n".join(lines)
-
-
-def _error_model_invalid(detail: str) -> str:
-    return f"Loop model mapping failed (LOOP_INVALID_MODEL): {detail}"
-
-
 def _semantic_errors(loop: LoopDefinition) -> list[str]:
     """Return semantic errors after schema success (defensive bounds)."""
     errors: list[str] = []
@@ -155,11 +100,13 @@ def validate_loop_document(
     path = Path(source_path)
     validation = LOOP_VALIDATOR.validate(raw)
     if not validation.ok:
+        lines = ["Loop schema validation failed (LOOP_INVALID_SCHEMA):"]
+        lines.extend(f"- {msg}" for msg in validation.errors)
         return LoopValidationResult(
             status=LoopValidationStatus.INVALID,
             source_path=path,
             raw=raw,
-            errors=[_error_schema_invalid(validation.errors)],
+            errors=["\n".join(lines)],
         )
 
     try:
@@ -169,7 +116,7 @@ def validate_loop_document(
             status=LoopValidationStatus.INVALID,
             source_path=path,
             raw=raw,
-            errors=[_error_model_invalid(str(exc))],
+            errors=[f"Loop model mapping failed (LOOP_INVALID_MODEL): {exc}"],
         )
 
     semantic = _semantic_errors(loop)
@@ -209,14 +156,25 @@ def validate_loop_result(path: Path) -> LoopValidationResult:
         return LoopValidationResult(
             status=LoopValidationStatus.NOT_A_FILE,
             source_path=source_path,
-            errors=[_error_not_a_file(source_path)],
+            errors=[
+                f"Loop path exists but is not a regular file: '{source_path}' "
+                f"(LOOP_INVALID_NOT_A_FILE).\n"
+                "Fix:\n"
+                "- point the path at a loop YAML file, not a directory"
+            ],
         )
 
     if not source_path.exists():
         return LoopValidationResult(
             status=LoopValidationStatus.NOT_FOUND,
             source_path=source_path,
-            errors=[_error_not_found(source_path)],
+            errors=[
+                f"Loop definition not found at '{source_path}' "
+                f"(LOOP_INVALID_NOT_FOUND).\n"
+                "Fix:\n"
+                "- run `wt loop list` to see available loops\n"
+                "- create the definition file or fix the path"
+            ],
         )
 
     try:
@@ -225,7 +183,12 @@ def validate_loop_result(path: Path) -> LoopValidationResult:
         return LoopValidationResult(
             status=LoopValidationStatus.UNREADABLE,
             source_path=source_path,
-            errors=[_error_unreadable(source_path, str(exc))],
+            errors=[
+                f"Unable to read loop definition at '{source_path}': {exc} "
+                f"(LOOP_INVALID_UNREADABLE).\n"
+                "Fix:\n"
+                "- check file permissions and that the path is readable"
+            ],
         )
 
     try:
@@ -234,14 +197,24 @@ def validate_loop_result(path: Path) -> LoopValidationResult:
         return LoopValidationResult(
             status=LoopValidationStatus.MALFORMED_YAML,
             source_path=source_path,
-            errors=[_error_malformed_yaml(source_path, str(exc))],
+            errors=[
+                f"Malformed loop YAML at '{source_path}': {exc} "
+                f"(LOOP_INVALID_MALFORMED_YAML).\n"
+                "Fix:\n"
+                "- repair YAML syntax, or restore the definition from a template"
+            ],
         )
 
     if not isinstance(parsed, dict):
         return LoopValidationResult(
             status=LoopValidationStatus.ROOT_NOT_MAPPING,
             source_path=source_path,
-            errors=[_error_root_not_mapping(source_path)],
+            errors=[
+                f"Loop YAML root must be a mapping at '{source_path}' "
+                f"(LOOP_INVALID_ROOT_NOT_MAPPING).\n"
+                "Fix:\n"
+                "- ensure the file is a YAML object, not an array or scalar"
+            ],
         )
 
     return validate_loop_document(parsed, source_path=source_path)

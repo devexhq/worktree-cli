@@ -62,31 +62,6 @@ def resolve_config_path(
     return get_worktree_config_file(root).resolve()
 
 
-def _error_not_found(path: Path) -> str:
-    return (
-        f"Configuration file not found at '{path}' (CONFIG_NOT_FOUND).\n"
-        "Fix:\n"
-        "- run `wt init` to create `.worktree/config.json`"
-    )
-
-
-def _error_malformed_json(path: Path, detail: str) -> str:
-    return (
-        f"Malformed config.json at '{path}': {detail} (CONFIG_MALFORMED_JSON).\n"
-        "Fix:\n"
-        "- repair JSON syntax, or restore from backup"
-    )
-
-
-def _error_root_not_object(path: Path) -> str:
-    return (
-        f"Malformed config.json at '{path}': root must be an object "
-        f"(CONFIG_ROOT_NOT_OBJECT).\n"
-        "Fix:\n"
-        "- ensure config.json is a JSON object, not an array or scalar"
-    )
-
-
 def _error_schema_invalid(messages: list[str]) -> list[str]:
     lines = ["Config schema validation failed (CONFIG_SCHEMA_INVALID):"]
     lines.extend(f"- {msg}" for msg in messages)
@@ -98,24 +73,6 @@ def _error_schema_invalid(messages: list[str]) -> list[str]:
         ]
     )
     return ["\n".join(lines)]
-
-
-def _error_path_is_directory(path: Path) -> str:
-    return (
-        f"Config path is a directory, not a file: '{path}' "
-        f"(CONFIG_PATH_IS_DIRECTORY).\n"
-        "Fix:\n"
-        "- remove the directory or point config_path at a file"
-    )
-
-
-def _error_unreadable(path: Path, detail: str) -> str:
-    return (
-        f"Unable to read config.json at '{path}': {detail} "
-        f"(CONFIG_UNREADABLE).\n"
-        "Fix:\n"
-        "- check file permissions and that the path is readable"
-    )
 
 
 def load_config_result(
@@ -141,14 +98,23 @@ def load_config_result(
         return ConfigLoadResult(
             status=ConfigLoadStatus.PATH_IS_DIRECTORY,
             config_path=path,
-            errors=[_error_path_is_directory(path)],
+            errors=[
+                f"Config path is a directory, not a file: '{path}' "
+                f"(CONFIG_PATH_IS_DIRECTORY).\n"
+                "Fix:\n"
+                "- remove the directory or point config_path at a file"
+            ],
         )
 
     if not path.exists():
         return ConfigLoadResult(
             status=ConfigLoadStatus.NOT_FOUND,
             config_path=path,
-            errors=[_error_not_found(path)],
+            errors=[
+                f"Configuration file not found at '{path}' (CONFIG_NOT_FOUND).\n"
+                "Fix:\n"
+                "- run `wt init` to create `.worktree/config.json`"
+            ],
         )
 
     try:
@@ -157,7 +123,12 @@ def load_config_result(
         return ConfigLoadResult(
             status=ConfigLoadStatus.UNREADABLE,
             config_path=path,
-            errors=[_error_unreadable(path, str(exc))],
+            errors=[
+                f"Unable to read config.json at '{path}': {exc} "
+                f"(CONFIG_UNREADABLE).\n"
+                "Fix:\n"
+                "- check file permissions and that the path is readable"
+            ],
         )
 
     try:
@@ -169,14 +140,24 @@ def load_config_result(
         return ConfigLoadResult(
             status=ConfigLoadStatus.MALFORMED_JSON,
             config_path=path,
-            errors=[_error_malformed_json(path, detail)],
+            errors=[
+                f"Malformed config.json at '{path}': {detail} "
+                f"(CONFIG_MALFORMED_JSON).\n"
+                "Fix:\n"
+                "- repair JSON syntax, or restore from backup"
+            ],
         )
 
     if not isinstance(data, dict):
         return ConfigLoadResult(
             status=ConfigLoadStatus.ROOT_NOT_OBJECT,
             config_path=path,
-            errors=[_error_root_not_object(path)],
+            errors=[
+                f"Malformed config.json at '{path}': root must be an object "
+                f"(CONFIG_ROOT_NOT_OBJECT).\n"
+                "Fix:\n"
+                "- ensure config.json is a JSON object, not an array or scalar"
+            ],
         )
 
     validation = CONFIG_VALIDATOR.validate(data)
