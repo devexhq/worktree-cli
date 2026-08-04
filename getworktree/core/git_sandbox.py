@@ -274,6 +274,7 @@ class GitSandboxManager:
         *,
         include_wip: bool = False,
         name: str | None = None,
+        base_ref: str | None = None,
     ) -> SandboxCreateResult:
         """Create a sandbox without raising for classified failures.
 
@@ -283,6 +284,9 @@ class GitSandboxManager:
                 from the primary checkout into the new sandbox.
             name: Optional human-readable sandbox name. Whitespace-only values
                 are stored as ``None``.
+            base_ref: Optional git ref for ``git worktree add``. When provided
+                and non-empty after strip, used verbatim; otherwise falls back
+                to the current branch or ``config.sandbox.base_ref``.
 
         Returns:
             Structured create result with session on success.
@@ -290,6 +294,10 @@ class GitSandboxManager:
         resolved_name = name.strip() if name is not None else None
         if resolved_name == "":
             resolved_name = None
+
+        override_base_ref = base_ref.strip() if base_ref is not None else None
+        if override_base_ref == "":
+            override_base_ref = None
 
         load = load_config_result(cwd=self.cwd)
         if load.status == ConfigLoadStatus.NOT_FOUND:
@@ -336,12 +344,15 @@ class GitSandboxManager:
         sandbox_path = (self.sandbox_base_dir / sid).resolve()
         temp_branch = f"worktree/sandbox-{sid}"
 
-        source_branch = get_current_git_branch(self.cwd)
-        base_ref = (
-            source_branch
-            if source_branch not in ("unknown", "HEAD (detached)")
-            else config.sandbox.base_ref
-        )
+        if override_base_ref is not None:
+            resolved_base_ref = override_base_ref
+        else:
+            source_branch = get_current_git_branch(self.cwd)
+            resolved_base_ref = (
+                source_branch
+                if source_branch not in ("unknown", "HEAD (detached)")
+                else config.sandbox.base_ref
+            )
 
         try:
             self._run_git_cmd(
@@ -351,7 +362,7 @@ class GitSandboxManager:
                     "-b",
                     temp_branch,
                     str(sandbox_path),
-                    base_ref,
+                    resolved_base_ref,
                 ]
             )
         except GitPlumbingTimeoutError as exc:
@@ -473,6 +484,7 @@ class GitSandboxManager:
         *,
         include_wip: bool = False,
         name: str | None = None,
+        base_ref: str | None = None,
     ) -> SandboxSession:
         """Create a sandbox or raise with the classified error message.
 
@@ -480,6 +492,7 @@ class GitSandboxManager:
             session_id: Optional fixed session id.
             include_wip: When True, overlay uncommitted working-tree changes.
             name: Optional human-readable sandbox name.
+            base_ref: Optional git ref override for worktree creation.
 
         Returns:
             Created session metadata.
@@ -491,6 +504,7 @@ class GitSandboxManager:
             session_id=session_id,
             include_wip=include_wip,
             name=name,
+            base_ref=base_ref,
         )
         if not result.ok or result.session is None:
             message = (

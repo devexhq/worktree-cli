@@ -375,6 +375,70 @@ class GitSandboxManagerTests:
         assert none_name.session.name is None
         manager.cleanup_sandbox(none_name.session)
 
+    def test_base_ref_override(self, repo: Path) -> None:
+        subprocess.run(
+            ["git", "checkout", "-b", "other"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        (repo / "other.txt").write_text("other\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "add", "other.txt"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "other tip"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        other_tip = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        feature_tip = subprocess.run(
+            ["git", "rev-parse", "feature"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        assert other_tip != feature_tip
+
+        manager = GitSandboxManager(cwd=repo)
+        # On branch other; override back to feature tip.
+        overridden = manager.create_sandbox_result(
+            session_id="sbx_override",
+            base_ref="feature",
+        )
+        assert overridden.ok and overridden.session is not None
+        assert overridden.session.base_commit == feature_tip
+        manager.cleanup_sandbox(overridden.session)
+
+        blank = manager.create_sandbox_result(
+            session_id="sbx_blankref",
+            base_ref="   ",
+        )
+        assert blank.ok and blank.session is not None
+        assert blank.session.base_commit == other_tip
+        manager.cleanup_sandbox(blank.session)
+
+        bad = manager.create_sandbox_result(
+            session_id="sbx_badoverride",
+            base_ref="refs/does-not-exist",
+        )
+        assert bad.status == SandboxCreateStatus.GIT_FAILED
+        assert not bad.ok
+
     def test_persists_active_row_on_create(self, repo: Path) -> None:
         manager = GitSandboxManager(cwd=repo)
         result = manager.create_sandbox_result(session_id="sbx_db1", name="persist-me")
