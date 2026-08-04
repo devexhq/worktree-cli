@@ -11,7 +11,10 @@ from getworktree.commands.config.command import (
 )
 from getworktree.commands.init.command import init_command
 from getworktree.commands.loop.command import loop_run_command, loop_show_command
-from getworktree.commands.sandbox.command import sandbox_list_command
+from getworktree.commands.sandbox.command import (
+    sandbox_list_command,
+    sandbox_show_command,
+)
 from getworktree.commands.status.command import status_command
 from getworktree.core.db import SandboxStatus
 
@@ -209,6 +212,14 @@ def sandbox_list(
 ):
     """List tracked sandboxes and their lifecycle status."""
     sandbox_list_command(status=status.value if status is not None else None)
+
+
+@sandbox_app.command("show")
+def sandbox_show(
+    sandbox_id: str = typer.Argument(..., help="Sandbox id to show."),
+):
+    """Show full detail for one tracked sandbox."""
+    sandbox_show_command(sandbox_id)
 
 
 if __name__ == "__main__":
