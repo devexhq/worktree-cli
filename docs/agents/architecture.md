@@ -78,8 +78,8 @@ Typed surface:
 
 Helpers call `init_database` first (same pattern as `record_token_usage`).
 Duplicate `id` on insert raises `ValueError`. Missing ids return `None` /
-`False` rather than raising. No CLI and no `git_sandbox.py` writes yet — storage
-layer only.
+`False` rather than raising. No CLI yet — `git_sandbox.py` owns create/cleanup
+writes (below).
 
 ## Sandboxes
 
@@ -95,13 +95,19 @@ own the V1 sandbox lifecycle used by loop execution.
 ### Create
 - Primary API: `create_sandbox_result` → `SandboxCreateResult` (`ok` /
   `capacity_exceeded` / `git_failed` / `git_timeout` / `not_initialized` /
-  `unreadable_config` / `wip_failed`)
+  `unreadable_config` / `wip_failed`; optional `warnings` never affect `ok`)
 - `create_sandbox` is a thin raise-on-error wrapper over the result API
 - Base ref: current branch when it is a real branch name; otherwise
   `sandbox.base_ref` from config (default `HEAD`)
+- After successful `git worktree add`, resolve `base_commit` via
+  `git rev-parse HEAD` in the sandbox (required on `SandboxSession`). Failure
+  is `git_failed` / `git_timeout` and the partial worktree is discarded
+- Optional `name=` (stripped; whitespace-only → `None`) stored on the session
 - Optional `include_wip=True`: after worktree create, overlay uncommitted
   tracked + untracked (non-ignored) paths from the primary checkout into the
   sandbox (`apply_wip_to_sandbox`). Default remains committed tip only.
+- On successful create, best-effort `insert_sandbox(...)` with
+  `cwd=self.cwd` (`status=active`). DB failures append to `warnings` only
 - Refuses create when active sandbox **directories** ≥
   `sandbox.max_active_sandboxes` (default `3`) without leaving a partial
   session claim on the capacity path
@@ -123,8 +129,9 @@ own the V1 sandbox lifecycle used by loop execution.
 | true | true | None | yes (unclassified / aborted early) |
 
 `cleanup_sandbox` is idempotent: `git worktree remove` (force by default),
-best-effort `git branch -D`, then `git worktree prune`. Partial state (missing
-dir or branch) must not raise.
+best-effort `update_sandbox_status(..., CLEANED)` (DB errors swallowed; missing
+row is fine), best-effort `git branch -D`, then `git worktree prune`. Partial
+state (missing dir or branch) must not raise.
 
 ### Context manager
 `sandbox_scope(cwd, session_id=None, *, auto_clean=None, keep_on_failure=None)`

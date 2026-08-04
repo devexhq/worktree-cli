@@ -84,6 +84,7 @@ def _session(path: Path, sid: str = "sbx_test01") -> SandboxSession:
         session_id=sid,
         target_branch=f"worktree/sandbox-{sid}",
         sandbox_path=path,
+        base_commit="abc123def456",
         created_at="2026-01-01T00:00:00+00:00",
     )
 
