@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import threading
 from pathlib import Path
 
@@ -45,13 +46,14 @@ def _loop(
     stop_when: list[str] | None = None,
     auto_clean: bool = False,
     keep_on_failure: bool = True,
+    provider: str = "local",
 ) -> LoopDefinition:
     return LoopDefinition(
         version=1,
         name="fix-tests",
         description="test loop",
         trigger=LoopTrigger(command="true", args=[], timeout_seconds=10),
-        agent=LoopAgent(provider="local", mode="fix_failure", timeout_seconds=10),
+        agent=LoopAgent(provider=provider, mode="fix_failure", timeout_seconds=10),
         iteration=LoopIteration(
             max_attempts=max_attempts,
             stop_when=stop_when or ["trigger_passes", "unfixable", "user_abort"],
@@ -122,9 +124,10 @@ class _FakeAgent:
     def __init__(self, responses: list[AgentResponse]) -> None:
         self._responses = list(responses)
         self.calls = 0
+        self.requests: list[AgentRequest] = []
 
     def propose_fix(self, request: AgentRequest) -> AgentResponse:
-        _ = request
+        self.requests.append(request)
         if self.calls >= len(self._responses):
             return AgentResponse(
                 status=AgentResponseStatus.PROVIDER_ERROR,
@@ -159,6 +162,7 @@ def _run(
     require_before_apply: bool | None = None,
     discard_mutation_fn=None,
     spy: dict[str, list] | None = None,
+    prompt_dump_dir: Path | None = None,
 ):
     loop = loop or _loop()
     config = config or _config()
@@ -230,6 +234,7 @@ def _run(
         create_sandbox_fn=create_fn,
         cleanup_sandbox_fn=cleaned.append,
         require_before_apply=require_before_apply,
+        prompt_dump_dir=prompt_dump_dir,
     )
     return result, agent, cleaned
 
@@ -615,6 +620,68 @@ class RunLoopIterationTests:
         )
         assert events["agent"]["errors"] == ["cannot fix"]
         assert result.attempts[0].errors.count("cannot fix") == 1
+
+    def test_prompt_dump_writes_local_agent_input(
+        self, sandbox: Path, tmp_path: Path
+    ) -> None:
+        dump_dir = tmp_path / "dumps"
+        result, agent, _ = _run(
+            sandbox=sandbox,
+            loop=_loop(max_attempts=1, provider="local"),
+            triggers=[_trigger(TriggerRunStatus.FAILED)],
+            agent_responses=[
+                AgentResponse(status=AgentResponseStatus.NO_OP, duration_ms=1)
+            ],
+            prompt_dump_dir=dump_dir,
+        )
+        assert result.status == LoopFinalStatus.FAILED
+        assert len(agent.requests) == 1
+        dump_file = dump_dir / "wt-agent-prompt-sbx_test01-attempt-01.json"
+        assert dump_file.exists()
+        dumped = dump_file.read_text(encoding="utf-8")
+        expected = json.dumps(
+            agent.requests[0].model_dump(mode="json"),
+            indent=2,
+            ensure_ascii=False,
+        )
+        assert dumped == expected + "\n"
+
+    def test_prompt_dump_emits_event(self, sandbox: Path, tmp_path: Path) -> None:
+        events: list[tuple[str, dict]] = []
+
+        def on_event(name: str, payload: dict) -> None:
+            events.append((name, payload))
+
+        run_loop_iteration(
+            loop=_loop(max_attempts=1, provider="local"),
+            cwd=sandbox.parent,
+            config=_config(),
+            agent=_FakeAgent(
+                [AgentResponse(status=AgentResponseStatus.NO_OP, duration_ms=1)]
+            ),
+            list_changed_files=lambda _p: [],
+            run_trigger_fn=lambda **_k: _trigger(TriggerRunStatus.FAILED),
+            apply_patch_fn=lambda **_k: PatchApplyResult(
+                status=PatchApplyStatus.APPLIED
+            ),
+            build_payload_fn=lambda **_k: _payload(),
+            create_sandbox_fn=lambda: SandboxCreateResult(
+                status=SandboxCreateStatus.OK,
+                session=_session(sandbox),
+            ),
+            cleanup_sandbox_fn=lambda _s: None,
+            on_event=on_event,
+            prompt_dump_dir=tmp_path / "dumps",
+        )
+        names = [name for name, _ in events]
+        assert "agent_prompt_dumped" in names
+        dump_payload = next(
+            payload for name, payload in events if name == "agent_prompt_dumped"
+        )
+        assert dump_payload["provider"] == "local"
+        assert dump_payload["path"].endswith(
+            "wt-agent-prompt-sbx_test01-attempt-01.json"
+        )
 
 
 class DirectMutationProviderTests:

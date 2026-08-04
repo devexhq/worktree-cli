@@ -11,6 +11,7 @@ from typing import Any
 import typer
 
 from getworktree.commands.loop.renderers import (
+    build_patch_review_panel,
     exit_code_for_status,
     format_progress_event,
     format_run_output,
@@ -102,11 +103,11 @@ def _make_approve_callback(
     *,
     attempt_holder: dict[str, int],
 ) -> Callable[[str], bool]:
-    """Build an approval callback using console input (non-TTY → deny)."""
+    """Build an approval callback that shows the diff, then prompts (non-TTY → deny)."""
 
     def approve_patch(diff: str) -> bool:
-        _ = diff
         attempt = attempt_holder.get("attempt", 1)
+        rich_output.console.print(build_patch_review_panel(diff))
         prompt = f"Apply agent patch for attempt {attempt}? [y/N]"
         if not sys.stdin.isatty():
             rich_output.info(prompt)
@@ -126,6 +127,7 @@ def loop_run_command(
     keep: bool | None = None,
     approve_each: bool | None = None,
     wip: bool = False,
+    dump_prompt: bool = False,
     cwd: Path | None = None,
     run_loop_fn: Callable[..., LoopRunResult] | None = None,
 ) -> None:
@@ -137,6 +139,7 @@ def loop_run_command(
         keep: When True, force ``auto_clean=False``; when False/None, leave default.
         approve_each: When set, override loop approval.require_before_apply.
         wip: When True, overlay uncommitted working-tree changes into sandbox.
+        dump_prompt: When True, dump provider-specific agent input to ``/tmp``.
         cwd: Repository root.
         run_loop_fn: Injectable controller (tests); defaults to
             ``run_loop_iteration``.
@@ -188,6 +191,7 @@ def loop_run_command(
 
     auto_clean: bool | None = False if keep is True else None
     require_before_apply: bool | None = approve_each
+    prompt_dump_dir = Path("/tmp") if dump_prompt else None
 
     attempt_holder: dict[str, int] = {"attempt": 1}
     streamed_progress = False
@@ -237,6 +241,7 @@ def loop_run_command(
             session_timeout_seconds=config.sandbox.default_timeout_seconds,
             detect_repeat_failures=config.loop.detect_repeat_failures,
             include_wip=wip,
+            prompt_dump_dir=prompt_dump_dir,
         )
     except KeyboardInterrupt:
         abort_event.set()

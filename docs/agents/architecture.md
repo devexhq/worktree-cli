@@ -150,11 +150,18 @@ Identity fields always set: `command`, `args`, `trigger_status`, `exit_code`,
 `timed_out`, `duration_ms`. `include=[]` yields identity only.
 
 ### Caps (defaults)
-- `max_trigger_chars=80_000` per stream; truncated streams append
-  `\n...[truncated, original_chars=<n>]`
+- `max_trigger_chars=20_000` per stream; truncated streams keep the **tail**
+  (failure details are usually at the end) and prefix
+  `...[truncated, original_chars=<n>]\n`
 - `max_files=20`, `max_file_bytes=64_000` for `relevant_source`
-- Candidate paths: regex extract from trigger streams (common source suffixes)
-  ∪ caller `changed_files`; normalized under sandbox; sorted; de-duped
+- Candidate paths for `relevant_source`:
+  1. Prefer failing test files inferred from trigger output (pytest
+     `FAILED`/`ERROR` node lines, else `file.py:line` markers)
+  2. If none found: regex extract from trigger streams (common source
+     suffixes) ∪ caller `changed_files`
+  Paths are normalized under sandbox, de-duped, then sorted
+- When failing test files are identified, only those files are attached
+  (a single failing test → one source file), not the full changed-file set
 - Skips recorded in `omissions` with reason:
   `missing` | `outside_sandbox` | `directory` | `binary` | `max_files` |
   `max_file_bytes`
@@ -378,9 +385,10 @@ in [renderers.py](../../getworktree/commands/loop/renderers.py) (no bare `print`
 ### Live progress
 The CLI registers `on_event` and prints plain progress as the controller emits:
 `session_start`, `attempt_start`, `trigger_start` / `trigger`, `agent_start` /
-`agent`, `patch_start` / `patch`. Start events use a `running...` line so long
-triggers/agents do not look stalled. After the run, only the summary is reprinted
-(attempt blocks are not duplicated when progress streamed).
+`agent`, `patch_start` / `patch` (plus optional prompt-dump events when enabled).
+Start events use a `running...` line so long triggers/agents do not look stalled.
+After the run, only the summary is reprinted (attempt blocks are not duplicated
+when progress streamed).
 
 ### Flags
 - `--max-attempts INT` (≥1) → controller `caller_max_attempts`
@@ -389,6 +397,17 @@ triggers/agents do not look stalled. After the run, only the summary is reprinte
   loop `approval.require_before_apply` (non-TTY deny)
 - `--wip / --no-wip` → overlay uncommitted working-tree changes into the sandbox
   (tracked + untracked, not ignored); default off
+- `--dump-prompt / --no-dump-prompt` → dump provider-specific agent input to
+  `/tmp/wt-agent-prompt-<session>-attempt-<nn>.(txt|json)` before each agent call
+
+### Approval prompt
+When the approval gate is on, the CLI prints a bordered `rich.panel.Panel`
+review block (`build_patch_review_panel` in
+[renderers.py](../../getworktree/commands/loop/renderers.py)) before the y/N
+prompt: touched files, `+/-` line stats in the title, and the unified diff body
+(truncated after 200 lines) with added lines in green, removed lines in red,
+hunk headers in cyan, and file headers bold. Non-TTY stdin still prints the
+panel, then denies.
 
 ### Exit codes
 | Final status | Exit |

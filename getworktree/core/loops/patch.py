@@ -318,6 +318,37 @@ def _run_git_apply(
     return completed.returncode == 0, detail
 
 
+def summarize_unified_diff(unified_diff: str) -> tuple[list[str], int, int]:
+    """Summarize touched paths and line change counts from a unified diff.
+
+    Line stats count content lines that start with ``+`` / ``-``, excluding
+    file headers (``+++`` / ``---``). Unparseable diffs return an empty path
+    list with whatever line stats could still be counted from the text.
+
+    Args:
+        unified_diff: Full unified diff text.
+
+    Returns:
+        ``(touched_files, additions, deletions)`` where ``touched_files`` is
+        sorted and unique when headers parse cleanly, else empty.
+    """
+    text = unified_diff if isinstance(unified_diff, str) else ""
+    additions = 0
+    deletions = 0
+    for line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+        if line.startswith("+") and not line.startswith("+++"):
+            additions += 1
+        elif line.startswith("-") and not line.startswith("---"):
+            deletions += 1
+
+    touched, _, parse_error = (
+        _parse_unified_diff(text) if text.strip() else ([], [], None)
+    )
+    if parse_error is not None:
+        return [], additions, deletions
+    return list(touched), additions, deletions
+
+
 def validate_patch_text(
     unified_diff: str,
     *,

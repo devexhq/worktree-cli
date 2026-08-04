@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import io
 import subprocess
 from pathlib import Path
 
 import pytest
+from rich.console import Console
 from typer.main import get_command
 from typer.testing import CliRunner
 
 from getworktree.cli import app
 from getworktree.commands.loop.renderers import (
+    build_patch_review_panel,
     exit_code_for_status,
     format_attempt_block,
     format_progress_event,
@@ -184,6 +187,14 @@ class RendererTests:
             {"status": "applied", "touched_files": ["a.py", "b.py"]},
         )
         assert patch == "  Patch:   applied (2 files)\n"
+        dumped = format_progress_event(
+            "agent_prompt_dumped",
+            {"path": "/tmp/wt-agent-prompt-sbx_deadbeef-attempt-01.txt"},
+        )
+        assert (
+            dumped
+            == "  Agent:   prompt dumped to /tmp/wt-agent-prompt-sbx_deadbeef-attempt-01.txt\n"
+        )
         assert format_progress_event("unknown", {}) is None
 
     def test_progress_event_lines_include_error_detail(self) -> None:
@@ -227,6 +238,63 @@ class RendererTests:
             "agent", {"status": "proposed_patch", "duration_ms": 3100}
         )
         assert no_errors == "  Agent:   proposed_patch 3.1s\n"
+
+    def test_patch_review_panel_shows_files_and_diff(self) -> None:
+        diff = (
+            "diff --git a/a.py b/a.py\n"
+            "--- a/a.py\n"
+            "+++ b/a.py\n"
+            "@@ -1,1 +1,2 @@\n"
+            "-old\n"
+            "+new\n"
+            "+extra\n"
+        )
+        panel = build_patch_review_panel(diff)
+        console = Console(
+            file=io.StringIO(), force_terminal=True, color_system="standard", width=100
+        )
+        console.print(panel)
+        out = console.file.getvalue()
+        assert "1 file, +2/-1" in out
+        assert "Files:" in out and "a.py" in out
+        assert "diff --git a/a.py b/a.py" in out
+        # Box border drawn around the panel.
+        assert "╭" in out and "╰" in out
+        # Additions green (32), deletions red (31).
+        assert "\x1b[32m+new" in out
+        assert "\x1b[31m-old" in out
+
+    def test_patch_review_panel_truncates_long_diff(self) -> None:
+        body_lines = [f"+line{i}\n" for i in range(10)]
+        diff = (
+            "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n@@ -0,0 +1,10 @@\n"
+            + "".join(body_lines)
+        )
+        panel = build_patch_review_panel(diff, max_diff_lines=5)
+        console = Console(
+            file=io.StringIO(), force_terminal=True, color_system="standard", width=100
+        )
+        console.print(panel)
+        out = console.file.getvalue()
+        assert "9 more line(s) truncated" in out
+        assert "line0" in out
+        assert "line9" not in out
+
+    def test_patch_review_panel_handles_unparseable_diff(self) -> None:
+        panel = build_patch_review_panel("not a real diff")
+        console = Console(file=io.StringIO(), force_terminal=True, width=100)
+        console.print(panel)
+        out = console.file.getvalue()
+        assert "0 files" in out
+        assert "unable to parse file list" in out
+        assert "not a real diff" in out
+
+    def test_patch_review_panel_handles_empty_diff(self) -> None:
+        panel = build_patch_review_panel("")
+        console = Console(file=io.StringIO(), force_terminal=True, width=100)
+        console.print(panel)
+        out = console.file.getvalue()
+        assert "(empty diff)" in out
 
     def test_attempt_block_failed_then_agent_patch(self) -> None:
         rec = AttemptRecord(
@@ -350,6 +418,8 @@ class LoopRunCliTests:
         assert "--no-approve-each" in opts
         assert "--wip" in opts
         assert "--no-wip" in opts
+        assert "--dump-prompt" in opts
+        assert "--no-dump-prompt" in opts
 
     def test_wip_flag_passed_to_controller(
         self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
@@ -371,6 +441,27 @@ class LoopRunCliTests:
         result = runner.invoke(app, ["loop", "run", "fix-tests", "--wip"])
         assert result.exit_code == 0
         assert captured.get("include_wip") is True
+
+    def test_dump_prompt_flag_passed_to_controller(
+        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(git_repo)
+        _init_with_loops(git_repo)
+        captured: dict[str, object] = {}
+
+        def fake_run(**kwargs):
+            captured.update(kwargs)
+            return _fixture_result(
+                LoopFinalStatus.PASSED, stop_reason="trigger_passed", attempts=[]
+            )
+
+        monkeypatch.setattr(
+            "getworktree.commands.loop.command.run_loop_iteration",
+            fake_run,
+        )
+        result = runner.invoke(app, ["loop", "run", "fix-tests", "--dump-prompt"])
+        assert result.exit_code == 0
+        assert captured.get("prompt_dump_dir") == Path("/tmp")
 
     def test_resolve_failure(
         self, git_repo: Path, monkeypatch: pytest.MonkeyPatch

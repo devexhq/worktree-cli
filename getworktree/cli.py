@@ -167,6 +167,14 @@ def loop_run(
             "(tracked + untracked; not ignored)."
         ),
     ),
+    dump_prompt: bool = typer.Option(
+        False,
+        "--dump-prompt/--no-dump-prompt",
+        help=(
+            "Dump provider-specific agent input to /tmp before each agent call "
+            "(debugging aid)."
+        ),
+    ),
 ):
     """Run a loop in an isolated git worktree sandbox."""
     loop_run_command(
@@ -175,6 +183,7 @@ def loop_run(
         keep=keep if keep else None,
         approve_each=approve_each,
         wip=wip,
+        dump_prompt=dump_prompt,
     )
 
 
