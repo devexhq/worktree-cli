@@ -199,6 +199,7 @@ def _session(path: Path) -> SandboxSession:
         session_id="sbx_safe01",
         target_branch="worktree/sandbox-sbx_safe01",
         sandbox_path=path,
+        base_commit="abc123def456",
         created_at="2026-01-01T00:00:00+00:00",
     )
 

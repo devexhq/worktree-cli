@@ -9,7 +9,9 @@ from pathlib import Path
 
 import pytest
 
+import getworktree.core.git_sandbox as git_sandbox_mod
 from getworktree.core.config.generator import generate_default_config
+from getworktree.core.db import SandboxStatus, get_sandbox
 from getworktree.core.git_sandbox import (
     GitPlumbingTimeoutError,
     GitSandboxManager,
@@ -215,6 +217,7 @@ class GitSandboxManagerTests:
             session_id="sbx_ghost",
             target_branch="worktree/sandbox-sbx_ghost",
             sandbox_path=manager.sandbox_base_dir / "sbx_ghost",
+            base_commit="0" * 40,
             created_at="2020-01-01T00:00:00+00:00",
         )
         manager.cleanup_sandbox(ghost)  # must not raise
@@ -236,6 +239,7 @@ class GitSandboxManagerTests:
                 session_id=session.session_id,
                 target_branch=session.target_branch,
                 sandbox_path=path,
+                base_commit=session.base_commit,
                 created_at=session.created_at,
             )
         )
@@ -262,6 +266,7 @@ class GitSandboxManagerTests:
                 session_id=session.session_id,
                 target_branch=session.target_branch,
                 sandbox_path=path,
+                base_commit=session.base_commit,
                 created_at=session.created_at,
             )
         )
@@ -338,3 +343,102 @@ class GitSandboxManagerTests:
         assert "f.txt" in result.session.wip_paths
         assert not (result.session.sandbox_path / "f.txt").exists()
         manager.cleanup_sandbox(result.session)
+
+    def test_base_commit_resolved_on_create(self, repo: Path) -> None:
+        expected = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        manager = GitSandboxManager(cwd=repo)
+        result = manager.create_sandbox_result(session_id="sbx_base")
+        assert result.ok and result.session is not None
+        assert result.session.base_commit == expected
+        manager.cleanup_sandbox(result.session)
+
+    def test_name_threading_and_whitespace_normalization(self, repo: Path) -> None:
+        manager = GitSandboxManager(cwd=repo)
+        named = manager.create_sandbox_result(session_id="sbx_name", name="  demo  ")
+        assert named.ok and named.session is not None
+        assert named.session.name == "demo"
+        manager.cleanup_sandbox(named.session)
+
+        blank = manager.create_sandbox_result(session_id="sbx_blank", name="   ")
+        assert blank.ok and blank.session is not None
+        assert blank.session.name is None
+        manager.cleanup_sandbox(blank.session)
+
+        none_name = manager.create_sandbox_result(session_id="sbx_noname")
+        assert none_name.ok and none_name.session is not None
+        assert none_name.session.name is None
+        manager.cleanup_sandbox(none_name.session)
+
+    def test_persists_active_row_on_create(self, repo: Path) -> None:
+        manager = GitSandboxManager(cwd=repo)
+        result = manager.create_sandbox_result(session_id="sbx_db1", name="persist-me")
+        assert result.ok and result.session is not None
+        assert result.warnings == []
+        row = get_sandbox("sbx_db1", cwd=repo)
+        assert row is not None
+        assert row.status == SandboxStatus.ACTIVE
+        assert row.name == "persist-me"
+        assert row.branch_name == result.session.target_branch
+        assert row.base_commit == result.session.base_commit
+        assert row.sandbox_path == result.session.sandbox_path
+        manager.cleanup_sandbox(result.session)
+
+    def test_marks_cleaned_on_cleanup(self, repo: Path) -> None:
+        manager = GitSandboxManager(cwd=repo)
+        session = manager.create_sandbox(session_id="sbx_db2")
+        assert get_sandbox("sbx_db2", cwd=repo) is not None
+        manager.cleanup_sandbox(session)
+        row = get_sandbox("sbx_db2", cwd=repo)
+        assert row is not None
+        assert row.status == SandboxStatus.CLEANED
+
+    def test_insert_failure_surfaces_as_warning(
+        self, repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def _boom(**_kwargs: object) -> object:
+            raise RuntimeError("db locked")
+
+        monkeypatch.setattr(git_sandbox_mod, "insert_sandbox", _boom)
+        manager = GitSandboxManager(cwd=repo)
+        result = manager.create_sandbox_result(session_id="sbx_warn")
+        assert result.ok and result.session is not None
+        assert result.session.sandbox_path.is_dir()
+        assert len(result.warnings) == 1
+        assert "db locked" in result.warnings[0]
+        assert get_sandbox("sbx_warn", cwd=repo) is None
+        manager.cleanup_sandbox(result.session)
+
+    def test_cleanup_without_db_row_does_not_raise(self, repo: Path) -> None:
+        manager = GitSandboxManager(cwd=repo)
+        ghost = SandboxSession(
+            session_id="sbx_norow",
+            target_branch="worktree/sandbox-sbx_norow",
+            sandbox_path=manager.sandbox_base_dir / "sbx_norow",
+            base_commit="0" * 40,
+            created_at="2020-01-01T00:00:00+00:00",
+        )
+        manager.cleanup_sandbox(ghost)  # must not raise
+
+    def test_rev_parse_failure_is_git_failed(
+        self, repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        manager = GitSandboxManager(cwd=repo)
+        real_run = manager._run_git_cmd
+
+        def _run(args: list[str], cwd: Path | None = None) -> str:
+            if args[:2] == ["rev-parse", "HEAD"]:
+                raise RuntimeError("rev-parse exploded")
+            return real_run(args, cwd=cwd)
+
+        monkeypatch.setattr(manager, "_run_git_cmd", _run)
+        result = manager.create_sandbox_result(session_id="sbx_rp")
+        assert result.status == SandboxCreateStatus.GIT_FAILED
+        assert result.session is None
+        assert "SANDBOX_GIT_FAILED" in result.errors[0]
+        assert not (manager.sandbox_base_dir / "sbx_rp").exists()
