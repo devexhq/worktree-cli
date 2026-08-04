@@ -400,6 +400,15 @@ when progress streamed).
 - `--dump-prompt / --no-dump-prompt` → dump provider-specific agent input to
   `/tmp/wt-agent-prompt-<session>-attempt-<nn>.(txt|json)` before each agent call
 
+### Approval prompt
+When the approval gate is on, the CLI prints a bordered `rich.panel.Panel`
+review block (`build_patch_review_panel` in
+[renderers.py](../../getworktree/commands/loop/renderers.py)) before the y/N
+prompt: touched files, `+/-` line stats in the title, and the unified diff body
+(truncated after 200 lines) with added lines in green, removed lines in red,
+hunk headers in cyan, and file headers bold. Non-TTY stdin still prints the
+panel, then denies.
+
 ### Exit codes
 | Final status | Exit |
 |--------------|------|

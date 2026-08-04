@@ -5,9 +5,15 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from rich.panel import Panel
+from rich.text import Text
+
+from getworktree.core.loops.patch import summarize_unified_diff
 from getworktree.core.loops.runner import AttemptRecord, LoopFinalStatus, LoopRunResult
 
 _SUMMARY_RULE = "── Loop run summary ───────────────────────────────────────────"
+# Keep approval prompts readable in a terminal without flooding the scrollback.
+DEFAULT_PATCH_PREVIEW_MAX_LINES = 200
 
 
 def exit_code_for_status(status: LoopFinalStatus) -> int:
@@ -76,6 +82,75 @@ def format_patch_line(
         label = "file" if n == 1 else "files"
         return f"  Patch:   applied ({n} {label})"
     return f"  Patch:   {status}"
+
+
+def _style_diff_line(line: str) -> Text:
+    """Style one diff body line: file headers bold, hunks cyan, +/- red/green."""
+    if line.startswith("+++") or line.startswith("---"):
+        return Text(line, style="bold")
+    if line.startswith("@@"):
+        return Text(line, style="cyan")
+    if line.startswith("+"):
+        return Text(line, style="green")
+    if line.startswith("-"):
+        return Text(line, style="red")
+    return Text(line)
+
+
+def build_patch_review_panel(
+    unified_diff: str,
+    *,
+    max_diff_lines: int = DEFAULT_PATCH_PREVIEW_MAX_LINES,
+) -> Panel:
+    """Build a bordered, colorized patch review panel shown before approval.
+
+    Panel title carries the touched-file count and ``+/-`` line stats; the
+    body lists touched files followed by the diff, with added lines in green,
+    removed lines in red, hunk headers in cyan, and file headers bold. Long
+    diffs are truncated after ``max_diff_lines`` body lines.
+
+    Args:
+        unified_diff: Agent-proposed unified diff text.
+        max_diff_lines: Maximum diff body lines to include before truncation.
+            Values below 1 are treated as 1.
+
+    Returns:
+        A ``rich.panel.Panel`` ready to pass to ``Console.print``.
+    """
+    limit = max(1, int(max_diff_lines))
+    touched, additions, deletions = summarize_unified_diff(unified_diff)
+    n_files = len(touched)
+    file_label = "file" if n_files == 1 else "files"
+
+    body = Text()
+    if touched:
+        body.append("Files: ", style="bold")
+        body.append(", ".join(touched))
+    else:
+        body.append(
+            "Files: (unable to parse file list from diff)", style="italic yellow"
+        )
+    body.append("\n\n")
+
+    diff_text = (unified_diff or "").replace("\r\n", "\n").replace("\r", "\n")
+    # Preserve a single trailing newline in the source as part of the body;
+    # split("\n") on a terminating newline yields one trailing empty segment.
+    raw_lines = diff_text.split("\n")
+    if raw_lines and raw_lines[-1] == "":
+        raw_lines = raw_lines[:-1]
+
+    if not raw_lines:
+        body.append("(empty diff)", style="dim italic")
+    else:
+        for line in raw_lines[:limit]:
+            body.append(_style_diff_line(line))
+            body.append("\n")
+        if len(raw_lines) > limit:
+            omitted = len(raw_lines) - limit
+            body.append(f"... ({omitted} more line(s) truncated)", style="dim italic")
+
+    title = f"Proposed patch — {n_files} {file_label}, +{additions}/-{deletions}"
+    return Panel(body, title=title, title_align="left", border_style="cyan")
 
 
 def format_error_lines(errors: list[str]) -> list[str]:

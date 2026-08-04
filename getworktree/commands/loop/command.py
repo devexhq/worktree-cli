@@ -11,6 +11,7 @@ from typing import Any
 import typer
 
 from getworktree.commands.loop.renderers import (
+    build_patch_review_panel,
     exit_code_for_status,
     format_progress_event,
     format_run_output,
@@ -102,11 +103,11 @@ def _make_approve_callback(
     *,
     attempt_holder: dict[str, int],
 ) -> Callable[[str], bool]:
-    """Build an approval callback using console input (non-TTY → deny)."""
+    """Build an approval callback that shows the diff, then prompts (non-TTY → deny)."""
 
     def approve_patch(diff: str) -> bool:
-        _ = diff
         attempt = attempt_holder.get("attempt", 1)
+        rich_output.console.print(build_patch_review_panel(diff))
         prompt = f"Apply agent patch for attempt {attempt}? [y/N]"
         if not sys.stdin.isatty():
             rich_output.info(prompt)

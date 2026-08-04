@@ -11,6 +11,7 @@ from getworktree.core.loops.patch import (
     PatchApplyResult,
     PatchApplyStatus,
     apply_patch_result,
+    summarize_unified_diff,
 )
 
 
@@ -291,3 +292,36 @@ class ApplyPatchResultTests:
                 max_patch_kb=1024,
             )
             assert isinstance(result, PatchApplyResult)
+
+
+class SummarizeUnifiedDiffTests:
+    def test_counts_files_and_line_stats(self) -> None:
+        diff = _mod_diff(old="a\nb\n", new="a\nc\nd\n", path="pkg/mod.py")
+        touched, additions, deletions = summarize_unified_diff(diff)
+        assert touched == ["pkg/mod.py"]
+        assert additions == 3
+        assert deletions == 2
+
+    def test_multi_file_sorted_unique(self) -> None:
+        diff = _multi_file_diff(["z_last.txt", "a_first.txt"])
+        touched, _, _ = summarize_unified_diff(diff)
+        assert touched == ["a_first.txt", "z_last.txt"]
+
+    def test_unparseable_diff_returns_empty_files(self) -> None:
+        touched, additions, deletions = summarize_unified_diff("not a diff")
+        assert touched == []
+        assert additions == 0
+        assert deletions == 0
+
+    def test_empty_diff(self) -> None:
+        assert summarize_unified_diff("") == ([], 0, 0)
+
+    def test_header_lines_excluded_from_stats(self) -> None:
+        diff = _mod_diff(old="x\n", new="y\n", path="pkg/mod.py")
+        # Header lines start with "---"/"+++" and must not be counted as
+        # content additions/deletions.
+        assert "--- a/pkg/mod.py" in diff
+        assert "+++ b/pkg/mod.py" in diff
+        _, additions, deletions = summarize_unified_diff(diff)
+        assert additions == 1
+        assert deletions == 1

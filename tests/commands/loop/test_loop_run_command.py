@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import io
 import subprocess
 from pathlib import Path
 
 import pytest
+from rich.console import Console
 from typer.main import get_command
 from typer.testing import CliRunner
 
 from getworktree.cli import app
 from getworktree.commands.loop.renderers import (
+    build_patch_review_panel,
     exit_code_for_status,
     format_attempt_block,
     format_progress_event,
@@ -235,6 +238,63 @@ class RendererTests:
             "agent", {"status": "proposed_patch", "duration_ms": 3100}
         )
         assert no_errors == "  Agent:   proposed_patch 3.1s\n"
+
+    def test_patch_review_panel_shows_files_and_diff(self) -> None:
+        diff = (
+            "diff --git a/a.py b/a.py\n"
+            "--- a/a.py\n"
+            "+++ b/a.py\n"
+            "@@ -1,1 +1,2 @@\n"
+            "-old\n"
+            "+new\n"
+            "+extra\n"
+        )
+        panel = build_patch_review_panel(diff)
+        console = Console(
+            file=io.StringIO(), force_terminal=True, color_system="standard", width=100
+        )
+        console.print(panel)
+        out = console.file.getvalue()
+        assert "1 file, +2/-1" in out
+        assert "Files:" in out and "a.py" in out
+        assert "diff --git a/a.py b/a.py" in out
+        # Box border drawn around the panel.
+        assert "╭" in out and "╰" in out
+        # Additions green (32), deletions red (31).
+        assert "\x1b[32m+new" in out
+        assert "\x1b[31m-old" in out
+
+    def test_patch_review_panel_truncates_long_diff(self) -> None:
+        body_lines = [f"+line{i}\n" for i in range(10)]
+        diff = (
+            "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n@@ -0,0 +1,10 @@\n"
+            + "".join(body_lines)
+        )
+        panel = build_patch_review_panel(diff, max_diff_lines=5)
+        console = Console(
+            file=io.StringIO(), force_terminal=True, color_system="standard", width=100
+        )
+        console.print(panel)
+        out = console.file.getvalue()
+        assert "9 more line(s) truncated" in out
+        assert "line0" in out
+        assert "line9" not in out
+
+    def test_patch_review_panel_handles_unparseable_diff(self) -> None:
+        panel = build_patch_review_panel("not a real diff")
+        console = Console(file=io.StringIO(), force_terminal=True, width=100)
+        console.print(panel)
+        out = console.file.getvalue()
+        assert "0 files" in out
+        assert "unable to parse file list" in out
+        assert "not a real diff" in out
+
+    def test_patch_review_panel_handles_empty_diff(self) -> None:
+        panel = build_patch_review_panel("")
+        console = Console(file=io.StringIO(), force_terminal=True, width=100)
+        console.print(panel)
+        out = console.file.getvalue()
+        assert "(empty diff)" in out
 
     def test_attempt_block_failed_then_agent_patch(self) -> None:
         rec = AttemptRecord(
