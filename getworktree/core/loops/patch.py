@@ -9,6 +9,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from getworktree.common.constants import GIT_SUBPROCESS_TIMEOUT_SECONDS
+
 _DIFF_GIT_RE = re.compile(r"^diff --git a/(.+) b/(.+)$")
 _MINUS_RE = re.compile(r"^--- (?:a/)?(.+)$")
 _PLUS_RE = re.compile(r"^\+\+\+ (?:b/)?(.+)$")
@@ -33,6 +35,7 @@ class PatchApplyStatus(StrEnum):
     UNSAFE_PATH = "unsafe_path"
     INVALID_DIFF = "invalid_diff"
     CONFLICT = "conflict"
+    GIT_TIMEOUT = "git_timeout"
     SANDBOX_MISSING = "sandbox_missing"
 
 
@@ -219,8 +222,12 @@ def _run_git_apply(
     sandbox_path: Path,
     unified_diff: str,
     check_only: bool,
-) -> tuple[bool, str]:
-    """Run ``git apply`` in the sandbox. Return (success, detail text)."""
+) -> tuple[bool, str, bool]:
+    """Run ``git apply`` in the sandbox.
+
+    Returns:
+        ``(success, detail_text, timed_out)``.
+    """
     cmd = ["git", "apply", "--verbose"]
     if check_only:
         cmd.append("--check")
@@ -231,9 +238,16 @@ def _run_git_apply(
             cwd=str(sandbox_path),
             capture_output=True,
             check=False,
+            timeout=GIT_SUBPROCESS_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        return (
+            False,
+            f"git apply timed out after {GIT_SUBPROCESS_TIMEOUT_SECONDS}s",
+            True,
         )
     except OSError as exc:
-        return False, str(exc)
+        return False, str(exc), False
 
     detail_parts: list[str] = []
     stderr = completed.stderr.decode("utf-8", errors="replace").strip()
@@ -245,7 +259,7 @@ def _run_git_apply(
     detail = (
         "\n".join(detail_parts).strip() or f"git apply exited {completed.returncode}"
     )
-    return completed.returncode == 0, detail
+    return completed.returncode == 0, detail, False
 
 
 def summarize_unified_diff(unified_diff: str) -> tuple[list[str], int, int]:
@@ -433,11 +447,24 @@ def apply_patch_result(
     if validation.status != PatchApplyStatus.CHECKED_OK:
         return validation
 
-    success, detail = _run_git_apply(
+    success, detail, timed_out = _run_git_apply(
         sandbox_path=sandbox_path,
         unified_diff=unified_diff,
         check_only=check_only,
     )
+    if timed_out:
+        return PatchApplyResult(
+            status=PatchApplyStatus.GIT_TIMEOUT,
+            touched_files=list(validation.touched_files),
+            errors=[
+                f"git apply timed out after {GIT_SUBPROCESS_TIMEOUT_SECONDS}s "
+                f"(PATCH_GIT_TIMEOUT).\n"
+                f"Detail:\n{detail}\n"
+                "Fix:\n"
+                "- check for git lock files or a stuck git process in the "
+                "sandbox, then retry"
+            ],
+        )
     if not success:
         return PatchApplyResult(
             status=PatchApplyStatus.CONFLICT,

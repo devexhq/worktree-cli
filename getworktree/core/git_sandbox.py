@@ -13,9 +13,14 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from getworktree.common.constants import GIT_SUBPROCESS_TIMEOUT_SECONDS
 from getworktree.core.config.context import get_current_git_branch
 from getworktree.core.config.loader import ConfigLoadStatus, load_config_result
 from getworktree.core.config.models import WorktreeConfig
+
+
+class GitPlumbingTimeoutError(RuntimeError):
+    """Raised when an internal git plumbing subprocess exceeds its timeout."""
 
 
 class SandboxSession(BaseModel):
@@ -38,6 +43,7 @@ class SandboxCreateStatus(StrEnum):
     OK = "ok"
     CAPACITY_EXCEEDED = "capacity_exceeded"
     GIT_FAILED = "git_failed"
+    GIT_TIMEOUT = "git_timeout"
     NOT_INITIALIZED = "not_initialized"
     UNREADABLE_CONFIG = "unreadable_config"
     WIP_FAILED = "wip_failed"
@@ -98,7 +104,13 @@ def _list_wip_paths(repo_root: Path) -> list[str]:
             capture_output=True,
             text=True,
             check=True,
+            timeout=GIT_SUBPROCESS_TIMEOUT_SECONDS,
         )
+    except subprocess.TimeoutExpired as exc:
+        raise GitPlumbingTimeoutError(
+            f"Git timed out after {GIT_SUBPROCESS_TIMEOUT_SECONDS}s "
+            f"('git status --porcelain -u') (GIT_TIMEOUT)"
+        ) from exc
     except (FileNotFoundError, subprocess.CalledProcessError):
         return []
 
@@ -208,11 +220,17 @@ class GitSandboxManager:
                 capture_output=True,
                 text=True,
                 check=True,
+                timeout=GIT_SUBPROCESS_TIMEOUT_SECONDS,
             )
             return result.stdout.strip()
         except FileNotFoundError as exc:
             raise RuntimeError(
                 f"Git execution failed ('git {' '.join(args)}'): git not found"
+            ) from exc
+        except subprocess.TimeoutExpired as exc:
+            raise GitPlumbingTimeoutError(
+                f"Git timed out after {GIT_SUBPROCESS_TIMEOUT_SECONDS}s "
+                f"('git {' '.join(args)}') (GIT_TIMEOUT)"
             ) from exc
         except subprocess.CalledProcessError as exc:
             err_msg = exc.stderr.strip() or exc.stdout.strip() or str(exc)
@@ -325,6 +343,18 @@ class GitSandboxManager:
                     base_ref,
                 ]
             )
+        except GitPlumbingTimeoutError as exc:
+            self._discard_partial_sandbox(sandbox_path, temp_branch)
+            return SandboxCreateResult(
+                status=SandboxCreateStatus.GIT_TIMEOUT,
+                errors=[
+                    f"Git worktree operation timed out "
+                    f"(SANDBOX_GIT_TIMEOUT): {exc}\n"
+                    "Fix:\n"
+                    "- check for git lock files, credential prompts, or a "
+                    "stuck git process, then retry"
+                ],
+            )
         except RuntimeError as exc:
             self._discard_partial_sandbox(sandbox_path, temp_branch)
             return SandboxCreateResult(
@@ -343,6 +373,19 @@ class GitSandboxManager:
                 wip_paths = apply_wip_to_sandbox(
                     source_root=self.cwd,
                     sandbox_path=sandbox_path,
+                )
+            except GitPlumbingTimeoutError as exc:
+                self._discard_partial_sandbox(sandbox_path, temp_branch)
+                return SandboxCreateResult(
+                    status=SandboxCreateStatus.GIT_TIMEOUT,
+                    errors=[
+                        f"Git timed out while overlaying uncommitted WIP "
+                        f"(SANDBOX_GIT_TIMEOUT): {exc}\n"
+                        "Fix:\n"
+                        "- check for git lock files or a stuck git process, "
+                        "then retry, or\n"
+                        "- omit --wip and commit changes first"
+                    ],
                 )
             except RuntimeError as exc:
                 self._discard_partial_sandbox(sandbox_path, temp_branch)

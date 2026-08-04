@@ -7,6 +7,7 @@ from pathlib import Path
 
 from rich.console import Console
 
+from getworktree.common.constants import GIT_SUBPROCESS_TIMEOUT_SECONDS
 from getworktree.core.config.loader import load_config
 from getworktree.core.config.models import WorktreeContext
 
@@ -22,6 +23,7 @@ def get_current_git_branch(cwd: Path) -> str:
             capture_output=True,
             text=True,
             check=True,
+            timeout=GIT_SUBPROCESS_TIMEOUT_SECONDS,
         )
         branch = result.stdout.strip()
         return branch if branch else "HEAD (detached)"

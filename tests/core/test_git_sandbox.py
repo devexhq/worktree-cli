@@ -11,6 +11,7 @@ import pytest
 
 from getworktree.core.config.generator import generate_default_config
 from getworktree.core.git_sandbox import (
+    GitPlumbingTimeoutError,
     GitSandboxManager,
     SandboxCreateStatus,
     SandboxSession,
@@ -183,6 +184,24 @@ class GitSandboxManagerTests:
         assert result.session is None
         assert "SANDBOX_GIT_FAILED" in result.errors[0]
         assert not (manager.sandbox_base_dir / "sbx_badref").exists()
+
+    def test_git_timeout_on_worktree_add(
+        self, repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        manager = GitSandboxManager(cwd=repo)
+
+        def _timeout(args: list[str], cwd: Path | None = None) -> str:
+            raise GitPlumbingTimeoutError(
+                f"Git timed out after 120s ('git {' '.join(args)}') (GIT_TIMEOUT)"
+            )
+
+        monkeypatch.setattr(manager, "_run_git_cmd", _timeout)
+        result = manager.create_sandbox_result(session_id="sbx_to")
+        assert result.status == SandboxCreateStatus.GIT_TIMEOUT
+        assert result.session is None
+        assert "SANDBOX_GIT_TIMEOUT" in result.errors[0]
+        assert "GIT_TIMEOUT" in result.errors[0]
+        assert not (manager.sandbox_base_dir / "sbx_to").exists()
 
     def test_cleanup_idempotent(self, repo: Path) -> None:
         manager = GitSandboxManager(cwd=repo)

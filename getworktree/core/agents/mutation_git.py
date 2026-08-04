@@ -12,6 +12,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+from getworktree.common.constants import GIT_SUBPROCESS_TIMEOUT_SECONDS
+
 
 class MutationGitError(RuntimeError):
     """Raised when a sandbox git operation for a direct-mutation provider fails."""
@@ -24,7 +26,13 @@ def _run_git(args: list[str], *, cwd: Path) -> subprocess.CompletedProcess[bytes
             cwd=str(cwd),
             capture_output=True,
             check=False,
+            timeout=GIT_SUBPROCESS_TIMEOUT_SECONDS,
         )
+    except subprocess.TimeoutExpired as exc:
+        raise MutationGitError(
+            f"git {' '.join(args)} timed out after "
+            f"{GIT_SUBPROCESS_TIMEOUT_SECONDS}s (GIT_TIMEOUT)"
+        ) from exc
     except OSError as exc:
         raise MutationGitError(f"failed to run git {' '.join(args)}: {exc}") from exc
 

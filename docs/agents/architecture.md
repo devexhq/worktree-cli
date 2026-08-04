@@ -67,8 +67,8 @@ own the V1 sandbox lifecycle used by loop execution.
 
 ### Create
 - Primary API: `create_sandbox_result` → `SandboxCreateResult` (`ok` /
-  `capacity_exceeded` / `git_failed` / `not_initialized` / `unreadable_config` /
-  `wip_failed`)
+  `capacity_exceeded` / `git_failed` / `git_timeout` / `not_initialized` /
+  `unreadable_config` / `wip_failed`)
 - `create_sandbox` is a thin raise-on-error wrapper over the result API
 - Base ref: current branch when it is a real branch name; otherwise
   `sandbox.base_ref` from config (default `HEAD`)
@@ -78,6 +78,11 @@ own the V1 sandbox lifecycle used by loop execution.
 - Refuses create when active sandbox **directories** ≥
   `sandbox.max_active_sandboxes` (default `3`) without leaving a partial
   session claim on the capacity path
+- Internal git plumbing (`worktree add/remove`, `branch -D`, `status` for WIP)
+  uses `GIT_SUBPROCESS_TIMEOUT_SECONDS` (120s) from
+  [getworktree/common/constants.py](../../getworktree/common/constants.py).
+  Expiry → `git_timeout` / `SANDBOX_GIT_TIMEOUT` (distinct from trigger/agent
+  timeouts; session timeout still does not cancel in-flight trigger/agent)
 
 ### Cleanup policy
 `should_cleanup_sandbox(auto_clean, keep_on_failure, command_passed)`:
@@ -191,13 +196,14 @@ reject_binary_changes=True, check_only=False) -> PatchApplyResult`
 ### Apply
 Uses `git apply --verbose` with `cwd=sandbox_path` (no `--unsafe-paths`).
 `check_only=True` adds `--check` and does not write. `git apply` reject is
-atomic (working tree unchanged on failure) → status `conflict`. Success →
-`applied` or `checked_ok` with sorted unique POSIX `touched_files`.
+atomic (working tree unchanged on failure) → status `conflict`. `git apply`
+wall-clock capped by `GIT_SUBPROCESS_TIMEOUT_SECONDS` (120s) → `git_timeout`.
+Success → `applied` or `checked_ok` with sorted unique POSIX `touched_files`.
 
 ### Statuses
 `applied` | `checked_ok` | `empty_diff` | `too_large` | `too_many_files` |
 `binary_rejected` | `unsafe_path` | `invalid_diff` | `conflict` |
-`sandbox_missing` (`ok` only for `applied` / `checked_ok`).
+`git_timeout` | `sandbox_missing` (`ok` only for `applied` / `checked_ok`).
 
 ## Agent adapter
 
