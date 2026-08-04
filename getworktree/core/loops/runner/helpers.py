@@ -57,20 +57,6 @@ def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def _approval_callback_missing_error() -> str:
-    return (
-        "approval.require_before_apply is true but no approve_patch callback "
-        "was provided (approval_callback_missing).\n"
-        "Fix:\n"
-        "- pass approve_patch=... to run_loop_iteration, or\n"
-        "- set approval.require_before_apply false on the loop/config"
-    )
-
-
-def _configuration_error(detail: str) -> str:
-    return f"Loop run configuration error: {detail}"
-
-
 def resolve_max_attempts(
     *,
     loop: LoopDefinition,

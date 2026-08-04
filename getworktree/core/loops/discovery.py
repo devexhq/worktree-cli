@@ -50,19 +50,6 @@ def _resolve_path(path: Path | str, *, cwd: Path) -> Path:
     return candidate.resolve()
 
 
-def _error_config_unavailable(messages: list[str]) -> str:
-    detail = "; ".join(msg.splitlines()[0] for msg in messages if msg) or (
-        "configuration could not be loaded"
-    )
-    return (
-        f"Loop directory could not be resolved from config: {detail} "
-        f"(LOOP_CONFIG_UNAVAILABLE).\n"
-        "Fix:\n"
-        "- run `wt init` or `wt config validate`\n"
-        "- or pass an explicit loops directory"
-    )
-
-
 def resolve_loops_dir(
     cwd: Path | None = None,
     *,
@@ -97,7 +84,16 @@ def resolve_loops_dir(
     load_result = load_config_result(cwd=root)
     if not load_result.ok or load_result.config is None:
         fallback = (root / DEFAULT_LOOPS_DIR).resolve()
-        return fallback, [_error_config_unavailable(load_result.errors)]
+        detail = "; ".join(
+            msg.splitlines()[0] for msg in load_result.errors if msg
+        ) or ("configuration could not be loaded")
+        return fallback, [
+            f"Loop directory could not be resolved from config: {detail} "
+            f"(LOOP_CONFIG_UNAVAILABLE).\n"
+            "Fix:\n"
+            "- run `wt init` or `wt config validate`\n"
+            "- or pass an explicit loops directory"
+        ]
 
     return _resolve_path(load_result.config.paths.loops_dir, cwd=root), []
 

@@ -22,7 +22,6 @@ from getworktree.core.loops.models import LoopDefinition
 from getworktree.core.loops.patch import apply_patch_result
 from getworktree.core.loops.payload import build_failure_payload
 from getworktree.core.loops.runner.helpers import (
-    _configuration_error,
     _emit,
     _now_iso,
     default_list_changed_files,
@@ -147,7 +146,7 @@ def run_loop_iteration(
                 session_id=empty_session,
                 loop_name=loop_name,
                 stop_reason=StopReason.CONFIGURATION_ERROR,
-                errors=[_configuration_error(detail)],
+                errors=[f"Loop run configuration error: {detail}"],
             )
         config = load.config
 
@@ -163,7 +162,7 @@ def run_loop_iteration(
             session_id=empty_session,
             loop_name=loop_name,
             stop_reason=StopReason.CONFIGURATION_ERROR,
-            errors=[_configuration_error(str(exc))],
+            errors=[f"Loop run configuration error: {exc}"],
         )
 
     if max_attempts < 1:
@@ -174,9 +173,8 @@ def run_loop_iteration(
             stop_reason=StopReason.CONFIGURATION_ERROR,
             max_attempts=max_attempts,
             errors=[
-                _configuration_error(
-                    f"effective max_attempts is {max_attempts} (must be >= 1)"
-                )
+                "Loop run configuration error: "
+                f"effective max_attempts is {max_attempts} (must be >= 1)"
             ],
         )
 

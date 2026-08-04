@@ -38,6 +38,60 @@ All CLI output goes through `RichOutput` ([getworktree/common/utils.py](../../ge
 or a shared `rich.console.Console` — no bare `print()`. Use `RichOutput.error_panel`
 for failures so error formatting stays consistent across commands.
 
+
+## Error and status messages
+
+Prefer **inline f-strings** (or plain string literals) at the call site when
+building user-facing `errors` / `warnings` entries. Do **not** add private
+helpers whose only job is to format a single message template
+(e.g. `_invalid_diff_error(detail) -> str`).
+
+Good (see `core/loops/metadata.py`):
+
+```python
+return LoopMetadataParseResult(
+    status=LoopMetadataStatus.NOT_FOUND,
+    source_path=source_path,
+    errors=[f"Loop definition not found at '{source_path}' (LOOP_META_NOT_FOUND)."],
+)
+```
+
+Also good — multi-line guidance with adjacent string literals:
+
+```python
+errors = (
+    [
+        f"Patch is not a valid unified diff: {parse_error}\n"
+        "Fix:\n"
+        "- return a standard unified diff (diff --git / --- +++ / @@ hunks)"
+    ],
+)
+```
+
+Avoid:
+
+```python
+def _invalid_diff_error(detail: str) -> str:
+    return f"Patch is not a valid unified diff: {detail}\nFix:\n- ..."
+
+
+errors = [_invalid_diff_error(parse_error)]
+```
+
+Rules of thumb:
+
+- Keep stable machine-oriented tokens in the string (`LOOP_META_*`,
+  `TRIGGER_*`, `AGENT_PROVIDER_ERROR`, `CONFIG_SCHEMA_INVALID`, …).
+- A short local binding for shared prep is fine
+  (`detail = "; ".join(...)`; `joined = ", ".join(paths)`), then inline the
+  final message.
+- Still use real helpers when they do non-trivial work beyond formatting
+  (e.g. `_semantic_errors` collectors, presentation helpers like
+  `format_error_lines`).
+- Do **not** introduce a shared error-catalog module of formatters; that
+  recreates the pattern this convention removes.
+- Do **not** import private `_…_error` helpers across modules.
+
 ## Docstrings and imports
 
 - Docstrings follow the Google convention, enforced by ruff's `D` rules

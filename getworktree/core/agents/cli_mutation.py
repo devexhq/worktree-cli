@@ -15,7 +15,6 @@ from getworktree.core.agents.base import (
     AgentResponse,
     AgentResponseStatus,
 )
-from getworktree.core.agents.local import _timeout_error
 from getworktree.core.agents.mutation_git import (
     MutationGitError,
     capture_diff_since,
@@ -53,10 +52,6 @@ class CliMutationOutcome(BaseModel):
 
 
 CliMutationRunFn = Callable[[CliMutationRunRequest], CliMutationOutcome]
-
-
-def _provider_error(detail: str) -> str:
-    return f"Agent provider error (AGENT_PROVIDER_ERROR): {detail}"
 
 
 def build_mutation_prompt(request: AgentRequest) -> str:
@@ -103,7 +98,9 @@ class CliDirectMutationAdapter:
             return AgentResponse(
                 status=AgentResponseStatus.PROVIDER_ERROR,
                 duration_ms=_elapsed_ms(started),
-                errors=[_provider_error(preflight_error)],
+                errors=[
+                    f"Agent provider error (AGENT_PROVIDER_ERROR): {preflight_error}"
+                ],
             )
 
         try:
@@ -112,7 +109,10 @@ class CliDirectMutationAdapter:
             return AgentResponse(
                 status=AgentResponseStatus.PROVIDER_ERROR,
                 duration_ms=_elapsed_ms(started),
-                errors=[_provider_error(f"failed to resolve sandbox baseline: {exc}")],
+                errors=[
+                    "Agent provider error (AGENT_PROVIDER_ERROR): "
+                    f"failed to resolve sandbox baseline: {exc}"
+                ],
             )
 
         prompt = build_mutation_prompt(request)
@@ -133,9 +133,12 @@ class CliDirectMutationAdapter:
                 mutation_baseline_ref=baseline,
                 raw_text=outcome.result_text,
                 errors=[
-                    _timeout_error(
-                        request.timeout_seconds, provider=self._provider_name()
-                    )
+                    f"Agent timed out after {request.timeout_seconds}s "
+                    f"(provider={self._provider_name()}).\n"
+                    "Fix:\n"
+                    "- raise agent.timeout_seconds on the loop, or\n"
+                    "- raise loop.default_agent_timeout_seconds in "
+                    ".worktree/config.json"
                 ],
             )
 
@@ -146,7 +149,7 @@ class CliDirectMutationAdapter:
                 duration_ms=duration_ms,
                 mutation_baseline_ref=baseline,
                 raw_text=outcome.result_text,
-                errors=[_provider_error(detail)],
+                errors=[f"Agent provider error (AGENT_PROVIDER_ERROR): {detail}"],
             )
 
         try:
@@ -157,7 +160,10 @@ class CliDirectMutationAdapter:
                 duration_ms=duration_ms,
                 mutation_baseline_ref=baseline,
                 raw_text=outcome.result_text,
-                errors=[_provider_error(f"failed to capture sandbox diff: {exc}")],
+                errors=[
+                    "Agent provider error (AGENT_PROVIDER_ERROR): "
+                    f"failed to capture sandbox diff: {exc}"
+                ],
             )
 
         if not diff.strip():
@@ -184,7 +190,8 @@ class CliDirectMutationAdapter:
                 discard_since(request.sandbox_path, baseline)
             except MutationGitError as exc:
                 gate.errors.append(
-                    _provider_error(f"failed to discard rejected sandbox edit: {exc}")
+                    "Agent provider error (AGENT_PROVIDER_ERROR): "
+                    f"failed to discard rejected sandbox edit: {exc}"
                 )
             return AgentResponse(
                 status=AgentResponseStatus.PROVIDER_ERROR,

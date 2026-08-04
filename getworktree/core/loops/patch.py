@@ -54,76 +54,6 @@ class PatchApplyResult(BaseModel):
         }
 
 
-def _empty_diff_error() -> str:
-    return (
-        "Patch is empty or whitespace-only.\n"
-        "Fix:\n"
-        "- ensure the agent returned a non-empty unified diff"
-    )
-
-
-def _too_large_error(size_bytes: int, max_patch_kb: int) -> str:
-    return (
-        f"Patch exceeds max_patch_kb ({max_patch_kb} KiB) "
-        f"(size={size_bytes} bytes).\n"
-        "Fix:\n"
-        "- reduce agent change size or raise patch.max_patch_kb / "
-        "loop patch.max_patch_kb"
-    )
-
-
-def _too_many_files_error(count: int, max_files: int) -> str:
-    return (
-        f"Patch touches {count} files; max_files is {max_files}.\n"
-        "Fix:\n"
-        "- split the change or raise patch.max_files"
-    )
-
-
-def _binary_rejected_error(paths: list[str]) -> str:
-    joined = ", ".join(paths) if paths else "(binary change)"
-    return (
-        f"Patch includes binary file changes which are rejected: {joined}.\n"
-        "Fix:\n"
-        "- avoid binary edits in the agent patch, or set "
-        "reject_binary_changes=false when allowed"
-    )
-
-
-def _unsafe_path_error(path: str) -> str:
-    return (
-        f"Patch path is absolute or escapes the sandbox: '{path}'.\n"
-        "Fix:\n"
-        "- use sandbox-relative paths only (no absolute paths or '..' segments)"
-    )
-
-
-def _invalid_diff_error(detail: str) -> str:
-    return (
-        f"Patch is not a valid unified diff: {detail}\n"
-        "Fix:\n"
-        "- return a standard unified diff (diff --git / --- +++ / @@ hunks)"
-    )
-
-
-def _conflict_error(detail: str) -> str:
-    return (
-        "Patch did not apply cleanly to the sandbox.\n"
-        f"Detail:\n{detail}\n"
-        "Fix:\n"
-        "- regenerate the patch against the current sandbox tree, or\n"
-        "- resolve conflicting local edits in the sandbox"
-    )
-
-
-def _sandbox_missing_error(sandbox_path: Path) -> str:
-    return (
-        f"Sandbox path does not exist or is not a directory: '{sandbox_path}'.\n"
-        "Fix:\n"
-        "- create the sandbox before applying a patch"
-    )
-
-
 def _normalize_diff_path(raw: str) -> str | None:
     """Normalize a path token from a diff header to a relative posix path.
 
@@ -378,7 +308,11 @@ def validate_patch_text(
     if not isinstance(unified_diff, str) or not unified_diff.strip():
         return PatchApplyResult(
             status=PatchApplyStatus.EMPTY_DIFF,
-            errors=[_empty_diff_error()],
+            errors=[
+                "Patch is empty or whitespace-only.\n"
+                "Fix:\n"
+                "- ensure the agent returned a non-empty unified diff"
+            ],
         )
 
     size_bytes = len(unified_diff.encode("utf-8"))
@@ -386,27 +320,47 @@ def validate_patch_text(
     if size_bytes > max_bytes:
         return PatchApplyResult(
             status=PatchApplyStatus.TOO_LARGE,
-            errors=[_too_large_error(size_bytes, max_patch_kb)],
+            errors=[
+                f"Patch exceeds max_patch_kb ({max_patch_kb} KiB) "
+                f"(size={size_bytes} bytes).\n"
+                "Fix:\n"
+                "- reduce agent change size or raise patch.max_patch_kb / "
+                "loop patch.max_patch_kb"
+            ],
         )
 
     touched, binary_paths, parse_error = _parse_unified_diff(unified_diff)
     if parse_error is not None:
         return PatchApplyResult(
             status=PatchApplyStatus.INVALID_DIFF,
-            errors=[_invalid_diff_error(parse_error)],
+            errors=[
+                f"Patch is not a valid unified diff: {parse_error}\n"
+                "Fix:\n"
+                "- return a standard unified diff (diff --git / --- +++ / @@ hunks)"
+            ],
         )
 
     if len(touched) > max_files:
         return PatchApplyResult(
             status=PatchApplyStatus.TOO_MANY_FILES,
-            errors=[_too_many_files_error(len(touched), max_files)],
+            errors=[
+                f"Patch touches {len(touched)} files; max_files is {max_files}.\n"
+                "Fix:\n"
+                "- split the change or raise patch.max_files"
+            ],
         )
 
     if reject_binary_changes and binary_paths:
+        joined = ", ".join(binary_paths) if binary_paths else "(binary change)"
         return PatchApplyResult(
             status=PatchApplyStatus.BINARY_REJECTED,
             touched_files=list(touched),
-            errors=[_binary_rejected_error(binary_paths)],
+            errors=[
+                f"Patch includes binary file changes which are rejected: {joined}.\n"
+                "Fix:\n"
+                "- avoid binary edits in the agent patch, or set "
+                "reject_binary_changes=false when allowed"
+            ],
         )
 
     try:
@@ -417,7 +371,12 @@ def validate_patch_text(
         return PatchApplyResult(
             status=PatchApplyStatus.SANDBOX_MISSING,
             touched_files=list(touched),
-            errors=[_sandbox_missing_error(sandbox_path)],
+            errors=[
+                f"Sandbox path does not exist or is not a directory: "
+                f"'{sandbox_path}'.\n"
+                "Fix:\n"
+                "- create the sandbox before applying a patch"
+            ],
         )
 
     for rel in touched:
@@ -425,7 +384,12 @@ def validate_patch_text(
             return PatchApplyResult(
                 status=PatchApplyStatus.UNSAFE_PATH,
                 touched_files=list(touched),
-                errors=[_unsafe_path_error(rel)],
+                errors=[
+                    f"Patch path is absolute or escapes the sandbox: '{rel}'.\n"
+                    "Fix:\n"
+                    "- use sandbox-relative paths only "
+                    "(no absolute paths or '..' segments)"
+                ],
             )
 
     return PatchApplyResult(
@@ -478,7 +442,13 @@ def apply_patch_result(
         return PatchApplyResult(
             status=PatchApplyStatus.CONFLICT,
             touched_files=list(validation.touched_files),
-            errors=[_conflict_error(detail)],
+            errors=[
+                "Patch did not apply cleanly to the sandbox.\n"
+                f"Detail:\n{detail}\n"
+                "Fix:\n"
+                "- regenerate the patch against the current sandbox tree, or\n"
+                "- resolve conflicting local edits in the sandbox"
+            ],
         )
 
     if check_only:

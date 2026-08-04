@@ -62,19 +62,6 @@ def resolve_config_path(
     return get_worktree_config_file(root).resolve()
 
 
-def _error_schema_invalid(messages: list[str]) -> list[str]:
-    lines = ["Config schema validation failed (CONFIG_SCHEMA_INVALID):"]
-    lines.extend(f"- {msg}" for msg in messages)
-    lines.extend(
-        [
-            "Fix:",
-            "- run `wt config validate` for details",
-            "- or `wt init --repair` to insert missing keys without overwriting values",
-        ]
-    )
-    return ["\n".join(lines)]
-
-
 def load_config_result(
     cwd: Path | None = None,
     *,
@@ -166,7 +153,18 @@ def load_config_result(
             status=ConfigLoadStatus.SCHEMA_INVALID,
             config_path=path,
             raw=data,
-            errors=_error_schema_invalid(validation.errors),
+            errors=[
+                "\n".join(
+                    [
+                        "Config schema validation failed (CONFIG_SCHEMA_INVALID):",
+                        *(f"- {msg}" for msg in validation.errors),
+                        "Fix:",
+                        "- run `wt config validate` for details",
+                        "- or `wt init --repair` to insert missing keys "
+                        "without overwriting values",
+                    ]
+                )
+            ],
         )
 
     try:
@@ -176,7 +174,18 @@ def load_config_result(
             status=ConfigLoadStatus.SCHEMA_INVALID,
             config_path=path,
             raw=data,
-            errors=_error_schema_invalid([str(exc)]),
+            errors=[
+                "\n".join(
+                    [
+                        "Config schema validation failed (CONFIG_SCHEMA_INVALID):",
+                        *(f"- {msg}" for msg in [str(exc)]),
+                        "Fix:",
+                        "- run `wt config validate` for details",
+                        "- or `wt init --repair` to insert missing keys "
+                        "without overwriting values",
+                    ]
+                )
+            ],
         )
 
     return ConfigLoadResult(
@@ -243,11 +252,33 @@ def parse_and_validate_config(raw: dict[str, Any]) -> WorktreeConfig:
     """
     validation = CONFIG_VALIDATOR.validate(raw)
     if not validation.ok:
-        raise ValueError(_error_schema_invalid(validation.errors)[0])
+        raise ValueError(
+            "\n".join(
+                [
+                    "Config schema validation failed (CONFIG_SCHEMA_INVALID):",
+                    *(f"- {msg}" for msg in validation.errors),
+                    "Fix:",
+                    "- run `wt config validate` for details",
+                    "- or `wt init --repair` to insert missing keys "
+                    "without overwriting values",
+                ]
+            )
+        )
     try:
         return _map_worktree_config(raw)
     except Exception as exc:
-        raise ValueError(_error_schema_invalid([str(exc)])[0]) from exc
+        raise ValueError(
+            "\n".join(
+                [
+                    "Config schema validation failed (CONFIG_SCHEMA_INVALID):",
+                    f"- {exc}",
+                    "Fix:",
+                    "- run `wt config validate` for details",
+                    "- or `wt init --repair` to insert missing keys "
+                    "without overwriting values",
+                ]
+            )
+        ) from exc
 
 
 def load_config(

@@ -62,36 +62,6 @@ def _decode_output(data: bytes | str | None) -> str:
     return data.decode("utf-8", errors="replace")
 
 
-def _cwd_missing_error(cwd: Path) -> str:
-    return (
-        f"Trigger working directory does not exist: '{cwd}' "
-        f"(TRIGGER_CWD_MISSING).\n"
-        "Fix:\n"
-        "- ensure the sandbox path exists before running the trigger"
-    )
-
-
-def _timeout_error(timeout_seconds: int, command: str) -> str:
-    return (
-        f"Trigger timed out after {timeout_seconds}s: {command}\n"
-        "Fix:\n"
-        "- raise trigger.timeout_seconds on the loop, or\n"
-        "- raise loop.default_trigger_timeout_seconds in .worktree/config.json"
-    )
-
-
-def _spawn_failed_error(command: str, detail: str) -> str:
-    return (
-        f"Failed to start trigger command '{command}': {detail}\n"
-        "Fix:\n"
-        "- ensure the command is installed and on PATH inside the sandbox environment"
-    )
-
-
-def _failed_error(command: str, exit_code: int) -> str:
-    return f"Trigger command '{command}' exited with code {exit_code} (TRIGGER_FAILED)."
-
-
 def _atomic_write_text(path: Path, content: str) -> None:
     """Write text atomically with UTF-8, preserving exact content."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -184,7 +154,12 @@ def run_trigger(
             started_at=started_at,
             finished_at=finished_at,
             log_dir=log_dir,
-            errors=[_cwd_missing_error(cwd_abs)],
+            errors=[
+                f"Trigger working directory does not exist: '{cwd_abs}' "
+                f"(TRIGGER_CWD_MISSING).\n"
+                "Fix:\n"
+                "- ensure the sandbox path exists before running the trigger"
+            ],
         )
         if log_dir is not None:
             result.warnings.extend(_write_artifacts(result, log_dir))
@@ -204,7 +179,11 @@ def run_trigger(
             finished_at=finished_at,
             log_dir=log_dir,
             errors=[
-                _spawn_failed_error(command, "timeout_seconds must be an integer >= 1")
+                f"Failed to start trigger command '{command}': "
+                "timeout_seconds must be an integer >= 1\n"
+                "Fix:\n"
+                "- ensure the command is installed and on PATH "
+                "inside the sandbox environment"
             ],
         )
         if log_dir is not None:
@@ -238,20 +217,38 @@ def run_trigger(
             errors = []
         else:
             status = TriggerRunStatus.FAILED
-            errors = [_failed_error(command, exit_code)]
+            errors = [
+                f"Trigger command '{command}' exited with code {exit_code} "
+                f"(TRIGGER_FAILED)."
+            ]
     except subprocess.TimeoutExpired as exc:
         timed_out = True
         exit_code = None
         status = TriggerRunStatus.TIMEOUT
         stdout = _decode_output(exc.stdout)
         stderr = _decode_output(exc.stderr)
-        errors = [_timeout_error(timeout_seconds, command)]
+        errors = [
+            f"Trigger timed out after {timeout_seconds}s: {command}\n"
+            "Fix:\n"
+            "- raise trigger.timeout_seconds on the loop, or\n"
+            "- raise loop.default_trigger_timeout_seconds in .worktree/config.json"
+        ]
     except FileNotFoundError as exc:
         status = TriggerRunStatus.SPAWN_FAILED
-        errors = [_spawn_failed_error(command, str(exc))]
+        errors = [
+            f"Failed to start trigger command '{command}': {exc}\n"
+            "Fix:\n"
+            "- ensure the command is installed and on PATH "
+            "inside the sandbox environment"
+        ]
     except OSError as exc:
         status = TriggerRunStatus.SPAWN_FAILED
-        errors = [_spawn_failed_error(command, str(exc))]
+        errors = [
+            f"Failed to start trigger command '{command}': {exc}\n"
+            "Fix:\n"
+            "- ensure the command is installed and on PATH "
+            "inside the sandbox environment"
+        ]
 
     finished_at = _now_iso()
     duration_ms = int((time.monotonic() - started_mono) * 1000)
