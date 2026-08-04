@@ -8,7 +8,10 @@ import sqlite3
 from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
+
+from pydantic import BaseModel
 
 DEFAULT_DB_REL_PATH = ".worktree/token_audit.db"
 
@@ -28,6 +31,46 @@ CREATE TABLE IF NOT EXISTS loop_costs (
 CREATE INDEX IF NOT EXISTS idx_loop_costs_session ON loop_costs(session_id);
 CREATE INDEX IF NOT EXISTS idx_loop_costs_created ON loop_costs(created_at);
 """
+
+# Schema migration DDL for durable sandbox metadata
+CREATE_SANDBOXES_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS sandboxes (
+    id TEXT PRIMARY KEY,
+    name TEXT,
+    branch_name TEXT NOT NULL,
+    base_commit TEXT NOT NULL,
+    sandbox_path TEXT NOT NULL UNIQUE,
+    status TEXT NOT NULL DEFAULT 'active'
+        CHECK(status IN ('active', 'merged', 'cleaned', 'conflict')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_sandboxes_status ON sandboxes(status);
+"""
+
+
+class SandboxStatus(StrEnum):
+    """Lifecycle status for a persisted sandbox metadata row."""
+
+    ACTIVE = "active"
+    MERGED = "merged"
+    CLEANED = "cleaned"
+    CONFLICT = "conflict"
+
+
+class SandboxRecord(BaseModel):
+    """Row shape for the local `sandboxes` table."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    id: str
+    name: str | None = None
+    branch_name: str
+    base_commit: str
+    sandbox_path: Path
+    status: SandboxStatus
+    created_at: str
+    updated_at: str
 
 
 def resolve_db_path(
@@ -62,7 +105,148 @@ def init_database(
     db_path = resolve_db_path(cwd, db_rel_path)
     with get_db_connection(db_path) as conn:
         conn.executescript(CREATE_LOOP_COSTS_TABLE_SQL)
+        conn.executescript(CREATE_SANDBOXES_TABLE_SQL)
     return db_path
+
+
+def _sandbox_record_from_row(row: sqlite3.Row) -> SandboxRecord:
+    """Map a `sandboxes` SQLite row to a strict `SandboxRecord`."""
+    return SandboxRecord(
+        id=row["id"],
+        name=row["name"],
+        branch_name=row["branch_name"],
+        base_commit=row["base_commit"],
+        sandbox_path=Path(row["sandbox_path"]),
+        status=SandboxStatus(row["status"]),
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+
+def insert_sandbox(
+    id: str,
+    branch_name: str,
+    base_commit: str,
+    sandbox_path: Path,
+    name: str | None = None,
+    cwd: Path | None = None,
+    db_rel_path: str = DEFAULT_DB_REL_PATH,
+) -> SandboxRecord:
+    """Insert a sandbox metadata row with status ``active``.
+
+    Returns:
+        The inserted `SandboxRecord`, including DB-assigned timestamps.
+
+    Raises:
+        ValueError: If a row with the same ``id`` already exists.
+    """
+    db_path = init_database(cwd, db_rel_path)
+    insert_sql = """
+    INSERT INTO sandboxes (
+        id, name, branch_name, base_commit, sandbox_path, status
+    ) VALUES (?, ?, ?, ?, ?, ?);
+    """
+    select_sql = "SELECT * FROM sandboxes WHERE id = ?;"
+
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                insert_sql,
+                (
+                    id,
+                    name,
+                    branch_name,
+                    base_commit,
+                    str(sandbox_path),
+                    SandboxStatus.ACTIVE.value,
+                ),
+            )
+        except sqlite3.IntegrityError as exc:
+            raise ValueError(f"Sandbox with id '{id}' already exists") from exc
+        cursor.execute(select_sql, (id,))
+        row = cursor.fetchone()
+        if row is None:  # pragma: no cover - insert just succeeded
+            raise RuntimeError(f"Failed to read sandbox row after insert: {id}")
+        return _sandbox_record_from_row(row)
+
+
+def get_sandbox(
+    id: str, cwd: Path | None = None, db_rel_path: str = DEFAULT_DB_REL_PATH
+) -> SandboxRecord | None:
+    """Return the sandbox row for ``id``, or ``None`` when missing."""
+    db_path = init_database(cwd, db_rel_path)
+    select_sql = "SELECT * FROM sandboxes WHERE id = ?;"
+
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute(select_sql, (id,))
+        row = cursor.fetchone()
+        return _sandbox_record_from_row(row) if row is not None else None
+
+
+def list_sandboxes(
+    status: SandboxStatus | None = None,
+    cwd: Path | None = None,
+    db_rel_path: str = DEFAULT_DB_REL_PATH,
+) -> list[SandboxRecord]:
+    """List sandbox rows ordered by ``created_at`` descending.
+
+    When ``status`` is set, only rows with that status are returned.
+    """
+    db_path = init_database(cwd, db_rel_path)
+
+    if status is None:
+        query_sql = "SELECT * FROM sandboxes ORDER BY created_at DESC;"
+        params: tuple[object, ...] = ()
+    else:
+        query_sql = "SELECT * FROM sandboxes WHERE status = ? ORDER BY created_at DESC;"
+        params = (status.value,)
+
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute(query_sql, params)
+        rows = cursor.fetchall()
+        return [_sandbox_record_from_row(row) for row in rows]
+
+
+def update_sandbox_status(
+    id: str,
+    status: SandboxStatus,
+    cwd: Path | None = None,
+    db_rel_path: str = DEFAULT_DB_REL_PATH,
+) -> SandboxRecord | None:
+    """Update sandbox status and ``updated_at``; return the row or ``None``."""
+    db_path = init_database(cwd, db_rel_path)
+    now_utc = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
+    update_sql = """
+    UPDATE sandboxes
+    SET status = ?, updated_at = ?
+    WHERE id = ?;
+    """
+    select_sql = "SELECT * FROM sandboxes WHERE id = ?;"
+
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute(update_sql, (status.value, now_utc, id))
+        if cursor.rowcount == 0:
+            return None
+        cursor.execute(select_sql, (id,))
+        row = cursor.fetchone()
+        return _sandbox_record_from_row(row) if row is not None else None
+
+
+def delete_sandbox_row(
+    id: str, cwd: Path | None = None, db_rel_path: str = DEFAULT_DB_REL_PATH
+) -> bool:
+    """Hard-delete a sandbox metadata row. Returns whether a row was removed."""
+    db_path = init_database(cwd, db_rel_path)
+    delete_sql = "DELETE FROM sandboxes WHERE id = ?;"
+
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute(delete_sql, (id,))
+        return cursor.rowcount > 0
 
 
 def record_token_usage(

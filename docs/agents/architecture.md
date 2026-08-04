@@ -13,7 +13,7 @@ getworktree/core/                  Business logic, no Typer/CLI concerns
   agents/{base,local,factory}.py   Agent adapter protocol + local provider
   config/{generator,loader,models,context}.py
                                    Defaults write + load/validate + typed models + repo context
-  db.py                            SQLite token-usage ledger (for future metering)
+  db.py                            SQLite token ledger + sandbox metadata CRUD
   git_sandbox.py                   Isolated `git worktree` sandbox lifecycle
   loops/seeder.py                  Seeds packaged starter loop YAML files
   loops/patch.py                   Unified-diff validate/apply in sandbox
@@ -48,11 +48,38 @@ creates this layout inside a Git repo, analogous to `.git/`:
   config.json            V1 config, validated against schemas/config_v1.json
   loops/                 seeded + user loop definitions (validated against loop_v1.json)
   sessions/, artifacts/, tmp/, logs/
-  token_audit.db          SQLite token/cost ledger (getworktree/core/db.py)
+  token_audit.db          SQLite token/cost + sandbox metadata (getworktree/core/db.py)
 ```
 
 Bootstrap is idempotent and never deletes user data; it only creates missing
 subdirectories and repairs metadata.
+
+### Local SQLite (`token_audit.db`)
+
+Single file, migrated by `init_database` in
+[getworktree/core/db.py](../../getworktree/core/db.py). Idempotent: repeated
+calls create missing tables only.
+
+| Table | Purpose |
+|-------|---------|
+| `loop_costs` | Per-step token/cost rows for loop sessions |
+| `sandboxes` | Durable sandbox metadata (name, branch, base commit, path, status) |
+
+`sandboxes` columns: `id` (PK), `name` (nullable), `branch_name`, `base_commit`,
+`sandbox_path` (UNIQUE), `status` (`active` / `merged` / `cleaned` / `conflict`,
+indexed), `created_at`, `updated_at` (raw SQLite `TIMESTAMP` strings).
+
+Typed surface:
+
+- `SandboxStatus` (`StrEnum`) and `SandboxRecord` (strict Pydantic model)
+- CRUD: `insert_sandbox`, `get_sandbox`, `list_sandboxes` (optional status
+  filter, `created_at` DESC), `update_sandbox_status`, `delete_sandbox_row`
+  (hard delete; prefer status `cleaned` to retain history)
+
+Helpers call `init_database` first (same pattern as `record_token_usage`).
+Duplicate `id` on insert raises `ValueError`. Missing ids return `None` /
+`False` rather than raising. No CLI and no `git_sandbox.py` writes yet — storage
+layer only.
 
 ## Sandboxes
 
