@@ -13,7 +13,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-DEFAULT_DB_REL_PATH = ".worktree/token_audit.db"
+DEFAULT_DB_REL_PATH = ".worktree/data.db"
 
 # Schema migration DDL for tracking AI model token costs
 CREATE_LOOP_COSTS_TABLE_SQL = """

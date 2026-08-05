@@ -73,4 +73,4 @@ class CliSmokeTests:
         result = runner.invoke(app, ["init"])
         assert result.exit_code == 0
         assert (git_repo / ".worktree" / "config.json").is_file()
-        assert (git_repo / ".worktree" / "token_audit.db").is_file()
+        assert (git_repo / ".worktree" / "data.db").is_file()

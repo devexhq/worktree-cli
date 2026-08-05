@@ -35,7 +35,7 @@ from getworktree.core.db import (
 from getworktree.core.git_sandbox import GitSandboxManager
 
 runner = CliRunner()
-DB_REL = ".worktree/token_audit.db"
+DB_REL = ".worktree/data.db"
 
 
 def _init_git_repo(path: Path, branch: str = "feature") -> None:

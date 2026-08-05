@@ -25,7 +25,7 @@ CANONICAL_V1_DEFAULTS: dict[str, Any] = {
         "loops_dir": ".worktree/loops",
         "sessions_dir": ".worktree/sessions",
         "artifacts_dir": ".worktree/artifacts",
-        "db_path": ".worktree/token_audit.db",
+        "db_path": ".worktree/data.db",
     },
     "sandbox": {
         "base_ref": "HEAD",

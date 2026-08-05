@@ -56,13 +56,13 @@ creates this layout inside a Git repo, analogous to `.git/`:
   config.json            V1 config, validated against schemas/config_v1.json
   loops/                 seeded + user loop definitions (validated against loop_v1.json)
   sessions/, artifacts/, tmp/, logs/
-  token_audit.db          SQLite token/cost + sandbox metadata (getworktree/core/db.py)
+  data.db                 SQLite token/cost + sandbox metadata (getworktree/core/db.py)
 ```
 
 Bootstrap is idempotent and never deletes user data; it only creates missing
 subdirectories and repairs metadata.
 
-### Local SQLite (`token_audit.db`)
+### Local SQLite (`data.db`)
 
 Single file, migrated by `init_database` in
 [getworktree/core/db.py](../../getworktree/core/db.py). Idempotent: repeated

@@ -35,7 +35,7 @@ from getworktree.core.db import (
 )
 
 runner = CliRunner()
-DB_REL = ".worktree/token_audit.db"
+DB_REL = ".worktree/data.db"
 
 
 @pytest.fixture

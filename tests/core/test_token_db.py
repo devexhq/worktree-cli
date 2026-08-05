@@ -20,7 +20,7 @@ from getworktree.core.db import (
     update_sandbox_status,
 )
 
-DB_REL = ".worktree/token_audit.db"
+DB_REL = ".worktree/data.db"
 
 
 class DatabaseTests:

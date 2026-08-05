@@ -86,7 +86,7 @@ class ParseAndValidateConfigTests:
         config = parse_and_validate_config(raw)
         assert config.version == 1
         assert config.project.name == "demo"
-        assert config.paths.db_path == ".worktree/token_audit.db"
+        assert config.paths.db_path == ".worktree/data.db"
         assert config.loop.default_max_attempts == 5
         assert config.patch.max_files == 30
         assert config.approval.require_before_apply is True
