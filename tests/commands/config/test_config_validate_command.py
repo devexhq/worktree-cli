@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import pytest
 import typer
+from typer.main import get_command
 from typer.testing import CliRunner
 
 from getworktree.cli import app
@@ -369,12 +370,18 @@ class ConfigValidateCliTests:
 
         cfg = runner.invoke(app, ["config", "--help"])
         assert cfg.exit_code == 0
-        assert "Inspect and validate Worktree configuration." in cfg.stdout
-        assert "show" in cfg.stdout
-        assert "validate" in cfg.stdout
 
-        validate_help = runner.invoke(app, ["config", "validate", "--help"])
-        assert validate_help.exit_code == 0
+        root_cmd = get_command(app)
+        config_cmd = root_cmd.get_command(None, "config")
         assert (
-            "Validate .worktree/config.json against the V1 schema and semantic rules."
-        ) in validate_help.stdout
+            config_cmd.help == "Inspect, update, and validate Worktree configuration."
+        )
+        assert "show" in config_cmd.list_commands(None)
+        assert "set" in config_cmd.list_commands(None)
+        assert "validate" in config_cmd.list_commands(None)
+
+        validate_cmd = config_cmd.get_command(None, "validate")
+        assert (
+            validate_cmd.help
+            == "Validate .worktree/config.json against the V1 schema and semantic rules."
+        )

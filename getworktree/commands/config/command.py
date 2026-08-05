@@ -8,10 +8,44 @@ import typer
 
 from getworktree.common.utils import RichOutput
 from getworktree.core.config.loader import load_config_result
+from getworktree.core.config.mutate import set_config_value_result
 from getworktree.core.config.serialize import as_json
 from getworktree.core.config.validate import validate_config_result
 
 rich_output = RichOutput()
+
+
+def config_set_command(
+    key: str,
+    value: str,
+    *,
+    cwd: Path | None = None,
+) -> None:
+    """Set a configuration value by top-level or nested dot-path key.
+
+    Values are stored as strings. Missing intermediate objects are created.
+    Type collisions and load/write failures abort without partial writes.
+    Does not validate keys against the V1 schema allow-list.
+
+    Args:
+        key: Dot-path key (e.g. ``agent.model`` or ``version``).
+        value: String value to store at ``key``.
+        cwd: Repository root for config resolution. Defaults to process CWD.
+    """
+    root = (cwd or Path.cwd()).resolve()
+    result = set_config_value_result(key, value, cwd=root)
+
+    if not result.ok:
+        message = (
+            "\n\n".join(result.errors)
+            if result.errors
+            else "Failed to update configuration."
+        )
+        rich_output.error_panel("Config Error", message)
+        raise typer.Exit(code=1)
+
+    rich_output.success(f"Config updated: {result.key} = {result.value}")
+    raise typer.Exit(code=0)
 
 
 def config_show_command(*, cwd: Path | None = None) -> None:
