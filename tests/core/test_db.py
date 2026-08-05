@@ -1,4 +1,4 @@
-"""Tests for SQLite database tables, models, and CRUD helpers (Issue #134)."""
+"""Tests for SQLite database tables, models, and CRUD helpers (Issue #150)."""
 
 from __future__ import annotations
 
@@ -9,24 +9,25 @@ from pathlib import Path
 import pytest
 
 from getworktree.core.db import (
+    CatalogItemType,
+    CatalogRecord,
     RunStatus,
     TaskRunRecord,
-    TemplateRecord,
-    TemplateType,
     WorkflowRunRecord,
+    delete_catalog_item,
+    get_catalog_item_by_name,
+    get_catalog_item_by_sha,
     get_task_run,
-    get_template_by_id,
-    get_template_by_path,
     get_workflow_run,
     init_database,
     insert_task_run,
     insert_workflow_run,
+    list_catalog_items,
     list_task_runs,
-    list_templates,
     list_workflow_runs,
     update_task_run_status,
     update_workflow_run_status,
-    upsert_template,
+    upsert_catalog_item,
 )
 
 DB_REL = ".worktree/data.db"
@@ -53,13 +54,13 @@ class TestDatabaseMigrations:
                 )
             }
 
-        assert "templates" in tables
+        assert "catalog" in tables
         assert "workflows" in tables
         assert "tasks" in tables
 
-        assert "idx_templates_sha" in indexes
-        assert "idx_templates_type" in indexes
-        assert "idx_templates_path" in indexes
+        assert "idx_catalog_sha" in indexes
+        assert "idx_catalog_type" in indexes
+        assert "idx_catalog_path" in indexes
         assert "idx_workflows_session" in indexes
         assert "idx_workflows_status" in indexes
         assert "idx_tasks_session" in indexes
@@ -72,42 +73,57 @@ class TestDatabaseMigrations:
         assert path1.is_file()
 
 
-class TestTemplateCRUD:
-    """Tests for template indexing CRUD helper functions."""
+class TestCatalogCRUD:
+    """Tests for catalog indexing CRUD helper functions."""
 
-    def test_upsert_insert_and_get_by_id_and_path(self, tmp_path: Path) -> None:
-        path = Path(".worktree/templates/workflow_a.yaml")
-        rec = upsert_template(
+    def test_upsert_insert_and_get_by_sha_and_name(self, tmp_path: Path) -> None:
+        path = Path(".worktree/catalog/workflow_a.yaml")
+        rec = upsert_catalog_item(
             sha="workflow_1234567",
-            template_type=TemplateType.WORKFLOW,
+            item_type=CatalogItemType.WORKFLOW,
+            name="workflow_a",
             path=path,
             checksum="hash1",
             cwd=tmp_path,
             db_rel_path=DB_REL,
         )
 
-        assert isinstance(rec, TemplateRecord)
+        assert isinstance(rec, CatalogRecord)
         assert rec.id == 1
         assert rec.sha == "workflow_1234567"
-        assert rec.template_type is TemplateType.WORKFLOW
+        assert rec.item_type is CatalogItemType.WORKFLOW
+        assert rec.name == "workflow_a"
         assert rec.path == path
         assert rec.checksum == "hash1"
         assert rec.created_at
         assert rec.updated_at
 
-        by_id = get_template_by_id(rec.id, cwd=tmp_path, db_rel_path=DB_REL)
-        assert by_id == rec
+        by_sha = get_catalog_item_by_sha(
+            "workflow_1234567", cwd=tmp_path, db_rel_path=DB_REL
+        )
+        assert by_sha == rec
 
-        by_path = get_template_by_path(path, cwd=tmp_path, db_rel_path=DB_REL)
-        assert by_path == rec
+        by_name = get_catalog_item_by_name(
+            "workflow_a", cwd=tmp_path, db_rel_path=DB_REL
+        )
+        assert by_name == rec
 
-    def test_upsert_update_preserves_id_and_updates_sha_checksum(
+        by_name_and_type = get_catalog_item_by_name(
+            "workflow_a",
+            item_type=CatalogItemType.WORKFLOW,
+            cwd=tmp_path,
+            db_rel_path=DB_REL,
+        )
+        assert by_name_and_type == rec
+
+    def test_upsert_update_preserves_id_and_updates_fields(
         self, tmp_path: Path
     ) -> None:
-        path = Path(".worktree/templates/task_b.yaml")
-        first = upsert_template(
+        path = Path(".worktree/catalog/task_b.yaml")
+        first = upsert_catalog_item(
             sha="task_1111111",
-            template_type=TemplateType.TASK,
+            item_type=CatalogItemType.TASK,
+            name="task_b",
             path=path,
             checksum="chk1",
             cwd=tmp_path,
@@ -116,77 +132,130 @@ class TestTemplateCRUD:
 
         time.sleep(1.1)
 
-        second = upsert_template(
-            sha="task_2222222",
-            template_type=TemplateType.TASK,
-            path=path,
+        second = upsert_catalog_item(
+            sha="task_1111111",
+            item_type=CatalogItemType.TASK,
+            name="task_b_v2",
+            path=Path(".worktree/catalog/task_b_v2.yaml"),
             checksum="chk2",
             cwd=tmp_path,
             db_rel_path=DB_REL,
         )
 
         assert second.id == first.id
-        assert second.sha == "task_2222222"
+        assert second.sha == "task_1111111"
+        assert second.name == "task_b_v2"
+        assert second.path == Path(".worktree/catalog/task_b_v2.yaml")
         assert second.checksum == "chk2"
         assert second.created_at == first.created_at
         assert second.updated_at != first.updated_at
 
-    def test_get_missing_template_returns_none(self, tmp_path: Path) -> None:
-        assert get_template_by_id(999, cwd=tmp_path, db_rel_path=DB_REL) is None
+    def test_get_missing_catalog_item_returns_none(self, tmp_path: Path) -> None:
         assert (
-            get_template_by_path(Path("missing.yaml"), cwd=tmp_path, db_rel_path=DB_REL)
+            get_catalog_item_by_sha("missing", cwd=tmp_path, db_rel_path=DB_REL) is None
+        )
+        assert (
+            get_catalog_item_by_name("missing_name", cwd=tmp_path, db_rel_path=DB_REL)
             is None
         )
 
-    def test_list_templates_filtering(self, tmp_path: Path) -> None:
-        upsert_template(
+    def test_list_catalog_items_filtering(self, tmp_path: Path) -> None:
+        upsert_catalog_item(
             sha="w1",
-            template_type=TemplateType.WORKFLOW,
+            item_type=CatalogItemType.WORKFLOW,
+            name="wf1",
             path=Path("w1.yaml"),
             checksum="c1",
             cwd=tmp_path,
             db_rel_path=DB_REL,
         )
-        upsert_template(
+        upsert_catalog_item(
             sha="t1",
-            template_type=TemplateType.TASK,
+            item_type=CatalogItemType.TASK,
+            name="task1",
             path=Path("t1.yaml"),
             checksum="c2",
             cwd=tmp_path,
             db_rel_path=DB_REL,
         )
-        upsert_template(
+        upsert_catalog_item(
             sha="s1",
-            template_type=TemplateType.STEP,
+            item_type=CatalogItemType.STEP,
+            name="step1",
             path=Path("s1.yaml"),
             checksum="c3",
             cwd=tmp_path,
             db_rel_path=DB_REL,
         )
 
-        all_templates = list_templates(cwd=tmp_path, db_rel_path=DB_REL)
-        assert len(all_templates) == 3
+        all_items = list_catalog_items(cwd=tmp_path, db_rel_path=DB_REL)
+        assert len(all_items) == 3
 
-        workflows = list_templates(
-            template_type=TemplateType.WORKFLOW, cwd=tmp_path, db_rel_path=DB_REL
+        workflows = list_catalog_items(
+            item_type=CatalogItemType.WORKFLOW, cwd=tmp_path, db_rel_path=DB_REL
         )
         assert len(workflows) == 1
         assert workflows[0].sha == "w1"
 
-        steps = list_templates(template_type="step", cwd=tmp_path, db_rel_path=DB_REL)
+        steps = list_catalog_items(item_type="step", cwd=tmp_path, db_rel_path=DB_REL)
         assert len(steps) == 1
         assert steps[0].sha == "s1"
 
-    def test_invalid_template_type_raises_value_error(self, tmp_path: Path) -> None:
+    def test_invalid_catalog_item_type_raises_value_error(self, tmp_path: Path) -> None:
         with pytest.raises(ValueError, match="constraint"):
-            upsert_template(
+            upsert_catalog_item(
                 sha="invalid",
-                template_type="invalid_type",  # type: ignore[arg-type]
+                item_type="invalid_type",  # type: ignore[arg-type]
+                name="invalid",
                 path=Path("invalid.yaml"),
                 checksum="c",
                 cwd=tmp_path,
                 db_rel_path=DB_REL,
             )
+
+    def test_duplicate_path_raises_value_error(self, tmp_path: Path) -> None:
+        upsert_catalog_item(
+            sha="sha_first",
+            item_type=CatalogItemType.WORKFLOW,
+            name="wf_first",
+            path=Path("duplicate_path.yaml"),
+            checksum="c1",
+            cwd=tmp_path,
+            db_rel_path=DB_REL,
+        )
+
+        with pytest.raises(ValueError, match="constraint"):
+            upsert_catalog_item(
+                sha="sha_second",
+                item_type=CatalogItemType.WORKFLOW,
+                name="wf_second",
+                path=Path("duplicate_path.yaml"),
+                checksum="c2",
+                cwd=tmp_path,
+                db_rel_path=DB_REL,
+            )
+
+    def test_delete_catalog_item(self, tmp_path: Path) -> None:
+        upsert_catalog_item(
+            sha="to_delete",
+            item_type=CatalogItemType.WORKFLOW,
+            name="delete_item",
+            path=Path("delete.yaml"),
+            checksum="c_del",
+            cwd=tmp_path,
+            db_rel_path=DB_REL,
+        )
+
+        assert (
+            delete_catalog_item("to_delete", cwd=tmp_path, db_rel_path=DB_REL) is True
+        )
+        assert (
+            get_catalog_item_by_sha("to_delete", cwd=tmp_path, db_rel_path=DB_REL)
+            is None
+        )
+        assert (
+            delete_catalog_item("to_delete", cwd=tmp_path, db_rel_path=DB_REL) is False
+        )
 
 
 class TestWorkflowRunCRUD:
