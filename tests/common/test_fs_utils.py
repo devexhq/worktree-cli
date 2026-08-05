@@ -5,8 +5,22 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from getworktree.common.fs import atomic_write_json, is_git_repository, update_gitignore
+from getworktree.common.fs import (
+    atomic_write_json,
+    atomic_write_text,
+    get_session_dir,
+    is_git_repository,
+    update_gitignore,
+)
 from getworktree.common.utils import display_path, resolve_path_from_config
+
+
+class SessionDirTests:
+    """Tests for get_session_dir."""
+
+    def test_returns_sessions_path(self, tmp_path: Path) -> None:
+        path = get_session_dir(tmp_path, "sbx_12345678")
+        assert path == tmp_path / ".worktree" / "sessions" / "sbx_12345678"
 
 
 class AtomicWriteJsonTests:
@@ -19,6 +33,16 @@ class AtomicWriteJsonTests:
         assert text.endswith("\n")
         assert json.loads(text) == {"a": 1}
         assert not path.with_name("cfg.json.tmp").exists()
+
+
+class AtomicWriteTextTests:
+    """Tests for atomic_write_text."""
+
+    def test_writes_text_utf8(self, tmp_path: Path) -> None:
+        path = tmp_path / "sub" / "diff.patch"
+        atomic_write_text(path, "diff content\n")
+        assert path.read_text(encoding="utf-8") == "diff content\n"
+        assert not path.with_name("diff.patch.tmp").exists()
 
 
 class GitignoreTests:

@@ -55,7 +55,8 @@ creates this layout inside a Git repo, analogous to `.git/`:
   .meta/bootstrap.json   status, tool_version, initialized_at
   config.json            V1 config, validated against schemas/config_v1.json
   loops/                 seeded + user loop definitions (validated against loop_v1.json)
-  sessions/, artifacts/, tmp/, logs/
+  sessions/              loop session artifacts: <session_id>/diff.patch
+  artifacts/, tmp/, logs/
   data.db                 SQLite token/cost + sandbox metadata (getworktree/core/db.py)
 ```
 

@@ -17,7 +17,9 @@ from pathlib import Path
 from typing import Any
 
 from getworktree.common.constants import GIT_SUBPROCESS_TIMEOUT_SECONDS
+from getworktree.common.fs import atomic_write_text, get_session_dir
 from getworktree.core.config.models import WorktreeConfig
+from getworktree.core.git_sandbox import SandboxSession
 from getworktree.core.loops.models import LoopDefinition
 from getworktree.core.loops.runner_models import (
     IsAbortedFn,
@@ -192,3 +194,58 @@ def _dump_agent_input(
         )
 
     return (output_path, None)
+
+
+def capture_and_persist_diff(
+    *,
+    session: SandboxSession | None,
+    cwd: Path,
+    warnings: list[str],
+) -> None:
+    """Capture cumulative unified diff from sandbox and persist to diff.patch artifact.
+
+    Records warnings in ``warnings`` if sandbox is missing/cleaned, diff capture fails,
+    or session directory/file is unwritable. Never raises exceptions.
+    """
+    if session is None:
+        return
+
+    sandbox_path = session.sandbox_path
+    if not sandbox_path.is_dir():
+        warnings.append(f"Sandbox directory missing or cleaned: {sandbox_path}")
+        return
+
+    diff_text = ""
+    try:
+        subprocess.run(
+            ["git", "add", "-N", "."],
+            cwd=str(sandbox_path),
+            capture_output=True,
+            text=True,
+            timeout=GIT_SUBPROCESS_TIMEOUT_SECONDS,
+        )
+        completed = subprocess.run(
+            ["git", "diff", session.base_commit],
+            cwd=str(sandbox_path),
+            capture_output=True,
+            text=True,
+            timeout=GIT_SUBPROCESS_TIMEOUT_SECONDS,
+        )
+        if completed.returncode != 0:
+            err_msg = (
+                completed.stderr.strip()
+                or completed.stdout.strip()
+                or f"exit code {completed.returncode}"
+            )
+            warnings.append(f"Git diff capture failed in sandbox: {err_msg}")
+        else:
+            diff_text = completed.stdout
+    except Exception as exc:
+        warnings.append(f"Git diff capture failed in sandbox: {exc}")
+
+    session_dir = get_session_dir(cwd, session.session_id)
+    diff_patch_path = session_dir / "diff.patch"
+    try:
+        atomic_write_text(diff_patch_path, diff_text)
+    except Exception as exc:
+        warnings.append(f"Failed to write diff artifact '{diff_patch_path}': {exc}")
