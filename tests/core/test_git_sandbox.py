@@ -211,6 +211,14 @@ class GitSandboxManagerTests:
         manager.cleanup_sandbox(session)
         manager.cleanup_sandbox(session)  # must not raise
 
+    def test_config_property_none_until_create_loads(self, repo: Path) -> None:
+        manager = GitSandboxManager(cwd=repo)
+        assert manager.config is None
+        session = manager.create_sandbox(session_id="sbx_cfg")
+        assert manager.config is not None
+        assert manager.config.sandbox.auto_clean is True
+        manager.cleanup_sandbox(session)
+
     def test_cleanup_missing_path_and_branch(self, repo: Path) -> None:
         manager = GitSandboxManager(cwd=repo)
         ghost = SandboxSession(
