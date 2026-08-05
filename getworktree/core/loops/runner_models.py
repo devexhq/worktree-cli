@@ -97,6 +97,7 @@ class LoopRunResult(BaseModel):
     attempts: list[AttemptRecord] = Field(default_factory=list)
     stop_reason: str
     errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
     max_attempts: int = 0
     sandbox_retained: bool = False
 

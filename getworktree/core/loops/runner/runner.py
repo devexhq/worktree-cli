@@ -11,6 +11,7 @@ import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from getworktree.common.fs import get_session_dir
 from getworktree.core.config.loader import load_config_result
 from getworktree.core.config.models import WorktreeConfig
 from getworktree.core.git_sandbox import (
@@ -24,6 +25,7 @@ from getworktree.core.loops.payload import build_failure_payload
 from getworktree.core.loops.runner.helpers import (
     _emit,
     _now_iso,
+    capture_and_persist_diff,
     default_list_changed_files,
     resolve_max_attempts,
 )
@@ -227,7 +229,14 @@ def run_loop_iteration(
     final_status = LoopFinalStatus.FAILED
     stop_reason = StopReason.MAX_ATTEMPTS_EXHAUSTED
     run_errors: list[str] = []
+    warnings: list[str] = []
     command_passed: bool | None = None
+
+    session_dir = get_session_dir(root, sid)
+    try:
+        session_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as exc:
+        warnings.append(f"Failed to create session directory '{session_dir}': {exc}")
 
     _emit(
         on_event,
@@ -271,6 +280,7 @@ def run_loop_iteration(
             manager.cleanup_sandbox(session)
 
     if _finish_cleanup or agent is None:
+        capture_and_persist_diff(session=session, cwd=root, warnings=warnings)
         _cleanup()
         retained = not should_cleanup_sandbox(
             auto_clean=resolved_auto,
@@ -285,6 +295,7 @@ def run_loop_iteration(
             attempts=attempts,
             stop_reason=stop_reason,
             errors=run_errors,
+            warnings=warnings,
             max_attempts=max_attempts,
             sandbox_retained=retained,
         )
@@ -418,6 +429,7 @@ def run_loop_iteration(
         # ABORTED leaves command_passed as None (unclassified) per sandbox policy.
 
         session.command_passed = command_passed
+        capture_and_persist_diff(session=session, cwd=root, warnings=warnings)
         will_clean = should_cleanup_sandbox(
             auto_clean=resolved_auto,
             keep_on_failure=resolved_keep,
@@ -442,6 +454,7 @@ def run_loop_iteration(
         attempts=attempts,
         stop_reason=stop_reason,
         errors=run_errors,
+        warnings=warnings,
         max_attempts=max_attempts,
         sandbox_retained=retained,
     )

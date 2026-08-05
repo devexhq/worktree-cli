@@ -117,5 +117,5 @@ def render_init_outcome(
     _render_loop_seed_result(cwd, outcome.loop_seed_result, rich_output=rich_output)
     rich_output.spacer()
     rich_output.dim_text(
-        "Next: run [bold cyan]wt config show[/bold cyan] or [bold cyan]wt loop list[/bold cyan]"
+        "Next: run [bold cyan]wt config show[/bold cyan] or [bold cyan]wt workflow list[/bold cyan]"
     )

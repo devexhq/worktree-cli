@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import threading
 import time
 from pathlib import Path
@@ -909,3 +910,286 @@ class DirectMutationProviderTests:
         assert result.status == LoopFinalStatus.PASSED
         assert len(spy["patch_calls"]) == 1
         assert "discard_calls" not in spy
+
+
+class DiffArtifactTests:
+    """Tests for session diff.patch artifact persistence."""
+
+    def test_diff_patch_created_on_passed(self, tmp_path: Path) -> None:
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+        )
+        (repo / "f.txt").write_text("v1\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "add", "f.txt"], cwd=repo, check=True, capture_output=True
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "init"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+        )
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        (repo / "f.txt").write_text("v2\n", encoding="utf-8")
+        (repo / "new.txt").write_text("hello\n", encoding="utf-8")
+
+        sid = "sbx_diff_pass"
+        sess = SandboxSession(
+            session_id=sid,
+            target_branch="worktree/sandbox-sbx_diff_pass",
+            sandbox_path=repo,
+            base_commit=head,
+            created_at="2026-01-01T00:00:00+00:00",
+        )
+
+        result = run_loop_iteration(
+            loop=_loop(max_attempts=1),
+            cwd=tmp_path,
+            config=_config(),
+            session_id=sid,
+            create_sandbox_fn=lambda: SandboxCreateResult(
+                status=SandboxCreateStatus.OK, session=sess
+            ),
+            run_trigger_fn=lambda **kw: _trigger(TriggerRunStatus.PASSED),
+            agent=_FakeAgent([]),
+        )
+
+        assert result.status == LoopFinalStatus.PASSED
+        diff_path = tmp_path / ".worktree" / "sessions" / sid / "diff.patch"
+        assert diff_path.exists()
+        content = diff_path.read_text(encoding="utf-8")
+        assert "f.txt" in content
+        assert "new.txt" in content
+
+    def test_diff_patch_created_on_failed(self, tmp_path: Path) -> None:
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+        )
+        (repo / "f.txt").write_text("v1\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "add", "f.txt"], cwd=repo, check=True, capture_output=True
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "init"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+        )
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        (repo / "f.txt").write_text("failed_v2\n", encoding="utf-8")
+
+        sid = "sbx_diff_fail"
+        sess = SandboxSession(
+            session_id=sid,
+            target_branch="worktree/sandbox-sbx_diff_fail",
+            sandbox_path=repo,
+            base_commit=head,
+            created_at="2026-01-01T00:00:00+00:00",
+        )
+
+        result = run_loop_iteration(
+            loop=_loop(max_attempts=1),
+            cwd=tmp_path,
+            config=_config(),
+            session_id=sid,
+            create_sandbox_fn=lambda: SandboxCreateResult(
+                status=SandboxCreateStatus.OK, session=sess
+            ),
+            run_trigger_fn=lambda **kw: _trigger(TriggerRunStatus.FAILED),
+            agent=_FakeAgent([AgentResponse(status=AgentResponseStatus.UNFIXABLE)]),
+        )
+
+        assert result.status == LoopFinalStatus.UNFIXABLE
+        diff_path = tmp_path / ".worktree" / "sessions" / sid / "diff.patch"
+        assert diff_path.exists()
+        assert "failed_v2" in diff_path.read_text(encoding="utf-8")
+
+    def test_diff_patch_zero_bytes_when_no_changes(self, tmp_path: Path) -> None:
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+        )
+        (repo / "f.txt").write_text("v1\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "add", "f.txt"], cwd=repo, check=True, capture_output=True
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "init"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+        )
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        sid = "sbx_diff_empty"
+        sess = SandboxSession(
+            session_id=sid,
+            target_branch="worktree/sandbox-sbx_diff_empty",
+            sandbox_path=repo,
+            base_commit=head,
+            created_at="2026-01-01T00:00:00+00:00",
+        )
+
+        result = run_loop_iteration(
+            loop=_loop(max_attempts=1),
+            cwd=tmp_path,
+            config=_config(),
+            session_id=sid,
+            create_sandbox_fn=lambda: SandboxCreateResult(
+                status=SandboxCreateStatus.OK, session=sess
+            ),
+            run_trigger_fn=lambda **kw: _trigger(TriggerRunStatus.PASSED),
+            agent=_FakeAgent([]),
+        )
+        assert result.status == LoopFinalStatus.PASSED
+        diff_path = tmp_path / ".worktree" / "sessions" / sid / "diff.patch"
+        assert diff_path.exists()
+        assert diff_path.stat().st_size == 0
+
+    def test_missing_sandbox_records_warning(self, tmp_path: Path) -> None:
+        missing_repo = tmp_path / "nonexistent"
+        sid = "sbx_missing"
+        sess = SandboxSession(
+            session_id=sid,
+            target_branch="worktree/sandbox-sbx_missing",
+            sandbox_path=missing_repo,
+            base_commit="abc1234",
+            created_at="2026-01-01T00:00:00+00:00",
+        )
+
+        result = run_loop_iteration(
+            loop=_loop(max_attempts=1),
+            cwd=tmp_path,
+            config=_config(),
+            session_id=sid,
+            create_sandbox_fn=lambda: SandboxCreateResult(
+                status=SandboxCreateStatus.OK, session=sess
+            ),
+            run_trigger_fn=lambda **kw: _trigger(TriggerRunStatus.PASSED),
+            agent=_FakeAgent([]),
+        )
+
+        assert any("Sandbox directory missing" in w for w in result.warnings)
+
+    def test_git_diff_failure_records_warning_and_writes_empty_diff(
+        self, tmp_path: Path
+    ) -> None:
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        sid = "sbx_invalid_commit"
+        sess = SandboxSession(
+            session_id=sid,
+            target_branch="worktree/sandbox-sbx_invalid_commit",
+            sandbox_path=repo,
+            base_commit="nonexistent_sha",
+            created_at="2026-01-01T00:00:00+00:00",
+        )
+
+        result = run_loop_iteration(
+            loop=_loop(max_attempts=1),
+            cwd=tmp_path,
+            config=_config(),
+            session_id=sid,
+            create_sandbox_fn=lambda: SandboxCreateResult(
+                status=SandboxCreateStatus.OK, session=sess
+            ),
+            run_trigger_fn=lambda **kw: _trigger(TriggerRunStatus.PASSED),
+            agent=_FakeAgent([]),
+        )
+
+        diff_path = tmp_path / ".worktree" / "sessions" / sid / "diff.patch"
+        assert diff_path.exists()
+        assert diff_path.stat().st_size == 0
+        assert any("Git diff capture failed" in w for w in result.warnings)
+
+    def test_unwritable_session_dir_records_warning(self, tmp_path: Path) -> None:
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        sid = "sbx_unwritable"
+        sess = SandboxSession(
+            session_id=sid,
+            target_branch="worktree/sandbox-sbx_unwritable",
+            sandbox_path=repo,
+            base_commit="invalid_commit",
+            created_at="2026-01-01T00:00:00+00:00",
+        )
+
+        session_dir = tmp_path / ".worktree" / "sessions" / sid
+        session_dir.mkdir(parents=True, exist_ok=True)
+        session_dir.chmod(0o444)
+
+        try:
+            result = run_loop_iteration(
+                loop=_loop(max_attempts=1),
+                cwd=tmp_path,
+                config=_config(),
+                session_id=sid,
+                create_sandbox_fn=lambda: SandboxCreateResult(
+                    status=SandboxCreateStatus.OK, session=sess
+                ),
+                run_trigger_fn=lambda **kw: _trigger(TriggerRunStatus.PASSED),
+                agent=_FakeAgent([]),
+            )
+            assert any(
+                "Failed to write diff artifact" in w
+                or "unwritable" in w
+                or "Permission denied" in w
+                for w in result.warnings
+            )
+        finally:
+            session_dir.chmod(0o755)

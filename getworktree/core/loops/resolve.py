@@ -162,7 +162,7 @@ def resolve_loop_by_name(
                 f"'{inventory.loops_dir.as_posix()}' "
                 f"(LOOP_RESOLVE_NOT_FOUND).\n"
                 "Fix:\n"
-                "- run `wt loop list` to see available loops\n"
+                "- run `wt workflow list` to see available workflows\n"
                 "- add a definition under the loops directory"
             ],
             warnings=warnings,

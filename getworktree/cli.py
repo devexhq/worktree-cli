@@ -11,11 +11,6 @@ from getworktree.commands.config.command import (
     config_validate_command,
 )
 from getworktree.commands.init.command import init_command
-from getworktree.commands.loop.command import (
-    loop_list_command,
-    loop_run_command,
-    loop_show_command,
-)
 from getworktree.commands.sandbox.command import (
     sandbox_create_command,
     sandbox_delete_command,
@@ -23,6 +18,12 @@ from getworktree.commands.sandbox.command import (
     sandbox_show_command,
 )
 from getworktree.commands.status.command import status_command
+from getworktree.commands.workflow.command import (
+    workflow_list_command,
+    workflow_resume_command,
+    workflow_run_command,
+    workflow_show_command,
+)
 from getworktree.core.db import SandboxStatus
 
 # Initialize a central styling console for high-utility layout parsing
@@ -45,11 +46,12 @@ config_app = typer.Typer(
 )
 app.add_typer(config_app, name="config")
 
-loop_app = typer.Typer(
-    name="loop",
-    help="Inspect and manage Worktree loop definitions.",
+workflow_app = typer.Typer(
+    name="workflow",
+    help="Inspect and manage Worktree workflow definitions and sessions.",
+    invoke_without_command=True,
 )
-app.add_typer(loop_app, name="loop")
+app.add_typer(workflow_app, name="workflow")
 
 sandbox_app = typer.Typer(
     name="sandbox",
@@ -165,23 +167,30 @@ def config_validate(ctx: typer.Context):
     config_validate_command()
 
 
-@loop_app.command("list")
-def loop_list(ctx: typer.Context):
-    """List available loop definitions and their status."""
-    loop_list_command()
+@workflow_app.callback(invoke_without_command=True)
+def workflow_callback(ctx: typer.Context):
+    """Inspect and manage Worktree workflow definitions and sessions."""
+    if ctx.invoked_subcommand is None:
+        workflow_list_command()
 
 
-@loop_app.command("show")
-def loop_show(
-    name: str = typer.Argument(..., help="Logical loop name to show."),
+@workflow_app.command("list")
+def workflow_list(ctx: typer.Context):
+    """List workflow run sessions."""
+    workflow_list_command()
+
+
+@workflow_app.command("show")
+def workflow_show(
+    id: str = typer.Argument(..., help="Workflow session ID to show."),
 ):
-    """Show a human-readable summary of a loop definition."""
-    loop_show_command(name)
+    """Show details for a specific workflow session."""
+    workflow_show_command(id)
 
 
-@loop_app.command("run")
-def loop_run(
-    name: str = typer.Argument(..., help="Logical loop name to run."),
+@workflow_app.command("run")
+def workflow_run(
+    name: str = typer.Argument(..., help="Logical workflow name to run."),
     max_attempts: int | None = typer.Option(
         None,
         "--max-attempts",
@@ -215,8 +224,8 @@ def loop_run(
         ),
     ),
 ):
-    """Run a loop in an isolated git worktree sandbox."""
-    loop_run_command(
+    """Run a workflow in an isolated git worktree sandbox."""
+    workflow_run_command(
         name,
         max_attempts=max_attempts,
         keep=keep if keep else None,
@@ -224,6 +233,14 @@ def loop_run(
         wip=wip,
         dump_prompt=dump_prompt,
     )
+
+
+@workflow_app.command("resume")
+def workflow_resume(
+    id: str = typer.Argument(..., help="Workflow session ID to resume."),
+):
+    """Resume an interrupted workflow session."""
+    workflow_resume_command(id)
 
 
 _SANDBOX_STATUS_OPTION = typer.Option(

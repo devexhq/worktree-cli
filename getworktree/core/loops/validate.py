@@ -172,7 +172,7 @@ def validate_loop_result(path: Path) -> LoopValidationResult:
                 f"Loop definition not found at '{source_path}' "
                 f"(LOOP_INVALID_NOT_FOUND).\n"
                 "Fix:\n"
-                "- run `wt loop list` to see available loops\n"
+                "- run `wt workflow list` to see available workflows\n"
                 "- create the definition file or fix the path"
             ],
         )

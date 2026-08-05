@@ -55,7 +55,8 @@ creates this layout inside a Git repo, analogous to `.git/`:
   .meta/bootstrap.json   status, tool_version, initialized_at
   config.json            V1 config, validated against schemas/config_v1.json
   loops/                 seeded + user loop definitions (validated against loop_v1.json)
-  sessions/, artifacts/, tmp/, logs/
+  sessions/              loop session artifacts: <session_id>/diff.patch
+  artifacts/, tmp/, logs/
   data.db                 SQLite token/cost + sandbox metadata (getworktree/core/db.py)
 ```
 
@@ -186,7 +187,7 @@ Surface: `wt sandbox create|list|show|delete`. Shared patterns:
 - Optional `base_ref=` override: when provided and non-empty after strip, used
   verbatim as the git ref for `git worktree add`. `None` / whitespace-only falls
   back to current branch when it is a real branch name; otherwise
-  `sandbox.base_ref` from config (default `HEAD`). `wt loop run` continues to
+  `sandbox.base_ref` from config (default `HEAD`). `wt workflow run` continues to
   omit `base_ref` (unchanged behavior)
 - After successful `git worktree add`, resolve `base_commit` via
   `git rev-parse HEAD` in the sandbox (required on `SandboxSession`). Failure
@@ -514,11 +515,13 @@ checkpoint still stops with `session_timeout`.
 CLI should set the same abort flag on SIGINT and let the controller finish
 cleanup (`should_cleanup_sandbox` with `command_passed=None` on abort).
 
-## Loop run CLI UX
+## Workflow run CLI UX
 
-`wt loop run NAME` ([getworktree/commands/loop/command.py](../../getworktree/commands/loop/command.py))
+`wt workflow run NAME` ([getworktree/commands/workflow/command.py](../../getworktree/commands/workflow/command.py))
 orchestrates resolve → validate → `run_loop_iteration` → render. Formatting lives
-in [renderers.py](../../getworktree/commands/loop/renderers.py) (no bare `print`).
+in [renderers.py](../../getworktree/commands/workflow/renderers.py) (no bare `print`).
+`sandbox.base_ref` from config (default `HEAD`). `wt workflow run` continues to
+omit `base_ref` (unchanged behavior)
 
 ### Live progress
 The CLI registers `on_event` and prints plain progress as the controller emits:
@@ -541,7 +544,7 @@ when progress streamed).
 ### Approval prompt
 When the approval gate is on, the CLI prints a bordered `rich.panel.Panel`
 review block (`build_patch_review_panel` in
-[renderers.py](../../getworktree/commands/loop/renderers.py)) before the y/N
+[renderers.py](../../getworktree/commands/workflow/renderers.py)) before the y/N
 prompt: touched files, `+/-` line stats in the title, and the unified diff body
 (truncated after 200 lines) with added lines in green, removed lines in red,
 hunk headers in cyan, and file headers bold. Non-TTY stdin still prints the
@@ -556,7 +559,7 @@ panel, then denies.
 | `ABORTED` | 130 |
 | pre-run resolve/validate/config failure | 1 |
 
-Summary labels: `Loop:`, `Status:`, `Session:`, `Attempts:`, `Stop:`,
+Summary labels: `Workflow:`, `Status:`, `Session:`, `Attempts:`, `Stop:`,
 `Sandbox:`, `Artifacts:`, `Next:`.
 
 ## Packaged resources

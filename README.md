@@ -39,9 +39,9 @@ pip install "getworktree[cursor]"
 wt init
 wt status
 wt config validate
-wt loop list
-wt loop show fix-tests
-wt loop run fix-tests
+wt workflow list
+wt workflow show wf-12345
+wt workflow run fix-tests
 ```
 
 ## Current command surface
@@ -56,11 +56,12 @@ wt loop run fix-tests
 - `wt config show`
 - `wt config validate`
 
-### Loop
+### Workflow
 
-- `wt loop list`
-- `wt loop show <name>`
-- `wt loop run <name>`
+- `wt workflow list` (or `wt workflow`)
+- `wt workflow show <id>`
+- `wt workflow run <name>`
+- `wt workflow resume <id>`
 
 ## Agent providers for loop runs
 

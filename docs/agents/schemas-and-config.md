@@ -32,7 +32,7 @@ Enums (exact tokens):
   `gemini` | `copilot`
 - `patch.strategy`: `unified_diff`
 
-For `wt loop run`, **loop** `agent.provider` selects the adapter; **config**
+For `wt workflow run`, **loop** `agent.provider` selects the adapter; **config**
 `agent.model` / `endpoint` / `temperature` / `max_tokens` fill the request.
 Ollama uses `config.agent.model` + `config.agent.endpoint` (or `OLLAMA_HOST`).
 Cursor uses `config.agent.model` and `CURSOR_API_KEY`. Gemini uses
@@ -434,7 +434,7 @@ Config key: `paths.loops_dir`. Explicit `loops_dir` wins over config.
 ### Primary API
 
 `discover_loop_files(cwd=None, *, loops_dir=None, use_config=True) -> LoopDiscoveryResult`
-is the primary surface for later `wt loop list|show|run`.
+is the primary surface for later `wt workflow list|show|run`.
 
 `resolve_loops_dir(cwd=None, *, loops_dir=None, use_config=True) -> tuple[Path, list[str]]`
 returns `(absolute_loops_dir, resolution_errors)` using the same resolution
@@ -794,41 +794,29 @@ is optional (`bool | None`) to match the schema; packaged templates may omit it.
 Commands must call this API rather than ad-hoc `yaml.safe_load` + schema for
 full validation. Metadata/inventory remain the lighter list layer.
 
-## `wt loop list`
+## `wt workflow list`
 
-Command entry: `getworktree.commands.loop.command.loop_list_command`.
-Registration: `wt loop list` under `loop_app` in
+Command entry: `getworktree.commands.workflow.command.workflow_list_command`.
+Registration: `wt workflow list` (and `wt workflow`) under `workflow_app` in
 [getworktree/cli.py](../../getworktree/cli.py).
 
-Read-only: build inventory of available loop definitions, print a human-readable
-Rich table or `No loops found.` empty state. Never mutates loop/config files,
-starts sandboxes, or runs triggers.
-
-Pipeline:
-
-1. `build_loop_inventory(cwd=cwd)`
-2. On discovery failure (`status == discovery_failed`) → red-bordered `Loop List Failed` error panel, exit `1`.
-3. On discovery success (`status == ok`) → `render_loop_list`:
-   - If valid entries exist → `Worktree Loops` Rich table (`Name`, `Version`, `Description`, `Source`).
-   - If valid entries empty → `No loops found.`.
-   - Render warnings or invalid loop file bullets if any exist, exit `0`.
+Read-only: query recorded workflow sessions, print a human-readable
+Rich table `Recorded Workflows` or `No recorded workflows found.` empty state.
 
 ### Exit codes
 
 | Condition | Exit |
 |-----------|------|
-| discovery ok (empty, valid, or invalid entries) | `0` |
-| discovery failed (uninitialized, missing dir, unreadable config) | `1` |
+| list ok (empty or recorded sessions) | `0` |
+| uninitialized worktree or config load error | `1` |
 
-## `wt loop show`
+## `wt workflow show`
 
-Command entry: `getworktree.commands.loop.command.loop_show_command`.
-Registration: `wt loop show` under `loop_app` in
+Command entry: `getworktree.commands.workflow.command.workflow_show_command`.
+Registration: `wt workflow show` under `workflow_app` in
 [getworktree/cli.py](../../getworktree/cli.py).
 
-Read-only: resolve by name, full-validate the chosen file, print a human
-summary or classified errors. Never mutates loop/config files, starts sandboxes,
-or runs triggers. No `--path` / `--json` in this surface.
+Read-only: query workflow session by session ID and print details.
 
 Pipeline:
 
