@@ -6,14 +6,81 @@ from pathlib import Path
 from typing import Any
 
 from rich.panel import Panel
+from rich.table import Table
 from rich.text import Text
 
+from getworktree.common.utils import RichOutput, display_path
+from getworktree.core.loops.inventory import (
+    LoopInventoryResult,
+    LoopInventoryValidEntry,
+)
 from getworktree.core.loops.patch import summarize_unified_diff
 from getworktree.core.loops.runner import AttemptRecord, LoopFinalStatus, LoopRunResult
 
+_DEFAULT_RICH_OUTPUT = RichOutput()
 _SUMMARY_RULE = "── Loop run summary ───────────────────────────────────────────"
 # Keep approval prompts readable in a terminal without flooding the scrollback.
 DEFAULT_PATCH_PREVIEW_MAX_LINES = 200
+
+
+def build_loop_table(
+    valid_entries: list[LoopInventoryValidEntry],
+    *,
+    cwd: Path | None = None,
+) -> Table:
+    """Build the ``Worktree Loops`` table for list output.
+
+    Args:
+        valid_entries: Successfully parsed loop inventory entries.
+        cwd: Repository root for relative path display.
+
+    Returns:
+        A Rich table with Name, Version, Description, Source columns.
+    """
+    table = Table(title="Worktree Loops", show_header=True)
+    table.add_column("Name", style="cyan")
+    table.add_column("Version")
+    table.add_column("Description")
+    table.add_column("Source")
+
+    root = (cwd or Path.cwd()).resolve()
+    for entry in valid_entries:
+        path_str = display_path(entry.source_path, root)
+        table.add_row(
+            entry.name,
+            str(entry.version),
+            entry.description,
+            path_str,
+        )
+    return table
+
+
+def render_loop_list(
+    inventory: LoopInventoryResult,
+    *,
+    cwd: Path | None = None,
+    rich_output: RichOutput | None = None,
+) -> None:
+    """Render empty state or the loops table along with any warnings/invalid entries."""
+    output = rich_output or _DEFAULT_RICH_OUTPUT
+    root = (cwd or Path.cwd()).resolve()
+
+    if not inventory.valid:
+        output.info("No loops found.")
+    else:
+        output.info(build_loop_table(inventory.valid, cwd=root))
+
+    for warning in inventory.warnings:
+        output.dim_bullet(f"Warning: {warning}")
+
+    for invalid in inventory.invalid:
+        err_msg = (
+            invalid.errors[0]
+            if invalid.errors
+            else f"Invalid loop definition '{invalid.source_path.name}'"
+        )
+        path_str = display_path(invalid.source_path, root)
+        output.dim_bullet(f"Invalid loop file '{path_str}': {err_msg}")
 
 
 def exit_code_for_status(status: LoopFinalStatus) -> int:

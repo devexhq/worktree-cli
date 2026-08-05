@@ -794,6 +794,32 @@ is optional (`bool | None`) to match the schema; packaged templates may omit it.
 Commands must call this API rather than ad-hoc `yaml.safe_load` + schema for
 full validation. Metadata/inventory remain the lighter list layer.
 
+## `wt loop list`
+
+Command entry: `getworktree.commands.loop.command.loop_list_command`.
+Registration: `wt loop list` under `loop_app` in
+[getworktree/cli.py](../../getworktree/cli.py).
+
+Read-only: build inventory of available loop definitions, print a human-readable
+Rich table or `No loops found.` empty state. Never mutates loop/config files,
+starts sandboxes, or runs triggers.
+
+Pipeline:
+
+1. `build_loop_inventory(cwd=cwd)`
+2. On discovery failure (`status == discovery_failed`) → red-bordered `Loop List Failed` error panel, exit `1`.
+3. On discovery success (`status == ok`) → `render_loop_list`:
+   - If valid entries exist → `Worktree Loops` Rich table (`Name`, `Version`, `Description`, `Source`).
+   - If valid entries empty → `No loops found.`.
+   - Render warnings or invalid loop file bullets if any exist, exit `0`.
+
+### Exit codes
+
+| Condition | Exit |
+|-----------|------|
+| discovery ok (empty, valid, or invalid entries) | `0` |
+| discovery failed (uninitialized, missing dir, unreadable config) | `1` |
+
 ## `wt loop show`
 
 Command entry: `getworktree.commands.loop.command.loop_show_command`.
