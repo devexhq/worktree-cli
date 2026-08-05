@@ -345,9 +345,9 @@ Command entry: `getworktree.commands.config.command.config_show_command`.
 Dot-path mutation lives in
 [getworktree/core/config/mutate.py](../../getworktree/core/config/mutate.py).
 This layer owns in-memory nested assignment and the persist path for
-`wt config set`. It does **not** print, call `sys.exit`, parse typed CLI values
-(bool/int/float/json — issue `#12`), enforce key allow-lists (issue `#13`), or
-implement unset (issue `#15`).
+`wt config set`. It does **not** print, call `sys.exit`, or implement unset
+(issue `#15`). CLI typed values are parsed by `parse_config_value`, and schema
+key allow-lists / V1 schema validation are enforced before persisting.
 
 ### Pure helper
 
@@ -364,8 +364,8 @@ implement unset (issue `#15`).
 `set_config_value_result(key, value, *, cwd=None, config_path=None) -> ConfigSetResult`
 loads raw JSON from disk (not via schema-validated `load_config_result`, so
 already-invalid files can still be patched), deep-copies, applies
-`set_nested_value`, and writes with `atomic_write_json` only on success.
-Values are stored as **strings**.
+`set_nested_value`, validates the resulting object against the V1 JSON schema
+and `WorktreeConfig` model, and writes with `atomic_write_json` only on success.
 
 ```python
 class ConfigSetStatus(StrEnum):
@@ -373,6 +373,7 @@ class ConfigSetStatus(StrEnum):
     NOT_FOUND = "not_found"
     MALFORMED_JSON = "malformed_json"
     ROOT_NOT_OBJECT = "root_not_object"
+    SCHEMA_INVALID = "schema_invalid"
     PATH_IS_DIRECTORY = "path_is_directory"
     UNREADABLE = "unreadable"
     TYPE_COLLISION = "type_collision"
@@ -384,15 +385,15 @@ class ConfigSetResult(BaseModel):
     status: ConfigSetStatus
     config_path: Path  # absolute
     key: str
-    value: str | None
+    value: Any = None
     errors: list[str]
 
     @property
     def ok(self) -> bool: ...  # status == OK
 ```
 
-Path resolution matches the loader (`resolve_config_path`). On type collision
-or invalid path, the on-disk file is left unchanged.
+Path resolution matches the loader (`resolve_config_path`). On type collision,
+schema validation error, or invalid path, the on-disk file is left unchanged.
 
 ### Error codes
 
@@ -401,6 +402,7 @@ or invalid path, the on-disk file is left unchanged.
 | `CONFIG_NOT_FOUND` | `not_found` |
 | `CONFIG_MALFORMED_JSON` | `malformed_json` |
 | `CONFIG_ROOT_NOT_OBJECT` | `root_not_object` |
+| `CONFIG_SCHEMA_INVALID` | `schema_invalid` |
 | `CONFIG_PATH_IS_DIRECTORY` | `path_is_directory` |
 | `CONFIG_UNREADABLE` | `unreadable` |
 | `CONFIG_WRITE_FAILED` | `write_failed` |

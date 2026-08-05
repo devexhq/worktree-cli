@@ -94,40 +94,73 @@ class SetConfigValueResultTests:
         before = _read_config(config_path)
 
         result = set_config_value_result(
-            "custom.toolchain.timeout",
-            "120",
+            "agent.endpoint",
+            "http://localhost:11434",
             cwd=tmp_path,
         )
 
         assert result.ok
         after = _read_config(config_path)
-        assert after["custom"]["toolchain"]["timeout"] == "120"
+        assert after["agent"]["endpoint"] == "http://localhost:11434"
         assert after["version"] == before["version"]
 
     def test_sets_typed_non_string_values(self, tmp_path: Path) -> None:
         config_path = _write_default_config(tmp_path)
 
-        res_bool = set_config_value_result("agent.sandbox_enabled", True, cwd=tmp_path)
+        res_bool = set_config_value_result("sandbox.auto_clean", False, cwd=tmp_path)
         assert res_bool.ok
-        assert res_bool.value is True
+        assert res_bool.value is False
 
-        res_int = set_config_value_result("custom.timeout", 120, cwd=tmp_path)
+        res_int = set_config_value_result(
+            "sandbox.max_active_sandboxes", 5, cwd=tmp_path
+        )
         assert res_int.ok
-        assert res_int.value == 120
+        assert res_int.value == 5
 
-        res_list = set_config_value_result("custom.items", [1, 2], cwd=tmp_path)
-        assert res_list.ok
-        assert res_list.value == [1, 2]
+        res_float = set_config_value_result("agent.temperature", 0.7, cwd=tmp_path)
+        assert res_float.ok
+        assert res_float.value == 0.7
 
         data = _read_config(config_path)
-        assert data["agent"]["sandbox_enabled"] is True
-        assert data["custom"]["timeout"] == 120
-        assert data["custom"]["items"] == [1, 2]
+        assert data["sandbox"]["auto_clean"] is False
+        assert data["sandbox"]["max_active_sandboxes"] == 5
+        assert data["agent"]["temperature"] == 0.7
+
+    def test_invalid_schema_key_does_not_write(self, tmp_path: Path) -> None:
+        config_path = _write_default_config(tmp_path)
+        original = config_path.read_text(encoding="utf-8")
+
+        result = set_config_value_result(
+            "sandboxes.max_active_sandboxes",
+            3,
+            cwd=tmp_path,
+        )
+
+        assert not result.ok
+        assert result.status is ConfigSetStatus.SCHEMA_INVALID
+        assert "CONFIG_SCHEMA_INVALID" in result.errors[0]
+        assert "sandboxes" in result.errors[0]
+        assert config_path.read_text(encoding="utf-8") == original
+
+    def test_invalid_schema_value_does_not_write(self, tmp_path: Path) -> None:
+        config_path = _write_default_config(tmp_path)
+        original = config_path.read_text(encoding="utf-8")
+
+        result = set_config_value_result(
+            "sandbox.max_active_sandboxes",
+            -1,
+            cwd=tmp_path,
+        )
+
+        assert not result.ok
+        assert result.status is ConfigSetStatus.SCHEMA_INVALID
+        assert "CONFIG_SCHEMA_INVALID" in result.errors[0]
+        assert config_path.read_text(encoding="utf-8") == original
 
     def test_type_collision_does_not_write(self, tmp_path: Path) -> None:
         config_path = _write_default_config(tmp_path)
         data = _read_config(config_path)
-        data["agents"] = {"ollama": "qwen2.5-coder"}
+        data["agent"] = "scalar-value"
         config_path.write_text(
             json.dumps(data, indent=2) + "\n",
             encoding="utf-8",
@@ -135,15 +168,15 @@ class SetConfigValueResultTests:
         original = config_path.read_text(encoding="utf-8")
 
         result = set_config_value_result(
-            "agents.ollama.port",
-            "11434",
+            "agent.model",
+            "qwen2.5-coder",
             cwd=tmp_path,
         )
 
         assert not result.ok
         assert result.status is ConfigSetStatus.TYPE_COLLISION
-        assert "agents.ollama.port" in result.errors[0]
-        assert "agents.ollama" in result.errors[0]
+        assert "agent.model" in result.errors[0]
+        assert "agent" in result.errors[0]
         assert "scalar" in result.errors[0]
         assert config_path.read_text(encoding="utf-8") == original
 
@@ -175,19 +208,18 @@ class SetConfigValueResultTests:
 
     def test_top_level_key(self, tmp_path: Path) -> None:
         config_path = _write_default_config(tmp_path)
-        result = set_config_value_result("version", "1", cwd=tmp_path)
+        result = set_config_value_result("version", 1, cwd=tmp_path)
         assert result.ok
-        assert _read_config(config_path)["version"] == "1"
+        assert _read_config(config_path)["version"] == 1
 
     def test_explicit_config_path(self, tmp_path: Path) -> None:
-        config_path = tmp_path / "elsewhere" / "config.json"
-        config_path.parent.mkdir(parents=True)
-        config_path.write_text('{"a": {"b": 1}}\n', encoding="utf-8")
+        explicit_dir = tmp_path / "elsewhere"
+        config_path = _write_default_config(explicit_dir)
 
         result = set_config_value_result(
-            "a.b",
-            "2",
+            "sandbox.max_active_sandboxes",
+            5,
             config_path=config_path,
         )
         assert result.ok
-        assert _read_config(config_path) == {"a": {"b": "2"}}
+        assert _read_config(config_path)["sandbox"]["max_active_sandboxes"] == 5

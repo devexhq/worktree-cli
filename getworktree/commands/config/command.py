@@ -26,9 +26,9 @@ def config_set_command(
     """Set a configuration value by top-level or nested dot-path key.
 
     String inputs are parsed into native types (bool, int, float, list, dict).
-    Missing intermediate objects are created. Type collisions and load/write
-    failures abort without partial writes. Does not validate keys against the V1
-    schema allow-list.
+    Missing intermediate objects are created. Type collisions, schema key errors,
+    and load/write failures abort without partial writes. Validates keys and values
+    against the V1 schema allow-list.
 
     Args:
         key: Dot-path key (e.g. ``agent.model`` or ``version``).
