@@ -27,12 +27,17 @@ def atomic_write_json(path: Path, data: dict[str, Any]) -> None:
     """Write JSON atomically with indent=2, UTF-8, and trailing newline."""
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = path.with_name(f"{path.name}.tmp")
-    with open(tmp_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
-        f.flush()
-        os.fsync(f.fileno())
-    tmp_path.replace(path)
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+            f.write("\n")
+            f.flush()
+            os.fsync(f.fileno())
+        tmp_path.replace(path)
+    except Exception:
+        if tmp_path.exists():
+            tmp_path.unlink(missing_ok=True)
+        raise
 
 
 def is_git_repository(path: Path) -> bool:

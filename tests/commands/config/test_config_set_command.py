@@ -202,3 +202,23 @@ class ConfigSetCliTests:
         params = {p.name for p in set_cmd.params}
         assert "key" in params
         assert "value" in params
+
+    def test_set_write_failure_displays_error_panel(
+        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(git_repo)
+        assert runner.invoke(app, ["init"]).exit_code == 0
+
+        def mock_write_json(*args, **kwargs):
+            raise OSError("Permission denied")
+
+        monkeypatch.setattr(
+            "getworktree.core.config.mutate.atomic_write_json", mock_write_json
+        )
+
+        result = runner.invoke(app, ["config", "set", "agent.model", "qwen2.5-coder"])
+        assert result.exit_code == 1
+        combined = result.stdout + result.stderr
+        assert "Config Error" in combined
+        assert "CONFIG_WRITE_FAILED" in combined
+        assert "Permission denied" in combined
