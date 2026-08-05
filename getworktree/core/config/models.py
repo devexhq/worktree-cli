@@ -38,7 +38,7 @@ class PathsConfig(BaseModel):
     loops_dir: str = Field(default=".worktree/loops", min_length=1)
     sessions_dir: str = Field(default=".worktree/sessions", min_length=1)
     artifacts_dir: str = Field(default=".worktree/artifacts", min_length=1)
-    db_path: str = Field(default=".worktree/token_audit.db", min_length=1)
+    db_path: str = Field(default=".worktree/data.db", min_length=1)
 
 
 class SandboxConfig(BaseModel):

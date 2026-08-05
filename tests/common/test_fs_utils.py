@@ -69,11 +69,11 @@ class ResolvePathFromConfigTests:
     def test_reads_paths_key(self, tmp_path: Path) -> None:
         cfg = tmp_path / "config.json"
         cfg.write_text(
-            json.dumps({"paths": {"db_path": ".worktree/token_audit.db"}}),
+            json.dumps({"paths": {"db_path": ".worktree/data.db"}}),
             encoding="utf-8",
         )
         path = resolve_path_from_config(cfg, "db_path", "fallback.db")
-        assert path == Path(".worktree/token_audit.db")
+        assert path == Path(".worktree/data.db")
 
 
 class IsGitRepositoryTests:
