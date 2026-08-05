@@ -223,3 +223,24 @@ class SetConfigValueResultTests:
         )
         assert result.ok
         assert _read_config(config_path)["sandbox"]["max_active_sandboxes"] == 5
+
+    def test_write_failed_on_os_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        config_path = _write_default_config(tmp_path)
+        original_text = config_path.read_text(encoding="utf-8")
+
+        def mock_write_json(*args, **kwargs):
+            raise OSError("Permission denied")
+
+        monkeypatch.setattr(
+            "getworktree.core.config.mutate.atomic_write_json", mock_write_json
+        )
+
+        result = set_config_value_result("agent.model", "qwen2.5-coder", cwd=tmp_path)
+        assert not result.ok
+        assert result.status is ConfigSetStatus.WRITE_FAILED
+        assert "CONFIG_WRITE_FAILED" in result.errors[0]
+        assert "Permission denied" in result.errors[0]
+        assert "check file permissions and free disk space" in result.errors[0]
+        assert config_path.read_text(encoding="utf-8") == original_text
