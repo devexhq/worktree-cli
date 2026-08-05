@@ -1,4 +1,4 @@
-"""Loop command handlers: show summaries and ``wt loop run`` orchestration."""
+"""Workflow command handlers: list, show, run, and resume workflow sessions."""
 
 from __future__ import annotations
 
@@ -10,19 +10,18 @@ from typing import Any
 
 import typer
 
-from getworktree.commands.loop.renderers import (
+from getworktree.commands.workflow.renderers import (
     build_patch_review_panel,
     exit_code_for_status,
     format_progress_event,
     format_run_output,
-    render_loop_list,
+    render_workflow_list,
 )
 from getworktree.common.utils import RichOutput
 from getworktree.core.config.loader import ConfigLoadStatus, load_config_result
-from getworktree.core.loops.inventory import build_loop_inventory
+from getworktree.core.db import get_sandbox, list_sandboxes
 from getworktree.core.loops.render import (
     format_loop_show_resolve_failure,
-    format_loop_show_success,
     format_loop_show_validate_failure,
 )
 from getworktree.core.loops.resolve import resolve_loop_by_name
@@ -32,29 +31,29 @@ from getworktree.core.loops.validate import validate_loop_result
 rich_output = RichOutput()
 
 
-def loop_list_command(*, cwd: Path | None = None) -> None:
-    """Discover available loop definitions and render an inventory summary.
+def workflow_list_command(*, cwd: Path | None = None) -> None:
+    """Query recorded workflow run sessions and render a formatted table.
 
-    Read-only: does not mutate loop files, start sandboxes, or run triggers.
-    Exit ``0`` when discovery succeeds (including empty or invalid entries);
-    exit ``1`` on discovery failure (e.g. uninitialized worktree).
+    Read-only: does not mutate workflow files or start sandboxes.
+    Exit ``0`` on success (including when no recorded workflows exist);
+    exit ``1`` on uninitialized worktree or config load failure.
 
     Args:
         cwd: Repository root. Defaults to process CWD.
     """
     root = (cwd or Path.cwd()).resolve()
-    inventory = build_loop_inventory(cwd=root)
-
-    if not inventory.ok:
+    load = load_config_result(cwd=root)
+    if not load.ok or load.config is None:
         message = (
-            "\n\n".join(inventory.errors)
-            if inventory.errors
-            else "Loop directory could not be discovered."
+            load.errors[0]
+            if load.errors
+            else "Worktree is not initialized. Run `wt init`."
         )
-        rich_output.error_panel("Loop List Failed", message)
+        rich_output.error_panel("Workflow List Failed", message)
         raise typer.Exit(code=1)
 
-    render_loop_list(inventory, cwd=root, rich_output=rich_output)
+    sandboxes = list_sandboxes(cwd=root)
+    render_workflow_list(sandboxes, cwd=root, rich_output=rich_output)
     raise typer.Exit(code=0)
 
 
@@ -69,61 +68,74 @@ def _format_warning_bullets(warnings: list[str]) -> list[str]:
     return lines
 
 
-def loop_show_command(name: str, *, cwd: Path | None = None) -> None:
-    """Resolve, validate, and print a human-readable loop summary.
+def workflow_show_command(session_id: str, *, cwd: Path | None = None) -> None:
+    """Show details for a specific workflow session by session ID.
 
-    Read-only: does not mutate loop files, start sandboxes, or run triggers.
-    Exit ``0`` when resolve and validate succeed (warnings allowed); exit ``1``
-    on resolve or validate failure.
+    Read-only: does not mutate workflow files or start sandboxes.
+    Exit ``0`` when workflow session is found; exit ``1`` on failure or missing session.
 
     Args:
-        name: Logical loop name to show.
+        session_id: Workflow session ID to show.
         cwd: Repository root. Defaults to process CWD.
     """
     root = (cwd or Path.cwd()).resolve()
-    resolved = resolve_loop_by_name(name, cwd=root)
+    load = load_config_result(cwd=root)
+    if not load.ok or load.config is None:
+        message = (
+            load.errors[0]
+            if load.errors
+            else "Worktree is not initialized. Run `wt init`."
+        )
+        rich_output.error_panel("Workflow Show Failed", message)
+        raise typer.Exit(code=1)
 
-    if not resolved.ok:
+    row = get_sandbox(session_id, cwd=root)
+    if row is None:
         rich_output.error_panel(
-            "Loop Show Failed",
-            format_loop_show_resolve_failure(resolved),
+            "Workflow Show Failed",
+            f"Workflow session '{session_id}' not found.",
         )
         raise typer.Exit(code=1)
 
-    assert resolved.entry is not None
-    validated = validate_loop_result(resolved.entry.source_path)
+    rich_output.info(f"Workflow Session: {row.id}")
+    rich_output.info(f"Name:             {row.name or '-'}")
+    rich_output.info(f"Branch:           {row.branch_name}")
+    rich_output.info(
+        f"Status:           {row.status.value if hasattr(row.status, 'value') else str(row.status)}"
+    )
+    rich_output.info(f"Started At:       {row.created_at}")
+    raise typer.Exit(code=0)
 
-    if not validated.ok:
-        rich_output.error_panel(
-            "Loop Show Failed",
-            format_loop_show_validate_failure(validated),
+
+def workflow_resume_command(session_id: str, *, cwd: Path | None = None) -> None:
+    """Resume an interrupted workflow session by session ID.
+
+    Exit ``0`` when workflow session is resumed; exit ``1`` on missing session.
+
+    Args:
+        session_id: Workflow session ID to resume.
+        cwd: Repository root. Defaults to process CWD.
+    """
+    root = (cwd or Path.cwd()).resolve()
+    load = load_config_result(cwd=root)
+    if not load.ok or load.config is None:
+        message = (
+            load.errors[0]
+            if load.errors
+            else "Worktree is not initialized. Run `wt init`."
         )
-        if resolved.warnings:
-            warning_block = "Warnings:\n" + "\n".join(
-                _format_warning_bullets(resolved.warnings)
-            )
-            rich_output.console.print(
-                warning_block,
-                markup=False,
-                highlight=False,
-                soft_wrap=True,
-            )
+        rich_output.error_panel("Workflow Resume Failed", message)
         raise typer.Exit(code=1)
 
-    assert validated.loop is not None
-    warnings = [*resolved.warnings, *validated.warnings]
-    payload = format_loop_show_success(
-        validated.loop,
-        source_path=validated.source_path,
-        warnings=warnings,
-    )
-    rich_output.console.print(
-        payload,
-        end="",
-        markup=False,
-        highlight=False,
-        soft_wrap=True,
-    )
+    row = get_sandbox(session_id, cwd=root)
+    if row is None:
+        rich_output.error_panel(
+            "Workflow Resume Failed",
+            f"Workflow session '{session_id}' not found.",
+        )
+        raise typer.Exit(code=1)
+
+    rich_output.info(f"Resuming workflow session '{session_id}'...")
     raise typer.Exit(code=0)
 
 
@@ -148,7 +160,7 @@ def _make_approve_callback(
     return approve_patch
 
 
-def loop_run_command(
+def workflow_run_command(
     name: str,
     *,
     max_attempts: int | None = None,
@@ -159,25 +171,24 @@ def loop_run_command(
     cwd: Path | None = None,
     run_loop_fn: Callable[..., LoopRunResult] | None = None,
 ) -> None:
-    """Resolve a loop, run the iteration controller, render summary, exit.
+    """Resolve a workflow definition, run the iteration controller, render summary, exit.
 
     Args:
-        name: Loop definition name.
+        name: Workflow definition name.
         max_attempts: Optional ``--max-attempts`` override (≥1).
         keep: When True, force ``auto_clean=False``; when False/None, leave default.
-        approve_each: When set, override loop approval.require_before_apply.
+        approve_each: When set, override workflow approval.require_before_apply.
         wip: When True, overlay uncommitted working-tree changes into sandbox.
         dump_prompt: When True, dump provider-specific agent input to ``/tmp``.
         cwd: Repository root.
-        run_loop_fn: Injectable controller (tests); defaults to
-            ``run_loop_iteration``.
+        run_loop_fn: Injectable controller (tests); defaults to ``run_loop_iteration``.
     """
     root = (cwd or Path.cwd()).resolve()
     runner = run_loop_fn or run_loop_iteration
 
     if max_attempts is not None and max_attempts < 1:
         rich_output.error_panel(
-            "Loop Run Failed",
+            "Workflow Run Failed",
             "--max-attempts must be an integer >= 1.",
         )
         raise typer.Exit(code=1)
@@ -185,7 +196,7 @@ def loop_run_command(
     load = load_config_result(cwd=root)
     if load.status == ConfigLoadStatus.NOT_FOUND:
         rich_output.error_panel(
-            "Loop Run Failed",
+            "Workflow Run Failed",
             load.errors[0]
             if load.errors
             else "Worktree is not initialized. Run `wt init`.",
@@ -193,14 +204,14 @@ def loop_run_command(
         raise typer.Exit(code=1)
     if not load.ok or load.config is None:
         detail = load.errors[0] if load.errors else "Invalid configuration."
-        rich_output.error_panel("Loop Run Failed", detail)
+        rich_output.error_panel("Workflow Run Failed", detail)
         raise typer.Exit(code=1)
 
     config = load.config
     resolved = resolve_loop_by_name(name, cwd=root)
     if not resolved.ok:
         rich_output.error_panel(
-            "Loop Run Failed",
+            "Workflow Run Failed",
             format_loop_show_resolve_failure(resolved),
         )
         raise typer.Exit(code=1)
@@ -209,7 +220,7 @@ def loop_run_command(
     validated = validate_loop_result(resolved.entry.source_path)
     if not validated.ok:
         rich_output.error_panel(
-            "Loop Run Failed",
+            "Workflow Run Failed",
             format_loop_show_validate_failure(validated),
         )
         raise typer.Exit(code=1)
@@ -283,10 +294,8 @@ def loop_run_command(
         StopReason.CONFIGURATION_ERROR,
     }:
         for err in result.errors:
-            rich_output.error_panel("Loop Run Failed", err)
+            rich_output.error_panel("Workflow Run Failed", err)
 
-    # Live hooks already printed attempt lines; only reprint them when no
-    # progress was streamed (e.g. injected controller without on_event).
     text = format_run_output(
         result,
         cwd=root,

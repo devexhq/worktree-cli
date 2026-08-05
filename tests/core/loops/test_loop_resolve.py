@@ -54,7 +54,7 @@ class ResolveLoopByNameTests:
         assert any("LOOP_RESOLVE_NOT_FOUND" in error for error in result.errors)
         assert "missing-loop" in result.errors[0]
         assert loops_dir.resolve().as_posix() in result.errors[0]
-        assert "wt loop list" in result.errors[0]
+        assert "wt workflow list" in result.errors[0]
 
     def test_not_found_when_only_invalid_files(self, tmp_path: Path) -> None:
         loops_dir = tmp_path / "loops"

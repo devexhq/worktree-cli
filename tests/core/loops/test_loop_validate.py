@@ -187,7 +187,7 @@ class ValidateLoopResultIoFailureTests:
         msg = result.errors[0]
         assert "LOOP_INVALID_NOT_FOUND" in msg
         assert str(path.resolve()) in msg
-        assert "wt loop list" in msg
+        assert "wt workflow list" in msg
         assert "Fix:" in msg
 
     def test_not_a_file(self, tmp_path: Path) -> None:

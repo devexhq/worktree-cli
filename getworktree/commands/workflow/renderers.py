@@ -1,4 +1,4 @@
-"""Rich-facing formatters for ``wt loop run`` attempt lines and summary."""
+"""Rich-facing formatters for ``wt workflow`` list table, attempt lines, and run summary."""
 
 from __future__ import annotations
 
@@ -9,82 +9,66 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from getworktree.common.utils import RichOutput, display_path
-from getworktree.core.loops.inventory import (
-    LoopInventoryResult,
-    LoopInventoryValidEntry,
-)
+from getworktree.common.utils import RichOutput
+from getworktree.core.db import SandboxRecord
 from getworktree.core.loops.patch import summarize_unified_diff
 from getworktree.core.loops.runner import AttemptRecord, LoopFinalStatus, LoopRunResult
 
 _DEFAULT_RICH_OUTPUT = RichOutput()
-_SUMMARY_RULE = "── Loop run summary ───────────────────────────────────────────"
+_SUMMARY_RULE = "── Workflow run summary ───────────────────────────────────────────"
 # Keep approval prompts readable in a terminal without flooding the scrollback.
 DEFAULT_PATCH_PREVIEW_MAX_LINES = 200
 
 
-def build_loop_table(
-    valid_entries: list[LoopInventoryValidEntry],
+def build_recorded_workflows_table(
+    sandboxes: list[SandboxRecord],
     *,
     cwd: Path | None = None,
 ) -> Table:
-    """Build the ``Worktree Loops`` table for list output.
+    """Build the ``Recorded Workflows`` table for workflow list output.
 
     Args:
-        valid_entries: Successfully parsed loop inventory entries.
+        sandboxes: List of recorded sandbox / session rows from database.
         cwd: Repository root for relative path display.
 
     Returns:
-        A Rich table with Name, Version, Description, Source columns.
+        A Rich table with SESSION ID, WORKFLOW NAME, BRANCH, STATUS, STARTED AT columns.
     """
-    table = Table(title="Worktree Loops", show_header=True)
-    table.add_column("Name", style="cyan")
-    table.add_column("Version")
-    table.add_column("Description")
-    table.add_column("Source")
+    table = Table(title="Recorded Workflows", show_header=True)
+    table.add_column("SESSION ID", style="cyan", no_wrap=True)
+    table.add_column("WORKFLOW NAME", no_wrap=True)
+    table.add_column("BRANCH", no_wrap=True)
+    table.add_column("STATUS")
+    table.add_column("STARTED AT", no_wrap=True)
 
-    root = (cwd or Path.cwd()).resolve()
-    for entry in valid_entries:
-        path_str = display_path(entry.source_path, root)
+    for row in sandboxes:
         table.add_row(
-            entry.name,
-            str(entry.version),
-            entry.description,
-            path_str,
+            row.id,
+            row.name or "-",
+            row.branch_name,
+            row.status.value if hasattr(row.status, "value") else str(row.status),
+            row.created_at,
         )
     return table
 
 
-def render_loop_list(
-    inventory: LoopInventoryResult,
+def render_workflow_list(
+    sandboxes: list[SandboxRecord],
     *,
     cwd: Path | None = None,
     rich_output: RichOutput | None = None,
 ) -> None:
-    """Render empty state or the loops table along with any warnings/invalid entries."""
+    """Render empty state or the recorded workflows table."""
     output = rich_output or _DEFAULT_RICH_OUTPUT
-    root = (cwd or Path.cwd()).resolve()
 
-    if not inventory.valid:
-        output.info("No loops found.")
+    if not sandboxes:
+        output.info("No recorded workflows found.")
     else:
-        output.info(build_loop_table(inventory.valid, cwd=root))
-
-    for warning in inventory.warnings:
-        output.dim_bullet(f"Warning: {warning}")
-
-    for invalid in inventory.invalid:
-        err_msg = (
-            invalid.errors[0]
-            if invalid.errors
-            else f"Invalid loop definition '{invalid.source_path.name}'"
-        )
-        path_str = display_path(invalid.source_path, root)
-        output.dim_bullet(f"Invalid loop file '{path_str}': {err_msg}")
+        output.info(build_recorded_workflows_table(sandboxes, cwd=cwd))
 
 
 def exit_code_for_status(status: LoopFinalStatus) -> int:
-    """Map final loop status to process exit code (FR-4)."""
+    """Map final workflow status to process exit code."""
     if status == LoopFinalStatus.PASSED:
         return 0
     if status == LoopFinalStatus.FAILED:
@@ -169,21 +153,7 @@ def build_patch_review_panel(
     *,
     max_diff_lines: int = DEFAULT_PATCH_PREVIEW_MAX_LINES,
 ) -> Panel:
-    """Build a bordered, colorized patch review panel shown before approval.
-
-    Panel title carries the touched-file count and ``+/-`` line stats; the
-    body lists touched files followed by the diff, with added lines in green,
-    removed lines in red, hunk headers in cyan, and file headers bold. Long
-    diffs are truncated after ``max_diff_lines`` body lines.
-
-    Args:
-        unified_diff: Agent-proposed unified diff text.
-        max_diff_lines: Maximum diff body lines to include before truncation.
-            Values below 1 are treated as 1.
-
-    Returns:
-        A ``rich.panel.Panel`` ready to pass to ``Console.print``.
-    """
+    """Build a bordered, colorized patch review panel shown before approval."""
     limit = max(1, int(max_diff_lines))
     touched, additions, deletions = summarize_unified_diff(unified_diff)
     n_files = len(touched)
@@ -200,8 +170,6 @@ def build_patch_review_panel(
     body.append("\n\n")
 
     diff_text = (unified_diff or "").replace("\r\n", "\n").replace("\r", "\n")
-    # Preserve a single trailing newline in the source as part of the body;
-    # split("\n") on a terminating newline yields one trailing empty segment.
     raw_lines = diff_text.split("\n")
     if raw_lines and raw_lines[-1] == "":
         raw_lines = raw_lines[:-1]
@@ -237,16 +205,12 @@ def format_attempt_header(*, attempt: int, max_attempts: int) -> str:
 
 
 def format_progress_event(event_name: str, payload: dict[str, Any]) -> str | None:
-    """Format one controller event for live CLI progress.
-
-    Returns plain text with a trailing newline, or ``None`` when the event is
-    not user-facing.
-    """
+    """Format one controller event for live CLI progress."""
     if event_name == "session_start":
         loop_name = str(payload.get("loop_name") or "")
         session_id = str(payload.get("session_id") or "")
         max_attempts = payload.get("max_attempts")
-        lines = [f"Running loop {loop_name}"]
+        lines = [f"Running workflow {loop_name}"]
         if session_id:
             lines.append(f"Session:  {session_id}")
         if max_attempts is not None:
@@ -385,7 +349,6 @@ def _sandbox_line(result: LoopRunResult, *, cwd: Path) -> str:
             display = path.as_posix()
         return f"Sandbox:    kept at {display}"
     if result.session_id:
-        # Prefer canonical relative sandbox path when retained was false
         return "Sandbox:    removed"
     return "Sandbox:    removed"
 
@@ -406,7 +369,7 @@ def _next_steps(result: LoopRunResult) -> list[str]:
         return [
             f"- inspect session: wt history show {sid}",
             f"- review logs under .worktree/sessions/{sid}",
-            f"- re-run: wt loop run {name}",
+            f"- re-run: wt workflow run {name}",
         ]
     if result.status == LoopFinalStatus.ABORTED:
         return [
@@ -416,19 +379,19 @@ def _next_steps(result: LoopRunResult) -> list[str]:
     if result.status == LoopFinalStatus.UNFIXABLE:
         return [
             f"- inspect session: wt history show {sid}",
-            "- adjust loop context/trigger or fix manually",
+            "- adjust workflow context/trigger or fix manually",
         ]
     return [f"- inspect session: wt history show {sid}"]
 
 
 def format_run_summary(result: LoopRunResult, *, cwd: Path | None = None) -> str:
-    """Return final summary block with trailing newline (exact labels FR-5)."""
+    """Return final summary block with trailing newline."""
     root = (cwd or Path.cwd()).resolve()
     max_attempts = result.max_attempts or len(result.attempts)
     used = len(result.attempts)
     lines = [
         _SUMMARY_RULE,
-        f"Loop:       {result.loop_name}",
+        f"Workflow:   {result.loop_name}",
         f"Status:     {result.status.value}",
         f"Session:    {result.session_id}",
         f"Attempts:   {used}/{max_attempts}",
@@ -448,14 +411,7 @@ def format_run_output(
     cwd: Path | None = None,
     include_attempts: bool = True,
 ) -> str:
-    """Attempts section + summary for post-run rendering.
-
-    Args:
-        result: Completed loop run.
-        cwd: Repository root for relative sandbox paths.
-        include_attempts: When False, emit only the summary (live progress
-            already printed attempt lines during the run).
-    """
+    """Attempts section + summary for post-run rendering."""
     summary = format_run_summary(result, cwd=cwd)
     if not include_attempts:
         return summary
