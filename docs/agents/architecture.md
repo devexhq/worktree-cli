@@ -217,8 +217,10 @@ state (missing dir or branch) must not raise.
 ### Context manager
 `sandbox_scope(cwd, session_id=None, *, auto_clean=None, keep_on_failure=None)`
 creates one sandbox, yields `SandboxSession`, and on exit applies the policy
-above. Explicit kwargs override config; callers set `session.command_passed`
-before leaving the scope. Body exceptions are never swallowed.
+above. Explicit kwargs override config; when omitted, cleanup defaults come from
+`GitSandboxManager.config` (public property set after a successful config load
+in `create_sandbox_result`). Callers set `session.command_passed` before leaving
+the scope. Body exceptions are never swallowed.
 
 
 ## Trigger runner

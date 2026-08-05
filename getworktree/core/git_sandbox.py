@@ -199,6 +199,16 @@ class GitSandboxManager:
         self.sandbox_base_dir = self.cwd / ".worktree" / "sandboxes"
         self._config: WorktreeConfig | None = None
 
+    @property
+    def config(self) -> WorktreeConfig | None:
+        """Return the config last loaded by a successful create attempt.
+
+        Populated when ``create_sandbox_result`` loads config successfully.
+        ``None`` before the first successful load or when create failed before
+        assigning config.
+        """
+        return self._config
+
     def _ensure_sandbox_dir(self) -> None:
         """Create the parent sandbox storage directory if missing."""
         self.sandbox_base_dir.mkdir(parents=True, exist_ok=True)
@@ -596,7 +606,7 @@ def sandbox_scope(
         raise RuntimeError(message)
 
     session = result.session
-    cfg = manager._config
+    cfg = manager.config
     resolved_auto = (
         auto_clean
         if auto_clean is not None
