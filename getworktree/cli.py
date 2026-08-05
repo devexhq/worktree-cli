@@ -6,6 +6,7 @@ from rich.panel import Panel
 from rich.text import Text
 
 from getworktree.commands.config.command import (
+    config_set_command,
     config_show_command,
     config_validate_command,
 )
@@ -36,7 +37,7 @@ app = typer.Typer(
 
 config_app = typer.Typer(
     name="config",
-    help="Inspect and validate Worktree configuration.",
+    help="Inspect, update, and validate Worktree configuration.",
 )
 app.add_typer(config_app, name="config")
 
@@ -137,6 +138,21 @@ def workspace_status(ctx: typer.Context):
 def config_show(ctx: typer.Context):
     """Display the full normalized effective configuration as JSON."""
     config_show_command()
+
+
+@config_app.command("set")
+def config_set(
+    key: str = typer.Argument(
+        ...,
+        help="Config key or nested dot-path (e.g. agent.model).",
+    ),
+    value: str = typer.Argument(
+        ...,
+        help="Value to store (string; typed parsing is separate).",
+    ),
+):
+    """Set a configuration value by key or nested dot-path."""
+    config_set_command(key, value)
 
 
 @config_app.command("validate")

@@ -340,6 +340,84 @@ mutates config files.
 
 Command entry: `getworktree.commands.config.command.config_show_command`.
 
+## Config set API and `wt config set`
+
+Dot-path mutation lives in
+[getworktree/core/config/mutate.py](../../getworktree/core/config/mutate.py).
+This layer owns in-memory nested assignment and the persist path for
+`wt config set`. It does **not** print, call `sys.exit`, parse typed CLI values
+(bool/int/float/json — issue `#12`), enforce key allow-lists (issue `#13`), or
+implement unset (issue `#15`).
+
+### Pure helper
+
+`set_nested_value(config_dict, dot_path, value) -> None` mutates
+`config_dict` in place:
+
+- Split `dot_path` on `.`
+- Create missing intermediate segments as `{}`
+- Raise `ValueError` on empty path / empty segment, or when an intermediate
+  segment exists but is not a dict (scalar collision)
+
+### Primary API
+
+`set_config_value_result(key, value, *, cwd=None, config_path=None) -> ConfigSetResult`
+loads raw JSON from disk (not via schema-validated `load_config_result`, so
+already-invalid files can still be patched), deep-copies, applies
+`set_nested_value`, and writes with `atomic_write_json` only on success.
+Values are stored as **strings**.
+
+```python
+class ConfigSetStatus(StrEnum):
+    OK = "ok"
+    NOT_FOUND = "not_found"
+    MALFORMED_JSON = "malformed_json"
+    ROOT_NOT_OBJECT = "root_not_object"
+    PATH_IS_DIRECTORY = "path_is_directory"
+    UNREADABLE = "unreadable"
+    TYPE_COLLISION = "type_collision"
+    INVALID_PATH = "invalid_path"
+    WRITE_FAILED = "write_failed"
+
+
+class ConfigSetResult(BaseModel):
+    status: ConfigSetStatus
+    config_path: Path  # absolute
+    key: str
+    value: str | None
+    errors: list[str]
+
+    @property
+    def ok(self) -> bool: ...  # status == OK
+```
+
+Path resolution matches the loader (`resolve_config_path`). On type collision
+or invalid path, the on-disk file is left unchanged.
+
+### Error codes
+
+| Code / condition | Status |
+|------------------|--------|
+| `CONFIG_NOT_FOUND` | `not_found` |
+| `CONFIG_MALFORMED_JSON` | `malformed_json` |
+| `CONFIG_ROOT_NOT_OBJECT` | `root_not_object` |
+| `CONFIG_PATH_IS_DIRECTORY` | `path_is_directory` |
+| `CONFIG_UNREADABLE` | `unreadable` |
+| `CONFIG_WRITE_FAILED` | `write_failed` |
+| scalar intermediate collision message | `type_collision` |
+| empty / empty-segment path message | `invalid_path` |
+
+### CLI (`wt config set`)
+
+Command entry: `getworktree.commands.config.command.config_set_command`.
+Registration: `wt config set <key> <value>` under `config_app` in
+[getworktree/cli.py](../../getworktree/cli.py).
+
+| Condition | Exit | Output |
+|-----------|------|--------|
+| success | `0` | green success: `Config updated: <key> = <value>` |
+| any non-ok result | `1` | red panel **Config Error** with `"\n\n".join(result.errors)` |
+
 ## Loop file discovery API
 
 Filesystem discovery for loop definition candidates lives in

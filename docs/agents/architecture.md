@@ -10,8 +10,8 @@ getworktree/commands/<name>/       One package per CLI subcommand
   renderers.py                     Rich console rendering, kept out of command.py
 getworktree/core/                  Business logic, no Typer/CLI concerns
   bootstrap.py                     Creates/repairs the .worktree/ directory tree
-  config/{generator,loader,models,context}.py
-                                   Defaults write + load/validate + typed models + repo context
+  config/{generator,loader,mutate,models,context,serialize,validate}.py
+                                   Defaults write + load/set + validate + typed models + repo context
   db.py                            SQLite token ledger + sandbox metadata CRUD
   git_sandbox.py                   Isolated `git worktree` sandbox lifecycle
   loops/                           Loop domain (iteration, payloads, patches, safety, agents)
