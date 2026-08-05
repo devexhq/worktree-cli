@@ -1,7 +1,7 @@
 """getworktree/core/db.py.
 
-Handles offline SQLite connection pooling, database migrations, and financial token
-usage tracking for automated agent loops.
+Handles offline SQLite connection pooling, database migrations, financial token
+usage tracking, template indexing, workflow run metadata, and task execution runs.
 """
 
 import sqlite3
@@ -48,6 +48,53 @@ CREATE TABLE IF NOT EXISTS sandboxes (
 CREATE INDEX IF NOT EXISTS idx_sandboxes_status ON sandboxes(status);
 """
 
+# Schema migration DDL for template indexing
+CREATE_TEMPLATES_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sha TEXT NOT NULL,
+    template_type TEXT NOT NULL CHECK(template_type IN ('workflow', 'task', 'step')),
+    path TEXT NOT NULL UNIQUE,
+    checksum TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_templates_sha ON templates(sha);
+CREATE INDEX IF NOT EXISTS idx_templates_type ON templates(template_type);
+CREATE INDEX IF NOT EXISTS idx_templates_path ON templates(path);
+"""
+
+# Schema migration DDL for workflow execution tracking
+CREATE_WORKFLOWS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS workflows (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL UNIQUE,
+    workflow_name TEXT NOT NULL,
+    branch_name TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'running' CHECK(status IN ('running', 'completed', 'failed', 'cancelled')),
+    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP,
+    error_message TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_workflows_session ON workflows(session_id);
+CREATE INDEX IF NOT EXISTS idx_workflows_status ON workflows(status);
+"""
+
+# Schema migration DDL for task execution tracking
+CREATE_TASKS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL UNIQUE,
+    task_name TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'running' CHECK(status IN ('running', 'completed', 'failed', 'cancelled')),
+    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP,
+    error_message TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_tasks_session ON tasks(session_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+"""
+
 
 class SandboxStatus(StrEnum):
     """Lifecycle status for a persisted sandbox metadata row."""
@@ -56,6 +103,23 @@ class SandboxStatus(StrEnum):
     MERGED = "merged"
     CLEANED = "cleaned"
     CONFLICT = "conflict"
+
+
+class TemplateType(StrEnum):
+    """Supported template classification types."""
+
+    WORKFLOW = "workflow"
+    TASK = "task"
+    STEP = "step"
+
+
+class RunStatus(StrEnum):
+    """Lifecycle status for workflow and task execution sessions."""
+
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 class SandboxRecord(BaseModel):
@@ -71,6 +135,49 @@ class SandboxRecord(BaseModel):
     status: SandboxStatus
     created_at: str
     updated_at: str
+
+
+class TemplateRecord(BaseModel):
+    """Row shape for the local `templates` table."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    id: int
+    sha: str
+    template_type: TemplateType
+    path: Path
+    checksum: str
+    created_at: str
+    updated_at: str
+
+
+class WorkflowRunRecord(BaseModel):
+    """Row shape for the local `workflows` table."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    id: int
+    session_id: str
+    workflow_name: str
+    branch_name: str
+    status: RunStatus
+    started_at: str
+    completed_at: str | None = None
+    error_message: str | None = None
+
+
+class TaskRunRecord(BaseModel):
+    """Row shape for the local `tasks` table."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    id: int
+    session_id: str
+    task_name: str
+    status: RunStatus
+    started_at: str
+    completed_at: str | None = None
+    error_message: str | None = None
 
 
 def resolve_db_path(
@@ -106,6 +213,9 @@ def init_database(
     with get_db_connection(db_path) as conn:
         conn.executescript(CREATE_LOOP_COSTS_TABLE_SQL)
         conn.executescript(CREATE_SANDBOXES_TABLE_SQL)
+        conn.executescript(CREATE_TEMPLATES_TABLE_SQL)
+        conn.executescript(CREATE_WORKFLOWS_TABLE_SQL)
+        conn.executescript(CREATE_TASKS_TABLE_SQL)
     return db_path
 
 
@@ -120,6 +230,46 @@ def _sandbox_record_from_row(row: sqlite3.Row) -> SandboxRecord:
         status=SandboxStatus(row["status"]),
         created_at=row["created_at"],
         updated_at=row["updated_at"],
+    )
+
+
+def _template_record_from_row(row: sqlite3.Row) -> TemplateRecord:
+    """Map a `templates` SQLite row to a strict `TemplateRecord`."""
+    return TemplateRecord(
+        id=row["id"],
+        sha=row["sha"],
+        template_type=TemplateType(row["template_type"]),
+        path=Path(row["path"]),
+        checksum=row["checksum"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+
+def _workflow_run_record_from_row(row: sqlite3.Row) -> WorkflowRunRecord:
+    """Map a `workflows` SQLite row to a strict `WorkflowRunRecord`."""
+    return WorkflowRunRecord(
+        id=row["id"],
+        session_id=row["session_id"],
+        workflow_name=row["workflow_name"],
+        branch_name=row["branch_name"],
+        status=RunStatus(row["status"]),
+        started_at=row["started_at"],
+        completed_at=row["completed_at"],
+        error_message=row["error_message"],
+    )
+
+
+def _task_run_record_from_row(row: sqlite3.Row) -> TaskRunRecord:
+    """Map a `tasks` SQLite row to a strict `TaskRunRecord`."""
+    return TaskRunRecord(
+        id=row["id"],
+        session_id=row["session_id"],
+        task_name=row["task_name"],
+        status=RunStatus(row["status"]),
+        started_at=row["started_at"],
+        completed_at=row["completed_at"],
+        error_message=row["error_message"],
     )
 
 
@@ -322,3 +472,339 @@ def get_session_total_cost(
                 "total_usd_cost": 0.0,
             }
         )
+
+
+def upsert_template(
+    sha: str,
+    template_type: TemplateType | str,
+    path: Path,
+    checksum: str,
+    cwd: Path | None = None,
+    db_rel_path: str = DEFAULT_DB_REL_PATH,
+) -> TemplateRecord:
+    """Insert a new template metadata row or update `sha`, `checksum`, and `updated_at` on path match."""
+    db_path = init_database(cwd, db_rel_path)
+    str_path = str(path)
+    type_str = (
+        template_type.value
+        if isinstance(template_type, TemplateType)
+        else str(template_type)
+    )
+    now_utc = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
+
+    upsert_sql = """
+    INSERT INTO templates (sha, template_type, path, checksum, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(path) DO UPDATE SET
+        sha = excluded.sha,
+        template_type = excluded.template_type,
+        checksum = excluded.checksum,
+        updated_at = excluded.updated_at;
+    """
+    select_sql = "SELECT * FROM templates WHERE path = ?;"
+
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                upsert_sql,
+                (sha, type_str, str_path, checksum, now_utc, now_utc),
+            )
+        except sqlite3.IntegrityError as exc:
+            raise ValueError(
+                f"Invalid template insert/update constraint: {exc}"
+            ) from exc
+
+        cursor.execute(select_sql, (str_path,))
+        row = cursor.fetchone()
+        if row is None:  # pragma: no cover
+            raise RuntimeError(f"Failed to read template row after upsert: {str_path}")
+        return _template_record_from_row(row)
+
+
+def get_template_by_id(
+    id: int, cwd: Path | None = None, db_rel_path: str = DEFAULT_DB_REL_PATH
+) -> TemplateRecord | None:
+    """Return the template row matching integer ``id``, or ``None``."""
+    db_path = init_database(cwd, db_rel_path)
+    select_sql = "SELECT * FROM templates WHERE id = ?;"
+
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute(select_sql, (id,))
+        row = cursor.fetchone()
+        return _template_record_from_row(row) if row is not None else None
+
+
+def get_template_by_path(
+    path: Path, cwd: Path | None = None, db_rel_path: str = DEFAULT_DB_REL_PATH
+) -> TemplateRecord | None:
+    """Return the template row matching relative ``path``, or ``None``."""
+    db_path = init_database(cwd, db_rel_path)
+    select_sql = "SELECT * FROM templates WHERE path = ?;"
+
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute(select_sql, (str(path),))
+        row = cursor.fetchone()
+        return _template_record_from_row(row) if row is not None else None
+
+
+def list_templates(
+    template_type: TemplateType | str | None = None,
+    cwd: Path | None = None,
+    db_rel_path: str = DEFAULT_DB_REL_PATH,
+) -> list[TemplateRecord]:
+    """List template rows, optionally filtered by ``template_type``."""
+    db_path = init_database(cwd, db_rel_path)
+
+    if template_type is None:
+        query_sql = "SELECT * FROM templates ORDER BY id ASC;"
+        params: tuple[object, ...] = ()
+    else:
+        type_str = (
+            template_type.value
+            if isinstance(template_type, TemplateType)
+            else str(template_type)
+        )
+        query_sql = "SELECT * FROM templates WHERE template_type = ? ORDER BY id ASC;"
+        params = (type_str,)
+
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute(query_sql, params)
+        rows = cursor.fetchall()
+        return [_template_record_from_row(row) for row in rows]
+
+
+def insert_workflow_run(
+    session_id: str,
+    workflow_name: str,
+    branch_name: str,
+    status: RunStatus | str = RunStatus.RUNNING,
+    cwd: Path | None = None,
+    db_rel_path: str = DEFAULT_DB_REL_PATH,
+) -> WorkflowRunRecord:
+    """Insert a workflow run record."""
+    db_path = init_database(cwd, db_rel_path)
+    status_str = status.value if isinstance(status, RunStatus) else str(status)
+    insert_sql = """
+    INSERT INTO workflows (session_id, workflow_name, branch_name, status)
+    VALUES (?, ?, ?, ?);
+    """
+    select_sql = "SELECT * FROM workflows WHERE session_id = ?;"
+
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                insert_sql, (session_id, workflow_name, branch_name, status_str)
+            )
+        except sqlite3.IntegrityError as exc:
+            raise ValueError(
+                f"Workflow run with session_id '{session_id}' already exists or failed constraints: {exc}"
+            ) from exc
+
+        cursor.execute(select_sql, (session_id,))
+        row = cursor.fetchone()
+        if row is None:  # pragma: no cover
+            raise RuntimeError(
+                f"Failed to read workflow run row after insert: {session_id}"
+            )
+        return _workflow_run_record_from_row(row)
+
+
+def get_workflow_run(
+    session_id: str, cwd: Path | None = None, db_rel_path: str = DEFAULT_DB_REL_PATH
+) -> WorkflowRunRecord | None:
+    """Return the workflow run matching ``session_id``, or ``None``."""
+    db_path = init_database(cwd, db_rel_path)
+    select_sql = "SELECT * FROM workflows WHERE session_id = ?;"
+
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute(select_sql, (session_id,))
+        row = cursor.fetchone()
+        return _workflow_run_record_from_row(row) if row is not None else None
+
+
+def update_workflow_run_status(
+    session_id: str,
+    status: RunStatus | str,
+    error_message: str | None = None,
+    cwd: Path | None = None,
+    db_rel_path: str = DEFAULT_DB_REL_PATH,
+) -> WorkflowRunRecord | None:
+    """Update status, optional completed_at timestamp, and error message for a workflow run."""
+    db_path = init_database(cwd, db_rel_path)
+    status_enum = (
+        RunStatus(status)
+        if isinstance(status, str) and status in RunStatus._value2member_map_
+        else status
+    )
+    status_str = (
+        status_enum.value if isinstance(status_enum, RunStatus) else str(status)
+    )
+
+    completed_at = (
+        datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
+        if status_str
+        in (
+            RunStatus.COMPLETED.value,
+            RunStatus.FAILED.value,
+            RunStatus.CANCELLED.value,
+        )
+        else None
+    )
+
+    update_sql = """
+    UPDATE workflows
+    SET status = ?, completed_at = ?, error_message = ?
+    WHERE session_id = ?;
+    """
+    select_sql = "SELECT * FROM workflows WHERE session_id = ?;"
+
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                update_sql, (status_str, completed_at, error_message, session_id)
+            )
+        except sqlite3.IntegrityError as exc:
+            raise ValueError(
+                f"Invalid workflow status update constraint: {exc}"
+            ) from exc
+
+        if cursor.rowcount == 0:
+            return None
+        cursor.execute(select_sql, (session_id,))
+        row = cursor.fetchone()
+        return _workflow_run_record_from_row(row) if row is not None else None
+
+
+def list_workflow_runs(
+    cwd: Path | None = None, db_rel_path: str = DEFAULT_DB_REL_PATH
+) -> list[WorkflowRunRecord]:
+    """List workflow run records ordered by ``started_at`` descending."""
+    db_path = init_database(cwd, db_rel_path)
+    query_sql = "SELECT * FROM workflows ORDER BY started_at DESC;"
+
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute(query_sql)
+        rows = cursor.fetchall()
+        return [_workflow_run_record_from_row(row) for row in rows]
+
+
+def insert_task_run(
+    session_id: str,
+    task_name: str,
+    status: RunStatus | str = RunStatus.RUNNING,
+    cwd: Path | None = None,
+    db_rel_path: str = DEFAULT_DB_REL_PATH,
+) -> TaskRunRecord:
+    """Insert a task run record."""
+    db_path = init_database(cwd, db_rel_path)
+    status_str = status.value if isinstance(status, RunStatus) else str(status)
+    insert_sql = """
+    INSERT INTO tasks (session_id, task_name, status)
+    VALUES (?, ?, ?);
+    """
+    select_sql = "SELECT * FROM tasks WHERE session_id = ?;"
+
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute(insert_sql, (session_id, task_name, status_str))
+        except sqlite3.IntegrityError as exc:
+            raise ValueError(
+                f"Task run with session_id '{session_id}' already exists or failed constraints: {exc}"
+            ) from exc
+
+        cursor.execute(select_sql, (session_id,))
+        row = cursor.fetchone()
+        if row is None:  # pragma: no cover
+            raise RuntimeError(
+                f"Failed to read task run row after insert: {session_id}"
+            )
+        return _task_run_record_from_row(row)
+
+
+def get_task_run(
+    session_id: str, cwd: Path | None = None, db_rel_path: str = DEFAULT_DB_REL_PATH
+) -> TaskRunRecord | None:
+    """Return the task run matching ``session_id``, or ``None``."""
+    db_path = init_database(cwd, db_rel_path)
+    select_sql = "SELECT * FROM tasks WHERE session_id = ?;"
+
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute(select_sql, (session_id,))
+        row = cursor.fetchone()
+        return _task_run_record_from_row(row) if row is not None else None
+
+
+def update_task_run_status(
+    session_id: str,
+    status: RunStatus | str,
+    error_message: str | None = None,
+    cwd: Path | None = None,
+    db_rel_path: str = DEFAULT_DB_REL_PATH,
+) -> TaskRunRecord | None:
+    """Update status, optional completed_at timestamp, and error message for a task run."""
+    db_path = init_database(cwd, db_rel_path)
+    status_enum = (
+        RunStatus(status)
+        if isinstance(status, str) and status in RunStatus._value2member_map_
+        else status
+    )
+    status_str = (
+        status_enum.value if isinstance(status_enum, RunStatus) else str(status)
+    )
+
+    completed_at = (
+        datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
+        if status_str
+        in (
+            RunStatus.COMPLETED.value,
+            RunStatus.FAILED.value,
+            RunStatus.CANCELLED.value,
+        )
+        else None
+    )
+
+    update_sql = """
+    UPDATE tasks
+    SET status = ?, completed_at = ?, error_message = ?
+    WHERE session_id = ?;
+    """
+    select_sql = "SELECT * FROM tasks WHERE session_id = ?;"
+
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                update_sql, (status_str, completed_at, error_message, session_id)
+            )
+        except sqlite3.IntegrityError as exc:
+            raise ValueError(f"Invalid task status update constraint: {exc}") from exc
+
+        if cursor.rowcount == 0:
+            return None
+        cursor.execute(select_sql, (session_id,))
+        row = cursor.fetchone()
+        return _task_run_record_from_row(row) if row is not None else None
+
+
+def list_task_runs(
+    cwd: Path | None = None, db_rel_path: str = DEFAULT_DB_REL_PATH
+) -> list[TaskRunRecord]:
+    """List task run records ordered by ``started_at`` descending."""
+    db_path = init_database(cwd, db_rel_path)
+    query_sql = "SELECT * FROM tasks ORDER BY started_at DESC;"
+
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute(query_sql)
+        rows = cursor.fetchall()
+        return [_task_run_record_from_row(row) for row in rows]
