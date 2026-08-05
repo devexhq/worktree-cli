@@ -2,8 +2,8 @@
 
 ## Versioned JSON Schemas
 
-`getworktree/schemas/config_v1.json` and `loop_v1.json` are the source of truth
-for what a valid `.worktree/config.json` and loop YAML file look like. Both are
+`getworktree/schemas/config_v1.json` and `workflow_v1.json` are the source of truth
+for what a valid `.worktree/config.json` and workflow YAML file look like. Both are
 validated through `SchemaValidator` ([getworktree/common/schema_validation.py](../../getworktree/common/schema_validation.py)),
 a thin wrapper over `jsonschema.Draft202012Validator` that returns a
 `ValidationResult(ok, errors)` instead of raising.
@@ -18,7 +18,7 @@ Strictness:
 
 - Root and every nested object use `additionalProperties: false` (unknown keys
   fail validation).
-- Top-level `required`: `version`, `project`, `paths`, `sandbox`, `loop`,
+- Top-level `required`: `version`, `project`, `paths`, `sandbox`, `workflow`,
   `agent`, `patch`, `approval`, `history`, `doctor`, `prune`, `telemetry`.
 - `version` is integer `const: 1`.
 
@@ -28,22 +28,22 @@ Enums (exact tokens):
   `copilot` | `openai` | `anthropic` | `azure_openai` | `custom` (runtime
   factory supports **`local`**, **`ollama`**, **`cursor`**, **`gemini`**, and
   **`copilot`**; other tokens remain schema-valid for future providers)
-- Loop `agent.provider` (`loop_v1.json`): `local` | `ollama` | `cursor` |
+- Workflow `agent.provider` (`workflow_v1.json`): `local` | `ollama` | `cursor` |
   `gemini` | `copilot`
 - `patch.strategy`: `unified_diff`
 
-For `wt workflow run`, **loop** `agent.provider` selects the adapter; **config**
+For `wt workflow run`, **workflow** `agent.provider` selects the adapter; **config**
 `agent.model` / `endpoint` / `temperature` / `max_tokens` fill the request.
 Ollama uses `config.agent.model` + `config.agent.endpoint` (or `OLLAMA_HOST`).
 Cursor uses `config.agent.model` and `CURSOR_API_KEY`. Gemini uses
 `GEMINI_API_KEY`. Copilot uses `GH_TOKEN` or `GITHUB_TOKEN`. Cursor, Gemini,
 and Copilot mutate the sandbox directly through the shared base in
-`core/loops/agents/cli_mutation.py`; local and Ollama still return diffs.
+`core/workflows/agents/cli_mutation.py`; local and Ollama still return diffs.
 
 Notable bounds / string rules:
 
 - Path strings (`paths.*`, `sandbox.base_ref`): non-empty (`minLength: 1`)
-- Positive integers (`minimum: 1`): sandbox/loop attempt and timeout fields,
+- Positive integers (`minimum: 1`): sandbox/workflow attempt and timeout fields,
   `agent.max_tokens`, `patch.max_files` / `max_patch_kb`, `history.max_sessions`
 - `agent.temperature`: number in `[0, 2]`
 - `prune.artifact_ttl_days`: integer `minimum: 0`
@@ -54,7 +54,7 @@ Notable bounds / string rules:
 
 Not expressed in the JSON Schema (validator-engine / runtime territory):
 
-- Cross-field limits (e.g. `loop.default_max_attempts <= max_attempts_hard_limit`)
+- Cross-field limits (e.g. `workflow.default_max_attempts <= max_attempts_hard_limit`)
 - Filesystem existence or writability of path values
 - Provider-specific required `model` / `endpoint`
 
@@ -118,7 +118,7 @@ class ConfigLoadResult(BaseModel):
 ```
 
 On success (`status=ok`): `raw` is the parsed object, `config` is a populated
-`WorktreeConfig` (full V1 surface: version, project, paths, sandbox, loop, agent,
+`WorktreeConfig` (full V1 surface: version, project, paths, sandbox, workflow, agent,
 patch, approval, history, doctor, prune, telemetry), and `errors` is empty.
 `project.name` of `null` normalizes to `"unnamed_project"`.
 
@@ -226,7 +226,7 @@ populated `WorktreeConfig`, `raw` is the parsed object, and `errors` is empty
 | `CONFIG_PATH_IS_DIRECTORY` | error | path is directory |
 | `CONFIG_UNREADABLE` | error | read failure |
 | `CONFIG_SCHEMA_INVALID` | error | schema or pydantic mapping failure |
-| `CONFIG_SEMANTIC_MAX_ATTEMPTS` | error | `loop.default_max_attempts` > hard limit |
+| `CONFIG_SEMANTIC_MAX_ATTEMPTS` | error | `workflow.default_max_attempts` > hard limit |
 | `CONFIG_SEMANTIC_PATH_INVALID` | error | any `paths.*` value has NUL/newline |
 | `CONFIG_WARN_AGENT_MODEL_MISSING` | warning | non-`local` provider without model |
 | `CONFIG_WARN_AGENT_ENDPOINT` | warning | non-null endpoint not absolute http(s) URL |
@@ -237,7 +237,7 @@ else structural block; then semantic errors (max-attempts, then path keys in
 field order). Warnings follow FR-7 rule order (model, endpoint, sandbox limit).
 
 Commands must call this API rather than re-implementing schema or semantic
-loops.
+workflows.
 
 ## `wt config validate` CLI
 
@@ -308,7 +308,7 @@ Helpers in
 
 - `serialize_config(config: WorktreeConfig) -> dict` — plain dict, no I/O, no
   print/exit; top-level key order is
-  `version`, `project`, `paths`, `sandbox`, `loop`, `agent`, `patch`,
+  `version`, `project`, `paths`, `sandbox`, `workflow`, `agent`, `patch`,
   `approval`, `history`, `doctor`, `prune`, `telemetry`. Nested keys follow the
   Pydantic model / `CANONICAL_V1_DEFAULTS` field order.
 - `as_json(config) -> str` — pretty JSON (`indent=2`, `ensure_ascii=False`) with
@@ -420,28 +420,28 @@ Registration: `wt config set <key> <value>` under `config_app` in
 | success | `0` | green success: `Config updated: <key> = <value>` |
 | any non-ok result | `1` | red panel **Config Error** with `"\n\n".join(result.errors)` |
 
-## Loop file discovery API
+## Workflow file discovery API
 
-Filesystem discovery for loop definition candidates lives in
-[getworktree/core/loops/discovery.py](../../getworktree/core/loops/discovery.py).
-This layer only resolves the loops directory and enumerates candidate YAML
-paths. It does **not** parse YAML, validate `loop_v1.json`, print, call
-`sys.exit`, or create/mutate loop files.
+Filesystem discovery for workflow definition candidates lives in
+[getworktree/core/workflows/discovery.py](../../getworktree/core/workflows/discovery.py).
+This layer only resolves the workflows directory and enumerates candidate YAML
+paths. It does **not** parse YAML, validate `workflow_v1.json`, print, call
+`sys.exit`, or create/mutate workflow files.
 
-Default relative directory: `.worktree/loops` (`DEFAULT_LOOPS_DIR`).
-Config key: `paths.loops_dir`. Explicit `loops_dir` wins over config.
+Default relative directory: `.worktree/workflows` (`DEFAULT_WORKFLOWS_DIR`).
+Config key: `paths.workflows_dir`. Explicit `workflows_dir` wins over config.
 
 ### Primary API
 
-`discover_loop_files(cwd=None, *, loops_dir=None, use_config=True) -> LoopDiscoveryResult`
+`discover_workflow_files(cwd=None, *, workflows_dir=None, use_config=True) -> WorkflowDiscoveryResult`
 is the primary surface for later `wt workflow list|show|run`.
 
-`resolve_loops_dir(cwd=None, *, loops_dir=None, use_config=True) -> tuple[Path, list[str]]`
-returns `(absolute_loops_dir, resolution_errors)` using the same resolution
+`resolve_workflows_dir(cwd=None, *, workflows_dir=None, use_config=True) -> tuple[Path, list[str]]`
+returns `(absolute_workflows_dir, resolution_errors)` using the same resolution
 rules.
 
 ```python
-class LoopDiscoveryStatus(StrEnum):
+class WorkflowDiscoveryStatus(StrEnum):
     OK = "ok"
     NOT_FOUND = "not_found"
     NOT_A_DIRECTORY = "not_a_directory"
@@ -449,9 +449,9 @@ class LoopDiscoveryStatus(StrEnum):
     CONFIG_UNAVAILABLE = "config_unavailable"
 
 
-class LoopDiscoveryResult(BaseModel):
-    status: LoopDiscoveryStatus
-    loops_dir: Path  # absolute path resolved / attempted
+class WorkflowDiscoveryResult(BaseModel):
+    status: WorkflowDiscoveryStatus
+    workflows_dir: Path  # absolute path resolved / attempted
     paths: list[Path]  # absolute candidate file paths
     errors: list[str]
 
@@ -461,16 +461,16 @@ class LoopDiscoveryResult(BaseModel):
 
 Resolution order:
 
-1. Explicit `loops_dir` (absolute as-is after resolve; relative against `cwd`)
-2. Else if `use_config`: `load_config_result` → `config.paths.loops_dir`
-3. Else: `cwd / ".worktree/loops"`
+1. Explicit `workflows_dir` (absolute as-is after resolve; relative against `cwd`)
+2. Else if `use_config`: `load_config_result` → `config.paths.workflows_dir`
+3. Else: `cwd / ".worktree/workflows"`
 
 When config is required and load is not ok, status is `config_unavailable`
 (no second config parser). Empty directories are success with `paths=[]`.
 
 ### Candidate inclusion (non-recursive)
 
-Only direct children of `loops_dir`. Include when all are true:
+Only direct children of `workflows_dir`. Include when all are true:
 
 - regular file (`Path.is_file()`; skip dirs/sockets; broken symlinks skipped)
 - name ends with `.yml` or `.yaml` (case-sensitive)
@@ -483,28 +483,28 @@ path string as tiebreaker. Contents are never opened.
 
 | Code | Status |
 |------|--------|
-| `LOOP_DIR_NOT_FOUND` | `not_found` |
-| `LOOP_DIR_NOT_A_DIRECTORY` | `not_a_directory` |
-| `LOOP_DIR_UNREADABLE` | `unreadable` |
-| `LOOP_CONFIG_UNAVAILABLE` | `config_unavailable` |
+| `WORKFLOW_DIR_NOT_FOUND` | `not_found` |
+| `WORKFLOW_DIR_NOT_A_DIRECTORY` | `not_a_directory` |
+| `WORKFLOW_DIR_UNREADABLE` | `unreadable` |
+| `WORKFLOW_CONFIG_UNAVAILABLE` | `config_unavailable` |
 
 Callers should use this API instead of ad-hoc `glob`/`iterdir` scans. Seeder
 write paths remain separate.
 
-## Loop metadata parse API
+## Workflow metadata parse API
 
-Minimal list metadata for one loop YAML file lives in
-[getworktree/core/loops/metadata.py](../../getworktree/core/loops/metadata.py).
+Minimal list metadata for one workflow YAML file lives in
+[getworktree/core/workflows/metadata.py](../../getworktree/core/workflows/metadata.py).
 This layer reads a single path with `yaml.safe_load` and extracts identity
-fields only. It does **not** run full `loop_v1.json` validation, discover
+fields only. It does **not** run full `workflow_v1.json` validation, discover
 siblings, print, call `sys.exit`, or mutate files.
 
 ### Primary API
 
-`parse_loop_metadata(path: Path) -> LoopMetadataParseResult`
+`parse_workflow_metadata(path: Path) -> WorkflowMetadataParseResult`
 
 ```python
-class LoopMetadataStatus(StrEnum):
+class WorkflowMetadataStatus(StrEnum):
     OK = "ok"
     NOT_FOUND = "not_found"
     NOT_A_FILE = "not_a_file"
@@ -514,17 +514,17 @@ class LoopMetadataStatus(StrEnum):
     INVALID_METADATA = "invalid_metadata"
 
 
-class LoopListMetadata(BaseModel):
+class WorkflowListMetadata(BaseModel):
     version: int
     name: str
     description: str
     source_path: Path  # absolute
 
 
-class LoopMetadataParseResult(BaseModel):
-    status: LoopMetadataStatus
+class WorkflowMetadataParseResult(BaseModel):
+    status: WorkflowMetadataStatus
     source_path: Path  # absolute
-    metadata: LoopListMetadata | None
+    metadata: WorkflowListMetadata | None
     errors: list[str]
 
     @property
@@ -539,64 +539,64 @@ Minimal field contract (all checked; collect every problem):
 | `name` | present; non-empty string matching `^[a-z0-9][a-z0-9-]*$` |
 | `description` | present; non-empty string (`len >= 1`, no strip) |
 
-Unknown extra root keys are allowed here. Incomplete full loop bodies that
+Unknown extra root keys are allowed here. Incomplete full workflow bodies that
 still satisfy the three identity fields are `ok` at this layer.
 
 ### Error codes
 
 | Code | Status |
 |------|--------|
-| `LOOP_META_NOT_FOUND` | `not_found` |
-| `LOOP_META_NOT_A_FILE` | `not_a_file` |
-| `LOOP_META_UNREADABLE` | `unreadable` |
-| `LOOP_META_MALFORMED_YAML` | `malformed_yaml` |
-| `LOOP_META_ROOT_NOT_MAPPING` | `root_not_mapping` |
-| `LOOP_META_MISSING_VERSION` | `invalid_metadata` |
-| `LOOP_META_INVALID_VERSION` | `invalid_metadata` |
-| `LOOP_META_MISSING_NAME` | `invalid_metadata` |
-| `LOOP_META_INVALID_NAME` | `invalid_metadata` |
-| `LOOP_META_MISSING_DESCRIPTION` | `invalid_metadata` |
-| `LOOP_META_INVALID_DESCRIPTION` | `invalid_metadata` |
+| `WORKFLOW_META_NOT_FOUND` | `not_found` |
+| `WORKFLOW_META_NOT_A_FILE` | `not_a_file` |
+| `WORKFLOW_META_UNREADABLE` | `unreadable` |
+| `WORKFLOW_META_MALFORMED_YAML` | `malformed_yaml` |
+| `WORKFLOW_META_ROOT_NOT_MAPPING` | `root_not_mapping` |
+| `WORKFLOW_META_MISSING_VERSION` | `invalid_metadata` |
+| `WORKFLOW_META_INVALID_VERSION` | `invalid_metadata` |
+| `WORKFLOW_META_MISSING_NAME` | `invalid_metadata` |
+| `WORKFLOW_META_INVALID_NAME` | `invalid_metadata` |
+| `WORKFLOW_META_MISSING_DESCRIPTION` | `invalid_metadata` |
+| `WORKFLOW_META_INVALID_DESCRIPTION` | `invalid_metadata` |
 
 Codes appear in `errors` strings so callers and tests can key off them.
 
-## Loop inventory API
+## Workflow inventory API
 
 Composition of discovery + per-file metadata parse lives in
-[getworktree/core/loops/inventory.py](../../getworktree/core/loops/inventory.py).
-This layer builds a partial-success inventory for future `wt loop list`. It does
-**not** run full `loop_v1` validation, print, call `sys.exit`, or mutate files.
+[getworktree/core/workflows/inventory.py](../../getworktree/core/workflows/inventory.py).
+This layer builds a partial-success inventory for future `wt workflow list`. It does
+**not** run full `workflow_v1` validation, print, call `sys.exit`, or mutate files.
 
 ### Primary API
 
-`build_loop_inventory(cwd=None, *, loops_dir=None, use_config=True) -> LoopInventoryResult`
+`build_workflow_inventory(cwd=None, *, workflows_dir=None, use_config=True) -> WorkflowInventoryResult`
 
 ```python
-class LoopInventoryStatus(StrEnum):
+class WorkflowInventoryStatus(StrEnum):
     OK = "ok"
     DISCOVERY_FAILED = "discovery_failed"
 
 
-class LoopInventoryValidEntry(BaseModel):
+class WorkflowInventoryValidEntry(BaseModel):
     name: str
     description: str
     version: int
     source_path: Path  # absolute
 
 
-class LoopInventoryInvalidEntry(BaseModel):
+class WorkflowInventoryInvalidEntry(BaseModel):
     source_path: Path  # absolute
-    status: str  # LoopMetadataStatus value
+    status: str  # WorkflowMetadataStatus value
     errors: list[str]
     name: None = None
     description: None = None
 
 
-class LoopInventoryResult(BaseModel):
-    status: LoopInventoryStatus
-    loops_dir: Path  # absolute
-    valid: list[LoopInventoryValidEntry]
-    invalid: list[LoopInventoryInvalidEntry]
+class WorkflowInventoryResult(BaseModel):
+    status: WorkflowInventoryStatus
+    workflows_dir: Path  # absolute
+    valid: list[WorkflowInventoryValidEntry]
+    invalid: list[WorkflowInventoryInvalidEntry]
     warnings: list[str]
     errors: list[str]
 
@@ -617,40 +617,40 @@ Semantics:
 - `invalid` sorted by `source_path.name`, then full path POSIX string.
 - Duplicate logical names among **valid** entries remain listed; one warning per
   duplicated name:
-  `Duplicate loop name 'fix-tests' in multiple files: a.yml, b.yml`
+  `Duplicate workflow name 'fix-tests' in multiple files: a.yml, b.yml`
   (file names sorted, comma-space separated). Invalid entries do not join
   duplicate-name warnings.
 
-## Loop resolve API
+## Workflow resolve API
 
 Name → path resolution on top of inventory lives in
-[getworktree/core/loops/resolve.py](../../getworktree/core/loops/resolve.py).
-This layer maps a logical loop `name` to exactly one
-`LoopInventoryValidEntry`. It does **not** parse full `loop_v1` bodies, print,
+[getworktree/core/workflows/resolve.py](../../getworktree/core/workflows/resolve.py).
+This layer maps a logical workflow `name` to exactly one
+`WorkflowInventoryValidEntry`. It does **not** parse full `workflow_v1` bodies, print,
 call `sys.exit`, or mutate files.
 
 ### Primary API
 
-`resolve_loop_by_name(name, cwd=None, *, loops_dir=None, use_config=True) -> LoopResolveResult`
+`resolve_workflow_by_name(name, cwd=None, *, workflows_dir=None, use_config=True) -> WorkflowResolveResult`
 
-Resolution always goes through `build_loop_inventory` (same `cwd` / `loops_dir`
+Resolution always goes through `build_workflow_inventory` (same `cwd` / `workflows_dir`
 / `use_config`). Match is exact, case-sensitive equality on valid entry `name`
 only. Invalid inventory entries never win.
 
 ```python
-class LoopResolveStatus(StrEnum):
+class WorkflowResolveStatus(StrEnum):
     OK = "ok"
     NOT_FOUND = "not_found"
     INVALID_NAME = "invalid_name"
     DISCOVERY_FAILED = "discovery_failed"
 
 
-class LoopResolveResult(BaseModel):
-    status: LoopResolveStatus
+class WorkflowResolveResult(BaseModel):
+    status: WorkflowResolveStatus
     name: str  # requested name echo
-    loops_dir: Path  # absolute
-    entry: LoopInventoryValidEntry | None
-    matches: list[LoopInventoryValidEntry]
+    workflows_dir: Path  # absolute
+    entry: WorkflowInventoryValidEntry | None
+    matches: list[WorkflowInventoryValidEntry]
     errors: list[str]
     warnings: list[str]
 
@@ -675,51 +675,51 @@ that order; `entry` is `matches[0]`.
 
 | Code | Where | Status |
 |------|--------|--------|
-| `LOOP_RESOLVE_INVALID_NAME` | `errors` | `invalid_name` |
-| `LOOP_RESOLVE_NOT_FOUND` | `errors` | `not_found` |
-| `LOOP_RESOLVE_DUPLICATE_NAME` | `warnings` | `ok` (duplicate case) |
+| `WORKFLOW_RESOLVE_INVALID_NAME` | `errors` | `invalid_name` |
+| `WORKFLOW_RESOLVE_NOT_FOUND` | `errors` | `not_found` |
+| `WORKFLOW_RESOLVE_DUPLICATE_NAME` | `warnings` | `ok` (duplicate case) |
 
 Discovery failures keep inventory/discovery codes already present in those
 `errors`. Inventory warnings are passed through; the resolver-specific
 duplicate warning is appended after them when the requested name collides.
 
-## Loop validation API
+## Workflow validation API
 
-Full `loop_v1` validation for one definition lives in
-[getworktree/core/loops/validate.py](../../getworktree/core/loops/validate.py).
+Full `workflow_v1` validation for one definition lives in
+[getworktree/core/workflows/validate.py](../../getworktree/core/workflows/validate.py).
 Typed models live in
-[getworktree/core/loops/models.py](../../getworktree/core/loops/models.py).
-This engine is the authority for “is this loop runnable / showable as valid.”
+[getworktree/core/workflows/models.py](../../getworktree/core/workflows/models.py).
+This engine is the authority for “is this workflow runnable / showable as valid.”
 It does **not** print, call `sys.exit`, discover siblings, resolve names, or
-create/mutate loop files.
+create/mutate workflow files.
 
 Shared schema binding:
 
 ```python
-LOOP_VALIDATOR = SchemaValidator(
-    resources.files("getworktree.schemas") / "loop_v1.json"
+WORKFLOW_VALIDATOR = SchemaValidator(
+    resources.files("getworktree.schemas") / "workflow_v1.json"
 )
 ```
 
-Exported from `getworktree.core.loops`. Seeder imports the same
-`LOOP_VALIDATOR` (no private duplicate binding).
+Exported from `getworktree.core.workflows`. Seeder imports the same
+`WORKFLOW_VALIDATOR` (no private duplicate binding).
 
 ### Primary API
 
-`validate_loop_result(path: Path) -> LoopValidationResult` is the primary
+`validate_workflow_result(path: Path) -> WorkflowValidationResult` is the primary
 non-raising path-based surface.
 
-`validate_loop_document(raw: dict[str, Any], *, source_path: Path) -> LoopValidationResult`
+`validate_workflow_document(raw: dict[str, Any], *, source_path: Path) -> WorkflowValidationResult`
 runs the same schema + semantic + model pipeline without reading disk.
 `source_path` is required identity (not required to exist); store as given after
 `Path` coercion.
 
-`load_loop_definition(path: Path) -> LoopDefinition` is a thin raising wrapper:
+`load_workflow_definition(path: Path) -> WorkflowDefinition` is a thin raising wrapper:
 `FileNotFoundError` for `not_found`, `OSError` for `unreadable`, `ValueError`
 otherwise.
 
 ```python
-class LoopValidationStatus(StrEnum):
+class WorkflowValidationStatus(StrEnum):
     VALID = "valid"
     INVALID = "invalid"
     NOT_FOUND = "not_found"
@@ -729,11 +729,11 @@ class LoopValidationStatus(StrEnum):
     ROOT_NOT_MAPPING = "root_not_mapping"
 
 
-class LoopValidationResult(BaseModel):
-    status: LoopValidationStatus
+class WorkflowValidationResult(BaseModel):
+    status: WorkflowValidationStatus
     source_path: Path
     raw: dict[str, Any] | None
-    loop: LoopDefinition | None
+    workflow: WorkflowDefinition | None
     errors: list[str]
     warnings: list[str]
 
@@ -741,8 +741,8 @@ class LoopValidationResult(BaseModel):
     def ok(self) -> bool: ...  # status == VALID
 ```
 
-Path success: readable regular file, YAML root mapping, `loop_v1` schema pass,
-semantic pass, Pydantic map → `status=valid`, populated `raw` + `loop`, empty
+Path success: readable regular file, YAML root mapping, `workflow_v1` schema pass,
+semantic pass, Pydantic map → `status=valid`, populated `raw` + `workflow`, empty
 `errors`. Multi-document YAML uses the first `safe_load` document only. Empty
 file / `None` root → `root_not_mapping` (no schema run).
 
@@ -750,22 +750,22 @@ file / `None` root → `root_not_mapping` (no schema run).
 
 | Code | Status |
 |------|--------|
-| `LOOP_INVALID_NOT_FOUND` | `not_found` |
-| `LOOP_INVALID_NOT_A_FILE` | `not_a_file` |
-| `LOOP_INVALID_UNREADABLE` | `unreadable` |
-| `LOOP_INVALID_MALFORMED_YAML` | `malformed_yaml` |
-| `LOOP_INVALID_ROOT_NOT_MAPPING` | `root_not_mapping` |
-| `LOOP_INVALID_SCHEMA` | `invalid` |
-| `LOOP_INVALID_MODEL` | `invalid` (defensive Pydantic failure after schema) |
-| `LOOP_SEM_STOP_WHEN_EMPTY` | `invalid` |
-| `LOOP_SEM_MAX_ATTEMPTS` | `invalid` |
-| `LOOP_SEM_TIMEOUT` | `invalid` |
-| `LOOP_SEM_PATCH_LIMIT` | `invalid` |
+| `WORKFLOW_INVALID_NOT_FOUND` | `not_found` |
+| `WORKFLOW_INVALID_NOT_A_FILE` | `not_a_file` |
+| `WORKFLOW_INVALID_UNREADABLE` | `unreadable` |
+| `WORKFLOW_INVALID_MALFORMED_YAML` | `malformed_yaml` |
+| `WORKFLOW_INVALID_ROOT_NOT_MAPPING` | `root_not_mapping` |
+| `WORKFLOW_INVALID_SCHEMA` | `invalid` |
+| `WORKFLOW_INVALID_MODEL` | `invalid` (defensive Pydantic failure after schema) |
+| `WORKFLOW_SEM_STOP_WHEN_EMPTY` | `invalid` |
+| `WORKFLOW_SEM_MAX_ATTEMPTS` | `invalid` |
+| `WORKFLOW_SEM_TIMEOUT` | `invalid` |
+| `WORKFLOW_SEM_PATCH_LIMIT` | `invalid` |
 
 Schema failures use one grouped error entry:
 
 ```text
-Loop schema validation failed (LOOP_INVALID_SCHEMA):
+Workflow schema validation failed (WORKFLOW_INVALID_SCHEMA):
 - <jsonschema path>: <message>
 - ...
 ```
@@ -776,17 +776,17 @@ and a short Fix hint.
 
 ### Semantic rules (after schema success)
 
-1. `LOOP_SEM_MAX_ATTEMPTS` — `iteration.max_attempts >= 1`
-2. `LOOP_SEM_TIMEOUT` — `trigger.timeout_seconds >= 1` and
+1. `WORKFLOW_SEM_MAX_ATTEMPTS` — `iteration.max_attempts >= 1`
+2. `WORKFLOW_SEM_TIMEOUT` — `trigger.timeout_seconds >= 1` and
    `agent.timeout_seconds >= 1`
-3. `LOOP_SEM_PATCH_LIMIT` — `patch.max_files >= 1` and `patch.max_patch_kb >= 1`
-4. `LOOP_SEM_STOP_WHEN_EMPTY` — `len(iteration.stop_when) >= 1`
+3. `WORKFLOW_SEM_PATCH_LIMIT` — `patch.max_files >= 1` and `patch.max_patch_kb >= 1`
+4. `WORKFLOW_SEM_STOP_WHEN_EMPTY` — `len(iteration.stop_when) >= 1`
 
 v1 requires no semantic warnings (`warnings` is always `[]`).
 
 ### Typed model
 
-`LoopDefinition` covers the full V1 surface: `version`, `name`, `description`,
+`WorkflowDefinition` covers the full V1 surface: `version`, `name`, `description`,
 `trigger`, `agent`, `iteration`, `sandbox`, `approval`, `context`, `patch`.
 Nested models use `extra=forbid` / strict config. `patch.reject_binary_changes`
 is optional (`bool | None`) to match the schema; packaged templates may omit it.
@@ -820,18 +820,18 @@ Read-only: query workflow session by session ID and print details.
 
 Pipeline:
 
-1. `resolve_loop_by_name(name, cwd=cwd)`
+1. `resolve_workflow_by_name(name, cwd=cwd)`
 2. On resolve failure → error panel, exit `1` (no validate)
-3. `validate_loop_result(resolved.entry.source_path)`
+3. `validate_workflow_result(resolved.entry.source_path)`
 4. On validate failure → error panel, exit `1` (resolve warnings may print after)
 5. On success → plain-text summary, exit `0` (warnings allowed)
 
 Pure formatters (no IO/print/exit) live in
-[getworktree/core/loops/render.py](../../getworktree/core/loops/render.py):
+[getworktree/core/workflows/render.py](../../getworktree/core/workflows/render.py):
 
-- `format_loop_show_success(loop, *, source_path, warnings=None) -> str`
-- `format_loop_show_resolve_failure(result) -> str`
-- `format_loop_show_validate_failure(result) -> str`
+- `format_workflow_show_success(workflow, *, source_path, warnings=None) -> str`
+- `format_workflow_show_resolve_failure(result) -> str`
+- `format_workflow_show_validate_failure(result) -> str`
 
 ### Exit codes
 
@@ -847,7 +847,7 @@ Pure formatters (no IO/print/exit) live in
 Plain text (no Rich markup), trailing newline. Header:
 
 ```text
-Loop: <name>
+Workflow: <name>
 Source: <absolute-source-path>
 Status: valid
 ```
@@ -862,20 +862,20 @@ Booleans are `true`/`false`; lists use `json.dumps`; optional
 ### Failure layout
 
 - Exit `1`
-- Rich error panel titled exactly `Loop Show Failed`
-- Resolve body: `"\n\n".join(errors)` or `Failed to resolve loop.`
-- Validate body: `"\n\n".join(errors)` or `Loop definition is invalid.`
+- Rich error panel titled exactly `Workflow Show Failed`
+- Resolve body: `"\n\n".join(errors)` or `Failed to resolve workflow.`
+- Validate body: `"\n\n".join(errors)` or `Workflow definition is invalid.`
 - No success header on failure
 - If resolve warnings exist on a validate failure, print them after the panel
 
-## Changing config or loop shape
+## Changing config or workflow shape
 
-1. Update the relevant JSON Schema (`config_v1.json` or `loop_v1.json`).
+1. Update the relevant JSON Schema (`config_v1.json` or `workflow_v1.json`).
 2. Update `CANONICAL_V1_DEFAULTS` (config) or the packaged template under
-   `core/templates/loops/*.yml` (loops).
+   `core/templates/workflows/*.yml` (workflows).
 3. Update the corresponding Pydantic model in `core/config/models.py` or
-   `core/loops/models.py`.
-4. Add/adjust tests in `tests/core/config/` or `tests/core/loops/`.
+   `core/workflows/models.py`.
+4. Add/adjust tests in `tests/core/config/` or `tests/core/workflows/`.
 
 Bump the schema version (`config_v2.json`, etc.) instead of making breaking
 changes to a `v1` schema that users may already have on disk.

@@ -15,7 +15,7 @@ from getworktree.common.schema_validation import SchemaValidator
 from getworktree.core.bootstrap import BootstrapResult
 from getworktree.core.config.generator import ConfigGenerationResult
 from getworktree.core.config.models import PathsConfig
-from getworktree.core.loops.seeder import LoopSeedResult
+from getworktree.core.workflows.seeder import WorkflowSeedResult
 
 CONFIG_VALIDATOR = SchemaValidator(
     resources.files("getworktree.schemas") / "config_v1.json"
@@ -110,7 +110,7 @@ class InitCommandGuardrailTests:
         assert root.is_dir()
         for name in (
             ".meta",
-            "loops",
+            "workflows",
             "sessions",
             "artifacts",
             "tmp",
@@ -127,8 +127,8 @@ class InitCommandGuardrailTests:
         assert meta["initialized_at"]
 
         assert (root / "config.json").is_file()
-        assert (root / "loops" / "fix-tests.yml").is_file()
-        assert (root / "loops" / "review-fix.yml").is_file()
+        assert (root / "workflows" / "fix-tests.yml").is_file()
+        assert (root / "workflows" / "review-fix.yml").is_file()
         assert "/.worktree/" in (git_repo / ".gitignore").read_text(encoding="utf-8")
 
     def test_second_init_is_non_destructive(
@@ -138,9 +138,9 @@ class InitCommandGuardrailTests:
         init_command(tool_version="0.1.1")
 
         config_path = git_repo / ".worktree" / "config.json"
-        loop_path = git_repo / ".worktree" / "loops" / "fix-tests.yml"
+        workflow_path = git_repo / ".worktree" / "workflows" / "fix-tests.yml"
         config_before = config_path.read_text(encoding="utf-8")
-        loop_path.write_text("edited by user\n", encoding="utf-8")
+        workflow_path.write_text("edited by user\n", encoding="utf-8")
         meta_before = json.loads(
             (git_repo / ".worktree" / ".meta" / "bootstrap.json").read_text(
                 encoding="utf-8"
@@ -150,7 +150,7 @@ class InitCommandGuardrailTests:
         init_command(tool_version="0.1.1")
 
         assert config_path.read_text(encoding="utf-8") == config_before
-        assert loop_path.read_text(encoding="utf-8") == "edited by user\n"
+        assert workflow_path.read_text(encoding="utf-8") == "edited by user\n"
         meta_after = json.loads(
             (git_repo / ".worktree" / ".meta" / "bootstrap.json").read_text(
                 encoding="utf-8"
@@ -178,32 +178,32 @@ class InitCommandGuardrailTests:
         assert meta["status"] == "repaired"
 
 
-class InitCommandLoopSeedingTests:
-    """Tests for starter loop seeding behavior triggered by `wt init`."""
+class InitCommandWorkflowSeedingTests:
+    """Tests for starter workflow seeding behavior triggered by `wt init`."""
 
-    def test_init_seeds_starter_loops_in_fresh_repo(
+    def test_init_seeds_starter_workflows_in_fresh_repo(
         self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.chdir(git_repo)
 
         init_command(tool_version="0.1.1")
 
-        loops_dir = git_repo / ".worktree" / "loops"
-        assert (loops_dir / "fix-tests.yml").is_file()
-        assert (loops_dir / "review-fix.yml").is_file()
+        workflows_dir = git_repo / ".worktree" / "workflows"
+        assert (workflows_dir / "fix-tests.yml").is_file()
+        assert (workflows_dir / "review-fix.yml").is_file()
 
-    def test_init_does_not_overwrite_edited_loop_files(
+    def test_init_does_not_overwrite_edited_workflow_files(
         self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.chdir(git_repo)
 
         init_command(tool_version="0.1.1")
-        loop_path = git_repo / ".worktree" / "loops" / "fix-tests.yml"
-        loop_path.write_text("edited by user\n", encoding="utf-8")
+        workflow_path = git_repo / ".worktree" / "workflows" / "fix-tests.yml"
+        workflow_path.write_text("edited by user\n", encoding="utf-8")
 
         init_command(tool_version="0.1.1")
 
-        assert loop_path.read_text(encoding="utf-8") == "edited by user\n"
+        assert workflow_path.read_text(encoding="utf-8") == "edited by user\n"
 
 
 class InitCommandFailureTests:
@@ -275,16 +275,16 @@ class InitCommandFailureTests:
             init_command(tool_version="0.1.1")
         assert exc.value.exit_code == 1
 
-    def test_loop_seed_failure_exits(
+    def test_workflow_seed_failure_exits(
         self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.chdir(git_repo)
 
         def bad_seed(*args, **kwargs):
-            return LoopSeedResult(errors=["seed failed"])
+            return WorkflowSeedResult(errors=["seed failed"])
 
         monkeypatch.setattr(
-            "getworktree.commands.init.command.seed_starter_loops", bad_seed
+            "getworktree.commands.init.command.seed_starter_workflows", bad_seed
         )
         with pytest.raises(typer.Exit) as exc:
             init_command(tool_version="0.1.1")
@@ -315,8 +315,8 @@ class InitCommandFailureTests:
             ),
         )
         monkeypatch.setattr(
-            "getworktree.commands.init.command.seed_starter_loops",
-            lambda *a, **k: LoopSeedResult(),
+            "getworktree.commands.init.command.seed_starter_workflows",
+            lambda *a, **k: WorkflowSeedResult(),
         )
         monkeypatch.setattr(
             "getworktree.commands.init.command.bootstrap_worktree",

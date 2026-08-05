@@ -11,8 +11,12 @@ from rich.text import Text
 
 from getworktree.common.utils import RichOutput
 from getworktree.core.db import SandboxRecord, WorkflowRunRecord
-from getworktree.core.loops.patch import summarize_unified_diff
-from getworktree.core.loops.runner import AttemptRecord, LoopFinalStatus, LoopRunResult
+from getworktree.core.workflows.patch import summarize_unified_diff
+from getworktree.core.workflows.runner import (
+    AttemptRecord,
+    WorkflowFinalStatus,
+    WorkflowRunResult,
+)
 
 _DEFAULT_RICH_OUTPUT = RichOutput()
 _SUMMARY_RULE = "── Workflow run summary ───────────────────────────────────────────"
@@ -72,15 +76,15 @@ def render_workflow_list(
         output.info(build_recorded_workflows_table(workflows, cwd=cwd))
 
 
-def exit_code_for_status(status: LoopFinalStatus) -> int:
+def exit_code_for_status(status: WorkflowFinalStatus) -> int:
     """Map final workflow status to process exit code."""
-    if status == LoopFinalStatus.PASSED:
+    if status == WorkflowFinalStatus.PASSED:
         return 0
-    if status == LoopFinalStatus.FAILED:
+    if status == WorkflowFinalStatus.FAILED:
         return 1
-    if status == LoopFinalStatus.UNFIXABLE:
+    if status == WorkflowFinalStatus.UNFIXABLE:
         return 2
-    if status == LoopFinalStatus.ABORTED:
+    if status == WorkflowFinalStatus.ABORTED:
         return 130
     return 1
 
@@ -212,10 +216,10 @@ def format_attempt_header(*, attempt: int, max_attempts: int) -> str:
 def format_progress_event(event_name: str, payload: dict[str, Any]) -> str | None:
     """Format one controller event for live CLI progress."""
     if event_name == "session_start":
-        loop_name = str(payload.get("loop_name") or "")
+        workflow_name = str(payload.get("workflow_name") or "")
         session_id = str(payload.get("session_id") or "")
         max_attempts = payload.get("max_attempts")
-        lines = [f"Running workflow {loop_name}"]
+        lines = [f"Running workflow {workflow_name}"]
         if session_id:
             lines.append(f"Session:  {session_id}")
         if max_attempts is not None:
@@ -334,7 +338,7 @@ def format_attempt_block(record: AttemptRecord, *, max_attempts: int) -> str:
     return "\n".join(lines) + "\n"
 
 
-def format_attempts_section(result: LoopRunResult) -> str:
+def format_attempts_section(result: WorkflowRunResult) -> str:
     """Format all attempt blocks for a completed run."""
     if not result.attempts:
         return ""
@@ -345,7 +349,7 @@ def format_attempts_section(result: LoopRunResult) -> str:
     return "".join(parts)
 
 
-def _sandbox_line(result: LoopRunResult, *, cwd: Path) -> str:
+def _sandbox_line(result: WorkflowRunResult, *, cwd: Path) -> str:
     if result.sandbox_retained and result.sandbox_path is not None:
         path = result.sandbox_path
         try:
@@ -362,26 +366,26 @@ def _artifacts_line(session_id: str) -> str:
     return f"Artifacts:  .worktree/sessions/{session_id}"
 
 
-def _next_steps(result: LoopRunResult) -> list[str]:
+def _next_steps(result: WorkflowRunResult) -> list[str]:
     sid = result.session_id or "<id>"
-    name = result.loop_name
-    if result.status == LoopFinalStatus.PASSED:
+    name = result.workflow_name
+    if result.status == WorkflowFinalStatus.PASSED:
         return [
             f"- inspect session: wt history show {sid}",
             f"- view diff:       wt diff {sid}",
         ]
-    if result.status == LoopFinalStatus.FAILED:
+    if result.status == WorkflowFinalStatus.FAILED:
         return [
             f"- inspect session: wt history show {sid}",
             f"- review logs under .worktree/sessions/{sid}",
             f"- re-run: wt workflow run {name}",
         ]
-    if result.status == LoopFinalStatus.ABORTED:
+    if result.status == WorkflowFinalStatus.ABORTED:
         return [
             f"- session partially saved: wt history show {sid}",
             "- clean sandboxes if needed: wt prune",
         ]
-    if result.status == LoopFinalStatus.UNFIXABLE:
+    if result.status == WorkflowFinalStatus.UNFIXABLE:
         return [
             f"- inspect session: wt history show {sid}",
             "- adjust workflow context/trigger or fix manually",
@@ -389,14 +393,14 @@ def _next_steps(result: LoopRunResult) -> list[str]:
     return [f"- inspect session: wt history show {sid}"]
 
 
-def format_run_summary(result: LoopRunResult, *, cwd: Path | None = None) -> str:
+def format_run_summary(result: WorkflowRunResult, *, cwd: Path | None = None) -> str:
     """Return final summary block with trailing newline."""
     root = (cwd or Path.cwd()).resolve()
     max_attempts = result.max_attempts or len(result.attempts)
     used = len(result.attempts)
     lines = [
         _SUMMARY_RULE,
-        f"Workflow:   {result.loop_name}",
+        f"Workflow:   {result.workflow_name}",
         f"Status:     {result.status.value}",
         f"Session:    {result.session_id}",
         f"Attempts:   {used}/{max_attempts}",
@@ -411,7 +415,7 @@ def format_run_summary(result: LoopRunResult, *, cwd: Path | None = None) -> str
 
 
 def format_run_output(
-    result: LoopRunResult,
+    result: WorkflowRunResult,
     *,
     cwd: Path | None = None,
     include_attempts: bool = True,

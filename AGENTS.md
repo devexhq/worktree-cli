@@ -1,7 +1,7 @@
 # AGENTS.md
 
 `getworktree` (`wt`) is a Typer-based CLI providing isolated Git worktree
-developer loops and AI agent workspaces, backed by a local `.worktree/` state
+developer workflows and AI agent workspaces, backed by a local `.worktree/` state
 directory.
 
 ## Essential commands
@@ -37,7 +37,7 @@ the sake of it, and stale content should be removed rather than left in place.
 | [docs/agents/architecture.md](docs/agents/architecture.md) | Understanding module layout, the command pattern, or the `.worktree/` directory structure |
 | [docs/agents/code-conventions.md](docs/agents/code-conventions.md) | Writing or reviewing Python code: Pydantic models, the Result/Outcome pattern, file writes, console output |
 | [docs/agents/testing.md](docs/agents/testing.md) | Adding or running tests |
-| [docs/agents/schemas-and-config.md](docs/agents/schemas-and-config.md) | Changing `config.json` or loop YAML schemas/defaults |
+| [docs/agents/schemas-and-config.md](docs/agents/schemas-and-config.md) | Changing `config.json` or workflow YAML schemas/defaults |
 | [docs/agents/git-and-pr-conventions.md](docs/agents/git-and-pr-conventions.md) | Committing changes or opening a PR |
 | [docs/agents/github-issues.md](docs/agents/github-issues.md) | Creating or updating GitHub issues (structure, tone, required sections) |
 | [docs/agents/ci-and-tooling.md](docs/agents/ci-and-tooling.md) | Understanding lint/CI requirements or release versioning |

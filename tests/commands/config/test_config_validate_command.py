@@ -170,8 +170,8 @@ class ConfigValidateCommandTests:
         monkeypatch.chdir(git_repo)
         config_path = _write_default_config(git_repo)
         data = _read_config(config_path)
-        data["loop"]["default_max_attempts"] = 50
-        data["loop"]["max_attempts_hard_limit"] = 20
+        data["workflow"]["default_max_attempts"] = 50
+        data["workflow"]["max_attempts_hard_limit"] = 20
         _write_config(config_path, data)
 
         with pytest.raises(typer.Exit) as exc_info:
@@ -354,8 +354,8 @@ class ConfigValidateCliTests:
         monkeypatch.chdir(git_repo)
         config_path = _write_default_config(git_repo)
         data = _read_config(config_path)
-        data["loop"]["default_max_attempts"] = 50
-        data["loop"]["max_attempts_hard_limit"] = 20
+        data["workflow"]["default_max_attempts"] = 50
+        data["workflow"]["max_attempts_hard_limit"] = 20
         _write_config(config_path, data)
 
         result = runner.invoke(app, ["config", "validate"])

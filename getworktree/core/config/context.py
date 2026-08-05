@@ -44,7 +44,7 @@ def load_context(cwd: Path | None = None) -> WorktreeContext:
 
     if current_branch in ("main", "master"):
         warnings.append(
-            f"Active branch is '{current_branch}'. Automated loops on primary branches are discouraged."
+            f"Active branch is '{current_branch}'. Automated workflows on primary branches are discouraged."
         )
 
     if config.sandbox.max_active_sandboxes > 5:

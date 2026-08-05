@@ -35,7 +35,7 @@ __version__ = "0.1.1"
 # Initialize Typer App with clean configuration defaults
 app = typer.Typer(
     name="wt",
-    help="Isolated git worktree developer loops and autonomous AI agent workspaces.",
+    help="Isolated git worktree developer workflows and autonomous AI agent workspaces.",
     add_completion=True,
     rich_markup_mode="rich",
 )
@@ -65,7 +65,7 @@ def print_welcome_banner():
     banner_text = Text()
     banner_text.append("🌳 Worktree CLI ", style="bold green")
     banner_text.append(f"v{__version__}\n", style="dim cyan")
-    banner_text.append("Isolated Git Workspaces & Agent Loops", style="italic dim")
+    banner_text.append("Isolated Git Workspaces & Agent Workflows", style="italic dim")
 
     console.print(
         Panel(banner_text, border_style="green", expand=False, padding=(1, 4))

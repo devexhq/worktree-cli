@@ -13,7 +13,7 @@ _TOP_LEVEL_KEYS: tuple[str, ...] = (
     "project",
     "paths",
     "sandbox",
-    "loop",
+    "workflow",
     "agent",
     "patch",
     "approval",

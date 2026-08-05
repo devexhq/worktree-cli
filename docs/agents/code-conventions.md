@@ -14,7 +14,7 @@ Follow this for any new `BaseModel` you add.
 ## Result/Outcome pattern
 
 Operations that can partially succeed return a Pydantic result object instead of
-raising, e.g. `BootstrapResult`, `ConfigGenerationResult`, `LoopSeedResult`,
+raising, e.g. `BootstrapResult`, `ConfigGenerationResult`, `WorkflowSeedResult`,
 `ValidationResult`. The convention:
 
 - Lists describing what happened: `created_files`, `dirs_existing`, `inserted_keys`, etc.
@@ -30,7 +30,7 @@ Reuse this shape for new core operations instead of introducing ad-hoc return ty
 Never write a config/state file directly. Write to a `.tmp` sibling, flush,
 `os.fsync`, then `Path.replace` to swap it into place atomically. See
 `atomic_write_json` in [getworktree/common/fs.py](../../getworktree/common/fs.py)
-and `_atomic_write_text` in `core/loops/seeder.py` for the pattern.
+and `_atomic_write_text` in `core/workflows/seeder.py` for the pattern.
 
 ## Console output
 
@@ -46,13 +46,15 @@ building user-facing `errors` / `warnings` entries. Do **not** add private
 helpers whose only job is to format a single message template
 (e.g. `_invalid_diff_error(detail) -> str`).
 
-Good (see `core/loops/metadata.py`):
+Good (see `core/workflows/metadata.py`):
 
 ```python
-return LoopMetadataParseResult(
-    status=LoopMetadataStatus.NOT_FOUND,
+return WorkflowMetadataParseResult(
+    status=WorkflowMetadataStatus.NOT_FOUND,
     source_path=source_path,
-    errors=[f"Loop definition not found at '{source_path}' (LOOP_META_NOT_FOUND)."],
+    errors=[
+        f"Workflow definition not found at '{source_path}' (WORKFLOW_META_NOT_FOUND)."
+    ],
 )
 ```
 
@@ -80,7 +82,7 @@ errors = [_invalid_diff_error(parse_error)]
 
 Rules of thumb:
 
-- Keep stable machine-oriented tokens in the string (`LOOP_META_*`,
+- Keep stable machine-oriented tokens in the string (`WORKFLOW_META_*`,
   `TRIGGER_*`, `AGENT_PROVIDER_ERROR`, `CONFIG_SCHEMA_INVALID`, …).
 - A short local binding for shared prep is fine
   (`detail = "; ".join(...)`; `joined = ", ".join(paths)`), then inline the

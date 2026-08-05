@@ -119,7 +119,7 @@ class GenerateDefaultConfigTests:
         data = json.loads(config_path.read_text(encoding="utf-8"))
         assert data["project"]["name"] == "keep-me"
         assert data["sandbox"]["auto_clean"] is False
-        assert data["loop"]["default_max_attempts"] == 5
+        assert data["workflow"]["default_max_attempts"] == 5
         assert CONFIG_VALIDATOR.validate(data).ok
 
     def test_repair_invalid_json_errors(self, project_tmp: Path):

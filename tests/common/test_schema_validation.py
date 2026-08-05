@@ -6,16 +6,16 @@ from importlib import resources
 
 from getworktree.common.schema_validation import SchemaValidator
 
-LOOP_VALIDATOR = SchemaValidator(
-    resources.files("getworktree.schemas") / "loop_v1.json"
+WORKFLOW_VALIDATOR = SchemaValidator(
+    resources.files("getworktree.schemas") / "workflow_v1.json"
 )
 
 
-class ValidateLoopV1Tests:
-    """Tests for validating loop payloads against the v1 loop schema."""
+class ValidateWorkflowV1Tests:
+    """Tests for validating workflow payloads against the v1 workflow schema."""
 
-    def test_validate_loop_v1_accepts_starter_template(self) -> None:
-        loop_obj = {
+    def test_validate_workflow_v1_accepts_starter_template(self) -> None:
+        workflow_obj = {
             "version": 1,
             "name": "fix-tests",
             "description": "Iteratively fix failing tests until they pass or attempts are exhausted",
@@ -50,13 +50,13 @@ class ValidateLoopV1Tests:
             },
         }
 
-        result = LOOP_VALIDATOR.validate(loop_obj)
+        result = WORKFLOW_VALIDATOR.validate(workflow_obj)
 
         assert result.ok
         assert result.errors == []
 
-    def test_validate_loop_v1_reports_readable_errors(self) -> None:
-        invalid_loop = {
+    def test_validate_workflow_v1_reports_readable_errors(self) -> None:
+        invalid_workflow = {
             "version": 1,
             "description": "missing name",
             "trigger": {
@@ -90,7 +90,7 @@ class ValidateLoopV1Tests:
             },
         }
 
-        result = LOOP_VALIDATOR.validate(invalid_loop)
+        result = WORKFLOW_VALIDATOR.validate(invalid_workflow)
 
         assert not result.ok
         assert any("name" in error for error in result.errors)

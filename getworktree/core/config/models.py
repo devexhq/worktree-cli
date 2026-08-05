@@ -35,7 +35,7 @@ class PathsConfig(BaseModel):
     model_config = {"extra": "forbid", "strict": True}
 
     root_dir: str = Field(default=".worktree", min_length=1)
-    loops_dir: str = Field(default=".worktree/loops", min_length=1)
+    workflows_dir: str = Field(default=".worktree/workflows", min_length=1)
     sessions_dir: str = Field(default=".worktree/sessions", min_length=1)
     artifacts_dir: str = Field(default=".worktree/artifacts", min_length=1)
     db_path: str = Field(default=".worktree/data.db", min_length=1)
@@ -53,8 +53,8 @@ class SandboxConfig(BaseModel):
     default_timeout_seconds: int = Field(default=900, ge=1)
 
 
-class LoopConfig(BaseModel):
-    """Loop attempt and timeout defaults."""
+class WorkflowConfig(BaseModel):
+    """Workflow attempt and timeout defaults."""
 
     model_config = {"extra": "forbid", "strict": True}
 
@@ -148,7 +148,7 @@ class WorktreeConfig(BaseModel):
     project: ProjectConfig
     paths: PathsConfig = Field(default_factory=PathsConfig)
     sandbox: SandboxConfig = Field(default_factory=SandboxConfig)
-    loop: LoopConfig = Field(default_factory=LoopConfig)
+    workflow: WorkflowConfig = Field(default_factory=WorkflowConfig)
     agent: AgentConfig = Field(default_factory=AgentConfig)
     patch: PatchConfig = Field(default_factory=PatchConfig)
     approval: ApprovalConfig = Field(default_factory=ApprovalConfig)

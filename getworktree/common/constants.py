@@ -11,7 +11,7 @@ GIT_SUBPROCESS_TIMEOUT_SECONDS = 120
 
 REQUIRED_SUBDIRS = (
     ".meta",
-    "loops",
+    "workflows",
     "sessions",
     "artifacts",
     "tmp",

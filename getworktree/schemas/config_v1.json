@@ -9,7 +9,7 @@
     "project",
     "paths",
     "sandbox",
-    "loop",
+    "workflow",
     "agent",
     "patch",
     "approval",
@@ -37,14 +37,14 @@
       "additionalProperties": false,
       "required": [
         "root_dir",
-        "loops_dir",
+        "workflows_dir",
         "sessions_dir",
         "artifacts_dir",
         "db_path"
       ],
       "properties": {
         "root_dir": { "type": "string", "minLength": 1 },
-        "loops_dir": { "type": "string", "minLength": 1 },
+        "workflows_dir": { "type": "string", "minLength": 1 },
         "sessions_dir": { "type": "string", "minLength": 1 },
         "artifacts_dir": { "type": "string", "minLength": 1 },
         "db_path": { "type": "string", "minLength": 1 }
@@ -68,7 +68,7 @@
         "default_timeout_seconds": { "type": "integer", "minimum": 1 }
       }
     },
-    "loop": {
+    "workflow": {
       "type": "object",
       "additionalProperties": false,
       "required": [

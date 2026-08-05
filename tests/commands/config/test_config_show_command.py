@@ -124,7 +124,7 @@ class ConfigShowCliTests:
         assert data["project"]["name"] == git_repo.name
         assert "paths" in data
         assert "telemetry" in data
-        assert data["loop"]["default_max_attempts"] == 5
+        assert data["workflow"]["default_max_attempts"] == 5
 
     def test_show_missing_config(
         self, git_repo: Path, monkeypatch: pytest.MonkeyPatch

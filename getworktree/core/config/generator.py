@@ -22,7 +22,7 @@ CANONICAL_V1_DEFAULTS: dict[str, Any] = {
     },
     "paths": {
         "root_dir": ".worktree",
-        "loops_dir": ".worktree/loops",
+        "workflows_dir": ".worktree/workflows",
         "sessions_dir": ".worktree/sessions",
         "artifacts_dir": ".worktree/artifacts",
         "db_path": ".worktree/data.db",
@@ -34,7 +34,7 @@ CANONICAL_V1_DEFAULTS: dict[str, Any] = {
         "max_active_sandboxes": 3,
         "default_timeout_seconds": 900,
     },
-    "loop": {
+    "workflow": {
         "default_max_attempts": 5,
         "default_trigger_timeout_seconds": 600,
         "default_agent_timeout_seconds": 120,

@@ -34,8 +34,8 @@ rendered text flake even when the command is correct.
 
 Canonical examples:
 
-- [tests/commands/loop/test_loop_run_command.py](../../tests/commands/loop/test_loop_run_command.py)
-  (`LoopRunCliTests.test_help_text`)
+- [tests/commands/workflow/test_workflow_run_command.py](../../tests/commands/workflow/test_workflow_run_command.py)
+  (`WorkflowRunCliTests.test_help_text`)
 - [tests/commands/sandbox/test_sandbox_list_command.py](../../tests/commands/sandbox/test_sandbox_list_command.py)
   (`SandboxListCliTests`)
 
