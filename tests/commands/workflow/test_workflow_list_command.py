@@ -12,7 +12,7 @@ from typer.testing import CliRunner
 from getworktree.cli import app
 from getworktree.commands.workflow.command import workflow_list_command
 from getworktree.core.config.generator import generate_default_config
-from getworktree.core.db import insert_sandbox
+from getworktree.core.db import insert_workflow_run
 
 runner = CliRunner()
 
@@ -48,12 +48,10 @@ class WorkflowListCommandDirectTests:
         monkeypatch.chdir(git_repo)
         _init_repo(git_repo)
 
-        insert_sandbox(
-            id="wf-20260805-01",
+        insert_workflow_run(
+            session_id="wf-20260805-01",
+            workflow_name="refactor-pipeline",
             branch_name="wt/refactor-pipe",
-            base_commit="HEAD",
-            sandbox_path=git_repo / ".worktree" / "sandboxes" / "wf-01",
-            name="refactor-pipeline",
             cwd=git_repo,
         )
 
@@ -110,12 +108,10 @@ class WorkflowListCliTests:
     def test_cli_success(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         _init_repo(git_repo)
-        insert_sandbox(
-            id="wf-20260805-01",
+        insert_workflow_run(
+            session_id="wf-20260805-01",
+            workflow_name="refactor-pipeline",
             branch_name="wt/refactor-pipe",
-            base_commit="HEAD",
-            sandbox_path=git_repo / ".worktree" / "sandboxes" / "wf-01",
-            name="refactor-pipeline",
             cwd=git_repo,
         )
 
@@ -129,12 +125,10 @@ class WorkflowListCliTests:
     ) -> None:
         monkeypatch.chdir(git_repo)
         _init_repo(git_repo)
-        insert_sandbox(
-            id="wf-20260805-02",
+        insert_workflow_run(
+            session_id="wf-20260805-02",
+            workflow_name="run-tests",
             branch_name="wt/run-tests",
-            base_commit="HEAD",
-            sandbox_path=git_repo / ".worktree" / "sandboxes" / "wf-02",
-            name="run-tests",
             cwd=git_repo,
         )
 

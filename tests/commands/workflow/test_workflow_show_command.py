@@ -12,7 +12,7 @@ from typer.testing import CliRunner
 from getworktree.cli import app
 from getworktree.commands.workflow.command import workflow_show_command
 from getworktree.core.config.generator import generate_default_config
-from getworktree.core.db import insert_sandbox
+from getworktree.core.db import insert_workflow_run
 
 runner = CliRunner()
 
@@ -48,12 +48,10 @@ class WorkflowShowCommandDirectTests:
         monkeypatch.chdir(git_repo)
         _init_repo(git_repo)
 
-        insert_sandbox(
-            id="wf-12345",
+        insert_workflow_run(
+            session_id="wf-12345",
+            workflow_name="fix-tests",
             branch_name="wt/fix-tests",
-            base_commit="HEAD",
-            sandbox_path=git_repo / ".worktree" / "sandboxes" / "wf-12345",
-            name="fix-tests",
             cwd=git_repo,
         )
 
@@ -112,12 +110,10 @@ class WorkflowShowCliTests:
     ) -> None:
         monkeypatch.chdir(git_repo)
         _init_repo(git_repo)
-        insert_sandbox(
-            id="wf-55555",
+        insert_workflow_run(
+            session_id="wf-55555",
+            workflow_name="test-workflow",
             branch_name="wt/test-workflow",
-            base_commit="HEAD",
-            sandbox_path=git_repo / ".worktree" / "sandboxes" / "wf-55555",
-            name="test-workflow",
             cwd=git_repo,
         )
 
