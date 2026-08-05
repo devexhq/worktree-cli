@@ -116,47 +116,52 @@ class ConfigSetCliTests:
         config_path = git_repo / ".worktree" / "config.json"
         assert _read_config(config_path)["agent"]["model"] == "qwen2.5-coder"
 
-    def test_set_creates_nested_path(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.chdir(git_repo)
-        assert runner.invoke(app, ["init"]).exit_code == 0
-
-        result = runner.invoke(
-            app, ["config", "set", "custom.toolchain.timeout", "120"]
-        )
-        assert result.exit_code == 0
-        assert "Config updated: custom.toolchain.timeout = 120 (int)" in result.stdout
-        data = _read_config(git_repo / ".worktree" / "config.json")
-        assert data["custom"]["toolchain"]["timeout"] == 120
-
     def test_set_typed_values(
         self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.chdir(git_repo)
         assert runner.invoke(app, ["init"]).exit_code == 0
 
-        res_bool = runner.invoke(app, ["config", "set", "custom.flag", "true"])
+        res_bool = runner.invoke(app, ["config", "set", "sandbox.auto_clean", "false"])
         assert res_bool.exit_code == 0
-        assert "Config updated: custom.flag = true (bool)" in res_bool.stdout
+        assert "Config updated: sandbox.auto_clean = false (bool)" in res_bool.stdout
 
-        res_float = runner.invoke(app, ["config", "set", "custom.ratio", "3.14"])
+        res_float = runner.invoke(app, ["config", "set", "agent.temperature", "0.7"])
         assert res_float.exit_code == 0
-        assert "Config updated: custom.ratio = 3.14 (float)" in res_float.stdout
+        assert "Config updated: agent.temperature = 0.7 (float)" in res_float.stdout
 
-        res_list = runner.invoke(app, ["config", "set", "custom.tags", '["a", "b"]'])
-        assert res_list.exit_code == 0
-        assert 'Config updated: custom.tags = ["a", "b"] (list)' in res_list.stdout
+        res_int = runner.invoke(
+            app, ["config", "set", "sandbox.max_active_sandboxes", "5"]
+        )
+        assert res_int.exit_code == 0
+        assert (
+            "Config updated: sandbox.max_active_sandboxes = 5 (int)" in res_int.stdout
+        )
 
-        res_quoted = runner.invoke(app, ["config", "set", "custom.str_num", '"10"'])
+        res_quoted = runner.invoke(app, ["config", "set", "agent.model", '"qwen2.5"'])
         assert res_quoted.exit_code == 0
-        assert "Config updated: custom.str_num = 10 (str)" in res_quoted.stdout
+        assert "Config updated: agent.model = qwen2.5 (str)" in res_quoted.stdout
 
         data = _read_config(git_repo / ".worktree" / "config.json")
-        assert data["custom"]["flag"] is True
-        assert data["custom"]["ratio"] == 3.14
-        assert data["custom"]["tags"] == ["a", "b"]
-        assert data["custom"]["str_num"] == "10"
+        assert data["sandbox"]["auto_clean"] is False
+        assert data["agent"]["temperature"] == 0.7
+        assert data["sandbox"]["max_active_sandboxes"] == 5
+        assert data["agent"]["model"] == "qwen2.5"
+
+    def test_set_invalid_schema_key_exits_nonzero(
+        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(git_repo)
+        assert runner.invoke(app, ["init"]).exit_code == 0
+
+        result = runner.invoke(
+            app, ["config", "set", "sandboxes.max_active_sandboxes", "3"]
+        )
+        assert result.exit_code == 1
+        combined = result.stdout + result.stderr
+        assert "Config Error" in combined
+        assert "CONFIG_SCHEMA_INVALID" in combined
+        assert "sandboxes" in combined
 
     def test_set_type_collision(
         self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
@@ -165,22 +170,19 @@ class ConfigSetCliTests:
         assert runner.invoke(app, ["init"]).exit_code == 0
         config_path = git_repo / ".worktree" / "config.json"
         data = _read_config(config_path)
-        data["agents"] = {"ollama": "qwen2.5-coder"}
+        data["agent"] = "scalar-value"
         config_path.write_text(
             json.dumps(data, indent=2) + "\n",
             encoding="utf-8",
         )
 
-        first = runner.invoke(app, ["config", "set", "agents.ollama", "qwen2.5-coder"])
-        assert first.exit_code == 0
-
-        second = runner.invoke(app, ["config", "set", "agents.ollama.port", "11434"])
-        assert second.exit_code == 1
-        combined = second.stdout + second.stderr
+        result = runner.invoke(app, ["config", "set", "agent.model", "qwen2.5-coder"])
+        assert result.exit_code == 1
+        combined = result.stdout + result.stderr
         assert "Config Error" in combined
-        assert "agents.ollama.port" in combined
+        assert "agent.model" in combined
         assert "scalar" in combined
-        assert _read_config(config_path)["agents"]["ollama"] == "qwen2.5-coder"
+        assert _read_config(config_path)["agent"] == "scalar-value"
 
     def test_set_missing_config(
         self, git_repo: Path, monkeypatch: pytest.MonkeyPatch

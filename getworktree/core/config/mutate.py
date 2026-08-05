@@ -11,7 +11,8 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from getworktree.common.fs import atomic_write_json
-from getworktree.core.config.loader import resolve_config_path
+from getworktree.common.schema_validation import CONFIG_VALIDATOR
+from getworktree.core.config.loader import _map_worktree_config, resolve_config_path
 
 
 class ConfigSetStatus(StrEnum):
@@ -21,6 +22,7 @@ class ConfigSetStatus(StrEnum):
     NOT_FOUND = "not_found"
     MALFORMED_JSON = "malformed_json"
     ROOT_NOT_OBJECT = "root_not_object"
+    SCHEMA_INVALID = "schema_invalid"
     PATH_IS_DIRECTORY = "path_is_directory"
     UNREADABLE = "unreadable"
     TYPE_COLLISION = "type_collision"
@@ -94,7 +96,7 @@ def set_config_value_result(
 ) -> ConfigSetResult:
     """Load config JSON, set a dot-path value, and persist on success.
 
-    Does not print or call ``sys.exit``. Does not enforce schema key allow-lists.
+    Does not print or call ``sys.exit``. Enforces schema key allow-lists and V1 schema validation.
 
     Args:
         key: Dot-path key to set.
@@ -193,6 +195,47 @@ def set_config_value_result(
             config_path=path,
             key=key,
             errors=[message],
+        )
+
+    validation = CONFIG_VALIDATOR.validate(updated)
+    if not validation.ok:
+        return ConfigSetResult(
+            status=ConfigSetStatus.SCHEMA_INVALID,
+            config_path=path,
+            key=key,
+            errors=[
+                "\n".join(
+                    [
+                        "Config schema validation failed (CONFIG_SCHEMA_INVALID):",
+                        *(f"- {msg}" for msg in validation.errors),
+                        "Fix:",
+                        "- run `wt config validate` for details",
+                        "- or `wt init --repair` to insert missing keys "
+                        "without overwriting values",
+                    ]
+                )
+            ],
+        )
+
+    try:
+        _map_worktree_config(updated)
+    except Exception as exc:
+        return ConfigSetResult(
+            status=ConfigSetStatus.SCHEMA_INVALID,
+            config_path=path,
+            key=key,
+            errors=[
+                "\n".join(
+                    [
+                        "Config schema validation failed (CONFIG_SCHEMA_INVALID):",
+                        *(f"- {msg}" for msg in [str(exc)]),
+                        "Fix:",
+                        "- run `wt config validate` for details",
+                        "- or `wt init --repair` to insert missing keys "
+                        "without overwriting values",
+                    ]
+                )
+            ],
         )
 
     try:
