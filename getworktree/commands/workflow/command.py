@@ -19,7 +19,7 @@ from getworktree.commands.workflow.renderers import (
 )
 from getworktree.common.utils import RichOutput
 from getworktree.core.config.loader import ConfigLoadStatus, load_config_result
-from getworktree.core.db import get_sandbox, list_sandboxes
+from getworktree.core.db import get_sandbox, get_workflow_run, list_workflow_runs
 from getworktree.core.loops.render import (
     format_loop_show_resolve_failure,
     format_loop_show_validate_failure,
@@ -52,8 +52,8 @@ def workflow_list_command(*, cwd: Path | None = None) -> None:
         rich_output.error_panel("Workflow List Failed", message)
         raise typer.Exit(code=1)
 
-    sandboxes = list_sandboxes(cwd=root)
-    render_workflow_list(sandboxes, cwd=root, rich_output=rich_output)
+    workflows = list_workflow_runs(cwd=root)
+    render_workflow_list(workflows, cwd=root, rich_output=rich_output)
     raise typer.Exit(code=0)
 
 
@@ -89,7 +89,7 @@ def workflow_show_command(session_id: str, *, cwd: Path | None = None) -> None:
         rich_output.error_panel("Workflow Show Failed", message)
         raise typer.Exit(code=1)
 
-    row = get_sandbox(session_id, cwd=root)
+    row = get_workflow_run(session_id, cwd=root) or get_sandbox(session_id, cwd=root)
     if row is None:
         rich_output.error_panel(
             "Workflow Show Failed",
@@ -97,13 +97,23 @@ def workflow_show_command(session_id: str, *, cwd: Path | None = None) -> None:
         )
         raise typer.Exit(code=1)
 
-    rich_output.info(f"Workflow Session: {row.id}")
-    rich_output.info(f"Name:             {row.name or '-'}")
-    rich_output.info(f"Branch:           {row.branch_name}")
-    rich_output.info(
-        f"Status:           {row.status.value if hasattr(row.status, 'value') else str(row.status)}"
-    )
-    rich_output.info(f"Started At:       {row.created_at}")
+    sid = getattr(row, "session_id", getattr(row, "id", session_id))
+    name = getattr(row, "workflow_name", getattr(row, "name", None)) or "-"
+    branch = getattr(row, "branch_name", "-")
+    status = row.status.value if hasattr(row.status, "value") else str(row.status)
+    started = getattr(row, "started_at", getattr(row, "created_at", "-"))
+    completed = getattr(row, "completed_at", None)
+    err_msg = getattr(row, "error_message", None)
+
+    rich_output.info(f"Workflow Session: {sid}")
+    rich_output.info(f"Name:             {name}")
+    rich_output.info(f"Branch:           {branch}")
+    rich_output.info(f"Status:           {status}")
+    rich_output.info(f"Started At:       {started}")
+    if completed:
+        rich_output.info(f"Completed At:     {completed}")
+    if err_msg:
+        rich_output.info(f"Error:            {err_msg}")
     raise typer.Exit(code=0)
 
 
@@ -127,7 +137,7 @@ def workflow_resume_command(session_id: str, *, cwd: Path | None = None) -> None
         rich_output.error_panel("Workflow Resume Failed", message)
         raise typer.Exit(code=1)
 
-    row = get_sandbox(session_id, cwd=root)
+    row = get_workflow_run(session_id, cwd=root) or get_sandbox(session_id, cwd=root)
     if row is None:
         rich_output.error_panel(
             "Workflow Resume Failed",

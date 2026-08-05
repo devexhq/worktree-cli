@@ -10,7 +10,7 @@ from rich.table import Table
 from rich.text import Text
 
 from getworktree.common.utils import RichOutput
-from getworktree.core.db import SandboxRecord
+from getworktree.core.db import SandboxRecord, WorkflowRunRecord
 from getworktree.core.loops.patch import summarize_unified_diff
 from getworktree.core.loops.runner import AttemptRecord, LoopFinalStatus, LoopRunResult
 
@@ -21,14 +21,14 @@ DEFAULT_PATCH_PREVIEW_MAX_LINES = 200
 
 
 def build_recorded_workflows_table(
-    sandboxes: list[SandboxRecord],
+    workflows: list[WorkflowRunRecord] | list[SandboxRecord],
     *,
     cwd: Path | None = None,
 ) -> Table:
     """Build the ``Recorded Workflows`` table for workflow list output.
 
     Args:
-        sandboxes: List of recorded sandbox / session rows from database.
+        workflows: List of recorded workflow run or sandbox session rows from database.
         cwd: Repository root for relative path display.
 
     Returns:
@@ -41,19 +41,24 @@ def build_recorded_workflows_table(
     table.add_column("STATUS")
     table.add_column("STARTED AT", no_wrap=True)
 
-    for row in sandboxes:
+    for row in workflows:
+        sid = getattr(row, "session_id", getattr(row, "id", "-"))
+        name = getattr(row, "workflow_name", getattr(row, "name", "-")) or "-"
+        branch = getattr(row, "branch_name", "-")
+        status = row.status.value if hasattr(row.status, "value") else str(row.status)
+        started = getattr(row, "started_at", getattr(row, "created_at", "-"))
         table.add_row(
-            row.id,
-            row.name or "-",
-            row.branch_name,
-            row.status.value if hasattr(row.status, "value") else str(row.status),
-            row.created_at,
+            sid,
+            name,
+            branch,
+            status,
+            started,
         )
     return table
 
 
 def render_workflow_list(
-    sandboxes: list[SandboxRecord],
+    workflows: list[WorkflowRunRecord] | list[SandboxRecord],
     *,
     cwd: Path | None = None,
     rich_output: RichOutput | None = None,
@@ -61,10 +66,10 @@ def render_workflow_list(
     """Render empty state or the recorded workflows table."""
     output = rich_output or _DEFAULT_RICH_OUTPUT
 
-    if not sandboxes:
+    if not workflows:
         output.info("No recorded workflows found.")
     else:
-        output.info(build_recorded_workflows_table(sandboxes, cwd=cwd))
+        output.info(build_recorded_workflows_table(workflows, cwd=cwd))
 
 
 def exit_code_for_status(status: LoopFinalStatus) -> int:

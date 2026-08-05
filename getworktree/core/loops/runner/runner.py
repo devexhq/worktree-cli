@@ -14,6 +14,11 @@ from typing import TYPE_CHECKING
 from getworktree.common.fs import get_session_dir
 from getworktree.core.config.loader import load_config_result
 from getworktree.core.config.models import WorktreeConfig
+from getworktree.core.db import (
+    RunStatus,
+    insert_workflow_run,
+    update_workflow_run_status,
+)
 from getworktree.core.git_sandbox import (
     GitSandboxManager,
     SandboxSession,
@@ -232,6 +237,44 @@ def run_loop_iteration(
     warnings: list[str] = []
     command_passed: bool | None = None
 
+    try:
+        insert_workflow_run(
+            session_id=sid,
+            workflow_name=loop_name,
+            branch_name=session.target_branch,
+            status=RunStatus.RUNNING,
+            cwd=root,
+        )
+    except Exception as exc:
+        warnings.append(f"Failed to record workflow run start in database: {exc}")
+
+    def _record_db_status() -> None:
+        run_status = (
+            RunStatus.COMPLETED
+            if final_status == LoopFinalStatus.PASSED
+            else RunStatus.CANCELLED
+            if final_status == LoopFinalStatus.ABORTED
+            else RunStatus.FAILED
+        )
+        err_msg = (
+            "; ".join(run_errors)
+            if run_errors
+            else (
+                f"Stop reason: {stop_reason.value if hasattr(stop_reason, 'value') else stop_reason}"
+                if run_status != RunStatus.COMPLETED
+                else None
+            )
+        )
+        try:
+            update_workflow_run_status(
+                session_id=sid,
+                status=run_status,
+                error_message=err_msg,
+                cwd=root,
+            )
+        except Exception as exc:
+            warnings.append(f"Failed to update workflow run status in database: {exc}")
+
     session_dir = get_session_dir(root, sid)
     try:
         session_dir.mkdir(parents=True, exist_ok=True)
@@ -282,6 +325,7 @@ def run_loop_iteration(
     if _finish_cleanup or agent is None:
         capture_and_persist_diff(session=session, cwd=root, warnings=warnings)
         _cleanup()
+        _record_db_status()
         retained = not should_cleanup_sandbox(
             auto_clean=resolved_auto,
             keep_on_failure=resolved_keep,
@@ -430,6 +474,7 @@ def run_loop_iteration(
 
         session.command_passed = command_passed
         capture_and_persist_diff(session=session, cwd=root, warnings=warnings)
+        _record_db_status()
         will_clean = should_cleanup_sandbox(
             auto_clean=resolved_auto,
             keep_on_failure=resolved_keep,
