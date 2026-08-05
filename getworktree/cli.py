@@ -11,7 +11,11 @@ from getworktree.commands.config.command import (
     config_validate_command,
 )
 from getworktree.commands.init.command import init_command
-from getworktree.commands.loop.command import loop_run_command, loop_show_command
+from getworktree.commands.loop.command import (
+    loop_list_command,
+    loop_run_command,
+    loop_show_command,
+)
 from getworktree.commands.sandbox.command import (
     sandbox_create_command,
     sandbox_delete_command,
@@ -159,6 +163,12 @@ def config_set(
 def config_validate(ctx: typer.Context):
     """Validate .worktree/config.json against the V1 schema and semantic rules."""
     config_validate_command()
+
+
+@loop_app.command("list")
+def loop_list(ctx: typer.Context):
+    """List available loop definitions and their status."""
+    loop_list_command()
 
 
 @loop_app.command("show")

@@ -39,6 +39,7 @@ pip install "getworktree[cursor]"
 wt init
 wt status
 wt config validate
+wt loop list
 wt loop show fix-tests
 wt loop run fix-tests
 ```
@@ -57,6 +58,7 @@ wt loop run fix-tests
 
 ### Loop
 
+- `wt loop list`
 - `wt loop show <name>`
 - `wt loop run <name>`
 

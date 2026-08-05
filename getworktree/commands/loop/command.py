@@ -15,9 +15,11 @@ from getworktree.commands.loop.renderers import (
     exit_code_for_status,
     format_progress_event,
     format_run_output,
+    render_loop_list,
 )
 from getworktree.common.utils import RichOutput
 from getworktree.core.config.loader import ConfigLoadStatus, load_config_result
+from getworktree.core.loops.inventory import build_loop_inventory
 from getworktree.core.loops.render import (
     format_loop_show_resolve_failure,
     format_loop_show_success,
@@ -28,6 +30,32 @@ from getworktree.core.loops.runner import LoopRunResult, StopReason, run_loop_it
 from getworktree.core.loops.validate import validate_loop_result
 
 rich_output = RichOutput()
+
+
+def loop_list_command(*, cwd: Path | None = None) -> None:
+    """Discover available loop definitions and render an inventory summary.
+
+    Read-only: does not mutate loop files, start sandboxes, or run triggers.
+    Exit ``0`` when discovery succeeds (including empty or invalid entries);
+    exit ``1`` on discovery failure (e.g. uninitialized worktree).
+
+    Args:
+        cwd: Repository root. Defaults to process CWD.
+    """
+    root = (cwd or Path.cwd()).resolve()
+    inventory = build_loop_inventory(cwd=root)
+
+    if not inventory.ok:
+        message = (
+            "\n\n".join(inventory.errors)
+            if inventory.errors
+            else "Loop directory could not be discovered."
+        )
+        rich_output.error_panel("Loop List Failed", message)
+        raise typer.Exit(code=1)
+
+    render_loop_list(inventory, cwd=root, rich_output=rich_output)
+    raise typer.Exit(code=0)
 
 
 def _format_warning_bullets(warnings: list[str]) -> list[str]:
