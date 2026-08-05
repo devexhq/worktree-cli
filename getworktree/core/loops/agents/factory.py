@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from getworktree.core.agents.base import AgentAdapter
-from getworktree.core.agents.copilot import CopilotAgentAdapter
-from getworktree.core.agents.cursor import CursorAgentAdapter
-from getworktree.core.agents.gemini import GeminiAgentAdapter
-from getworktree.core.agents.local import LocalAgentAdapter
-from getworktree.core.agents.ollama import OllamaAgentAdapter
 from getworktree.core.config.models import AgentConfig
+from getworktree.core.loops.agents.base import AgentAdapter
+from getworktree.core.loops.agents.copilot import CopilotAgentAdapter
+from getworktree.core.loops.agents.cursor import CursorAgentAdapter
+from getworktree.core.loops.agents.gemini import GeminiAgentAdapter
+from getworktree.core.loops.agents.local import LocalAgentAdapter
+from getworktree.core.loops.agents.ollama import OllamaAgentAdapter
 
 _SUPPORTED_V1 = ("local", "ollama", "cursor", "gemini", "copilot")
 

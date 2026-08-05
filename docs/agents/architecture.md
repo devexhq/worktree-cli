@@ -10,11 +10,12 @@ getworktree/commands/<name>/       One package per CLI subcommand
   renderers.py                     Rich console rendering, kept out of command.py
 getworktree/core/                  Business logic, no Typer/CLI concerns
   bootstrap.py                     Creates/repairs the .worktree/ directory tree
-  agents/{base,local,factory}.py   Agent adapter protocol + local provider
   config/{generator,loader,models,context}.py
                                    Defaults write + load/validate + typed models + repo context
   db.py                            SQLite token ledger + sandbox metadata CRUD
   git_sandbox.py                   Isolated `git worktree` sandbox lifecycle
+  loops/                           Loop domain (iteration, payloads, patches, safety, agents)
+  loops/agents/                    Agent adapter protocol + providers (owned by loops)
   loops/seeder.py                  Seeds packaged starter loop YAML files
   loops/patch.py                   Unified-diff validate/apply in sandbox
   loops/runner/                    Iteration controller (package: models/helpers/steps/orchestrator)
@@ -24,6 +25,13 @@ getworktree/common/                Shared, dependency-light helpers
   constants.py, fs.py, utils.py, schema_validation.py
 getworktree/schemas/                Versioned JSON Schemas (config_v1.json, loop_v1.json)
 ```
+
+### Domain ownership
+
+- **Loop domain** (`core/loops/`) owns iteration, triggers, payloads, patches,
+  safety, and agent adapters (`core/loops/agents/`).
+- **Shared core infra** stays at `core/` top level: `config/`, `git_sandbox.py`,
+  `db.py`, `bootstrap.py`, `templates/`.
 
 Not every command has all three files (e.g. `status` has only `command.py`) — add
 `models.py`/`renderers.py` when a command's output/result grows non-trivial.
@@ -324,7 +332,9 @@ Success → `applied` or `checked_ok` with sorted unique POSIX `touched_files`.
 
 ## Agent adapter
 
-`getworktree/core/agents/` owns the provider boundary for loop fix requests.
+`getworktree/core/loops/agents/` owns the provider boundary for loop fix
+requests. Adapters exist only to serve loop iteration; they are not a peer
+domain of `core/loops/`.
 
 ### Contract
 - Protocol: `AgentAdapter.propose_fix(request: AgentRequest) -> AgentResponse`
@@ -345,7 +355,7 @@ Success → `applied` or `checked_ok` with sorted unique POSIX `touched_files`.
   base described below
 
 ### Shared direct-mutation base (`CliDirectMutationAdapter`)
-- Shared module: `getworktree/core/agents/cli_mutation.py`
+- Shared module: `getworktree/core/loops/agents/cli_mutation.py`
 - Shared DTOs: `CliMutationRunRequest`, `CliMutationOutcome`,
   `CliMutationRunFn`
 - Shared prompt builder: `build_mutation_prompt(request)`

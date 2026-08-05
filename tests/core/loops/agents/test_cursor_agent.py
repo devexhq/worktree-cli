@@ -7,18 +7,18 @@ from pathlib import Path
 
 import pytest
 
-from getworktree.core.agents import (
+from getworktree.core.loops.agents import (
     AgentRequest,
     AgentResponseStatus,
     CursorAgentAdapter,
     get_agent_adapter,
 )
-from getworktree.core.agents.cli_mutation import (
+from getworktree.core.loops.agents.cli_mutation import (
     CliMutationOutcome,
     CliMutationRunRequest,
     build_mutation_prompt,
 )
-from getworktree.core.agents.cursor import (
+from getworktree.core.loops.agents.cursor import (
     CURSOR_API_KEY_ENV,
     default_cursor_run,
     resolve_cursor_api_key,

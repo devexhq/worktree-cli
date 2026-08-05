@@ -1,4 +1,4 @@
-"""Tests for the Gemini CLI direct-mutation agent adapter."""
+"""Tests for the Copilot CLI direct-mutation agent adapter."""
 
 from __future__ import annotations
 
@@ -7,20 +7,19 @@ from pathlib import Path
 
 import pytest
 
-from getworktree.core.agents import (
+from getworktree.core.loops.agents import (
     AgentRequest,
     AgentResponseStatus,
-    GeminiAgentAdapter,
+    CopilotAgentAdapter,
     get_agent_adapter,
 )
-from getworktree.core.agents.cli_mutation import (
+from getworktree.core.loops.agents.cli_mutation import (
     CliMutationOutcome,
     CliMutationRunRequest,
 )
-from getworktree.core.agents.gemini import (
-    GEMINI_API_KEY_ENV,
-    default_gemini_run,
-    resolve_gemini_api_key,
+from getworktree.core.loops.agents.copilot import (
+    default_copilot_run,
+    resolve_copilot_token,
 )
 from getworktree.core.loops.payload import AgentFailurePayload
 
@@ -48,7 +47,6 @@ def _request(sandbox: Path, **kwargs: object) -> AgentRequest:
         "payload": _payload(),
         "sandbox_path": sandbox,
         "timeout_seconds": 10,
-        "model": "gemini-2.5-flash",
     }
     data.update(kwargs)
     return AgentRequest.model_validate(data)
@@ -62,37 +60,39 @@ def sandbox(tmp_path: Path) -> Path:
 
 
 @pytest.fixture(autouse=True)
-def _api_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(GEMINI_API_KEY_ENV, "test-key")
+def _token(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GH_TOKEN", "test-token")
 
 
-class GeminiFactoryTests:
-    def test_gemini_provider(self) -> None:
-        adapter = get_agent_adapter("gemini")
-        assert isinstance(adapter, GeminiAgentAdapter)
+class CopilotFactoryTests:
+    def test_copilot_provider(self) -> None:
+        adapter = get_agent_adapter("copilot")
+        assert isinstance(adapter, CopilotAgentAdapter)
 
 
-class GeminiAuthTests:
+class CopilotAuthTests:
     def test_resolve_present(self) -> None:
-        assert resolve_gemini_api_key({GEMINI_API_KEY_ENV: "abc"}) == "abc"
+        assert resolve_copilot_token({"GH_TOKEN": "abc"}) == "abc"
+        assert resolve_copilot_token({"GITHUB_TOKEN": "xyz"}) == "xyz"
 
     def test_resolve_missing(self) -> None:
-        assert resolve_gemini_api_key({}) is None
+        assert resolve_copilot_token({}) is None
 
-    def test_preflight_requires_key(
+    def test_preflight_requires_token(
         self, sandbox: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.delenv(GEMINI_API_KEY_ENV, raising=False)
-        adapter = GeminiAgentAdapter(
+        monkeypatch.delenv("GH_TOKEN", raising=False)
+        monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+        adapter = CopilotAgentAdapter(
             run_fn=lambda req: CliMutationOutcome(status="finished")
         )
         resp = adapter.propose_fix(_request(sandbox))
         assert resp.status == AgentResponseStatus.PROVIDER_ERROR
-        assert any(GEMINI_API_KEY_ENV in err for err in resp.errors)
+        assert any("GH_TOKEN" in err for err in resp.errors)
 
 
-class GeminiRunTests:
-    def test_default_run_parses_json(
+class CopilotRunTests:
+    def test_default_run_parses_jsonl(
         self, sandbox: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         captured: dict[str, object] = {}
@@ -100,57 +100,53 @@ class GeminiRunTests:
         def fake_run(cmd, cwd, env, input, capture_output, text, shell, timeout, check):
             captured["cmd"] = cmd
             captured["cwd"] = cwd
-            captured["env_key"] = env[GEMINI_API_KEY_ENV]
             captured["input"] = input
             captured["timeout"] = timeout
 
             class Result:
                 returncode = 0
-                stdout = b'{"response": "pong"}'
+                stdout = b'{"type":"assistant.message","data":{"content":"hello"}}\n{"type":"result","data":{"exitCode":0}}\n'
                 stderr = b""
 
             return Result()
 
         monkeypatch.setattr(subprocess, "run", fake_run)
 
-        outcome = default_gemini_run(
+        outcome = default_copilot_run(
             CliMutationRunRequest(
-                sandbox_path=sandbox,
-                prompt="hi",
-                model="gemini-2.5-flash",
-                timeout_seconds=3,
+                sandbox_path=sandbox, prompt="hi", model=None, timeout_seconds=3
             )
         )
 
         assert outcome.status == "finished"
-        assert outcome.result_text == "pong"
+        assert outcome.result_text == "hello"
         assert captured["cwd"] == str(sandbox)
-        assert captured["env_key"] == "test-key"
         assert captured["input"] == b"hi"
-        assert "-m" in captured["cmd"]
-        assert captured["cmd"][0:3] == ["gemini", "-p", ""]
+        assert captured["cmd"][0] == "gh"
+        assert captured["cmd"][0:3] == ["gh", "copilot", "--"]
+        assert captured["cmd"][3:6] == ["-p", "", "--output-format"]
 
     def test_missing_binary(
         self, sandbox: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         def fake_run(*args, **kwargs):
-            raise FileNotFoundError("gemini")
+            raise FileNotFoundError("gh")
 
         monkeypatch.setattr(subprocess, "run", fake_run)
-        outcome = default_gemini_run(
+        outcome = default_copilot_run(
             CliMutationRunRequest(
                 sandbox_path=sandbox, prompt="hi", model=None, timeout_seconds=3
             )
         )
         assert outcome.status == "error"
-        assert "install the Gemini CLI" in (outcome.error_detail or "")
+        assert "GitHub CLI" in (outcome.error_detail or "")
 
     def test_timeout(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         def fake_run(*args, **kwargs):
-            raise subprocess.TimeoutExpired(cmd="gemini", timeout=3)
+            raise subprocess.TimeoutExpired(cmd="gh", timeout=3)
 
         monkeypatch.setattr(subprocess, "run", fake_run)
-        outcome = default_gemini_run(
+        outcome = default_copilot_run(
             CliMutationRunRequest(
                 sandbox_path=sandbox, prompt="hi", model=None, timeout_seconds=3
             )
@@ -158,8 +154,8 @@ class GeminiRunTests:
         assert outcome.status == "timeout"
 
 
-class GeminiAdapterTests:
-    def test_proposed_patch(self, sandbox: Path) -> None:
+class CopilotAdapterTests:
+    def test_no_op(self, sandbox: Path) -> None:
         _git(["init"], cwd=sandbox)
         _git(["config", "user.email", "test@example.com"], cwd=sandbox)
         _git(["config", "user.name", "Test"], cwd=sandbox)
@@ -168,11 +164,9 @@ class GeminiAdapterTests:
         _git(["commit", "-m", "init"], cwd=sandbox)
 
         def run_fn(request: CliMutationRunRequest) -> CliMutationOutcome:
-            (request.sandbox_path / "a.txt").write_text("fixed\n", encoding="utf-8")
             return CliMutationOutcome(status="finished", result_text="done")
 
-        adapter = GeminiAgentAdapter(run_fn=run_fn)
+        adapter = CopilotAgentAdapter(run_fn=run_fn)
         resp = adapter.propose_fix(_request(sandbox))
-        assert resp.status == AgentResponseStatus.PROPOSED_PATCH
-        assert resp.ok
+        assert resp.status == AgentResponseStatus.NO_OP
         assert resp.mutation_baseline_ref is not None

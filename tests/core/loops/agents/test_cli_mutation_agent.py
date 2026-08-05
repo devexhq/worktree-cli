@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from getworktree.core.agents import AgentRequest, AgentResponseStatus
-from getworktree.core.agents.cli_mutation import (
+from getworktree.core.loops.agents import AgentRequest, AgentResponseStatus
+from getworktree.core.loops.agents.cli_mutation import (
     CliDirectMutationAdapter,
     CliMutationOutcome,
     CliMutationRunRequest,
