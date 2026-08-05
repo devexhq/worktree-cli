@@ -16,8 +16,8 @@ from pydantic import BaseModel
 DEFAULT_DB_REL_PATH = ".worktree/data.db"
 
 # Schema migration DDL for tracking AI model token costs
-CREATE_LOOP_COSTS_TABLE_SQL = """
-CREATE TABLE IF NOT EXISTS loop_costs (
+CREATE_WORKFLOW_COSTS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS workflow_costs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     session_id TEXT NOT NULL,
     branch_name TEXT NOT NULL,
@@ -28,8 +28,8 @@ CREATE TABLE IF NOT EXISTS loop_costs (
     estimated_usd_cost REAL NOT NULL DEFAULT 0.0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-CREATE INDEX IF NOT EXISTS idx_loop_costs_session ON loop_costs(session_id);
-CREATE INDEX IF NOT EXISTS idx_loop_costs_created ON loop_costs(created_at);
+CREATE INDEX IF NOT EXISTS idx_workflow_costs_session ON workflow_costs(session_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_costs_created ON workflow_costs(created_at);
 """
 
 # Schema migration DDL for durable sandbox metadata
@@ -211,7 +211,7 @@ def init_database(
     """Run table migrations and initialize local SQLite database layout."""
     db_path = resolve_db_path(cwd, db_rel_path)
     with get_db_connection(db_path) as conn:
-        conn.executescript(CREATE_LOOP_COSTS_TABLE_SQL)
+        conn.executescript(CREATE_WORKFLOW_COSTS_TABLE_SQL)
         conn.executescript(CREATE_SANDBOXES_TABLE_SQL)
         conn.executescript(CREATE_TEMPLATES_TABLE_SQL)
         conn.executescript(CREATE_WORKFLOWS_TABLE_SQL)
@@ -418,7 +418,7 @@ def record_token_usage(
     now_utc = datetime.now(UTC).isoformat()
 
     insert_sql = """
-    INSERT INTO loop_costs (
+    INSERT INTO workflow_costs (
         session_id, branch_name, model_id, prompt_tokens,
         completion_tokens, total_tokens, estimated_usd_cost, created_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
@@ -445,7 +445,7 @@ def record_token_usage(
 def get_session_total_cost(
     session_id: str, cwd: Path | None = None, db_rel_path: str = DEFAULT_DB_REL_PATH
 ) -> dict[str, float]:
-    """Calculate aggregated token counts and dollar spend for a specific execution loop session."""
+    """Calculate aggregated token counts and dollar spend for a specific execution workflow session."""
     db_path = init_database(cwd, db_rel_path)
 
     query_sql = """
@@ -454,7 +454,7 @@ def get_session_total_cost(
         COALESCE(SUM(completion_tokens), 0) AS total_completion_tokens,
         COALESCE(SUM(total_tokens), 0) AS total_tokens,
         COALESCE(SUM(estimated_usd_cost), 0.0) AS total_usd_cost
-    FROM loop_costs
+    FROM workflow_costs
     WHERE session_id = ?;
     """
 

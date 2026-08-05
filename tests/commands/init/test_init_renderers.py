@@ -16,7 +16,7 @@ from getworktree.commands.init.renderers import (
 from getworktree.common.utils import RichOutput
 from getworktree.core.bootstrap import BootstrapResult
 from getworktree.core.config.generator import ConfigGenerationResult
-from getworktree.core.loops.seeder import LoopSeedResult
+from getworktree.core.workflows.seeder import WorkflowSeedResult
 
 
 def _rich() -> tuple[RichOutput, StringIO]:
@@ -63,15 +63,15 @@ class RenderInitOutcomeTests:
                 config_path=tmp_path / ".worktree" / "config.json",
                 skipped_existing=True,
             ),
-            loop_seed_result=LoopSeedResult(
-                created_files=[tmp_path / ".worktree" / "loops" / "fix-tests.yml"]
+            workflow_seed_result=WorkflowSeedResult(
+                created_files=[tmp_path / ".worktree" / "workflows" / "fix-tests.yml"]
             ),
         )
         render_init_outcome(tmp_path, outcome, rich_output=rich_output)
         rendered = output.getvalue()
         assert "Worktree already initialized" in rendered
         assert "Config exists" in rendered
-        assert "Seeded starter loops" in rendered
+        assert "Seeded starter workflows" in rendered
 
     def test_render_repaired_bootstrap_and_config(self, tmp_path: Path) -> None:
         rich_output, output = _rich()
@@ -87,8 +87,8 @@ class RenderInitOutcomeTests:
                 repaired=True,
                 inserted_keys=["telemetry.enabled"],
             ),
-            loop_seed_result=LoopSeedResult(
-                skipped_existing_files=[root / "loops" / "fix-tests.yml"],
+            workflow_seed_result=WorkflowSeedResult(
+                skipped_existing_files=[root / "workflows" / "fix-tests.yml"],
             ),
         )
         render_init_outcome(tmp_path, outcome, rich_output=rich_output)
@@ -106,23 +106,23 @@ class RenderInitOutcomeTests:
             bootstrap_result=BootstrapResult(
                 root_path=root,
                 root_created=True,
-                dirs_created=[root / "loops"],
+                dirs_created=[root / "workflows"],
             ),
             config_result=ConfigGenerationResult(
                 config_path=root / "config.json",
                 overwritten=True,
             ),
-            loop_seed_result=LoopSeedResult(
-                overwritten_files=[root / "loops" / "x.yml"]
+            workflow_seed_result=WorkflowSeedResult(
+                overwritten_files=[root / "workflows" / "x.yml"]
             ),
         )
         render_init_outcome(tmp_path, outcome, rich_output=rich_output)
         rendered = output.getvalue()
         assert "Initialized Worktree" in rendered
         assert "Regenerated config" in rendered
-        assert "Refreshed starter loops" in rendered
+        assert "Refreshed starter workflows" in rendered
 
-    def test_render_generated_config_and_loop_errors(self, tmp_path: Path) -> None:
+    def test_render_generated_config_and_workflow_errors(self, tmp_path: Path) -> None:
         rich_output, output = _rich()
         root = tmp_path / ".worktree"
         outcome = InitCommandOutcome(
@@ -131,12 +131,12 @@ class RenderInitOutcomeTests:
                 config_path=root / "config.json",
                 created=True,
             ),
-            loop_seed_result=LoopSeedResult(errors=["could not seed"]),
+            workflow_seed_result=WorkflowSeedResult(errors=["could not seed"]),
         )
         render_init_outcome(tmp_path, outcome, rich_output=rich_output)
         rendered = output.getvalue()
         assert "Generated config" in rendered
-        assert "Starter loop seeding failed" in rendered
+        assert "Starter workflow seeding failed" in rendered
         assert "could not seed" in rendered
 
     def test_render_skips_config_without_path(self, tmp_path: Path) -> None:
@@ -144,12 +144,12 @@ class RenderInitOutcomeTests:
         outcome = InitCommandOutcome(
             bootstrap_result=BootstrapResult(root_path=tmp_path / ".worktree"),
             config_result=ConfigGenerationResult(config_path=None),
-            loop_seed_result=LoopSeedResult(),
+            workflow_seed_result=WorkflowSeedResult(),
         )
         render_init_outcome(tmp_path, outcome, rich_output=rich_output)
         rendered = output.getvalue()
         assert "Config" not in rendered or "Config exists" not in rendered
-        assert "Starter loops already present" in rendered
+        assert "Starter workflows already present" in rendered
 
     def test_render_default_rich_output(self, tmp_path: Path) -> None:
         outcome = InitCommandOutcome(
@@ -158,6 +158,6 @@ class RenderInitOutcomeTests:
                 config_path=tmp_path / ".worktree" / "config.json",
                 skipped_existing=True,
             ),
-            loop_seed_result=LoopSeedResult(),
+            workflow_seed_result=WorkflowSeedResult(),
         )
         render_init_outcome(tmp_path, outcome)

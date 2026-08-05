@@ -45,7 +45,7 @@ class BootstrapWorktreeTests:
         first = bootstrap_worktree(root)
         assert first.ok
 
-        marker = root / "loops" / "keep.me"
+        marker = root / "workflows" / "keep.me"
         marker.parent.mkdir(parents=True, exist_ok=True)
         marker.write_text("stay", encoding="utf-8")
 
@@ -59,7 +59,7 @@ class BootstrapWorktreeTests:
     def test_partial_repair(self, project_tmp: Path):
         root = project_tmp / ".worktree"
         root.mkdir()
-        (root / "loops").mkdir()
+        (root / "workflows").mkdir()
         (root / "artifacts").mkdir()
 
         result = bootstrap_worktree(root)
@@ -82,18 +82,18 @@ class BootstrapWorktreeTests:
     def test_subdir_exists_as_file(self, project_tmp: Path):
         root = project_tmp / ".worktree"
         root.mkdir()
-        (root / "loops").write_text("file", encoding="utf-8")
+        (root / "workflows").write_text("file", encoding="utf-8")
 
         result = bootstrap_worktree(root)
         assert not result.ok
-        assert any("loops" in err for err in result.errors)
+        assert any("workflows" in err for err in result.errors)
 
     def test_subdir_symlink_rejected(self, project_tmp: Path):
         root = project_tmp / ".worktree"
         root.mkdir()
-        target = project_tmp / "real_loops"
+        target = project_tmp / "real_workflows"
         target.mkdir()
-        (root / "loops").symlink_to(target)
+        (root / "workflows").symlink_to(target)
 
         result = bootstrap_worktree(root)
         assert not result.ok

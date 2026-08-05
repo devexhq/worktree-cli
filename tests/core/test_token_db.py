@@ -37,7 +37,7 @@ class DatabaseTests:
                     "SELECT name FROM sqlite_master WHERE type = 'table'"
                 )
             }
-        assert "loop_costs" in tables
+        assert "workflow_costs" in tables
         assert "sandboxes" in tables
 
     def test_init_is_idempotent(self, tmp_path: Path) -> None:

@@ -55,7 +55,7 @@ _LOAD_STATUS_TO_VALIDATION: dict[ConfigLoadStatus, ConfigValidationStatus] = {
 
 _PATH_FIELD_NAMES = (
     "root_dir",
-    "loops_dir",
+    "workflows_dir",
     "sessions_dir",
     "artifacts_dir",
     "db_path",
@@ -119,16 +119,16 @@ def _semantic_errors(config: WorktreeConfig) -> list[str]:
     """Return semantic errors in FR-6 rule order."""
     errors: list[str] = []
 
-    default_max = config.loop.default_max_attempts
-    hard_limit = config.loop.max_attempts_hard_limit
+    default_max = config.workflow.default_max_attempts
+    hard_limit = config.workflow.max_attempts_hard_limit
     if default_max > hard_limit:
         errors.append(
-            f"loop.default_max_attempts ({default_max}) exceeds "
-            f"loop.max_attempts_hard_limit ({hard_limit}) "
+            f"workflow.default_max_attempts ({default_max}) exceeds "
+            f"workflow.max_attempts_hard_limit ({hard_limit}) "
             f"(CONFIG_SEMANTIC_MAX_ATTEMPTS).\n"
             "Fix:\n"
-            "- lower loop.default_max_attempts or raise "
-            "loop.max_attempts_hard_limit"
+            "- lower workflow.default_max_attempts or raise "
+            "workflow.max_attempts_hard_limit"
         )
 
     for field_name in sorted(_PATH_FIELD_NAMES):

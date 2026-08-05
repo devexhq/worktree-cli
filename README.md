@@ -8,7 +8,7 @@
 [![Python versions](https://img.shields.io/pypi/pyversions/getworktree.svg)](https://pypi.org/project/getworktree/)
 [![Stars](https://img.shields.io/github/stars/getworktree/getworktree.svg?style=social)](https://github.com/getworktree/getworktree/stargazers)
 
-Isolated git worktree developer loops and autonomous AI agent workspaces.
+Isolated git worktree developer workflows and autonomous AI agent workspaces.
 
 Worktree helps humans and agents build, test, and remediate in parallel without disturbing your active local branch.
 
@@ -28,7 +28,7 @@ pip install "getworktree[cursor]"
 
 - Python 3.13+
 - Git
-- For provider-specific loop runs:
+- For provider-specific workflow runs:
   - Cursor: `CURSOR_API_KEY` (+ `getworktree[cursor]`)
   - Gemini: Gemini CLI on `PATH` + `GEMINI_API_KEY`
   - Copilot: GitHub CLI (`gh`) on `PATH` + `GH_TOKEN` or `GITHUB_TOKEN`
@@ -63,9 +63,9 @@ wt workflow run fix-tests
 - `wt workflow run <name>`
 - `wt workflow resume <id>`
 
-## Agent providers for loop runs
+## Agent providers for workflow runs
 
-Loop definitions support these providers:
+Workflow definitions support these providers:
 
 - `local`
 - `ollama`
@@ -83,7 +83,7 @@ Provider behavior:
 Worktree initializes and uses:
 
 - `.worktree/config.json`
-- `.worktree/loops/*.yml`
+- `.worktree/workflows/*.yml`
 - `.worktree/sessions/`
 - `.worktree/artifacts/`
 

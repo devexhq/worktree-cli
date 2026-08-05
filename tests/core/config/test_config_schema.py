@@ -96,8 +96,8 @@ class ConfigV1SchemaRejectTests:
 
     def test_missing_nested_key(self) -> None:
         data = _valid_config()
-        del data["loop"]["default_max_attempts"]
-        _assert_schema_error(data, "loop")
+        del data["workflow"]["default_max_attempts"]
+        _assert_schema_error(data, "workflow")
 
     def test_unknown_root_property(self) -> None:
         data = _valid_config()
@@ -114,8 +114,8 @@ class ConfigV1SchemaRejectTests:
 
     def test_wrong_types(self) -> None:
         _assert_schema_error(
-            _mutate("loop.default_max_attempts", "five"),
-            "loop.default_max_attempts",
+            _mutate("workflow.default_max_attempts", "five"),
+            "workflow.default_max_attempts",
         )
         _assert_schema_error(
             _mutate("sandbox.auto_clean", "yes"),
@@ -125,7 +125,7 @@ class ConfigV1SchemaRejectTests:
     def test_empty_path_strings(self) -> None:
         for field in (
             "root_dir",
-            "loops_dir",
+            "workflows_dir",
             "sessions_dir",
             "artifacts_dir",
             "db_path",
@@ -149,8 +149,8 @@ class ConfigV1SchemaRejectTests:
 
     def test_numeric_out_of_range(self) -> None:
         _assert_schema_error(
-            _mutate("loop.default_max_attempts", 0),
-            "loop.default_max_attempts",
+            _mutate("workflow.default_max_attempts", 0),
+            "workflow.default_max_attempts",
         )
         _assert_schema_error(
             _mutate("agent.temperature", -0.1),

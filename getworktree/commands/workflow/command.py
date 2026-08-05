@@ -20,13 +20,17 @@ from getworktree.commands.workflow.renderers import (
 from getworktree.common.utils import RichOutput
 from getworktree.core.config.loader import ConfigLoadStatus, load_config_result
 from getworktree.core.db import get_sandbox, get_workflow_run, list_workflow_runs
-from getworktree.core.loops.render import (
-    format_loop_show_resolve_failure,
-    format_loop_show_validate_failure,
+from getworktree.core.workflows.render import (
+    format_workflow_show_resolve_failure,
+    format_workflow_show_validate_failure,
 )
-from getworktree.core.loops.resolve import resolve_loop_by_name
-from getworktree.core.loops.runner import LoopRunResult, StopReason, run_loop_iteration
-from getworktree.core.loops.validate import validate_loop_result
+from getworktree.core.workflows.resolve import resolve_workflow_by_name
+from getworktree.core.workflows.runner import (
+    StopReason,
+    WorkflowRunResult,
+    run_workflow_iteration,
+)
+from getworktree.core.workflows.validate import validate_workflow_result
 
 rich_output = RichOutput()
 
@@ -179,7 +183,7 @@ def workflow_run_command(
     wip: bool = False,
     dump_prompt: bool = False,
     cwd: Path | None = None,
-    run_loop_fn: Callable[..., LoopRunResult] | None = None,
+    run_workflow_fn: Callable[..., WorkflowRunResult] | None = None,
 ) -> None:
     """Resolve a workflow definition, run the iteration controller, render summary, exit.
 
@@ -191,10 +195,10 @@ def workflow_run_command(
         wip: When True, overlay uncommitted working-tree changes into sandbox.
         dump_prompt: When True, dump provider-specific agent input to ``/tmp``.
         cwd: Repository root.
-        run_loop_fn: Injectable controller (tests); defaults to ``run_loop_iteration``.
+        run_workflow_fn: Injectable controller (tests); defaults to ``run_workflow_iteration``.
     """
     root = (cwd or Path.cwd()).resolve()
-    runner = run_loop_fn or run_loop_iteration
+    runner = run_workflow_fn or run_workflow_iteration
 
     if max_attempts is not None and max_attempts < 1:
         rich_output.error_panel(
@@ -218,25 +222,25 @@ def workflow_run_command(
         raise typer.Exit(code=1)
 
     config = load.config
-    resolved = resolve_loop_by_name(name, cwd=root)
+    resolved = resolve_workflow_by_name(name, cwd=root)
     if not resolved.ok:
         rich_output.error_panel(
             "Workflow Run Failed",
-            format_loop_show_resolve_failure(resolved),
+            format_workflow_show_resolve_failure(resolved),
         )
         raise typer.Exit(code=1)
 
     assert resolved.entry is not None
-    validated = validate_loop_result(resolved.entry.source_path)
+    validated = validate_workflow_result(resolved.entry.source_path)
     if not validated.ok:
         rich_output.error_panel(
             "Workflow Run Failed",
-            format_loop_show_validate_failure(validated),
+            format_workflow_show_validate_failure(validated),
         )
         raise typer.Exit(code=1)
 
-    assert validated.loop is not None
-    loop = validated.loop
+    assert validated.workflow is not None
+    workflow = validated.workflow
 
     auto_clean: bool | None = False if keep is True else None
     require_before_apply: bool | None = approve_each
@@ -268,17 +272,17 @@ def workflow_run_command(
     effective_require = (
         require_before_apply
         if require_before_apply is not None
-        else loop.approval.require_before_apply
+        else workflow.approval.require_before_apply
     )
     if effective_require:
         approve_cb = _make_approve_callback(attempt_holder=attempt_holder)
 
     abort_event = threading.Event()
-    result: LoopRunResult | None = None
+    result: WorkflowRunResult | None = None
 
     try:
         result = runner(
-            loop=loop,
+            workflow=workflow,
             cwd=root,
             config=config,
             caller_max_attempts=max_attempts,
@@ -288,7 +292,7 @@ def workflow_run_command(
             approve_patch=approve_cb,
             on_event=on_event,
             session_timeout_seconds=config.sandbox.default_timeout_seconds,
-            detect_repeat_failures=config.loop.detect_repeat_failures,
+            detect_repeat_failures=config.workflow.detect_repeat_failures,
             include_wip=wip,
             prompt_dump_dir=prompt_dump_dir,
         )

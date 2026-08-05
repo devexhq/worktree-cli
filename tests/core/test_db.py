@@ -195,8 +195,8 @@ class TestWorkflowRunCRUD:
     def test_insert_and_get_workflow_run(self, tmp_path: Path) -> None:
         rec = insert_workflow_run(
             session_id="wf_session_1",
-            workflow_name="dev-loop",
-            branch_name="feature/loop",
+            workflow_name="dev-workflow",
+            branch_name="feature/workflow",
             cwd=tmp_path,
             db_rel_path=DB_REL,
         )
@@ -204,8 +204,8 @@ class TestWorkflowRunCRUD:
         assert isinstance(rec, WorkflowRunRecord)
         assert rec.id == 1
         assert rec.session_id == "wf_session_1"
-        assert rec.workflow_name == "dev-loop"
-        assert rec.branch_name == "feature/loop"
+        assert rec.workflow_name == "dev-workflow"
+        assert rec.branch_name == "feature/workflow"
         assert rec.status is RunStatus.RUNNING
         assert rec.started_at
         assert rec.completed_at is None

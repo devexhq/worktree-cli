@@ -108,7 +108,7 @@ process—not in the implementer's required reading list.
 
 ## Title
 
-- Imperative or outcome-focused, concise (e.g. `Seed starter loop definitions`).
+- Imperative or outcome-focused, concise (e.g. `Seed starter workflow definitions`).
 - No ticket-ID prefixes or noisy tags in the title.
 
 ## Body structure
@@ -209,8 +209,8 @@ Typical contents:
 | DTO / result shapes | field names, types, lists vs scalars |
 | Config keys / defaults | JSON paths, default values |
 | Templates | full YAML/JSON bodies or paths to package templates |
-| Constants | filenames, loop `name` values, error codes |
-| Paths | `.worktree/loops/fix-tests.yml`, etc. |
+| Constants | filenames, workflow `name` values, error codes |
+| Paths | `.worktree/workflows/fix-tests.yml`, etc. |
 | APIs | function signatures, helper responsibilities |
 
 Use fenced code blocks for schemas, templates, and APIs. Keep template content

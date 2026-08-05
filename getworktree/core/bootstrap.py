@@ -21,7 +21,7 @@ from getworktree.common.constants import (
 )
 from getworktree.common.fs import atomic_write_json
 from getworktree.common.utils import display_path
-from getworktree.core.loops.seeder import LoopSeedResult
+from getworktree.core.workflows.seeder import WorkflowSeedResult
 
 
 class DirEnsureOutcome(Enum):
@@ -46,7 +46,7 @@ class BootstrapResult(BaseModel):
     repaired: bool = False
     warnings: list[str] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
-    loop_seed_result: LoopSeedResult = Field(default_factory=LoopSeedResult)
+    workflow_seed_result: WorkflowSeedResult = Field(default_factory=WorkflowSeedResult)
 
     @property
     def ok(self) -> bool:
@@ -214,7 +214,7 @@ def bootstrap_worktree(
             f"Could not write bootstrap metadata at {display_path(meta_path)}: {exc}"
         )
 
-    result.loop_seed_result = LoopSeedResult()
+    result.workflow_seed_result = WorkflowSeedResult()
     return result
 
 

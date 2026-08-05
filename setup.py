@@ -22,7 +22,7 @@ setup(
     version=VERSION,
     author="Worktree Team",
     author_email="hello@getworktree.io",
-    description="Isolated git worktree developer loops and AI agent workspaces.",
+    description="Isolated git worktree developer workflows and AI agent workspaces.",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com",
@@ -59,7 +59,7 @@ setup(
             "cursor-sdk>=1.0.26,<2",
         ],
     },
-    package_data={"getworktree": ["schemas/*.json", "core/templates/loops/*.yml"]},
+    package_data={"getworktree": ["schemas/*.json", "core/templates/workflows/*.yml"]},
     include_package_data=True,
     # CRITICAL: Maps the terminal execution command
     # Typing 'wt' in the terminal will run the main() function inside getworktree/cli.py

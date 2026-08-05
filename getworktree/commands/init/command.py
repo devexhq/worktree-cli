@@ -23,7 +23,7 @@ from getworktree.core.config.generator import generate_default_config
 from getworktree.core.config.loader import load_config_result
 from getworktree.core.config.models import PathsConfig
 from getworktree.core.db import init_database
-from getworktree.core.loops.seeder import seed_starter_loops
+from getworktree.core.workflows.seeder import seed_starter_workflows
 
 rich_output = RichOutput()
 
@@ -69,12 +69,12 @@ def init_command(
         db_rel = loaded.config.paths.db_path
     init_database(cwd=cwd, db_rel_path=db_rel)
 
-    loop_seed_result = seed_starter_loops(get_worktree_dir(cwd) / "loops")
-    if loop_seed_result.errors:
+    workflow_seed_result = seed_starter_workflows(get_worktree_dir(cwd) / "workflows")
+    if workflow_seed_result.errors:
         outcome = InitCommandOutcome(
             bootstrap_result=result,
             config_result=config_result,
-            loop_seed_result=loop_seed_result,
+            workflow_seed_result=workflow_seed_result,
         )
         render_init_outcome(cwd, outcome, rich_output=rich_output)
         raise typer.Exit(code=1)
@@ -82,6 +82,6 @@ def init_command(
     outcome = InitCommandOutcome(
         bootstrap_result=result,
         config_result=config_result,
-        loop_seed_result=loop_seed_result,
+        workflow_seed_result=workflow_seed_result,
     )
     render_init_outcome(cwd, outcome, rich_output=rich_output)

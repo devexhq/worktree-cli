@@ -16,13 +16,13 @@ from getworktree.commands.workflow.renderers import (
     exit_code_for_status,
 )
 from getworktree.core.config.generator import generate_default_config
-from getworktree.core.loops.runner import (
+from getworktree.core.workflows.runner import (
     AttemptRecord,
-    LoopFinalStatus,
-    LoopRunResult,
     StopReason,
+    WorkflowFinalStatus,
+    WorkflowRunResult,
 )
-from getworktree.core.loops.seeder import seed_starter_loops
+from getworktree.core.workflows.seeder import seed_starter_workflows
 
 runner = CliRunner()
 
@@ -68,25 +68,25 @@ def git_repo(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def _init_with_loops(repo: Path) -> Path:
+def _init_with_workflows(repo: Path) -> Path:
     config_path = repo / ".worktree" / "config.json"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     assert generate_default_config(config_path, project_name=repo.name).ok
-    loops_dir = repo / ".worktree" / "loops"
-    assert seed_starter_loops(loops_dir).ok
-    return loops_dir
+    workflows_dir = repo / ".worktree" / "workflows"
+    assert seed_starter_workflows(workflows_dir).ok
+    return workflows_dir
 
 
 def _make_result(
-    status: LoopFinalStatus,
+    status: WorkflowFinalStatus,
     *,
     stop_reason: StopReason = StopReason.TRIGGER_PASSED,
     session_id: str = "sbx_a1b2c3d4",
-    loop_name: str = "fix-tests",
+    workflow_name: str = "fix-tests",
     attempts: list[AttemptRecord] | None = None,
     retained: bool = False,
     sandbox_path: Path | None = None,
-) -> LoopRunResult:
+) -> WorkflowRunResult:
     att_list = (
         attempts
         if attempts is not None
@@ -99,10 +99,10 @@ def _make_result(
             )
         ]
     )
-    return LoopRunResult(
+    return WorkflowRunResult(
         status=status,
         session_id=session_id,
-        loop_name=loop_name,
+        workflow_name=workflow_name,
         sandbox_path=sandbox_path if retained else None,
         attempts=att_list,
         stop_reason=stop_reason,
@@ -117,16 +117,16 @@ class ExitCodeMappingTests:
     """Tests for exit_code_for_status mapping."""
 
     def test_passed_exits_0(self) -> None:
-        assert exit_code_for_status(LoopFinalStatus.PASSED) == 0
+        assert exit_code_for_status(WorkflowFinalStatus.PASSED) == 0
 
     def test_failed_exits_1(self) -> None:
-        assert exit_code_for_status(LoopFinalStatus.FAILED) == 1
+        assert exit_code_for_status(WorkflowFinalStatus.FAILED) == 1
 
     def test_unfixable_exits_2(self) -> None:
-        assert exit_code_for_status(LoopFinalStatus.UNFIXABLE) == 2
+        assert exit_code_for_status(WorkflowFinalStatus.UNFIXABLE) == 2
 
     def test_aborted_exits_130(self) -> None:
-        assert exit_code_for_status(LoopFinalStatus.ABORTED) == 130
+        assert exit_code_for_status(WorkflowFinalStatus.ABORTED) == 130
 
 
 class WorkflowRunCommandDirectTests:
@@ -136,7 +136,7 @@ class WorkflowRunCommandDirectTests:
         self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.chdir(git_repo)
-        _init_with_loops(git_repo)
+        _init_with_workflows(git_repo)
         with pytest.raises(typer.Exit) as exc_info:
             workflow_run_command("fix-tests", max_attempts=0, cwd=git_repo)
         assert exc_info.value.exit_code == 1
@@ -153,7 +153,7 @@ class WorkflowRunCommandDirectTests:
         self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.chdir(git_repo)
-        _init_with_loops(git_repo)
+        _init_with_workflows(git_repo)
         with pytest.raises(typer.Exit) as exc_info:
             workflow_run_command("no-such-workflow", cwd=git_repo)
         assert exc_info.value.exit_code == 1
@@ -162,45 +162,45 @@ class WorkflowRunCommandDirectTests:
         self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.chdir(git_repo)
-        _init_with_loops(git_repo)
+        _init_with_workflows(git_repo)
 
-        def mock_runner(*args: Any, **kwargs: Any) -> LoopRunResult:
-            return _make_result(LoopFinalStatus.PASSED)
+        def mock_runner(*args: Any, **kwargs: Any) -> WorkflowRunResult:
+            return _make_result(WorkflowFinalStatus.PASSED)
 
         with pytest.raises(typer.Exit) as exc_info:
-            workflow_run_command("fix-tests", cwd=git_repo, run_loop_fn=mock_runner)
+            workflow_run_command("fix-tests", cwd=git_repo, run_workflow_fn=mock_runner)
         assert exc_info.value.exit_code == 0
 
     def test_failed_run_exits_1(
         self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.chdir(git_repo)
-        _init_with_loops(git_repo)
+        _init_with_workflows(git_repo)
 
-        def mock_runner(*args: Any, **kwargs: Any) -> LoopRunResult:
+        def mock_runner(*args: Any, **kwargs: Any) -> WorkflowRunResult:
             return _make_result(
-                LoopFinalStatus.FAILED,
+                WorkflowFinalStatus.FAILED,
                 stop_reason=StopReason.MAX_ATTEMPTS_EXHAUSTED,
             )
 
         with pytest.raises(typer.Exit) as exc_info:
-            workflow_run_command("fix-tests", cwd=git_repo, run_loop_fn=mock_runner)
+            workflow_run_command("fix-tests", cwd=git_repo, run_workflow_fn=mock_runner)
         assert exc_info.value.exit_code == 1
 
     def test_unfixable_run_exits_2(
         self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.chdir(git_repo)
-        _init_with_loops(git_repo)
+        _init_with_workflows(git_repo)
 
-        def mock_runner(*args: Any, **kwargs: Any) -> LoopRunResult:
+        def mock_runner(*args: Any, **kwargs: Any) -> WorkflowRunResult:
             return _make_result(
-                LoopFinalStatus.UNFIXABLE,
+                WorkflowFinalStatus.UNFIXABLE,
                 stop_reason=StopReason.AGENT_UNFIXABLE,
             )
 
         with pytest.raises(typer.Exit) as exc_info:
-            workflow_run_command("fix-tests", cwd=git_repo, run_loop_fn=mock_runner)
+            workflow_run_command("fix-tests", cwd=git_repo, run_workflow_fn=mock_runner)
         assert exc_info.value.exit_code == 2
 
 

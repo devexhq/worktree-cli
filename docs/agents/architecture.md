@@ -14,22 +14,22 @@ getworktree/core/                  Business logic, no Typer/CLI concerns
                                    Defaults write + load/set + validate + typed models + repo context
   db.py                            SQLite token ledger + sandbox metadata CRUD
   git_sandbox.py                   Isolated `git worktree` sandbox lifecycle
-  loops/                           Loop domain (iteration, payloads, patches, safety, agents)
-  loops/agents/                    Agent adapter protocol + providers (owned by loops)
-  loops/seeder.py                  Seeds packaged starter loop YAML files
-  loops/patch.py                   Unified-diff validate/apply in sandbox
-  loops/runner/                    Iteration controller (package: models/helpers/steps/orchestrator)
-  loops/safety.py                  Repeat-failure / no-op / session-timeout policy
-  templates/loops/*.yml            Packaged starter loop definitions
+  workflows/                           Workflow domain (iteration, payloads, patches, safety, agents)
+  workflows/agents/                    Agent adapter protocol + providers (owned by workflows)
+  workflows/seeder.py                  Seeds packaged starter workflow YAML files
+  workflows/patch.py                   Unified-diff validate/apply in sandbox
+  workflows/runner/                    Iteration controller (package: models/helpers/steps/orchestrator)
+  workflows/safety.py                  Repeat-failure / no-op / session-timeout policy
+  templates/workflows/*.yml            Packaged starter workflow definitions
 getworktree/common/                Shared, dependency-light helpers
   constants.py, fs.py, utils.py, schema_validation.py
-getworktree/schemas/                Versioned JSON Schemas (config_v1.json, loop_v1.json)
+getworktree/schemas/                Versioned JSON Schemas (config_v1.json, workflow_v1.json)
 ```
 
 ### Domain ownership
 
-- **Loop domain** (`core/loops/`) owns iteration, triggers, payloads, patches,
-  safety, and agent adapters (`core/loops/agents/`).
+- **Workflow domain** (`core/workflows/`) owns iteration, triggers, payloads, patches,
+  safety, and agent adapters (`core/workflows/agents/`).
 - **Shared core infra** stays at `core/` top level: `config/`, `git_sandbox.py`,
   `db.py`, `bootstrap.py`, `templates/`.
 
@@ -54,8 +54,8 @@ creates this layout inside a Git repo, analogous to `.git/`:
 .worktree/
   .meta/bootstrap.json   status, tool_version, initialized_at
   config.json            V1 config, validated against schemas/config_v1.json
-  loops/                 seeded + user loop definitions (validated against loop_v1.json)
-  sessions/              loop session artifacts: <session_id>/diff.patch
+  workflows/                 seeded + user workflow definitions (validated against workflow_v1.json)
+  sessions/              workflow session artifacts: <session_id>/diff.patch
   artifacts/, tmp/, logs/
   data.db                 SQLite token/cost + sandbox metadata (getworktree/core/db.py)
 ```
@@ -71,7 +71,7 @@ calls create missing tables only.
 
 | Table | Purpose |
 |-------|---------|
-| `loop_costs` | Per-step token/cost rows for loop sessions |
+| `workflow_costs` | Per-step token/cost rows for workflow sessions |
 | `sandboxes` | Durable sandbox metadata (name, branch, base commit, path, status) |
 
 `sandboxes` columns: `id` (PK), `name` (nullable), `branch_name`, `base_commit`,
@@ -94,7 +94,7 @@ Duplicate `id` on insert raises `ValueError`. Missing ids return `None` /
 ## Sandboxes
 
 `GitSandboxManager` / `sandbox_scope` ([getworktree/core/git_sandbox.py](../../getworktree/core/git_sandbox.py))
-own the V1 sandbox lifecycle used by loop execution.
+own the V1 sandbox lifecycle used by workflow execution.
 
 ### CLI: Sandbox command group
 
@@ -234,8 +234,8 @@ the scope. Body exceptions are never swallowed.
 
 ## Trigger runner
 
-`run_trigger` ([getworktree/core/loops/trigger.py](../../getworktree/core/loops/trigger.py))
-executes a loop trigger as **argv only** (`shell=False`) with `cwd` set to the
+`run_trigger` ([getworktree/core/workflows/trigger.py](../../getworktree/core/workflows/trigger.py))
+executes a workflow trigger as **argv only** (`shell=False`) with `cwd` set to the
 sandbox (or any working directory the caller provides).
 
 ### Inputs
@@ -265,7 +265,7 @@ process outcome.
 
 ## Failure payload builder
 
-`build_failure_payload` ([getworktree/core/loops/payload.py](../../getworktree/core/loops/payload.py))
+`build_failure_payload` ([getworktree/core/workflows/payload.py](../../getworktree/core/workflows/payload.py))
 turns a `TriggerRunResult` plus sandbox path into a bounded
 `AgentFailurePayload` for agent adapters. Pure data assembly: no network, no
 agent calls, no sandbox/git mutation.
@@ -300,7 +300,7 @@ Identity fields always set: `command`, `args`, `trigger_status`, `exit_code`,
 
 ## Patch apply engine
 
-`apply_patch_result` ([getworktree/core/loops/patch.py](../../getworktree/core/loops/patch.py))
+`apply_patch_result` ([getworktree/core/workflows/patch.py](../../getworktree/core/workflows/patch.py))
 validates and applies agent patches to a sandbox tree. Strategy is
 **`unified_diff` only**. Callers pass limits; the engine does not load config.
 Never commits or stages. Classified outcomes do not raise.
@@ -333,16 +333,16 @@ Success → `applied` or `checked_ok` with sorted unique POSIX `touched_files`.
 
 ## Agent adapter
 
-`getworktree/core/loops/agents/` owns the provider boundary for loop fix
-requests. Adapters exist only to serve loop iteration; they are not a peer
-domain of `core/loops/`.
+`getworktree/core/workflows/agents/` owns the provider boundary for workflow fix
+requests. Adapters exist only to serve workflow iteration; they are not a peer
+domain of `core/workflows/`.
 
 ### Contract
 - Protocol: `AgentAdapter.propose_fix(request: AgentRequest) -> AgentResponse`
 - Factory: `get_agent_adapter(provider, *, config=None)` — **v1 supports `local`,
   `ollama`, `cursor`, `gemini`, and `copilot`**; any other provider raises
   `ValueError` (`AGENT_PROVIDER_UNSUPPORTED`)
-- **Loop** `agent.provider` selects the adapter; **config** `agent.model` /
+- **Workflow** `agent.provider` selects the adapter; **config** `agent.model` /
   `endpoint` / `temperature` / `max_tokens` populate `AgentRequest`
 - Request carries `mode`, `AgentFailurePayload`, `sandbox_path`,
   `timeout_seconds`, optional model/endpoint/temperature/max_tokens, and
@@ -356,7 +356,7 @@ domain of `core/loops/`.
   base described below
 
 ### Shared direct-mutation base (`CliDirectMutationAdapter`)
-- Shared module: `getworktree/core/loops/agents/cli_mutation.py`
+- Shared module: `getworktree/core/workflows/agents/cli_mutation.py`
 - Shared DTOs: `CliMutationRunRequest`, `CliMutationOutcome`,
   `CliMutationRunFn`
 - Shared prompt builder: `build_mutation_prompt(request)`
@@ -400,7 +400,7 @@ Model must return JSON fields `unfixable`, `unfixable_reason`,
 
 ### Cursor provider (`CursorAgentAdapter`)
 Direct-mutation provider: the Cursor SDK agent edits sandbox files on disk
-instead of returning a diff. "Local runtime" means the agent loop and
+instead of returning a diff. "Local runtime" means the agent workflow and
 filesystem access run on this machine (`LocalAgentOptions(cwd=sandbox_path)`);
 the model itself is always Cursor-hosted. Auth via `CURSOR_API_KEY`; the SDK is
 an optional install (`pip install getworktree[cursor]`), imported lazily.
@@ -415,7 +415,7 @@ Direct-mutation provider backed by `gh copilot`. Auth via `GH_TOKEN` or
 `GITHUB_TOKEN`. The CLI runs in the sandbox working directory and returns
 JSONL output that is mapped to the same direct-mutation base flow.
 
-The runner (`run_loop_iteration`) treats any response with
+The runner (`run_workflow_iteration`) treats any response with
 `mutation_baseline_ref is not None` as direct-mutation: on approval it skips
 re-`git apply` (files are already correct) and only re-derives touched files
 via `validate_patch_text`; on any other terminal outcome (reject, timeout,
@@ -425,14 +425,14 @@ baseline before the next attempt. `local`/`ollama` never set
 
 ## Iteration controller
 
-`run_loop_iteration` ([getworktree/core/loops/runner/runner.py](../../getworktree/core/loops/runner/runner.py))
-owns one full loop **session** attempt cycle. No Rich printing; returns
-`LoopRunResult` only. Engines are injected for tests (`run_trigger_fn`,
+`run_workflow_iteration` ([getworktree/core/workflows/runner/runner.py](../../getworktree/core/workflows/runner/runner.py))
+owns one full workflow **session** attempt cycle. No Rich printing; returns
+`WorkflowRunResult` only. Engines are injected for tests (`run_trigger_fn`,
 `apply_patch_fn`, `agent`, sandbox create/cleanup, etc.). The `runner` package
 also has `runner_models.py` (run-result models and callback type aliases,
 a sibling module), `helpers.py` (stateless utilities), and `steps.py`
-(`_LoopContext` plus the per-attempt `_run_*_step` functions);
-`getworktree.core.loops.runner` re-exports the full public API, so external
+(`_WorkflowContext` plus the per-attempt `_run_*_step` functions);
+`getworktree.core.workflows.runner` re-exports the full public API, so external
 imports are unaffected by this internal layout.
 
 ### Attempt flowchart
@@ -463,8 +463,8 @@ flowchart TD
 
 ### Max attempts
 ```text
-effective = caller_max_attempts or loop.iteration.max_attempts
-effective = min(effective, config.loop.max_attempts_hard_limit)
+effective = caller_max_attempts or workflow.iteration.max_attempts
+effective = min(effective, config.workflow.max_attempts_hard_limit)
 ```
 `effective < 1` → `configuration_error` (no attempts).
 
@@ -479,7 +479,7 @@ effective = min(effective, config.loop.max_attempts_hard_limit)
 ### Sandbox / approval
 - One sandbox per session; `session.command_passed` is `True` only on final
   `PASSED`, `False` on FAILED/UNFIXABLE, `None` on ABORTED
-- Cleanup via `should_cleanup_sandbox` using loop sandbox flags (overridable)
+- Cleanup via `should_cleanup_sandbox` using workflow sandbox flags (overridable)
 - When `approval.require_before_apply` is true: call `approve_patch(diff)`;
   missing callback → `configuration_error` / `approval_callback_missing`
 
@@ -490,12 +490,12 @@ effective = min(effective, config.loop.max_attempts_hard_limit)
 
 ## Safety controls
 
-`getworktree/core/loops/safety.py` holds pure helpers + `SafetyState`; the
+`getworktree/core/workflows/safety.py` holds pure helpers + `SafetyState`; the
 iteration controller evaluates them at checkpoints.
 
 | Tripwire | Threshold | Config | `stop_reason` | Final status |
 |----------|-----------|--------|---------------|--------------|
-| Repeat failure signature | 3 consecutive identical failed triggers | `loop.detect_repeat_failures` (false disables **only** this) | `repeat_failure_signature` | `FAILED` |
+| Repeat failure signature | 3 consecutive identical failed triggers | `workflow.detect_repeat_failures` (false disables **only** this) | `repeat_failure_signature` | `FAILED` |
 | Agent no-op streak | 2 consecutive `no_op` | always on | `agent_no_op_streak` | `FAILED` |
 | Session wall-clock | `session_timeout_seconds` (default `sandbox.default_timeout_seconds`) | always on when > 0 | `session_timeout` | `FAILED` |
 | User abort | abort event / `is_aborted` | always on | `user_abort` | `ABORTED` |
@@ -518,7 +518,7 @@ cleanup (`should_cleanup_sandbox` with `command_passed=None` on abort).
 ## Workflow run CLI UX
 
 `wt workflow run NAME` ([getworktree/commands/workflow/command.py](../../getworktree/commands/workflow/command.py))
-orchestrates resolve → validate → `run_loop_iteration` → render. Formatting lives
+orchestrates resolve → validate → `run_workflow_iteration` → render. Formatting lives
 in [renderers.py](../../getworktree/commands/workflow/renderers.py) (no bare `print`).
 `sandbox.base_ref` from config (default `HEAD`). `wt workflow run` continues to
 omit `base_ref` (unchanged behavior)
@@ -535,7 +535,7 @@ when progress streamed).
 - `--max-attempts INT` (≥1) → controller `caller_max_attempts`
 - `--keep / --no-keep` → `--keep` forces `auto_clean=False`
 - `--approve-each / --no-approve-each` → override approval gate; default follows
-  loop `approval.require_before_apply` (non-TTY deny)
+  workflow `approval.require_before_apply` (non-TTY deny)
 - `--wip / --no-wip` → overlay uncommitted working-tree changes into the sandbox
   (tracked + untracked, not ignored); default off
 - `--dump-prompt / --no-dump-prompt` → dump provider-specific agent input to
@@ -564,8 +564,8 @@ Summary labels: `Workflow:`, `Status:`, `Session:`, `Attempts:`, `Stop:`,
 
 ## Packaged resources
 
-Schemas and loop templates ship inside the installed package and are read via
+Schemas and workflow templates ship inside the installed package and are read via
 `importlib.resources.files(...)` (see shared `CONFIG_VALIDATOR` in
-`common/schema_validation.py` and `LOOP_VALIDATOR` in `core/loops/seeder.py`)
+`common/schema_validation.py` and `WORKFLOW_VALIDATOR` in `core/workflows/seeder.py`)
 rather than relative filesystem paths, so they work correctly when installed as a
 wheel.
