@@ -1,12 +1,12 @@
 """Agent adapter interfaces and provider implementations."""
 
-from getworktree.core.agents.base import (
+from getworktree.core.loops.agents.base import (
     AgentAdapter,
     AgentRequest,
     AgentResponse,
     AgentResponseStatus,
 )
-from getworktree.core.agents.cli_mutation import (
+from getworktree.core.loops.agents.cli_mutation import (
     DEFAULT_MAX_FILES,
     DEFAULT_MAX_PATCH_KB,
     DEFAULT_REJECT_BINARY_CHANGES,
@@ -16,12 +16,12 @@ from getworktree.core.agents.cli_mutation import (
     CliMutationRunRequest,
     build_mutation_prompt,
 )
-from getworktree.core.agents.copilot import CopilotAgentAdapter
-from getworktree.core.agents.cursor import CursorAgentAdapter
-from getworktree.core.agents.factory import get_agent_adapter
-from getworktree.core.agents.gemini import GeminiAgentAdapter
-from getworktree.core.agents.local import LocalAgentAdapter, LocalAgentStdout
-from getworktree.core.agents.ollama import OllamaAgentAdapter
+from getworktree.core.loops.agents.copilot import CopilotAgentAdapter
+from getworktree.core.loops.agents.cursor import CursorAgentAdapter
+from getworktree.core.loops.agents.factory import get_agent_adapter
+from getworktree.core.loops.agents.gemini import GeminiAgentAdapter
+from getworktree.core.loops.agents.local import LocalAgentAdapter, LocalAgentStdout
+from getworktree.core.loops.agents.ollama import OllamaAgentAdapter
 
 __all__ = [
     "DEFAULT_MAX_FILES",

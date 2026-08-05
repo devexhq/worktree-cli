@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from getworktree.core.agents import (
+from getworktree.core.loops.agents import (
     AgentRequest,
     AgentResponse,
     AgentResponseStatus,
@@ -17,7 +17,7 @@ from getworktree.core.agents import (
     LocalAgentAdapter,
     get_agent_adapter,
 )
-from getworktree.core.agents.local import (
+from getworktree.core.loops.agents.local import (
     DEFAULT_LOCAL_AGENT_CMD,
     LOCAL_AGENT_CMD_ENV,
     LocalAgentStdout,

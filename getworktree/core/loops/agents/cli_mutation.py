@@ -10,12 +10,12 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from getworktree.core.agents.base import (
+from getworktree.core.loops.agents.base import (
     AgentRequest,
     AgentResponse,
     AgentResponseStatus,
 )
-from getworktree.core.agents.mutation_git import (
+from getworktree.core.loops.agents.mutation_git import (
     MutationGitError,
     capture_diff_since,
     discard_since,

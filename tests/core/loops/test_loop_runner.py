@@ -9,16 +9,16 @@ from pathlib import Path
 
 import pytest
 
-from getworktree.core.agents.base import (
-    AgentRequest,
-    AgentResponse,
-    AgentResponseStatus,
-)
 from getworktree.core.config.models import WorktreeConfig
 from getworktree.core.git_sandbox import (
     SandboxCreateResult,
     SandboxCreateStatus,
     SandboxSession,
+)
+from getworktree.core.loops.agents.base import (
+    AgentRequest,
+    AgentResponse,
+    AgentResponseStatus,
 )
 from getworktree.core.loops.models import (
     LoopAgent,

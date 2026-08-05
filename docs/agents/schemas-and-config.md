@@ -38,7 +38,7 @@ Ollama uses `config.agent.model` + `config.agent.endpoint` (or `OLLAMA_HOST`).
 Cursor uses `config.agent.model` and `CURSOR_API_KEY`. Gemini uses
 `GEMINI_API_KEY`. Copilot uses `GH_TOKEN` or `GITHUB_TOKEN`. Cursor, Gemini,
 and Copilot mutate the sandbox directly through the shared base in
-`core/agents/cli_mutation.py`; local and Ollama still return diffs.
+`core/loops/agents/cli_mutation.py`; local and Ollama still return diffs.
 
 Notable bounds / string rules:
 

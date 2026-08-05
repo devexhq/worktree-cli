@@ -9,13 +9,13 @@ from urllib.error import URLError
 import pytest
 
 from getworktree.common.schema_validation import CONFIG_VALIDATOR
-from getworktree.core.agents import (
+from getworktree.core.loops.agents import (
     AgentRequest,
     AgentResponseStatus,
     OllamaAgentAdapter,
     get_agent_adapter,
 )
-from getworktree.core.agents.ollama import (
+from getworktree.core.loops.agents.ollama import (
     DEFAULT_OLLAMA_ENDPOINT,
     MODEL_OUTPUT_UNPARSEABLE,
     OLLAMA_HOST_ENV,

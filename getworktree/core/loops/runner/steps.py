@@ -57,7 +57,7 @@ from getworktree.core.loops.safety import (
 from getworktree.core.loops.trigger import TriggerRunResult
 
 if TYPE_CHECKING:
-    from getworktree.core.agents.base import AgentAdapter, AgentResponse
+    from getworktree.core.loops.agents.base import AgentAdapter, AgentResponse
 
 
 @dataclass
@@ -239,7 +239,7 @@ def _run_agent_step(
         ``agent_response`` is ``None``.
     """
     # Lazy import avoids circular dependency: agents.base → loops.payload → loops.
-    from getworktree.core.agents.base import AgentRequest, AgentResponseStatus
+    from getworktree.core.loops.agents.base import AgentRequest, AgentResponseStatus
 
     changed = ctx.changed_files_fn(ctx.sandbox_path)
     payload = ctx.payload_builder(

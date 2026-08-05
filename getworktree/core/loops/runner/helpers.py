@@ -125,14 +125,14 @@ def _trigger_summary(result: TriggerRunResult) -> str:
 def _render_agent_input_dump(*, provider: str, request: Any) -> tuple[str, str]:
     """Return ``(suffix, content)`` for a provider-specific agent-input dump."""
     if provider in {"cursor", "gemini", "copilot"}:
-        from getworktree.core.agents.cli_mutation import build_mutation_prompt
+        from getworktree.core.loops.agents.cli_mutation import build_mutation_prompt
 
         return ("txt", build_mutation_prompt(request))
     if provider == "local":
         payload = request.model_dump(mode="json")
         return ("json", json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
     if provider == "ollama":
-        from getworktree.core.agents.ollama import (
+        from getworktree.core.loops.agents.ollama import (
             DEFAULT_MAX_TOKENS,
             DEFAULT_TEMPERATURE,
             build_ollama_messages,

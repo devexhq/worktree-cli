@@ -56,7 +56,7 @@ from getworktree.core.loops.safety import SafetyState
 from getworktree.core.loops.trigger import run_trigger
 
 if TYPE_CHECKING:
-    from getworktree.core.agents.base import AgentAdapter
+    from getworktree.core.loops.agents.base import AgentAdapter
 
 
 def run_loop_iteration(
@@ -130,8 +130,8 @@ def run_loop_iteration(
         Structured :class:`LoopRunResult` (never raises for classified paths).
     """
     # Lazy import avoids circular dependency: agents.base → loops.payload → loops.
-    from getworktree.core.agents.factory import get_agent_adapter
-    from getworktree.core.agents.mutation_git import discard_since
+    from getworktree.core.loops.agents.factory import get_agent_adapter
+    from getworktree.core.loops.agents.mutation_git import discard_since
 
     root = (cwd or Path.cwd()).expanduser().resolve()
     loop_name = loop.name

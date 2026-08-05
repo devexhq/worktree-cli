@@ -6,8 +6,8 @@ import json
 import os
 import subprocess
 
-from getworktree.core.agents.base import AgentRequest
-from getworktree.core.agents.cli_mutation import (
+from getworktree.core.loops.agents.base import AgentRequest
+from getworktree.core.loops.agents.cli_mutation import (
     CliDirectMutationAdapter,
     CliMutationOutcome,
     CliMutationRunFn,

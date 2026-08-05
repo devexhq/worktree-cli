@@ -14,7 +14,7 @@ from urllib.parse import urlparse
 
 from pydantic import BaseModel, ValidationError
 
-from getworktree.core.agents.base import (
+from getworktree.core.loops.agents.base import (
     AgentRequest,
     AgentResponse,
     AgentResponseStatus,
