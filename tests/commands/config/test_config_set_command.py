@@ -58,7 +58,7 @@ class ConfigSetCommandTests:
             config_set_command("agent.model", "qwen2.5-coder", cwd=git_repo)
         assert exc_info.value.exit_code == 0
         out = capsys.readouterr().out
-        assert "Config updated: agent.model = qwen2.5-coder" in out
+        assert "Config updated: agent.model = qwen2.5-coder (str)" in out
         assert _read_config(config_path)["agent"]["model"] == "qwen2.5-coder"
 
     def test_type_collision_exits_nonzero(
@@ -112,7 +112,7 @@ class ConfigSetCliTests:
 
         result = runner.invoke(app, ["config", "set", "agent.model", "qwen2.5-coder"])
         assert result.exit_code == 0
-        assert "Config updated: agent.model = qwen2.5-coder" in result.stdout
+        assert "Config updated: agent.model = qwen2.5-coder (str)" in result.stdout
         config_path = git_repo / ".worktree" / "config.json"
         assert _read_config(config_path)["agent"]["model"] == "qwen2.5-coder"
 
@@ -126,9 +126,37 @@ class ConfigSetCliTests:
             app, ["config", "set", "custom.toolchain.timeout", "120"]
         )
         assert result.exit_code == 0
-        assert "Config updated: custom.toolchain.timeout = 120" in result.stdout
+        assert "Config updated: custom.toolchain.timeout = 120 (int)" in result.stdout
         data = _read_config(git_repo / ".worktree" / "config.json")
-        assert data["custom"]["toolchain"]["timeout"] == "120"
+        assert data["custom"]["toolchain"]["timeout"] == 120
+
+    def test_set_typed_values(
+        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(git_repo)
+        assert runner.invoke(app, ["init"]).exit_code == 0
+
+        res_bool = runner.invoke(app, ["config", "set", "custom.flag", "true"])
+        assert res_bool.exit_code == 0
+        assert "Config updated: custom.flag = true (bool)" in res_bool.stdout
+
+        res_float = runner.invoke(app, ["config", "set", "custom.ratio", "3.14"])
+        assert res_float.exit_code == 0
+        assert "Config updated: custom.ratio = 3.14 (float)" in res_float.stdout
+
+        res_list = runner.invoke(app, ["config", "set", "custom.tags", '["a", "b"]'])
+        assert res_list.exit_code == 0
+        assert 'Config updated: custom.tags = ["a", "b"] (list)' in res_list.stdout
+
+        res_quoted = runner.invoke(app, ["config", "set", "custom.str_num", '"10"'])
+        assert res_quoted.exit_code == 0
+        assert "Config updated: custom.str_num = 10 (str)" in res_quoted.stdout
+
+        data = _read_config(git_repo / ".worktree" / "config.json")
+        assert data["custom"]["flag"] is True
+        assert data["custom"]["ratio"] == 3.14
+        assert data["custom"]["tags"] == ["a", "b"]
+        assert data["custom"]["str_num"] == "10"
 
     def test_set_type_collision(
         self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
