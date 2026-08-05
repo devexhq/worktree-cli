@@ -104,6 +104,26 @@ class SetConfigValueResultTests:
         assert after["custom"]["toolchain"]["timeout"] == "120"
         assert after["version"] == before["version"]
 
+    def test_sets_typed_non_string_values(self, tmp_path: Path) -> None:
+        config_path = _write_default_config(tmp_path)
+
+        res_bool = set_config_value_result("agent.sandbox_enabled", True, cwd=tmp_path)
+        assert res_bool.ok
+        assert res_bool.value is True
+
+        res_int = set_config_value_result("custom.timeout", 120, cwd=tmp_path)
+        assert res_int.ok
+        assert res_int.value == 120
+
+        res_list = set_config_value_result("custom.items", [1, 2], cwd=tmp_path)
+        assert res_list.ok
+        assert res_list.value == [1, 2]
+
+        data = _read_config(config_path)
+        assert data["agent"]["sandbox_enabled"] is True
+        assert data["custom"]["timeout"] == 120
+        assert data["custom"]["items"] == [1, 2]
+
     def test_type_collision_does_not_write(self, tmp_path: Path) -> None:
         config_path = _write_default_config(tmp_path)
         data = _read_config(config_path)

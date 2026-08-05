@@ -36,7 +36,7 @@ class ConfigSetResult(BaseModel):
     status: ConfigSetStatus
     config_path: Path
     key: str
-    value: str | None = None
+    value: Any = None
     errors: list[str] = Field(default_factory=list)
 
     @property
@@ -87,19 +87,18 @@ def set_nested_value(config_dict: dict[str, Any], dot_path: str, value: Any) -> 
 
 def set_config_value_result(
     key: str,
-    value: str,
+    value: Any,
     *,
     cwd: Path | None = None,
     config_path: Path | None = None,
 ) -> ConfigSetResult:
     """Load config JSON, set a dot-path value, and persist on success.
 
-    Values are stored as strings (typed CLI parsing is separate). Does not
-    print or call ``sys.exit``. Does not enforce schema key allow-lists.
+    Does not print or call ``sys.exit``. Does not enforce schema key allow-lists.
 
     Args:
         key: Dot-path key to set.
-        value: String value from the CLI (stored as-is).
+        value: Native Python value (or string) to assign.
         cwd: Repository root used when ``config_path`` is omitted.
         config_path: Explicit config path override.
 

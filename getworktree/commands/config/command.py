@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import typer
@@ -9,6 +10,7 @@ import typer
 from getworktree.common.utils import RichOutput
 from getworktree.core.config.loader import load_config_result
 from getworktree.core.config.mutate import set_config_value_result
+from getworktree.core.config.parser import parse_config_value
 from getworktree.core.config.serialize import as_json
 from getworktree.core.config.validate import validate_config_result
 
@@ -23,17 +25,19 @@ def config_set_command(
 ) -> None:
     """Set a configuration value by top-level or nested dot-path key.
 
-    Values are stored as strings. Missing intermediate objects are created.
-    Type collisions and load/write failures abort without partial writes.
-    Does not validate keys against the V1 schema allow-list.
+    String inputs are parsed into native types (bool, int, float, list, dict).
+    Missing intermediate objects are created. Type collisions and load/write
+    failures abort without partial writes. Does not validate keys against the V1
+    schema allow-list.
 
     Args:
         key: Dot-path key (e.g. ``agent.model`` or ``version``).
-        value: String value to store at ``key``.
+        value: String value from CLI to parse and store at ``key``.
         cwd: Repository root for config resolution. Defaults to process CWD.
     """
     root = (cwd or Path.cwd()).resolve()
-    result = set_config_value_result(key, value, cwd=root)
+    parsed_value = parse_config_value(value)
+    result = set_config_value_result(key, parsed_value, cwd=root)
 
     if not result.ok:
         message = (
@@ -44,8 +48,19 @@ def config_set_command(
         rich_output.error_panel("Config Error", message)
         raise typer.Exit(code=1)
 
-    rich_output.success(f"Config updated: {result.key} = {result.value}")
+    val_str = _format_value(result.value)
+    type_name = type(result.value).__name__
+    rich_output.success(f"Config updated: {result.key} = {val_str} ({type_name})")
     raise typer.Exit(code=0)
+
+
+def _format_value(value: object) -> str:
+    """Format parsed value for CLI output."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float, list, dict)):
+        return json.dumps(value)
+    return str(value)
 
 
 def config_show_command(*, cwd: Path | None = None) -> None:
