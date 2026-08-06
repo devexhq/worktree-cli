@@ -20,3 +20,17 @@ class TemplatesCommandOutcome(BaseModel):
     def ok(self) -> bool:
         """Return True when template listing succeeded."""
         return not self.errors
+
+
+class TemplateShowCommandOutcome(BaseModel):
+    """Outcome model returned by ``template_show_command``."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    template: BuiltinTemplate | None = None
+    errors: list[str] = Field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        """Return True when template detail retrieval succeeded."""
+        return not self.errors and self.template is not None

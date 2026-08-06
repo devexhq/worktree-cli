@@ -18,7 +18,10 @@ from getworktree.commands.sandbox.command import (
     sandbox_show_command,
 )
 from getworktree.commands.status.command import status_command
-from getworktree.commands.templates.command import templates_list_command
+from getworktree.commands.templates.command import (
+    template_show_command,
+    templates_list_command,
+)
 from getworktree.commands.workflow.command import (
     workflow_list_command,
     workflow_resume_command,
@@ -342,6 +345,18 @@ def template_list(
 ):
     """List wt-defined built-in templates."""
     templates_list_command(type_filter=type)
+
+
+@template_app.command("show")
+def template_show(
+    ctx: typer.Context,
+    name: str = typer.Argument(..., help="Template name to show."),
+    type: TemplateType | None = _TEMPLATE_TYPE_OPTION,
+):
+    """Show metadata and definition content of a specific built-in template."""
+    outcome = template_show_command(name, type_filter=type)
+    if not outcome.ok:
+        raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":

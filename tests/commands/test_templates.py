@@ -74,3 +74,44 @@ def test_templates_list_command_direct_invocation() -> None:
     assert len(outcome.templates) > 0
     for tmpl in outcome.templates:
         assert tmpl.type == TemplateType.WORKFLOW
+
+
+def test_cli_wt_template_show_success() -> None:
+    """Verify ``wt template show feature-dev`` displays template metadata and content."""
+    res = runner.invoke(app, ["template", "show", "feature-dev"])
+
+    assert res.exit_code == 0
+    assert "Template:" in res.output
+    assert "feature-dev" in res.output
+    assert "Standard feature development workflow" in res.output
+    assert "Definition:" in res.output
+
+
+def test_cli_wt_templates_show_task_with_type() -> None:
+    """Verify ``wt templates show run-tests --type task`` displays task template detail."""
+    res = runner.invoke(app, ["templates", "show", "run-tests", "--type", "task"])
+
+    assert res.exit_code == 0
+    assert "Template:" in res.output
+    assert "run-tests" in res.output
+    assert "Execute pytest suite with coverage" in res.output
+
+
+def test_cli_wt_template_show_not_found() -> None:
+    """Verify ``wt template show non-existent`` returns exit code 1 and error panel."""
+    res = runner.invoke(app, ["template", "show", "non-existent"])
+
+    assert res.exit_code == 1
+    assert "Template 'non-existent' not found" in res.output
+
+
+def test_template_show_command_direct_invocation() -> None:
+    """Verify python command function ``template_show_command``."""
+    from getworktree.commands.templates.command import template_show_command
+
+    outcome = template_show_command("feature-dev")
+
+    assert outcome.ok
+    assert outcome.template is not None
+    assert outcome.template.name == "feature-dev"
+    assert outcome.template.type == TemplateType.WORKFLOW

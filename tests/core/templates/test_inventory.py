@@ -59,3 +59,23 @@ def test_list_builtin_templates_invalid_filter() -> None:
     assert not result.ok
     assert len(result.errors) == 1
     assert "Invalid template type filter" in result.errors[0]
+
+
+def test_get_builtin_template_success() -> None:
+    """Verify fetching a specific built-in template returns its metadata and YAML content."""
+    from getworktree.core.templates.inventory import get_builtin_template
+
+    tmpl = get_builtin_template("feature-dev")
+    assert tmpl is not None
+    assert tmpl.name == "feature-dev"
+    assert tmpl.type == TemplateType.WORKFLOW
+    assert "feature-dev" in tmpl.content
+    assert "Standard feature development workflow" in tmpl.description
+
+
+def test_get_builtin_template_not_found() -> None:
+    """Verify fetching a non-existent template returns None."""
+    from getworktree.core.templates.inventory import get_builtin_template
+
+    assert get_builtin_template("non_existent_tmpl") is None
+    assert get_builtin_template("feature-dev", type_filter=TemplateType.TASK) is None

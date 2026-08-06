@@ -45,6 +45,7 @@ def _load_builtin_template(
             type=resolved_type,
             description=description,
             summary=summary,
+            content=content,
         )
     except Exception:
         return None
@@ -108,3 +109,25 @@ def list_builtin_templates(
     templates.sort(key=lambda t: (t.name, t.type.value))
 
     return BuiltinTemplateResult(templates=templates)
+
+
+def get_builtin_template(
+    name: str,
+    type_filter: TemplateType | str | None = None,
+) -> BuiltinTemplate | None:
+    """Find and return a single built-in template by name and optional type.
+
+    Args:
+        name: Template name (e.g. 'feature-dev').
+        type_filter: Optional template type filter.
+
+    Returns:
+        Matching BuiltinTemplate or None if not found.
+    """
+    res = list_builtin_templates(type_filter=type_filter)
+    if not res.ok:
+        return None
+    for tmpl in res.templates:
+        if tmpl.name == name:
+            return tmpl
+    return None

@@ -48,3 +48,25 @@ def render_templates_list(
         output.info("No built-in templates found.")
     else:
         output.info(build_templates_table(templates))
+
+
+def render_template_show(
+    template: BuiltinTemplate,
+    *,
+    rich_output: RichOutput | None = None,
+) -> None:
+    """Render single template metadata and definition content."""
+    output = rich_output or _DEFAULT_RICH_OUTPUT
+
+    t_type = (
+        template.type.value if hasattr(template.type, "value") else str(template.type)
+    )
+    output.info(f"[bold green]Template:[/]     {template.name}")
+    output.info(f"[bold green]Type:[/]         {t_type}")
+    output.info(f"[bold green]Description:[/]  {template.description}")
+    output.info(f"[bold green]Summary:[/]      {template.summary}")
+    output.info("\n[bold cyan]Definition:[/]")
+    if template.content:
+        from rich.syntax import Syntax
+
+        output.info(Syntax(template.content.strip(), "yaml"))

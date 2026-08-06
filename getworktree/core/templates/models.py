@@ -24,6 +24,7 @@ class BuiltinTemplate(BaseModel):
     type: TemplateType
     description: str
     summary: str
+    content: str = ""
 
 
 class BuiltinTemplateResult(BaseModel):
