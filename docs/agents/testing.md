@@ -2,7 +2,7 @@
 
 ## Layout and naming
 
-Tests mirror the source tree under `tests/` (e.g. `getworktree/core/db.py` ->
+Tests mirror the source tree under `tests/` (e.g. `getworktree/core/db/` ->
 `tests/core/test_token_db.py`). Prefer domain-specific basenames
 (`test_init_command.py`, not `test_command.py`) so pytest collection stays unique
 without package `__init__.py` files. Test classes must be named `Test*` or
