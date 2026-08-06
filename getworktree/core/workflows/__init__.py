@@ -23,6 +23,8 @@ from getworktree.core.workflows.metadata import (
     parse_workflow_metadata,
 )
 from getworktree.core.workflows.models import (
+    InlineStepDefinition,
+    StepReference,
     WorkflowAgent,
     WorkflowApproval,
     WorkflowContext,
@@ -97,11 +99,13 @@ __all__ = [
     "WORKFLOW_VALIDATOR",
     "AgentFailurePayload",
     "AttemptRecord",
+    "InlineStepDefinition",
     "PatchApplyResult",
     "PatchApplyStatus",
     "PayloadFile",
     "PayloadOmission",
     "SafetyState",
+    "StepReference",
     "StopReason",
     "TriggerRunResult",
     "TriggerRunStatus",

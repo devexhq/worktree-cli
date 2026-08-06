@@ -4,13 +4,42 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 WorkflowAgentMode = Literal["fix_failure", "review_remediation"]
 WorkflowAgentProvider = Literal["local", "ollama", "cursor", "gemini", "copilot"]
 WorkflowContextInclude = Literal["trigger_output", "changed_files", "relevant_source"]
 WorkflowPatchStrategy = Literal["unified_diff"]
 WorkflowStopWhen = Literal["trigger_passes", "unfixable", "user_abort"]
+WorkflowStepType = Literal["command", "agent", "script"]
+WorkflowStepFailureAction = Literal["abort", "ignore", "retry"]
+
+
+class StepReference(BaseModel):
+    """Reference to a pre-defined step template in .worktree/templates/steps/."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    step_id: str = Field(min_length=1)
+    override_timeout_seconds: int | None = Field(default=None, ge=1)
+
+
+class InlineStepDefinition(BaseModel):
+    """Inline command, agent, or script step defined directly inside a workflow."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    name: str = Field(min_length=1)
+    type: WorkflowStepType
+    description: str | None = None
+    command: str | None = None
+    args: list[str] | None = None
+    prompt: str | None = None
+    agent: str | None = None
+    tools: list[str] = Field(default_factory=list)
+    script_path: str | None = None
+    timeout_seconds: int = Field(default=120, ge=1)
+    failure_action: WorkflowStepFailureAction = Field(default="abort")
 
 
 class WorkflowTrigger(BaseModel):
@@ -86,10 +115,22 @@ class WorkflowDefinition(BaseModel):
     version: Literal[1]
     name: str = Field(min_length=1)
     description: str = Field(min_length=1)
-    trigger: WorkflowTrigger
-    agent: WorkflowAgent
+    trigger: WorkflowTrigger | None = None
+    agent: WorkflowAgent | None = None
+    steps: list[StepReference | InlineStepDefinition] | None = None
     iteration: WorkflowIteration
     sandbox: WorkflowSandbox
     approval: WorkflowApproval
     context: WorkflowContext
     patch: WorkflowPatch
+
+    @model_validator(mode="after")
+    def validate_steps_or_trigger_agent(self) -> WorkflowDefinition:
+        """Ensure either steps list or trigger and agent configuration is present."""
+        if self.steps is None and (self.trigger is None or self.agent is None):
+            raise ValueError(
+                "Workflow must specify either a 'steps' list or both 'trigger' and 'agent'."
+            )
+        if self.steps is not None and len(self.steps) == 0:
+            raise ValueError("Workflow 'steps' list must contain at least one step.")
+        return self

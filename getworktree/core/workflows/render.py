@@ -5,7 +5,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from getworktree.core.workflows.models import WorkflowDefinition
+from getworktree.core.workflows.models import (
+    StepReference,
+    WorkflowDefinition,
+)
 from getworktree.core.workflows.resolve import WorkflowResolveResult
 from getworktree.core.workflows.validate import WorkflowValidationResult
 
@@ -80,16 +83,52 @@ def format_workflow_show_success(
             "Description:",
             _indent_block(workflow.description),
             "",
-            "Trigger:",
-            f"  command: {workflow.trigger.command}",
-            f"  args: {_format_str_list(workflow.trigger.args)}",
-            f"  timeout_seconds: {workflow.trigger.timeout_seconds}",
-            "",
-            "Agent:",
-            f"  provider: {workflow.agent.provider}",
-            f"  mode: {workflow.agent.mode}",
-            f"  timeout_seconds: {workflow.agent.timeout_seconds}",
-            "",
+        ]
+    )
+
+    if workflow.steps:
+        lines.append("Steps:")
+        for step in workflow.steps:
+            if isinstance(step, StepReference):
+                lines.append(f"  - step_id: {step.step_id}")
+                if step.override_timeout_seconds:
+                    lines.append(
+                        f"    override_timeout_seconds: {step.override_timeout_seconds}"
+                    )
+            else:
+                lines.append(f"  - name: {step.name}")
+                lines.append(f"    type: {step.type}")
+                if step.command:
+                    lines.append(f"    command: {step.command}")
+                if step.prompt:
+                    lines.append(f"    prompt: {step.prompt}")
+                lines.append(f"    timeout_seconds: {step.timeout_seconds}")
+        lines.append("")
+
+    if workflow.trigger:
+        lines.extend(
+            [
+                "Trigger:",
+                f"  command: {workflow.trigger.command}",
+                f"  args: {_format_str_list(workflow.trigger.args)}",
+                f"  timeout_seconds: {workflow.trigger.timeout_seconds}",
+                "",
+            ]
+        )
+
+    if workflow.agent:
+        lines.extend(
+            [
+                "Agent:",
+                f"  provider: {workflow.agent.provider}",
+                f"  mode: {workflow.agent.mode}",
+                f"  timeout_seconds: {workflow.agent.timeout_seconds}",
+                "",
+            ]
+        )
+
+    lines.extend(
+        [
             "Iteration:",
             f"  max_attempts: {workflow.iteration.max_attempts}",
             f"  stop_when: {_format_str_list(list(workflow.iteration.stop_when))}",
