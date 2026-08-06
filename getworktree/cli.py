@@ -81,7 +81,6 @@ template_app = typer.Typer(
     invoke_without_command=True,
 )
 app.add_typer(template_app, name="template")
-app.add_typer(template_app, name="templates")
 
 catalog_app = typer.Typer(
     name="catalog",
@@ -96,7 +95,6 @@ task_app = typer.Typer(
     invoke_without_command=True,
 )
 app.add_typer(task_app, name="task")
-app.add_typer(task_app, name="tasks")
 
 
 def print_welcome_banner():

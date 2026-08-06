@@ -30,6 +30,10 @@ nav:
       - Installation: getting-started/installation.md
       - Configuration: getting-started/configuration.md
   - CLI Reference:
+      - Workspace Init: cli/init.md
+      - Status: cli/status.md
+      - Config: cli/config.md
+      - Template: cli/template.md
       - Workflow: cli/workflow.md
       - Task: cli/task.md
       - Sandbox: cli/sandbox.md
