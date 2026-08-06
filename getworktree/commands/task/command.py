@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
+from collections.abc import Callable
 from pathlib import Path
 
 import yaml
@@ -27,11 +29,14 @@ from getworktree.core.catalog.inventory import (
 from getworktree.core.db import (
     CatalogItemType,
     RunStatus,
+    TaskRunRecord,
     insert_task_run,
+    list_task_runs,
     update_task_run_status,
 )
 
 _DEFAULT_RICH_OUTPUT = RichOutput()
+logger = logging.getLogger(__name__)
 
 
 def task_list_command(
@@ -39,16 +44,17 @@ def task_list_command(
     *,
     rich_output: RichOutput | None = None,
 ) -> TaskListCommandOutcome:
-    """List task blueprints discovered under ``.worktree/catalog/tasks/``.
+    """List task blueprints discovered under ``.worktree/catalog/tasks/`` and recorded task runs.
 
     Args:
         cwd: Optional working directory.
         rich_output: Optional RichOutput presenter.
 
     Returns:
-        TaskListCommandOutcome containing listed task blueprint items and errors.
+        TaskListCommandOutcome containing listed task blueprint items, task run history, and errors.
     """
     output = rich_output or _DEFAULT_RICH_OUTPUT
+    warnings: list[str] = []
 
     scan_res = scan_and_index_catalog(cwd=cwd)
     if not scan_res.ok:
@@ -83,11 +89,20 @@ def task_list_command(
             )
         )
 
-    render_task_list(items, rich_output=output)
+    runs: list[TaskRunRecord] = []
+    try:
+        runs = list_task_runs(cwd=cwd)
+    except Exception as exc:
+        warnings.append(f"Failed to query task run history from database: {exc}")
+        logger.warning("Failed to query task run history from database: %s", exc)
+
+    render_task_list(items, runs=runs, rich_output=output)
 
     return TaskListCommandOutcome(
         items=items,
+        runs=runs,
         errors=list(scan_res.errors),
+        warnings=warnings,
     )
 
 
@@ -133,17 +148,21 @@ def task_run_command(
     name: str,
     cwd: Path | None = None,
     *,
+    session_id: str | None = None,
+    execute_task_fn: Callable[[], None] | None = None,
     rich_output: RichOutput | None = None,
 ) -> TaskRunCommandOutcome:
-    """Execute a task blueprint by name.
+    """Execute a task blueprint by name, persisting status transitions to SQLite tasks table.
 
     Args:
         name: Name of the task to run.
         cwd: Optional working directory.
+        session_id: Optional fixed session ID.
+        execute_task_fn: Optional custom execution hook (for testing/simulation).
         rich_output: Optional RichOutput presenter.
 
     Returns:
-        TaskRunCommandOutcome containing task run record or errors.
+        TaskRunCommandOutcome containing task run record, warnings, or errors.
     """
     output = rich_output or _DEFAULT_RICH_OUTPUT
 
@@ -153,24 +172,79 @@ def task_run_command(
         output.error_panel("Task Run Failed", error_msg)
         return TaskRunCommandOutcome(run_record=None, errors=[error_msg])
 
-    session_id = f"task_{uuid.uuid4().hex[:8]}"
+    sid = session_id or f"task_{uuid.uuid4().hex[:8]}"
+    warnings: list[str] = []
+    run_record: TaskRunRecord | None = None
+
+    # FR-1: Task run start persistence (with non-blocking NFR-1 & NFR-2 fault-tolerance)
     try:
         run_record = insert_task_run(
-            session_id=session_id,
+            session_id=sid,
             task_name=name,
             status=RunStatus.RUNNING,
             cwd=cwd,
         )
+    except Exception as exc:
+        warnings.append(f"Failed to record task run start in database: {exc}")
+        logger.warning("Failed to record task run start in database: %s", exc)
+
+    run_status = RunStatus.RUNNING
+    error_msg: str | None = None
+
+    try:
+        if execute_task_fn is not None:
+            execute_task_fn()
+        run_status = RunStatus.COMPLETED
+    except KeyboardInterrupt:
+        # FR-4: Task run cancellation update
+        run_status = RunStatus.CANCELLED
+        error_msg = "Task execution cancelled by user."
+    except Exception as exc:
+        # FR-3: Task run failure update
+        run_status = RunStatus.FAILED
+        error_msg = str(exc)
+
+    # FR-2, FR-3, FR-4: Task run status update (with non-blocking NFR-1 & NFR-2 fault-tolerance)
+    updated_record: TaskRunRecord | None = None
+    try:
         updated_record = update_task_run_status(
-            session_id=session_id,
-            status=RunStatus.COMPLETED,
+            session_id=sid,
+            status=run_status,
+            error_message=error_msg,
             cwd=cwd,
         )
-        final_record = updated_record or run_record
     except Exception as exc:
-        error_msg = f"Failed to record task run execution for '{name}': {exc}"
-        output.error_panel("Task Run Failed", error_msg)
-        return TaskRunCommandOutcome(run_record=None, errors=[error_msg])
+        warnings.append(f"Failed to update task run status in database: {exc}")
+        logger.warning("Failed to update task run status in database: %s", exc)
 
-    render_task_run_success(final_record, rich_output=output)
-    return TaskRunCommandOutcome(run_record=final_record)
+    final_record = (
+        updated_record
+        or run_record
+        or TaskRunRecord(
+            id=-1,
+            session_id=sid,
+            task_name=name,
+            status=run_status,
+            started_at="",
+            completed_at=None,
+            error_message=error_msg,
+        )
+    )
+
+    if run_status == RunStatus.COMPLETED:
+        render_task_run_success(final_record, rich_output=output)
+        return TaskRunCommandOutcome(run_record=final_record, warnings=warnings)
+    elif run_status == RunStatus.CANCELLED:
+        output.error_panel("Task Run Cancelled", error_msg or "Cancelled by user.")
+        return TaskRunCommandOutcome(
+            run_record=final_record,
+            errors=[error_msg or "Task execution cancelled."],
+            warnings=warnings,
+        )
+    else:
+        output.error_panel("Task Run Failed", error_msg or "Task execution failed.")
+        return TaskRunCommandOutcome(
+            run_record=final_record,
+            errors=[error_msg or "Task execution failed."],
+            warnings=warnings,
+        )

@@ -25,7 +25,9 @@ class TaskListCommandOutcome(BaseModel):
     model_config = {"extra": "forbid", "strict": True}
 
     items: list[TaskBlueprintItem] = Field(default_factory=list)
+    runs: list[TaskRunRecord] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -55,8 +57,9 @@ class TaskRunCommandOutcome(BaseModel):
 
     run_record: TaskRunRecord | None = None
     errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:
-        """Return True if task run was successfully recorded."""
+        """Return True if task run executed without errors."""
         return self.run_record is not None and len(self.errors) == 0

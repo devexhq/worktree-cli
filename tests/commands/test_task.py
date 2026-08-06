@@ -12,6 +12,7 @@ from getworktree.commands.task.command import (
     task_show_command,
 )
 from getworktree.core.catalog.inventory import create_catalog_item, get_catalog_dir
+from getworktree.core.db import get_task_run
 
 runner = CliRunner()
 
@@ -133,3 +134,101 @@ def test_cli_wt_task_default_and_subcommands(
     res_invalid = runner.invoke(app, ["task", "non-existent"])
     assert res_invalid.exit_code == 2
     assert "No such command 'non-existent'" in res_invalid.output
+
+
+def test_task_run_status_transitions_and_persistence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    create_catalog_item("task", "sample-task", cwd=tmp_path)
+
+    # 1. Success task run
+    res_success = task_run_command("sample-task", cwd=tmp_path, session_id="task_succ1")
+    assert res_success.ok
+    assert res_success.run_record is not None
+    assert res_success.run_record.status.value == "completed"
+
+    rec_succ = get_task_run("task_succ1", cwd=tmp_path)
+    assert rec_succ is not None
+    assert rec_succ.status.value == "completed"
+    assert rec_succ.completed_at is not None
+    assert rec_succ.error_message is None
+
+    # 2. Failed task run
+    def _fail_hook() -> None:
+        raise ValueError("Simulated task failure")
+
+    res_failed = task_run_command(
+        "sample-task", cwd=tmp_path, session_id="task_fail1", execute_task_fn=_fail_hook
+    )
+    assert not res_failed.ok
+    assert res_failed.run_record is not None
+    assert res_failed.run_record.status.value == "failed"
+    assert "Simulated task failure" in res_failed.errors[0]
+
+    rec_fail = get_task_run("task_fail1", cwd=tmp_path)
+    assert rec_fail is not None
+    assert rec_fail.status.value == "failed"
+    assert rec_fail.completed_at is not None
+    assert rec_fail.error_message == "Simulated task failure"
+
+    # 3. Cancelled task run
+    def _cancel_hook() -> None:
+        raise KeyboardInterrupt()
+
+    res_cancel = task_run_command(
+        "sample-task",
+        cwd=tmp_path,
+        session_id="task_canc1",
+        execute_task_fn=_cancel_hook,
+    )
+    assert not res_cancel.ok
+    assert res_cancel.run_record is not None
+    assert res_cancel.run_record.status.value == "cancelled"
+
+    rec_canc = get_task_run("task_canc1", cwd=tmp_path)
+    assert rec_canc is not None
+    assert rec_canc.status.value == "cancelled"
+    assert rec_canc.completed_at is not None
+    assert "cancelled by user" in rec_canc.error_message.lower()
+
+
+def test_task_run_db_fault_tolerance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    create_catalog_item("task", "sample-task", cwd=tmp_path)
+
+    # Monkeypatch insert_task_run to raise DB exception
+    def _faulty_insert(*args, **kwargs):
+        raise RuntimeError("Database locked")
+
+    monkeypatch.setattr(
+        "getworktree.commands.task.command.insert_task_run", _faulty_insert
+    )
+
+    res = task_run_command("sample-task", cwd=tmp_path)
+    assert res.ok
+    assert any("Failed to record task run start" in w for w in res.warnings)
+
+
+def test_task_list_displays_recorded_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    create_catalog_item("task", "sample-task", cwd=tmp_path)
+
+    # Execute a task to record it in DB
+    task_run_command("sample-task", cwd=tmp_path, session_id="task_rec1")
+
+    # Call task_list_command and verify runs are present in outcome and rendering
+    outcome = task_list_command(cwd=tmp_path)
+    assert outcome.ok
+    assert len(outcome.runs) == 1
+    assert outcome.runs[0].session_id == "task_rec1"
+
+    # CLI check for list table rendering
+    res_cli = runner.invoke(app, ["task", "list"])
+    assert res_cli.exit_code == 0
+    assert "Recorded Task Runs:" in res_cli.output
+    assert "task_rec1" in res_cli.output
