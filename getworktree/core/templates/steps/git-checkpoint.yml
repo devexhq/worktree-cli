@@ -1,0 +1,5 @@
+version: 1
+name: git-checkpoint
+type: step
+description: Commit uncommitted changes to git
+summary: Runs git commit
