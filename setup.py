@@ -55,6 +55,10 @@ setup(
             "ruff>=0.6.0",
             "invoke>=2.0.0",
         ],
+        "docs": [
+            "mkdocs>=1.5.0",
+            "mkdocs-material>=9.5.0",
+        ],
         "cursor": [
             "cursor-sdk>=1.0.26,<2",
         ],

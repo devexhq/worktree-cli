@@ -23,3 +23,11 @@ def test(context, path="tests/", coverage=False, fast_fail=False):
 
     env = os.environ.copy()
     context.run(" ".join(shlex.quote(part) for part in cmd), env=env, pty=False)
+
+
+@task
+def docs(context, serve=True):
+    """Build or serve documentation."""
+    cmd = [sys.executable, "-m", "mkdocs", "serve" if serve else "build"]
+    env = os.environ.copy()
+    context.run(" ".join(shlex.quote(part) for part in cmd), env=env, pty=False)
