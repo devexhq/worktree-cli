@@ -133,19 +133,19 @@ class TestCatalogCRUD:
         time.sleep(1.1)
 
         second = upsert_catalog_item(
-            sha="task_1111111",
+            sha="task_2222222",
             item_type=CatalogItemType.TASK,
             name="task_b_v2",
-            path=Path(".worktree/catalog/task_b_v2.yaml"),
+            path=path,
             checksum="chk2",
             cwd=tmp_path,
             db_rel_path=DB_REL,
         )
 
         assert second.id == first.id
-        assert second.sha == "task_1111111"
+        assert second.sha == "task_2222222"
         assert second.name == "task_b_v2"
-        assert second.path == Path(".worktree/catalog/task_b_v2.yaml")
+        assert second.path == path
         assert second.checksum == "chk2"
         assert second.created_at == first.created_at
         assert second.updated_at != first.updated_at
@@ -213,27 +213,32 @@ class TestCatalogCRUD:
                 db_rel_path=DB_REL,
             )
 
-    def test_duplicate_path_raises_value_error(self, tmp_path: Path) -> None:
-        upsert_catalog_item(
+    def test_upsert_same_path_updates_record_with_new_sha(self, tmp_path: Path) -> None:
+        path = Path("duplicate_path.yaml")
+        first = upsert_catalog_item(
             sha="sha_first",
             item_type=CatalogItemType.WORKFLOW,
             name="wf_first",
-            path=Path("duplicate_path.yaml"),
+            path=path,
             checksum="c1",
             cwd=tmp_path,
             db_rel_path=DB_REL,
         )
 
-        with pytest.raises(ValueError, match="constraint"):
-            upsert_catalog_item(
-                sha="sha_second",
-                item_type=CatalogItemType.WORKFLOW,
-                name="wf_second",
-                path=Path("duplicate_path.yaml"),
-                checksum="c2",
-                cwd=tmp_path,
-                db_rel_path=DB_REL,
-            )
+        updated = upsert_catalog_item(
+            sha="sha_second",
+            item_type=CatalogItemType.WORKFLOW,
+            name="wf_second",
+            path=path,
+            checksum="c2",
+            cwd=tmp_path,
+            db_rel_path=DB_REL,
+        )
+
+        assert updated.id == first.id
+        assert updated.sha == "sha_second"
+        assert updated.name == "wf_second"
+        assert updated.checksum == "c2"
 
     def test_delete_catalog_item(self, tmp_path: Path) -> None:
         upsert_catalog_item(

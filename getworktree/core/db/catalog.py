@@ -46,14 +46,14 @@ def upsert_catalog_item(
     upsert_sql = """
     INSERT INTO catalog (sha, item_type, name, path, checksum, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(sha) DO UPDATE SET
+    ON CONFLICT(path) DO UPDATE SET
+        sha = excluded.sha,
         item_type = excluded.item_type,
         name = excluded.name,
-        path = excluded.path,
         checksum = excluded.checksum,
         updated_at = excluded.updated_at;
     """
-    select_sql = "SELECT * FROM catalog WHERE sha = ?;"
+    select_sql = "SELECT * FROM catalog WHERE path = ?;"
 
     with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
@@ -67,7 +67,7 @@ def upsert_catalog_item(
                 f"Invalid catalog item constraint violation: {exc}"
             ) from exc
 
-        cursor.execute(select_sql, (sha,))
+        cursor.execute(select_sql, (str_path,))
         row = cursor.fetchone()
         if row is None:  # pragma: no cover
             raise RuntimeError(f"Failed to read catalog row after upsert: {sha}")
