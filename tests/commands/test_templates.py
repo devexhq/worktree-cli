@@ -9,9 +9,9 @@ from getworktree.core.templates.models import TemplateType
 runner = CliRunner()
 
 
-def test_cli_wt_templates_default() -> None:
-    """Verify ``wt templates`` lists all built-in templates with table headers."""
-    res = runner.invoke(app, ["templates"])
+def test_cli_wt_template_default() -> None:
+    """Verify ``wt template`` lists all built-in templates with table headers."""
+    res = runner.invoke(app, ["template"])
 
     assert res.exit_code == 0
     assert "wt-defined Templates:" in res.output
@@ -23,9 +23,9 @@ def test_cli_wt_templates_default() -> None:
     assert "step" in res.output
 
 
-def test_cli_wt_templates_type_filter_workflow() -> None:
-    """Verify ``wt templates --type workflow`` outputs only workflow templates."""
-    res = runner.invoke(app, ["templates", "--type", "workflow"])
+def test_cli_wt_template_type_filter_workflow() -> None:
+    """Verify ``wt template --type workflow`` outputs only workflow templates."""
+    res = runner.invoke(app, ["template", "--type", "workflow"])
 
     assert res.exit_code == 0
     assert "wt-defined Templates:" in res.output
@@ -54,9 +54,9 @@ def test_cli_wt_template_list_type_filter_step() -> None:
     assert "feature-dev" not in res.output
 
 
-def test_cli_wt_templates_invalid_type() -> None:
-    """Verify ``wt templates --type invalid`` returns validation error listing valid choices."""
-    res = runner.invoke(app, ["templates", "--type", "invalid"])
+def test_cli_wt_template_invalid_type() -> None:
+    """Verify ``wt template --type invalid`` returns validation error listing valid choices."""
+    res = runner.invoke(app, ["template", "--type", "invalid"])
 
     assert res.exit_code != 0
     assert "Invalid value for '--type'" in res.output or "invalid" in res.output
@@ -87,9 +87,9 @@ def test_cli_wt_template_show_success() -> None:
     assert "Definition:" in res.output
 
 
-def test_cli_wt_templates_show_task_with_type() -> None:
-    """Verify ``wt templates show run-tests --type task`` displays task template detail."""
-    res = runner.invoke(app, ["templates", "show", "run-tests", "--type", "task"])
+def test_cli_wt_template_show_task_with_type() -> None:
+    """Verify ``wt template show run-tests --type task`` displays task template detail."""
+    res = runner.invoke(app, ["template", "show", "run-tests", "--type", "task"])
 
     assert res.exit_code == 0
     assert "Template:" in res.output

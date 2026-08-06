@@ -12,16 +12,30 @@ Install the package directly via `pip`:
 pip install getworktree
 ```
 
-To install with development dependencies:
+Using `pipx` (isolated application environments):
 
 ```bash
-pip install "getworktree[dev]"
+pipx install getworktree
 ```
 
-To install with documentation build dependencies:
+Using `uv`:
 
 ```bash
-pip install "getworktree[docs]"
+uv tool install getworktree
+```
+
+### Local Development / Source Installation
+
+To install in editable mode with development dependencies:
+
+```bash
+pip install -e ".[dev]"
+```
+
+To install with documentation dependencies:
+
+```bash
+pip install -e ".[docs]"
 ```
 
 ## Alternative Install Methods
