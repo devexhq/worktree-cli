@@ -24,6 +24,11 @@ from getworktree.commands.sandbox.command import (
     sandbox_show_command,
 )
 from getworktree.commands.status.command import status_command
+from getworktree.commands.task.command import (
+    task_list_command,
+    task_run_command,
+    task_show_command,
+)
 from getworktree.commands.templates.command import (
     template_show_command,
     templates_list_command,
@@ -84,6 +89,14 @@ catalog_app = typer.Typer(
     invoke_without_command=True,
 )
 app.add_typer(catalog_app, name="catalog")
+
+task_app = typer.Typer(
+    name="task",
+    help="Inspect and execute task blueprints.",
+    invoke_without_command=True,
+)
+app.add_typer(task_app, name="task")
+app.add_typer(task_app, name="tasks")
 
 
 def print_welcome_banner():
@@ -452,6 +465,45 @@ def catalog_delete(
             raise typer.Exit()
 
     outcome = catalog_delete_command(sha_or_name=name)
+    if not outcome.ok:
+        raise typer.Exit(code=1)
+
+
+@task_app.callback(invoke_without_command=True)
+def task_callback(ctx: typer.Context):
+    """Inspect and execute task blueprints."""
+    if ctx.invoked_subcommand is None:
+        outcome = task_list_command()
+        if not outcome.ok:
+            raise typer.Exit(code=1)
+
+
+@task_app.command("list")
+def task_list(ctx: typer.Context):
+    """List available task blueprints."""
+    outcome = task_list_command()
+    if not outcome.ok:
+        raise typer.Exit(code=1)
+
+
+@task_app.command("show")
+def task_show(
+    ctx: typer.Context,
+    name: str = typer.Argument(..., help="Task blueprint name or SHA to show."),
+):
+    """Show metadata and definition content of a task blueprint."""
+    outcome = task_show_command(name=name)
+    if not outcome.ok:
+        raise typer.Exit(code=1)
+
+
+@task_app.command("run")
+def task_run(
+    ctx: typer.Context,
+    name: str = typer.Argument(..., help="Task blueprint name to run."),
+):
+    """Run a task blueprint."""
+    outcome = task_run_command(name=name)
     if not outcome.ok:
         raise typer.Exit(code=1)
 
