@@ -1,0 +1,5 @@
+version: 1
+name: feature-dev
+type: workflow
+description: Standard feature development workflow
+summary: Runs test, lint, and PR

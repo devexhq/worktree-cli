@@ -18,6 +18,7 @@ from getworktree.commands.sandbox.command import (
     sandbox_show_command,
 )
 from getworktree.commands.status.command import status_command
+from getworktree.commands.templates.command import templates_list_command
 from getworktree.commands.workflow.command import (
     workflow_list_command,
     workflow_resume_command,
@@ -25,6 +26,7 @@ from getworktree.commands.workflow.command import (
     workflow_show_command,
 )
 from getworktree.core.db import SandboxStatus
+from getworktree.core.templates.models import TemplateType
 
 # Initialize a central styling console for high-utility layout parsing
 console = Console()
@@ -58,6 +60,14 @@ sandbox_app = typer.Typer(
     help="Inspect and manage git worktree sandboxes.",
 )
 app.add_typer(sandbox_app, name="sandbox")
+
+template_app = typer.Typer(
+    name="template",
+    help="Inspect built-in Worktree template definitions.",
+    invoke_without_command=True,
+)
+app.add_typer(template_app, name="template")
+app.add_typer(template_app, name="templates")
 
 
 def print_welcome_banner():
@@ -306,6 +316,32 @@ def sandbox_delete(
 ):
     """Delete a sandbox worktree and branch after confirmation."""
     sandbox_delete_command(sandbox_id, force=force)
+
+
+_TEMPLATE_TYPE_OPTION = typer.Option(
+    None,
+    "--type",
+    help="Filter built-in templates by type (workflow, task, step).",
+)
+
+
+@template_app.callback(invoke_without_command=True)
+def template_callback(
+    ctx: typer.Context,
+    type: TemplateType | None = _TEMPLATE_TYPE_OPTION,
+):
+    """Inspect built-in Worktree template definitions."""
+    if ctx.invoked_subcommand is None:
+        templates_list_command(type_filter=type)
+
+
+@template_app.command("list")
+def template_list(
+    ctx: typer.Context,
+    type: TemplateType | None = _TEMPLATE_TYPE_OPTION,
+):
+    """List wt-defined built-in templates."""
+    templates_list_command(type_filter=type)
 
 
 if __name__ == "__main__":
