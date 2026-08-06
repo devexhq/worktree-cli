@@ -880,3 +880,42 @@ Booleans are `true`/`false`; lists use `json.dumps`; optional
 Bump the schema version (`config_v2.json`, etc.) instead of making breaking
 changes to a `v1` schema that users may already have on disk.
 
+## Step Definition Schema and Execution Engine
+
+Step primitives stored in `.worktree/templates/steps/` represent reusable tasks and workflow primitives.
+Models and engine live in [getworktree/core/step/](../../getworktree/core/step/).
+
+### StepDefinition Model
+
+`StepDefinition` uses `model_config = {"extra": "forbid", "strict": True}`:
+
+- `id`: str (required, unique step identifier e.g. `step_pytest_verify`)
+- `name`: str (required, human-readable slug e.g. `run-pytest`)
+- `type`: StepType (`command`, `agent`, `script`)
+- `description`: str (required)
+- `command`: str | null (required if `type == "command"`)
+- `prompt`: str | null (required if `type == "agent"`)
+- `agent`: str | null (LLM model / provider string)
+- `tools`: list[str] (tool permission strings, default `[]`)
+- `script_path`: str | null (relative path, required if `type == "script"`)
+- `timeout_seconds`: int (default `120`, must be > 0)
+- `failure_action`: FailureAction (`abort`, `retry`, `ignore`, default `abort`)
+
+Model validators enforce required type fields (`command` for command steps, `prompt` for agent steps, `script_path` for script steps).
+
+### Step Loader & Resolver
+
+- `load_step_definition(path: Path) -> StepDefinition`: Loads and parses a step YAML file. Raises `StepNotFoundError` if file missing/unreadable, `StepValidationError` on YAML or Pydantic validation error.
+- `load_step_by_id(step_id_or_name: str, cwd: Path | None = None) -> StepDefinition`: Resolves step definition from `.worktree/templates/steps/` by direct filename or matching `id`/`name`.
+
+### Step Execution Engine
+
+`execute_step(step: StepDefinition, sandbox_path: Path, context: dict | None = None) -> StepResult`:
+
+- Executes step primitive inside `sandbox_path` with isolated working directory `cwd=sandbox_path`.
+- Enforces process timeouts via `timeout_seconds`.
+- Handles `failure_action` policies:
+  - `abort`: sets `status="failed"` on failure.
+  - `retry`: retries execution up to 3 attempts before setting `status="failed"`.
+  - `ignore`: logs warning, returns `StepResult` with `status="ignored"` and `exit_code=0` (`ok=True`).
+- Returns `StepResult`: `step_id`, `status` (`completed`, `failed`, `ignored`), `exit_code`, `stdout`, `stderr`, `duration_seconds`, `attempts`, `error_message`. `@property def ok` returns `True` for `completed` or `ignored`.
