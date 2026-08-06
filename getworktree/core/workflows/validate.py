@@ -64,11 +64,11 @@ def _semantic_errors(workflow: WorkflowDefinition) -> list[str]:
             "iteration.max_attempts must be >= 1 (WORKFLOW_SEM_MAX_ATTEMPTS)."
         )
 
-    if workflow.trigger.timeout_seconds < 1 or workflow.agent.timeout_seconds < 1:
-        errors.append(
-            "trigger.timeout_seconds and agent.timeout_seconds must be >= 1 "
-            "(WORKFLOW_SEM_TIMEOUT)."
-        )
+    if workflow.trigger is not None and workflow.trigger.timeout_seconds < 1:
+        errors.append("trigger.timeout_seconds must be >= 1 (WORKFLOW_SEM_TIMEOUT).")
+
+    if workflow.agent is not None and workflow.agent.timeout_seconds < 1:
+        errors.append("agent.timeout_seconds must be >= 1 (WORKFLOW_SEM_TIMEOUT).")
 
     if workflow.patch.max_files < 1 or workflow.patch.max_patch_kb < 1:
         errors.append(

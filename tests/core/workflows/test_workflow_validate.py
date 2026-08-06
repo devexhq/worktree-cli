@@ -278,6 +278,18 @@ class ValidateWorkflowResultSchemaFailureTests:
 
     def test_missing_required_section(self, tmp_path: Path) -> None:
         raw = _valid_raw()
+        del raw["iteration"]
+        path = _dump_yaml(tmp_path / "missing-iteration.yml", raw)
+
+        result = validate_workflow_result(path)
+
+        assert result.status == WorkflowValidationStatus.INVALID
+        assert result.workflow is None
+        assert any("WORKFLOW_INVALID_SCHEMA" in e for e in result.errors)
+        assert any("iteration" in e for e in result.errors)
+
+    def test_missing_steps_and_trigger_model_failure(self, tmp_path: Path) -> None:
+        raw = _valid_raw()
         del raw["trigger"]
         path = _dump_yaml(tmp_path / "missing-trigger.yml", raw)
 
@@ -285,8 +297,7 @@ class ValidateWorkflowResultSchemaFailureTests:
 
         assert result.status == WorkflowValidationStatus.INVALID
         assert result.workflow is None
-        assert any("WORKFLOW_INVALID_SCHEMA" in e for e in result.errors)
-        assert any("trigger" in e for e in result.errors)
+        assert any("WORKFLOW_INVALID_MODEL" in e for e in result.errors)
 
     def test_invalid_enum(self, tmp_path: Path) -> None:
         raw = _valid_raw()
@@ -445,3 +456,98 @@ class SharedWorkflowValidatorTests:
 
     def test_package_and_seeder_share_same_validator(self) -> None:
         assert WORKFLOW_VALIDATOR is SEEDER_WORKFLOW_VALIDATOR
+
+
+class HybridWorkflowStepsValidationTests:
+    """Validation tests for hybrid workflows mixing step_id references and inline steps."""
+
+    def test_validate_workflow_with_step_references_and_inline_steps(
+        self, tmp_path: Path
+    ) -> None:
+        raw = {
+            "version": 1,
+            "name": "hybrid-workflow",
+            "description": "Hybrid step workflow test",
+            "steps": [
+                {
+                    "step_id": "git-checkpoint",
+                    "override_timeout_seconds": 60,
+                },
+                {
+                    "name": "run-tests",
+                    "type": "command",
+                    "command": "pytest",
+                    "args": ["-v"],
+                    "timeout_seconds": 300,
+                    "failure_action": "abort",
+                },
+                {
+                    "name": "ai-fix",
+                    "type": "agent",
+                    "prompt": "Fix tests",
+                    "agent": "gemini",
+                    "timeout_seconds": 600,
+                },
+            ],
+            "iteration": {
+                "max_attempts": 3,
+                "stop_when": ["trigger_passes", "unfixable"],
+            },
+            "sandbox": {
+                "auto_clean": True,
+                "keep_on_failure": True,
+            },
+            "approval": {
+                "require_before_apply": True,
+            },
+            "context": {
+                "include": ["trigger_output", "changed_files"],
+            },
+            "patch": {
+                "strategy": "unified_diff",
+                "max_files": 10,
+                "max_patch_kb": 512,
+            },
+        }
+
+        path = _dump_yaml(tmp_path / "hybrid.yml", raw)
+        result = validate_workflow_result(path)
+
+        assert result.ok is True
+        assert result.workflow is not None
+        assert result.workflow.steps is not None
+        assert len(result.workflow.steps) == 3
+
+    def test_validate_workflow_without_steps_or_trigger_fails(
+        self, tmp_path: Path
+    ) -> None:
+        raw = {
+            "version": 1,
+            "name": "no-steps-workflow",
+            "description": "Workflow missing steps and trigger",
+            "iteration": {
+                "max_attempts": 3,
+                "stop_when": ["trigger_passes"],
+            },
+            "sandbox": {
+                "auto_clean": True,
+                "keep_on_failure": True,
+            },
+            "approval": {
+                "require_before_apply": True,
+            },
+            "context": {
+                "include": ["trigger_output"],
+            },
+            "patch": {
+                "strategy": "unified_diff",
+                "max_files": 10,
+                "max_patch_kb": 512,
+            },
+        }
+
+        path = _dump_yaml(tmp_path / "no_steps.yml", raw)
+        result = validate_workflow_result(path)
+
+        assert result.ok is False
+        assert result.status == WorkflowValidationStatus.INVALID
