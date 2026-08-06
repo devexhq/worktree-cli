@@ -12,7 +12,7 @@ getworktree/core/                  Business logic, no Typer/CLI concerns
   bootstrap.py                     Creates/repairs the .worktree/ directory tree
   config/{generator,loader,mutate,models,context,serialize,validate}.py
                                    Defaults write + load/set + validate + typed models + repo context
-  db.py                            SQLite token ledger + sandbox metadata CRUD
+  db/                              SQLite connection, migrations, models, and domain CRUD package
   git_sandbox.py                   Isolated `git worktree` sandbox lifecycle
   workflows/                           Workflow domain (iteration, payloads, patches, safety, agents)
   workflows/agents/                    Agent adapter protocol + providers (owned by workflows)
@@ -31,7 +31,7 @@ getworktree/schemas/                Versioned JSON Schemas (config_v1.json, work
 - **Workflow domain** (`core/workflows/`) owns iteration, triggers, payloads, patches,
   safety, and agent adapters (`core/workflows/agents/`).
 - **Shared core infra** stays at `core/` top level: `config/`, `git_sandbox.py`,
-  `db.py`, `bootstrap.py`, `templates/`.
+  `db/`, `bootstrap.py`, `templates/`.
 
 Not every command has all three files (e.g. `status` has only `command.py`) — add
 `models.py`/`renderers.py` when a command's output/result grows non-trivial.
@@ -57,7 +57,7 @@ creates this layout inside a Git repo, analogous to `.git/`:
   workflows/                 seeded + user workflow definitions (validated against workflow_v1.json)
   sessions/              workflow session artifacts: <session_id>/diff.patch
   artifacts/, tmp/, logs/
-  data.db                 SQLite token/cost + sandbox metadata (getworktree/core/db.py)
+  data.db                 SQLite token/cost + sandbox metadata (getworktree/core/db/)
 ```
 
 Bootstrap is idempotent and never deletes user data; it only creates missing
@@ -66,7 +66,7 @@ subdirectories and repairs metadata.
 ### Local SQLite (`data.db`)
 
 Single file, migrated by `init_database` in
-[getworktree/core/db.py](../../getworktree/core/db.py). Idempotent: repeated
+[getworktree/core/db/](../../getworktree/core/db/__init__.py). Idempotent: repeated
 calls create missing tables only.
 
 | Table | Purpose |
