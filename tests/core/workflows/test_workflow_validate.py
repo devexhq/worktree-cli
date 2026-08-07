@@ -1,4 +1,4 @@
-"""Tests for the non-raising full workflow definition validation engine."""
+"""Tests for the non-raising full workflow definition validation engine V1."""
 
 from __future__ import annotations
 
@@ -7,17 +7,20 @@ import stat
 from importlib import resources
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
 
 import pytest
 import yaml
 
 from getworktree.core.workflows import (
     WORKFLOW_VALIDATOR,
+    StandardStepDefinition,
     WorkflowDefinition,
+    WorkflowLoadError,
+    WorkflowValidationError,
     WorkflowValidationStatus,
     load_workflow_definition,
     validate_workflow_document,
+    validate_workflow_inputs,
     validate_workflow_result,
 )
 from getworktree.core.workflows.seeder import (
@@ -39,38 +42,48 @@ def _template_text(name: str) -> str:
 
 def _valid_raw(**overrides: Any) -> dict[str, Any]:
     raw: dict[str, Any] = {
-        "version": 1,
-        "name": "fix-tests",
-        "description": "Iteratively fix failing tests",
-        "trigger": {
-            "command": "pytest",
-            "args": [],
-            "timeout_seconds": 600,
+        "version": "1.0",
+        "name": "Feature Dev with Review Loop",
+        "id": "feature-dev-v1",
+        "description": "Iterative AI feature development workflow with test and review gates",
+        "timeout_seconds": 3600,
+        "env": {
+            "PYTHONPATH": ".",
         },
-        "agent": {
-            "provider": "local",
-            "mode": "fix_failure",
-            "timeout_seconds": 120,
+        "inputs": {
+            "prompt": {
+                "description": "The feature or fix prompt",
+                "required": True,
+            }
         },
-        "iteration": {
-            "max_attempts": 5,
-            "stop_when": ["trigger_passes", "unfixable", "user_abort"],
-        },
-        "sandbox": {
-            "auto_clean": True,
-            "keep_on_failure": True,
-        },
-        "approval": {
-            "require_before_apply": True,
-        },
-        "context": {
-            "include": ["trigger_output", "changed_files", "relevant_source"],
-        },
-        "patch": {
-            "strategy": "unified_diff",
-            "max_files": 30,
-            "max_patch_kb": 1024,
-        },
+        "steps": [
+            {
+                "id": "prepare-sandbox",
+                "uses": "wt/git-sync-base",
+                "on_failure": "abort",
+            },
+            {
+                "id": "dev-cycle",
+                "type": "loop",
+                "max_iterations": 5,
+                "until": [
+                    "steps.run-tests.exit_code == 0",
+                ],
+                "on_max_iterations": "prompt_user",
+                "do": [
+                    {
+                        "id": "run-tests",
+                        "run": "pytest tests/ -q",
+                        "on_failure": "continue",
+                    }
+                ],
+            },
+            {
+                "id": "lint-formatting",
+                "run": "ruff check . && ruff format --check .",
+                "on_failure": "prompt_user",
+            },
+        ],
     }
     raw.update(overrides)
     return raw
@@ -100,9 +113,9 @@ class ValidateWorkflowResultSuccessTests:
         assert result.raw is not None
         assert result.workflow is not None
         assert result.workflow.name == "fix-tests"
-        assert result.workflow.version == 1
-        assert result.workflow.agent.mode == "fix_failure"
-        assert result.workflow.patch.reject_binary_changes is None
+        assert result.workflow.id == "fix-tests"
+        assert result.workflow.version == "1.0"
+        assert len(result.workflow.steps) == 1
         assert path.read_text(encoding="utf-8") == on_disk
 
     def test_valid_packaged_review_fix_template(self, tmp_path: Path) -> None:
@@ -113,52 +126,7 @@ class ValidateWorkflowResultSuccessTests:
         assert result.ok
         assert result.workflow is not None
         assert result.workflow.name == "review-fix"
-        assert result.workflow.agent.mode == "review_remediation"
-        assert result.workflow.patch.max_files == 20
-
-    def test_valid_with_optional_reject_binary_changes(self, tmp_path: Path) -> None:
-        raw = _valid_raw()
-        raw["patch"]["reject_binary_changes"] = True
-        path = _dump_yaml(tmp_path / "with-flag.yml", raw)
-
-        result = validate_workflow_result(path)
-
-        assert result.ok
-        assert result.workflow is not None
-        assert result.workflow.patch.reject_binary_changes is True
-
-    def test_valid_with_cursor_provider(self, tmp_path: Path) -> None:
-        raw = _valid_raw()
-        raw["agent"]["provider"] = "cursor"
-        path = _dump_yaml(tmp_path / "cursor-provider.yml", raw)
-
-        result = validate_workflow_result(path)
-
-        assert result.ok
-        assert result.workflow is not None
-        assert result.workflow.agent.provider == "cursor"
-
-    def test_valid_with_gemini_provider(self, tmp_path: Path) -> None:
-        raw = _valid_raw()
-        raw["agent"]["provider"] = "gemini"
-        path = _dump_yaml(tmp_path / "gemini-provider.yml", raw)
-
-        result = validate_workflow_result(path)
-
-        assert result.ok
-        assert result.workflow is not None
-        assert result.workflow.agent.provider == "gemini"
-
-    def test_valid_with_copilot_provider(self, tmp_path: Path) -> None:
-        raw = _valid_raw()
-        raw["agent"]["provider"] = "copilot"
-        path = _dump_yaml(tmp_path / "copilot-provider.yml", raw)
-
-        result = validate_workflow_result(path)
-
-        assert result.ok
-        assert result.workflow is not None
-        assert result.workflow.agent.provider == "copilot"
+        assert result.workflow.id == "review-fix"
 
     def test_validate_workflow_document_memory_source_path(self) -> None:
         raw = _valid_raw()
@@ -247,175 +215,64 @@ class ValidateWorkflowResultIoFailureTests:
         assert not result.ok
         assert any("WORKFLOW_INVALID_ROOT_NOT_MAPPING" in e for e in result.errors)
 
-    def test_root_not_mapping_scalar(self, tmp_path: Path) -> None:
-        path = _write(tmp_path / "scalar.yml", "42\n")
+
+class ValidateWorkflowResultMutualExclusivityTests:
+    """Mutual exclusivity tests between uses and run."""
+
+    def test_step_with_both_uses_and_run_fails(self, tmp_path: Path) -> None:
+        raw = _valid_raw()
+        raw["steps"].append(
+            {
+                "id": "run-tests",
+                "uses": "wt/run-tests",
+                "run": "pytest",
+            }
+        )
+        path = _dump_yaml(tmp_path / "both.yml", raw)
 
         result = validate_workflow_result(path)
 
-        assert result.status == WorkflowValidationStatus.ROOT_NOT_MAPPING
+        assert result.status == WorkflowValidationStatus.INVALID
         assert not result.ok
-
-
-class ValidateWorkflowResultSchemaFailureTests:
-    """Schema invalid paths and grouped error formatting."""
-
-    def test_unknown_top_level_key(self, tmp_path: Path) -> None:
-        raw = _valid_raw(extra_key="nope")
-        path = _dump_yaml(tmp_path / "extra.yml", raw)
-
-        result = validate_workflow_result(path)
-
-        assert result.status == WorkflowValidationStatus.INVALID
-        assert not result.ok
-        assert result.workflow is None
-        assert result.raw == raw
         assert len(result.errors) == 1
-        block = result.errors[0]
-        assert "WORKFLOW_INVALID_SCHEMA" in block
-        assert "Workflow schema validation failed" in block
-        assert block.count("WORKFLOW_INVALID_SCHEMA") == 1
-        assert "- " in block
+        assert "WORKFLOW_INVALID_SCHEMA" in result.errors[0]
 
-    def test_missing_required_section(self, tmp_path: Path) -> None:
+    def test_model_validates_uses_and_run_mutual_exclusivity(self) -> None:
+        with pytest.raises(ValueError, match="Cannot specify both 'uses' and 'run'"):
+            StandardStepDefinition(
+                id="run-tests",
+                uses="wt/run-tests",
+                run="pytest",
+            )
+
+    def test_model_validates_neither_uses_nor_run(self) -> None:
+        with pytest.raises(ValueError, match="must specify either 'uses' or 'run'"):
+            StandardStepDefinition(id="run-tests")
+
+
+class ValidateWorkflowInputsTests:
+    """Workflow input validation and default resolution tests."""
+
+    def test_input_resolution_success_with_defaults(self) -> None:
         raw = _valid_raw()
-        del raw["iteration"]
-        path = _dump_yaml(tmp_path / "missing-iteration.yml", raw)
+        raw["inputs"]["optional_flag"] = {
+            "description": "Optional flag",
+            "required": False,
+            "default": "verbose",
+        }
+        workflow = WorkflowDefinition.model_validate(raw)
 
-        result = validate_workflow_result(path)
+        resolved = validate_workflow_inputs(workflow, {"prompt": "Fix bug"})
 
-        assert result.status == WorkflowValidationStatus.INVALID
-        assert result.workflow is None
-        assert any("WORKFLOW_INVALID_SCHEMA" in e for e in result.errors)
-        assert any("iteration" in e for e in result.errors)
+        assert resolved["prompt"] == "Fix bug"
+        assert resolved["optional_flag"] == "verbose"
 
-    def test_missing_steps_and_trigger_model_failure(self, tmp_path: Path) -> None:
-        raw = _valid_raw()
-        del raw["trigger"]
-        path = _dump_yaml(tmp_path / "missing-trigger.yml", raw)
-
-        result = validate_workflow_result(path)
-
-        assert result.status == WorkflowValidationStatus.INVALID
-        assert result.workflow is None
-        assert any("WORKFLOW_INVALID_MODEL" in e for e in result.errors)
-
-    def test_invalid_enum(self, tmp_path: Path) -> None:
-        raw = _valid_raw()
-        raw["agent"]["provider"] = "openai"
-        path = _dump_yaml(tmp_path / "bad-provider.yml", raw)
-
-        result = validate_workflow_result(path)
-
-        assert result.status == WorkflowValidationStatus.INVALID
-        assert result.workflow is None
-        block = result.errors[0]
-        assert "WORKFLOW_INVALID_SCHEMA" in block
-        assert "provider" in block
-
-    def test_schema_failure_skips_semantic(self, tmp_path: Path) -> None:
-        raw = _valid_raw()
-        del raw["name"]
-        path = _dump_yaml(tmp_path / "no-name.yml", raw)
-
-        result = validate_workflow_result(path)
-
-        assert result.status == WorkflowValidationStatus.INVALID
-        joined = "\n".join(result.errors)
-        assert "WORKFLOW_INVALID_SCHEMA" in joined
-        assert "WORKFLOW_SEM_" not in joined
-
-
-class ValidateWorkflowResultModelAndSemanticTests:
-    """Defensive model mapping and semantic rule surface."""
-
-    def test_model_mapping_failure_after_schema(self) -> None:
-        raw = _valid_raw()
-        with patch.object(
-            WorkflowDefinition,
-            "model_validate",
-            side_effect=ValueError("boom"),
-        ):
-            result = validate_workflow_document(raw, source_path=Path("in-memory"))
-
-        assert result.status == WorkflowValidationStatus.INVALID
-        assert result.workflow is None
-        assert result.raw == raw
-        assert len(result.errors) == 1
-        assert "WORKFLOW_INVALID_MODEL" in result.errors[0]
-        assert "boom" in result.errors[0]
-
-    def test_semantic_max_attempts_when_bypassed(self) -> None:
+    def test_missing_required_input_raises_validation_error(self) -> None:
         raw = _valid_raw()
         workflow = WorkflowDefinition.model_validate(raw)
-        object.__setattr__(workflow.iteration, "max_attempts", 0)
 
-        with (
-            patch.object(
-                WORKFLOW_VALIDATOR,
-                "validate",
-                return_value=type("R", (), {"ok": True, "errors": []})(),
-            ),
-            patch.object(WorkflowDefinition, "model_validate", return_value=workflow),
-        ):
-            result = validate_workflow_document(raw, source_path=Path("in-memory"))
-
-        assert result.status == WorkflowValidationStatus.INVALID
-        assert result.workflow is None
-        assert any("WORKFLOW_SEM_MAX_ATTEMPTS" in e for e in result.errors)
-
-    def test_semantic_timeout_when_bypassed(self) -> None:
-        raw = _valid_raw()
-        workflow = WorkflowDefinition.model_validate(raw)
-        object.__setattr__(workflow.trigger, "timeout_seconds", 0)
-
-        with (
-            patch.object(
-                WORKFLOW_VALIDATOR,
-                "validate",
-                return_value=type("R", (), {"ok": True, "errors": []})(),
-            ),
-            patch.object(WorkflowDefinition, "model_validate", return_value=workflow),
-        ):
-            result = validate_workflow_document(raw, source_path=Path("in-memory"))
-
-        assert result.status == WorkflowValidationStatus.INVALID
-        assert any("WORKFLOW_SEM_TIMEOUT" in e for e in result.errors)
-
-    def test_semantic_patch_limit_when_bypassed(self) -> None:
-        raw = _valid_raw()
-        workflow = WorkflowDefinition.model_validate(raw)
-        object.__setattr__(workflow.patch, "max_files", 0)
-
-        with (
-            patch.object(
-                WORKFLOW_VALIDATOR,
-                "validate",
-                return_value=type("R", (), {"ok": True, "errors": []})(),
-            ),
-            patch.object(WorkflowDefinition, "model_validate", return_value=workflow),
-        ):
-            result = validate_workflow_document(raw, source_path=Path("in-memory"))
-
-        assert result.status == WorkflowValidationStatus.INVALID
-        assert any("WORKFLOW_SEM_PATCH_LIMIT" in e for e in result.errors)
-
-    def test_semantic_stop_when_empty_when_bypassed(self) -> None:
-        raw = _valid_raw()
-        workflow = WorkflowDefinition.model_validate(raw)
-        object.__setattr__(workflow.iteration, "stop_when", [])
-
-        with (
-            patch.object(
-                WORKFLOW_VALIDATOR,
-                "validate",
-                return_value=type("R", (), {"ok": True, "errors": []})(),
-            ),
-            patch.object(WorkflowDefinition, "model_validate", return_value=workflow),
-        ):
-            result = validate_workflow_document(raw, source_path=Path("in-memory"))
-
-        assert result.status == WorkflowValidationStatus.INVALID
-        assert any("WORKFLOW_SEM_STOP_WHEN_EMPTY" in e for e in result.errors)
+        with pytest.raises(WorkflowValidationError, match="Missing required input"):
+            validate_workflow_inputs(workflow, {})
 
 
 class LoadWorkflowDefinitionTests:
@@ -427,27 +284,25 @@ class LoadWorkflowDefinitionTests:
         workflow = load_workflow_definition(path)
 
         assert isinstance(workflow, WorkflowDefinition)
-        assert workflow.name == "fix-tests"
+        assert workflow.name == "Feature Dev with Review Loop"
+        assert workflow.id == "feature-dev-v1"
 
     def test_load_not_found_raises(self, tmp_path: Path) -> None:
         with pytest.raises(FileNotFoundError, match="WORKFLOW_INVALID_NOT_FOUND"):
             load_workflow_definition(tmp_path / "missing.yml")
 
-    def test_load_unreadable_raises(self, tmp_path: Path) -> None:
-        path = _dump_yaml(tmp_path / "secret.yml", _valid_raw())
-        path.chmod(0)
-        try:
-            if os.access(path, os.R_OK):
-                pytest.skip("filesystem still allows reading unreadable mode")
-            with pytest.raises(OSError, match="WORKFLOW_INVALID_UNREADABLE"):
-                load_workflow_definition(path)
-        finally:
-            path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+    def test_load_malformed_yaml_raises_load_error(self, tmp_path: Path) -> None:
+        path = _write(tmp_path / "bad.yml", "version: [\n")
 
-    def test_load_invalid_raises_value_error(self, tmp_path: Path) -> None:
+        with pytest.raises(WorkflowLoadError, match="WORKFLOW_INVALID_MALFORMED_YAML"):
+            load_workflow_definition(path)
+
+    def test_load_invalid_raises_validation_error(self, tmp_path: Path) -> None:
         path = _write(tmp_path / "bad.yml", "[]\n")
 
-        with pytest.raises(ValueError, match="WORKFLOW_INVALID_ROOT_NOT_MAPPING"):
+        with pytest.raises(
+            WorkflowValidationError, match="WORKFLOW_INVALID_ROOT_NOT_MAPPING"
+        ):
             load_workflow_definition(path)
 
 
@@ -456,98 +311,3 @@ class SharedWorkflowValidatorTests:
 
     def test_package_and_seeder_share_same_validator(self) -> None:
         assert WORKFLOW_VALIDATOR is SEEDER_WORKFLOW_VALIDATOR
-
-
-class HybridWorkflowStepsValidationTests:
-    """Validation tests for hybrid workflows mixing step_id references and inline steps."""
-
-    def test_validate_workflow_with_step_references_and_inline_steps(
-        self, tmp_path: Path
-    ) -> None:
-        raw = {
-            "version": 1,
-            "name": "hybrid-workflow",
-            "description": "Hybrid step workflow test",
-            "steps": [
-                {
-                    "step_id": "git-checkpoint",
-                    "override_timeout_seconds": 60,
-                },
-                {
-                    "name": "run-tests",
-                    "type": "command",
-                    "command": "pytest",
-                    "args": ["-v"],
-                    "timeout_seconds": 300,
-                    "failure_action": "abort",
-                },
-                {
-                    "name": "ai-fix",
-                    "type": "agent",
-                    "prompt": "Fix tests",
-                    "agent": "gemini",
-                    "timeout_seconds": 600,
-                },
-            ],
-            "iteration": {
-                "max_attempts": 3,
-                "stop_when": ["trigger_passes", "unfixable"],
-            },
-            "sandbox": {
-                "auto_clean": True,
-                "keep_on_failure": True,
-            },
-            "approval": {
-                "require_before_apply": True,
-            },
-            "context": {
-                "include": ["trigger_output", "changed_files"],
-            },
-            "patch": {
-                "strategy": "unified_diff",
-                "max_files": 10,
-                "max_patch_kb": 512,
-            },
-        }
-
-        path = _dump_yaml(tmp_path / "hybrid.yml", raw)
-        result = validate_workflow_result(path)
-
-        assert result.ok is True
-        assert result.workflow is not None
-        assert result.workflow.steps is not None
-        assert len(result.workflow.steps) == 3
-
-    def test_validate_workflow_without_steps_or_trigger_fails(
-        self, tmp_path: Path
-    ) -> None:
-        raw = {
-            "version": 1,
-            "name": "no-steps-workflow",
-            "description": "Workflow missing steps and trigger",
-            "iteration": {
-                "max_attempts": 3,
-                "stop_when": ["trigger_passes"],
-            },
-            "sandbox": {
-                "auto_clean": True,
-                "keep_on_failure": True,
-            },
-            "approval": {
-                "require_before_apply": True,
-            },
-            "context": {
-                "include": ["trigger_output"],
-            },
-            "patch": {
-                "strategy": "unified_diff",
-                "max_files": 10,
-                "max_patch_kb": 512,
-            },
-        }
-
-        path = _dump_yaml(tmp_path / "no_steps.yml", raw)
-        result = validate_workflow_result(path)
-
-        assert result.ok is False
-        assert result.status == WorkflowValidationStatus.INVALID

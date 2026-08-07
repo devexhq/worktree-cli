@@ -53,8 +53,8 @@ creates this layout inside a Git repo, analogous to `.git/`:
 ```
 .worktree/
   .meta/bootstrap.json   status, tool_version, initialized_at
-  config.json            V1 config, validated against schemas/config_v1.json
-  workflows/                 seeded + user workflow definitions (validated against workflow_v1.json)
+  config.json            V1 config, validated against schemas/v1/config.json
+  workflows/                 seeded + user workflow definitions (validated against schemas/v1/workflow.json)
   sessions/              workflow session artifacts: <session_id>/diff.patch
   artifacts/, tmp/, logs/
   data.db                 SQLite token/cost + sandbox metadata (getworktree/core/db/)

@@ -75,10 +75,10 @@ def resolve_max_attempts(
     """
     if caller_max_attempts is not None:
         effective = caller_max_attempts
+    elif workflow.iteration is not None and workflow.iteration.max_attempts:
+        effective = workflow.iteration.max_attempts
     else:
-        effective = (
-            workflow.iteration.max_attempts or config.workflow.default_max_attempts
-        )
+        effective = config.workflow.default_max_attempts
     return min(effective, config.workflow.max_attempts_hard_limit)
 
 

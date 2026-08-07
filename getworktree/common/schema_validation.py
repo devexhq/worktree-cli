@@ -42,7 +42,7 @@ class SchemaValidator:
 
 
 def _config_schema_path() -> resources.Traversable:
-    return resources.files("getworktree.schemas") / "config_v1.json"
+    return resources.files("getworktree.schemas.v1") / "config.json"
 
 
 CONFIG_VALIDATOR = SchemaValidator(_config_schema_path())

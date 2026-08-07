@@ -186,20 +186,32 @@ def run_workflow_iteration(
         )
 
     resolved_auto = (
-        auto_clean if auto_clean is not None else workflow.sandbox.auto_clean
+        auto_clean
+        if auto_clean is not None
+        else (workflow.sandbox.auto_clean if workflow.sandbox is not None else True)
     )
     resolved_keep = (
         keep_on_failure
         if keep_on_failure is not None
-        else workflow.sandbox.keep_on_failure
+        else (
+            workflow.sandbox.keep_on_failure if workflow.sandbox is not None else True
+        )
     )
     # Effective approval: explicit override, else workflow definition, else config.
     if require_before_apply is not None:
         resolved_require = require_before_apply
     else:
-        resolved_require = workflow.approval.require_before_apply
+        resolved_require = (
+            workflow.approval.require_before_apply
+            if workflow.approval is not None
+            else True
+        )
 
-    stop_when = set(workflow.iteration.stop_when)
+    stop_when = (
+        set(workflow.iteration.stop_when)
+        if workflow.iteration is not None
+        else {"trigger_passes", "unfixable", "user_abort"}
+    )
     trigger_runner = run_trigger_fn or run_trigger
     patch_applier = apply_patch_fn or apply_patch_result
     mutation_discarder = discard_mutation_fn or discard_since
@@ -314,7 +326,10 @@ def run_workflow_iteration(
 
     if agent is None:
         try:
-            agent = get_agent_adapter(workflow.agent.provider, config=config.agent)
+            provider = (
+                workflow.agent.provider if workflow.agent is not None else "local"
+            )
+            agent = get_agent_adapter(provider, config=config.agent)
         except ValueError as exc:
             run_errors.append(str(exc))
             final_status = WorkflowFinalStatus.FAILED
@@ -366,11 +381,12 @@ def run_workflow_iteration(
 
     reject_binary = (
         workflow.patch.reject_binary_changes
-        if workflow.patch.reject_binary_changes is not None
+        if workflow.patch is not None
+        and workflow.patch.reject_binary_changes is not None
         else config.patch.reject_binary_changes
     )
-    max_files = workflow.patch.max_files
-    max_patch_kb = workflow.patch.max_patch_kb
+    max_files = workflow.patch.max_files if workflow.patch is not None else 30
+    max_patch_kb = workflow.patch.max_patch_kb if workflow.patch is not None else 1024
 
     resolved_session_timeout = (
         session_timeout_seconds

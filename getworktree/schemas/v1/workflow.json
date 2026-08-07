@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://getworktree.io/schemas/v1/workflow.json",
+  "title": "Worktree Workflow Definition V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "name",
+    "id",
+    "steps"
+  ],
+  "properties": {
+    "version": {
+      "oneOf": [
+        { "type": "integer", "const": 1 },
+        { "type": "string", "const": "1.0" }
+      ]
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "timeout_seconds": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "env": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "description": { "type": "string" },
+          "required": { "type": "boolean" },
+          "default": {}
+        }
+      }
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/step"
+      }
+    }
+  },
+  "$defs": {
+    "step": {
+      "oneOf": [
+        { "$ref": "#/$defs/standard_step" },
+        { "$ref": "#/$defs/loop_step" }
+      ]
+    },
+    "standard_step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "oneOf": [
+        {
+          "required": ["uses"],
+          "not": { "required": ["run"] }
+        },
+        {
+          "required": ["run"],
+          "not": { "required": ["uses"] }
+        }
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string" },
+        "uses": { "type": "string", "minLength": 1 },
+        "run": { "type": "string", "minLength": 1 },
+        "with": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "agent": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "object", "additionalProperties": true }
+          ]
+        },
+        "prompt": { "type": "string" },
+        "tools": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "timeout_seconds": { "type": "integer", "minimum": 1 },
+        "assert": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "exit_code": { "type": "integer" },
+            "output_contains": {
+              "oneOf": [
+                { "type": "string" },
+                { "type": "array", "items": { "type": "string" } }
+              ]
+            },
+            "output_not_contains": {
+              "oneOf": [
+                { "type": "string" },
+                { "type": "array", "items": { "type": "string" } }
+              ]
+            },
+            "regex_match": { "type": "string" },
+            "json_match": { "type": "object", "additionalProperties": true }
+          }
+        },
+        "on_failure": {
+          "oneOf": [
+            { "type": "string", "enum": ["abort", "continue", "prompt_user", "retry"] },
+            { "type": "object", "additionalProperties": true }
+          ]
+        }
+      }
+    },
+    "loop_step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "until", "do"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "type": { "type": "string", "const": "loop" },
+        "max_iterations": { "type": "integer", "minimum": 1, "default": 5 },
+        "until": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "do": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/standard_step" }
+        },
+        "on_max_iterations": {
+          "oneOf": [
+            { "type": "string", "enum": ["prompt_user", "abort", "continue"] },
+            { "type": "object", "additionalProperties": true }
+          ]
+        }
+      }
+    }
+  }
+}

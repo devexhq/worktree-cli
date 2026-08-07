@@ -39,7 +39,7 @@ class ParseWorkflowMetadataTests:
         assert result.ok
         assert result.errors == []
         assert result.metadata is not None
-        assert result.metadata.version == 1
+        assert result.metadata.version in (1, "1.0")
         assert result.metadata.name == "fix-tests"
         assert "failing tests" in result.metadata.description
         assert result.metadata.source_path == path.resolve()
@@ -53,7 +53,7 @@ class ParseWorkflowMetadataTests:
         assert result.ok
         assert result.metadata is not None
         assert result.metadata.name == "review-fix"
-        assert result.metadata.version == 1
+        assert result.metadata.version in (1, "1.0")
         assert result.metadata.description.startswith("Iteratively remediate")
 
     def test_ok_with_extra_keys_and_incomplete_body(self, tmp_path: Path) -> None:
@@ -147,7 +147,7 @@ class ParseWorkflowMetadataTests:
     def test_invalid_version_variants(self, tmp_path: Path) -> None:
         cases = (
             "version: 2\nname: ok-name\ndescription: d\n",
-            'version: "1"\nname: ok-name\ndescription: d\n',
+            "version: 99\nname: ok-name\ndescription: d\n",
             "version: true\nname: ok-name\ndescription: d\n",
         )
         for index, text in enumerate(cases):

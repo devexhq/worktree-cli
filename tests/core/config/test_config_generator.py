@@ -20,7 +20,7 @@ from getworktree.core.config.generator import (
 )
 
 CONFIG_VALIDATOR = SchemaValidator(
-    resources.files("getworktree.schemas") / "config_v1.json"
+    resources.files("getworktree.schemas.v1") / "config.json"
 )
 
 

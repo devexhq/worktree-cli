@@ -8,6 +8,11 @@ from getworktree.core.workflows.discovery import (
     discover_workflow_files,
     resolve_workflows_dir,
 )
+from getworktree.core.workflows.exceptions import (
+    WorkflowError,
+    WorkflowLoadError,
+    WorkflowValidationError,
+)
 from getworktree.core.workflows.inventory import (
     WorkflowInventoryInvalidEntry,
     WorkflowInventoryResult,
@@ -24,11 +29,15 @@ from getworktree.core.workflows.metadata import (
 )
 from getworktree.core.workflows.models import (
     InlineStepDefinition,
+    LoopStepBlock,
+    StandardStepDefinition,
+    StepAssert,
     StepReference,
     WorkflowAgent,
     WorkflowApproval,
     WorkflowContext,
     WorkflowDefinition,
+    WorkflowInput,
     WorkflowIteration,
     WorkflowPatch,
     WorkflowSandbox,
@@ -87,6 +96,7 @@ from getworktree.core.workflows.validate import (
     WorkflowValidationStatus,
     load_workflow_definition,
     validate_workflow_document,
+    validate_workflow_inputs,
     validate_workflow_result,
 )
 
@@ -100,11 +110,14 @@ __all__ = [
     "AgentFailurePayload",
     "AttemptRecord",
     "InlineStepDefinition",
+    "LoopStepBlock",
     "PatchApplyResult",
     "PatchApplyStatus",
     "PayloadFile",
     "PayloadOmission",
     "SafetyState",
+    "StandardStepDefinition",
+    "StepAssert",
     "StepReference",
     "StopReason",
     "TriggerRunResult",
@@ -115,13 +128,16 @@ __all__ = [
     "WorkflowDefinition",
     "WorkflowDiscoveryResult",
     "WorkflowDiscoveryStatus",
+    "WorkflowError",
     "WorkflowFinalStatus",
+    "WorkflowInput",
     "WorkflowInventoryInvalidEntry",
     "WorkflowInventoryResult",
     "WorkflowInventoryStatus",
     "WorkflowInventoryValidEntry",
     "WorkflowIteration",
     "WorkflowListMetadata",
+    "WorkflowLoadError",
     "WorkflowMetadataParseResult",
     "WorkflowMetadataStatus",
     "WorkflowPatch",
@@ -131,6 +147,7 @@ __all__ = [
     "WorkflowSandbox",
     "WorkflowSeedResult",
     "WorkflowTrigger",
+    "WorkflowValidationError",
     "WorkflowValidationResult",
     "WorkflowValidationStatus",
     "apply_patch_result",
@@ -156,5 +173,6 @@ __all__ = [
     "seed_starter_workflows",
     "session_timed_out",
     "validate_workflow_document",
+    "validate_workflow_inputs",
     "validate_workflow_result",
 ]
