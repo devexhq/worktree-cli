@@ -15,19 +15,20 @@ jobs:
       - name: Checkout Code Repository
         uses: actions/checkout@v4
 
-      - name: Set up Python Environment
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: '3.13'
+          enable-cache: true
+
+      - name: Set up Python Environment
+        run: uv python install 3.13
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e .[dev]
+        run: uv sync --all-extras
 
       - name: Run tests with coverage
         # fail_under=80 is configured in pyproject.toml [tool.coverage.report]
-        run: python -m pytest --cov=getworktree --cov-report=term-missing --cov-report=xml tests/ -q
+        run: uv run pytest --cov=getworktree --cov-report=term-missing --cov-report=xml tests/ -q
 
   lint:
     name: Lint & Format
@@ -37,21 +38,22 @@ jobs:
       - name: Checkout Code Repository
         uses: actions/checkout@v4
 
-      - name: Set up Python Environment
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.13"
+          enable-cache: true
 
-      - name: Install lint dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install ruff
+      - name: Set up Python Environment
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv sync --all-extras
 
       - name: Ruff lint
-        run: ruff check .
+        run: uv run ruff check .
 
       - name: Ruff format check
-        run: ruff format --check .
+        run: uv run ruff format --check .
 
   ci:
     name: CI Gate

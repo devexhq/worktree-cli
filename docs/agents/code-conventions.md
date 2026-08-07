@@ -95,7 +95,7 @@ Rules of thumb:
 ## Docstrings and imports
 
 - Docstrings follow the Google convention, enforced by ruff's `D` rules
-  (`[tool.ruff]` in [pyproject.toml](../../pyproject.toml)). `__init__.py`,
-  `tests/*`, and `setup.py` are exempt.
+  (`[tool.ruff]` in [pyproject.toml](../../pyproject.toml)). `__init__.py` and
+  `tests/*` are exempt.
 - `getworktree` is registered as first-party for isort; keep local imports grouped
   accordingly and let `ruff format`/`ruff check --fix` handle ordering.
