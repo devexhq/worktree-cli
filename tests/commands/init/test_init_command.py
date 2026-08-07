@@ -17,9 +17,7 @@ from getworktree.core.config.generator import ConfigGenerationResult
 from getworktree.core.config.models import PathsConfig
 from getworktree.core.workflows.seeder import WorkflowSeedResult
 
-CONFIG_VALIDATOR = SchemaValidator(
-    resources.files("getworktree.schemas.v1") / "config.json"
-)
+CONFIG_VALIDATOR = SchemaValidator(resources.files("getworktree.schemas.v1") / "config.json")
 
 
 @pytest.fixture
@@ -37,9 +35,7 @@ def git_repo(tmp_path: Path) -> Path:
 class InitCommandConfigTests:
     """Tests for config generation behavior triggered by `wt init`."""
 
-    def test_init_creates_v1_config(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ):
+    def test_init_creates_v1_config(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.chdir(git_repo)
         init_command(tool_version="0.1.1")
 
@@ -50,9 +46,7 @@ class InitCommandConfigTests:
         assert data["project"]["name"] == git_repo.name
         assert CONFIG_VALIDATOR.validate(data).ok
 
-    def test_init_idempotent_config(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ):
+    def test_init_idempotent_config(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.chdir(git_repo)
         init_command(tool_version="0.1.1")
         config_path = git_repo / ".worktree" / "config.json"
@@ -62,9 +56,7 @@ class InitCommandConfigTests:
         second = config_path.read_text(encoding="utf-8")
         assert first == second
 
-    def test_init_repair_partial_config(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ):
+    def test_init_repair_partial_config(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.chdir(git_repo)
         init_command(tool_version="0.1.1")
         config_path = git_repo / ".worktree" / "config.json"
@@ -77,9 +69,7 @@ class InitCommandConfigTests:
         assert "telemetry" in repaired
         assert CONFIG_VALIDATOR.validate(repaired).ok
 
-    def test_init_overwrite_replaces_config(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_init_overwrite_replaces_config(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         init_command(tool_version="0.1.1")
         config_path = git_repo / ".worktree" / "config.json"
@@ -99,9 +89,7 @@ class InitCommandConfigTests:
 class InitCommandGuardrailTests:
     """Init guardrails: git preflight, layout repair, non-destructive defaults."""
 
-    def test_fresh_init_creates_full_layout(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_fresh_init_creates_full_layout(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
 
         init_command(tool_version="0.1.1")
@@ -131,9 +119,7 @@ class InitCommandGuardrailTests:
         assert (root / "workflows" / "review-fix.yml").is_file()
         assert "/.worktree/" in (git_repo / ".gitignore").read_text(encoding="utf-8")
 
-    def test_second_init_is_non_destructive(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_second_init_is_non_destructive(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         init_command(tool_version="0.1.1")
 
@@ -141,26 +127,16 @@ class InitCommandGuardrailTests:
         workflow_path = git_repo / ".worktree" / "workflows" / "fix-tests.yml"
         config_before = config_path.read_text(encoding="utf-8")
         workflow_path.write_text("edited by user\n", encoding="utf-8")
-        meta_before = json.loads(
-            (git_repo / ".worktree" / ".meta" / "bootstrap.json").read_text(
-                encoding="utf-8"
-            )
-        )
+        meta_before = json.loads((git_repo / ".worktree" / ".meta" / "bootstrap.json").read_text(encoding="utf-8"))
 
         init_command(tool_version="0.1.1")
 
         assert config_path.read_text(encoding="utf-8") == config_before
         assert workflow_path.read_text(encoding="utf-8") == "edited by user\n"
-        meta_after = json.loads(
-            (git_repo / ".worktree" / ".meta" / "bootstrap.json").read_text(
-                encoding="utf-8"
-            )
-        )
+        meta_after = json.loads((git_repo / ".worktree" / ".meta" / "bootstrap.json").read_text(encoding="utf-8"))
         assert meta_after["initialized_at"] == meta_before["initialized_at"]
 
-    def test_repairs_missing_subdirectory(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_repairs_missing_subdirectory(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         init_command(tool_version="0.1.1")
         sessions = git_repo / ".worktree" / "sessions"
@@ -170,20 +146,14 @@ class InitCommandGuardrailTests:
         init_command(tool_version="0.1.1")
 
         assert sessions.is_dir()
-        meta = json.loads(
-            (git_repo / ".worktree" / ".meta" / "bootstrap.json").read_text(
-                encoding="utf-8"
-            )
-        )
+        meta = json.loads((git_repo / ".worktree" / ".meta" / "bootstrap.json").read_text(encoding="utf-8"))
         assert meta["status"] == "repaired"
 
 
 class InitCommandWorkflowSeedingTests:
     """Tests for starter workflow seeding behavior triggered by `wt init`."""
 
-    def test_init_seeds_starter_workflows_in_fresh_repo(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_init_seeds_starter_workflows_in_fresh_repo(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
 
         init_command(tool_version="0.1.1")
@@ -218,9 +188,7 @@ class InitCommandFailureTests:
         assert exc.value.exit_code == 1
         assert not (tmp_path / ".worktree").exists()
 
-    def test_accepts_gitfile_style_repository(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_accepts_gitfile_style_repository(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Linked worktrees / some submodules use a `.git` file, not a directory."""
         (tmp_path / ".git").write_text("gitdir: /tmp/fake\n", encoding="utf-8")
         monkeypatch.chdir(tmp_path)
@@ -229,9 +197,7 @@ class InitCommandFailureTests:
 
         assert (tmp_path / ".worktree" / "config.json").is_file()
 
-    def test_bootstrap_path_collision_exits(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_bootstrap_path_collision_exits(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         collision = git_repo / ".worktree"
         collision.write_text("not-a-directory\n", encoding="utf-8")
@@ -242,9 +208,7 @@ class InitCommandFailureTests:
         assert collision.is_file()
         assert collision.read_text(encoding="utf-8") == "not-a-directory\n"
 
-    def test_bootstrap_failure_exits(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_bootstrap_failure_exits(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
 
         def boom(root_path, *, tool_version=None):
@@ -253,39 +217,29 @@ class InitCommandFailureTests:
                 errors=["simulated bootstrap failure"],
             )
 
-        monkeypatch.setattr(
-            "getworktree.commands.init.command.bootstrap_worktree", boom
-        )
+        monkeypatch.setattr("getworktree.commands.init.command.bootstrap_worktree", boom)
         with pytest.raises(typer.Exit) as exc:
             init_command(tool_version="0.1.1")
         assert exc.value.exit_code == 1
 
-    def test_config_generation_failure_exits(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_config_generation_failure_exits(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
 
         def bad_config(*args, **kwargs):
             return ConfigGenerationResult(errors=["CONFIG_WRITE_FAILED"])
 
-        monkeypatch.setattr(
-            "getworktree.commands.init.command.generate_default_config", bad_config
-        )
+        monkeypatch.setattr("getworktree.commands.init.command.generate_default_config", bad_config)
         with pytest.raises(typer.Exit) as exc:
             init_command(tool_version="0.1.1")
         assert exc.value.exit_code == 1
 
-    def test_workflow_seed_failure_exits(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_workflow_seed_failure_exits(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
 
         def bad_seed(*args, **kwargs):
             return WorkflowSeedResult(errors=["seed failed"])
 
-        monkeypatch.setattr(
-            "getworktree.commands.init.command.seed_starter_workflows", bad_seed
-        )
+        monkeypatch.setattr("getworktree.commands.init.command.seed_starter_workflows", bad_seed)
         with pytest.raises(typer.Exit) as exc:
             init_command(tool_version="0.1.1")
         assert exc.value.exit_code == 1
@@ -304,9 +258,7 @@ class InitCommandFailureTests:
             recorded.append(db_rel_path)
             return Path(cwd or ".") / db_rel_path
 
-        monkeypatch.setattr(
-            "getworktree.commands.init.command.init_database", capture_init_database
-        )
+        monkeypatch.setattr("getworktree.commands.init.command.init_database", capture_init_database)
         monkeypatch.setattr(
             "getworktree.commands.init.command.generate_default_config",
             lambda *a, **k: ConfigGenerationResult(
@@ -320,9 +272,7 @@ class InitCommandFailureTests:
         )
         monkeypatch.setattr(
             "getworktree.commands.init.command.bootstrap_worktree",
-            lambda root_path, *, tool_version=None: BootstrapResult(
-                root_path=root_path, root_created=False
-            ),
+            lambda root_path, *, tool_version=None: BootstrapResult(root_path=root_path, root_created=False),
         )
 
         init_command(tool_version="0.1.1")

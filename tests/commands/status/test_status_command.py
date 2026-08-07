@@ -14,9 +14,7 @@ from getworktree.core.config.generator import generate_default_config
 
 @pytest.fixture
 def git_repo(tmp_path: Path) -> Path:
-    subprocess.run(
-        ["git", "init", "-b", "feature"], cwd=tmp_path, check=True, capture_output=True
-    )
+    subprocess.run(["git", "init", "-b", "feature"], cwd=tmp_path, check=True, capture_output=True)
     subprocess.run(
         ["git", "config", "user.email", "test@example.com"],
         cwd=tmp_path,
@@ -30,9 +28,7 @@ def git_repo(tmp_path: Path) -> Path:
         capture_output=True,
     )
     (tmp_path / "f.txt").write_text("x\n", encoding="utf-8")
-    subprocess.run(
-        ["git", "add", "f.txt"], cwd=tmp_path, check=True, capture_output=True
-    )
+    subprocess.run(["git", "add", "f.txt"], cwd=tmp_path, check=True, capture_output=True)
     subprocess.run(
         ["git", "commit", "-m", "init"],
         cwd=tmp_path,
@@ -62,9 +58,7 @@ class StatusCommandTests:
         assert git_repo.name in out
         assert "feature" in out
 
-    def test_status_without_init_exits(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_status_without_init_exits(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(tmp_path)
         with pytest.raises(typer.Exit) as exc:
             status_command()

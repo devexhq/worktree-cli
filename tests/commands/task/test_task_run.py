@@ -13,9 +13,7 @@ from getworktree.core.db import get_task_run
 runner = CliRunner()
 
 
-def test_task_run_command_steps_execution(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_task_run_command_steps_execution(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     tasks_dir = get_catalog_dir(tmp_path) / "tasks"
     tasks_dir.mkdir(parents=True, exist_ok=True)
@@ -68,9 +66,7 @@ def test_task_run_cli_options(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     assert "Sandbox: In-place (workspace)" in result.output
 
 
-def test_task_run_step_failure_aborts(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_task_run_step_failure_aborts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     tasks_dir = get_catalog_dir(tmp_path) / "tasks"
     tasks_dir.mkdir(parents=True, exist_ok=True)

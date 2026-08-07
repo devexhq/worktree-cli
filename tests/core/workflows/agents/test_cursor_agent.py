@@ -87,9 +87,7 @@ def _fake_run(
                 path = cwd / rel
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(content, encoding="utf-8")
-        return CliMutationOutcome(
-            status=status, result_text=result_text, error_detail=error_detail
-        )
+        return CliMutationOutcome(status=status, result_text=result_text, error_detail=error_detail)
 
     return _run
 
@@ -158,9 +156,7 @@ class CursorAdapterTests:
         assert any("model" in e.lower() for e in resp.errors)
         assert resp.mutation_baseline_ref is None
 
-    def test_missing_api_key(
-        self, sandbox: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_missing_api_key(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv(CURSOR_API_KEY_ENV, raising=False)
         adapter = CursorAgentAdapter(run_fn=_fake_run())
 
@@ -171,9 +167,7 @@ class CursorAdapterTests:
         assert resp.mutation_baseline_ref is None
 
     def test_sdk_error_status(self, sandbox: Path) -> None:
-        adapter = CursorAgentAdapter(
-            run_fn=_fake_run(status="error", error_detail="auth failed")
-        )
+        adapter = CursorAgentAdapter(run_fn=_fake_run(status="error", error_detail="auth failed"))
 
         resp = adapter.propose_fix(_request(sandbox))
 
@@ -198,9 +192,7 @@ class CursorAdapterTests:
         assert resp.status == AgentResponseStatus.TIMEOUT
 
     def test_gate_violation_discards_edits(self, sandbox: Path) -> None:
-        adapter = CursorAgentAdapter(
-            run_fn=_fake_run(edits={"a.txt": "edit one\n", "b.txt": "edit two\n"})
-        )
+        adapter = CursorAgentAdapter(run_fn=_fake_run(edits={"a.txt": "edit one\n", "b.txt": "edit two\n"}))
 
         resp = adapter.propose_fix(_request(sandbox, max_files=1))
 
@@ -212,9 +204,7 @@ class CursorAdapterTests:
 
     def test_gate_violation_preserves_wip(self, sandbox: Path) -> None:
         (sandbox / "a.txt").write_text("wip content\n", encoding="utf-8")
-        adapter = CursorAgentAdapter(
-            run_fn=_fake_run(edits={"a.txt": "edit one\n", "b.txt": "edit two\n"})
-        )
+        adapter = CursorAgentAdapter(run_fn=_fake_run(edits={"a.txt": "edit one\n", "b.txt": "edit two\n"}))
 
         resp = adapter.propose_fix(_request(sandbox, max_files=1))
 

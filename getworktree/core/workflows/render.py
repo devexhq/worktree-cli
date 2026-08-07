@@ -49,11 +49,7 @@ def format_workflow_show_success(
     """
     warning_list = list(warnings or [])
     status = "valid with warnings" if warning_list else "valid"
-    abs_source = (
-        source_path.as_posix()
-        if source_path.is_absolute()
-        else source_path.resolve().as_posix()
-    )
+    abs_source = source_path.as_posix() if source_path.is_absolute() else source_path.resolve().as_posix()
 
     lines: list[str] = [
         f"Workflow: {workflow.name}",

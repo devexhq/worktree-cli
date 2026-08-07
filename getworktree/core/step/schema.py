@@ -81,9 +81,7 @@ class StepDefinition(BaseModel):
         if self.type == StepType.AGENT and not self.prompt:
             raise ValueError("Agent steps must specify a non-empty 'prompt' string.")
         if self.type == StepType.SCRIPT and not self.script_path:
-            raise ValueError(
-                "Script steps must specify a non-empty 'script_path' string."
-            )
+            raise ValueError("Script steps must specify a non-empty 'script_path' string.")
         return self
 
 
@@ -108,21 +106,15 @@ def load_step_definition(path: Path) -> StepDefinition:
         raw_text = path.read_text(encoding="utf-8")
         data = yaml.safe_load(raw_text)
     except (OSError, yaml.YAMLError) as exc:
-        raise StepValidationError(
-            f"Failed to read or parse YAML step definition at '{path}': {exc}"
-        ) from exc
+        raise StepValidationError(f"Failed to read or parse YAML step definition at '{path}': {exc}") from exc
 
     if not isinstance(data, dict):
-        raise StepValidationError(
-            f"Root of step definition YAML at '{path}' must be a mapping object."
-        )
+        raise StepValidationError(f"Root of step definition YAML at '{path}' must be a mapping object.")
 
     try:
         return StepDefinition.model_validate(data)
     except (ValidationError, ValueError) as exc:
-        raise StepValidationError(
-            f"Step definition validation failed for '{path}': {exc}"
-        ) from exc
+        raise StepValidationError(f"Step definition validation failed for '{path}': {exc}") from exc
 
 
 def load_step_by_id(step_id_or_name: str, cwd: Path | None = None) -> StepDefinition:
@@ -143,9 +135,7 @@ def load_step_by_id(step_id_or_name: str, cwd: Path | None = None) -> StepDefini
     steps_dir = root_dir / ".worktree" / "templates" / "steps"
 
     if not steps_dir.exists() or not steps_dir.is_dir():
-        raise StepNotFoundError(
-            f"Step '{step_id_or_name}' not found. Directory '{steps_dir}' does not exist."
-        )
+        raise StepNotFoundError(f"Step '{step_id_or_name}' not found. Directory '{steps_dir}' does not exist.")
 
     # Check direct filename match first (<step_id_or_name>.yaml / .yml)
     for ext in (".yaml", ".yml"):

@@ -19,9 +19,7 @@ from getworktree.core.config.generator import (
     merge_missing_keys,
 )
 
-CONFIG_VALIDATOR = SchemaValidator(
-    resources.files("getworktree.schemas.v1") / "config.json"
-)
+CONFIG_VALIDATOR = SchemaValidator(resources.files("getworktree.schemas.v1") / "config.json")
 
 
 @pytest.fixture
@@ -163,9 +161,7 @@ class GenerateDefaultConfigTests:
         config_path.parent.mkdir(parents=True)
         atomic_write_json(config_path, build_default_config("old"))
 
-        result = generate_default_config(
-            config_path, "new", overwrite=True, repair=True
-        )
+        result = generate_default_config(config_path, "new", overwrite=True, repair=True)
         assert result.ok
         assert result.overwritten
         assert any("repair ignored" in w for w in result.warnings)

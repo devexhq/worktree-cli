@@ -104,9 +104,7 @@ class _WorkflowContext:
 
     def timed_out(self) -> bool:
         """Return True when the session wall-clock cap has been exceeded."""
-        return session_timed_out(
-            self.safety, session_timeout_seconds=self.resolved_session_timeout
-        )
+        return session_timed_out(self.safety, session_timeout_seconds=self.resolved_session_timeout)
 
     def finish_attempt(self, record: AttemptRecord) -> None:
         """Stamp ``record`` as finished, append it, and fire the hook."""
@@ -307,10 +305,7 @@ def _run_agent_step(
     record.agent_status = agent_response.status.value
     record.agent_duration_ms = agent_response.duration_ms
     agent_errors = list(agent_response.errors)
-    if (
-        agent_response.status == AgentResponseStatus.UNFIXABLE
-        and agent_response.unfixable_reason
-    ):
+    if agent_response.status == AgentResponseStatus.UNFIXABLE and agent_response.unfixable_reason:
         agent_errors.append(agent_response.unfixable_reason)
     if agent_errors:
         record.errors.extend(agent_errors)
@@ -328,9 +323,7 @@ def _run_agent_step(
 
     if agent_response.status == AgentResponseStatus.UNFIXABLE:
         if agent_response.mutation_baseline_ref is not None:
-            ctx.mutation_discarder(
-                ctx.sandbox_path, agent_response.mutation_baseline_ref
-            )
+            ctx.mutation_discarder(ctx.sandbox_path, agent_response.mutation_baseline_ref)
         ctx.finish_attempt(record)
         if "unfixable" in ctx.stop_when:
             return (
@@ -362,9 +355,7 @@ def _run_agent_step(
         AgentResponseStatus.NO_OP,
     }:
         if agent_response.mutation_baseline_ref is not None:
-            ctx.mutation_discarder(
-                ctx.sandbox_path, agent_response.mutation_baseline_ref
-            )
+            ctx.mutation_discarder(ctx.sandbox_path, agent_response.mutation_baseline_ref)
         ctx.finish_attempt(record)
         if ctx.aborted():
             return (
@@ -382,9 +373,7 @@ def _run_agent_step(
         record.errors.append("Agent proposed_patch without unified_diff")
         record.patch_status = PatchApplyStatus.EMPTY_DIFF.value
         if agent_response.mutation_baseline_ref is not None:
-            ctx.mutation_discarder(
-                ctx.sandbox_path, agent_response.mutation_baseline_ref
-            )
+            ctx.mutation_discarder(ctx.sandbox_path, agent_response.mutation_baseline_ref)
         ctx.finish_attempt(record)
         return (_advance_or_exhaust(attempt_idx, ctx.max_attempts), None)
 
@@ -440,9 +429,7 @@ def _run_approval_step(
             rejection_error = "Patch apply skipped: approval rejected"
             record.errors.append(rejection_error)
             if agent_response.mutation_baseline_ref is not None:
-                ctx.mutation_discarder(
-                    ctx.sandbox_path, agent_response.mutation_baseline_ref
-                )
+                ctx.mutation_discarder(ctx.sandbox_path, agent_response.mutation_baseline_ref)
             ctx.finish_attempt(record)
             _emit(
                 ctx.on_event,
@@ -498,9 +485,7 @@ def _run_patch_step(
                 touched_files=list(validation.touched_files),
             )
         else:
-            ctx.mutation_discarder(
-                ctx.sandbox_path, agent_response.mutation_baseline_ref
-            )
+            ctx.mutation_discarder(ctx.sandbox_path, agent_response.mutation_baseline_ref)
             patch_result = validation
     else:
         patch_result = ctx.patch_applier(

@@ -38,9 +38,7 @@ def upsert_catalog_item(
     """Insert a new catalog record or update `item_type`, `name`, `path`, `checksum`, and `updated_at` on sha match."""
     db_path = init_database(cwd, db_rel_path)
     str_path = str(path)
-    type_str = (
-        item_type.value if isinstance(item_type, CatalogItemType) else str(item_type)
-    )
+    type_str = item_type.value if isinstance(item_type, CatalogItemType) else str(item_type)
     now_utc = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
 
     upsert_sql = """
@@ -63,9 +61,7 @@ def upsert_catalog_item(
                 (sha, type_str, name, str_path, checksum, now_utc, now_utc),
             )
         except sqlite3.IntegrityError as exc:
-            raise ValueError(
-                f"Invalid catalog item constraint violation: {exc}"
-            ) from exc
+            raise ValueError(f"Invalid catalog item constraint violation: {exc}") from exc
 
         cursor.execute(select_sql, (str_path,))
         row = cursor.fetchone()
@@ -86,11 +82,7 @@ def list_catalog_items(
         query_sql = "SELECT * FROM catalog ORDER BY id ASC;"
         params: tuple[object, ...] = ()
     else:
-        type_str = (
-            item_type.value
-            if isinstance(item_type, CatalogItemType)
-            else str(item_type)
-        )
+        type_str = item_type.value if isinstance(item_type, CatalogItemType) else str(item_type)
         query_sql = "SELECT * FROM catalog WHERE item_type = ? ORDER BY id ASC;"
         params = (type_str,)
 
@@ -128,11 +120,7 @@ def get_catalog_item_by_name(
         select_sql = "SELECT * FROM catalog WHERE name = ?;"
         params: tuple[object, ...] = (name,)
     else:
-        type_str = (
-            item_type.value
-            if isinstance(item_type, CatalogItemType)
-            else str(item_type)
-        )
+        type_str = item_type.value if isinstance(item_type, CatalogItemType) else str(item_type)
         select_sql = "SELECT * FROM catalog WHERE name = ? AND item_type = ?;"
         params = (name, type_str)
 
@@ -143,9 +131,7 @@ def get_catalog_item_by_name(
         return _catalog_record_from_row(row) if row is not None else None
 
 
-def delete_catalog_item(
-    sha: str, cwd: Path | None = None, db_rel_path: str = DEFAULT_DB_REL_PATH
-) -> bool:
+def delete_catalog_item(sha: str, cwd: Path | None = None, db_rel_path: str = DEFAULT_DB_REL_PATH) -> bool:
     """Delete a catalog record by ``sha``. Returns ``True`` if a row was deleted."""
     db_path = init_database(cwd, db_rel_path)
     delete_sql = "DELETE FROM catalog WHERE sha = ?;"

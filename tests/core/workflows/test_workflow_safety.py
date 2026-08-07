@@ -71,19 +71,10 @@ class SafetyStateHelperTests:
     def test_repeat_failure_trips_at_three(self) -> None:
         state = SafetyState()
         sig = "abc"
-        assert (
-            record_trigger_failure(state, signature=sig, detect_repeat_failures=True)
-            is None
-        )
+        assert record_trigger_failure(state, signature=sig, detect_repeat_failures=True) is None
         assert state.consecutive_failure_signatures == 1
-        assert (
-            record_trigger_failure(state, signature=sig, detect_repeat_failures=True)
-            is None
-        )
-        assert (
-            record_trigger_failure(state, signature=sig, detect_repeat_failures=True)
-            == "repeat_failure_signature"
-        )
+        assert record_trigger_failure(state, signature=sig, detect_repeat_failures=True) is None
+        assert record_trigger_failure(state, signature=sig, detect_repeat_failures=True) == "repeat_failure_signature"
         assert state.consecutive_failure_signatures == REPEAT_FAILURE_THRESHOLD
 
     def test_different_signature_resets(self) -> None:
@@ -104,12 +95,7 @@ class SafetyStateHelperTests:
     def test_detect_repeat_disabled(self) -> None:
         state = SafetyState()
         for _ in range(5):
-            assert (
-                record_trigger_failure(
-                    state, signature="same", detect_repeat_failures=False
-                )
-                is None
-            )
+            assert record_trigger_failure(state, signature="same", detect_repeat_failures=False) is None
         assert state.consecutive_failure_signatures == 0
 
     def test_no_op_streak(self) -> None:
@@ -126,29 +112,15 @@ class SafetyStateHelperTests:
 
     def test_session_timeout(self) -> None:
         state = SafetyState(session_started_monotonic=100.0)
-        assert (
-            session_timed_out(state, session_timeout_seconds=10, now_monotonic=109.0)
-            is False
-        )
-        assert (
-            session_timed_out(state, session_timeout_seconds=10, now_monotonic=110.0)
-            is True
-        )
-        assert (
-            session_timed_out(state, session_timeout_seconds=None, now_monotonic=999.0)
-            is False
-        )
-        assert (
-            session_timed_out(state, session_timeout_seconds=0, now_monotonic=999.0)
-            is False
-        )
+        assert session_timed_out(state, session_timeout_seconds=10, now_monotonic=109.0) is False
+        assert session_timed_out(state, session_timeout_seconds=10, now_monotonic=110.0) is True
+        assert session_timed_out(state, session_timeout_seconds=None, now_monotonic=999.0) is False
+        assert session_timed_out(state, session_timeout_seconds=0, now_monotonic=999.0) is False
 
     def test_stop_messages(self) -> None:
         assert "3x" in safety_stop_message("repeat_failure_signature")
         assert "no-op" in safety_stop_message("agent_no_op_streak")
-        assert "900s" in safety_stop_message(
-            "session_timeout", session_timeout_seconds=900
-        )
+        assert "900s" in safety_stop_message("session_timeout", session_timeout_seconds=900)
         assert "aborted" in safety_stop_message("user_abort")
 
 
@@ -179,9 +151,7 @@ def _config(**workflow_overrides: object) -> WorktreeConfig:
         return raw
     workflow_data = raw.workflow.model_dump()
     workflow_data.update(workflow_overrides)
-    return raw.model_copy(
-        update={"workflow": raw.workflow.model_validate(workflow_data)}
-    )
+    return raw.model_copy(update={"workflow": raw.workflow.model_validate(workflow_data)})
 
 
 def _session(path: Path) -> SandboxSession:
@@ -258,13 +228,9 @@ class SafetyControllerIntegrationTests:
             agent=agent,
             list_changed_files=lambda _p: [],
             run_trigger_fn=lambda **_k: triggers.pop(0) if triggers else _trigger(),
-            apply_patch_fn=lambda **_k: PatchApplyResult(
-                status=PatchApplyStatus.APPLIED, touched_files=["a.py"]
-            ),
+            apply_patch_fn=lambda **_k: PatchApplyResult(status=PatchApplyStatus.APPLIED, touched_files=["a.py"]),
             build_payload_fn=lambda **_k: _payload(),
-            create_sandbox_fn=lambda: SandboxCreateResult(
-                status=SandboxCreateStatus.OK, session=_session(sandbox)
-            ),
+            create_sandbox_fn=lambda: SandboxCreateResult(status=SandboxCreateStatus.OK, session=_session(sandbox)),
             cleanup_sandbox_fn=lambda _s: None,
         )
         assert result.status == WorkflowFinalStatus.FAILED
@@ -274,9 +240,7 @@ class SafetyControllerIntegrationTests:
     def test_repeat_disabled_continues(self, tmp_path: Path) -> None:
         sandbox = tmp_path / "sbx"
         sandbox.mkdir()
-        agent = _FakeAgent(
-            [AgentResponse(status=AgentResponseStatus.NO_OP, duration_ms=1)]
-        )
+        agent = _FakeAgent([AgentResponse(status=AgentResponseStatus.NO_OP, duration_ms=1)])
         # With detect off, identical failures do not stop early; no-op streak
         # will stop at 2 agent no_ops instead of repeat signature at 3.
         call_n = {"n": 0}
@@ -292,13 +256,9 @@ class SafetyControllerIntegrationTests:
             agent=agent,
             list_changed_files=lambda _p: [],
             run_trigger_fn=trigger_fn,
-            apply_patch_fn=lambda **_k: PatchApplyResult(
-                status=PatchApplyStatus.APPLIED
-            ),
+            apply_patch_fn=lambda **_k: PatchApplyResult(status=PatchApplyStatus.APPLIED),
             build_payload_fn=lambda **_k: _payload(),
-            create_sandbox_fn=lambda: SandboxCreateResult(
-                status=SandboxCreateStatus.OK, session=_session(sandbox)
-            ),
+            create_sandbox_fn=lambda: SandboxCreateResult(status=SandboxCreateStatus.OK, session=_session(sandbox)),
             cleanup_sandbox_fn=lambda _s: None,
             detect_repeat_failures=False,
         )
@@ -328,13 +288,9 @@ class SafetyControllerIntegrationTests:
             agent=agent,
             list_changed_files=lambda _p: [],
             run_trigger_fn=trigger_fn,
-            apply_patch_fn=lambda **_k: PatchApplyResult(
-                status=PatchApplyStatus.APPLIED
-            ),
+            apply_patch_fn=lambda **_k: PatchApplyResult(status=PatchApplyStatus.APPLIED),
             build_payload_fn=lambda **_k: _payload(),
-            create_sandbox_fn=lambda: SandboxCreateResult(
-                status=SandboxCreateStatus.OK, session=_session(sandbox)
-            ),
+            create_sandbox_fn=lambda: SandboxCreateResult(status=SandboxCreateStatus.OK, session=_session(sandbox)),
             cleanup_sandbox_fn=lambda _s: None,
         )
         assert result.stop_reason == "agent_no_op_streak"
@@ -350,13 +306,9 @@ class SafetyControllerIntegrationTests:
             agent=_FakeAgent([]),
             list_changed_files=lambda _p: [],
             run_trigger_fn=lambda **_k: _trigger(TriggerRunStatus.PASSED),
-            apply_patch_fn=lambda **_k: PatchApplyResult(
-                status=PatchApplyStatus.APPLIED
-            ),
+            apply_patch_fn=lambda **_k: PatchApplyResult(status=PatchApplyStatus.APPLIED),
             build_payload_fn=lambda **_k: _payload(),
-            create_sandbox_fn=lambda: SandboxCreateResult(
-                status=SandboxCreateStatus.OK, session=_session(sandbox)
-            ),
+            create_sandbox_fn=lambda: SandboxCreateResult(status=SandboxCreateStatus.OK, session=_session(sandbox)),
             cleanup_sandbox_fn=lambda _s: None,
             session_timeout_seconds=0,
         )
@@ -375,18 +327,12 @@ class SafetyControllerIntegrationTests:
             workflow=_workflow(max_attempts=5),
             cwd=tmp_path,
             config=_config(),
-            agent=_FakeAgent(
-                [AgentResponse(status=AgentResponseStatus.NO_OP, duration_ms=1)]
-            ),
+            agent=_FakeAgent([AgentResponse(status=AgentResponseStatus.NO_OP, duration_ms=1)]),
             list_changed_files=lambda _p: [],
             run_trigger_fn=very_slow,
-            apply_patch_fn=lambda **_k: PatchApplyResult(
-                status=PatchApplyStatus.APPLIED
-            ),
+            apply_patch_fn=lambda **_k: PatchApplyResult(status=PatchApplyStatus.APPLIED),
             build_payload_fn=lambda **_k: _payload(),
-            create_sandbox_fn=lambda: SandboxCreateResult(
-                status=SandboxCreateStatus.OK, session=_session(sandbox)
-            ),
+            create_sandbox_fn=lambda: SandboxCreateResult(status=SandboxCreateStatus.OK, session=_session(sandbox)),
             cleanup_sandbox_fn=lambda _s: None,
             session_timeout_seconds=1,
         )

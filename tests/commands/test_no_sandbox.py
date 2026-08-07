@@ -43,9 +43,7 @@ def test_task_blueprint_use_git_worktree_parsing(tmp_path: Path) -> None:
     assert outcome.items[0].use_git_worktree is False
 
 
-def test_task_run_command_no_sandbox_flag(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_task_run_command_no_sandbox_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     tasks_dir = get_catalog_dir(tmp_path) / "tasks"
     tasks_dir.mkdir(parents=True, exist_ok=True)
@@ -114,9 +112,7 @@ def test_run_workflow_iteration_in_place(tmp_path: Path) -> None:
     assert result.sandbox_retained is False
 
 
-def test_workflow_run_command_no_sandbox_flag(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_workflow_run_command_no_sandbox_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     config_path = tmp_path / ".worktree" / "config.json"
     config_path.parent.mkdir(parents=True, exist_ok=True)

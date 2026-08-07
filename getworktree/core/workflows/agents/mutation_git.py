@@ -30,8 +30,7 @@ def _run_git(args: list[str], *, cwd: Path) -> subprocess.CompletedProcess[bytes
         )
     except subprocess.TimeoutExpired as exc:
         raise MutationGitError(
-            f"git {' '.join(args)} timed out after "
-            f"{GIT_SUBPROCESS_TIMEOUT_SECONDS}s (GIT_TIMEOUT)"
+            f"git {' '.join(args)} timed out after {GIT_SUBPROCESS_TIMEOUT_SECONDS}s (GIT_TIMEOUT)"
         ) from exc
     except OSError as exc:
         raise MutationGitError(f"failed to run git {' '.join(args)}: {exc}") from exc
@@ -102,11 +101,7 @@ def capture_diff_since(sandbox_path: Path, baseline: str) -> tuple[str, list[str
     names = _run_git(["diff", "--cached", "--name-only", baseline], cwd=sandbox_path)
     _require_ok(names, action="git diff --cached --name-only")
     touched = sorted(
-        {
-            line.strip()
-            for line in names.stdout.decode("utf-8", errors="replace").splitlines()
-            if line.strip()
-        }
+        {line.strip() for line in names.stdout.decode("utf-8", errors="replace").splitlines() if line.strip()}
     )
     return diff.stdout.decode("utf-8", errors="replace"), touched
 

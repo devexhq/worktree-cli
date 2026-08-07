@@ -122,10 +122,7 @@ class FormatWorkflowShowFailureTests:
             workflows_dir=tmp_path,
             errors=[],
         )
-        assert (
-            format_workflow_show_resolve_failure(result)
-            == "Failed to resolve workflow."
-        )
+        assert format_workflow_show_resolve_failure(result) == "Failed to resolve workflow."
 
     def test_validate_failure_joins_errors(self, tmp_path: Path) -> None:
         result = WorkflowValidationResult(
@@ -141,7 +138,4 @@ class FormatWorkflowShowFailureTests:
             source_path=tmp_path / "x.yml",
             errors=[],
         )
-        assert (
-            format_workflow_show_validate_failure(result)
-            == "Workflow definition is invalid."
-        )
+        assert format_workflow_show_validate_failure(result) == "Workflow definition is invalid."

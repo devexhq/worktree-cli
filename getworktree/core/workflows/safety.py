@@ -128,9 +128,7 @@ def session_timed_out(
     return elapsed >= session_timeout_seconds
 
 
-def safety_stop_message(
-    stop_reason: str, *, session_timeout_seconds: int | None = None
-) -> str:
+def safety_stop_message(stop_reason: str, *, session_timeout_seconds: int | None = None) -> str:
     """Human-readable semantic stop line for UX (not printed by core)."""
     if stop_reason == "repeat_failure_signature":
         return f"Stopped: repeated identical trigger failures ({REPEAT_FAILURE_THRESHOLD}x)"

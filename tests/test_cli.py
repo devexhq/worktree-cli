@@ -38,9 +38,7 @@ def git_repo(tmp_path: Path) -> Path:
     )
     # Create an initial commit so worktrees/branches work reliably.
     (tmp_path / "README.md").write_text("demo\n", encoding="utf-8")
-    subprocess.run(
-        ["git", "add", "README.md"], cwd=tmp_path, check=True, capture_output=True
-    )
+    subprocess.run(["git", "add", "README.md"], cwd=tmp_path, check=True, capture_output=True)
     subprocess.run(
         ["git", "commit", "-m", "init"],
         cwd=tmp_path,
@@ -66,9 +64,7 @@ class CliSmokeTests:
         assert "Worktree CLI" in result.stdout
         assert "0.1.1" in result.stdout
 
-    def test_init_via_cli(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_init_via_cli(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         result = runner.invoke(app, ["init"])
         assert result.exit_code == 0

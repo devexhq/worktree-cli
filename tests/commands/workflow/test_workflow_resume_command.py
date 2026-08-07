@@ -105,9 +105,7 @@ class WorkflowResumeCliTests:
         assert result.exit_code == 0
         assert "Resume an interrupted workflow session" in result.stdout
 
-    def test_cli_resume_success(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_cli_resume_success(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         _init_repo(git_repo)
         insert_sandbox(

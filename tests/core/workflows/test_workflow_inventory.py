@@ -81,13 +81,8 @@ class BuildWorkflowInventoryTests:
         assert result.invalid[0].name is None
         assert result.invalid[0].description is None
         assert result.invalid[0].status == "malformed_yaml"
-        assert any(
-            "WORKFLOW_META_MALFORMED_YAML" in error
-            for error in result.invalid[0].errors
-        )
-        assert any(
-            "WORKFLOW_META_MISSING_NAME" in error for error in result.invalid[1].errors
-        )
+        assert any("WORKFLOW_META_MALFORMED_YAML" in error for error in result.invalid[0].errors)
+        assert any("WORKFLOW_META_MISSING_NAME" in error for error in result.invalid[1].errors)
         assert len(result.valid) + len(result.invalid) == 4
 
     def test_all_invalid(self, tmp_path: Path) -> None:
@@ -159,13 +154,9 @@ class BuildWorkflowInventoryTests:
 
         assert result.ok
         assert len(result.valid) == 3
-        assert result.warnings == [
-            "Duplicate workflow name 'fix-tests' in multiple files: a.yml, b.yml"
-        ]
+        assert result.warnings == ["Duplicate workflow name 'fix-tests' in multiple files: a.yml, b.yml"]
 
-    def test_invalid_entries_do_not_join_duplicate_warnings(
-        self, tmp_path: Path
-    ) -> None:
+    def test_invalid_entries_do_not_join_duplicate_warnings(self, tmp_path: Path) -> None:
         workflows_dir = tmp_path / "workflows"
         workflows_dir.mkdir()
         _write(workflows_dir / "ok.yml", _minimal_valid("fix-tests"))

@@ -23,9 +23,7 @@ class SeedStarterWorkflowsTests:
         assert (workflows_dir / "fix-tests.yml").is_file()
         assert (workflows_dir / "review-fix.yml").is_file()
 
-    def test_seed_starter_workflows_skips_existing_files_by_default(
-        self, tmp_path: Path
-    ) -> None:
+    def test_seed_starter_workflows_skips_existing_files_by_default(self, tmp_path: Path) -> None:
         workflows_dir = tmp_path / "workflows"
         workflows_dir.mkdir(parents=True, exist_ok=True)
         target = workflows_dir / "fix-tests.yml"
@@ -37,9 +35,7 @@ class SeedStarterWorkflowsTests:
         assert target in result.skipped_existing_files
         assert target.read_text(encoding="utf-8") == "custom\n"
 
-    def test_seed_starter_workflows_overwrites_in_force_mode(
-        self, tmp_path: Path
-    ) -> None:
+    def test_seed_starter_workflows_overwrites_in_force_mode(self, tmp_path: Path) -> None:
         workflows_dir = tmp_path / "workflows"
         workflows_dir.mkdir(parents=True, exist_ok=True)
         target = workflows_dir / "review-fix.yml"
@@ -51,9 +47,7 @@ class SeedStarterWorkflowsTests:
         assert target in result.overwritten_files
         assert "version:" in target.read_text(encoding="utf-8")
 
-    def test_seed_starter_workflows_handles_partial_existing_state(
-        self, tmp_path: Path
-    ) -> None:
+    def test_seed_starter_workflows_handles_partial_existing_state(self, tmp_path: Path) -> None:
         workflows_dir = tmp_path / "workflows"
         workflows_dir.mkdir(parents=True, exist_ok=True)
         existing = workflows_dir / "fix-tests.yml"
@@ -65,9 +59,7 @@ class SeedStarterWorkflowsTests:
         assert existing in result.skipped_existing_files
         assert (workflows_dir / "review-fix.yml") in result.created_files
 
-    def test_seed_starter_workflows_reports_directory_collisions(
-        self, tmp_path: Path
-    ) -> None:
+    def test_seed_starter_workflows_reports_directory_collisions(self, tmp_path: Path) -> None:
         workflows_dir = tmp_path / "workflows"
         workflows_dir.mkdir(parents=True, exist_ok=True)
         target = workflows_dir / "fix-tests.yml"

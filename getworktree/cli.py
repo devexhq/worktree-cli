@@ -104,9 +104,7 @@ def print_welcome_banner():
     banner_text.append(f"v{__version__}\n", style="dim cyan")
     banner_text.append("Isolated Git Workspaces & Agent Workflows", style="italic dim")
 
-    console.print(
-        Panel(banner_text, border_style="green", expand=False, padding=(1, 4))
-    )
+    console.print(Panel(banner_text, border_style="green", expand=False, padding=(1, 4)))
 
 
 def version_callback(value: bool):
@@ -144,9 +142,7 @@ def main(
         console.print(ctx.get_help())
         raise typer.Exit()
     elif verbose:
-        console.print(
-            "[dim yellow][TELEMETRY] Global verbose tracking layer active.[/dim yellow]"
-        )
+        console.print("[dim yellow][TELEMETRY] Global verbose tracking layer active.[/dim yellow]")
 
 
 @app.command(name="init")
@@ -247,18 +243,12 @@ def workflow_run(
     wip: bool = typer.Option(
         False,
         "--wip/--no-wip",
-        help=(
-            "Include uncommitted working-tree changes in the sandbox "
-            "(tracked + untracked; not ignored)."
-        ),
+        help=("Include uncommitted working-tree changes in the sandbox (tracked + untracked; not ignored)."),
     ),
     dump_prompt: bool = typer.Option(
         False,
         "--dump-prompt/--no-dump-prompt",
-        help=(
-            "Dump provider-specific agent input to /tmp before each agent call "
-            "(debugging aid)."
-        ),
+        help=("Dump provider-specific agent input to /tmp before each agent call (debugging aid)."),
     ),
     no_sandbox: bool = typer.Option(
         False,
@@ -304,18 +294,12 @@ def sandbox_create(
     base_ref: str | None = typer.Option(
         None,
         "--base-ref",
-        help=(
-            "Git ref to base the sandbox on. When omitted, uses the current "
-            "branch or config sandbox.base_ref."
-        ),
+        help=("Git ref to base the sandbox on. When omitted, uses the current branch or config sandbox.base_ref."),
     ),
     wip: bool = typer.Option(
         False,
         "--wip/--no-wip",
-        help=(
-            "Include uncommitted working-tree changes in the sandbox "
-            "(tracked + untracked; not ignored)."
-        ),
+        help=("Include uncommitted working-tree changes in the sandbox (tracked + untracked; not ignored)."),
     ),
 ):
     """Create an isolated git worktree sandbox."""
@@ -423,9 +407,7 @@ def catalog_list(
 def catalog_create(
     ctx: typer.Context,
     type: str = typer.Argument(..., help="Blueprint item type (workflow, task, step)."),
-    name: str = typer.Option(
-        ..., "--name", help="Name for the catalog blueprint file."
-    ),
+    name: str = typer.Option(..., "--name", help="Name for the catalog blueprint file."),
     template: str | None = typer.Option(
         None,
         "--template",
@@ -461,9 +443,7 @@ def catalog_delete(
 ):
     """Delete a catalog blueprint file and its database index record."""
     if not force:
-        confirm = typer.confirm(
-            f"Are you sure you want to delete catalog blueprint '{name}'?"
-        )
+        confirm = typer.confirm(f"Are you sure you want to delete catalog blueprint '{name}'?")
         if not confirm:
             console.print("Deletion cancelled.")
             raise typer.Exit()

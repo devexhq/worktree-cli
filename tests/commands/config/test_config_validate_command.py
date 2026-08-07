@@ -81,10 +81,7 @@ def _assert_failure_output(stdout: str, stderr: str = "") -> str:
     assert "Config Validation Failed" in combined
     assert "Status: valid" not in stdout
     assert "Config is valid." not in stdout
-    assert not any(
-        line.startswith("Config: ") and line.endswith("config.json")
-        for line in stdout.splitlines()
-    )
+    assert not any(line.startswith("Config: ") and line.endswith("config.json") for line in stdout.splitlines())
     return combined
 
 
@@ -288,9 +285,7 @@ class ConfigValidateCommandTests:
 class ConfigValidateCliTests:
     """CLI wiring tests for `wt config validate`."""
 
-    def test_validate_after_init(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_validate_after_init(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         init = runner.invoke(app, ["init"])
         assert init.exit_code == 0
@@ -304,9 +299,7 @@ class ConfigValidateCliTests:
             with_warnings=False,
         )
 
-    def test_validate_with_warnings(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_validate_with_warnings(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         config_path = _write_default_config(git_repo)
         data = _read_config(config_path)
@@ -325,9 +318,7 @@ class ConfigValidateCliTests:
         assert "CONFIG_WARN_AGENT_MODEL_MISSING" in result.stdout
         assert "CONFIG_WARN_SANDBOX_LIMIT" in result.stdout
 
-    def test_validate_missing_config(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_validate_missing_config(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         result = runner.invoke(app, ["config", "validate"])
         assert result.exit_code == 1
@@ -335,9 +326,7 @@ class ConfigValidateCliTests:
         assert "CONFIG_NOT_FOUND" in combined or "not found" in combined.lower()
         assert "wt init" in combined
 
-    def test_validate_schema_invalid(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_validate_schema_invalid(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         config_path = git_repo / ".worktree" / "config.json"
         config_path.parent.mkdir(parents=True)
@@ -348,9 +337,7 @@ class ConfigValidateCliTests:
         combined = _assert_failure_output(result.stdout, result.stderr)
         assert "schema" in combined.lower() or "CONFIG_SCHEMA_INVALID" in combined
 
-    def test_validate_semantic_invalid(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_validate_semantic_invalid(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         config_path = _write_default_config(git_repo)
         data = _read_config(config_path)
@@ -373,15 +360,10 @@ class ConfigValidateCliTests:
 
         root_cmd = get_command(app)
         config_cmd = root_cmd.get_command(None, "config")
-        assert (
-            config_cmd.help == "Inspect, update, and validate Worktree configuration."
-        )
+        assert config_cmd.help == "Inspect, update, and validate Worktree configuration."
         assert "show" in config_cmd.list_commands(None)
         assert "set" in config_cmd.list_commands(None)
         assert "validate" in config_cmd.list_commands(None)
 
         validate_cmd = config_cmd.get_command(None, "validate")
-        assert (
-            validate_cmd.help
-            == "Validate .worktree/config.json against the V1 schema and semantic rules."
-        )
+        assert validate_cmd.help == "Validate .worktree/config.json against the V1 schema and semantic rules."

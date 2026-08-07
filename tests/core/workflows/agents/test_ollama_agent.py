@@ -83,10 +83,7 @@ class FactoryOllamaTests:
 
 class ResolveEndpointTests:
     def test_request_wins(self) -> None:
-        assert (
-            resolve_ollama_endpoint("http://example:11434/", env={})
-            == "http://example:11434"
-        )
+        assert resolve_ollama_endpoint("http://example:11434/", env={}) == "http://example:11434"
 
     def test_env_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv(OLLAMA_HOST_ENV, "http://host:1")
@@ -111,9 +108,7 @@ class ParseHelpersTests:
         assert "unified_diff" in blob
 
     def test_parse_and_ignore_extra(self) -> None:
-        parsed = parse_ollama_model_text(
-            '{"unified_diff": "diff", "summary": "ok", "extra": 1}'
-        )
+        parsed = parse_ollama_model_text('{"unified_diff": "diff", "summary": "ok", "extra": 1}')
         assert parsed is not None
         assert parsed.unified_diff == "diff"
 
@@ -127,9 +122,7 @@ class ParseHelpersTests:
 
 class OllamaAdapterTests:
     def test_proposed_patch(self, sandbox: Path) -> None:
-        content = json.dumps(
-            {"unified_diff": "diff --git a/x b/x\n", "summary": "fixed"}
-        )
+        content = json.dumps({"unified_diff": "diff --git a/x b/x\n", "summary": "fixed"})
 
         def http_post(url: str, body: bytes, timeout: float) -> tuple[int, str]:
             assert url.endswith("/api/chat")
@@ -193,9 +186,7 @@ class OllamaAdapterTests:
         assert resp.errors == []
 
     def test_missing_model(self, sandbox: Path) -> None:
-        resp = OllamaAgentAdapter(http_post=lambda *a, **k: (200, "{}")).propose_fix(
-            _request(sandbox, model=None)
-        )
+        resp = OllamaAgentAdapter(http_post=lambda *a, **k: (200, "{}")).propose_fix(_request(sandbox, model=None))
         assert resp.status == AgentResponseStatus.PROVIDER_ERROR
         assert any("model" in e.lower() for e in resp.errors)
         assert any("agent.model" in e for e in resp.errors)

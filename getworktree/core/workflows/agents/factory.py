@@ -13,9 +13,7 @@ from getworktree.core.workflows.agents.ollama import OllamaAgentAdapter
 _SUPPORTED_V1 = ("local", "ollama", "cursor", "gemini", "copilot")
 
 
-def get_agent_adapter(
-    provider: str, *, config: AgentConfig | None = None
-) -> AgentAdapter:
+def get_agent_adapter(provider: str, *, config: AgentConfig | None = None) -> AgentAdapter:
     """Return an adapter for ``provider``.
 
     Args:
@@ -43,7 +41,5 @@ def get_agent_adapter(
         return CopilotAgentAdapter()
     supported = ", ".join(_SUPPORTED_V1)
     raise ValueError(
-        f"Unsupported agent provider '{provider}' "
-        f"(AGENT_PROVIDER_UNSUPPORTED). "
-        f"Supported v1 providers: {supported}."
+        f"Unsupported agent provider '{provider}' (AGENT_PROVIDER_UNSUPPORTED). Supported v1 providers: {supported}."
     )

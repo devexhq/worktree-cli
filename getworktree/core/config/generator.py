@@ -177,16 +177,12 @@ def generate_default_config(
         payload = build_default_config(project_name)
         validation = CONFIG_VALIDATOR.validate(payload)
         if not validation.ok:
-            result.errors.extend(
-                [f"CONFIG_VALIDATION_FAILED: {e}" for e in validation.errors]
-            )
+            result.errors.extend([f"CONFIG_VALIDATION_FAILED: {e}" for e in validation.errors])
             return result
         try:
             atomic_write_json(config_path, payload)
         except OSError as exc:
-            result.errors.append(
-                f"CONFIG_WRITE_FAILED at {config_path.as_posix()}: {exc}"
-            )
+            result.errors.append(f"CONFIG_WRITE_FAILED at {config_path.as_posix()}: {exc}")
             return result
         if existed_before and overwrite:
             result.overwritten = True
@@ -219,9 +215,7 @@ def generate_default_config(
     inserted = merge_missing_keys(existing, defaults)
     validation = CONFIG_VALIDATOR.validate(existing)
     if not validation.ok:
-        result.errors.extend(
-            [f"CONFIG_VALIDATION_FAILED: {e}" for e in validation.errors]
-        )
+        result.errors.extend([f"CONFIG_VALIDATION_FAILED: {e}" for e in validation.errors])
         return result
     try:
         atomic_write_json(config_path, existing)

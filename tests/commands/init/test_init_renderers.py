@@ -30,9 +30,7 @@ class RenderInitFailureTests:
 
     def test_bootstrap_failure_panel(self, tmp_path: Path) -> None:
         rich_output, output = _rich()
-        render_init_bootstrap_failure(
-            tmp_path, ["path conflict"], rich_output=rich_output
-        )
+        render_init_bootstrap_failure(tmp_path, ["path conflict"], rich_output=rich_output)
         text = output.getvalue()
         assert "Failed to initialize Worktree" in text
         assert "path conflict" in text
@@ -97,9 +95,7 @@ class RenderInitOutcomeTests:
         assert "telemetry.enabled" in rendered
         assert "Skipped existing" in rendered
 
-    def test_render_created_bootstrap_and_overwritten_config(
-        self, tmp_path: Path
-    ) -> None:
+    def test_render_created_bootstrap_and_overwritten_config(self, tmp_path: Path) -> None:
         rich_output, output = _rich()
         root = tmp_path / ".worktree"
         outcome = InitCommandOutcome(
@@ -112,9 +108,7 @@ class RenderInitOutcomeTests:
                 config_path=root / "config.json",
                 overwritten=True,
             ),
-            workflow_seed_result=WorkflowSeedResult(
-                overwritten_files=[root / "workflows" / "x.yml"]
-            ),
+            workflow_seed_result=WorkflowSeedResult(overwritten_files=[root / "workflows" / "x.yml"]),
         )
         render_init_outcome(tmp_path, outcome, rich_output=rich_output)
         rendered = output.getvalue()

@@ -11,31 +11,22 @@ from getworktree.core.config.generator import ConfigGenerationResult
 from getworktree.core.workflows.seeder import WorkflowSeedResult
 
 
-def render_init_bootstrap_failure(
-    cwd: Path, errors: list[str], *, rich_output: RichOutput | None = None
-) -> None:
+def render_init_bootstrap_failure(cwd: Path, errors: list[str], *, rich_output: RichOutput | None = None) -> None:
     """Render the bootstrap failure panel for a failed init run."""
     rich_output = rich_output or RichOutput()
     lines = "\n".join(f"  {err}" for err in errors)
-    remediation = (
-        "\nFix:\n"
-        "  resolve the path conflict above, then rerun [bold cyan]wt init[/bold cyan]."
-    )
+    remediation = "\nFix:\n  resolve the path conflict above, then rerun [bold cyan]wt init[/bold cyan]."
     rich_output.error_panel("Failed to initialize Worktree:", f"{lines}{remediation}")
 
 
-def render_init_config_failure(
-    errors: list[str], *, rich_output: RichOutput | None = None
-) -> None:
+def render_init_config_failure(errors: list[str], *, rich_output: RichOutput | None = None) -> None:
     """Render the config generation failure panel for a failed init run."""
     rich_output = rich_output or RichOutput()
     lines = "\n".join(f"- {err}" for err in errors)
     rich_output.error_panel("Failed to generate config:", lines)
 
 
-def _render_config_result(
-    cwd: Path, result: ConfigGenerationResult, *, rich_output: RichOutput
-) -> None:
+def _render_config_result(cwd: Path, result: ConfigGenerationResult, *, rich_output: RichOutput) -> None:
     if not result.config_path:
         return
 
@@ -56,9 +47,7 @@ def _render_config_result(
         rich_output.dim_bullet(f"Config exists: [cyan]{label}[/cyan]")
 
 
-def _render_bootstrap_success(
-    cwd: Path, result: BootstrapResult, *, rich_output: RichOutput
-) -> None:
+def _render_bootstrap_success(cwd: Path, result: BootstrapResult, *, rich_output: RichOutput) -> None:
     worktree_label = display_path(cwd / ".worktree", cwd)
 
     if result.repaired:
@@ -79,9 +68,7 @@ def _render_bootstrap_success(
     rich_output.dim_text("No changes required.")
 
 
-def _render_workflow_seed_result(
-    cwd: Path, result: WorkflowSeedResult, *, rich_output: RichOutput
-) -> None:
+def _render_workflow_seed_result(cwd: Path, result: WorkflowSeedResult, *, rich_output: RichOutput) -> None:
     rich_output.spacer()
     if result.created_files:
         rich_output.success("Seeded starter workflows")
@@ -114,10 +101,6 @@ def render_init_outcome(
     rich_output.spacer()
     _render_bootstrap_success(cwd, outcome.bootstrap_result, rich_output=rich_output)
     _render_config_result(cwd, outcome.config_result, rich_output=rich_output)
-    _render_workflow_seed_result(
-        cwd, outcome.workflow_seed_result, rich_output=rich_output
-    )
+    _render_workflow_seed_result(cwd, outcome.workflow_seed_result, rich_output=rich_output)
     rich_output.spacer()
-    rich_output.dim_text(
-        "Next: run [bold cyan]wt config show[/bold cyan] or [bold cyan]wt workflow list[/bold cyan]"
-    )
+    rich_output.dim_text("Next: run [bold cyan]wt config show[/bold cyan] or [bold cyan]wt workflow list[/bold cyan]")

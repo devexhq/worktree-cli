@@ -89,9 +89,7 @@ def default_gemini_run(request: CliMutationRunRequest) -> CliMutationOutcome:
     stdout_text = (completed.stdout or b"").decode("utf-8", errors="replace")
     stderr_text = (completed.stderr or b"").decode("utf-8", errors="replace")
     if completed.returncode != 0:
-        detail = (
-            stderr_text.strip() or stdout_text.strip() or f"exit {completed.returncode}"
-        )
+        detail = stderr_text.strip() or stdout_text.strip() or f"exit {completed.returncode}"
         return CliMutationOutcome(status="error", error_detail=detail)
 
     result_text, parse_error = _decode_json_response(stdout_text)

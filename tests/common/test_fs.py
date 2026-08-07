@@ -49,9 +49,7 @@ class AtomicWriteJsonTests:
             assert mock_fsync.called
             assert mock_fsync.call_count == 1
 
-    def test_failure_during_write_cleans_up_temp_file_and_leaves_target_intact(
-        self, tmp_path: Path
-    ) -> None:
+    def test_failure_during_write_cleans_up_temp_file_and_leaves_target_intact(self, tmp_path: Path) -> None:
         target = tmp_path / "config.json"
         original_data = {"version": 1, "status": "original"}
         atomic_write_json(target, original_data)

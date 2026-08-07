@@ -31,12 +31,7 @@ class DatabaseTests:
         assert db_path.is_file()
 
         with sqlite3.connect(db_path) as conn:
-            tables = {
-                row[0]
-                for row in conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type = 'table'"
-                )
-            }
+            tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
         assert "workflow_costs" in tables
         assert "sandboxes" in tables
 
@@ -130,9 +125,7 @@ class SandboxDatabaseTests:
     def test_list_sandboxes_order_and_filter(self, tmp_path: Path) -> None:
         first = self._insert(tmp_path, sandbox_id="sbx_first", path_suffix="1")
         time.sleep(1.1)
-        second = self._insert(
-            tmp_path, sandbox_id="sbx_second", path_suffix="2", name="beta"
-        )
+        second = self._insert(tmp_path, sandbox_id="sbx_second", path_suffix="2", name="beta")
         update_sandbox_status(
             second.id,
             SandboxStatus.CLEANED,
@@ -143,19 +136,13 @@ class SandboxDatabaseTests:
         all_rows = list_sandboxes(cwd=tmp_path, db_rel_path=DB_REL)
         assert [row.id for row in all_rows] == ["sbx_second", "sbx_first"]
 
-        active = list_sandboxes(
-            status=SandboxStatus.ACTIVE, cwd=tmp_path, db_rel_path=DB_REL
-        )
+        active = list_sandboxes(status=SandboxStatus.ACTIVE, cwd=tmp_path, db_rel_path=DB_REL)
         assert [row.id for row in active] == [first.id]
 
-        cleaned = list_sandboxes(
-            status=SandboxStatus.CLEANED, cwd=tmp_path, db_rel_path=DB_REL
-        )
+        cleaned = list_sandboxes(status=SandboxStatus.CLEANED, cwd=tmp_path, db_rel_path=DB_REL)
         assert [row.id for row in cleaned] == [second.id]
 
-        empty = list_sandboxes(
-            status=SandboxStatus.CONFLICT, cwd=tmp_path, db_rel_path=DB_REL
-        )
+        empty = list_sandboxes(status=SandboxStatus.CONFLICT, cwd=tmp_path, db_rel_path=DB_REL)
         assert empty == []
 
     def test_list_sandboxes_empty(self, tmp_path: Path) -> None:

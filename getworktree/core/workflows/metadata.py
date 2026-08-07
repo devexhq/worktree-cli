@@ -73,25 +73,15 @@ def _validate_minimal_fields(raw: dict[str, Any]) -> list[str]:
         errors.append("WORKFLOW_META_MISSING_NAME: missing required field 'name'")
     else:
         name = raw["name"]
-        if (
-            not isinstance(name, str)
-            or name == ""
-            or not WORKFLOW_NAME_PATTERN.fullmatch(name)
-        ):
-            errors.append(
-                f"WORKFLOW_META_INVALID_NAME: name must match {WORKFLOW_NAME_PATTERN.pattern}"
-            )
+        if not isinstance(name, str) or name == "" or not WORKFLOW_NAME_PATTERN.fullmatch(name):
+            errors.append(f"WORKFLOW_META_INVALID_NAME: name must match {WORKFLOW_NAME_PATTERN.pattern}")
 
     if "description" not in raw:
-        errors.append(
-            "WORKFLOW_META_MISSING_DESCRIPTION: missing required field 'description'"
-        )
+        errors.append("WORKFLOW_META_MISSING_DESCRIPTION: missing required field 'description'")
     else:
         description = raw["description"]
         if not isinstance(description, str) or len(description) < 1:
-            errors.append(
-                "WORKFLOW_META_INVALID_DESCRIPTION: description must be a non-empty string"
-            )
+            errors.append("WORKFLOW_META_INVALID_DESCRIPTION: description must be a non-empty string")
 
     return errors
 
@@ -116,19 +106,14 @@ def parse_workflow_metadata(path: Path) -> WorkflowMetadataParseResult:
         return WorkflowMetadataParseResult(
             status=WorkflowMetadataStatus.NOT_A_FILE,
             source_path=source_path,
-            errors=[
-                f"Workflow path exists but is not a regular file: "
-                f"'{source_path}' (WORKFLOW_META_NOT_A_FILE)."
-            ],
+            errors=[f"Workflow path exists but is not a regular file: '{source_path}' (WORKFLOW_META_NOT_A_FILE)."],
         )
 
     if not source_path.exists():
         return WorkflowMetadataParseResult(
             status=WorkflowMetadataStatus.NOT_FOUND,
             source_path=source_path,
-            errors=[
-                f"Workflow definition not found at '{source_path}' (WORKFLOW_META_NOT_FOUND)."
-            ],
+            errors=[f"Workflow definition not found at '{source_path}' (WORKFLOW_META_NOT_FOUND)."],
         )
 
     try:
@@ -137,10 +122,7 @@ def parse_workflow_metadata(path: Path) -> WorkflowMetadataParseResult:
         return WorkflowMetadataParseResult(
             status=WorkflowMetadataStatus.UNREADABLE,
             source_path=source_path,
-            errors=[
-                f"Unable to read workflow definition at '{source_path}': "
-                f"{exc} (WORKFLOW_META_UNREADABLE)."
-            ],
+            errors=[f"Unable to read workflow definition at '{source_path}': {exc} (WORKFLOW_META_UNREADABLE)."],
         )
 
     try:
@@ -149,20 +131,14 @@ def parse_workflow_metadata(path: Path) -> WorkflowMetadataParseResult:
         return WorkflowMetadataParseResult(
             status=WorkflowMetadataStatus.MALFORMED_YAML,
             source_path=source_path,
-            errors=[
-                f"Malformed workflow YAML at '{source_path}': "
-                f"{exc} (WORKFLOW_META_MALFORMED_YAML)."
-            ],
+            errors=[f"Malformed workflow YAML at '{source_path}': {exc} (WORKFLOW_META_MALFORMED_YAML)."],
         )
 
     if not isinstance(parsed, dict):
         return WorkflowMetadataParseResult(
             status=WorkflowMetadataStatus.ROOT_NOT_MAPPING,
             source_path=source_path,
-            errors=[
-                f"Workflow YAML root must be a mapping at "
-                f"'{source_path}' (WORKFLOW_META_ROOT_NOT_MAPPING)."
-            ],
+            errors=[f"Workflow YAML root must be a mapping at '{source_path}' (WORKFLOW_META_ROOT_NOT_MAPPING)."],
         )
 
     field_errors = _validate_minimal_fields(parsed)

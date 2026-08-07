@@ -73,17 +73,13 @@ def _load_and_validate_template(template_name: str) -> dict[str, Any]:
     return parsed
 
 
-def seed_starter_workflows(
-    workflows_dir: Path, force: bool = False
-) -> WorkflowSeedResult:
+def seed_starter_workflows(workflows_dir: Path, force: bool = False) -> WorkflowSeedResult:
     """Seed packaged starter workflows into ``workflows_dir`` without overwriting user edits by default."""
     result = WorkflowSeedResult()
     workflows_dir = workflows_dir.resolve()
 
     if workflows_dir.exists() and workflows_dir.is_file():
-        result.errors.append(
-            f"{display_path(workflows_dir)} exists as a file, not a directory."
-        )
+        result.errors.append(f"{display_path(workflows_dir)} exists as a file, not a directory.")
         return result
 
     try:
@@ -98,9 +94,7 @@ def seed_starter_workflows(
     ):
         target_path = workflows_dir / target_name
         if target_path.exists() and target_path.is_dir():
-            result.errors.append(
-                f"{display_path(target_path)} exists as a directory, not a file."
-            )
+            result.errors.append(f"{display_path(target_path)} exists as a directory, not a file.")
             continue
 
         try:

@@ -63,9 +63,7 @@ setup(
             "cursor-sdk>=1.0.26,<2",
         ],
     },
-    package_data={
-        "getworktree": ["schemas/*.json", "schemas/*/*.json", "core/templates/*/*.yml"]
-    },
+    package_data={"getworktree": ["schemas/*.json", "schemas/*/*.json", "core/templates/*/*.yml"]},
     include_package_data=True,
     # CRITICAL: Maps the terminal execution command
     # Typing 'wt' in the terminal will run the main() function inside getworktree/cli.py

@@ -160,8 +160,7 @@ def load_config_result(
                         *(f"- {msg}" for msg in validation.errors),
                         "Fix:",
                         "- run `wt config validate` for details",
-                        "- or `wt init --repair` to insert missing keys "
-                        "without overwriting values",
+                        "- or `wt init --repair` to insert missing keys without overwriting values",
                     ]
                 )
             ],
@@ -181,8 +180,7 @@ def load_config_result(
                         *(f"- {msg}" for msg in [str(exc)]),
                         "Fix:",
                         "- run `wt config validate` for details",
-                        "- or `wt init --repair` to insert missing keys "
-                        "without overwriting values",
+                        "- or `wt init --repair` to insert missing keys without overwriting values",
                     ]
                 )
             ],
@@ -230,9 +228,7 @@ def load_raw_config(config_path: Path) -> dict[str, Any]:
         assert result.raw is not None
         return result.raw
     if result.status == ConfigLoadStatus.NOT_FOUND:
-        raise FileNotFoundError(
-            result.errors[0] if result.errors else str(result.status)
-        )
+        raise FileNotFoundError(result.errors[0] if result.errors else str(result.status))
     if result.status == ConfigLoadStatus.UNREADABLE:
         raise OSError(result.errors[0] if result.errors else str(result.status))
     raise ValueError(result.errors[0] if result.errors else str(result.status))
@@ -259,8 +255,7 @@ def parse_and_validate_config(raw: dict[str, Any]) -> WorktreeConfig:
                     *(f"- {msg}" for msg in validation.errors),
                     "Fix:",
                     "- run `wt config validate` for details",
-                    "- or `wt init --repair` to insert missing keys "
-                    "without overwriting values",
+                    "- or `wt init --repair` to insert missing keys without overwriting values",
                 ]
             )
         )
@@ -274,8 +269,7 @@ def parse_and_validate_config(raw: dict[str, Any]) -> WorktreeConfig:
                     f"- {exc}",
                     "Fix:",
                     "- run `wt config validate` for details",
-                    "- or `wt init --repair` to insert missing keys "
-                    "without overwriting values",
+                    "- or `wt init --repair` to insert missing keys without overwriting values",
                 ]
             )
         ) from exc
@@ -305,9 +299,7 @@ def load_config(
         assert result.config is not None
         return result.config
     if result.status == ConfigLoadStatus.NOT_FOUND:
-        raise FileNotFoundError(
-            result.errors[0] if result.errors else str(result.status)
-        )
+        raise FileNotFoundError(result.errors[0] if result.errors else str(result.status))
     if result.status == ConfigLoadStatus.UNREADABLE:
         raise OSError(result.errors[0] if result.errors else str(result.status))
     raise ValueError(result.errors[0] if result.errors else str(result.status))

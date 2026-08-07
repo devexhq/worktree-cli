@@ -53,9 +53,7 @@ def insert_task_run(
         cursor.execute(select_sql, (session_id,))
         row = cursor.fetchone()
         if row is None:  # pragma: no cover
-            raise RuntimeError(
-                f"Failed to read task run row after insert: {session_id}"
-            )
+            raise RuntimeError(f"Failed to read task run row after insert: {session_id}")
         return _task_run_record_from_row(row)
 
 
@@ -82,14 +80,8 @@ def update_task_run_status(
 ) -> TaskRunRecord | None:
     """Update status, optional completed_at timestamp, and error message for a task run."""
     db_path = init_database(cwd, db_rel_path)
-    status_enum = (
-        RunStatus(status)
-        if isinstance(status, str) and status in RunStatus._value2member_map_
-        else status
-    )
-    status_str = (
-        status_enum.value if isinstance(status_enum, RunStatus) else str(status)
-    )
+    status_enum = RunStatus(status) if isinstance(status, str) and status in RunStatus._value2member_map_ else status
+    status_str = status_enum.value if isinstance(status_enum, RunStatus) else str(status)
 
     completed_at = (
         datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
@@ -112,9 +104,7 @@ def update_task_run_status(
     with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
         try:
-            cursor.execute(
-                update_sql, (status_str, completed_at, error_message, session_id)
-            )
+            cursor.execute(update_sql, (status_str, completed_at, error_message, session_id))
         except sqlite3.IntegrityError as exc:
             raise ValueError(f"Invalid task status update constraint: {exc}") from exc
 
@@ -125,9 +115,7 @@ def update_task_run_status(
         return _task_run_record_from_row(row) if row is not None else None
 
 
-def list_task_runs(
-    cwd: Path | None = None, db_rel_path: str = DEFAULT_DB_REL_PATH
-) -> list[TaskRunRecord]:
+def list_task_runs(cwd: Path | None = None, db_rel_path: str = DEFAULT_DB_REL_PATH) -> list[TaskRunRecord]:
     """List task run records ordered by ``started_at`` descending."""
     db_path = init_database(cwd, db_rel_path)
     query_sql = "SELECT * FROM tasks ORDER BY started_at DESC;"

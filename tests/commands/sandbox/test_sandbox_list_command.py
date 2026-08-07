@@ -111,9 +111,7 @@ class SandboxListCollectTests:
         _init_config(git_repo)
         first = _insert(git_repo, sandbox_id="sbx_first", name=None, path_suffix="1")
         time.sleep(1.1)
-        second = _insert(
-            git_repo, sandbox_id="sbx_second", name="beta", path_suffix="2"
-        )
+        second = _insert(git_repo, sandbox_id="sbx_second", name="beta", path_suffix="2")
 
         result = collect_sandbox_list(cwd=git_repo)
         assert result.ok
@@ -317,9 +315,7 @@ class SandboxListCliTests:
         result = runner.invoke(app, ["sandbox", "list", "--help"])
         assert result.exit_code == 0
 
-        list_cmd = (
-            get_command(app).get_command(None, "sandbox").get_command(None, "list")
-        )
+        list_cmd = get_command(app).get_command(None, "sandbox").get_command(None, "list")
         assert list_cmd.help == "List tracked sandboxes and their lifecycle status."
         opts: set[str] = set()
         for param in list_cmd.params:
@@ -328,9 +324,7 @@ class SandboxListCliTests:
             opts.update(secondary)
         assert "--status" in opts
 
-    def test_invalid_status_rejected_by_typer(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_invalid_status_rejected_by_typer(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         _init_config(git_repo)
         result = runner.invoke(app, ["sandbox", "list", "--status", "bogus"])
@@ -338,9 +332,7 @@ class SandboxListCliTests:
         combined = result.stdout + result.stderr
         assert "bogus" in combined.lower() or "invalid" in combined.lower()
 
-    def test_list_via_cli_empty(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_list_via_cli_empty(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         _init_config(git_repo)
         result = runner.invoke(app, ["sandbox", "list"])

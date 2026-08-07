@@ -48,13 +48,9 @@ def load_context(cwd: Path | None = None) -> WorktreeContext:
         )
 
     if config.sandbox.max_active_sandboxes > 5:
-        warnings.append(
-            f"max_active_sandboxes ({config.sandbox.max_active_sandboxes}) is unusually high."
-        )
+        warnings.append(f"max_active_sandboxes ({config.sandbox.max_active_sandboxes}) is unusually high.")
 
-    return WorktreeContext(
-        config=config, current_branch=current_branch, warnings=warnings
-    )
+    return WorktreeContext(config=config, current_branch=current_branch, warnings=warnings)
 
 
 def display_context_warnings(context: WorktreeContext) -> None:

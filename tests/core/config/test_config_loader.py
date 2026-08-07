@@ -27,9 +27,7 @@ from getworktree.core.config.loader import (
 
 @pytest.fixture
 def git_repo(tmp_path: Path) -> Path:
-    subprocess.run(
-        ["git", "init", "-b", "main"], cwd=tmp_path, check=True, capture_output=True
-    )
+    subprocess.run(["git", "init", "-b", "main"], cwd=tmp_path, check=True, capture_output=True)
     subprocess.run(
         ["git", "config", "user.email", "test@example.com"],
         cwd=tmp_path,
@@ -43,9 +41,7 @@ def git_repo(tmp_path: Path) -> Path:
         capture_output=True,
     )
     (tmp_path / "f.txt").write_text("x\n", encoding="utf-8")
-    subprocess.run(
-        ["git", "add", "f.txt"], cwd=tmp_path, check=True, capture_output=True
-    )
+    subprocess.run(["git", "add", "f.txt"], cwd=tmp_path, check=True, capture_output=True)
     subprocess.run(
         ["git", "commit", "-m", "init"],
         cwd=tmp_path,

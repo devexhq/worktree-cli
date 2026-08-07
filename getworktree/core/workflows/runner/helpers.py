@@ -146,16 +146,8 @@ def _render_agent_input_dump(*, provider: str, request: Any) -> tuple[str, str]:
             "stream": False,
             "messages": build_ollama_messages(request),
             "options": {
-                "temperature": (
-                    float(request.temperature)
-                    if request.temperature is not None
-                    else DEFAULT_TEMPERATURE
-                ),
-                "num_predict": (
-                    int(request.max_tokens)
-                    if request.max_tokens is not None
-                    else DEFAULT_MAX_TOKENS
-                ),
+                "temperature": (float(request.temperature) if request.temperature is not None else DEFAULT_TEMPERATURE),
+                "num_predict": (int(request.max_tokens) if request.max_tokens is not None else DEFAULT_MAX_TOKENS),
             },
             "endpoint": resolve_ollama_endpoint(request.endpoint),
         }
@@ -232,11 +224,7 @@ def capture_and_persist_diff(
             timeout=GIT_SUBPROCESS_TIMEOUT_SECONDS,
         )
         if completed.returncode != 0:
-            err_msg = (
-                completed.stderr.strip()
-                or completed.stdout.strip()
-                or f"exit code {completed.returncode}"
-            )
+            err_msg = completed.stderr.strip() or completed.stdout.strip() or f"exit code {completed.returncode}"
             warnings.append(f"Git diff capture failed in sandbox: {err_msg}")
         else:
             diff_text = completed.stdout

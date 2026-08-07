@@ -61,9 +61,7 @@ def display_path(path: Path, cwd: Path | None = None) -> str:
         return str(path)
 
 
-def resolve_path_from_config(
-    config_file: Path, path_key: str, default: str | Path
-) -> Path:
+def resolve_path_from_config(config_file: Path, path_key: str, default: str | Path) -> Path:
     """Resolve a path from a config file.
 
     If the config file does not exist, return the default path.

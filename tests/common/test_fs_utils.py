@@ -85,9 +85,7 @@ class ResolvePathFromConfigTests:
     """Tests for resolve_path_from_config."""
 
     def test_default_when_missing_file(self, tmp_path: Path) -> None:
-        path = resolve_path_from_config(
-            tmp_path / "missing.json", "db_path", "fallback.db"
-        )
+        path = resolve_path_from_config(tmp_path / "missing.json", "db_path", "fallback.db")
         assert path == Path("fallback.db")
 
     def test_reads_paths_key(self, tmp_path: Path) -> None:
@@ -109,7 +107,5 @@ class IsGitRepositoryTests:
         assert is_git_repository(tmp_path / "nope") is False
 
     def test_detects_git_file(self, tmp_path: Path) -> None:
-        (tmp_path / ".git").write_text(
-            "gitdir: ../.git/worktrees/feature\n", encoding="utf-8"
-        )
+        (tmp_path / ".git").write_text("gitdir: ../.git/worktrees/feature\n", encoding="utf-8")
         assert is_git_repository(tmp_path) is True

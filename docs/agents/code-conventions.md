@@ -52,9 +52,7 @@ Good (see `core/workflows/metadata.py`):
 return WorkflowMetadataParseResult(
     status=WorkflowMetadataStatus.NOT_FOUND,
     source_path=source_path,
-    errors=[
-        f"Workflow definition not found at '{source_path}' (WORKFLOW_META_NOT_FOUND)."
-    ],
+    errors=[f"Workflow definition not found at '{source_path}' (WORKFLOW_META_NOT_FOUND)."],
 )
 ```
 

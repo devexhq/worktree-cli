@@ -173,9 +173,7 @@ def build_patch_review_panel(
         body.append("Files: ", style="bold")
         body.append(", ".join(touched))
     else:
-        body.append(
-            "Files: (unable to parse file list from diff)", style="italic yellow"
-        )
+        body.append("Files: (unable to parse file list from diff)", style="italic yellow")
     body.append("\n\n")
 
     diff_text = (unified_diff or "").replace("\r\n", "\n").replace("\r", "\n")
@@ -343,9 +341,7 @@ def format_attempts_section(result: WorkflowRunResult) -> str:
     if not result.attempts:
         return ""
     max_attempts = result.max_attempts or len(result.attempts)
-    parts = [
-        format_attempt_block(rec, max_attempts=max_attempts) for rec in result.attempts
-    ]
+    parts = [format_attempt_block(rec, max_attempts=max_attempts) for rec in result.attempts]
     return "".join(parts)
 
 

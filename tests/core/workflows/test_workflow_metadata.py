@@ -59,12 +59,7 @@ class ParseWorkflowMetadataTests:
     def test_ok_with_extra_keys_and_incomplete_body(self, tmp_path: Path) -> None:
         path = _write(
             tmp_path / "minimal.yml",
-            (
-                "version: 1\n"
-                "name: minimal-workflow\n"
-                "description: only identity fields\n"
-                "extra_ignored: true\n"
-            ),
+            ("version: 1\nname: minimal-workflow\ndescription: only identity fields\nextra_ignored: true\n"),
         )
 
         result = parse_workflow_metadata(path)
@@ -126,12 +121,8 @@ class ParseWorkflowMetadataTests:
 
         assert empty_result.status == WorkflowMetadataStatus.ROOT_NOT_MAPPING
         assert list_result.status == WorkflowMetadataStatus.ROOT_NOT_MAPPING
-        assert any(
-            "WORKFLOW_META_ROOT_NOT_MAPPING" in error for error in empty_result.errors
-        )
-        assert any(
-            "WORKFLOW_META_ROOT_NOT_MAPPING" in error for error in list_result.errors
-        )
+        assert any("WORKFLOW_META_ROOT_NOT_MAPPING" in error for error in empty_result.errors)
+        assert any("WORKFLOW_META_ROOT_NOT_MAPPING" in error for error in list_result.errors)
 
     def test_collects_all_missing_field_codes(self, tmp_path: Path) -> None:
         path = _write(tmp_path / "blank.yml", "other: 1\n")
@@ -154,9 +145,7 @@ class ParseWorkflowMetadataTests:
             path = _write(tmp_path / f"bad-version-{index}.yml", text)
             result = parse_workflow_metadata(path)
             assert result.status == WorkflowMetadataStatus.INVALID_METADATA
-            assert any(
-                "WORKFLOW_META_INVALID_VERSION" in error for error in result.errors
-            )
+            assert any("WORKFLOW_META_INVALID_VERSION" in error for error in result.errors)
 
     def test_invalid_name_variants(self, tmp_path: Path) -> None:
         cases = (
@@ -179,9 +168,7 @@ class ParseWorkflowMetadataTests:
             path = _write(tmp_path / f"bad-desc-{index}.yml", text)
             result = parse_workflow_metadata(path)
             assert result.status == WorkflowMetadataStatus.INVALID_METADATA
-            assert any(
-                "WORKFLOW_META_INVALID_DESCRIPTION" in error for error in result.errors
-            )
+            assert any("WORKFLOW_META_INVALID_DESCRIPTION" in error for error in result.errors)
 
     def test_description_allows_leading_trailing_spaces(self, tmp_path: Path) -> None:
         path = _write(

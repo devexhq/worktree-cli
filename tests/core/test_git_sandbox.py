@@ -23,9 +23,7 @@ from getworktree.core.git_sandbox import (
 
 
 def _init_git_repo(path: Path, branch: str = "feature") -> None:
-    subprocess.run(
-        ["git", "init", "-b", branch], cwd=path, check=True, capture_output=True
-    )
+    subprocess.run(["git", "init", "-b", branch], cwd=path, check=True, capture_output=True)
     subprocess.run(
         ["git", "config", "user.email", "test@example.com"],
         cwd=path,
@@ -187,15 +185,11 @@ class GitSandboxManagerTests:
         assert "SANDBOX_GIT_FAILED" in result.errors[0]
         assert not (manager.sandbox_base_dir / "sbx_badref").exists()
 
-    def test_git_timeout_on_worktree_add(
-        self, repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_git_timeout_on_worktree_add(self, repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         manager = GitSandboxManager(cwd=repo)
 
         def _timeout(args: list[str], cwd: Path | None = None) -> str:
-            raise GitPlumbingTimeoutError(
-                f"Git timed out after 120s ('git {' '.join(args)}') (GIT_TIMEOUT)"
-            )
+            raise GitPlumbingTimeoutError(f"Git timed out after 120s ('git {' '.join(args)}') (GIT_TIMEOUT)")
 
         monkeypatch.setattr(manager, "_run_git_cmd", _timeout)
         result = manager.create_sandbox_result(session_id="sbx_to")
@@ -252,9 +246,7 @@ class GitSandboxManagerTests:
             )
         )
 
-    def test_scope_unclassified_outcome_cleans_when_auto_clean(
-        self, repo: Path
-    ) -> None:
+    def test_scope_unclassified_outcome_cleans_when_auto_clean(self, repo: Path) -> None:
         with sandbox_scope(cwd=repo, session_id="sbx_none") as session:
             path = session.sandbox_path
             assert session.command_passed is None
@@ -324,9 +316,7 @@ class GitSandboxManagerTests:
         clean = manager.create_sandbox_result(session_id="sbx_nowip")
         assert clean.ok and clean.session is not None
         assert clean.session.wip_applied is False
-        assert (clean.session.sandbox_path / "f.txt").read_text(encoding="utf-8") == (
-            "x\n"
-        )
+        assert (clean.session.sandbox_path / "f.txt").read_text(encoding="utf-8") == ("x\n")
         assert not (clean.session.sandbox_path / "new.txt").exists()
         manager.cleanup_sandbox(clean.session)
 
@@ -335,12 +325,8 @@ class GitSandboxManagerTests:
         assert wip.session.wip_applied is True
         assert "f.txt" in wip.session.wip_paths
         assert "new.txt" in wip.session.wip_paths
-        assert (wip.session.sandbox_path / "f.txt").read_text(encoding="utf-8") == (
-            "dirty\n"
-        )
-        assert (wip.session.sandbox_path / "new.txt").read_text(
-            encoding="utf-8"
-        ) == "untracked\n"
+        assert (wip.session.sandbox_path / "f.txt").read_text(encoding="utf-8") == ("dirty\n")
+        assert (wip.session.sandbox_path / "new.txt").read_text(encoding="utf-8") == "untracked\n"
         manager.cleanup_sandbox(wip.session)
 
     def test_include_wip_deletes_removed_tracked_file(self, repo: Path) -> None:
@@ -470,9 +456,7 @@ class GitSandboxManagerTests:
         assert row is not None
         assert row.status == SandboxStatus.CLEANED
 
-    def test_insert_failure_surfaces_as_warning(
-        self, repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_insert_failure_surfaces_as_warning(self, repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         def _boom(**_kwargs: object) -> object:
             raise RuntimeError("db locked")
 
@@ -497,9 +481,7 @@ class GitSandboxManagerTests:
         )
         manager.cleanup_sandbox(ghost)  # must not raise
 
-    def test_rev_parse_failure_is_git_failed(
-        self, repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_rev_parse_failure_is_git_failed(self, repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         manager = GitSandboxManager(cwd=repo)
         real_run = manager._run_git_cmd
 

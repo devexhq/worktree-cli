@@ -217,10 +217,7 @@ def run_trigger(
             errors = []
         else:
             status = TriggerRunStatus.FAILED
-            errors = [
-                f"Trigger command '{command}' exited with code {exit_code} "
-                f"(TRIGGER_FAILED)."
-            ]
+            errors = [f"Trigger command '{command}' exited with code {exit_code} (TRIGGER_FAILED)."]
     except subprocess.TimeoutExpired as exc:
         timed_out = True
         exit_code = None

@@ -26,12 +26,8 @@ def _mod_diff(
     new_body = new if new.endswith("\n") else new + "\n"
     old_lines = old_body.splitlines(keepends=True)
     new_lines = new_body.splitlines(keepends=True)
-    minus = "".join(
-        f"-{line}" if line.endswith("\n") else f"-{line}\n" for line in old_lines
-    )
-    plus = "".join(
-        f"+{line}" if line.endswith("\n") else f"+{line}\n" for line in new_lines
-    )
+    minus = "".join(f"-{line}" if line.endswith("\n") else f"-{line}\n" for line in old_lines)
+    plus = "".join(f"+{line}" if line.endswith("\n") else f"+{line}\n" for line in new_lines)
     return (
         f"diff --git a/{path} b/{path}\n"
         f"--- a/{path}\n"
@@ -44,9 +40,7 @@ def _mod_diff(
 def _new_file_diff(path: str = "pkg/new.py", content: str = "x = 1\n") -> str:
     body = content if content.endswith("\n") else content + "\n"
     lines = body.splitlines(keepends=True)
-    plus = "".join(
-        f"+{line}" if line.endswith("\n") else f"+{line}\n" for line in lines
-    )
+    plus = "".join(f"+{line}" if line.endswith("\n") else f"+{line}\n" for line in lines)
     return (
         f"diff --git a/{path} b/{path}\n"
         f"new file mode 100644\n"
@@ -116,9 +110,7 @@ class ApplyPatchResultTests:
         assert result.ok is True
         assert result.errors == []
         assert result.touched_files == ["pkg/mod.py"]
-        assert (sandbox / "pkg" / "mod.py").read_text(
-            encoding="utf-8"
-        ) == "print('new')\n"
+        assert (sandbox / "pkg" / "mod.py").read_text(encoding="utf-8") == "print('new')\n"
 
     def test_checked_ok_does_not_write(self, sandbox: Path) -> None:
         before = (sandbox / "pkg" / "mod.py").read_text(encoding="utf-8")
@@ -157,9 +149,7 @@ class ApplyPatchResultTests:
         assert result.ok is False
         assert any("max_patch_kb" in e for e in result.errors)
         # tree unchanged
-        assert (sandbox / "pkg" / "mod.py").read_text(
-            encoding="utf-8"
-        ) == "print('old')\n"
+        assert (sandbox / "pkg" / "mod.py").read_text(encoding="utf-8") == "print('old')\n"
         _ = size_kb
 
     def test_too_many_files(self, sandbox: Path) -> None:
@@ -173,10 +163,7 @@ class ApplyPatchResultTests:
             assert not (sandbox / path).exists()
 
     def test_binary_rejected_binary_files_differ(self, sandbox: Path) -> None:
-        diff = (
-            "diff --git a/pkg/data.bin b/pkg/data.bin\n"
-            "Binary files a/pkg/data.bin and b/pkg/data.bin differ\n"
-        )
+        diff = "diff --git a/pkg/data.bin b/pkg/data.bin\nBinary files a/pkg/data.bin and b/pkg/data.bin differ\n"
         result = _apply(sandbox, diff)
         assert result.status == PatchApplyStatus.BINARY_REJECTED
         assert result.ok is False
@@ -196,14 +183,9 @@ class ApplyPatchResultTests:
         assert result.status == PatchApplyStatus.BINARY_REJECTED
         assert result.ok is False
 
-    def test_binary_allowed_when_reject_false_still_may_conflict(
-        self, sandbox: Path
-    ) -> None:
+    def test_binary_allowed_when_reject_false_still_may_conflict(self, sandbox: Path) -> None:
         # Without a real binary blob, git apply will fail → conflict, not binary.
-        diff = (
-            "diff --git a/pkg/data.bin b/pkg/data.bin\n"
-            "Binary files a/pkg/data.bin and b/pkg/data.bin differ\n"
-        )
+        diff = "diff --git a/pkg/data.bin b/pkg/data.bin\nBinary files a/pkg/data.bin and b/pkg/data.bin differ\n"
         result = _apply(sandbox, diff, reject_binary_changes=False)
         assert result.status in {
             PatchApplyStatus.CONFLICT,
@@ -238,9 +220,7 @@ class ApplyPatchResultTests:
         assert result.ok is False
         assert result.touched_files == []
 
-    def test_git_timeout_on_apply(
-        self, sandbox: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_git_timeout_on_apply(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         import getworktree.core.workflows.patch as patch_mod
 
         def _timeout(**_kwargs: object) -> tuple[bool, str, bool]:
@@ -252,9 +232,7 @@ class ApplyPatchResultTests:
         assert result.ok is False
         assert result.touched_files == ["pkg/mod.py"]
         assert any("PATCH_GIT_TIMEOUT" in e for e in result.errors)
-        assert (sandbox / "pkg" / "mod.py").read_text(
-            encoding="utf-8"
-        ) == "print('old')\n"
+        assert (sandbox / "pkg" / "mod.py").read_text(encoding="utf-8") == "print('old')\n"
 
     def test_conflict_leaves_tree_unchanged(self, sandbox: Path) -> None:
         before = (sandbox / "pkg" / "mod.py").read_text(encoding="utf-8")
@@ -281,9 +259,7 @@ class ApplyPatchResultTests:
         assert any("Sandbox path" in e for e in result.errors)
 
     def test_new_file_hunk(self, sandbox: Path) -> None:
-        result = _apply(
-            sandbox, _new_file_diff(path="pkg/brand_new.py", content="ok\n")
-        )
+        result = _apply(sandbox, _new_file_diff(path="pkg/brand_new.py", content="ok\n"))
         assert result.status == PatchApplyStatus.APPLIED
         assert result.touched_files == ["pkg/brand_new.py"]
         assert (sandbox / "pkg" / "brand_new.py").read_text(encoding="utf-8") == "ok\n"

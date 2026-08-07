@@ -127,8 +127,7 @@ def default_copilot_run(request: CliMutationRunRequest) -> CliMutationOutcome:
         return CliMutationOutcome(
             status="error",
             error_detail=(
-                f"gh is not installed or not on PATH: {exc}. "
-                "Fix: install the GitHub CLI (https://cli.github.com)"
+                f"gh is not installed or not on PATH: {exc}. Fix: install the GitHub CLI (https://cli.github.com)"
             ),
         )
     except OSError as exc:
@@ -137,9 +136,7 @@ def default_copilot_run(request: CliMutationRunRequest) -> CliMutationOutcome:
     stdout_text = (completed.stdout or b"").decode("utf-8", errors="replace")
     stderr_text = (completed.stderr or b"").decode("utf-8", errors="replace")
     if completed.returncode != 0:
-        detail = (
-            stderr_text.strip() or stdout_text.strip() or f"exit {completed.returncode}"
-        )
+        detail = stderr_text.strip() or stdout_text.strip() or f"exit {completed.returncode}"
         return CliMutationOutcome(status="error", error_detail=detail)
 
     assistant_text, exit_code, parse_error = _parse_jsonl(stdout_text)
@@ -152,9 +149,7 @@ def default_copilot_run(request: CliMutationRunRequest) -> CliMutationOutcome:
             result_text=assistant_text,
         )
     if assistant_text is None and not stdout_text.strip():
-        return CliMutationOutcome(
-            status="error", error_detail="empty Copilot CLI output"
-        )
+        return CliMutationOutcome(status="error", error_detail="empty Copilot CLI output")
     if assistant_text is None:
         assistant_text = stdout_text.strip() or None
     return CliMutationOutcome(status="finished", result_text=assistant_text)

@@ -84,9 +84,9 @@ def resolve_workflows_dir(
     load_result = load_config_result(cwd=root)
     if not load_result.ok or load_result.config is None:
         fallback = (root / DEFAULT_WORKFLOWS_DIR).resolve()
-        detail = "; ".join(
-            msg.splitlines()[0] for msg in load_result.errors if msg
-        ) or ("configuration could not be loaded")
+        detail = "; ".join(msg.splitlines()[0] for msg in load_result.errors if msg) or (
+            "configuration could not be loaded"
+        )
         return fallback, [
             f"Workflow directory could not be resolved from config: {detail} "
             f"(WORKFLOW_CONFIG_UNAVAILABLE).\n"
@@ -150,8 +150,7 @@ def discover_workflow_files(
             status=WorkflowDiscoveryStatus.NOT_A_DIRECTORY,
             workflows_dir=resolved_dir,
             errors=[
-                f"Workflow path exists as a file, not a directory: '{resolved_dir}' "
-                f"(WORKFLOW_DIR_NOT_A_DIRECTORY)."
+                f"Workflow path exists as a file, not a directory: '{resolved_dir}' (WORKFLOW_DIR_NOT_A_DIRECTORY)."
             ],
         )
 

@@ -39,9 +39,7 @@ DB_REL = ".worktree/data.db"
 
 
 def _init_git_repo(path: Path, branch: str = "feature") -> None:
-    subprocess.run(
-        ["git", "init", "-b", branch], cwd=path, check=True, capture_output=True
-    )
+    subprocess.run(["git", "init", "-b", branch], cwd=path, check=True, capture_output=True)
     subprocess.run(
         ["git", "config", "user.email", "test@example.com"],
         cwd=path,
@@ -459,13 +457,8 @@ class SandboxDeleteCliTests:
         result = runner.invoke(app, ["sandbox", "delete", "--help"])
         assert result.exit_code == 0
 
-        delete_cmd = (
-            get_command(app).get_command(None, "sandbox").get_command(None, "delete")
-        )
-        assert (
-            delete_cmd.help
-            == "Delete a sandbox worktree and branch after confirmation."
-        )
+        delete_cmd = get_command(app).get_command(None, "sandbox").get_command(None, "delete")
+        assert delete_cmd.help == "Delete a sandbox worktree and branch after confirmation."
         assert any(param.name == "sandbox_id" for param in delete_cmd.params)
         opts: set[str] = set()
         for param in delete_cmd.params:

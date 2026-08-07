@@ -98,9 +98,7 @@ class CliDirectMutationAdapter:
             return AgentResponse(
                 status=AgentResponseStatus.PROVIDER_ERROR,
                 duration_ms=_elapsed_ms(started),
-                errors=[
-                    f"Agent provider error (AGENT_PROVIDER_ERROR): {preflight_error}"
-                ],
+                errors=[f"Agent provider error (AGENT_PROVIDER_ERROR): {preflight_error}"],
             )
 
         try:
@@ -109,10 +107,7 @@ class CliDirectMutationAdapter:
             return AgentResponse(
                 status=AgentResponseStatus.PROVIDER_ERROR,
                 duration_ms=_elapsed_ms(started),
-                errors=[
-                    "Agent provider error (AGENT_PROVIDER_ERROR): "
-                    f"failed to resolve sandbox baseline: {exc}"
-                ],
+                errors=[f"Agent provider error (AGENT_PROVIDER_ERROR): failed to resolve sandbox baseline: {exc}"],
             )
 
         prompt = build_mutation_prompt(request)
@@ -160,10 +155,7 @@ class CliDirectMutationAdapter:
                 duration_ms=duration_ms,
                 mutation_baseline_ref=baseline,
                 raw_text=outcome.result_text,
-                errors=[
-                    "Agent provider error (AGENT_PROVIDER_ERROR): "
-                    f"failed to capture sandbox diff: {exc}"
-                ],
+                errors=[f"Agent provider error (AGENT_PROVIDER_ERROR): failed to capture sandbox diff: {exc}"],
             )
 
         if not diff.strip():
@@ -190,8 +182,7 @@ class CliDirectMutationAdapter:
                 discard_since(request.sandbox_path, baseline)
             except MutationGitError as exc:
                 gate.errors.append(
-                    "Agent provider error (AGENT_PROVIDER_ERROR): "
-                    f"failed to discard rejected sandbox edit: {exc}"
+                    f"Agent provider error (AGENT_PROVIDER_ERROR): failed to discard rejected sandbox edit: {exc}"
                 )
             return AgentResponse(
                 status=AgentResponseStatus.PROVIDER_ERROR,
