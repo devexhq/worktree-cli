@@ -245,6 +245,15 @@ class SchemaOllamaTests:
         data["agent"]["model"] = "smollm2:1.7b"
         assert CONFIG_VALIDATOR.validate(data).ok
 
+    def test_config_schema_rejects_unsupported_provider(self) -> None:
+        import copy
+
+        from getworktree.core.config.generator import CANONICAL_V1_DEFAULTS
+
+        data = copy.deepcopy(CANONICAL_V1_DEFAULTS)
+        data["agent"]["provider"] = "invalid_provider_name"
+        assert not CONFIG_VALIDATOR.validate(data).ok
+
     def test_workflow_schema_accepts_ollama(self) -> None:
         raw = {
             "version": "1.0",
@@ -262,7 +271,7 @@ class SchemaOllamaTests:
         result = validate_workflow_document(raw, source_path=Path("in-memory.yml"))
         assert result.ok, result.errors
 
-    def test_workflow_schema_rejects_openai(self) -> None:
+    def test_workflow_schema_rejects_missing_name(self) -> None:
         raw = {
             "version": "1.0",
             "description": "x",
