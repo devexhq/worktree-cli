@@ -190,9 +190,7 @@ def create_catalog_item(
                 f"name: {stem}\ndescription: Custom workflow blueprint\nsteps: []\n"
             )
         elif type_enum == CatalogItemType.TASK:
-            content = (
-                f"name: {stem}\ndescription: Custom task blueprint\ncommands: []\n"
-            )
+            content = f"name: {stem}\ndescription: Custom task blueprint\nuse_git_worktree: false\ncommands: []\n"
         else:
             content = f"name: {stem}\ndescription: Custom step blueprint\naction: run\n"
 

@@ -260,6 +260,11 @@ def workflow_run(
             "(debugging aid)."
         ),
     ),
+    no_sandbox: bool = typer.Option(
+        False,
+        "--no-sandbox",
+        help="Run execution in-place in the working tree without creating a Git sandbox.",
+    ),
 ):
     """Run a workflow in an isolated git worktree sandbox."""
     workflow_run_command(
@@ -269,6 +274,7 @@ def workflow_run(
         approve_each=approve_each,
         wip=wip,
         dump_prompt=dump_prompt,
+        no_sandbox=no_sandbox,
     )
 
 
@@ -497,11 +503,30 @@ def task_show(
 
 @task_app.command("run")
 def task_run(
-    ctx: typer.Context,
     name: str = typer.Argument(..., help="Task blueprint name to run."),
+    no_sandbox: bool = typer.Option(
+        False,
+        "--no-sandbox",
+        help="Run execution in-place in the working tree without creating a Git sandbox.",
+    ),
+    keep: bool = typer.Option(
+        False,
+        "--keep",
+        help="Retain sandbox worktree after task completion.",
+    ),
+    agent: str | None = typer.Option(
+        None,
+        "--agent",
+        help="Override default target agent adapter.",
+    ),
 ):
     """Run a task blueprint."""
-    outcome = task_run_command(name=name)
+    outcome = task_run_command(
+        name=name,
+        no_sandbox=no_sandbox,
+        keep=keep,
+        agent=agent,
+    )
     if not outcome.ok:
         raise typer.Exit(code=1)
 

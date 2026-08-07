@@ -8,6 +8,7 @@ to a ``_run_*_step`` function and handling sandbox cleanup.
 from __future__ import annotations
 
 import threading
+import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -93,6 +94,7 @@ def run_workflow_iteration(
     detect_repeat_failures: bool | None = None,
     include_wip: bool = False,
     prompt_dump_dir: Path | None = None,
+    use_git_worktree: bool | None = None,
 ) -> WorkflowRunResult:
     """Run one full workflow session attempt cycle.
 
@@ -118,20 +120,18 @@ def run_workflow_iteration(
         run_trigger_fn: Injected trigger runner (tests).
         apply_patch_fn: Injected patch apply (tests).
         discard_mutation_fn: Injected sandbox reset for direct-mutation
-            providers (tests); defaults to ``discard_since``.
-        build_payload_fn: Injected payload builder (tests).
-        create_sandbox_fn: Injected sandbox create (tests).
+            adapters (tests).
+        build_payload_fn: Injected failure payload builder (tests).
+        create_sandbox_fn: Injected sandbox creator (tests).
         cleanup_sandbox_fn: Injected sandbox cleanup (tests).
-        on_attempt_end: Optional hook after each attempt record is finalized.
-        on_event: Optional structured event callback for UX streaming.
-        session_id: Optional fixed sandbox session id.
-        session_timeout_seconds: Session wall-clock cap; defaults to
-            ``config.sandbox.default_timeout_seconds``.
-        detect_repeat_failures: Override config ``workflow.detect_repeat_failures``.
-        include_wip: When True, overlay uncommitted working-tree changes into
-            the sandbox after create (``--wip``).
-        prompt_dump_dir: Optional directory to write provider-specific
-            agent-input dumps (one file per attempt) before each agent call.
+        on_attempt_end: Attempt lifecycle callback.
+        on_event: Real-time progress event callback.
+        session_id: Optional fixed session id.
+        session_timeout_seconds: Hard execution budget per session.
+        detect_repeat_failures: Flag to stop early on duplicate trigger failures.
+        include_wip: Include uncommitted changes in sandbox.
+        prompt_dump_dir: Directory for dumping agent input text.
+        use_git_worktree: Optional override to run in-place without creating a worktree.
 
     Returns:
         Structured :class:`WorkflowRunResult` (never raises for classified paths).
@@ -209,32 +209,48 @@ def run_workflow_iteration(
     manager: GitSandboxManager | None = None
     session: SandboxSession | None = None
 
-    if create_sandbox_fn is not None:
-        create_result = create_sandbox_fn()
+    resolved_use_worktree = use_git_worktree if use_git_worktree is not None else True
+
+    if resolved_use_worktree:
+        if create_sandbox_fn is not None:
+            create_result = create_sandbox_fn()
+        else:
+            manager = GitSandboxManager(cwd=root)
+            create_result = manager.create_sandbox_result(
+                session_id=session_id,
+                include_wip=include_wip,
+            )
+
+        if not create_result.ok or create_result.session is None:
+            errors = list(create_result.errors) or [
+                f"Sandbox create failed: {create_result.status}"
+            ]
+            return WorkflowRunResult(
+                status=WorkflowFinalStatus.FAILED,
+                session_id=session_id or "",
+                workflow_name=workflow_name,
+                stop_reason=StopReason.SANDBOX_CREATE_FAILED,
+                max_attempts=max_attempts,
+                errors=errors,
+            )
+
+        session = create_result.session
+        sandbox_path = session.sandbox_path
+        sid = session.session_id
     else:
-        manager = GitSandboxManager(cwd=root)
-        create_result = manager.create_sandbox_result(
-            session_id=session_id,
-            include_wip=include_wip,
+        sid = session_id or f"wf_{uuid.uuid4().hex[:8]}"
+        sandbox_path = root
+        session = SandboxSession(
+            session_id=sid,
+            name=None,
+            target_branch=f"worktree/{sid}",
+            base_commit="HEAD",
+            sandbox_path=root,
+            created_at="",
         )
 
-    if not create_result.ok or create_result.session is None:
-        errors = list(create_result.errors) or [
-            f"Sandbox create failed: {create_result.status}"
-        ]
-        return WorkflowRunResult(
-            status=WorkflowFinalStatus.FAILED,
-            session_id=session_id or "",
-            workflow_name=workflow_name,
-            stop_reason=StopReason.SANDBOX_CREATE_FAILED,
-            max_attempts=max_attempts,
-            errors=errors,
-        )
-
-    session = create_result.session
-    sandbox_path = session.sandbox_path
-    sid = session.session_id
     attempts: list[AttemptRecord] = []
+
     final_status = WorkflowFinalStatus.FAILED
     stop_reason = StopReason.MAX_ATTEMPTS_EXHAUSTED
     run_errors: list[str] = []

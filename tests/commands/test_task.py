@@ -103,7 +103,7 @@ def test_cli_wt_task_default_and_subcommands(
     tasks_dir.mkdir(parents=True, exist_ok=True)
     task1_path = tasks_dir / "run-lints.yml"
     task1_path.write_text(
-        "name: run-lints\ndescription: Execute Ruff linter and formatter checks\nsummary: Runs ruff check and format\n",
+        "name: run-lints\ndescription: Execute Ruff linter and formatter checks\nsummary: Runs ruff check and format\nuse_git_worktree: false\n",
         encoding="utf-8",
     )
 

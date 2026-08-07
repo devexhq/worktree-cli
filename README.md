@@ -83,7 +83,8 @@ Provider behavior:
 Worktree initializes and uses:
 
 - `.worktree/config.json`
-- `.worktree/workflows/*.yml`
+- `.worktree/catalog/workflows/*.yml`
+- `.worktree/catalog/tasks/*.yml`
 - `.worktree/sessions/`
 - `.worktree/artifacts/`
 
