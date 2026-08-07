@@ -9,10 +9,8 @@ import typer
 from getworktree.common.utils import RichOutput
 from getworktree.core.config.loader import load_config_result
 from getworktree.core.db import (
+    SandboxesDb,
     SandboxStatus,
-    get_sandbox,
-    list_sandboxes,
-    update_sandbox_status,
 )
 from getworktree.core.git_sandbox import GitSandboxManager, SandboxSession
 
@@ -39,12 +37,13 @@ from .renderers import (
 
 def _reconcile_stale_active_sandboxes(*, cwd: Path) -> None:
     """Mark active rows whose sandbox directory is gone as cleaned."""
-    for row in list_sandboxes(cwd=cwd):
+    db = SandboxesDb(cwd)
+    for row in db.list():
         if row.status is not SandboxStatus.ACTIVE:
             continue
         if Path(row.sandbox_path).is_dir():
             continue
-        update_sandbox_status(row.id, SandboxStatus.CLEANED, cwd=cwd)
+        db.update_status(row.id, SandboxStatus.CLEANED)
 
 
 def sandbox_create_command(
@@ -113,7 +112,7 @@ def collect_sandbox_list(
     if status is not None:
         status_filter = SandboxStatus(status)
 
-    rows = list_sandboxes(status=status_filter, cwd=root)
+    rows = SandboxesDb(root).list(status=status_filter)
     return SandboxListResult(status=SandboxListStatus.OK, sandboxes=rows)
 
 
@@ -163,13 +162,14 @@ def collect_sandbox_show(
             errors=list(load.errors),
         )
 
-    row = get_sandbox(sandbox_id, cwd=root)
+    db = SandboxesDb(root)
+    row = db.get(sandbox_id)
     if row is None:
         return SandboxShowResult(status=SandboxShowStatus.NOT_FOUND)
 
     reconciled = False
     if row.status is SandboxStatus.ACTIVE and not Path(row.sandbox_path).is_dir():
-        updated = update_sandbox_status(row.id, SandboxStatus.CLEANED, cwd=root)
+        updated = db.update_status(row.id, SandboxStatus.CLEANED)
         if updated is not None:
             row = updated
         else:
@@ -239,7 +239,7 @@ def collect_sandbox_delete(
             errors=list(load.errors),
         )
 
-    row = get_sandbox(sandbox_id, cwd=root)
+    row = SandboxesDb(root).get(sandbox_id)
     if row is None:
         return SandboxDeleteResult(status=SandboxDeleteStatus.NOT_FOUND)
 

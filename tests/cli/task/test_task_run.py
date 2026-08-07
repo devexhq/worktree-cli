@@ -8,7 +8,7 @@ from typer.testing import CliRunner
 from getworktree.cli import app
 from getworktree.cli.task.command import task_run_command
 from getworktree.core.catalog.inventory import get_catalog_dir
-from getworktree.core.db import get_task_run
+from getworktree.core.db import TasksDb
 
 runner = CliRunner()
 
@@ -36,7 +36,7 @@ def test_task_run_command_steps_execution(tmp_path: Path, monkeypatch: pytest.Mo
     assert res.run_record is not None
     assert res.run_record.status.value == "completed"
 
-    rec = get_task_run("task_build_1", cwd=tmp_path)
+    rec = TasksDb(tmp_path).get("task_build_1")
     assert rec is not None
     assert rec.status.value == "completed"
 
@@ -92,7 +92,7 @@ def test_task_run_step_failure_aborts(tmp_path: Path, monkeypatch: pytest.Monkey
     assert res.run_record is not None
     assert res.run_record.status.value == "failed"
 
-    rec = get_task_run("task_fail_1", cwd=tmp_path)
+    rec = TasksDb(tmp_path).get("task_fail_1")
     assert rec is not None
     assert rec.status.value == "failed"
     assert "fail-step" in rec.error_message

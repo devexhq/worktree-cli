@@ -12,7 +12,7 @@ from getworktree.cli.task.command import (
     task_show_command,
 )
 from getworktree.core.catalog.inventory import create_catalog_item, get_catalog_dir
-from getworktree.core.db import get_task_run
+from getworktree.core.db import TasksDb
 
 runner = CliRunner()
 
@@ -136,7 +136,7 @@ def test_task_run_status_transitions_and_persistence(tmp_path: Path, monkeypatch
     assert res_success.run_record is not None
     assert res_success.run_record.status.value == "completed"
 
-    rec_succ = get_task_run("task_succ1", cwd=tmp_path)
+    rec_succ = TasksDb(tmp_path).get("task_succ1")
     assert rec_succ is not None
     assert rec_succ.status.value == "completed"
     assert rec_succ.completed_at is not None
@@ -152,7 +152,7 @@ def test_task_run_status_transitions_and_persistence(tmp_path: Path, monkeypatch
     assert res_failed.run_record.status.value == "failed"
     assert "Simulated task failure" in res_failed.errors[0]
 
-    rec_fail = get_task_run("task_fail1", cwd=tmp_path)
+    rec_fail = TasksDb(tmp_path).get("task_fail1")
     assert rec_fail is not None
     assert rec_fail.status.value == "failed"
     assert rec_fail.completed_at is not None
@@ -172,7 +172,7 @@ def test_task_run_status_transitions_and_persistence(tmp_path: Path, monkeypatch
     assert res_cancel.run_record is not None
     assert res_cancel.run_record.status.value == "cancelled"
 
-    rec_canc = get_task_run("task_canc1", cwd=tmp_path)
+    rec_canc = TasksDb(tmp_path).get("task_canc1")
     assert rec_canc is not None
     assert rec_canc.status.value == "cancelled"
     assert rec_canc.completed_at is not None
@@ -183,11 +183,11 @@ def test_task_run_db_fault_tolerance(tmp_path: Path, monkeypatch: pytest.MonkeyP
     monkeypatch.chdir(tmp_path)
     create_catalog_item("task", "sample-task", cwd=tmp_path)
 
-    # Monkeypatch insert_task_run to raise DB exception
+    # Monkeypatch TasksDb.insert to raise DB exception
     def _faulty_insert(*args, **kwargs):
         raise RuntimeError("Database locked")
 
-    monkeypatch.setattr("getworktree.cli.task.command.insert_task_run", _faulty_insert)
+    monkeypatch.setattr(TasksDb, "insert", _faulty_insert)
 
     res = task_run_command("sample-task", cwd=tmp_path)
     assert res.ok

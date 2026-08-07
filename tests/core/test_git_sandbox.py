@@ -11,7 +11,7 @@ import pytest
 
 import getworktree.core.git_sandbox as git_sandbox_mod
 from getworktree.core.config.generator import generate_default_config
-from getworktree.core.db import SandboxStatus, get_sandbox
+from getworktree.core.db import SandboxesDb, SandboxStatus
 from getworktree.core.git_sandbox import (
     GitPlumbingTimeoutError,
     GitSandboxManager,
@@ -438,7 +438,7 @@ class GitSandboxManagerTests:
         result = manager.create_sandbox_result(session_id="sbx_db1", name="persist-me")
         assert result.ok and result.session is not None
         assert result.warnings == []
-        row = get_sandbox("sbx_db1", cwd=repo)
+        row = SandboxesDb(repo).get("sbx_db1")
         assert row is not None
         assert row.status == SandboxStatus.ACTIVE
         assert row.name == "persist-me"
@@ -450,24 +450,24 @@ class GitSandboxManagerTests:
     def test_marks_cleaned_on_cleanup(self, repo: Path) -> None:
         manager = GitSandboxManager(cwd=repo)
         session = manager.create_sandbox(session_id="sbx_db2")
-        assert get_sandbox("sbx_db2", cwd=repo) is not None
+        assert SandboxesDb(repo).get("sbx_db2") is not None
         manager.cleanup_sandbox(session)
-        row = get_sandbox("sbx_db2", cwd=repo)
+        row = SandboxesDb(repo).get("sbx_db2")
         assert row is not None
         assert row.status == SandboxStatus.CLEANED
 
     def test_insert_failure_surfaces_as_warning(self, repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        def _boom(**_kwargs: object) -> object:
+        def _boom(*_args: object, **_kwargs: object) -> object:
             raise RuntimeError("db locked")
 
-        monkeypatch.setattr(git_sandbox_mod, "insert_sandbox", _boom)
+        monkeypatch.setattr(git_sandbox_mod.SandboxesDb, "insert", _boom)
         manager = GitSandboxManager(cwd=repo)
         result = manager.create_sandbox_result(session_id="sbx_warn")
         assert result.ok and result.session is not None
         assert result.session.sandbox_path.is_dir()
         assert len(result.warnings) == 1
         assert "db locked" in result.warnings[0]
-        assert get_sandbox("sbx_warn", cwd=repo) is None
+        assert SandboxesDb(repo).get("sbx_warn") is None
         manager.cleanup_sandbox(result.session)
 
     def test_cleanup_without_db_row_does_not_raise(self, repo: Path) -> None:

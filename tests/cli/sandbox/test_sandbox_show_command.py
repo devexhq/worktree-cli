@@ -26,11 +26,9 @@ from getworktree.cli.sandbox.renderers import (
 from getworktree.common.utils import RichOutput
 from getworktree.core.config.generator import generate_default_config
 from getworktree.core.db import (
+    SandboxesDb,
     SandboxRecord,
     SandboxStatus,
-    get_sandbox,
-    insert_sandbox,
-    update_sandbox_status,
 )
 
 runner = CliRunner()
@@ -46,6 +44,23 @@ def git_repo(tmp_path: Path) -> Path:
         capture_output=True,
         text=True,
     )
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    (tmp_path / "f.txt").write_text("x\n", encoding="utf-8")
+    subprocess.run(["git", "add", "f.txt"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-m", "init"], cwd=tmp_path, check=True, capture_output=True)
     return tmp_path
 
 
@@ -60,21 +75,19 @@ def _insert(
     *,
     sandbox_id: str,
     name: str | None = None,
-    path_suffix: str,
+    path_suffix: str = "s",
     create_dir: bool = True,
     base_commit: str = "4f2c9a1e8b3d6f0a2c5e7b1d9a3f6c8e0b2d4f6a",
 ):
     sandbox_path = repo / ".worktree" / "sandboxes" / path_suffix
     if create_dir:
         sandbox_path.mkdir(parents=True, exist_ok=True)
-    return insert_sandbox(
+    return SandboxesDb(repo, DB_REL).insert(
         id=sandbox_id,
         branch_name=f"worktree/sandbox-{sandbox_id}",
         base_commit=base_commit,
         sandbox_path=sandbox_path,
         name=name,
-        cwd=repo,
-        db_rel_path=DB_REL,
     )
 
 
@@ -143,11 +156,9 @@ class SandboxShowCollectTests:
             create_dir=create_dir,
         )
         if status is not SandboxStatus.ACTIVE:
-            updated = update_sandbox_status(
+            updated = SandboxesDb(git_repo, DB_REL).update_status(
                 created.id,
                 status,
-                cwd=git_repo,
-                db_rel_path=DB_REL,
             )
             assert updated is not None
             created = updated
@@ -178,7 +189,7 @@ class SandboxShowCollectTests:
         assert result.sandbox.status is SandboxStatus.CLEANED
         assert result.reconciled is True
         assert result.disk_present is False
-        loaded = get_sandbox(stale.id, cwd=git_repo, db_rel_path=DB_REL)
+        loaded = SandboxesDb(git_repo, DB_REL).get(stale.id)
         assert loaded is not None
         assert loaded.status is SandboxStatus.CLEANED
 
@@ -190,11 +201,9 @@ class SandboxShowCollectTests:
             path_suffix="merged-gone",
             create_dir=False,
         )
-        update_sandbox_status(
+        SandboxesDb(git_repo, DB_REL).update_status(
             created.id,
             SandboxStatus.MERGED,
-            cwd=git_repo,
-            db_rel_path=DB_REL,
         )
 
         result = collect_sandbox_show(created.id, cwd=git_repo)

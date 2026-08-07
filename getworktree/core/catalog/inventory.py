@@ -10,13 +10,9 @@ import yaml
 from getworktree.common.fs import atomic_write_text
 from getworktree.core.catalog.models import CatalogScanResult
 from getworktree.core.db import (
+    CatalogDb,
     CatalogItemType,
     CatalogRecord,
-    delete_catalog_item,
-    get_catalog_item_by_name,
-    get_catalog_item_by_sha,
-    list_catalog_items,
-    upsert_catalog_item,
 )
 from getworktree.core.templates.inventory import get_builtin_template
 
@@ -113,13 +109,12 @@ def scan_and_index_catalog(cwd: Path | None = None) -> CatalogScanResult:
             rel_path = file_path.relative_to(catalog_dir)
 
             try:
-                record = upsert_catalog_item(
+                record = CatalogDb(cwd).upsert(
                     sha=sha,
                     item_type=item_type,
                     name=name,
                     path=rel_path,
                     checksum=checksum,
-                    cwd=cwd,
                 )
                 scanned_records.append(record)
                 scanned_shas.add(sha)
@@ -128,12 +123,12 @@ def scan_and_index_catalog(cwd: Path | None = None) -> CatalogScanResult:
 
     # Remove stale DB records for files no longer on disk
     try:
-        db_items = list_catalog_items(cwd=cwd)
+        db_items = CatalogDb(cwd).list()
         for record in db_items:
             if record.sha not in scanned_shas:
                 disk_file = catalog_dir / record.path
                 if not disk_file.exists():
-                    delete_catalog_item(record.sha, cwd=cwd)
+                    CatalogDb(cwd).delete(record.sha)
     except Exception as exc:
         errors.append(f"Error purging stale catalog DB records: {exc}")
 
@@ -185,13 +180,12 @@ def create_catalog_item(
     sha, checksum = compute_catalog_sha(type_enum, content)
     rel_path = target_path.relative_to(catalog_dir)
 
-    return upsert_catalog_item(
+    return CatalogDb(cwd).upsert(
         sha=sha,
         item_type=type_enum,
         name=stem,
         path=rel_path,
         checksum=checksum,
-        cwd=cwd,
     )
 
 
@@ -203,7 +197,7 @@ def get_catalog_item(
     """Retrieve catalog blueprint record by SHA or name."""
     scan_and_index_catalog(cwd)
 
-    item = get_catalog_item_by_sha(sha_or_name, cwd=cwd)
+    item = CatalogDb(cwd).get_by_sha(sha_or_name)
     if item is not None:
         if type_filter:
             tf_str = type_filter.value if isinstance(type_filter, CatalogItemType) else str(type_filter).lower()
@@ -211,7 +205,7 @@ def get_catalog_item(
                 return None
         return item
 
-    return get_catalog_item_by_name(sha_or_name, item_type=type_filter, cwd=cwd)
+    return CatalogDb(cwd).get_by_name(sha_or_name, item_type=type_filter)
 
 
 def delete_catalog_item_by_sha_or_name(
@@ -228,5 +222,5 @@ def delete_catalog_item_by_sha_or_name(
     if file_path.exists():
         file_path.unlink(missing_ok=True)
 
-    delete_catalog_item(item.sha, cwd=cwd)
+    CatalogDb(cwd).delete(item.sha)
     return item

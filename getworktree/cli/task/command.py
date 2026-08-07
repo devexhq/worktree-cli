@@ -19,9 +19,7 @@ from getworktree.core.db import (
     CatalogItemType,
     RunStatus,
     TaskRunRecord,
-    insert_task_run,
-    list_task_runs,
-    update_task_run_status,
+    TasksDb,
 )
 from getworktree.core.git_sandbox import GitSandboxManager, SandboxSession
 from getworktree.core.step import (
@@ -103,7 +101,7 @@ def task_list_command(
 
     runs: list[TaskRunRecord] = []
     try:
-        runs = list_task_runs(cwd=cwd)
+        runs = TasksDb(cwd).list()
     except Exception as exc:
         warnings.append(f"Failed to query task run history from database: {exc}")
         logger.warning("Failed to query task run history from database: %s", exc)
@@ -214,11 +212,10 @@ def task_run_command(
     run_record: TaskRunRecord | None = None
 
     try:
-        run_record = insert_task_run(
+        run_record = TasksDb(cwd).insert(
             session_id=sid,
             task_name=name,
             status=RunStatus.RUNNING,
-            cwd=cwd,
         )
     except Exception as exc:
         warnings.append(f"Failed to record task run start in database: {exc}")
@@ -334,11 +331,10 @@ def task_run_command(
     # 5. DB Status Update
     updated_record: TaskRunRecord | None = None
     try:
-        updated_record = update_task_run_status(
+        updated_record = TasksDb(cwd).update_status(
             session_id=sid,
             status=run_status,
             error_message=error_msg,
-            cwd=cwd,
         )
     except Exception as exc:
         warnings.append(f"Failed to update task run status in database: {exc}")

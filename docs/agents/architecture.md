@@ -78,18 +78,13 @@ calls create missing tables only.
 `sandbox_path` (UNIQUE), `status` (`active` / `merged` / `cleaned` / `conflict`,
 indexed), `created_at`, `updated_at` (raw SQLite `TIMESTAMP` strings).
 
-Typed surface:
+Typed DB surface:
 
-- `SandboxStatus` (`StrEnum`) and `SandboxRecord` (strict Pydantic model)
-- CRUD: `insert_sandbox`, `get_sandbox`, `list_sandboxes` (optional status
-  filter, `created_at` DESC), `update_sandbox_status`, `delete_sandbox_row`
-  (hard delete; prefer status `cleaned` to retain history)
+- `DbBase` base database class in [getworktree/core/db/base.py](../../getworktree/core/db/base.py) providing lazy database path resolution, lazy migration execution, `@contextmanager cursor()`, and execution shortcuts (`fetch_one`, `fetch_all`, `execute`, `execute_insert`).
+- Class-based repository wrappers: `SandboxesDb`, `TasksDb`, `WorkflowsDb`, `CatalogDb`, and `CostsDb`.
+- Composite facade `WorktreeDb` in [getworktree/core/db/facade.py](../../getworktree/core/db/facade.py) providing properties `.sandboxes`, `.tasks`, `.workflows`, `.catalog`, `.costs`.
 
-Helpers call `init_database` first (same pattern as `record_token_usage`).
-Duplicate `id` on insert raises `ValueError`. Missing ids return `None` /
-`False` rather than raising. `git_sandbox.py` owns create/cleanup writes
-(below). CLI: `wt sandbox create`, `wt sandbox list`, and `wt sandbox show`
-(below).
+`git_sandbox.py` owns create/cleanup writes via `SandboxesDb` (below). CLI commands use the corresponding class repositories.
 
 ## Sandboxes
 

@@ -12,7 +12,7 @@ from typer.testing import CliRunner
 from getworktree.cli import app
 from getworktree.cli.workflow.command import workflow_resume_command
 from getworktree.core.config.generator import generate_default_config
-from getworktree.core.db import insert_sandbox
+from getworktree.core.db import SandboxesDb
 
 runner = CliRunner()
 
@@ -48,13 +48,12 @@ class WorkflowResumeCommandDirectTests:
         monkeypatch.chdir(git_repo)
         _init_repo(git_repo)
 
-        insert_sandbox(
+        SandboxesDb(git_repo).insert(
             id="wf-99999",
             branch_name="wt/resume-me",
             base_commit="HEAD",
             sandbox_path=git_repo / ".worktree" / "sandboxes" / "wf-99999",
             name="resume-me",
-            cwd=git_repo,
         )
 
         with pytest.raises(typer.Exit) as exc_info:
@@ -108,13 +107,12 @@ class WorkflowResumeCliTests:
     def test_cli_resume_success(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         _init_repo(git_repo)
-        insert_sandbox(
+        SandboxesDb(git_repo).insert(
             id="wf-88888",
             branch_name="wt/resume-cli",
             base_commit="HEAD",
             sandbox_path=git_repo / ".worktree" / "sandboxes" / "wf-88888",
             name="resume-cli",
-            cwd=git_repo,
         )
 
         result = runner.invoke(app, ["workflow", "resume", "wf-88888"])
