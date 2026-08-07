@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from getworktree.core.config.generator import generate_default_config
-from getworktree.core.db import RunStatus, get_workflow_run, list_workflow_runs
+from getworktree.core.db import RunStatus, WorkflowsDb
 from getworktree.core.git_sandbox import (
     SandboxCreateResult,
     SandboxCreateStatus,
@@ -92,7 +92,7 @@ def test_run_workflow_iteration_records_workflow_passed(git_repo: Path) -> None:
 
     assert result.session_id == "wf-pass-101"
 
-    rec = get_workflow_run("wf-pass-101", cwd=git_repo)
+    rec = WorkflowsDb(git_repo).get("wf-pass-101")
     assert rec is not None
     assert rec.session_id == "wf-pass-101"
     assert rec.workflow_name == "passed-workflow"
@@ -101,7 +101,7 @@ def test_run_workflow_iteration_records_workflow_passed(git_repo: Path) -> None:
     assert rec.completed_at is not None
     assert rec.error_message is None
 
-    all_runs = list_workflow_runs(cwd=git_repo)
+    all_runs = WorkflowsDb(git_repo).list()
     assert len(all_runs) >= 1
     assert any(r.session_id == "wf-pass-101" for r in all_runs)
 
@@ -141,7 +141,7 @@ def test_run_workflow_iteration_records_workflow_failed(git_repo: Path) -> None:
 
     assert result.session_id == "wf-fail-202"
 
-    rec = get_workflow_run("wf-fail-202", cwd=git_repo)
+    rec = WorkflowsDb(git_repo).get("wf-fail-202")
     assert rec is not None
     assert rec.session_id == "wf-fail-202"
     assert rec.workflow_name == "failed-workflow"
@@ -173,11 +173,11 @@ def test_run_workflow_iteration_fault_tolerant_db_write_error(git_repo: Path, mo
             duration_ms=10,
         )
 
-    # Monkeypatch insert_workflow_run to raise an Exception to verify fault tolerance
+    # Monkeypatch WorkflowsDb.insert to raise an Exception to verify fault tolerance
     def bad_insert(*args: object, **kwargs: object) -> None:
         raise RuntimeError("Database locked")
 
-    monkeypatch.setattr("getworktree.core.workflows.runner.runner.insert_workflow_run", bad_insert)
+    monkeypatch.setattr(WorkflowsDb, "insert", bad_insert)
 
     result = run_workflow_iteration(
         workflow=workflow,

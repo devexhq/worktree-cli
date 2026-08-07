@@ -12,7 +12,7 @@ from typer.testing import CliRunner
 from getworktree.cli import app
 from getworktree.cli.workflow.command import workflow_show_command
 from getworktree.core.config.generator import generate_default_config
-from getworktree.core.db import insert_workflow_run
+from getworktree.core.db import WorkflowsDb
 
 runner = CliRunner()
 
@@ -48,11 +48,10 @@ class WorkflowShowCommandDirectTests:
         monkeypatch.chdir(git_repo)
         _init_repo(git_repo)
 
-        insert_workflow_run(
+        WorkflowsDb(git_repo).insert(
             session_id="wf-12345",
             workflow_name="fix-tests",
             branch_name="wt/fix-tests",
-            cwd=git_repo,
         )
 
         with pytest.raises(typer.Exit) as exc_info:
@@ -108,11 +107,10 @@ class WorkflowShowCliTests:
     def test_cli_show_success(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         _init_repo(git_repo)
-        insert_workflow_run(
+        WorkflowsDb(git_repo).insert(
             session_id="wf-55555",
             workflow_name="test-workflow",
             branch_name="wt/test-workflow",
-            cwd=git_repo,
         )
 
         result = runner.invoke(app, ["workflow", "show", "wf-55555"])

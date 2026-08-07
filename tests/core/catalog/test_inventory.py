@@ -14,9 +14,8 @@ from getworktree.core.catalog.inventory import (
     scan_and_index_catalog,
 )
 from getworktree.core.db import (
+    CatalogDb,
     CatalogItemType,
-    get_catalog_item_by_sha,
-    list_catalog_items,
 )
 
 
@@ -67,7 +66,7 @@ def test_scan_and_index_catalog(tmp_path: Path) -> None:
     assert len(result.items) == 3
 
     # Check indexed DB items
-    db_items = list_catalog_items(cwd=tmp_path)
+    db_items = CatalogDb(tmp_path).list()
     assert len(db_items) == 3
     shas = {item.sha for item in db_items}
     assert any(sha.startswith("workflow_") for sha in shas)
@@ -79,7 +78,7 @@ def test_scan_and_index_catalog(tmp_path: Path) -> None:
     res2 = scan_and_index_catalog(tmp_path)
     assert res2.ok
     assert len(res2.items) == 2
-    db_items2 = list_catalog_items(cwd=tmp_path)
+    db_items2 = CatalogDb(tmp_path).list()
     assert len(db_items2) == 2
 
 
@@ -95,7 +94,7 @@ def test_create_catalog_item_default(tmp_path: Path) -> None:
     assert (tmp_path / ".worktree" / "catalog" / "workflows" / "my-pipeline.yml").exists()
 
     # DB verify
-    fetched = get_catalog_item_by_sha(record.sha, cwd=tmp_path)
+    fetched = CatalogDb(tmp_path).get_by_sha(record.sha)
     assert fetched is not None
     assert fetched.name == "my-pipeline"
 

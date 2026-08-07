@@ -1,4 +1,4 @@
-"""Tests for SQLite database tables, models, and CRUD helpers (Issue #150)."""
+"""Tests for SQLite database tables, DbBase, repository classes, and WorktreeDb facade."""
 
 from __future__ import annotations
 
@@ -9,25 +9,17 @@ from pathlib import Path
 import pytest
 
 from getworktree.core.db import (
+    CatalogDb,
     CatalogItemType,
     CatalogRecord,
+    DbBase,
     RunStatus,
     TaskRunRecord,
+    TasksDb,
     WorkflowRunRecord,
-    delete_catalog_item,
-    get_catalog_item_by_name,
-    get_catalog_item_by_sha,
-    get_task_run,
-    get_workflow_run,
+    WorkflowsDb,
+    WorktreeDb,
     init_database,
-    insert_task_run,
-    insert_workflow_run,
-    list_catalog_items,
-    list_task_runs,
-    list_workflow_runs,
-    update_task_run_status,
-    update_workflow_run_status,
-    upsert_catalog_item,
 )
 
 DB_REL = ".worktree/data.db"
@@ -63,19 +55,52 @@ class TestDatabaseMigrations:
         assert path1.is_file()
 
 
-class TestCatalogCRUD:
-    """Tests for catalog indexing CRUD helper functions."""
+class TestDbBase:
+    """Tests for DbBase core path resolution, cursor management, and helper methods."""
+
+    def test_db_path_resolution(self, tmp_path: Path) -> None:
+        db_base = DbBase(cwd=tmp_path, db_rel_path=DB_REL)
+        assert db_base.db_path == tmp_path / DB_REL
+
+        custom_path = tmp_path / "custom.db"
+        db_base_custom = DbBase(db_path=custom_path)
+        assert db_base_custom.db_path == custom_path
+
+    def test_cursor_and_transaction(self, tmp_path: Path) -> None:
+        db_base = DbBase(cwd=tmp_path, db_rel_path=DB_REL)
+        assert db_base.execute_insert("INSERT INTO tasks (session_id, task_name) VALUES (?, ?);", ("s1", "t1")) == 1
+
+        row = db_base.fetch_one("SELECT * FROM tasks WHERE session_id = ?;", ("s1",))
+        assert row is not None
+        assert row["task_name"] == "t1"
+
+        all_rows = db_base.fetch_all("SELECT * FROM tasks;")
+        assert len(all_rows) == 1
+
+    def test_transaction_rollback_on_exception(self, tmp_path: Path) -> None:
+        db_base = DbBase(cwd=tmp_path, db_rel_path=DB_REL)
+        db_base.init_db()
+
+        with pytest.raises(sqlite3.IntegrityError):
+            with db_base.cursor() as cursor:
+                cursor.execute("INSERT INTO tasks (session_id, task_name) VALUES (?, ?);", ("s_dup", "t1"))
+                cursor.execute("INSERT INTO tasks (session_id, task_name) VALUES (?, ?);", ("s_dup", "t2"))
+
+        assert db_base.fetch_one("SELECT * FROM tasks WHERE session_id = ?;", ("s_dup",)) is None
+
+
+class TestCatalogDb:
+    """Tests for CatalogDb repository methods."""
 
     def test_upsert_insert_and_get_by_sha_and_name(self, tmp_path: Path) -> None:
+        db = CatalogDb(cwd=tmp_path, db_rel_path=DB_REL)
         path = Path(".worktree/catalog/workflow_a.yaml")
-        rec = upsert_catalog_item(
+        rec = db.upsert(
             sha="workflow_1234567",
             item_type=CatalogItemType.WORKFLOW,
             name="workflow_a",
             path=path,
             checksum="hash1",
-            cwd=tmp_path,
-            db_rel_path=DB_REL,
         )
 
         assert isinstance(rec, CatalogRecord)
@@ -88,42 +113,37 @@ class TestCatalogCRUD:
         assert rec.created_at
         assert rec.updated_at
 
-        by_sha = get_catalog_item_by_sha("workflow_1234567", cwd=tmp_path, db_rel_path=DB_REL)
+        by_sha = db.get_by_sha("workflow_1234567")
         assert by_sha == rec
 
-        by_name = get_catalog_item_by_name("workflow_a", cwd=tmp_path, db_rel_path=DB_REL)
+        by_name = db.get_by_name("workflow_a")
         assert by_name == rec
 
-        by_name_and_type = get_catalog_item_by_name(
+        by_name_and_type = db.get_by_name(
             "workflow_a",
             item_type=CatalogItemType.WORKFLOW,
-            cwd=tmp_path,
-            db_rel_path=DB_REL,
         )
         assert by_name_and_type == rec
 
     def test_upsert_update_preserves_id_and_updates_fields(self, tmp_path: Path) -> None:
+        db = CatalogDb(cwd=tmp_path, db_rel_path=DB_REL)
         path = Path(".worktree/catalog/task_b.yaml")
-        first = upsert_catalog_item(
+        first = db.upsert(
             sha="task_1111111",
             item_type=CatalogItemType.TASK,
             name="task_b",
             path=path,
             checksum="chk1",
-            cwd=tmp_path,
-            db_rel_path=DB_REL,
         )
 
         time.sleep(1.1)
 
-        second = upsert_catalog_item(
+        second = db.upsert(
             sha="task_2222222",
             item_type=CatalogItemType.TASK,
             name="task_b_v2",
             path=path,
             checksum="chk2",
-            cwd=tmp_path,
-            db_rel_path=DB_REL,
         )
 
         assert second.id == first.id
@@ -135,114 +155,80 @@ class TestCatalogCRUD:
         assert second.updated_at != first.updated_at
 
     def test_get_missing_catalog_item_returns_none(self, tmp_path: Path) -> None:
-        assert get_catalog_item_by_sha("missing", cwd=tmp_path, db_rel_path=DB_REL) is None
-        assert get_catalog_item_by_name("missing_name", cwd=tmp_path, db_rel_path=DB_REL) is None
+        db = CatalogDb(cwd=tmp_path, db_rel_path=DB_REL)
+        assert db.get_by_sha("missing") is None
+        assert db.get_by_name("missing_name") is None
 
     def test_list_catalog_items_filtering(self, tmp_path: Path) -> None:
-        upsert_catalog_item(
+        db = CatalogDb(cwd=tmp_path, db_rel_path=DB_REL)
+        db.upsert(
             sha="w1",
             item_type=CatalogItemType.WORKFLOW,
             name="wf1",
             path=Path("w1.yaml"),
             checksum="c1",
-            cwd=tmp_path,
-            db_rel_path=DB_REL,
         )
-        upsert_catalog_item(
+        db.upsert(
             sha="t1",
             item_type=CatalogItemType.TASK,
             name="task1",
             path=Path("t1.yaml"),
             checksum="c2",
-            cwd=tmp_path,
-            db_rel_path=DB_REL,
         )
-        upsert_catalog_item(
+        db.upsert(
             sha="s1",
             item_type=CatalogItemType.STEP,
             name="step1",
             path=Path("s1.yaml"),
             checksum="c3",
-            cwd=tmp_path,
-            db_rel_path=DB_REL,
         )
 
-        all_items = list_catalog_items(cwd=tmp_path, db_rel_path=DB_REL)
+        all_items = db.list()
         assert len(all_items) == 3
 
-        workflows = list_catalog_items(item_type=CatalogItemType.WORKFLOW, cwd=tmp_path, db_rel_path=DB_REL)
+        workflows = db.list(item_type=CatalogItemType.WORKFLOW)
         assert len(workflows) == 1
         assert workflows[0].sha == "w1"
 
-        steps = list_catalog_items(item_type="step", cwd=tmp_path, db_rel_path=DB_REL)
+        steps = db.list(item_type="step")
         assert len(steps) == 1
         assert steps[0].sha == "s1"
 
     def test_invalid_catalog_item_type_raises_value_error(self, tmp_path: Path) -> None:
+        db = CatalogDb(cwd=tmp_path, db_rel_path=DB_REL)
         with pytest.raises(ValueError, match="constraint"):
-            upsert_catalog_item(
+            db.upsert(
                 sha="invalid",
                 item_type="invalid_type",  # type: ignore[arg-type]
                 name="invalid",
                 path=Path("invalid.yaml"),
                 checksum="c",
-                cwd=tmp_path,
-                db_rel_path=DB_REL,
             )
 
-    def test_upsert_same_path_updates_record_with_new_sha(self, tmp_path: Path) -> None:
-        path = Path("duplicate_path.yaml")
-        first = upsert_catalog_item(
-            sha="sha_first",
-            item_type=CatalogItemType.WORKFLOW,
-            name="wf_first",
-            path=path,
-            checksum="c1",
-            cwd=tmp_path,
-            db_rel_path=DB_REL,
-        )
-
-        updated = upsert_catalog_item(
-            sha="sha_second",
-            item_type=CatalogItemType.WORKFLOW,
-            name="wf_second",
-            path=path,
-            checksum="c2",
-            cwd=tmp_path,
-            db_rel_path=DB_REL,
-        )
-
-        assert updated.id == first.id
-        assert updated.sha == "sha_second"
-        assert updated.name == "wf_second"
-        assert updated.checksum == "c2"
-
     def test_delete_catalog_item(self, tmp_path: Path) -> None:
-        upsert_catalog_item(
+        db = CatalogDb(cwd=tmp_path, db_rel_path=DB_REL)
+        db.upsert(
             sha="to_delete",
             item_type=CatalogItemType.WORKFLOW,
             name="delete_item",
             path=Path("delete.yaml"),
             checksum="c_del",
-            cwd=tmp_path,
-            db_rel_path=DB_REL,
         )
 
-        assert delete_catalog_item("to_delete", cwd=tmp_path, db_rel_path=DB_REL) is True
-        assert get_catalog_item_by_sha("to_delete", cwd=tmp_path, db_rel_path=DB_REL) is None
-        assert delete_catalog_item("to_delete", cwd=tmp_path, db_rel_path=DB_REL) is False
+        assert db.delete("to_delete") is True
+        assert db.get_by_sha("to_delete") is None
+        assert db.delete("to_delete") is False
 
 
-class TestWorkflowRunCRUD:
-    """Tests for workflow run CRUD helper functions."""
+class TestWorkflowsDb:
+    """Tests for WorkflowsDb repository methods."""
 
     def test_insert_and_get_workflow_run(self, tmp_path: Path) -> None:
-        rec = insert_workflow_run(
+        db = WorkflowsDb(cwd=tmp_path, db_rel_path=DB_REL)
+        rec = db.insert(
             session_id="wf_session_1",
             workflow_name="dev-workflow",
             branch_name="feature/workflow",
-            cwd=tmp_path,
-            db_rel_path=DB_REL,
         )
 
         assert isinstance(rec, WorkflowRunRecord)
@@ -255,45 +241,40 @@ class TestWorkflowRunCRUD:
         assert rec.completed_at is None
         assert rec.error_message is None
 
-        fetched = get_workflow_run("wf_session_1", cwd=tmp_path, db_rel_path=DB_REL)
+        fetched = db.get("wf_session_1")
         assert fetched == rec
 
     def test_insert_duplicate_session_id_raises_value_error(self, tmp_path: Path) -> None:
-        insert_workflow_run(
+        db = WorkflowsDb(cwd=tmp_path, db_rel_path=DB_REL)
+        db.insert(
             session_id="dup_wf",
             workflow_name="wf",
             branch_name="b",
-            cwd=tmp_path,
-            db_rel_path=DB_REL,
         )
 
         with pytest.raises(ValueError, match="already exists"):
-            insert_workflow_run(
+            db.insert(
                 session_id="dup_wf",
                 workflow_name="wf",
                 branch_name="b",
-                cwd=tmp_path,
-                db_rel_path=DB_REL,
             )
 
     def test_get_missing_workflow_run_returns_none(self, tmp_path: Path) -> None:
-        assert get_workflow_run("non_existent", cwd=tmp_path, db_rel_path=DB_REL) is None
+        db = WorkflowsDb(cwd=tmp_path, db_rel_path=DB_REL)
+        assert db.get("non_existent") is None
 
     def test_update_workflow_run_status(self, tmp_path: Path) -> None:
-        insert_workflow_run(
+        db = WorkflowsDb(cwd=tmp_path, db_rel_path=DB_REL)
+        db.insert(
             session_id="wf_to_update",
             workflow_name="wf",
             branch_name="b",
-            cwd=tmp_path,
-            db_rel_path=DB_REL,
         )
 
-        updated = update_workflow_run_status(
+        updated = db.update_status(
             session_id="wf_to_update",
             status=RunStatus.FAILED,
             error_message="Execution timeout",
-            cwd=tmp_path,
-            db_rel_path=DB_REL,
         )
 
         assert updated is not None
@@ -302,63 +283,49 @@ class TestWorkflowRunCRUD:
         assert updated.error_message == "Execution timeout"
 
     def test_update_missing_workflow_run_returns_none(self, tmp_path: Path) -> None:
-        assert (
-            update_workflow_run_status(
-                session_id="missing",
-                status=RunStatus.COMPLETED,
-                cwd=tmp_path,
-                db_rel_path=DB_REL,
-            )
-            is None
-        )
+        db = WorkflowsDb(cwd=tmp_path, db_rel_path=DB_REL)
+        assert db.update_status(session_id="missing", status=RunStatus.COMPLETED) is None
 
     def test_invalid_workflow_status_raises_value_error(self, tmp_path: Path) -> None:
-        insert_workflow_run(
+        db = WorkflowsDb(cwd=tmp_path, db_rel_path=DB_REL)
+        db.insert(
             session_id="wf_invalid_status",
             workflow_name="wf",
             branch_name="b",
-            cwd=tmp_path,
-            db_rel_path=DB_REL,
         )
 
         with pytest.raises(ValueError, match="constraint"):
-            update_workflow_run_status(
+            db.update_status(
                 session_id="wf_invalid_status",
                 status="invalid_status",  # type: ignore[arg-type]
-                cwd=tmp_path,
-                db_rel_path=DB_REL,
             )
 
     def test_list_workflow_runs(self, tmp_path: Path) -> None:
-        insert_workflow_run(
+        db = WorkflowsDb(cwd=tmp_path, db_rel_path=DB_REL)
+        db.insert(
             session_id="wf_1",
             workflow_name="wf1",
             branch_name="b1",
-            cwd=tmp_path,
-            db_rel_path=DB_REL,
         )
-        insert_workflow_run(
+        db.insert(
             session_id="wf_2",
             workflow_name="wf2",
             branch_name="b2",
-            cwd=tmp_path,
-            db_rel_path=DB_REL,
         )
 
-        runs = list_workflow_runs(cwd=tmp_path, db_rel_path=DB_REL)
+        runs = db.list()
         assert len(runs) == 2
         assert {r.session_id for r in runs} == {"wf_1", "wf_2"}
 
 
-class TestTaskRunCRUD:
-    """Tests for task run CRUD helper functions."""
+class TestTasksDb:
+    """Tests for TasksDb repository methods."""
 
     def test_insert_and_get_task_run(self, tmp_path: Path) -> None:
-        rec = insert_task_run(
+        db = TasksDb(cwd=tmp_path, db_rel_path=DB_REL)
+        rec = db.insert(
             session_id="task_session_1",
             task_name="lint-fix",
-            cwd=tmp_path,
-            db_rel_path=DB_REL,
         )
 
         assert isinstance(rec, TaskRunRecord)
@@ -370,41 +337,36 @@ class TestTaskRunCRUD:
         assert rec.completed_at is None
         assert rec.error_message is None
 
-        fetched = get_task_run("task_session_1", cwd=tmp_path, db_rel_path=DB_REL)
+        fetched = db.get("task_session_1")
         assert fetched == rec
 
     def test_insert_duplicate_task_session_id_raises_value_error(self, tmp_path: Path) -> None:
-        insert_task_run(
+        db = TasksDb(cwd=tmp_path, db_rel_path=DB_REL)
+        db.insert(
             session_id="dup_task",
             task_name="task",
-            cwd=tmp_path,
-            db_rel_path=DB_REL,
         )
 
         with pytest.raises(ValueError, match="already exists"):
-            insert_task_run(
+            db.insert(
                 session_id="dup_task",
                 task_name="task",
-                cwd=tmp_path,
-                db_rel_path=DB_REL,
             )
 
     def test_get_missing_task_run_returns_none(self, tmp_path: Path) -> None:
-        assert get_task_run("non_existent", cwd=tmp_path, db_rel_path=DB_REL) is None
+        db = TasksDb(cwd=tmp_path, db_rel_path=DB_REL)
+        assert db.get("non_existent") is None
 
     def test_update_task_run_status(self, tmp_path: Path) -> None:
-        insert_task_run(
+        db = TasksDb(cwd=tmp_path, db_rel_path=DB_REL)
+        db.insert(
             session_id="task_to_update",
             task_name="task",
-            cwd=tmp_path,
-            db_rel_path=DB_REL,
         )
 
-        updated = update_task_run_status(
+        updated = db.update_status(
             session_id="task_to_update",
             status=RunStatus.COMPLETED,
-            cwd=tmp_path,
-            db_rel_path=DB_REL,
         )
 
         assert updated is not None
@@ -413,46 +375,83 @@ class TestTaskRunCRUD:
         assert updated.error_message is None
 
     def test_update_missing_task_run_returns_none(self, tmp_path: Path) -> None:
-        assert (
-            update_task_run_status(
-                session_id="missing",
-                status=RunStatus.COMPLETED,
-                cwd=tmp_path,
-                db_rel_path=DB_REL,
-            )
-            is None
-        )
+        db = TasksDb(cwd=tmp_path, db_rel_path=DB_REL)
+        assert db.update_status(session_id="missing", status=RunStatus.COMPLETED) is None
 
     def test_invalid_task_status_raises_value_error(self, tmp_path: Path) -> None:
-        insert_task_run(
+        db = TasksDb(cwd=tmp_path, db_rel_path=DB_REL)
+        db.insert(
             session_id="task_invalid_status",
             task_name="task",
-            cwd=tmp_path,
-            db_rel_path=DB_REL,
         )
 
         with pytest.raises(ValueError, match="constraint"):
-            update_task_run_status(
+            db.update_status(
                 session_id="task_invalid_status",
                 status="invalid_status",  # type: ignore[arg-type]
-                cwd=tmp_path,
-                db_rel_path=DB_REL,
             )
 
     def test_list_task_runs(self, tmp_path: Path) -> None:
-        insert_task_run(
+        db = TasksDb(cwd=tmp_path, db_rel_path=DB_REL)
+        db.insert(
             session_id="t_1",
             task_name="t1",
-            cwd=tmp_path,
-            db_rel_path=DB_REL,
         )
-        insert_task_run(
+        db.insert(
             session_id="t_2",
             task_name="t2",
-            cwd=tmp_path,
-            db_rel_path=DB_REL,
         )
 
-        runs = list_task_runs(cwd=tmp_path, db_rel_path=DB_REL)
+        runs = db.list()
         assert len(runs) == 2
         assert {r.session_id for r in runs} == {"t_1", "t_2"}
+
+
+class TestWorktreeDbFacade:
+    """Tests for WorktreeDb unified facade."""
+
+    def test_facade_sub_repository_access(self, tmp_path: Path) -> None:
+        db = WorktreeDb(cwd=tmp_path, db_rel_path=DB_REL)
+        db.init_db()
+
+        sb = db.sandboxes.insert(
+            id="sb_facade",
+            branch_name="feat/facade",
+            base_commit="abc",
+            sandbox_path=tmp_path / "sb_facade",
+        )
+        assert db.sandboxes.get("sb_facade") == sb
+
+        wf = db.workflows.insert(
+            session_id="wf_facade",
+            workflow_name="wf",
+            branch_name="b",
+        )
+        assert db.workflows.get("wf_facade") == wf
+
+        tk = db.tasks.insert(
+            session_id="tk_facade",
+            task_name="tk",
+        )
+        assert db.tasks.get("tk_facade") == tk
+
+        cat = db.catalog.upsert(
+            sha="c_facade",
+            item_type=CatalogItemType.WORKFLOW,
+            name="wf_cat",
+            path=Path("wf_cat.yaml"),
+            checksum="c",
+        )
+        assert db.catalog.get_by_sha("c_facade") == cat
+
+        cost_id = db.costs.record_token_usage(
+            session_id="wf_facade",
+            branch_name="b",
+            model_id="gpt-4o",
+            prompt_tokens=10,
+            completion_tokens=20,
+            estimated_usd_cost=0.005,
+        )
+        assert cost_id is not None
+        totals = db.costs.get_session_total_cost("wf_facade")
+        assert totals["total_tokens"] == 30

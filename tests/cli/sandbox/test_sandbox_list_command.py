@@ -27,11 +27,9 @@ from getworktree.cli.sandbox.renderers import (
 from getworktree.common.utils import RichOutput
 from getworktree.core.config.generator import generate_default_config
 from getworktree.core.db import (
+    SandboxesDb,
     SandboxRecord,
     SandboxStatus,
-    get_sandbox,
-    insert_sandbox,
-    update_sandbox_status,
 )
 
 runner = CliRunner()
@@ -47,6 +45,23 @@ def git_repo(tmp_path: Path) -> Path:
         capture_output=True,
         text=True,
     )
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    (tmp_path / "f.txt").write_text("x\n", encoding="utf-8")
+    subprocess.run(["git", "add", "f.txt"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-m", "init"], cwd=tmp_path, check=True, capture_output=True)
     return tmp_path
 
 
@@ -61,20 +76,18 @@ def _insert(
     *,
     sandbox_id: str,
     name: str | None = None,
-    path_suffix: str,
+    path_suffix: str = "s",
     create_dir: bool = True,
 ):
     sandbox_path = repo / ".worktree" / "sandboxes" / path_suffix
     if create_dir:
         sandbox_path.mkdir(parents=True, exist_ok=True)
-    return insert_sandbox(
+    return SandboxesDb(repo, DB_REL).insert(
         id=sandbox_id,
         branch_name=f"worktree/sandbox-{sandbox_id}",
         base_commit="abc123",
         sandbox_path=sandbox_path,
         name=name,
-        cwd=repo,
-        db_rel_path=DB_REL,
     )
 
 
@@ -125,11 +138,9 @@ class SandboxListCollectTests:
         _init_config(git_repo)
         active = _insert(git_repo, sandbox_id="sbx_active", path_suffix="a")
         cleaned = _insert(git_repo, sandbox_id="sbx_cleaned", path_suffix="c")
-        update_sandbox_status(
+        SandboxesDb(git_repo, DB_REL).update_status(
             cleaned.id,
             SandboxStatus.CLEANED,
-            cwd=git_repo,
-            db_rel_path=DB_REL,
         )
 
         result = collect_sandbox_list(status="cleaned", cwd=git_repo)
@@ -152,7 +163,7 @@ class SandboxListCollectTests:
         assert len(result.sandboxes) == 1
         assert result.sandboxes[0].id == stale.id
         assert result.sandboxes[0].status is SandboxStatus.CLEANED
-        loaded = get_sandbox(stale.id, cwd=git_repo, db_rel_path=DB_REL)
+        loaded = SandboxesDb(git_repo, DB_REL).get(stale.id)
         assert loaded is not None
         assert loaded.status is SandboxStatus.CLEANED
 
@@ -168,7 +179,7 @@ class SandboxListCollectTests:
         result = collect_sandbox_list(status="active", cwd=git_repo)
         assert result.ok
         assert result.sandboxes == []
-        loaded = get_sandbox(stale.id, cwd=git_repo, db_rel_path=DB_REL)
+        loaded = SandboxesDb(git_repo, DB_REL).get(stale.id)
         assert loaded is not None
         assert loaded.status is SandboxStatus.CLEANED
 

@@ -17,8 +17,7 @@ from getworktree.core.config.loader import load_config_result
 from getworktree.core.config.models import WorktreeConfig
 from getworktree.core.db import (
     RunStatus,
-    insert_workflow_run,
-    update_workflow_run_status,
+    WorkflowsDb,
 )
 from getworktree.core.git_sandbox import (
     GitSandboxManager,
@@ -270,12 +269,11 @@ def run_workflow_iteration(
     command_passed: bool | None = None
 
     try:
-        insert_workflow_run(
+        WorkflowsDb(root).insert(
             session_id=sid,
             workflow_name=workflow_name,
             branch_name=session.target_branch,
             status=RunStatus.RUNNING,
-            cwd=root,
         )
     except Exception as exc:
         warnings.append(f"Failed to record workflow run start in database: {exc}")
@@ -298,11 +296,10 @@ def run_workflow_iteration(
             )
         )
         try:
-            update_workflow_run_status(
+            WorkflowsDb(root).update_status(
                 session_id=sid,
                 status=run_status,
                 error_message=err_msg,
-                cwd=root,
             )
         except Exception as exc:
             warnings.append(f"Failed to update workflow run status in database: {exc}")

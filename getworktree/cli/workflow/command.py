@@ -12,7 +12,7 @@ import typer
 
 from getworktree.common.utils import RichOutput
 from getworktree.core.config.loader import ConfigLoadStatus, load_config_result
-from getworktree.core.db import get_sandbox, get_workflow_run, list_workflow_runs
+from getworktree.core.db import SandboxesDb, WorkflowsDb
 from getworktree.core.workflows.render import (
     format_workflow_show_resolve_failure,
     format_workflow_show_validate_failure,
@@ -53,7 +53,7 @@ def workflow_list_command(*, cwd: Path | None = None) -> None:
         rich_output.error_panel("Workflow List Failed", message)
         raise typer.Exit(code=1)
 
-    workflows = list_workflow_runs(cwd=root)
+    workflows = WorkflowsDb(root).list()
     render_workflow_list(workflows, cwd=root, rich_output=rich_output)
     raise typer.Exit(code=0)
 
@@ -86,7 +86,7 @@ def workflow_show_command(session_id: str, *, cwd: Path | None = None) -> None:
         rich_output.error_panel("Workflow Show Failed", message)
         raise typer.Exit(code=1)
 
-    row = get_workflow_run(session_id, cwd=root) or get_sandbox(session_id, cwd=root)
+    row = WorkflowsDb(root).get(session_id) or SandboxesDb(root).get(session_id)
     if row is None:
         rich_output.error_panel(
             "Workflow Show Failed",
@@ -130,7 +130,7 @@ def workflow_resume_command(session_id: str, *, cwd: Path | None = None) -> None
         rich_output.error_panel("Workflow Resume Failed", message)
         raise typer.Exit(code=1)
 
-    row = get_workflow_run(session_id, cwd=root) or get_sandbox(session_id, cwd=root)
+    row = WorkflowsDb(root).get(session_id) or SandboxesDb(root).get(session_id)
     if row is None:
         rich_output.error_panel(
             "Workflow Resume Failed",

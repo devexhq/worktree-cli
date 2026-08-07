@@ -17,7 +17,7 @@ from getworktree.common.constants import GIT_SUBPROCESS_TIMEOUT_SECONDS
 from getworktree.core.config.context import get_current_git_branch
 from getworktree.core.config.loader import ConfigLoadStatus, load_config_result
 from getworktree.core.config.models import WorktreeConfig
-from getworktree.core.db import SandboxStatus, insert_sandbox, update_sandbox_status
+from getworktree.core.db import SandboxesDb, SandboxStatus
 
 
 class GitPlumbingTimeoutError(RuntimeError):
@@ -462,13 +462,12 @@ class GitSandboxManager:
         )
         warnings: list[str] = []
         try:
-            insert_sandbox(
+            SandboxesDb(self.cwd).insert(
                 id=session.session_id,
                 name=session.name,
                 branch_name=session.target_branch,
                 base_commit=session.base_commit,
                 sandbox_path=session.sandbox_path,
-                cwd=self.cwd,
             )
         except Exception as exc:
             warnings.append(f"Failed to persist sandbox metadata to the local database: {exc}")
@@ -528,10 +527,9 @@ class GitSandboxManager:
                 shutil.rmtree(session.sandbox_path, ignore_errors=True)
 
         try:
-            update_sandbox_status(
+            SandboxesDb(self.cwd).update_status(
                 session.session_id,
                 SandboxStatus.CLEANED,
-                cwd=self.cwd,
             )
         except Exception:
             pass
