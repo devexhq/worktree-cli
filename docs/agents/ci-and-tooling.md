@@ -17,9 +17,9 @@ ruff format --check .   # use `ruff format .` to apply
 [.github/workflows/ci.yml](../../.github/workflows/ci.yml) runs three jobs on
 push to `main` and on pull requests:
 
-- `test`: `pip install -e .[dev]` then pytest with coverage
+- `test`: `uv sync --all-extras` then pytest with coverage
   (`fail_under = 80` in [pyproject.toml](../../pyproject.toml)).
-- `lint`: `ruff check .` then `ruff format --check .`.
+- `lint`: `uv run ruff check .` then `uv run ruff format --check .`.
 - `ci`: gate job that fails if either `test` or `lint` failed.
 
 Match these locally (see [testing.md](testing.md) and the lint commands above)
@@ -27,17 +27,9 @@ before pushing to avoid CI failures.
 
 ## Versioning
 
-`setup.py` defines `BASE_VERSION`. When `WORKTREE_DEV_BUILD=true` (set in CI for
-non-release builds), the version becomes `{BASE_VERSION}.dev{GITHUB_RUN_NUMBER}`.
-Bump `BASE_VERSION` for releases; keep it in sync with `__version__` in
-[getworktree/cli.py](../../getworktree/cli.py).
+Static package versioning lives in [getworktree/__init__.py](../../getworktree/__init__.py) (`__version__ = "0.1.1"`), managed by Hatchling configured in [pyproject.toml](../../pyproject.toml).
 
 ## Release process
 
-- [dev-publish.yml](../../.github/workflows/dev-publish.yml) publishes a dev build
-  to PyPI automatically on every push to `main` (`WORKTREE_DEV_BUILD=true`).
 - [publish.yml](../../.github/workflows/publish.yml) publishes a release build to
-  PyPI when a GitHub Release is published.
-
-Both run on every qualifying push/release with no manual approval step, so avoid
-pushing to `main` with an unintentionally bumped `BASE_VERSION`.
+  PyPI via `uv build` when a GitHub Release is published.

@@ -29,13 +29,16 @@ uv tool install getworktree
 To install in editable mode with development dependencies:
 
 ```bash
-pip install -e ".[dev]"
+uv sync --all-extras
+# Or using uv pip:
+# uv pip install -e ".[dev]"
 ```
 
 To install with documentation dependencies:
 
 ```bash
-pip install -e ".[docs]"
+uv sync --extra docs
+# Or: uv pip install -e ".[docs]"
 ```
 
 ## Alternative Install Methods

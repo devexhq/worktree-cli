@@ -91,7 +91,7 @@ Worktree initializes and uses:
 ## Development
 
 ```bash
-pip install -e .[dev]
+uv sync --all-extras
 inv test
 ruff format .
 ruff check .

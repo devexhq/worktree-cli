@@ -4,7 +4,7 @@ from importlib import metadata
 def get_version():
     """Get the package version from importlib."""
     try:
-        # This must exactly match the 'name' string inside your setup.py
+        # This must exactly match the 'name' string inside your pyproject.toml
         version_string = metadata.version("getworktree")
     except metadata.PackageNotFoundError:
         # Fallback for when running the raw script without installing the package

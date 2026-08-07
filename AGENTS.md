@@ -7,7 +7,7 @@ directory.
 ## Essential commands
 
 ```bash
-pip install -e .[dev]           # install with dev dependencies
+uv sync --all-extras            # install dependencies with uv (or uv pip install -e .[dev])
 inv test                        # run tests (python -m pytest tests/ -q)
 ruff check .                    # lint
 ruff format .                   # format
