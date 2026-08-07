@@ -7,7 +7,7 @@ from .command import init_command
 init_app = typer.Typer(name="init", help="Initialize Worktree CLI in the current directory.")
 
 
-@init_app.command(name="init")
+@init_app.callback(invoke_without_command=True)
 def init_workspace(
     ctx: typer.Context,
     overwrite: bool = typer.Option(
