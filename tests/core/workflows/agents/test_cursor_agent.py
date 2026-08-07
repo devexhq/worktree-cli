@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -215,7 +216,8 @@ class CursorAdapterTests:
 
 
 class DefaultCursorRunTests:
-    def test_missing_sdk_is_provider_error(self, sandbox: Path) -> None:
+    def test_missing_sdk_is_provider_error(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setitem(sys.modules, "cursor_sdk", None)
         outcome = default_cursor_run(
             CliMutationRunRequest(
                 model="composer-2.5",

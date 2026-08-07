@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from getworktree.cli import app
+from getworktree.cli.cli import __version__, app
 
 runner = CliRunner()
 
@@ -62,7 +62,7 @@ class CliSmokeTests:
         result = runner.invoke(app, ["--version"])
         assert result.exit_code == 0
         assert "Worktree CLI" in result.stdout
-        assert "0.1.1" in result.stdout
+        assert __version__ in result.stdout
 
     def test_init_via_cli(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
