@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 
 import pytest
@@ -15,18 +14,6 @@ from getworktree.core.config.generator import generate_default_config
 from getworktree.core.db import SandboxesDb
 
 runner = CliRunner()
-
-
-@pytest.fixture
-def git_repo(tmp_path: Path) -> Path:
-    subprocess.run(
-        ["git", "init"],
-        cwd=tmp_path,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    return tmp_path
 
 
 def _init_repo(repo: Path) -> Path:

@@ -8,9 +8,12 @@ from invoke import task
 
 
 @task(default=True)
-def test(context, path="tests/", coverage=False, fast_fail=False):
-    """Run the test suite, optionally with coverage and/or fast-fail behavior."""
+def test(context, path="tests/", coverage=False, fast_fail=False, parallel=True):
+    """Run the test suite, optionally with coverage, parallelization, and fast-fail behavior."""
     cmd = [sys.executable, "-m", "pytest", path]
+
+    if parallel:
+        cmd.extend(["-n", "auto"])
 
     if coverage:
         # fail_under=80 lives in pyproject.toml [tool.coverage.report]
@@ -22,6 +25,8 @@ def test(context, path="tests/", coverage=False, fast_fail=False):
     cmd.append("-q")
 
     env = os.environ.copy()
+    env["COLUMNS"] = "160"
+    env["PYTHONIOENCODING"] = "utf-8"
     context.run(" ".join(shlex.quote(part) for part in cmd), env=env, pty=False)
 
 

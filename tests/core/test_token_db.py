@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import sqlite3
-import time
 from pathlib import Path
 
 import pytest
@@ -122,8 +121,9 @@ class SandboxDatabaseTests:
     def test_list_sandboxes_order_and_filter(self, tmp_path: Path) -> None:
         db = SandboxesDb(cwd=tmp_path, db_rel_path=DB_REL)
         first = self._insert(tmp_path, sandbox_id="sbx_first", path_suffix="1")
-        time.sleep(1.1)
         second = self._insert(tmp_path, sandbox_id="sbx_second", path_suffix="2", name="beta")
+        db.execute("UPDATE sandboxes SET created_at = '2026-01-01 00:00:00' WHERE id = ?", (first.id,))
+        db.execute("UPDATE sandboxes SET created_at = '2026-01-01 00:00:01' WHERE id = ?", (second.id,))
         db.update_status(second.id, SandboxStatus.CLEANED)
 
         all_rows = db.list()
@@ -146,7 +146,8 @@ class SandboxDatabaseTests:
         db = SandboxesDb(cwd=tmp_path, db_rel_path=DB_REL)
         created = self._insert(tmp_path)
         original_updated = created.updated_at
-        time.sleep(1.1)
+        db.execute("UPDATE sandboxes SET updated_at = '2026-01-01 00:00:00' WHERE id = ?", (created.id,))
+        original_updated = "2026-01-01 00:00:00"
 
         updated = db.update_status(created.id, SandboxStatus.MERGED)
         assert updated is not None

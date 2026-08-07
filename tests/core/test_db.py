@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import sqlite3
-import time
 from pathlib import Path
 
 import pytest
@@ -135,8 +134,12 @@ class TestCatalogDb:
             path=path,
             checksum="chk1",
         )
-
-        time.sleep(1.1)
+        db.execute(
+            "UPDATE catalog SET created_at = '2026-01-01 00:00:00', updated_at = '2026-01-01 00:00:00' WHERE id = ?",
+            (first.id,),
+        )
+        first = db.get_by_sha("task_1111111")
+        assert first is not None
 
         second = db.upsert(
             sha="task_2222222",

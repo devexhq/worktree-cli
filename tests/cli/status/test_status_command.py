@@ -12,32 +12,6 @@ from getworktree.cli.status.command import status_command
 from getworktree.core.config.generator import generate_default_config
 
 
-@pytest.fixture
-def git_repo(tmp_path: Path) -> Path:
-    subprocess.run(["git", "init", "-b", "feature"], cwd=tmp_path, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "config", "user.email", "test@example.com"],
-        cwd=tmp_path,
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.name", "Test"],
-        cwd=tmp_path,
-        check=True,
-        capture_output=True,
-    )
-    (tmp_path / "f.txt").write_text("x\n", encoding="utf-8")
-    subprocess.run(["git", "add", "f.txt"], cwd=tmp_path, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "commit", "-m", "init"],
-        cwd=tmp_path,
-        check=True,
-        capture_output=True,
-    )
-    return tmp_path
-
-
 class StatusCommandTests:
     """Tests for status_command."""
 
@@ -48,6 +22,7 @@ class StatusCommandTests:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         monkeypatch.chdir(git_repo)
+        subprocess.run(["git", "checkout", "feature"], cwd=git_repo, check=True, capture_output=True)
         config_path = git_repo / ".worktree" / "config.json"
         config_path.parent.mkdir(parents=True)
         generate_default_config(config_path, git_repo.name)
