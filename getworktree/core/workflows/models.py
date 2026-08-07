@@ -6,107 +6,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-WorkflowAgentMode = Literal["fix_failure", "review_remediation"]
-WorkflowAgentProvider = Literal[
-    "local", "ollama", "cursor", "gemini", "copilot", "openai", "anthropic", "azure_openai"
-]
-WorkflowPatchStrategy = Literal["unified_diff"]
-WorkflowStopWhen = Literal["trigger_passes", "unfixable", "user_abort"]
-WorkflowStepType = Literal["command", "agent", "script"]
-WorkflowStepFailureAction = Literal["abort", "ignore", "retry"]
 WorkflowContextInclude = Literal["trigger_output", "changed_files", "relevant_source"]
-
-
-class StepReference(BaseModel):
-    """Legacy reference to a pre-defined step template."""
-
-    model_config = {"extra": "ignore", "strict": True}
-
-    step_id: str = Field(min_length=1)
-    override_timeout_seconds: int | None = Field(default=None, ge=1)
-
-
-class InlineStepDefinition(BaseModel):
-    """Legacy inline command, agent, or script step."""
-
-    model_config = {"extra": "ignore", "strict": True}
-
-    name: str = Field(min_length=1)
-    type: str
-    description: str | None = None
-    command: str | None = None
-    args: list[str] | None = None
-    prompt: str | None = None
-    agent: str | None = None
-    tools: list[str] = Field(default_factory=list)
-    script_path: str | None = None
-    timeout_seconds: int = Field(default=120, ge=1)
-    failure_action: str = Field(default="abort")
-
-
-class WorkflowTrigger(BaseModel):
-    """Trigger command settings."""
-
-    model_config = {"extra": "ignore", "strict": True}
-
-    command: str = Field(min_length=1)
-    args: list[str] = Field(default_factory=list)
-    timeout_seconds: int = Field(default=600, ge=1)
-
-
-class WorkflowAgent(BaseModel):
-    """Agent provider settings."""
-
-    model_config = {"extra": "ignore", "strict": True}
-
-    provider: str
-    mode: str
-    timeout_seconds: int = Field(default=120, ge=1)
-
-
-class WorkflowIteration(BaseModel):
-    """Iteration limits and stop conditions."""
-
-    model_config = {"extra": "ignore", "strict": True}
-
-    max_attempts: int = Field(default=5, ge=1)
-    stop_when: list[str] = Field(default_factory=list)
-
-
-class WorkflowSandbox(BaseModel):
-    """Sandbox lifecycle settings."""
-
-    model_config = {"extra": "ignore", "strict": True}
-
-    auto_clean: bool = True
-    keep_on_failure: bool = True
-
-
-class WorkflowApproval(BaseModel):
-    """Approval gate settings."""
-
-    model_config = {"extra": "ignore", "strict": True}
-
-    require_before_apply: bool = True
-
-
-class WorkflowContext(BaseModel):
-    """Context payloads included for agent."""
-
-    model_config = {"extra": "ignore", "strict": True}
-
-    include: list[WorkflowContextInclude] = Field(default_factory=list)
-
-
-class WorkflowPatch(BaseModel):
-    """Patch strategy and limits."""
-
-    model_config = {"extra": "ignore", "strict": True}
-
-    strategy: str = "unified_diff"
-    max_files: int = Field(default=30, ge=1)
-    max_patch_kb: int = Field(default=1024, ge=1)
-    reject_binary_changes: bool | None = None
 
 
 class WorkflowInput(BaseModel):
@@ -188,24 +88,7 @@ class WorkflowDefinition(BaseModel):
     timeout_seconds: int | None = Field(default=None, ge=1)
     env: dict[str, str] = Field(default_factory=dict)
     inputs: dict[str, WorkflowInput] = Field(default_factory=dict)
-    steps: (
-        list[
-            StandardStepDefinition
-            | LoopStepBlock
-            | StepReference
-            | InlineStepDefinition
-        ]
-        | None
-    ) = None
-
-    # Legacy attributes for runner / execution context compatibility
-    trigger: WorkflowTrigger | None = None
-    agent: WorkflowAgent | None = None
-    iteration: WorkflowIteration | None = None
-    sandbox: WorkflowSandbox | None = None
-    approval: WorkflowApproval | None = None
-    context: WorkflowContext | None = None
-    patch: WorkflowPatch | None = None
+    steps: list[StandardStepDefinition | LoopStepBlock] | None = None
 
     @model_validator(mode="after")
     def validate_workflow(self) -> WorkflowDefinition:

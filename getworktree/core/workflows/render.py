@@ -7,25 +7,11 @@ from pathlib import Path
 
 from getworktree.core.workflows.models import (
     LoopStepBlock,
-    StepReference,
+    StandardStepDefinition,
     WorkflowDefinition,
 )
 from getworktree.core.workflows.resolve import WorkflowResolveResult
 from getworktree.core.workflows.validate import WorkflowValidationResult
-
-
-def _format_str_list(values: list[str]) -> str:
-    return json.dumps(values, ensure_ascii=False)
-
-
-def _format_bool(value: bool) -> str:
-    return "true" if value else "false"
-
-
-def _format_optional_bool(value: bool | None) -> str:
-    if value is None:
-        return "null"
-    return _format_bool(value)
 
 
 def _indent_block(text: str | None, *, prefix: str = "  ") -> str:
@@ -96,13 +82,7 @@ def format_workflow_show_success(
     if workflow.steps:
         lines.append("Steps:")
         for step in workflow.steps:
-            if isinstance(step, StepReference):
-                lines.append(f"  - step_id: {step.step_id}")
-                if step.override_timeout_seconds:
-                    lines.append(
-                        f"    override_timeout_seconds: {step.override_timeout_seconds}"
-                    )
-            elif isinstance(step, LoopStepBlock):
+            if isinstance(step, LoopStepBlock):
                 lines.append(f"  - id: {step.id}")
                 lines.append("    type: loop")
                 lines.append(f"    max_iterations: {step.max_iterations}")
@@ -114,95 +94,21 @@ def format_workflow_show_success(
                         lines.append(f"        uses: {sub.uses}")
                     if sub.run:
                         lines.append(f"        run: {sub.run}")
-            else:
-                step_id = getattr(step, "id", None) or getattr(step, "name", None)
+            elif isinstance(step, StandardStepDefinition):
+                step_id = step.id or step.name
                 if step_id:
                     lines.append(f"  - id: {step_id}")
-                if getattr(step, "name", None) and step.name != step_id:
+                if step.name and step.name != step_id:
                     lines.append(f"    name: {step.name}")
-                if getattr(step, "uses", None):
+                if step.uses:
                     lines.append(f"    uses: {step.uses}")
-                if getattr(step, "run", None):
+                if step.run:
                     lines.append(f"    run: {step.run}")
-                if getattr(step, "command", None):
-                    lines.append(f"    command: {step.command}")
-                if getattr(step, "prompt", None):
+                if step.prompt:
                     lines.append(f"    prompt: {step.prompt}")
-                if getattr(step, "timeout_seconds", None):
+                if step.timeout_seconds:
                     lines.append(f"    timeout_seconds: {step.timeout_seconds}")
         lines.append("")
-
-    if workflow.trigger:
-        lines.extend(
-            [
-                "Trigger:",
-                f"  command: {workflow.trigger.command}",
-                f"  args: {_format_str_list(workflow.trigger.args)}",
-                f"  timeout_seconds: {workflow.trigger.timeout_seconds}",
-                "",
-            ]
-        )
-
-    if workflow.agent:
-        lines.extend(
-            [
-                "Agent:",
-                f"  provider: {workflow.agent.provider}",
-                f"  mode: {workflow.agent.mode}",
-                f"  timeout_seconds: {workflow.agent.timeout_seconds}",
-                "",
-            ]
-        )
-
-    if workflow.iteration:
-        lines.extend(
-            [
-                "Iteration:",
-                f"  max_attempts: {workflow.iteration.max_attempts}",
-                f"  stop_when: {_format_str_list(list(workflow.iteration.stop_when))}",
-                "",
-            ]
-        )
-
-    if workflow.sandbox:
-        lines.extend(
-            [
-                "Sandbox:",
-                f"  auto_clean: {_format_bool(workflow.sandbox.auto_clean)}",
-                f"  keep_on_failure: {_format_bool(workflow.sandbox.keep_on_failure)}",
-                "",
-            ]
-        )
-
-    if workflow.approval:
-        lines.extend(
-            [
-                "Approval:",
-                f"  require_before_apply: {_format_bool(workflow.approval.require_before_apply)}",
-                "",
-            ]
-        )
-
-    if workflow.context:
-        lines.extend(
-            [
-                "Context:",
-                f"  include: {_format_str_list(list(workflow.context.include))}",
-                "",
-            ]
-        )
-
-    if workflow.patch:
-        lines.extend(
-            [
-                "Patch:",
-                f"  strategy: {workflow.patch.strategy}",
-                f"  max_files: {workflow.patch.max_files}",
-                f"  max_patch_kb: {workflow.patch.max_patch_kb}",
-                "  reject_binary_changes: "
-                f"{_format_optional_bool(workflow.patch.reject_binary_changes)}",
-            ]
-        )
 
     return "\n".join(lines).rstrip() + "\n"
 

@@ -274,11 +274,7 @@ def workflow_run_command(
     effective_require = (
         require_before_apply
         if require_before_apply is not None
-        else (
-            workflow.approval.require_before_apply
-            if workflow.approval is not None
-            else True
-        )
+        else config.approval.require_before_apply
     )
     if effective_require:
         approve_cb = _make_approve_callback(attempt_holder=attempt_holder)

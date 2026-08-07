@@ -22,38 +22,22 @@ from getworktree.core.workflows.validate import (
 
 def _sample_workflow(**overrides: object) -> WorkflowDefinition:
     raw: dict = {
-        "version": 1,
+        "version": "1.0",
         "name": "fix-tests",
+        "id": "fix-tests",
         "description": "Iteratively fix failing tests until they pass or attempts are exhausted",
-        "trigger": {
-            "command": "pytest",
-            "args": [],
-            "timeout_seconds": 600,
-        },
-        "agent": {
-            "provider": "local",
-            "mode": "fix_failure",
-            "timeout_seconds": 120,
-        },
-        "iteration": {
-            "max_attempts": 5,
-            "stop_when": ["trigger_passes", "unfixable", "user_abort"],
-        },
-        "sandbox": {
-            "auto_clean": True,
-            "keep_on_failure": True,
-        },
-        "approval": {
-            "require_before_apply": True,
-        },
-        "context": {
-            "include": ["trigger_output", "changed_files", "relevant_source"],
-        },
-        "patch": {
-            "strategy": "unified_diff",
-            "max_files": 30,
-            "max_patch_kb": 1024,
-        },
+        "timeout_seconds": 600,
+        "steps": [
+            {
+                "id": "run-tests",
+                "run": "pytest",
+            },
+            {
+                "id": "ai-fix",
+                "uses": "step/gemini-fix",
+                "prompt": "Fix unit tests",
+            },
+        ],
     }
     raw.update(overrides)
     return WorkflowDefinition.model_validate(raw)
@@ -75,51 +59,26 @@ class FormatWorkflowShowSuccessTests:
             f"Description:\n"
             f"  Iteratively fix failing tests until they pass or attempts are exhausted\n"
             f"\n"
-            f"Trigger:\n"
-            f"  command: pytest\n"
-            f"  args: []\n"
-            f"  timeout_seconds: 600\n"
+            f"Timeout: 600s\n"
             f"\n"
-            f"Agent:\n"
-            f"  provider: local\n"
-            f"  mode: fix_failure\n"
-            f"  timeout_seconds: 120\n"
-            f"\n"
-            f"Iteration:\n"
-            f"  max_attempts: 5\n"
-            f'  stop_when: ["trigger_passes", "unfixable", "user_abort"]\n'
-            f"\n"
-            f"Sandbox:\n"
-            f"  auto_clean: true\n"
-            f"  keep_on_failure: true\n"
-            f"\n"
-            f"Approval:\n"
-            f"  require_before_apply: true\n"
-            f"\n"
-            f"Context:\n"
-            f'  include: ["trigger_output", "changed_files", "relevant_source"]\n'
-            f"\n"
-            f"Patch:\n"
-            f"  strategy: unified_diff\n"
-            f"  max_files: 30\n"
-            f"  max_patch_kb: 1024\n"
-            f"  reject_binary_changes: null\n"
+            f"Steps:\n"
+            f"  - id: run-tests\n"
+            f"    run: pytest\n"
+            f"  - id: ai-fix\n"
+            f"    uses: step/gemini-fix\n"
+            f"    prompt: Fix unit tests\n"
         )
         assert text == expected
 
     def test_args_and_lists_and_bool_null(self, tmp_path: Path) -> None:
         workflow = _sample_workflow()
         data = workflow.model_dump()
-        data["trigger"]["args"] = ["-q", "tests"]
-        data["patch"]["reject_binary_changes"] = False
         data["description"] = "line one\nline two"
         workflow = WorkflowDefinition.model_validate(data)
         source = (tmp_path / "x.yml").resolve()
 
         text = format_workflow_show_success(workflow, source_path=source)
 
-        assert '  args: ["-q", "tests"]\n' in text
-        assert "  reject_binary_changes: false\n" in text
         assert "Description:\n  line one\n  line two\n" in text
 
     def test_warnings_section_and_status_token(self, tmp_path: Path) -> None:

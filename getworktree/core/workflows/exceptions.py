@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 
-class WorkflowError(ValueError):
+class WorkflowError(Exception):
     """Base class for workflow errors."""
 
 

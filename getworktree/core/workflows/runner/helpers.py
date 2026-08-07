@@ -61,7 +61,6 @@ def _now_iso() -> str:
 
 
 def resolve_max_attempts(
-    *,
     workflow: WorkflowDefinition,
     config: WorktreeConfig,
     caller_max_attempts: int | None = None,
@@ -69,14 +68,13 @@ def resolve_max_attempts(
     """Resolve effective max attempts with hard-limit clamp.
 
     Precedence:
-    ``caller_max_attempts`` → ``workflow.iteration.max_attempts`` →
-    ``config.workflow.default_max_attempts``, then
+    ``caller_max_attempts`` → ``config.workflow.default_max_attempts``, then
     ``min(..., config.workflow.max_attempts_hard_limit)``.
     """
     if caller_max_attempts is not None:
         effective = caller_max_attempts
-    elif workflow.iteration is not None and workflow.iteration.max_attempts:
-        effective = workflow.iteration.max_attempts
+    elif getattr(workflow, "_max_attempts", None) is not None:
+        effective = workflow._max_attempts
     else:
         effective = config.workflow.default_max_attempts
     return min(effective, config.workflow.max_attempts_hard_limit)
