@@ -4,7 +4,7 @@
 
 ```
 getworktree/cli.py                 Typer entrypoint, wires flags to commands
-getworktree/commands/<name>/       One package per CLI subcommand
+getworktree/cli/<name>/       One package per CLI subcommand
   command.py                       Orchestration: calls core/common, handles typer.Exit
   models.py                        Pydantic outcome model(s) for the command
   renderers.py                     Rich console rendering, kept out of command.py
@@ -38,12 +38,12 @@ Not every command has all three files (e.g. `status` has only `command.py`) — 
 
 ## Adding a new command
 
-1. Create `getworktree/commands/<name>/{__init__.py,command.py}` (add `models.py`/
+1. Create `getworktree/cli/<name>/{__init__.py,command.py}` (add `models.py`/
    `renderers.py` once output grows past a couple of lines).
 2. Implement `<name>_command(...)` in `command.py`, following the
    [Result/Outcome pattern](code-conventions.md) for anything that can partially fail.
 3. Register it in [getworktree/cli.py](../../getworktree/cli.py) with `@app.command(name="...")`.
-4. Add tests under `tests/commands/<name>/` mirroring [tests/commands/init](../../tests/commands/init).
+4. Add tests under `tests/cli/<name>/` mirroring [tests/cli/init](../../tests/cli/init).
 
 ## The `.worktree/` directory
 
@@ -98,7 +98,7 @@ own the V1 sandbox lifecycle used by workflow execution.
 
 ### CLI: Sandbox command group
 
-Command package: [getworktree/commands/sandbox/](../../getworktree/commands/sandbox/)
+Command package: [getworktree/cli/sandbox/](../../getworktree/cli/sandbox/)
 (`command.py`, `models.py`, `renderers.py`), registered as `sandbox_app` on
 [getworktree/cli.py](../../getworktree/cli.py).
 
@@ -517,9 +517,9 @@ cleanup (`should_cleanup_sandbox` with `command_passed=None` on abort).
 
 ## Workflow run CLI UX
 
-`wt workflow run NAME` ([getworktree/commands/workflow/command.py](../../getworktree/commands/workflow/command.py))
+`wt workflow run NAME` ([getworktree/cli/workflow/command.py](../../getworktree/cli/workflow/command.py))
 orchestrates resolve → validate → `run_workflow_iteration` → render. Formatting lives
-in [renderers.py](../../getworktree/commands/workflow/renderers.py) (no bare `print`).
+in [renderers.py](../../getworktree/cli/workflow/renderers.py) (no bare `print`).
 `sandbox.base_ref` from config (default `HEAD`). `wt workflow run` continues to
 omit `base_ref` (unchanged behavior)
 
@@ -544,7 +544,7 @@ when progress streamed).
 ### Approval prompt
 When the approval gate is on, the CLI prints a bordered `rich.panel.Panel`
 review block (`build_patch_review_panel` in
-[renderers.py](../../getworktree/commands/workflow/renderers.py)) before the y/N
+[renderers.py](../../getworktree/cli/workflow/renderers.py)) before the y/N
 prompt: touched files, `+/-` line stats in the title, and the unified diff body
 (truncated after 200 lines) with added lines in green, removed lines in red,
 hunk headers in cyan, and file headers bold. Non-TTY stdin still prints the

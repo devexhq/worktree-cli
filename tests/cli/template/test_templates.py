@@ -3,7 +3,7 @@
 from typer.testing import CliRunner
 
 from getworktree.cli import app
-from getworktree.commands.templates.command import templates_list_command
+from getworktree.cli.template.command import templates_list_command
 from getworktree.core.templates.models import TemplateType
 
 runner = CliRunner()
@@ -107,7 +107,7 @@ def test_cli_wt_template_show_not_found() -> None:
 
 def test_template_show_command_direct_invocation() -> None:
     """Verify python command function ``template_show_command``."""
-    from getworktree.commands.templates.command import template_show_command
+    from getworktree.cli.template.command import template_show_command
 
     outcome = template_show_command("feature-dev")
 

@@ -6,7 +6,7 @@ import pytest
 from typer.testing import CliRunner
 
 from getworktree.cli import app
-from getworktree.commands.catalog.command import (
+from getworktree.cli.catalog.command import (
     catalog_create_command,
     catalog_delete_command,
     catalog_list_command,

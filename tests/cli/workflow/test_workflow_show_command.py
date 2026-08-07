@@ -1,4 +1,4 @@
-"""Tests for `wt workflow resume`."""
+"""Tests for `wt workflow show`."""
 
 from __future__ import annotations
 
@@ -10,9 +10,9 @@ import typer
 from typer.testing import CliRunner
 
 from getworktree.cli import app
-from getworktree.commands.workflow.command import workflow_resume_command
+from getworktree.cli.workflow.command import workflow_show_command
 from getworktree.core.config.generator import generate_default_config
-from getworktree.core.db import insert_sandbox
+from getworktree.core.db import insert_workflow_run
 
 runner = CliRunner()
 
@@ -36,10 +36,10 @@ def _init_repo(repo: Path) -> Path:
     return config_path
 
 
-class WorkflowResumeCommandDirectTests:
-    """Direct workflow_resume_command tests."""
+class WorkflowShowCommandDirectTests:
+    """Direct workflow_show_command tests."""
 
-    def test_workflow_resume_success(
+    def test_workflow_show_success(
         self,
         git_repo: Path,
         monkeypatch: pytest.MonkeyPatch,
@@ -48,23 +48,23 @@ class WorkflowResumeCommandDirectTests:
         monkeypatch.chdir(git_repo)
         _init_repo(git_repo)
 
-        insert_sandbox(
-            id="wf-99999",
-            branch_name="wt/resume-me",
-            base_commit="HEAD",
-            sandbox_path=git_repo / ".worktree" / "sandboxes" / "wf-99999",
-            name="resume-me",
+        insert_workflow_run(
+            session_id="wf-12345",
+            workflow_name="fix-tests",
+            branch_name="wt/fix-tests",
             cwd=git_repo,
         )
 
         with pytest.raises(typer.Exit) as exc_info:
-            workflow_resume_command("wf-99999", cwd=git_repo)
+            workflow_show_command("wf-12345", cwd=git_repo)
         assert exc_info.value.exit_code == 0
 
         out = capsys.readouterr().out
-        assert "Resuming workflow session 'wf-99999'..." in out
+        assert "Workflow Session: wf-12345" in out
+        assert "Name:             fix-tests" in out
+        assert "Branch:           wt/fix-tests" in out
 
-    def test_workflow_resume_not_found(
+    def test_workflow_show_not_found(
         self,
         git_repo: Path,
         monkeypatch: pytest.MonkeyPatch,
@@ -74,14 +74,14 @@ class WorkflowResumeCommandDirectTests:
         _init_repo(git_repo)
 
         with pytest.raises(typer.Exit) as exc_info:
-            workflow_resume_command("nonexistent", cwd=git_repo)
+            workflow_show_command("nonexistent", cwd=git_repo)
         assert exc_info.value.exit_code == 1
 
         out = capsys.readouterr().out
-        assert "Workflow Resume Failed" in out
+        assert "Workflow Show Failed" in out
         assert "Workflow session 'nonexistent' not found." in out
 
-    def test_workflow_resume_uninitialized(
+    def test_workflow_show_uninitialized(
         self,
         git_repo: Path,
         monkeypatch: pytest.MonkeyPatch,
@@ -90,33 +90,31 @@ class WorkflowResumeCommandDirectTests:
         monkeypatch.chdir(git_repo)
 
         with pytest.raises(typer.Exit) as exc_info:
-            workflow_resume_command("wf-99999", cwd=git_repo)
+            workflow_show_command("wf-12345", cwd=git_repo)
         assert exc_info.value.exit_code == 1
 
         out = capsys.readouterr().out
-        assert "Workflow Resume Failed" in out
+        assert "Workflow Show Failed" in out
 
 
-class WorkflowResumeCliTests:
-    """CliRunner coverage for workflow resume."""
+class WorkflowShowCliTests:
+    """CliRunner coverage for workflow show."""
 
     def test_help_text(self) -> None:
-        result = runner.invoke(app, ["workflow", "resume", "--help"])
+        result = runner.invoke(app, ["workflow", "show", "--help"])
         assert result.exit_code == 0
-        assert "Resume an interrupted workflow session" in result.stdout
+        assert "Show details for a specific workflow session" in result.stdout
 
-    def test_cli_resume_success(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_cli_show_success(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         _init_repo(git_repo)
-        insert_sandbox(
-            id="wf-88888",
-            branch_name="wt/resume-cli",
-            base_commit="HEAD",
-            sandbox_path=git_repo / ".worktree" / "sandboxes" / "wf-88888",
-            name="resume-cli",
+        insert_workflow_run(
+            session_id="wf-55555",
+            workflow_name="test-workflow",
+            branch_name="wt/test-workflow",
             cwd=git_repo,
         )
 
-        result = runner.invoke(app, ["workflow", "resume", "wf-88888"])
+        result = runner.invoke(app, ["workflow", "show", "wf-55555"])
         assert result.exit_code == 0
-        assert "Resuming workflow session 'wf-88888'..." in result.stdout
+        assert "Workflow Session: wf-55555" in result.stdout

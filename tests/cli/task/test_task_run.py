@@ -6,7 +6,7 @@ import pytest
 from typer.testing import CliRunner
 
 from getworktree.cli import app
-from getworktree.commands.task.command import task_run_command
+from getworktree.cli.task.command import task_run_command
 from getworktree.core.catalog.inventory import get_catalog_dir
 from getworktree.core.db import get_task_run
 

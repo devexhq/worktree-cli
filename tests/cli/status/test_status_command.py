@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 import typer
 
-from getworktree.commands.status.command import status_command
+from getworktree.cli.status.command import status_command
 from getworktree.core.config.generator import generate_default_config
 
 

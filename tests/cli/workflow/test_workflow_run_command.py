@@ -11,8 +11,8 @@ import typer
 from typer.testing import CliRunner
 
 from getworktree.cli import app
-from getworktree.commands.workflow.command import workflow_run_command
-from getworktree.commands.workflow.renderers import (
+from getworktree.cli.workflow.command import workflow_run_command
+from getworktree.cli.workflow.renderers import (
     exit_code_for_status,
 )
 from getworktree.core.config.generator import generate_default_config

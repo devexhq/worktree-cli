@@ -10,7 +10,7 @@ import typer
 from typer.testing import CliRunner
 
 from getworktree.cli import app
-from getworktree.commands.workflow.command import workflow_list_command
+from getworktree.cli.workflow.command import workflow_list_command
 from getworktree.core.config.generator import generate_default_config
 from getworktree.core.db import insert_workflow_run
 

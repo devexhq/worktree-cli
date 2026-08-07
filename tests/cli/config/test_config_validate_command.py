@@ -13,7 +13,7 @@ from typer.main import get_command
 from typer.testing import CliRunner
 
 from getworktree.cli import app
-from getworktree.commands.config.command import config_validate_command
+from getworktree.cli.config.command import config_validate_command
 from getworktree.core.config.generator import generate_default_config
 from getworktree.core.config.validate import (
     ConfigValidationResult,
@@ -224,7 +224,7 @@ class ConfigValidateCommandTests:
             warnings=[],
         )
         with patch(
-            "getworktree.commands.config.command.validate_config_result",
+            "getworktree.cli.config.command.validate_config_result",
             return_value=fake,
         ):
             with pytest.raises(typer.Exit) as exc_info:
@@ -252,7 +252,7 @@ class ConfigValidateCommandTests:
             ],
         )
         with patch(
-            "getworktree.commands.config.command.validate_config_result",
+            "getworktree.cli.config.command.validate_config_result",
             return_value=fake,
         ):
             with pytest.raises(typer.Exit) as exc_info:
@@ -360,7 +360,7 @@ class ConfigValidateCliTests:
 
         root_cmd = get_command(app)
         config_cmd = root_cmd.get_command(None, "config")
-        assert config_cmd.help == "Inspect, update, and validate Worktree configuration."
+        assert config_cmd.help == "Inspect, update, and validate Worktree CLI configuration."
         assert "show" in config_cmd.list_commands(None)
         assert "set" in config_cmd.list_commands(None)
         assert "validate" in config_cmd.list_commands(None)

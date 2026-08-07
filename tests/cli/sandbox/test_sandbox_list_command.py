@@ -14,12 +14,12 @@ from typer.main import get_command
 from typer.testing import CliRunner
 
 from getworktree.cli import app
-from getworktree.commands.sandbox.command import (
+from getworktree.cli.sandbox.command import (
     collect_sandbox_list,
     sandbox_list_command,
 )
-from getworktree.commands.sandbox.models import SandboxListStatus
-from getworktree.commands.sandbox.renderers import (
+from getworktree.cli.sandbox.models import SandboxListStatus
+from getworktree.cli.sandbox.renderers import (
     build_sandbox_table,
     render_not_initialized,
     render_sandbox_list,

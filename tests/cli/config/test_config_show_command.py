@@ -11,7 +11,7 @@ import typer
 from typer.testing import CliRunner
 
 from getworktree.cli import app
-from getworktree.commands.config.command import config_show_command
+from getworktree.cli.config.command import config_show_command
 from getworktree.core.config.generator import generate_default_config
 
 runner = CliRunner()

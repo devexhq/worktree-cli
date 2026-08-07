@@ -7,8 +7,8 @@ import typer
 from typer.testing import CliRunner
 
 from getworktree.cli import app
-from getworktree.commands.task.command import task_list_command, task_run_command
-from getworktree.commands.workflow.command import workflow_run_command
+from getworktree.cli.task.command import task_list_command, task_run_command
+from getworktree.cli.workflow.command import workflow_run_command
 from getworktree.core.catalog.inventory import get_catalog_dir
 from getworktree.core.config.generator import generate_default_config
 from getworktree.core.config.loader import load_config

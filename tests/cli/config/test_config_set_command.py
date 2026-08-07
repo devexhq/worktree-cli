@@ -12,7 +12,7 @@ from typer.main import get_command
 from typer.testing import CliRunner
 
 from getworktree.cli import app
-from getworktree.commands.config.command import config_set_command
+from getworktree.cli.config.command import config_set_command
 from getworktree.core.config.generator import generate_default_config
 
 runner = CliRunner()

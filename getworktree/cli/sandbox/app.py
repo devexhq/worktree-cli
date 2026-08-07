@@ -1,4 +1,8 @@
+from typing import Annotated
+
 import typer
+
+from getworktree.core.db import SandboxStatus
 
 from .command import sandbox_create_command, sandbox_delete_command, sandbox_list_command, sandbox_show_command
 
@@ -32,12 +36,14 @@ def sandbox_create(
 
 @sandbox_app.command("list")
 def sandbox_list(
-    status: str | None = typer.Option(
-        None,
-        "--status",
-        help="Filter by lifecycle status (active, merged, cleaned, conflict).",
-        case_sensitive=False,
-    ),
+    status: Annotated[
+        SandboxStatus | None,
+        typer.Option(
+            "--status",
+            help="Filter by lifecycle status (active, merged, cleaned, conflict).",
+            case_sensitive=False,
+        ),
+    ] = None,
 ):
     """List tracked sandboxes and their lifecycle status."""
     sandbox_list_command(status=status.value if status is not None else None)

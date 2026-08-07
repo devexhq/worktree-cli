@@ -6,7 +6,7 @@ import pytest
 from typer.testing import CliRunner
 
 from getworktree.cli import app
-from getworktree.commands.task.command import (
+from getworktree.cli.task.command import (
     task_list_command,
     task_run_command,
     task_show_command,
@@ -187,7 +187,7 @@ def test_task_run_db_fault_tolerance(tmp_path: Path, monkeypatch: pytest.MonkeyP
     def _faulty_insert(*args, **kwargs):
         raise RuntimeError("Database locked")
 
-    monkeypatch.setattr("getworktree.commands.task.command.insert_task_run", _faulty_insert)
+    monkeypatch.setattr("getworktree.cli.task.command.insert_task_run", _faulty_insert)
 
     res = task_run_command("sample-task", cwd=tmp_path)
     assert res.ok

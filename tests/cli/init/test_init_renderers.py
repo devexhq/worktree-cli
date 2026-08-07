@@ -1,4 +1,4 @@
-"""Tests for `getworktree.commands.init.renderers`."""
+"""Tests for `getworktree.cli.init.renderers`."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from pathlib import Path
 
 from rich.console import Console
 
-from getworktree.commands.init.models import InitCommandOutcome
-from getworktree.commands.init.renderers import (
+from getworktree.cli.init.models import InitCommandOutcome
+from getworktree.cli.init.renderers import (
     render_init_bootstrap_failure,
     render_init_config_failure,
     render_init_outcome,

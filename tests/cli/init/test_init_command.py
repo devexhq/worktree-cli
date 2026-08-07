@@ -1,4 +1,4 @@
-"""Integration tests for `getworktree.commands.init.command.init_command`."""
+"""Integration tests for `getworktree.cli.init.command.init_command`."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 import typer
 
-from getworktree.commands.init import init_command
+from getworktree.cli.init.command import init_command
 from getworktree.common.schema_validation import SchemaValidator
 from getworktree.core.bootstrap import BootstrapResult
 from getworktree.core.config.generator import ConfigGenerationResult
@@ -217,7 +217,7 @@ class InitCommandFailureTests:
                 errors=["simulated bootstrap failure"],
             )
 
-        monkeypatch.setattr("getworktree.commands.init.command.bootstrap_worktree", boom)
+        monkeypatch.setattr("getworktree.cli.init.command.bootstrap_worktree", boom)
         with pytest.raises(typer.Exit) as exc:
             init_command(tool_version="0.1.1")
         assert exc.value.exit_code == 1
@@ -228,7 +228,7 @@ class InitCommandFailureTests:
         def bad_config(*args, **kwargs):
             return ConfigGenerationResult(errors=["CONFIG_WRITE_FAILED"])
 
-        monkeypatch.setattr("getworktree.commands.init.command.generate_default_config", bad_config)
+        monkeypatch.setattr("getworktree.cli.init.command.generate_default_config", bad_config)
         with pytest.raises(typer.Exit) as exc:
             init_command(tool_version="0.1.1")
         assert exc.value.exit_code == 1
@@ -239,7 +239,7 @@ class InitCommandFailureTests:
         def bad_seed(*args, **kwargs):
             return WorkflowSeedResult(errors=["seed failed"])
 
-        monkeypatch.setattr("getworktree.commands.init.command.seed_starter_workflows", bad_seed)
+        monkeypatch.setattr("getworktree.cli.init.command.seed_starter_workflows", bad_seed)
         with pytest.raises(typer.Exit) as exc:
             init_command(tool_version="0.1.1")
         assert exc.value.exit_code == 1
@@ -258,20 +258,20 @@ class InitCommandFailureTests:
             recorded.append(db_rel_path)
             return Path(cwd or ".") / db_rel_path
 
-        monkeypatch.setattr("getworktree.commands.init.command.init_database", capture_init_database)
+        monkeypatch.setattr("getworktree.cli.init.command.init_database", capture_init_database)
         monkeypatch.setattr(
-            "getworktree.commands.init.command.generate_default_config",
+            "getworktree.cli.init.command.generate_default_config",
             lambda *a, **k: ConfigGenerationResult(
                 skipped_existing=True,
                 config_path=config_path,
             ),
         )
         monkeypatch.setattr(
-            "getworktree.commands.init.command.seed_starter_workflows",
+            "getworktree.cli.init.command.seed_starter_workflows",
             lambda *a, **k: WorkflowSeedResult(),
         )
         monkeypatch.setattr(
-            "getworktree.commands.init.command.bootstrap_worktree",
+            "getworktree.cli.init.command.bootstrap_worktree",
             lambda root_path, *, tool_version=None: BootstrapResult(root_path=root_path, root_created=False),
         )
 
