@@ -6,6 +6,14 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+WorkflowAgentMode = Literal["fix_failure", "review_remediation"]
+WorkflowAgentProvider = Literal[
+    "local", "ollama", "cursor", "gemini", "copilot", "openai", "anthropic", "azure_openai"
+]
+WorkflowPatchStrategy = Literal["unified_diff"]
+WorkflowStopWhen = Literal["trigger_passes", "unfixable", "user_abort"]
+WorkflowStepType = Literal["command", "agent", "script"]
+WorkflowStepFailureAction = Literal["abort", "ignore", "retry"]
 WorkflowContextInclude = Literal["trigger_output", "changed_files", "relevant_source"]
 
 
