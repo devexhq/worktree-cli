@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 
 import pytest
@@ -21,34 +20,10 @@ from getworktree.core.workflows.runner import run_workflow_iteration
 from getworktree.core.workflows.trigger import TriggerRunResult, TriggerRunStatus
 
 
-@pytest.fixture
-def git_repo(tmp_path: Path) -> Path:
-    subprocess.run(
-        ["git", "init"],
-        cwd=tmp_path,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.email", "test@example.com"],
-        cwd=tmp_path,
-        check=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.name", "Test User"],
-        cwd=tmp_path,
-        check=True,
-    )
-    # Initial commit so HEAD exists
-    (tmp_path / "README.md").write_text("# Test Repo\n", encoding="utf-8")
-    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
-    subprocess.run(["git", "commit", "-m", "initial commit"], cwd=tmp_path, check=True)
-
-    config_path = tmp_path / ".worktree" / "config.json"
+def _init_config(repo: Path) -> None:
+    config_path = repo / ".worktree" / "config.json"
     config_path.parent.mkdir(parents=True, exist_ok=True)
-    generate_default_config(config_path, project_name=tmp_path.name)
-    return tmp_path
+    generate_default_config(config_path, project_name=repo.name)
 
 
 def _make_dummy_workflow(name: str = "test-workflow") -> WorkflowDefinition:
@@ -60,6 +35,7 @@ def _make_dummy_workflow(name: str = "test-workflow") -> WorkflowDefinition:
 
 
 def test_run_workflow_iteration_records_workflow_passed(git_repo: Path) -> None:
+    _init_config(git_repo)
     workflow = _make_dummy_workflow("passed-workflow")
     dummy_session = SandboxSession(
         session_id="wf-pass-101",
@@ -107,6 +83,7 @@ def test_run_workflow_iteration_records_workflow_passed(git_repo: Path) -> None:
 
 
 def test_run_workflow_iteration_records_workflow_failed(git_repo: Path) -> None:
+    _init_config(git_repo)
     workflow = _make_dummy_workflow("failed-workflow")
     dummy_session = SandboxSession(
         session_id="wf-fail-202",
@@ -151,6 +128,7 @@ def test_run_workflow_iteration_records_workflow_failed(git_repo: Path) -> None:
 
 
 def test_run_workflow_iteration_fault_tolerant_db_write_error(git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _init_config(git_repo)
     workflow = _make_dummy_workflow("error-workflow")
     dummy_session = SandboxSession(
         session_id="wf-err-303",

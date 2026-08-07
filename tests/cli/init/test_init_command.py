@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import subprocess
 from importlib import resources
 from pathlib import Path
 
@@ -18,18 +17,6 @@ from getworktree.core.config.models import PathsConfig
 from getworktree.core.workflows.seeder import WorkflowSeedResult
 
 CONFIG_VALIDATOR = SchemaValidator(resources.files("getworktree.schemas.v1") / "config.json")
-
-
-@pytest.fixture
-def git_repo(tmp_path: Path) -> Path:
-    subprocess.run(
-        ["git", "init"],
-        cwd=tmp_path,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    return tmp_path
 
 
 class InitCommandConfigTests:

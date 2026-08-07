@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
@@ -21,18 +20,6 @@ from getworktree.core.config.validate import (
 )
 
 runner = CliRunner()
-
-
-@pytest.fixture
-def git_repo(tmp_path: Path) -> Path:
-    subprocess.run(
-        ["git", "init"],
-        cwd=tmp_path,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    return tmp_path
 
 
 def _write_default_config(repo: Path) -> Path:

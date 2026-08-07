@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import subprocess
-import time
 from io import StringIO
 from pathlib import Path
 
@@ -34,35 +32,6 @@ from getworktree.core.db import (
 
 runner = CliRunner()
 DB_REL = ".worktree/data.db"
-
-
-@pytest.fixture
-def git_repo(tmp_path: Path) -> Path:
-    subprocess.run(
-        ["git", "init"],
-        cwd=tmp_path,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.email", "test@example.com"],
-        cwd=tmp_path,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.name", "Test"],
-        cwd=tmp_path,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    (tmp_path / "f.txt").write_text("x\n", encoding="utf-8")
-    subprocess.run(["git", "add", "f.txt"], cwd=tmp_path, check=True, capture_output=True)
-    subprocess.run(["git", "commit", "-m", "init"], cwd=tmp_path, check=True, capture_output=True)
-    return tmp_path
 
 
 def _init_config(repo: Path) -> None:
@@ -123,8 +92,12 @@ class SandboxListCollectTests:
     def test_multiple_rows_sorted_by_created_at_desc(self, git_repo: Path) -> None:
         _init_config(git_repo)
         first = _insert(git_repo, sandbox_id="sbx_first", name=None, path_suffix="1")
-        time.sleep(1.1)
         second = _insert(git_repo, sandbox_id="sbx_second", name="beta", path_suffix="2")
+        db = SandboxesDb(cwd=git_repo)
+        db.execute("UPDATE sandboxes SET created_at = '2026-01-01 00:00:00' WHERE id = ?", (first.id,))
+        db.execute("UPDATE sandboxes SET created_at = '2026-01-01 00:00:01' WHERE id = ?", (second.id,))
+        first = db.get(first.id)
+        second = db.get(second.id)
 
         result = collect_sandbox_list(cwd=git_repo)
         assert result.ok

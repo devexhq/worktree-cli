@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import subprocess
 from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
@@ -34,36 +33,6 @@ from getworktree.core.git_sandbox import GitSandboxManager
 
 runner = CliRunner()
 DB_REL = ".worktree/data.db"
-
-
-def _init_git_repo(path: Path, branch: str = "feature") -> None:
-    subprocess.run(["git", "init", "-b", branch], cwd=path, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "config", "user.email", "test@example.com"],
-        cwd=path,
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.name", "Test"],
-        cwd=path,
-        check=True,
-        capture_output=True,
-    )
-    (path / "f.txt").write_text("x\n", encoding="utf-8")
-    subprocess.run(["git", "add", "f.txt"], cwd=path, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "commit", "-m", "init"],
-        cwd=path,
-        check=True,
-        capture_output=True,
-    )
-
-
-@pytest.fixture
-def git_repo(tmp_path: Path) -> Path:
-    _init_git_repo(tmp_path)
-    return tmp_path
 
 
 def _init_config(repo: Path) -> None:

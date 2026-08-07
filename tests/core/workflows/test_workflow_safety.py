@@ -320,7 +320,7 @@ class SafetyControllerIntegrationTests:
         sandbox.mkdir()
 
         def very_slow(**_k: object) -> TriggerRunResult:
-            time.sleep(1.05)
+            time.sleep(0.02)
             return _trigger()
 
         result = run_workflow_iteration(
@@ -334,7 +334,7 @@ class SafetyControllerIntegrationTests:
             build_payload_fn=lambda **_k: _payload(),
             create_sandbox_fn=lambda: SandboxCreateResult(status=SandboxCreateStatus.OK, session=_session(sandbox)),
             cleanup_sandbox_fn=lambda _s: None,
-            session_timeout_seconds=1,
+            session_timeout_seconds=0.01,
         )
         # First attempt starts; after slow trigger, pre-agent checkpoint trips.
         assert result.status == WorkflowFinalStatus.FAILED

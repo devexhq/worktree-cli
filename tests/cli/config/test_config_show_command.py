@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import subprocess
 from pathlib import Path
 
 import pytest
@@ -15,18 +14,6 @@ from getworktree.cli.config.command import config_show_command
 from getworktree.core.config.generator import generate_default_config
 
 runner = CliRunner()
-
-
-@pytest.fixture
-def git_repo(tmp_path: Path) -> Path:
-    subprocess.run(
-        ["git", "init"],
-        cwd=tmp_path,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    return tmp_path
 
 
 def _split_show_stdout(stdout: str) -> tuple[str, str]:
