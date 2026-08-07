@@ -48,11 +48,7 @@ def workflow_list_command(*, cwd: Path | None = None) -> None:
     root = (cwd or Path.cwd()).resolve()
     load = load_config_result(cwd=root)
     if not load.ok or load.config is None:
-        message = (
-            load.errors[0]
-            if load.errors
-            else "Worktree is not initialized. Run `wt init`."
-        )
+        message = load.errors[0] if load.errors else "Worktree is not initialized. Run `wt init`."
         rich_output.error_panel("Workflow List Failed", message)
         raise typer.Exit(code=1)
 
@@ -85,11 +81,7 @@ def workflow_show_command(session_id: str, *, cwd: Path | None = None) -> None:
     root = (cwd or Path.cwd()).resolve()
     load = load_config_result(cwd=root)
     if not load.ok or load.config is None:
-        message = (
-            load.errors[0]
-            if load.errors
-            else "Worktree is not initialized. Run `wt init`."
-        )
+        message = load.errors[0] if load.errors else "Worktree is not initialized. Run `wt init`."
         rich_output.error_panel("Workflow Show Failed", message)
         raise typer.Exit(code=1)
 
@@ -133,11 +125,7 @@ def workflow_resume_command(session_id: str, *, cwd: Path | None = None) -> None
     root = (cwd or Path.cwd()).resolve()
     load = load_config_result(cwd=root)
     if not load.ok or load.config is None:
-        message = (
-            load.errors[0]
-            if load.errors
-            else "Worktree is not initialized. Run `wt init`."
-        )
+        message = load.errors[0] if load.errors else "Worktree is not initialized. Run `wt init`."
         rich_output.error_panel("Workflow Resume Failed", message)
         raise typer.Exit(code=1)
 
@@ -167,9 +155,7 @@ def _make_approve_callback(
             rich_output.info(prompt)
             rich_output.info("Non-interactive stdin: treating approval as rejected.")
             return False
-        return bool(
-            rich_output.console.input(prompt + " ").strip().lower() in {"y", "yes"}
-        )
+        return bool(rich_output.console.input(prompt + " ").strip().lower() in {"y", "yes"})
 
     return approve_patch
 
@@ -213,9 +199,7 @@ def workflow_run_command(
     if load.status == ConfigLoadStatus.NOT_FOUND:
         rich_output.error_panel(
             "Workflow Run Failed",
-            load.errors[0]
-            if load.errors
-            else "Worktree is not initialized. Run `wt init`.",
+            load.errors[0] if load.errors else "Worktree is not initialized. Run `wt init`.",
         )
         raise typer.Exit(code=1)
     if not load.ok or load.config is None:
@@ -272,9 +256,7 @@ def workflow_run_command(
 
     approve_cb = None
     effective_require = (
-        require_before_apply
-        if require_before_apply is not None
-        else config.approval.require_before_apply
+        require_before_apply if require_before_apply is not None else config.approval.require_before_apply
     )
     if effective_require:
         approve_cb = _make_approve_callback(attempt_holder=attempt_holder)

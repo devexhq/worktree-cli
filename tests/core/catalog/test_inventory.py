@@ -36,10 +36,7 @@ def test_migrate_legacy_workflows(tmp_path: Path) -> None:
 
     migrated = migrate_legacy_workflows(tmp_path)
     assert len(migrated) == 1
-    assert (
-        migrated[0]
-        == tmp_path / ".worktree" / "catalog" / "workflows" / "legacy-wf.yml"
-    )
+    assert migrated[0] == tmp_path / ".worktree" / "catalog" / "workflows" / "legacy-wf.yml"
     assert not legacy_file.exists()
     assert migrated[0].exists()
 
@@ -95,9 +92,7 @@ def test_create_catalog_item_default(tmp_path: Path) -> None:
     assert record.item_type == CatalogItemType.WORKFLOW
     assert record.name == "my-pipeline"
     assert record.sha.startswith("workflow_")
-    assert (
-        tmp_path / ".worktree" / "catalog" / "workflows" / "my-pipeline.yml"
-    ).exists()
+    assert (tmp_path / ".worktree" / "catalog" / "workflows" / "my-pipeline.yml").exists()
 
     # DB verify
     fetched = get_catalog_item_by_sha(record.sha, cwd=tmp_path)
@@ -114,9 +109,7 @@ def test_create_catalog_item_from_template(tmp_path: Path) -> None:
     )
     assert record.item_type == CatalogItemType.WORKFLOW
     assert record.name == "from-template-wf"
-    content = (
-        tmp_path / ".worktree" / "catalog" / "workflows" / "from-template-wf.yml"
-    ).read_text(encoding="utf-8")
+    content = (tmp_path / ".worktree" / "catalog" / "workflows" / "from-template-wf.yml").read_text(encoding="utf-8")
     assert "feature-dev" in content or "Workflow" in content
 
 

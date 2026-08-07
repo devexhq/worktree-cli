@@ -46,10 +46,7 @@ def _assert_success_header(header: str, config_path: Path) -> None:
 
 def _assert_no_success_header(stdout: str) -> None:
     assert "Status: valid" not in stdout
-    assert not any(
-        line.startswith("Config: ") and line.endswith("config.json")
-        for line in stdout.splitlines()
-    )
+    assert not any(line.startswith("Config: ") and line.endswith("config.json") for line in stdout.splitlines())
 
 
 class ConfigShowCommandTests:
@@ -107,9 +104,7 @@ class ConfigShowCommandTests:
 class ConfigShowCliTests:
     """CLI wiring tests for `wt config show`."""
 
-    def test_show_after_init(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_show_after_init(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         init = runner.invoke(app, ["init"])
         assert init.exit_code == 0
@@ -126,9 +121,7 @@ class ConfigShowCliTests:
         assert "telemetry" in data
         assert data["workflow"]["default_max_attempts"] == 5
 
-    def test_show_missing_config(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_show_missing_config(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         result = runner.invoke(app, ["config", "show"])
         assert result.exit_code == 1
@@ -139,9 +132,7 @@ class ConfigShowCliTests:
         with pytest.raises(json.JSONDecodeError):
             json.loads(result.stdout)
 
-    def test_show_schema_invalid(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_show_schema_invalid(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         config_path = git_repo / ".worktree" / "config.json"
         config_path.parent.mkdir(parents=True)

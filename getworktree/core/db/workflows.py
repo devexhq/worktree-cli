@@ -46,9 +46,7 @@ def insert_workflow_run(
     with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
         try:
-            cursor.execute(
-                insert_sql, (session_id, workflow_name, branch_name, status_str)
-            )
+            cursor.execute(insert_sql, (session_id, workflow_name, branch_name, status_str))
         except sqlite3.IntegrityError as exc:
             raise ValueError(
                 f"Workflow run with session_id '{session_id}' already exists or failed constraints: {exc}"
@@ -57,9 +55,7 @@ def insert_workflow_run(
         cursor.execute(select_sql, (session_id,))
         row = cursor.fetchone()
         if row is None:  # pragma: no cover
-            raise RuntimeError(
-                f"Failed to read workflow run row after insert: {session_id}"
-            )
+            raise RuntimeError(f"Failed to read workflow run row after insert: {session_id}")
         return _workflow_run_record_from_row(row)
 
 
@@ -86,14 +82,8 @@ def update_workflow_run_status(
 ) -> WorkflowRunRecord | None:
     """Update status, optional completed_at timestamp, and error message for a workflow run."""
     db_path = init_database(cwd, db_rel_path)
-    status_enum = (
-        RunStatus(status)
-        if isinstance(status, str) and status in RunStatus._value2member_map_
-        else status
-    )
-    status_str = (
-        status_enum.value if isinstance(status_enum, RunStatus) else str(status)
-    )
+    status_enum = RunStatus(status) if isinstance(status, str) and status in RunStatus._value2member_map_ else status
+    status_str = status_enum.value if isinstance(status_enum, RunStatus) else str(status)
 
     completed_at = (
         datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
@@ -116,13 +106,9 @@ def update_workflow_run_status(
     with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
         try:
-            cursor.execute(
-                update_sql, (status_str, completed_at, error_message, session_id)
-            )
+            cursor.execute(update_sql, (status_str, completed_at, error_message, session_id))
         except sqlite3.IntegrityError as exc:
-            raise ValueError(
-                f"Invalid workflow status update constraint: {exc}"
-            ) from exc
+            raise ValueError(f"Invalid workflow status update constraint: {exc}") from exc
 
         if cursor.rowcount == 0:
             return None
@@ -131,9 +117,7 @@ def update_workflow_run_status(
         return _workflow_run_record_from_row(row) if row is not None else None
 
 
-def list_workflow_runs(
-    cwd: Path | None = None, db_rel_path: str = DEFAULT_DB_REL_PATH
-) -> list[WorkflowRunRecord]:
+def list_workflow_runs(cwd: Path | None = None, db_rel_path: str = DEFAULT_DB_REL_PATH) -> list[WorkflowRunRecord]:
     """List workflow run records ordered by ``started_at`` descending."""
     db_path = init_database(cwd, db_rel_path)
     query_sql = "SELECT * FROM workflows ORDER BY started_at DESC;"

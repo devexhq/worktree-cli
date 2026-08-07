@@ -116,9 +116,7 @@ class BootstrapWorktreeTests:
         first_init = first_meta["initialized_at"]
 
         bootstrap_worktree(root)
-        second_meta = json.loads(
-            (root / BOOTSTRAP_META_REL).read_text(encoding="utf-8")
-        )
+        second_meta = json.loads((root / BOOTSTRAP_META_REL).read_text(encoding="utf-8"))
         assert second_meta["initialized_at"] == first_init
         assert second_meta["last_checked_at"] >= first_meta["last_checked_at"]
 

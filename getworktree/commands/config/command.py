@@ -40,11 +40,7 @@ def config_set_command(
     result = set_config_value_result(key, parsed_value, cwd=root)
 
     if not result.ok:
-        message = (
-            "\n\n".join(result.errors)
-            if result.errors
-            else "Failed to update configuration."
-        )
+        message = "\n\n".join(result.errors) if result.errors else "Failed to update configuration."
         rich_output.error_panel("Config Error", message)
         raise typer.Exit(code=1)
 
@@ -76,21 +72,12 @@ def config_show_command(*, cwd: Path | None = None) -> None:
     result = load_config_result(cwd=root)
 
     if not result.ok or result.config is None:
-        message = (
-            "\n\n".join(result.errors)
-            if result.errors
-            else "Failed to load configuration."
-        )
+        message = "\n\n".join(result.errors) if result.errors else "Failed to load configuration."
         rich_output.error_panel("Config Error", message)
         raise typer.Exit(code=1)
 
     # Header + blank line + plain JSON (no Rich markup/highlight/wrap).
-    payload = (
-        f"Config: {result.config_path.as_posix()}\n"
-        f"Status: valid\n"
-        f"\n"
-        f"{as_json(result.config)}"
-    )
+    payload = f"Config: {result.config_path.as_posix()}\nStatus: valid\n\n{as_json(result.config)}"
     rich_output.console.print(
         payload,
         end="",
@@ -136,17 +123,11 @@ def config_validate_command(*, cwd: Path | None = None) -> None:
         )
         raise typer.Exit(code=0)
 
-    message = (
-        "\n\n".join(result.errors)
-        if result.errors
-        else "Configuration validation failed."
-    )
+    message = "\n\n".join(result.errors) if result.errors else "Configuration validation failed."
     rich_output.error_panel("Config Validation Failed", message)
 
     if result.warnings:
-        warning_block = "Warnings:\n" + "\n".join(
-            _format_warning_bullets(result.warnings)
-        )
+        warning_block = "Warnings:\n" + "\n".join(_format_warning_bullets(result.warnings))
         rich_output.console.print(
             warning_block,
             markup=False,

@@ -40,9 +40,7 @@ class ResolveWorkflowsDirTests:
         assert resolved.is_absolute()
 
     def test_explicit_relative_path_resolves_against_cwd(self, tmp_path: Path) -> None:
-        resolved, errors = resolve_workflows_dir(
-            cwd=tmp_path, workflows_dir="alt/workflows"
-        )
+        resolved, errors = resolve_workflows_dir(cwd=tmp_path, workflows_dir="alt/workflows")
         assert errors == []
         assert resolved == (tmp_path / "alt" / "workflows").resolve()
 

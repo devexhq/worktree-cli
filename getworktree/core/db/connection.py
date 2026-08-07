@@ -8,9 +8,7 @@ from pathlib import Path
 DEFAULT_DB_REL_PATH = ".worktree/data.db"
 
 
-def resolve_db_path(
-    cwd: Path | None = None, db_rel_path: str = DEFAULT_DB_REL_PATH
-) -> Path:
+def resolve_db_path(cwd: Path | None = None, db_rel_path: str = DEFAULT_DB_REL_PATH) -> Path:
     """Resolve database path relative to project root, ensuring target parent directory exists."""
     base_dir = (cwd or Path.cwd()).resolve()
     db_path = base_dir / db_rel_path

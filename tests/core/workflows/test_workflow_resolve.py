@@ -28,9 +28,7 @@ class ResolveWorkflowByNameTests:
         workflows_dir = tmp_path / "workflows"
         assert seed_starter_workflows(workflows_dir).ok
 
-        result = resolve_workflow_by_name(
-            "fix-tests", cwd=tmp_path, workflows_dir=workflows_dir
-        )
+        result = resolve_workflow_by_name("fix-tests", cwd=tmp_path, workflows_dir=workflows_dir)
 
         assert result.status == WorkflowResolveStatus.OK
         assert result.ok
@@ -47,9 +45,7 @@ class ResolveWorkflowByNameTests:
         workflows_dir = tmp_path / "workflows"
         workflows_dir.mkdir()
 
-        result = resolve_workflow_by_name(
-            "missing-workflow", cwd=tmp_path, workflows_dir=workflows_dir
-        )
+        result = resolve_workflow_by_name("missing-workflow", cwd=tmp_path, workflows_dir=workflows_dir)
 
         assert result.status == WorkflowResolveStatus.NOT_FOUND
         assert not result.ok
@@ -69,9 +65,7 @@ class ResolveWorkflowByNameTests:
             "version: 2\nname: ghost\ndescription: bad version\n",
         )
 
-        result = resolve_workflow_by_name(
-            "ghost", cwd=tmp_path, workflows_dir=workflows_dir
-        )
+        result = resolve_workflow_by_name("ghost", cwd=tmp_path, workflows_dir=workflows_dir)
 
         assert result.status == WorkflowResolveStatus.NOT_FOUND
         assert result.entry is None
@@ -83,36 +77,26 @@ class ResolveWorkflowByNameTests:
         workflows_dir.mkdir()
         _write(workflows_dir / "ok.yml", _minimal_valid("fix-tests"))
 
-        result = resolve_workflow_by_name(
-            "Fix-Tests", cwd=tmp_path, workflows_dir=workflows_dir
-        )
+        result = resolve_workflow_by_name("Fix-Tests", cwd=tmp_path, workflows_dir=workflows_dir)
 
         # Uppercase fails name pattern before inventory (invalid_name).
         assert result.status == WorkflowResolveStatus.INVALID_NAME
 
-        result_lower = resolve_workflow_by_name(
-            "fix-tests", cwd=tmp_path, workflows_dir=workflows_dir
-        )
+        result_lower = resolve_workflow_by_name("fix-tests", cwd=tmp_path, workflows_dir=workflows_dir)
         assert result_lower.ok
         assert result_lower.entry is not None
 
     def test_duplicate_names_deterministic_winner(self, tmp_path: Path) -> None:
         workflows_dir = tmp_path / "workflows"
         workflows_dir.mkdir()
-        later = _write(
-            workflows_dir / "fix-tests.yaml", _minimal_valid("fix-tests", "yaml")
-        )
-        first = _write(
-            workflows_dir / "fix-tests.yml", _minimal_valid("fix-tests", "yml")
-        )
+        later = _write(workflows_dir / "fix-tests.yaml", _minimal_valid("fix-tests", "yaml"))
+        first = _write(workflows_dir / "fix-tests.yml", _minimal_valid("fix-tests", "yml"))
         other = _write(
             workflows_dir / "other-fix-tests.yml",
             _minimal_valid("fix-tests", "other"),
         )
 
-        result = resolve_workflow_by_name(
-            "fix-tests", cwd=tmp_path, workflows_dir=workflows_dir
-        )
+        result = resolve_workflow_by_name("fix-tests", cwd=tmp_path, workflows_dir=workflows_dir)
 
         assert result.status == WorkflowResolveStatus.OK
         assert result.ok
@@ -128,16 +112,9 @@ class ResolveWorkflowByNameTests:
         assert first.resolve() in {m.source_path for m in result.matches}
         assert other.resolve() in {m.source_path for m in result.matches}
         assert result.errors == []
-        assert any(
-            "WORKFLOW_RESOLVE_DUPLICATE_NAME" in warning for warning in result.warnings
-        )
-        assert any(
-            "Duplicate workflow name 'fix-tests' in multiple files:" in warning
-            for warning in result.warnings
-        )
-        resolver_warning = next(
-            w for w in result.warnings if "WORKFLOW_RESOLVE_DUPLICATE_NAME" in w
-        )
+        assert any("WORKFLOW_RESOLVE_DUPLICATE_NAME" in warning for warning in result.warnings)
+        assert any("Duplicate workflow name 'fix-tests' in multiple files:" in warning for warning in result.warnings)
+        resolver_warning = next(w for w in result.warnings if "WORKFLOW_RESOLVE_DUPLICATE_NAME" in w)
         assert "using 'fix-tests.yaml'" in resolver_warning
         assert "also found in:" in resolver_warning
         assert "fix-tests.yml" in resolver_warning
@@ -151,9 +128,7 @@ class ResolveWorkflowByNameTests:
         _write(workflows_dir / "b.yml", _minimal_valid("shared"))
         winner = _write(workflows_dir / "a.yml", _minimal_valid("shared", "a"))
 
-        result = resolve_workflow_by_name(
-            "shared", cwd=tmp_path, workflows_dir=workflows_dir
-        )
+        result = resolve_workflow_by_name("shared", cwd=tmp_path, workflows_dir=workflows_dir)
 
         assert result.ok
         assert result.entry is not None
@@ -163,9 +138,7 @@ class ResolveWorkflowByNameTests:
     def test_discovery_failed_copies_inventory_errors(self, tmp_path: Path) -> None:
         missing = tmp_path / "missing-workflows"
 
-        result = resolve_workflow_by_name(
-            "fix-tests", cwd=tmp_path, workflows_dir=missing
-        )
+        result = resolve_workflow_by_name("fix-tests", cwd=tmp_path, workflows_dir=missing)
 
         assert result.status == WorkflowResolveStatus.DISCOVERY_FAILED
         assert not result.ok
@@ -176,9 +149,7 @@ class ResolveWorkflowByNameTests:
         assert not any("WORKFLOW_RESOLVE_" in error for error in result.errors)
 
     def test_invalid_name_empty_string(self, tmp_path: Path) -> None:
-        result = resolve_workflow_by_name(
-            "", cwd=tmp_path, workflows_dir=tmp_path / "workflows"
-        )
+        result = resolve_workflow_by_name("", cwd=tmp_path, workflows_dir=tmp_path / "workflows")
 
         assert result.status == WorkflowResolveStatus.INVALID_NAME
         assert result.name == ""
@@ -187,24 +158,16 @@ class ResolveWorkflowByNameTests:
         assert any("WORKFLOW_RESOLVE_INVALID_NAME" in error for error in result.errors)
         assert result.workflows_dir.is_absolute()
 
-    def test_invalid_name_whitespace_uppercase_underscore_pathlike(
-        self, tmp_path: Path
-    ) -> None:
+    def test_invalid_name_whitespace_uppercase_underscore_pathlike(self, tmp_path: Path) -> None:
         cases = ["   ", "Bad_Name", "has_underscore", "../x", "a/b", "Fix-Tests"]
         for name in cases:
-            result = resolve_workflow_by_name(
-                name, cwd=tmp_path, workflows_dir=tmp_path / "workflows"
-            )
+            result = resolve_workflow_by_name(name, cwd=tmp_path, workflows_dir=tmp_path / "workflows")
             assert result.status == WorkflowResolveStatus.INVALID_NAME, name
             assert result.name == name
-            assert any("WORKFLOW_RESOLVE_INVALID_NAME" in e for e in result.errors), (
-                name
-            )
+            assert any("WORKFLOW_RESOLVE_INVALID_NAME" in e for e in result.errors), name
             assert "^[a-z0-9][a-z0-9-]*$" in result.errors[0]
 
-    def test_invalid_name_does_not_require_workflows_dir(
-        self, tmp_path: Path, monkeypatch
-    ) -> None:
+    def test_invalid_name_does_not_require_workflows_dir(self, tmp_path: Path, monkeypatch) -> None:
         """Invalid name must not call inventory (no discovery IO)."""
         import getworktree.core.workflows.resolve as resolve_mod
 
@@ -227,9 +190,7 @@ class ResolveWorkflowByNameTests:
             "version: 1\nname: alpha\n",  # missing description → invalid
         )
 
-        result = resolve_workflow_by_name(
-            "alpha", cwd=tmp_path, workflows_dir=workflows_dir
-        )
+        result = resolve_workflow_by_name("alpha", cwd=tmp_path, workflows_dir=workflows_dir)
 
         assert result.ok
         assert result.entry is not None
@@ -244,17 +205,12 @@ class ResolveWorkflowByNameTests:
         _write(workflows_dir / "b.yml", _minimal_valid("dup", "other"))
         solo = _write(workflows_dir / "solo.yml", _minimal_valid("solo"))
 
-        result = resolve_workflow_by_name(
-            "solo", cwd=tmp_path, workflows_dir=workflows_dir
-        )
+        result = resolve_workflow_by_name("solo", cwd=tmp_path, workflows_dir=workflows_dir)
 
         assert result.ok
         assert result.entry is not None
         assert result.entry.source_path == solo.resolve()
-        assert any(
-            "Duplicate workflow name 'dup' in multiple files:" in w
-            for w in result.warnings
-        )
+        assert any("Duplicate workflow name 'dup' in multiple files:" in w for w in result.warnings)
         assert not any("WORKFLOW_RESOLVE_DUPLICATE_NAME" in w for w in result.warnings)
 
     def test_exported_from_package(self) -> None:

@@ -179,10 +179,7 @@ def run_workflow_iteration(
             workflow_name=workflow_name,
             stop_reason=StopReason.CONFIGURATION_ERROR,
             max_attempts=max_attempts,
-            errors=[
-                "Workflow run configuration error: "
-                f"effective max_attempts is {max_attempts} (must be >= 1)"
-            ],
+            errors=[f"Workflow run configuration error: effective max_attempts is {max_attempts} (must be >= 1)"],
         )
 
     resolved_auto = (
@@ -239,9 +236,7 @@ def run_workflow_iteration(
             )
 
         if not create_result.ok or create_result.session is None:
-            errors = list(create_result.errors) or [
-                f"Sandbox create failed: {create_result.status}"
-            ]
+            errors = list(create_result.errors) or [f"Sandbox create failed: {create_result.status}"]
             return WorkflowRunResult(
                 status=WorkflowFinalStatus.FAILED,
                 session_id=session_id or "",
@@ -390,14 +385,10 @@ def run_workflow_iteration(
     max_patch_kb = getattr(workflow, "_max_patch_kb", None) or 1024
 
     resolved_session_timeout = (
-        session_timeout_seconds
-        if session_timeout_seconds is not None
-        else config.sandbox.default_timeout_seconds
+        session_timeout_seconds if session_timeout_seconds is not None else config.sandbox.default_timeout_seconds
     )
     resolved_detect_repeat = (
-        detect_repeat_failures
-        if detect_repeat_failures is not None
-        else config.workflow.detect_repeat_failures
+        detect_repeat_failures if detect_repeat_failures is not None else config.workflow.detect_repeat_failures
     )
     safety = SafetyState()
 
@@ -462,27 +453,21 @@ def run_workflow_iteration(
                 max_attempts=max_attempts,
             )
 
-            trigger_outcome, trigger_result = _run_trigger_step(
-                ctx, attempt_idx, record
-            )
+            trigger_outcome, trigger_result = _run_trigger_step(ctx, attempt_idx, record)
             if trigger_outcome is not None:
                 if _apply(trigger_outcome):
                     continue
                 break
             assert trigger_result is not None  # narrows for type checkers
 
-            agent_outcome, agent_response = _run_agent_step(
-                ctx, attempt_idx, record, trigger_result=trigger_result
-            )
+            agent_outcome, agent_response = _run_agent_step(ctx, attempt_idx, record, trigger_result=trigger_result)
             if agent_outcome is not None:
                 if _apply(agent_outcome):
                     continue
                 break
             assert agent_response is not None  # narrows for type checkers
 
-            approval_outcome = _run_approval_step(
-                ctx, attempt_idx, record, agent_response
-            )
+            approval_outcome = _run_approval_step(ctx, attempt_idx, record, agent_response)
             if approval_outcome is not None:
                 if _apply(approval_outcome):
                     continue

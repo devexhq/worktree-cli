@@ -66,9 +66,7 @@ def set_nested_value(config_dict: dict[str, Any], dot_path: str, value: Any) -> 
 
     keys = dot_path.split(".")
     if any(key == "" for key in keys):
-        raise ValueError(
-            f"Cannot set '{dot_path}': config key path contains an empty segment."
-        )
+        raise ValueError(f"Cannot set '{dot_path}': config key path contains an empty segment.")
 
     current: dict[str, Any] = config_dict
     for i, key in enumerate(keys[:-1]):
@@ -76,10 +74,7 @@ def set_nested_value(config_dict: dict[str, Any], dot_path: str, value: Any) -> 
             current[key] = {}
         elif not isinstance(current[key], dict):
             conflict_path = ".".join(keys[: i + 1])
-            raise ValueError(
-                f"Cannot set '{dot_path}'. "
-                f"'{conflict_path}' is already defined as a scalar value."
-            )
+            raise ValueError(f"Cannot set '{dot_path}'. '{conflict_path}' is already defined as a scalar value.")
         node = current[key]
         assert isinstance(node, dict)
         current = node
@@ -210,8 +205,7 @@ def set_config_value_result(
                         *(f"- {msg}" for msg in validation.errors),
                         "Fix:",
                         "- run `wt config validate` for details",
-                        "- or `wt init --repair` to insert missing keys "
-                        "without overwriting values",
+                        "- or `wt init --repair` to insert missing keys without overwriting values",
                     ]
                 )
             ],
@@ -231,8 +225,7 @@ def set_config_value_result(
                         *(f"- {msg}" for msg in [str(exc)]),
                         "Fix:",
                         "- run `wt config validate` for details",
-                        "- or `wt init --repair` to insert missing keys "
-                        "without overwriting values",
+                        "- or `wt init --repair` to insert missing keys without overwriting values",
                     ]
                 )
             ],

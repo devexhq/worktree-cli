@@ -72,10 +72,7 @@ def validate_ollama_endpoint(base: str) -> str | None:
     """Return an error detail when ``base`` is not an absolute http(s) URL."""
     parsed = urlparse(base)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        return (
-            f"invalid Ollama endpoint '{base}': "
-            "must be an absolute http:// or https:// URL"
-        )
+        return f"invalid Ollama endpoint '{base}': must be an absolute http:// or https:// URL"
     return None
 
 
@@ -162,9 +159,7 @@ def parse_ollama_model_text(raw_text: str) -> OllamaModelStdout | None:
         return None
 
 
-def map_ollama_stdout(
-    parsed: OllamaModelStdout, *, raw_text: str, duration_ms: int
-) -> AgentResponse:
+def map_ollama_stdout(parsed: OllamaModelStdout, *, raw_text: str, duration_ms: int) -> AgentResponse:
     """Map parsed model JSON to an AgentResponse."""
     if parsed.unfixable:
         return AgentResponse(
@@ -269,21 +264,11 @@ class OllamaAgentAdapter:
             return AgentResponse(
                 status=AgentResponseStatus.PROVIDER_ERROR,
                 duration_ms=duration_ms,
-                errors=[
-                    f"Agent provider error (AGENT_PROVIDER_ERROR): {endpoint_error}"
-                ],
+                errors=[f"Agent provider error (AGENT_PROVIDER_ERROR): {endpoint_error}"],
             )
 
-        temperature = (
-            float(request.temperature)
-            if request.temperature is not None
-            else DEFAULT_TEMPERATURE
-        )
-        max_tokens = (
-            int(request.max_tokens)
-            if request.max_tokens is not None
-            else DEFAULT_MAX_TOKENS
-        )
+        temperature = float(request.temperature) if request.temperature is not None else DEFAULT_TEMPERATURE
+        max_tokens = int(request.max_tokens) if request.max_tokens is not None else DEFAULT_MAX_TOKENS
         timeout_seconds = float(request.timeout_seconds)
         url = f"{base}/api/chat"
         body_obj = {
@@ -332,10 +317,7 @@ class OllamaAgentAdapter:
             return AgentResponse(
                 status=AgentResponseStatus.PROVIDER_ERROR,
                 duration_ms=duration_ms,
-                errors=[
-                    "Agent provider error (AGENT_PROVIDER_ERROR): "
-                    f"failed to reach Ollama at '{base}': {reason}"
-                ],
+                errors=[f"Agent provider error (AGENT_PROVIDER_ERROR): failed to reach Ollama at '{base}': {reason}"],
             )
         except OSError as exc:
             duration_ms = int((time.monotonic() - started) * 1000)
@@ -355,10 +337,7 @@ class OllamaAgentAdapter:
             return AgentResponse(
                 status=AgentResponseStatus.PROVIDER_ERROR,
                 duration_ms=duration_ms,
-                errors=[
-                    "Agent provider error (AGENT_PROVIDER_ERROR): "
-                    f"failed to reach Ollama at '{base}': {exc}"
-                ],
+                errors=[f"Agent provider error (AGENT_PROVIDER_ERROR): failed to reach Ollama at '{base}': {exc}"],
             )
 
         duration_ms = int((time.monotonic() - started) * 1000)
@@ -381,20 +360,14 @@ class OllamaAgentAdapter:
                 status=AgentResponseStatus.PROVIDER_ERROR,
                 raw_text=text or None,
                 duration_ms=duration_ms,
-                errors=[
-                    "Agent provider error (AGENT_PROVIDER_ERROR): "
-                    f"invalid JSON from Ollama chat API: {exc}"
-                ],
+                errors=[f"Agent provider error (AGENT_PROVIDER_ERROR): invalid JSON from Ollama chat API: {exc}"],
             )
         if not isinstance(data, dict):
             return AgentResponse(
                 status=AgentResponseStatus.PROVIDER_ERROR,
                 raw_text=text or None,
                 duration_ms=duration_ms,
-                errors=[
-                    "Agent provider error (AGENT_PROVIDER_ERROR): "
-                    "Ollama chat API returned a non-object"
-                ],
+                errors=["Agent provider error (AGENT_PROVIDER_ERROR): Ollama chat API returned a non-object"],
             )
 
         content = _chat_content_from_response(data)
@@ -404,8 +377,7 @@ class OllamaAgentAdapter:
                 raw_text=text or None,
                 duration_ms=duration_ms,
                 errors=[
-                    "Agent provider error (AGENT_PROVIDER_ERROR): "
-                    "Ollama chat API response missing message.content"
+                    "Agent provider error (AGENT_PROVIDER_ERROR): Ollama chat API response missing message.content"
                 ],
             )
 

@@ -181,9 +181,7 @@ def test_execute_agent_step_custom_handler(tmp_path: Path):
         tools=["edit_file"],
     )
 
-    res = execute_step(
-        step, sandbox_path=tmp_path, context={"agent_handler": custom_handler}
-    )
+    res = execute_step(step, sandbox_path=tmp_path, context={"agent_handler": custom_handler})
     assert res.ok is True
     assert res.status == "completed"
     assert res.stdout == "agent result"

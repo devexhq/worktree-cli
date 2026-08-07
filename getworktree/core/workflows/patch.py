@@ -256,9 +256,7 @@ def _run_git_apply(
         detail_parts.append(stderr)
     if stdout:
         detail_parts.append(stdout)
-    detail = (
-        "\n".join(detail_parts).strip() or f"git apply exited {completed.returncode}"
-    )
+    detail = "\n".join(detail_parts).strip() or f"git apply exited {completed.returncode}"
     return completed.returncode == 0, detail, False
 
 
@@ -285,9 +283,7 @@ def summarize_unified_diff(unified_diff: str) -> tuple[list[str], int, int]:
         elif line.startswith("-") and not line.startswith("---"):
             deletions += 1
 
-    touched, _, parse_error = (
-        _parse_unified_diff(text) if text.strip() else ([], [], None)
-    )
+    touched, _, parse_error = _parse_unified_diff(text) if text.strip() else ([], [], None)
     if parse_error is not None:
         return [], additions, deletions
     return list(touched), additions, deletions
@@ -322,11 +318,7 @@ def validate_patch_text(
     if not isinstance(unified_diff, str) or not unified_diff.strip():
         return PatchApplyResult(
             status=PatchApplyStatus.EMPTY_DIFF,
-            errors=[
-                "Patch is empty or whitespace-only.\n"
-                "Fix:\n"
-                "- ensure the agent returned a non-empty unified diff"
-            ],
+            errors=["Patch is empty or whitespace-only.\nFix:\n- ensure the agent returned a non-empty unified diff"],
         )
 
     size_bytes = len(unified_diff.encode("utf-8"))

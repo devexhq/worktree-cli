@@ -74,9 +74,7 @@ def insert_sandbox(
         return _sandbox_record_from_row(row)
 
 
-def get_sandbox(
-    id: str, cwd: Path | None = None, db_rel_path: str = DEFAULT_DB_REL_PATH
-) -> SandboxRecord | None:
+def get_sandbox(id: str, cwd: Path | None = None, db_rel_path: str = DEFAULT_DB_REL_PATH) -> SandboxRecord | None:
     """Return the sandbox row for ``id``, or ``None`` when missing."""
     db_path = init_database(cwd, db_rel_path)
     select_sql = "SELECT * FROM sandboxes WHERE id = ?;"
@@ -139,9 +137,7 @@ def update_sandbox_status(
         return _sandbox_record_from_row(row) if row is not None else None
 
 
-def delete_sandbox_row(
-    id: str, cwd: Path | None = None, db_rel_path: str = DEFAULT_DB_REL_PATH
-) -> bool:
+def delete_sandbox_row(id: str, cwd: Path | None = None, db_rel_path: str = DEFAULT_DB_REL_PATH) -> bool:
     """Hard-delete a sandbox metadata row. Returns whether a row was removed."""
     db_path = init_database(cwd, db_rel_path)
     delete_sql = "DELETE FROM sandboxes WHERE id = ?;"

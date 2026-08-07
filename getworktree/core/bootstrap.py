@@ -64,17 +64,14 @@ def ensure_dir(path: Path, *, allow_symlink: bool = False) -> DirEnsureOutcome:
             path.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
             raise ValueError(
-                f"Could not create {display_path(path)}: {exc}. "
-                "Check directory permissions and try again."
+                f"Could not create {display_path(path)}: {exc}. Check directory permissions and try again."
             ) from exc
         return DirEnsureOutcome.CREATED
 
     if path.is_symlink():
         if allow_symlink:
             if not path.is_dir():
-                raise ValueError(
-                    f"{display_path(path)} is a symlink that does not resolve to a directory."
-                )
+                raise ValueError(f"{display_path(path)} is a symlink that does not resolve to a directory.")
             return DirEnsureOutcome.EXISTING
         raise ValueError(f"{display_path(path)} must be a directory, not a symlink.")
     if path.is_file():
@@ -89,10 +86,7 @@ def assert_writable(path: Path) -> None:
     if not path.exists():
         raise ValueError(f"{display_path(path)} does not exist.")
     if not os.access(path, os.W_OK):
-        raise ValueError(
-            f"{display_path(path)} is not writable. "
-            "Check directory permissions and try again."
-        )
+        raise ValueError(f"{display_path(path)} is not writable. Check directory permissions and try again.")
 
 
 def load_existing_bootstrap_metadata(meta_path: Path) -> dict | None:
@@ -191,11 +185,7 @@ def bootstrap_worktree(
     elif result.root_created or result.dirs_created:
         status = "initialized"
     else:
-        status = (
-            str(prior_meta.get("status", "initialized"))
-            if prior_meta
-            else "initialized"
-        )
+        status = str(prior_meta.get("status", "initialized")) if prior_meta else "initialized"
 
     initialized_at: str | None = None
     if prior_meta and prior_meta.get("initialized_at"):
@@ -210,9 +200,7 @@ def bootstrap_worktree(
             initialized_at=initialized_at,
         )
     except OSError as exc:
-        result.errors.append(
-            f"Could not write bootstrap metadata at {display_path(meta_path)}: {exc}"
-        )
+        result.errors.append(f"Could not write bootstrap metadata at {display_path(meta_path)}: {exc}")
 
     result.workflow_seed_result = WorkflowSeedResult()
     return result

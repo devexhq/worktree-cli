@@ -112,8 +112,7 @@ def _list_wip_paths(repo_root: Path) -> list[str]:
         )
     except subprocess.TimeoutExpired as exc:
         raise GitPlumbingTimeoutError(
-            f"Git timed out after {GIT_SUBPROCESS_TIMEOUT_SECONDS}s "
-            f"('git status --porcelain -u') (GIT_TIMEOUT)"
+            f"Git timed out after {GIT_SUBPROCESS_TIMEOUT_SECONDS}s ('git status --porcelain -u') (GIT_TIMEOUT)"
         ) from exc
     except (FileNotFoundError, subprocess.CalledProcessError):
         return []
@@ -238,19 +237,14 @@ class GitSandboxManager:
             )
             return result.stdout.strip()
         except FileNotFoundError as exc:
-            raise RuntimeError(
-                f"Git execution failed ('git {' '.join(args)}'): git not found"
-            ) from exc
+            raise RuntimeError(f"Git execution failed ('git {' '.join(args)}'): git not found") from exc
         except subprocess.TimeoutExpired as exc:
             raise GitPlumbingTimeoutError(
-                f"Git timed out after {GIT_SUBPROCESS_TIMEOUT_SECONDS}s "
-                f"('git {' '.join(args)}') (GIT_TIMEOUT)"
+                f"Git timed out after {GIT_SUBPROCESS_TIMEOUT_SECONDS}s ('git {' '.join(args)}') (GIT_TIMEOUT)"
             ) from exc
         except subprocess.CalledProcessError as exc:
             err_msg = exc.stderr.strip() or exc.stdout.strip() or str(exc)
-            raise RuntimeError(
-                f"Git execution failed ('git {' '.join(args)}'): {err_msg}"
-            ) from exc
+            raise RuntimeError(f"Git execution failed ('git {' '.join(args)}'): {err_msg}") from exc
 
     def get_active_sandboxes(self) -> list[Path]:
         """List immediate child directories under the sandbox base path.
@@ -359,9 +353,7 @@ class GitSandboxManager:
         else:
             source_branch = get_current_git_branch(self.cwd)
             resolved_base_ref = (
-                source_branch
-                if source_branch not in ("unknown", "HEAD (detached)")
-                else config.sandbox.base_ref
+                source_branch if source_branch not in ("unknown", "HEAD (detached)") else config.sandbox.base_ref
             )
 
         try:
@@ -479,9 +471,7 @@ class GitSandboxManager:
                 cwd=self.cwd,
             )
         except Exception as exc:
-            warnings.append(
-                f"Failed to persist sandbox metadata to the local database: {exc}"
-            )
+            warnings.append(f"Failed to persist sandbox metadata to the local database: {exc}")
         return SandboxCreateResult(
             status=SandboxCreateStatus.OK,
             session=session,
@@ -517,11 +507,7 @@ class GitSandboxManager:
             base_ref=base_ref,
         )
         if not result.ok or result.session is None:
-            message = (
-                result.errors[0]
-                if result.errors
-                else f"Sandbox create failed: {result.status}"
-            )
+            message = result.errors[0] if result.errors else f"Sandbox create failed: {result.status}"
             raise RuntimeError(message)
         return result.session
 
@@ -598,24 +584,14 @@ def sandbox_scope(
         include_wip=include_wip,
     )
     if not result.ok or result.session is None:
-        message = (
-            result.errors[0]
-            if result.errors
-            else f"Sandbox create failed: {result.status}"
-        )
+        message = result.errors[0] if result.errors else f"Sandbox create failed: {result.status}"
         raise RuntimeError(message)
 
     session = result.session
     cfg = manager.config
-    resolved_auto = (
-        auto_clean
-        if auto_clean is not None
-        else (cfg.sandbox.auto_clean if cfg is not None else True)
-    )
+    resolved_auto = auto_clean if auto_clean is not None else (cfg.sandbox.auto_clean if cfg is not None else True)
     resolved_keep = (
-        keep_on_failure
-        if keep_on_failure is not None
-        else (cfg.sandbox.keep_on_failure if cfg is not None else True)
+        keep_on_failure if keep_on_failure is not None else (cfg.sandbox.keep_on_failure if cfg is not None else True)
     )
 
     try:

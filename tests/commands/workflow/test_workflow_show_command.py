@@ -105,9 +105,7 @@ class WorkflowShowCliTests:
         assert result.exit_code == 0
         assert "Show details for a specific workflow session" in result.stdout
 
-    def test_cli_show_success(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_cli_show_success(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         _init_repo(git_repo)
         insert_workflow_run(

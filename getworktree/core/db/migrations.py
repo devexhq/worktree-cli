@@ -90,9 +90,7 @@ CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 """
 
 
-def init_database(
-    cwd: Path | None = None, db_rel_path: str = DEFAULT_DB_REL_PATH
-) -> Path:
+def init_database(cwd: Path | None = None, db_rel_path: str = DEFAULT_DB_REL_PATH) -> Path:
     """Run table migrations and initialize local SQLite database layout."""
     db_path = resolve_db_path(cwd, db_rel_path)
     with get_db_connection(db_path) as conn:

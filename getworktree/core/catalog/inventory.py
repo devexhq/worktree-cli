@@ -60,13 +60,9 @@ def migrate_legacy_workflows(cwd: Path | None = None) -> list[Path]:
     return migrated
 
 
-def compute_catalog_sha(
-    item_type: CatalogItemType | str, content: str
-) -> tuple[str, str]:
+def compute_catalog_sha(item_type: CatalogItemType | str, content: str) -> tuple[str, str]:
     """Compute SHA-256 checksum and formatted SHA string (e.g. `workflow_a1b2c3d`)."""
-    type_str = (
-        item_type.value if isinstance(item_type, CatalogItemType) else str(item_type)
-    )
+    type_str = item_type.value if isinstance(item_type, CatalogItemType) else str(item_type)
     checksum = hashlib.sha256(content.encode("utf-8")).hexdigest()
     sha = f"{type_str}_{checksum[:7]}"
     return sha, checksum
@@ -157,16 +153,10 @@ def create_catalog_item(
         FileExistsError: If a blueprint file already exists at the target path.
     """
     try:
-        type_enum = (
-            item_type
-            if isinstance(item_type, CatalogItemType)
-            else CatalogItemType(str(item_type).lower())
-        )
+        type_enum = item_type if isinstance(item_type, CatalogItemType) else CatalogItemType(str(item_type).lower())
     except ValueError as exc:
         allowed = ", ".join([t.value for t in CatalogItemType])
-        raise ValueError(
-            f"Invalid item_type '{item_type}'. Allowed choices: {allowed}"
-        ) from exc
+        raise ValueError(f"Invalid item_type '{item_type}'. Allowed choices: {allowed}") from exc
 
     catalog_dir = ensure_catalog_dirs(cwd)
     stem = name[:-4] if name.endswith(".yml") or name.endswith(".yaml") else name
@@ -180,15 +170,11 @@ def create_catalog_item(
     if template_name:
         tmpl = get_builtin_template(template_name, type_filter=type_enum.value)
         if tmpl is None:
-            raise ValueError(
-                f"Built-in template '{template_name}' of type '{type_enum.value}' not found."
-            )
+            raise ValueError(f"Built-in template '{template_name}' of type '{type_enum.value}' not found.")
         content = tmpl.content
     else:
         if type_enum == CatalogItemType.WORKFLOW:
-            content = (
-                f"name: {stem}\ndescription: Custom workflow blueprint\nsteps: []\n"
-            )
+            content = f"name: {stem}\ndescription: Custom workflow blueprint\nsteps: []\n"
         elif type_enum == CatalogItemType.TASK:
             content = f"name: {stem}\ndescription: Custom task blueprint\nuse_git_worktree: false\ncommands: []\n"
         else:
@@ -220,11 +206,7 @@ def get_catalog_item(
     item = get_catalog_item_by_sha(sha_or_name, cwd=cwd)
     if item is not None:
         if type_filter:
-            tf_str = (
-                type_filter.value
-                if isinstance(type_filter, CatalogItemType)
-                else str(type_filter).lower()
-            )
+            tf_str = type_filter.value if isinstance(type_filter, CatalogItemType) else str(type_filter).lower()
             if item.item_type.value != tf_str:
                 return None
         return item

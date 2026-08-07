@@ -34,9 +34,7 @@ DB_REL = ".worktree/data.db"
 
 
 def _init_git_repo(path: Path, branch: str = "feature") -> None:
-    subprocess.run(
-        ["git", "init", "-b", branch], cwd=path, check=True, capture_output=True
-    )
+    subprocess.run(["git", "init", "-b", branch], cwd=path, check=True, capture_output=True)
     subprocess.run(
         ["git", "config", "user.email", "test@example.com"],
         cwd=path,
@@ -100,9 +98,7 @@ class SandboxCreateRenderTests:
     """Renderer unit tests with a fixed console width."""
 
     def test_success_block(self, tmp_path: Path) -> None:
-        session = _session(
-            sandbox_path=tmp_path / ".worktree" / "sandboxes" / "sbx_a1b2c3d4"
-        )
+        session = _session(sandbox_path=tmp_path / ".worktree" / "sandboxes" / "sbx_a1b2c3d4")
         rich_output, buffer = _rich()
         render_sandbox_create_success(session, cwd=tmp_path, rich_output=rich_output)
         out = buffer.getvalue()
@@ -332,9 +328,7 @@ class SandboxCreateCliTests:
         result = runner.invoke(app, ["sandbox", "create", "--help"])
         assert result.exit_code == 0
 
-        create_cmd = (
-            get_command(app).get_command(None, "sandbox").get_command(None, "create")
-        )
+        create_cmd = get_command(app).get_command(None, "sandbox").get_command(None, "create")
         assert create_cmd.help == "Create an isolated git worktree sandbox."
         opts: set[str] = set()
         for param in create_cmd.params:
@@ -346,9 +340,7 @@ class SandboxCreateCliTests:
         assert "--wip" in opts
         assert "--no-wip" in opts
 
-    def test_create_appears_in_list_and_show(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_create_appears_in_list_and_show(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         _init_config(git_repo)
 
@@ -377,17 +369,13 @@ class SandboxCreateCliTests:
         assert "present" in shown.stdout
         assert "active" in shown.stdout
 
-    def test_create_not_initialized_via_cli(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_create_not_initialized_via_cli(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         result = runner.invoke(app, ["sandbox", "create"])
         assert result.exit_code == 1
         assert "Sandbox Create Failed" in result.stdout
 
-    def test_create_invalid_base_ref_via_cli(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_create_invalid_base_ref_via_cli(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         _init_config(git_repo)
         result = runner.invoke(
@@ -397,9 +385,7 @@ class SandboxCreateCliTests:
         assert result.exit_code == 1
         assert "Sandbox Create Failed" in result.stdout
 
-    def test_create_capacity_exceeded_via_cli(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_create_capacity_exceeded_via_cli(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         _init_config(git_repo)
         config_path = git_repo / ".worktree" / "config.json"

@@ -35,9 +35,7 @@ class StepResult(BaseModel):
         return self.status in ("completed", "ignored")
 
 
-def _execute_command_step(
-    step: StepDefinition, sandbox_path: Path
-) -> tuple[str, int, str, str, str | None]:
+def _execute_command_step(step: StepDefinition, sandbox_path: Path) -> tuple[str, int, str, str, str | None]:
     """Execute a COMMAND step inside sandbox_path."""
     if not step.command:
         return "failed", 1, "", "", "Command step has no command string defined."
@@ -84,9 +82,7 @@ def _execute_command_step(
         return "failed", 1, "", "", f"Command execution error: {exc}"
 
 
-def _execute_script_step(
-    step: StepDefinition, sandbox_path: Path
-) -> tuple[str, int, str, str, str | None]:
+def _execute_script_step(step: StepDefinition, sandbox_path: Path) -> tuple[str, int, str, str, str | None]:
     """Execute a SCRIPT step inside sandbox_path."""
     if not step.script_path:
         return "failed", 1, "", "", "Script step has no script_path defined."
@@ -217,17 +213,11 @@ def execute_step(
         attempt_count = attempt
 
         if step.type == StepType.COMMAND:
-            status, exit_code, stdout, stderr, err_msg = _execute_command_step(
-                step, sandbox_path
-            )
+            status, exit_code, stdout, stderr, err_msg = _execute_command_step(step, sandbox_path)
         elif step.type == StepType.SCRIPT:
-            status, exit_code, stdout, stderr, err_msg = _execute_script_step(
-                step, sandbox_path
-            )
+            status, exit_code, stdout, stderr, err_msg = _execute_script_step(step, sandbox_path)
         elif step.type == StepType.AGENT:
-            status, exit_code, stdout, stderr, err_msg = _execute_agent_step(
-                step, sandbox_path, context
-            )
+            status, exit_code, stdout, stderr, err_msg = _execute_agent_step(step, sandbox_path, context)
         else:
             status, exit_code, stdout, stderr, err_msg = (
                 "failed",

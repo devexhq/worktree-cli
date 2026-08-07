@@ -696,9 +696,7 @@ create/mutate workflow files.
 Shared schema binding:
 
 ```python
-WORKFLOW_VALIDATOR = SchemaValidator(
-    resources.files("getworktree.schemas.v1") / "workflow.json"
-)
+WORKFLOW_VALIDATOR = SchemaValidator(resources.files("getworktree.schemas.v1") / "workflow.json")
 ```
 
 Exported from `getworktree.core.workflows`. Seeder imports the same

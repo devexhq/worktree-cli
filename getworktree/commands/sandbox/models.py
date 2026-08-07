@@ -53,11 +53,7 @@ class SandboxShowResult(BaseModel):
     @property
     def ok(self) -> bool:
         """True when a sandbox row is available to render."""
-        return (
-            self.status == SandboxShowStatus.OK
-            and self.sandbox is not None
-            and not self.errors
-        )
+        return self.status == SandboxShowStatus.OK and self.sandbox is not None and not self.errors
 
 
 class SandboxDeleteStatus(StrEnum):

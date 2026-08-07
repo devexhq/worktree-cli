@@ -14,9 +14,7 @@ from getworktree.core.templates.models import (
 )
 
 
-def _load_builtin_template(
-    file_path: Any, template_type: TemplateType
-) -> BuiltinTemplate | None:
+def _load_builtin_template(file_path: Any, template_type: TemplateType) -> BuiltinTemplate | None:
     """Read and parse a single template YAML file into a BuiltinTemplate model."""
     try:
         content = file_path.read_text(encoding="utf-8")
@@ -70,9 +68,7 @@ def list_builtin_templates(
             try:
                 filter_enum = TemplateType(str(type_filter).lower())
             except ValueError:
-                return BuiltinTemplateResult(
-                    errors=[f"Invalid template type filter: '{type_filter}'"]
-                )
+                return BuiltinTemplateResult(errors=[f"Invalid template type filter: '{type_filter}'"])
 
     type_subdirs: list[tuple[str, TemplateType]] = [
         ("workflows", TemplateType.WORKFLOW),
@@ -85,9 +81,7 @@ def list_builtin_templates(
     try:
         root = importlib.resources.files("getworktree.core.templates")
     except Exception as exc:
-        return BuiltinTemplateResult(
-            errors=[f"Failed to access package templates resource: {exc}"]
-        )
+        return BuiltinTemplateResult(errors=[f"Failed to access package templates resource: {exc}"])
 
     for subdir_name, t_type in type_subdirs:
         if filter_enum is not None and filter_enum != t_type:

@@ -142,9 +142,7 @@ class SharedMutationAdapterTests:
         assert resp.mutation_baseline_ref is not None
 
     def test_gate_violation_discards_edits(self, sandbox: Path) -> None:
-        adapter = UnitTestAdapter(
-            run_fn=_fake_run(edits={"a.txt": "edit one\n", "b.txt": "edit two\n"})
-        )
+        adapter = UnitTestAdapter(run_fn=_fake_run(edits={"a.txt": "edit one\n", "b.txt": "edit two\n"}))
 
         resp = adapter.propose_fix(_request(sandbox, max_files=1))
 

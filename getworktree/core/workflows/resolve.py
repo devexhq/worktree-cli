@@ -52,11 +52,7 @@ def _warning_duplicate_name(
     winner: WorkflowInventoryValidEntry,
     matches: list[WorkflowInventoryValidEntry],
 ) -> str:
-    others = [
-        entry.source_path.name
-        for entry in matches
-        if entry.source_path != winner.source_path
-    ]
+    others = [entry.source_path.name for entry in matches if entry.source_path != winner.source_path]
     also = ", ".join(others)
     return (
         f"Duplicate workflow name '{name}'; using '{winner.source_path.name}' "
@@ -113,11 +109,7 @@ def resolve_workflow_by_name(
     """
     requested = name
 
-    if (
-        not isinstance(requested, str)
-        or not requested
-        or not WORKFLOW_NAME_PATTERN.fullmatch(requested)
-    ):
+    if not isinstance(requested, str) or not requested or not WORKFLOW_NAME_PATTERN.fullmatch(requested):
         echo = requested if isinstance(requested, str) else str(requested)
         return WorkflowResolveResult(
             status=WorkflowResolveStatus.INVALID_NAME,

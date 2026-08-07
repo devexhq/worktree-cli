@@ -372,15 +372,11 @@ class SandboxShowCliTests:
         result = runner.invoke(app, ["sandbox", "show", "--help"])
         assert result.exit_code == 0
 
-        show_cmd = (
-            get_command(app).get_command(None, "sandbox").get_command(None, "show")
-        )
+        show_cmd = get_command(app).get_command(None, "sandbox").get_command(None, "show")
         assert show_cmd.help == "Show full detail for one tracked sandbox."
         assert any(param.name == "sandbox_id" for param in show_cmd.params)
 
-    def test_show_via_cli(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_show_via_cli(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         _init_config(git_repo)
         created = _insert(

@@ -41,18 +41,8 @@ class TestDatabaseMigrations:
         assert db_path.is_file()
 
         with sqlite3.connect(db_path) as conn:
-            tables = {
-                row[0]
-                for row in conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type = 'table'"
-                )
-            }
-            indexes = {
-                row[0]
-                for row in conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type = 'index'"
-                )
-            }
+            tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+            indexes = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'index'")}
 
         assert "catalog" in tables
         assert "workflows" in tables
@@ -98,14 +88,10 @@ class TestCatalogCRUD:
         assert rec.created_at
         assert rec.updated_at
 
-        by_sha = get_catalog_item_by_sha(
-            "workflow_1234567", cwd=tmp_path, db_rel_path=DB_REL
-        )
+        by_sha = get_catalog_item_by_sha("workflow_1234567", cwd=tmp_path, db_rel_path=DB_REL)
         assert by_sha == rec
 
-        by_name = get_catalog_item_by_name(
-            "workflow_a", cwd=tmp_path, db_rel_path=DB_REL
-        )
+        by_name = get_catalog_item_by_name("workflow_a", cwd=tmp_path, db_rel_path=DB_REL)
         assert by_name == rec
 
         by_name_and_type = get_catalog_item_by_name(
@@ -116,9 +102,7 @@ class TestCatalogCRUD:
         )
         assert by_name_and_type == rec
 
-    def test_upsert_update_preserves_id_and_updates_fields(
-        self, tmp_path: Path
-    ) -> None:
+    def test_upsert_update_preserves_id_and_updates_fields(self, tmp_path: Path) -> None:
         path = Path(".worktree/catalog/task_b.yaml")
         first = upsert_catalog_item(
             sha="task_1111111",
@@ -151,13 +135,8 @@ class TestCatalogCRUD:
         assert second.updated_at != first.updated_at
 
     def test_get_missing_catalog_item_returns_none(self, tmp_path: Path) -> None:
-        assert (
-            get_catalog_item_by_sha("missing", cwd=tmp_path, db_rel_path=DB_REL) is None
-        )
-        assert (
-            get_catalog_item_by_name("missing_name", cwd=tmp_path, db_rel_path=DB_REL)
-            is None
-        )
+        assert get_catalog_item_by_sha("missing", cwd=tmp_path, db_rel_path=DB_REL) is None
+        assert get_catalog_item_by_name("missing_name", cwd=tmp_path, db_rel_path=DB_REL) is None
 
     def test_list_catalog_items_filtering(self, tmp_path: Path) -> None:
         upsert_catalog_item(
@@ -191,9 +170,7 @@ class TestCatalogCRUD:
         all_items = list_catalog_items(cwd=tmp_path, db_rel_path=DB_REL)
         assert len(all_items) == 3
 
-        workflows = list_catalog_items(
-            item_type=CatalogItemType.WORKFLOW, cwd=tmp_path, db_rel_path=DB_REL
-        )
+        workflows = list_catalog_items(item_type=CatalogItemType.WORKFLOW, cwd=tmp_path, db_rel_path=DB_REL)
         assert len(workflows) == 1
         assert workflows[0].sha == "w1"
 
@@ -251,16 +228,9 @@ class TestCatalogCRUD:
             db_rel_path=DB_REL,
         )
 
-        assert (
-            delete_catalog_item("to_delete", cwd=tmp_path, db_rel_path=DB_REL) is True
-        )
-        assert (
-            get_catalog_item_by_sha("to_delete", cwd=tmp_path, db_rel_path=DB_REL)
-            is None
-        )
-        assert (
-            delete_catalog_item("to_delete", cwd=tmp_path, db_rel_path=DB_REL) is False
-        )
+        assert delete_catalog_item("to_delete", cwd=tmp_path, db_rel_path=DB_REL) is True
+        assert get_catalog_item_by_sha("to_delete", cwd=tmp_path, db_rel_path=DB_REL) is None
+        assert delete_catalog_item("to_delete", cwd=tmp_path, db_rel_path=DB_REL) is False
 
 
 class TestWorkflowRunCRUD:
@@ -288,9 +258,7 @@ class TestWorkflowRunCRUD:
         fetched = get_workflow_run("wf_session_1", cwd=tmp_path, db_rel_path=DB_REL)
         assert fetched == rec
 
-    def test_insert_duplicate_session_id_raises_value_error(
-        self, tmp_path: Path
-    ) -> None:
+    def test_insert_duplicate_session_id_raises_value_error(self, tmp_path: Path) -> None:
         insert_workflow_run(
             session_id="dup_wf",
             workflow_name="wf",
@@ -309,9 +277,7 @@ class TestWorkflowRunCRUD:
             )
 
     def test_get_missing_workflow_run_returns_none(self, tmp_path: Path) -> None:
-        assert (
-            get_workflow_run("non_existent", cwd=tmp_path, db_rel_path=DB_REL) is None
-        )
+        assert get_workflow_run("non_existent", cwd=tmp_path, db_rel_path=DB_REL) is None
 
     def test_update_workflow_run_status(self, tmp_path: Path) -> None:
         insert_workflow_run(
@@ -407,9 +373,7 @@ class TestTaskRunCRUD:
         fetched = get_task_run("task_session_1", cwd=tmp_path, db_rel_path=DB_REL)
         assert fetched == rec
 
-    def test_insert_duplicate_task_session_id_raises_value_error(
-        self, tmp_path: Path
-    ) -> None:
+    def test_insert_duplicate_task_session_id_raises_value_error(self, tmp_path: Path) -> None:
         insert_task_run(
             session_id="dup_task",
             task_name="task",

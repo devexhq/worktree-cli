@@ -103,9 +103,7 @@ class ConfigSetCommandTests:
 class ConfigSetCliTests:
     """CLI wiring tests for `wt config set`."""
 
-    def test_set_after_init(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_set_after_init(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         init = runner.invoke(app, ["init"])
         assert init.exit_code == 0
@@ -116,9 +114,7 @@ class ConfigSetCliTests:
         config_path = git_repo / ".worktree" / "config.json"
         assert _read_config(config_path)["agent"]["model"] == "qwen2.5-coder"
 
-    def test_set_typed_values(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_set_typed_values(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         assert runner.invoke(app, ["init"]).exit_code == 0
 
@@ -130,13 +126,9 @@ class ConfigSetCliTests:
         assert res_float.exit_code == 0
         assert "Config updated: agent.temperature = 0.7 (float)" in res_float.stdout
 
-        res_int = runner.invoke(
-            app, ["config", "set", "sandbox.max_active_sandboxes", "5"]
-        )
+        res_int = runner.invoke(app, ["config", "set", "sandbox.max_active_sandboxes", "5"])
         assert res_int.exit_code == 0
-        assert (
-            "Config updated: sandbox.max_active_sandboxes = 5 (int)" in res_int.stdout
-        )
+        assert "Config updated: sandbox.max_active_sandboxes = 5 (int)" in res_int.stdout
 
         res_quoted = runner.invoke(app, ["config", "set", "agent.model", '"qwen2.5"'])
         assert res_quoted.exit_code == 0
@@ -148,24 +140,18 @@ class ConfigSetCliTests:
         assert data["sandbox"]["max_active_sandboxes"] == 5
         assert data["agent"]["model"] == "qwen2.5"
 
-    def test_set_invalid_schema_key_exits_nonzero(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_set_invalid_schema_key_exits_nonzero(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         assert runner.invoke(app, ["init"]).exit_code == 0
 
-        result = runner.invoke(
-            app, ["config", "set", "sandboxes.max_active_sandboxes", "3"]
-        )
+        result = runner.invoke(app, ["config", "set", "sandboxes.max_active_sandboxes", "3"])
         assert result.exit_code == 1
         combined = result.stdout + result.stderr
         assert "Config Error" in combined
         assert "CONFIG_SCHEMA_INVALID" in combined
         assert "sandboxes" in combined
 
-    def test_set_type_collision(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_set_type_collision(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         assert runner.invoke(app, ["init"]).exit_code == 0
         config_path = git_repo / ".worktree" / "config.json"
@@ -184,9 +170,7 @@ class ConfigSetCliTests:
         assert "scalar" in combined
         assert _read_config(config_path)["agent"] == "scalar-value"
 
-    def test_set_missing_config(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_set_missing_config(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         result = runner.invoke(app, ["config", "set", "agent.model", "x"])
         assert result.exit_code == 1
@@ -203,18 +187,14 @@ class ConfigSetCliTests:
         assert "key" in params
         assert "value" in params
 
-    def test_set_write_failure_displays_error_panel(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_set_write_failure_displays_error_panel(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         assert runner.invoke(app, ["init"]).exit_code == 0
 
         def mock_write_json(*args, **kwargs):
             raise OSError("Permission denied")
 
-        monkeypatch.setattr(
-            "getworktree.core.config.mutate.atomic_write_json", mock_write_json
-        )
+        monkeypatch.setattr("getworktree.core.config.mutate.atomic_write_json", mock_write_json)
 
         result = runner.invoke(app, ["config", "set", "agent.model", "qwen2.5-coder"])
         assert result.exit_code == 1

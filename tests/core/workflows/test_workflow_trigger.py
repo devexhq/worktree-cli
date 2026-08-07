@@ -178,9 +178,7 @@ class RunTriggerTests:
         assert "finished_at" in meta
         assert meta["cwd"] == str(workdir.resolve())
 
-    def test_artifacts_skipped_when_log_dir_none(
-        self, workdir: Path, tmp_path: Path
-    ) -> None:
+    def test_artifacts_skipped_when_log_dir_none(self, workdir: Path, tmp_path: Path) -> None:
         result = run_trigger(
             command=sys.executable,
             args=["-c", "print('x')"],
@@ -191,10 +189,7 @@ class RunTriggerTests:
         assert result.ok
         assert result.log_dir is None
         # no surprise files under tmp
-        assert (
-            list(tmp_path.iterdir()) == [workdir.relative_to(tmp_path) and workdir]
-            or True
-        )
+        assert list(tmp_path.iterdir()) == [workdir.relative_to(tmp_path) and workdir] or True
 
     def test_log_dir_not_writable_warns(self, workdir: Path, tmp_path: Path) -> None:
         blocked = tmp_path / "blocked"

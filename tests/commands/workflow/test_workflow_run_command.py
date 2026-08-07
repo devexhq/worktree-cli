@@ -132,35 +132,27 @@ class ExitCodeMappingTests:
 class WorkflowRunCommandDirectTests:
     """Direct tests for workflow_run_command."""
 
-    def test_invalid_max_attempts_exits_1(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_invalid_max_attempts_exits_1(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         _init_with_workflows(git_repo)
         with pytest.raises(typer.Exit) as exc_info:
             workflow_run_command("fix-tests", max_attempts=0, cwd=git_repo)
         assert exc_info.value.exit_code == 1
 
-    def test_uninitialized_worktree_exits_1(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_uninitialized_worktree_exits_1(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         with pytest.raises(typer.Exit) as exc_info:
             workflow_run_command("fix-tests", cwd=git_repo)
         assert exc_info.value.exit_code == 1
 
-    def test_nonexistent_workflow_exits_1(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_nonexistent_workflow_exits_1(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         _init_with_workflows(git_repo)
         with pytest.raises(typer.Exit) as exc_info:
             workflow_run_command("no-such-workflow", cwd=git_repo)
         assert exc_info.value.exit_code == 1
 
-    def test_successful_run_exits_0(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_successful_run_exits_0(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         _init_with_workflows(git_repo)
 
@@ -171,9 +163,7 @@ class WorkflowRunCommandDirectTests:
             workflow_run_command("fix-tests", cwd=git_repo, run_workflow_fn=mock_runner)
         assert exc_info.value.exit_code == 0
 
-    def test_failed_run_exits_1(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_failed_run_exits_1(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         _init_with_workflows(git_repo)
 
@@ -187,9 +177,7 @@ class WorkflowRunCommandDirectTests:
             workflow_run_command("fix-tests", cwd=git_repo, run_workflow_fn=mock_runner)
         assert exc_info.value.exit_code == 1
 
-    def test_unfixable_run_exits_2(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_unfixable_run_exits_2(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         _init_with_workflows(git_repo)
 

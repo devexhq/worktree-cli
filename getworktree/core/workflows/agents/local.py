@@ -48,9 +48,7 @@ def _request_json_bytes(request: AgentRequest) -> bytes:
     return json.dumps(payload, separators=(",", ":")).encode("utf-8")
 
 
-def _map_local_stdout(
-    parsed: LocalAgentStdout, *, raw_text: str, duration_ms: int
-) -> AgentResponse:
+def _map_local_stdout(parsed: LocalAgentStdout, *, raw_text: str, duration_ms: int) -> AgentResponse:
     if parsed.unfixable:
         return AgentResponse(
             status=AgentResponseStatus.UNFIXABLE,
@@ -101,10 +99,7 @@ class LocalAgentAdapter:
             return AgentResponse(
                 status=AgentResponseStatus.PROVIDER_ERROR,
                 duration_ms=duration_ms,
-                errors=[
-                    "Agent provider error (AGENT_PROVIDER_ERROR): "
-                    "timeout_seconds must be an integer >= 1"
-                ],
+                errors=["Agent provider error (AGENT_PROVIDER_ERROR): timeout_seconds must be an integer >= 1"],
             )
 
         if not sandbox_cwd.is_dir():
@@ -150,20 +145,14 @@ class LocalAgentAdapter:
             return AgentResponse(
                 status=AgentResponseStatus.PROVIDER_ERROR,
                 duration_ms=duration_ms,
-                errors=[
-                    "Agent provider error (AGENT_PROVIDER_ERROR): "
-                    f"failed to start '{argv[0]}': {exc}"
-                ],
+                errors=[f"Agent provider error (AGENT_PROVIDER_ERROR): failed to start '{argv[0]}': {exc}"],
             )
         except OSError as exc:
             duration_ms = int((time.monotonic() - started) * 1000)
             return AgentResponse(
                 status=AgentResponseStatus.PROVIDER_ERROR,
                 duration_ms=duration_ms,
-                errors=[
-                    "Agent provider error (AGENT_PROVIDER_ERROR): "
-                    f"failed to start '{argv[0]}': {exc}"
-                ],
+                errors=[f"Agent provider error (AGENT_PROVIDER_ERROR): failed to start '{argv[0]}': {exc}"],
             )
 
         duration_ms = int((time.monotonic() - started) * 1000)
@@ -202,10 +191,7 @@ class LocalAgentAdapter:
                 status=AgentResponseStatus.PROVIDER_ERROR,
                 raw_text=stdout_text,
                 duration_ms=duration_ms,
-                errors=[
-                    "Agent provider error (AGENT_PROVIDER_ERROR): "
-                    f"stdout JSON failed schema validation: {exc}"
-                ],
+                errors=[f"Agent provider error (AGENT_PROVIDER_ERROR): stdout JSON failed schema validation: {exc}"],
             )
 
         # Valid LocalAgentStdout maps regardless of process exit code.

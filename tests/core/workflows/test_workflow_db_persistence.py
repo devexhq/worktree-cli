@@ -150,9 +150,7 @@ def test_run_workflow_iteration_records_workflow_failed(git_repo: Path) -> None:
     assert rec.error_message is not None
 
 
-def test_run_workflow_iteration_fault_tolerant_db_write_error(
-    git_repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_workflow_iteration_fault_tolerant_db_write_error(git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     workflow = _make_dummy_workflow("error-workflow")
     dummy_session = SandboxSession(
         session_id="wf-err-303",
@@ -179,9 +177,7 @@ def test_run_workflow_iteration_fault_tolerant_db_write_error(
     def bad_insert(*args: object, **kwargs: object) -> None:
         raise RuntimeError("Database locked")
 
-    monkeypatch.setattr(
-        "getworktree.core.workflows.runner.runner.insert_workflow_run", bad_insert
-    )
+    monkeypatch.setattr("getworktree.core.workflows.runner.runner.insert_workflow_run", bad_insert)
 
     result = run_workflow_iteration(
         workflow=workflow,

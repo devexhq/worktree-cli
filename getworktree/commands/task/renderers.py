@@ -55,9 +55,7 @@ def build_task_runs_table(runs: list[TaskRunRecord]) -> Table:
     table.add_column("COMPLETED AT")
 
     for run in runs:
-        status_val = (
-            run.status.value if hasattr(run.status, "value") else str(run.status)
-        )
+        status_val = run.status.value if hasattr(run.status, "value") else str(run.status)
         table.add_row(
             run.session_id,
             run.task_name,

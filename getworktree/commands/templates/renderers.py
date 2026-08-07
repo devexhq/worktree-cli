@@ -58,9 +58,7 @@ def render_template_show(
     """Render single template metadata and definition content."""
     output = rich_output or _DEFAULT_RICH_OUTPUT
 
-    t_type = (
-        template.type.value if hasattr(template.type, "value") else str(template.type)
-    )
+    t_type = template.type.value if hasattr(template.type, "value") else str(template.type)
     output.info(f"[bold green]Template:[/]     {template.name}")
     output.info(f"[bold green]Type:[/]         {t_type}")
     output.info(f"[bold green]Description:[/]  {template.description}")

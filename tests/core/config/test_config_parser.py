@@ -104,9 +104,7 @@ class TestParseConfigValue:
             ('"hello"', "hello"),
         ],
     )
-    def test_fr5_explicit_string_preservation(
-        self, input_val: str, expected: str
-    ) -> None:
+    def test_fr5_explicit_string_preservation(self, input_val: str, expected: str) -> None:
         result = parse_config_value(input_val)
         assert result == expected
         assert isinstance(result, str)

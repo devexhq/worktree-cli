@@ -21,9 +21,7 @@ _PYTEST_NODE_RE = re.compile(
     r"(?:::[^\s]+)?",
     re.MULTILINE,
 )
-_PYTEST_FILE_LINE_RE = re.compile(
-    r"(?P<path>(?:[A-Za-z]:)?(?:(?:\.\.?/)|/)?(?:[\w.-]+/)*[\w.-]+\.py):\d+"
-)
+_PYTEST_FILE_LINE_RE = re.compile(r"(?P<path>(?:[A-Za-z]:)?(?:(?:\.\.?/)|/)?(?:[\w.-]+/)*[\w.-]+\.py):\d+")
 
 _SOURCE_SUFFIXES = (
     ".py",
@@ -162,9 +160,7 @@ def _posix_rel(path: str) -> str:
     return path.replace("\\", "/")
 
 
-def _try_sandbox_relative(
-    raw: str, sandbox_root: Path
-) -> tuple[str | None, str | None]:
+def _try_sandbox_relative(raw: str, sandbox_root: Path) -> tuple[str | None, str | None]:
     """Map a candidate path into a sandbox-relative posix path.
 
     Returns:

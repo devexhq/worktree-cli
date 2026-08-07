@@ -32,10 +32,7 @@ def default_cursor_run(request: CliMutationRunRequest) -> CliMutationOutcome:
     except ImportError as exc:
         return CliMutationOutcome(
             status="error",
-            error_detail=(
-                f"cursor-sdk is not installed ({exc}). "
-                "Fix: pip install getworktree[cursor]"
-            ),
+            error_detail=(f"cursor-sdk is not installed ({exc}). Fix: pip install getworktree[cursor]"),
         )
 
     api_key = resolve_cursor_api_key()
@@ -112,10 +109,7 @@ class CursorAgentAdapter(CliDirectMutationAdapter):
     def _preflight(self, request: AgentRequest) -> str | None:
         model = request.model.strip() if request.model else ""
         if not model:
-            return (
-                "cursor requires a non-empty model. "
-                "Fix: set agent.model in .worktree/config.json"
-            )
+            return "cursor requires a non-empty model. Fix: set agent.model in .worktree/config.json"
         if resolve_cursor_api_key() is None:
             return f"missing {CURSOR_API_KEY_ENV}. Fix: export {CURSOR_API_KEY_ENV}=..."
         return None

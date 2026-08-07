@@ -120,9 +120,7 @@ class WorkflowListCliTests:
         assert "Recorded Workflows" in result.stdout
         assert "wf-20260805-01" in result.stdout
 
-    def test_cli_default_invocation_matches_list(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_cli_default_invocation_matches_list(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         _init_repo(git_repo)
         insert_workflow_run(
@@ -143,9 +141,7 @@ class WorkflowListCliTests:
         result = runner.invoke(app, ["workflow", "unknown"])
         assert result.exit_code == 2
 
-    def test_cli_uninitialized(
-        self, git_repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_cli_uninitialized(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_repo)
         result = runner.invoke(app, ["workflow", "list"])
         assert result.exit_code == 1

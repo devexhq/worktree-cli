@@ -53,13 +53,9 @@ class StandardStepDefinition(BaseModel):
     def validate_uses_and_run_mutual_exclusivity(self) -> StandardStepDefinition:
         """Enforce mutual exclusivity between 'uses' and 'run' when specified."""
         if self.uses is not None and self.run is not None:
-            raise ValueError(
-                f"Cannot specify both 'uses' and 'run' in step '{self.id or self.name or 'unknown'}'"
-            )
+            raise ValueError(f"Cannot specify both 'uses' and 'run' in step '{self.id or self.name or 'unknown'}'")
         if self.uses is None and self.run is None and (self.id or self.name):
-            raise ValueError(
-                f"Step '{self.id or self.name or 'unknown'}' must specify either 'uses' or 'run'"
-            )
+            raise ValueError(f"Step '{self.id or self.name or 'unknown'}' must specify either 'uses' or 'run'")
         return self
 
 

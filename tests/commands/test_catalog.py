@@ -18,9 +18,7 @@ from getworktree.core.db import CatalogItemType
 runner = CliRunner()
 
 
-def test_catalog_list_command_empty(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_catalog_list_command_empty(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     outcome = catalog_list_command(cwd=tmp_path)
     assert outcome.ok
@@ -106,9 +104,7 @@ def test_cli_wt_catalog_runner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.chdir(tmp_path)
 
     # wt catalog create workflow --name cli-wf
-    res_create = runner.invoke(
-        app, ["catalog", "create", "workflow", "--name", "cli-wf"]
-    )
+    res_create = runner.invoke(app, ["catalog", "create", "workflow", "--name", "cli-wf"])
     assert res_create.exit_code == 0
     assert "Created catalog blueprint" in res_create.output
 

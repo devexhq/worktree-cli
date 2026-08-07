@@ -300,9 +300,7 @@ class LoadWorkflowDefinitionTests:
     def test_load_invalid_raises_validation_error(self, tmp_path: Path) -> None:
         path = _write(tmp_path / "bad.yml", "[]\n")
 
-        with pytest.raises(
-            WorkflowValidationError, match="WORKFLOW_INVALID_ROOT_NOT_MAPPING"
-        ):
+        with pytest.raises(WorkflowValidationError, match="WORKFLOW_INVALID_ROOT_NOT_MAPPING"):
             load_workflow_definition(path)
 
 

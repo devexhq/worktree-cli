@@ -239,11 +239,7 @@ def task_run_command(
                 manager = GitSandboxManager(cwd=root)
                 create_res = manager.create_sandbox_result(session_id=sid)
                 if not create_res.ok or create_res.session is None:
-                    err_detail = (
-                        create_res.errors[0]
-                        if create_res.errors
-                        else "Sandbox creation failed."
-                    )
+                    err_detail = create_res.errors[0] if create_res.errors else "Sandbox creation failed."
                     raise RuntimeError(f"Git sandbox creation failed: {err_detail}")
                 session = create_res.session
                 sandbox_path = session.sandbox_path
@@ -271,9 +267,7 @@ def task_run_command(
                     except ValueError:
                         fa = FailureAction.ABORT
 
-                    tools_list = (
-                        s.get("tools") if isinstance(s.get("tools"), list) else []
-                    )
+                    tools_list = s.get("tools") if isinstance(s.get("tools"), list) else []
 
                     step_def = StepDefinition(
                         id=step_id,
@@ -297,9 +291,7 @@ def task_run_command(
             total_steps = len(step_defs)
             for idx, step_def in enumerate(step_defs, start=1):
                 cmd_info = f" (command: {step_def.command})" if step_def.command else ""
-                output.info(
-                    f"[STEP {idx}/{total_steps}] Executing {step_def.name}{cmd_info}..."
-                )
+                output.info(f"[STEP {idx}/{total_steps}] Executing {step_def.name}{cmd_info}...")
 
                 step_res = execute_step(
                     step=step_def,
@@ -308,9 +300,7 @@ def task_run_command(
                 )
 
                 if step_res.ok:
-                    output.info(
-                        f"[bold green][STEP {idx}/{total_steps}] {step_def.name} COMPLETED[/]"
-                    )
+                    output.info(f"[bold green][STEP {idx}/{total_steps}] {step_def.name} COMPLETED[/]")
                 else:
                     output.info(
                         f"[bold red][STEP {idx}/{total_steps}] {step_def.name} FAILED[/]: {step_res.error_message or step_res.stderr}"

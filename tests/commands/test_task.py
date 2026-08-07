@@ -17,18 +17,14 @@ from getworktree.core.db import get_task_run
 runner = CliRunner()
 
 
-def test_task_list_command_empty(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_task_list_command_empty(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     outcome = task_list_command(cwd=tmp_path)
     assert outcome.ok
     assert len(outcome.items) == 0
 
 
-def test_task_list_command_with_items(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_task_list_command_with_items(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
 
     # Create task blueprint files directly under .worktree/catalog/tasks/
@@ -53,9 +49,7 @@ def test_task_list_command_with_items(
 
     item_map = {i.name: i for i in outcome.items}
     assert "run-lints" in item_map
-    assert (
-        item_map["run-lints"].description == "Execute Ruff linter and formatter checks"
-    )
+    assert item_map["run-lints"].description == "Execute Ruff linter and formatter checks"
     assert item_map["run-lints"].summary == "Runs ruff check and format"
 
     assert "run-tests" in item_map
@@ -63,9 +57,7 @@ def test_task_list_command_with_items(
     assert item_map["run-tests"].summary == "Runs pytest with coverage"
 
 
-def test_task_show_and_run_commands(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_task_show_and_run_commands(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
 
     create_catalog_item("task", "sample-task", cwd=tmp_path)
@@ -94,9 +86,7 @@ def test_task_show_and_run_commands(
     assert "not found" in run_missing.errors[0]
 
 
-def test_cli_wt_task_default_and_subcommands(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_cli_wt_task_default_and_subcommands(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
 
     tasks_dir = get_catalog_dir(tmp_path) / "tasks"
@@ -136,9 +126,7 @@ def test_cli_wt_task_default_and_subcommands(
     assert "No such command 'non-existent'" in res_invalid.output
 
 
-def test_task_run_status_transitions_and_persistence(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_task_run_status_transitions_and_persistence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     create_catalog_item("task", "sample-task", cwd=tmp_path)
 
@@ -158,9 +146,7 @@ def test_task_run_status_transitions_and_persistence(
     def _fail_hook() -> None:
         raise ValueError("Simulated task failure")
 
-    res_failed = task_run_command(
-        "sample-task", cwd=tmp_path, session_id="task_fail1", execute_task_fn=_fail_hook
-    )
+    res_failed = task_run_command("sample-task", cwd=tmp_path, session_id="task_fail1", execute_task_fn=_fail_hook)
     assert not res_failed.ok
     assert res_failed.run_record is not None
     assert res_failed.run_record.status.value == "failed"
@@ -193,9 +179,7 @@ def test_task_run_status_transitions_and_persistence(
     assert "cancelled by user" in rec_canc.error_message.lower()
 
 
-def test_task_run_db_fault_tolerance(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_task_run_db_fault_tolerance(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     create_catalog_item("task", "sample-task", cwd=tmp_path)
 
@@ -203,18 +187,14 @@ def test_task_run_db_fault_tolerance(
     def _faulty_insert(*args, **kwargs):
         raise RuntimeError("Database locked")
 
-    monkeypatch.setattr(
-        "getworktree.commands.task.command.insert_task_run", _faulty_insert
-    )
+    monkeypatch.setattr("getworktree.commands.task.command.insert_task_run", _faulty_insert)
 
     res = task_run_command("sample-task", cwd=tmp_path)
     assert res.ok
     assert any("Failed to record task run start" in w for w in res.warnings)
 
 
-def test_task_list_displays_recorded_runs(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_task_list_displays_recorded_runs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     create_catalog_item("task", "sample-task", cwd=tmp_path)
 

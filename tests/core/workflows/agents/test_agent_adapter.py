@@ -112,9 +112,7 @@ class LocalAgentArgvTests:
 
 
 class LocalAgentAdapterTests:
-    def test_proposed_patch(
-        self, sandbox: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_proposed_patch(self, sandbox: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         script = _write_agent_script(
             tmp_path / "agent.py",
             """
@@ -138,9 +136,7 @@ class LocalAgentAdapterTests:
         assert resp.errors == []
         assert resp.raw_text is not None
 
-    def test_no_op(
-        self, sandbox: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_no_op(self, sandbox: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         script = _write_agent_script(
             tmp_path / "agent.py",
             """
@@ -153,9 +149,7 @@ class LocalAgentAdapterTests:
         assert not resp.ok
         assert resp.status == AgentResponseStatus.NO_OP
 
-    def test_unfixable(
-        self, sandbox: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_unfixable(self, sandbox: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         script = _write_agent_script(
             tmp_path / "agent.py",
             """
@@ -172,9 +166,7 @@ class LocalAgentAdapterTests:
         assert resp.unfixable_reason == "needs human"
         assert resp.unified_diff is None
 
-    def test_timeout(
-        self, sandbox: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_timeout(self, sandbox: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         script = _write_agent_script(
             tmp_path / "agent.py",
             """
@@ -190,17 +182,13 @@ class LocalAgentAdapterTests:
         assert "agent.timeout_seconds" in resp.errors[0]
         assert resp.duration_ms < 15_000
 
-    def test_missing_command(
-        self, sandbox: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_missing_command(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv(LOCAL_AGENT_CMD_ENV, "definitely-not-a-real-agent-cmd-xyz")
         resp = LocalAgentAdapter().propose_fix(_request(sandbox))
         assert resp.status == AgentResponseStatus.PROVIDER_ERROR
         assert "AGENT_PROVIDER_ERROR" in resp.errors[0]
 
-    def test_invalid_json(
-        self, sandbox: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_invalid_json(self, sandbox: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         script = _write_agent_script(
             tmp_path / "agent.py",
             """
@@ -214,9 +202,7 @@ class LocalAgentAdapterTests:
         assert "invalid JSON" in resp.errors[0]
         assert resp.raw_text == "not-json"
 
-    def test_extra_keys_rejected(
-        self, sandbox: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_extra_keys_rejected(self, sandbox: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         script = _write_agent_script(
             tmp_path / "agent.py",
             """
@@ -229,9 +215,7 @@ class LocalAgentAdapterTests:
         assert resp.status == AgentResponseStatus.PROVIDER_ERROR
         assert "schema validation" in resp.errors[0]
 
-    def test_nonzero_exit_without_json(
-        self, sandbox: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_nonzero_exit_without_json(self, sandbox: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         script = _write_agent_script(
             tmp_path / "agent.py",
             """
@@ -244,9 +228,7 @@ class LocalAgentAdapterTests:
         resp = LocalAgentAdapter().propose_fix(_request(sandbox))
         assert resp.status == AgentResponseStatus.PROVIDER_ERROR
 
-    def test_cwd_is_sandbox(
-        self, sandbox: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_cwd_is_sandbox(self, sandbox: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         marker = sandbox / "marker.txt"
         marker.write_text("hi", encoding="utf-8")
         script = _write_agent_script(
@@ -267,9 +249,7 @@ class LocalAgentAdapterTests:
         assert resp.status == AgentResponseStatus.PROVIDER_ERROR
         assert "sandbox path" in resp.errors[0]
 
-    def test_no_sandbox_mutation(
-        self, sandbox: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_no_sandbox_mutation(self, sandbox: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         (sandbox / "keep.py").write_text("x\n", encoding="utf-8")
         before = sorted(p.name for p in sandbox.iterdir())
         script = _write_agent_script(

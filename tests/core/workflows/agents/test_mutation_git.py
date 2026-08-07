@@ -75,9 +75,7 @@ class ResolvePreAgentBaselineTests:
         with pytest.raises(MutationGitError):
             resolve_pre_agent_baseline(not_a_repo)
 
-    def test_raises_on_git_timeout(
-        self, repo: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_raises_on_git_timeout(self, repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         import getworktree.core.workflows.agents.mutation_git as mutation_mod
 
         def _timeout(*_args: object, **_kwargs: object) -> object:

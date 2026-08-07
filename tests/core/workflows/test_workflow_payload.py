@@ -49,9 +49,7 @@ def sandbox(tmp_path: Path) -> Path:
     (root / "pkg").mkdir()
     (root / "pkg" / "mod.py").write_text("print('mod')\n", encoding="utf-8")
     (root / "tests").mkdir()
-    (root / "tests" / "test_mod.py").write_text(
-        "def test_x():\n    assert False\n", encoding="utf-8"
-    )
+    (root / "tests" / "test_mod.py").write_text("def test_x():\n    assert False\n", encoding="utf-8")
     return root
 
 
@@ -156,9 +154,7 @@ class BuildFailurePayloadTests:
         assert payload.files[0].truncated is False
         assert payload.omissions == []
 
-    def test_relevant_source_deterministic_sort_and_max_files(
-        self, sandbox: Path
-    ) -> None:
+    def test_relevant_source_deterministic_sort_and_max_files(self, sandbox: Path) -> None:
         for name in ("a.py", "b.py", "c.py"):
             (sandbox / name).write_text(f"# {name}\n", encoding="utf-8")
         trigger = _trigger(
@@ -172,9 +168,7 @@ class BuildFailurePayloadTests:
             max_files=2,
         )
         assert [f.path for f in payload.files] == ["a.py", "b.py"]
-        assert any(
-            o.path == "c.py" and o.reason == "max_files" for o in payload.omissions
-        )
+        assert any(o.path == "c.py" and o.reason == "max_files" for o in payload.omissions)
 
     def test_missing_file_omission(self, sandbox: Path) -> None:
         trigger = _trigger(cwd=sandbox, stdout="missing_file.py:1: boom\n")
@@ -184,10 +178,7 @@ class BuildFailurePayloadTests:
             include=["relevant_source"],
         )
         assert payload.files == []
-        assert any(
-            o.path == "missing_file.py" and o.reason == "missing"
-            for o in payload.omissions
-        )
+        assert any(o.path == "missing_file.py" and o.reason == "missing" for o in payload.omissions)
 
     def test_directory_omission(self, sandbox: Path) -> None:
         # Path extraction won't pick directories; feed via changed_files.
@@ -198,9 +189,7 @@ class BuildFailurePayloadTests:
             changed_files=["pkg"],
         )
         assert payload.files == []
-        assert any(
-            o.path == "pkg" and o.reason == "directory" for o in payload.omissions
-        )
+        assert any(o.path == "pkg" and o.reason == "directory" for o in payload.omissions)
 
     def test_binary_omission(self, sandbox: Path) -> None:
         bin_path = sandbox / "blob.py"
@@ -212,9 +201,7 @@ class BuildFailurePayloadTests:
             changed_files=["blob.py"],
         )
         assert payload.files == []
-        assert any(
-            o.path == "blob.py" and o.reason == "binary" for o in payload.omissions
-        )
+        assert any(o.path == "blob.py" and o.reason == "binary" for o in payload.omissions)
 
     def test_file_byte_truncation(self, sandbox: Path) -> None:
         big = sandbox / "big.py"
@@ -241,9 +228,7 @@ class BuildFailurePayloadTests:
         assert payload.files == []
         assert any(o.reason == "outside_sandbox" for o in payload.omissions)
 
-    def test_symlink_escape_outside_sandbox(
-        self, sandbox: Path, tmp_path: Path
-    ) -> None:
+    def test_symlink_escape_outside_sandbox(self, sandbox: Path, tmp_path: Path) -> None:
         outside = tmp_path / "secret.py"
         outside.write_text("secret\n", encoding="utf-8")
         link = sandbox / "escape.py"
@@ -255,10 +240,7 @@ class BuildFailurePayloadTests:
             changed_files=["escape.py"],
         )
         assert payload.files == []
-        assert any(
-            o.path == "escape.py" and o.reason == "outside_sandbox"
-            for o in payload.omissions
-        )
+        assert any(o.path == "escape.py" and o.reason == "outside_sandbox" for o in payload.omissions)
 
     def test_duplicate_candidates_unique(self, sandbox: Path) -> None:
         trigger = _trigger(
@@ -355,18 +337,13 @@ class BuildFailurePayloadTests:
         assert [f.path for f in payload.files] == ["tests/test_mod.py"]
         assert payload.files[0].content == "def test_x():\n    assert False\n"
 
-    def test_multiple_failing_tests_include_only_those_files(
-        self, sandbox: Path
-    ) -> None:
-        (sandbox / "tests" / "test_other.py").write_text(
-            "def test_y():\n    assert False\n", encoding="utf-8"
-        )
+    def test_multiple_failing_tests_include_only_those_files(self, sandbox: Path) -> None:
+        (sandbox / "tests" / "test_other.py").write_text("def test_y():\n    assert False\n", encoding="utf-8")
         (sandbox / "noise.py").write_text("print('noise')\n", encoding="utf-8")
         trigger = _trigger(
             cwd=sandbox,
             stdout=(
-                "FAILED tests/test_mod.py::test_x - assert False\n"
-                "FAILED tests/test_other.py::test_y - assert False\n"
+                "FAILED tests/test_mod.py::test_x - assert False\nFAILED tests/test_other.py::test_y - assert False\n"
             ),
         )
         payload = build_failure_payload(
@@ -380,9 +357,7 @@ class BuildFailurePayloadTests:
             "tests/test_other.py",
         ]
 
-    def test_no_failing_test_falls_back_to_paths_and_changed(
-        self, sandbox: Path
-    ) -> None:
+    def test_no_failing_test_falls_back_to_paths_and_changed(self, sandbox: Path) -> None:
         trigger = _trigger(
             cwd=sandbox,
             stdout="see pkg/mod.py for details\n",

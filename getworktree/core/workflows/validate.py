@@ -17,9 +17,7 @@ from getworktree.core.workflows.exceptions import (
 )
 from getworktree.core.workflows.models import WorkflowDefinition
 
-WORKFLOW_VALIDATOR = SchemaValidator(
-    resources.files("getworktree.schemas.v1") / "workflow.json"
-)
+WORKFLOW_VALIDATOR = SchemaValidator(resources.files("getworktree.schemas.v1") / "workflow.json")
 
 
 class WorkflowValidationStatus(StrEnum):
@@ -226,18 +224,12 @@ def load_workflow_definition(path: Path) -> WorkflowDefinition:
         assert result.workflow is not None
         return result.workflow
     if result.status == WorkflowValidationStatus.NOT_FOUND:
-        raise FileNotFoundError(
-            result.errors[0] if result.errors else str(result.status)
-        )
+        raise FileNotFoundError(result.errors[0] if result.errors else str(result.status))
     if result.status == WorkflowValidationStatus.UNREADABLE:
         raise OSError(result.errors[0] if result.errors else str(result.status))
     if result.status == WorkflowValidationStatus.MALFORMED_YAML:
-        raise WorkflowLoadError(
-            result.errors[0] if result.errors else str(result.status)
-        )
-    raise WorkflowValidationError(
-        result.errors[0] if result.errors else str(result.status)
-    )
+        raise WorkflowLoadError(result.errors[0] if result.errors else str(result.status))
+    raise WorkflowValidationError(result.errors[0] if result.errors else str(result.status))
 
 
 def validate_workflow_inputs(
@@ -265,8 +257,6 @@ def validate_workflow_inputs(
         elif decl.default is not None:
             resolved[input_id] = decl.default
         elif decl.required:
-            raise WorkflowValidationError(
-                f"Missing required input parameter: '{input_id}'"
-            )
+            raise WorkflowValidationError(f"Missing required input parameter: '{input_id}'")
 
     return resolved
