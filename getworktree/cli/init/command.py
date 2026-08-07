@@ -4,12 +4,6 @@ from pathlib import Path
 
 import typer
 
-from getworktree.commands.init.models import InitCommandOutcome
-from getworktree.commands.init.renderers import (
-    render_init_bootstrap_failure,
-    render_init_config_failure,
-    render_init_outcome,
-)
 from getworktree.common.fs import (
     get_gitignore_file,
     get_worktree_config_file,
@@ -24,6 +18,13 @@ from getworktree.core.config.loader import load_config_result
 from getworktree.core.config.models import PathsConfig
 from getworktree.core.db import init_database
 from getworktree.core.workflows.seeder import seed_starter_workflows
+
+from .models import InitCommandOutcome
+from .renderers import (
+    render_init_bootstrap_failure,
+    render_init_config_failure,
+    render_init_outcome,
+)
 
 rich_output = RichOutput()
 

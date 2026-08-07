@@ -4,18 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from getworktree.commands.catalog.models import (
-    CatalogCreateCommandOutcome,
-    CatalogDeleteCommandOutcome,
-    CatalogListCommandOutcome,
-    CatalogShowCommandOutcome,
-)
-from getworktree.commands.catalog.renderers import (
-    render_catalog_create_success,
-    render_catalog_delete_success,
-    render_catalog_list,
-    render_catalog_show,
-)
 from getworktree.common.utils import RichOutput
 from getworktree.core.catalog.inventory import (
     create_catalog_item,
@@ -25,6 +13,19 @@ from getworktree.core.catalog.inventory import (
     scan_and_index_catalog,
 )
 from getworktree.core.db import CatalogItemType
+
+from .models import (
+    CatalogCreateCommandOutcome,
+    CatalogDeleteCommandOutcome,
+    CatalogListCommandOutcome,
+    CatalogShowCommandOutcome,
+)
+from .renderers import (
+    render_catalog_create_success,
+    render_catalog_delete_success,
+    render_catalog_list,
+    render_catalog_show,
+)
 
 _DEFAULT_RICH_OUTPUT = RichOutput()
 

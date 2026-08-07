@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from getworktree.commands.init.models import InitCommandOutcome
 from getworktree.common.utils import RichOutput, display_path
 from getworktree.core.bootstrap import BootstrapResult
 from getworktree.core.config.generator import ConfigGenerationResult
 from getworktree.core.workflows.seeder import WorkflowSeedResult
+
+from .models import InitCommandOutcome
 
 
 def render_init_bootstrap_failure(cwd: Path, errors: list[str], *, rich_output: RichOutput | None = None) -> None:

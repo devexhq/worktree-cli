@@ -9,17 +9,6 @@ from pathlib import Path
 
 import yaml
 
-from getworktree.commands.task.models import (
-    TaskBlueprintItem,
-    TaskListCommandOutcome,
-    TaskRunCommandOutcome,
-    TaskShowCommandOutcome,
-)
-from getworktree.commands.task.renderers import (
-    render_task_list,
-    render_task_run_success,
-    render_task_show,
-)
 from getworktree.common.utils import RichOutput
 from getworktree.core.catalog.inventory import (
     get_catalog_dir,
@@ -40,6 +29,18 @@ from getworktree.core.step import (
     StepDefinition,
     StepType,
     execute_step,
+)
+
+from .models import (
+    TaskBlueprintItem,
+    TaskListCommandOutcome,
+    TaskRunCommandOutcome,
+    TaskShowCommandOutcome,
+)
+from .renderers import (
+    render_task_list,
+    render_task_run_success,
+    render_task_show,
 )
 
 _DEFAULT_RICH_OUTPUT = RichOutput()

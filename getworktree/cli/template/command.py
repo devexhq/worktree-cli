@@ -2,20 +2,21 @@
 
 from __future__ import annotations
 
-from getworktree.commands.templates.models import (
-    TemplatesCommandOutcome,
-    TemplateShowCommandOutcome,
-)
-from getworktree.commands.templates.renderers import (
-    render_template_show,
-    render_templates_list,
-)
 from getworktree.common.utils import RichOutput
 from getworktree.core.templates.inventory import (
     get_builtin_template,
     list_builtin_templates,
 )
 from getworktree.core.templates.models import TemplateType
+
+from .models import (
+    TemplatesCommandOutcome,
+    TemplateShowCommandOutcome,
+)
+from .renderers import (
+    render_template_show,
+    render_templates_list,
+)
 
 _DEFAULT_RICH_OUTPUT = RichOutput()
 

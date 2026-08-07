@@ -6,7 +6,17 @@ from pathlib import Path
 
 import typer
 
-from getworktree.commands.sandbox.models import (
+from getworktree.common.utils import RichOutput
+from getworktree.core.config.loader import load_config_result
+from getworktree.core.db import (
+    SandboxStatus,
+    get_sandbox,
+    list_sandboxes,
+    update_sandbox_status,
+)
+from getworktree.core.git_sandbox import GitSandboxManager, SandboxSession
+
+from .models import (
     SandboxDeleteResult,
     SandboxDeleteStatus,
     SandboxListResult,
@@ -14,7 +24,7 @@ from getworktree.commands.sandbox.models import (
     SandboxShowResult,
     SandboxShowStatus,
 )
-from getworktree.commands.sandbox.renderers import (
+from .renderers import (
     render_not_initialized,
     render_sandbox_already_cleaned,
     render_sandbox_create_failed,
@@ -25,15 +35,6 @@ from getworktree.commands.sandbox.renderers import (
     render_sandbox_show,
     sandbox_delete_confirm_prompt,
 )
-from getworktree.common.utils import RichOutput
-from getworktree.core.config.loader import load_config_result
-from getworktree.core.db import (
-    SandboxStatus,
-    get_sandbox,
-    list_sandboxes,
-    update_sandbox_status,
-)
-from getworktree.core.git_sandbox import GitSandboxManager, SandboxSession
 
 
 def _reconcile_stale_active_sandboxes(*, cwd: Path) -> None:

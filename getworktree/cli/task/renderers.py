@@ -7,9 +7,10 @@ from pathlib import Path
 from rich.syntax import Syntax
 from rich.table import Table
 
-from getworktree.commands.task.models import TaskBlueprintItem
 from getworktree.common.utils import RichOutput
 from getworktree.core.db import CatalogRecord, TaskRunRecord
+
+from .models import TaskBlueprintItem
 
 _DEFAULT_RICH_OUTPUT = RichOutput()
 
