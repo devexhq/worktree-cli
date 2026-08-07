@@ -241,7 +241,7 @@ workflows.
 
 ## `wt config validate` CLI
 
-Command entry: `getworktree.commands.config.command.config_validate_command`.
+Command entry: `getworktree.cli.config.command.config_validate_command`.
 Registration: `wt config validate` under `config_app` in
 [getworktree/cli.py](../../getworktree/cli.py).
 
@@ -338,7 +338,7 @@ On non-ok load it prints `ConfigLoadResult.errors` (error panel) and exits `1`
 with **no** success header and **no** partial JSON. Show never creates or
 mutates config files.
 
-Command entry: `getworktree.commands.config.command.config_show_command`.
+Command entry: `getworktree.cli.config.command.config_show_command`.
 
 ## Config set API and `wt config set`
 
@@ -411,7 +411,7 @@ schema validation error, or invalid path, the on-disk file is left unchanged.
 
 ### CLI (`wt config set`)
 
-Command entry: `getworktree.commands.config.command.config_set_command`.
+Command entry: `getworktree.cli.config.command.config_set_command`.
 Registration: `wt config set <key> <value>` under `config_app` in
 [getworktree/cli.py](../../getworktree/cli.py).
 
@@ -794,7 +794,7 @@ full validation. Metadata/inventory remain the lighter list layer.
 
 ## `wt workflow list`
 
-Command entry: `getworktree.commands.workflow.command.workflow_list_command`.
+Command entry: `getworktree.cli.workflow.command.workflow_list_command`.
 Registration: `wt workflow list` (and `wt workflow`) under `workflow_app` in
 [getworktree/cli.py](../../getworktree/cli.py).
 
@@ -810,7 +810,7 @@ Rich table `Recorded Workflows` or `No recorded workflows found.` empty state.
 
 ## `wt workflow show`
 
-Command entry: `getworktree.commands.workflow.command.workflow_show_command`.
+Command entry: `getworktree.cli.workflow.command.workflow_show_command`.
 Registration: `wt workflow show` under `workflow_app` in
 [getworktree/cli.py](../../getworktree/cli.py).
 

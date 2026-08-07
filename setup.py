@@ -69,7 +69,7 @@ setup(
     # Typing 'wt' in the terminal will run the main() function inside getworktree/cli.py
     entry_points={
         "console_scripts": [
-            "wt=getworktree.cli:app",
+            "wt=getworktree.cli.cli:app",
         ],
     },
 )

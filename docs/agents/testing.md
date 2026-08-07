@@ -13,7 +13,7 @@ without package `__init__.py` files. Test classes must be named `Test*` or
 
 Prefer real integration over mocking: fixtures create a real Git repo in `tmp_path`
 via `subprocess.run(["git", "init"], ...)` and use `monkeypatch.chdir` to point
-commands at it. See [tests/commands/init/test_init_command.py](../../tests/commands/init/test_init_command.py)
+commands at it. See [tests/cli/init/test_init_command.py](../../tests/cli/init/test_init_command.py)
 for the canonical `git_repo` fixture.
 
 ## CLI help and Rich output
@@ -34,9 +34,9 @@ rendered text flake even when the command is correct.
 
 Canonical examples:
 
-- [tests/commands/workflow/test_workflow_run_command.py](../../tests/commands/workflow/test_workflow_run_command.py)
+- [tests/cli/workflow/test_workflow_run_command.py](../../tests/cli/workflow/test_workflow_run_command.py)
   (`WorkflowRunCliTests.test_help_text`)
-- [tests/commands/sandbox/test_sandbox_list_command.py](../../tests/commands/sandbox/test_sandbox_list_command.py)
+- [tests/cli/sandbox/test_sandbox_list_command.py](../../tests/cli/sandbox/test_sandbox_list_command.py)
   (`SandboxListCliTests`)
 
 ```python
@@ -76,8 +76,8 @@ simple substring check.
   (or an equivalent fixed-width console) so layout does not depend on CI
   `COLUMNS`.
 - See init/sandbox renderer tests for the fixed-console pattern:
-  [tests/commands/init/test_init_renderers.py](../../tests/commands/init/test_init_renderers.py),
-  [tests/commands/sandbox/test_sandbox_list_command.py](../../tests/commands/sandbox/test_sandbox_list_command.py)
+  [tests/cli/init/test_init_renderers.py](../../tests/cli/init/test_init_renderers.py),
+  [tests/cli/sandbox/test_sandbox_list_command.py](../../tests/cli/sandbox/test_sandbox_list_command.py)
   (`SandboxListRenderTests`).
 
 Stable empty-state / panel titles (`No sandboxes found.`,
