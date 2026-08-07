@@ -26,7 +26,7 @@ class WorkflowInventoryValidEntry(BaseModel):
 
     name: str
     description: str
-    version: int
+    version: int | str
     source_path: Path
 
 

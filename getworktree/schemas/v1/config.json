@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://getworktree.io/schemas/config_v1.json",
+  "$id": "https://getworktree.io/schemas/v1/config.json",
   "title": "Worktree Config V1",
   "type": "object",
   "additionalProperties": false,

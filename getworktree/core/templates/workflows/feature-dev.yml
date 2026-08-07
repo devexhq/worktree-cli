@@ -1,5 +1,25 @@
-version: 1
-name: feature-dev
-type: workflow
-description: Standard feature development workflow
-summary: Runs test, lint, and PR
+version: "1.0"
+name: "feature-dev"
+id: "feature-dev"
+description: "Standard feature development workflow with test and review gates"
+timeout_seconds: 3600
+
+steps:
+  - id: prepare-sandbox
+    uses: wt/git-sync-base
+    on_failure: abort
+
+  - id: dev-cycle
+    type: loop
+    max_iterations: 5
+    until:
+      - "steps.run-tests.exit_code == 0"
+    on_max_iterations: prompt_user
+    do:
+      - id: run-tests
+        run: pytest tests/ -q
+        on_failure: continue
+
+  - id: lint-formatting
+    run: ruff check . && ruff format --check .
+    on_failure: prompt_user

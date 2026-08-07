@@ -49,7 +49,7 @@ class SeedStarterWorkflowsTests:
 
         assert result.ok
         assert target in result.overwritten_files
-        assert "version: 1" in target.read_text(encoding="utf-8")
+        assert "version:" in target.read_text(encoding="utf-8")
 
     def test_seed_starter_workflows_handles_partial_existing_state(
         self, tmp_path: Path

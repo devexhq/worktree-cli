@@ -245,56 +245,42 @@ class SchemaOllamaTests:
         data["agent"]["model"] = "smollm2:1.7b"
         assert CONFIG_VALIDATOR.validate(data).ok
 
+    def test_config_schema_rejects_unsupported_provider(self) -> None:
+        import copy
+
+        from getworktree.core.config.generator import CANONICAL_V1_DEFAULTS
+
+        data = copy.deepcopy(CANONICAL_V1_DEFAULTS)
+        data["agent"]["provider"] = "invalid_provider_name"
+        assert not CONFIG_VALIDATOR.validate(data).ok
+
     def test_workflow_schema_accepts_ollama(self) -> None:
         raw = {
-            "version": 1,
+            "version": "1.0",
             "name": "fix-tests",
+            "id": "fix-tests-id",
             "description": "x",
-            "trigger": {"command": "pytest", "args": [], "timeout_seconds": 60},
-            "agent": {
-                "provider": "ollama",
-                "mode": "fix_failure",
-                "timeout_seconds": 120,
-            },
-            "iteration": {
-                "max_attempts": 3,
-                "stop_when": ["trigger_passes", "unfixable", "user_abort"],
-            },
-            "sandbox": {"auto_clean": True, "keep_on_failure": True},
-            "approval": {"require_before_apply": True},
-            "context": {"include": ["trigger_output"]},
-            "patch": {
-                "strategy": "unified_diff",
-                "max_files": 10,
-                "max_patch_kb": 64,
-            },
+            "steps": [
+                {
+                    "id": "ai-fix",
+                    "uses": "wt/ai-code-patcher",
+                    "agent": "ollama",
+                }
+            ],
         }
         result = validate_workflow_document(raw, source_path=Path("in-memory.yml"))
         assert result.ok, result.errors
 
-    def test_workflow_schema_rejects_openai(self) -> None:
+    def test_workflow_schema_rejects_missing_name(self) -> None:
         raw = {
-            "version": 1,
-            "name": "fix-tests",
+            "version": "1.0",
             "description": "x",
-            "trigger": {"command": "pytest", "args": [], "timeout_seconds": 60},
-            "agent": {
-                "provider": "openai",
-                "mode": "fix_failure",
-                "timeout_seconds": 120,
-            },
-            "iteration": {
-                "max_attempts": 3,
-                "stop_when": ["trigger_passes"],
-            },
-            "sandbox": {"auto_clean": True, "keep_on_failure": True},
-            "approval": {"require_before_apply": True},
-            "context": {"include": ["trigger_output"]},
-            "patch": {
-                "strategy": "unified_diff",
-                "max_files": 10,
-                "max_patch_kb": 64,
-            },
+            "steps": [
+                {
+                    "id": "ai-fix",
+                    "uses": "wt/ai-code-patcher",
+                }
+            ],
         }
         result = validate_workflow_document(raw, source_path=Path("in-memory.yml"))
         assert not result.ok

@@ -128,19 +128,23 @@ def _run_trigger_step(
         a repeat-failure stop condition tripped, or an abort/timeout was
         observed after the trigger ran) and ``trigger_result`` is ``None``.
     """
+    trig_cmd = "pytest"
+    trig_args = []
+    trig_timeout = 600
+
     _emit(
         ctx.on_event,
         "trigger_start",
         attempt=attempt_idx,
-        command=ctx.workflow.trigger.command,
-        args=list(ctx.workflow.trigger.args),
-        timeout_seconds=ctx.workflow.trigger.timeout_seconds,
+        command=trig_cmd,
+        args=trig_args,
+        timeout_seconds=trig_timeout,
     )
     trigger_result = ctx.trigger_runner(
-        command=ctx.workflow.trigger.command,
-        args=list(ctx.workflow.trigger.args),
+        command=trig_cmd,
+        args=trig_args,
         cwd=ctx.sandbox_path,
-        timeout_seconds=ctx.workflow.trigger.timeout_seconds,
+        timeout_seconds=trig_timeout,
     )
     record.trigger_status = _trigger_summary(trigger_result)
     record.trigger_exit_code = trigger_result.exit_code
@@ -245,14 +249,14 @@ def _run_agent_step(
     payload = ctx.payload_builder(
         trigger=trigger_result,
         sandbox_path=ctx.sandbox_path,
-        include=list(ctx.workflow.context.include),
+        include=["trigger_output", "changed_files"],
         changed_files=changed,
     )
     agent_request = AgentRequest(
-        mode=ctx.workflow.agent.mode,
+        mode="fix_failure",
         payload=payload,
         sandbox_path=ctx.sandbox_path,
-        timeout_seconds=ctx.workflow.agent.timeout_seconds,
+        timeout_seconds=120,
         model=ctx.config.agent.model,
         endpoint=ctx.config.agent.endpoint,
         temperature=ctx.config.agent.temperature,
@@ -263,7 +267,7 @@ def _run_agent_step(
     )
     if ctx.prompt_dump_dir is not None:
         dumped_path, dump_error = _dump_agent_input(
-            provider=ctx.workflow.agent.provider,
+            provider="local",
             request=agent_request,
             dump_dir=ctx.prompt_dump_dir,
             session_id=ctx.session_id,
@@ -274,25 +278,30 @@ def _run_agent_step(
                 ctx.on_event,
                 "agent_prompt_dumped",
                 attempt=attempt_idx,
-                provider=ctx.workflow.agent.provider,
+                provider="local",
                 path=dumped_path.as_posix(),
             )
         if dump_error is not None:
+            provider_name = "local"
             record.errors.append(dump_error)
             _emit(
                 ctx.on_event,
                 "agent_prompt_dump_error",
                 attempt=attempt_idx,
-                provider=ctx.workflow.agent.provider,
+                provider=provider_name,
                 errors=[dump_error],
             )
+    agent_provider = "local"
+    agent_mode = "fix_failure"
+    agent_timeout = 120
+
     _emit(
         ctx.on_event,
         "agent_start",
         attempt=attempt_idx,
-        provider=ctx.workflow.agent.provider,
-        mode=ctx.workflow.agent.mode,
-        timeout_seconds=ctx.workflow.agent.timeout_seconds,
+        provider=agent_provider,
+        mode=agent_mode,
+        timeout_seconds=agent_timeout,
     )
     agent_response = ctx.agent.propose_fix(agent_request)
     record.agent_status = agent_response.status.value

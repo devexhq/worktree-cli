@@ -18,14 +18,7 @@ from getworktree.core.workflows.agents.base import (
     AgentResponseStatus,
 )
 from getworktree.core.workflows.models import (
-    WorkflowAgent,
-    WorkflowApproval,
-    WorkflowContext,
     WorkflowDefinition,
-    WorkflowIteration,
-    WorkflowPatch,
-    WorkflowSandbox,
-    WorkflowTrigger,
 )
 from getworktree.core.workflows.patch import PatchApplyResult, PatchApplyStatus
 from getworktree.core.workflows.payload import AgentFailurePayload
@@ -160,21 +153,13 @@ class SafetyStateHelperTests:
 
 
 def _workflow(max_attempts: int = 10) -> WorkflowDefinition:
-    return WorkflowDefinition(
-        version=1,
+    wf = WorkflowDefinition(
+        version="1.0",
         name="fix-tests",
         description="test",
-        trigger=WorkflowTrigger(command="true", args=[], timeout_seconds=10),
-        agent=WorkflowAgent(provider="local", mode="fix_failure", timeout_seconds=10),
-        iteration=WorkflowIteration(
-            max_attempts=max_attempts,
-            stop_when=["trigger_passes", "unfixable", "user_abort"],
-        ),
-        sandbox=WorkflowSandbox(auto_clean=False, keep_on_failure=True),
-        approval=WorkflowApproval(require_before_apply=False),
-        context=WorkflowContext(include=["trigger_output"]),
-        patch=WorkflowPatch(strategy="unified_diff", max_files=10, max_patch_kb=64),
     )
+    object.__setattr__(wf, "_max_attempts", max_attempts)
+    return wf
 
 
 def _config(**workflow_overrides: object) -> WorktreeConfig:

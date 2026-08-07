@@ -30,7 +30,7 @@ class WorkflowListMetadata(BaseModel):
 
     model_config = {"extra": "forbid", "strict": True}
 
-    version: int
+    version: int | str
     name: str = Field(min_length=1)
     description: str = Field(min_length=1)
     source_path: Path
@@ -66,8 +66,8 @@ def _validate_minimal_fields(raw: dict[str, Any]) -> list[str]:
         errors.append("WORKFLOW_META_MISSING_VERSION: missing required field 'version'")
     else:
         version = raw["version"]
-        if isinstance(version, bool) or not isinstance(version, int) or version != 1:
-            errors.append("WORKFLOW_META_INVALID_VERSION: version must be integer 1")
+        if isinstance(version, bool) or str(version) not in ("1", "1.0"):
+            errors.append("WORKFLOW_META_INVALID_VERSION: version must be 1 or '1.0'")
 
     if "name" not in raw:
         errors.append("WORKFLOW_META_MISSING_NAME: missing required field 'name'")

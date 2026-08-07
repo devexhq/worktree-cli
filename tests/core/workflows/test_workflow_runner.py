@@ -22,14 +22,7 @@ from getworktree.core.workflows.agents.base import (
     AgentResponseStatus,
 )
 from getworktree.core.workflows.models import (
-    WorkflowAgent,
-    WorkflowApproval,
-    WorkflowContext,
     WorkflowDefinition,
-    WorkflowIteration,
-    WorkflowPatch,
-    WorkflowSandbox,
-    WorkflowTrigger,
 )
 from getworktree.core.workflows.patch import PatchApplyResult, PatchApplyStatus
 from getworktree.core.workflows.payload import AgentFailurePayload
@@ -49,22 +42,31 @@ def _workflow(
     auto_clean: bool = False,
     keep_on_failure: bool = True,
     provider: str = "local",
+    max_files: int = 10,
+    max_patch_kb: int = 1024,
+    reject_binary_changes: bool | None = None,
 ) -> WorkflowDefinition:
-    return WorkflowDefinition(
-        version=1,
+    wf = WorkflowDefinition(
+        version="1.0",
         name="fix-tests",
         description="test workflow",
-        trigger=WorkflowTrigger(command="true", args=[], timeout_seconds=10),
-        agent=WorkflowAgent(provider=provider, mode="fix_failure", timeout_seconds=10),
-        iteration=WorkflowIteration(
-            max_attempts=max_attempts,
-            stop_when=stop_when or ["trigger_passes", "unfixable", "user_abort"],
-        ),
-        sandbox=WorkflowSandbox(auto_clean=auto_clean, keep_on_failure=keep_on_failure),
-        approval=WorkflowApproval(require_before_apply=require_before_apply),
-        context=WorkflowContext(include=["trigger_output"]),
-        patch=WorkflowPatch(strategy="unified_diff", max_files=10, max_patch_kb=64),
     )
+    object.__setattr__(wf, "_max_attempts", max_attempts)
+    object.__setattr__(wf, "_require_before_apply", require_before_apply)
+    object.__setattr__(
+        wf,
+        "_stop_when",
+        set(stop_when)
+        if stop_when is not None
+        else {"trigger_passes", "unfixable", "user_abort"},
+    )
+    object.__setattr__(wf, "_auto_clean", auto_clean)
+    object.__setattr__(wf, "_keep_on_failure", keep_on_failure)
+    object.__setattr__(wf, "_provider", provider)
+    object.__setattr__(wf, "_max_files", max_files)
+    object.__setattr__(wf, "_max_patch_kb", max_patch_kb)
+    object.__setattr__(wf, "_reject_binary", reject_binary_changes)
+    return wf
 
 
 def _config(**workflow_overrides: object) -> WorktreeConfig:
@@ -222,11 +224,22 @@ def _run(
         if discard_mutation_fn is not None:
             discard_mutation_fn(path, baseline)
 
+    eff_max_attempts = (
+        caller_max_attempts
+        if caller_max_attempts is not None
+        else getattr(workflow, "_max_attempts", None)
+    )
+    eff_require = (
+        require_before_apply
+        if require_before_apply is not None
+        else getattr(workflow, "_require_before_apply", None)
+    )
+
     result = run_workflow_iteration(
         workflow=workflow,
         cwd=sandbox.parent,
         config=config,
-        caller_max_attempts=caller_max_attempts,
+        caller_max_attempts=eff_max_attempts,
         abort_event=abort_event,
         is_aborted=is_aborted,
         approve_patch=approve_patch,
@@ -238,7 +251,7 @@ def _run(
         build_payload_fn=payload_fn,
         create_sandbox_fn=create_fn,
         cleanup_sandbox_fn=cleaned.append,
-        require_before_apply=require_before_apply,
+        require_before_apply=eff_require,
         prompt_dump_dir=prompt_dump_dir,
     )
     return result, agent, cleaned

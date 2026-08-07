@@ -15,14 +15,7 @@ from getworktree.core.git_sandbox import (
     SandboxSession,
 )
 from getworktree.core.workflows.models import (
-    WorkflowAgent,
-    WorkflowApproval,
-    WorkflowContext,
     WorkflowDefinition,
-    WorkflowIteration,
-    WorkflowPatch,
-    WorkflowSandbox,
-    WorkflowTrigger,
 )
 from getworktree.core.workflows.runner import run_workflow_iteration
 from getworktree.core.workflows.trigger import TriggerRunResult, TriggerRunStatus
@@ -60,16 +53,9 @@ def git_repo(tmp_path: Path) -> Path:
 
 def _make_dummy_workflow(name: str = "test-workflow") -> WorkflowDefinition:
     return WorkflowDefinition(
-        version=1,
+        version="1.0",
         name=name,
         description="Dummy test workflow",
-        agent=WorkflowAgent(provider="local", mode="fix_failure", timeout_seconds=30),
-        trigger=WorkflowTrigger(command="echo", args=["hello"], timeout_seconds=30),
-        iteration=WorkflowIteration(max_attempts=1, stop_when=["trigger_passes"]),
-        sandbox=WorkflowSandbox(auto_clean=False, keep_on_failure=True),
-        approval=WorkflowApproval(require_before_apply=False),
-        context=WorkflowContext(include=["trigger_output"]),
-        patch=WorkflowPatch(strategy="unified_diff", max_files=10, max_patch_kb=100),
     )
 
 

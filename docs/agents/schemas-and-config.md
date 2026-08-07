@@ -2,7 +2,7 @@
 
 ## Versioned JSON Schemas
 
-`getworktree/schemas/config_v1.json` and `workflow_v1.json` are the source of truth
+`getworktree/schemas/v1/config.json` and `v1/workflow.json` are the source of truth
 for what a valid `.worktree/config.json` and workflow YAML file look like. Both are
 validated through `SchemaValidator` ([getworktree/common/schema_validation.py](../../getworktree/common/schema_validation.py)),
 a thin wrapper over `jsonschema.Draft202012Validator` that returns a
@@ -10,7 +10,7 @@ a thin wrapper over `jsonschema.Draft202012Validator` that returns a
 
 ### Config V1 contract
 
-`config_v1.json` is the **only** structural source of truth for config V1
+`config.json` under `schemas/v1/` is the **only** structural source of truth for config V1
 (draft 2020-12). Runtime validation uses packaged `CONFIG_VALIDATOR`; do not
 duplicate the schema in Python.
 
@@ -697,7 +697,7 @@ Shared schema binding:
 
 ```python
 WORKFLOW_VALIDATOR = SchemaValidator(
-    resources.files("getworktree.schemas") / "workflow_v1.json"
+    resources.files("getworktree.schemas.v1") / "workflow.json"
 )
 ```
 

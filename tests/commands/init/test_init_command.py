@@ -18,7 +18,7 @@ from getworktree.core.config.models import PathsConfig
 from getworktree.core.workflows.seeder import WorkflowSeedResult
 
 CONFIG_VALIDATOR = SchemaValidator(
-    resources.files("getworktree.schemas") / "config_v1.json"
+    resources.files("getworktree.schemas.v1") / "config.json"
 )
 
 

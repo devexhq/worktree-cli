@@ -186,20 +186,37 @@ def run_workflow_iteration(
         )
 
     resolved_auto = (
-        auto_clean if auto_clean is not None else workflow.sandbox.auto_clean
+        auto_clean
+        if auto_clean is not None
+        else (
+            getattr(workflow, "_auto_clean", None)
+            if getattr(workflow, "_auto_clean", None) is not None
+            else config.sandbox.auto_clean
+        )
     )
     resolved_keep = (
         keep_on_failure
         if keep_on_failure is not None
-        else workflow.sandbox.keep_on_failure
+        else (
+            getattr(workflow, "_keep_on_failure", None)
+            if getattr(workflow, "_keep_on_failure", None) is not None
+            else config.sandbox.keep_on_failure
+        )
     )
-    # Effective approval: explicit override, else workflow definition, else config.
-    if require_before_apply is not None:
-        resolved_require = require_before_apply
-    else:
-        resolved_require = workflow.approval.require_before_apply
-
-    stop_when = set(workflow.iteration.stop_when)
+    resolved_require = (
+        require_before_apply
+        if require_before_apply is not None
+        else (
+            getattr(workflow, "_require_before_apply", None)
+            if getattr(workflow, "_require_before_apply", None) is not None
+            else config.approval.require_before_apply
+        )
+    )
+    stop_when = (
+        getattr(workflow, "_stop_when", None)
+        if getattr(workflow, "_stop_when", None) is not None
+        else {"trigger_passes", "unfixable", "user_abort"}
+    )
     trigger_runner = run_trigger_fn or run_trigger
     patch_applier = apply_patch_fn or apply_patch_result
     mutation_discarder = discard_mutation_fn or discard_since
@@ -314,7 +331,7 @@ def run_workflow_iteration(
 
     if agent is None:
         try:
-            agent = get_agent_adapter(workflow.agent.provider, config=config.agent)
+            agent = get_agent_adapter("local", config=config.agent)
         except ValueError as exc:
             run_errors.append(str(exc))
             final_status = WorkflowFinalStatus.FAILED
@@ -365,12 +382,12 @@ def run_workflow_iteration(
         )
 
     reject_binary = (
-        workflow.patch.reject_binary_changes
-        if workflow.patch.reject_binary_changes is not None
+        getattr(workflow, "_reject_binary", None)
+        if getattr(workflow, "_reject_binary", None) is not None
         else config.patch.reject_binary_changes
     )
-    max_files = workflow.patch.max_files
-    max_patch_kb = workflow.patch.max_patch_kb
+    max_files = getattr(workflow, "_max_files", None) or 30
+    max_patch_kb = getattr(workflow, "_max_patch_kb", None) or 1024
 
     resolved_session_timeout = (
         session_timeout_seconds
