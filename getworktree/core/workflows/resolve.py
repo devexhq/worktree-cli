@@ -15,6 +15,7 @@ from getworktree.core.workflows.inventory import (
     WorkflowInventoryStatus,
     WorkflowInventoryValidEntry,
     build_workflow_inventory,
+    group_valid_entries_by_name,
 )
 from getworktree.core.workflows.metadata import WORKFLOW_NAME_PATTERN
 
@@ -142,7 +143,7 @@ def resolve_workflow_by_name(
         )
 
     matches = sorted(
-        (entry for entry in inventory.valid if entry.name == requested),
+        (entry for entry in group_valid_entries_by_name(inventory.valid).get(requested, [])),
         key=_match_sort_key,
     )
     warnings = list(inventory.warnings)

@@ -5,9 +5,13 @@ from __future__ import annotations
 from importlib import resources
 from pathlib import Path
 
+import pytest
+
 from getworktree.core.workflows.inventory import (
     WorkflowInventoryStatus,
+    WorkflowInventoryValidEntry,
     build_workflow_inventory,
+    group_valid_entries_by_name,
 )
 from getworktree.core.workflows.seeder import seed_starter_workflows
 
@@ -16,6 +20,15 @@ def _write(path: Path, text: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
     return path
+
+
+def _valid_entry(name: str, filename: str) -> WorkflowInventoryValidEntry:
+    return WorkflowInventoryValidEntry(
+        name=name,
+        description="desc",
+        version=1,
+        source_path=Path(filename),
+    )
 
 
 def _template_text(name: str) -> str:
@@ -200,3 +213,25 @@ class BuildWorkflowInventoryTests:
 
         assert result.ok
         assert [entry.name for entry in result.valid] == ["fix-tests"]
+
+
+class GroupValidEntriesByNameTests:
+    """Tests for group_valid_entries_by_name."""
+
+    def test_empty_list_returns_empty_dict(self) -> None:
+        assert group_valid_entries_by_name([]) == {}
+
+    def test_groups_and_preserves_insertion_order(self) -> None:
+        a = _valid_entry("fix-tests", "a.yml")
+        b = _valid_entry("fix-tests", "b.yml")
+        unique = _valid_entry("unique", "solo.yml")
+
+        grouped = group_valid_entries_by_name([a, unique, b])
+
+        assert grouped == {"fix-tests": [a, b], "unique": [unique]}
+
+    def test_returns_plain_dict_not_defaultdict(self) -> None:
+        grouped = group_valid_entries_by_name([])
+
+        with pytest.raises(KeyError):
+            grouped["missing"]
