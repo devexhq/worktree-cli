@@ -18,8 +18,8 @@ Strictness:
 
 - Root and every nested object use `additionalProperties: false` (unknown keys
   fail validation).
-- Top-level `required`: `version`, `project`, `paths`, `sandbox`, `workflow`,
-  `agent`, `patch`, `approval`, `history`, `doctor`, `prune`, `telemetry`.
+- Top-level `required`: `version`, `project`, `paths`, `sandbox`,
+  `agent`, `history`, `doctor`, `prune`, `telemetry`.
 - `version` is integer `const: 1`.
 
 Enums (exact tokens):
@@ -30,7 +30,6 @@ Enums (exact tokens):
   **`copilot`**; other tokens remain schema-valid for future providers)
 - Workflow `agent.provider` (`workflow_v1.json`): `local` | `ollama` | `cursor` |
   `gemini` | `copilot`
-- `patch.strategy`: `unified_diff`
 
 For `wt workflow run`, **workflow** `agent.provider` selects the adapter; **config**
 `agent.model` / `endpoint` / `temperature` / `max_tokens` fill the request.
@@ -39,12 +38,14 @@ Cursor uses `config.agent.model` and `CURSOR_API_KEY`. Gemini uses
 `GEMINI_API_KEY`. Copilot uses `GH_TOKEN` or `GITHUB_TOKEN`. Cursor, Gemini,
 and Copilot mutate the sandbox directly through the shared base in
 `core/workflows/agents/cli_mutation.py`; local and Ollama still return diffs.
+Note: `wt workflow run` currently validates the workflow definition only —
+step execution is not implemented yet (tracked in issues #171-#173).
 
 Notable bounds / string rules:
 
 - Path strings (`paths.*`, `sandbox.base_ref`): non-empty (`minLength: 1`)
-- Positive integers (`minimum: 1`): sandbox/workflow attempt and timeout fields,
-  `agent.max_tokens`, `patch.max_files` / `max_patch_kb`, `history.max_sessions`
+- Positive integers (`minimum: 1`): `sandbox.max_active_sandboxes` /
+  `default_timeout_seconds`, `agent.max_tokens`, `history.max_sessions`
 - `agent.temperature`: number in `[0, 2]`
 - `prune.artifact_ttl_days`: integer `minimum: 0`
 - `agent.model` / `agent.endpoint`: `string | null`; non-null strings must be
@@ -54,7 +55,7 @@ Notable bounds / string rules:
 
 Not expressed in the JSON Schema (validator-engine / runtime territory):
 
-- Cross-field limits (e.g. `workflow.default_max_attempts <= max_attempts_hard_limit`)
+- Path validity (e.g. NUL/newline characters in `paths.*` values)
 - Filesystem existence or writability of path values
 - Provider-specific required `model` / `endpoint`
 
@@ -118,8 +119,8 @@ class ConfigLoadResult(BaseModel):
 ```
 
 On success (`status=ok`): `raw` is the parsed object, `config` is a populated
-`WorktreeConfig` (full V1 surface: version, project, paths, sandbox, workflow, agent,
-patch, approval, history, doctor, prune, telemetry), and `errors` is empty.
+`WorktreeConfig` (full V1 surface: version, project, paths, sandbox, agent,
+history, doctor, prune, telemetry), and `errors` is empty.
 `project.name` of `null` normalizes to `"unnamed_project"`.
 
 ### Error codes
@@ -226,15 +227,14 @@ populated `WorktreeConfig`, `raw` is the parsed object, and `errors` is empty
 | `CONFIG_PATH_IS_DIRECTORY` | error | path is directory |
 | `CONFIG_UNREADABLE` | error | read failure |
 | `CONFIG_SCHEMA_INVALID` | error | schema or pydantic mapping failure |
-| `CONFIG_SEMANTIC_MAX_ATTEMPTS` | error | `workflow.default_max_attempts` > hard limit |
 | `CONFIG_SEMANTIC_PATH_INVALID` | error | any `paths.*` value has NUL/newline |
 | `CONFIG_WARN_AGENT_MODEL_MISSING` | warning | non-`local` provider without model |
 | `CONFIG_WARN_AGENT_ENDPOINT` | warning | non-null endpoint not absolute http(s) URL |
 | `CONFIG_WARN_SANDBOX_LIMIT` | warning | `sandbox.max_active_sandboxes` > 10 |
 
 Warnings never alone make `ok=false`. Ordering: IO/parse single error first;
-else structural block; then semantic errors (max-attempts, then path keys in
-field order). Warnings follow FR-7 rule order (model, endpoint, sandbox limit).
+else structural block; then semantic path errors (field order). Warnings
+follow FR-7 rule order (model, endpoint, sandbox limit).
 
 Commands must call this API rather than re-implementing schema or semantic
 workflows.
@@ -308,8 +308,8 @@ Helpers in
 
 - `serialize_config(config: WorktreeConfig) -> dict` — plain dict, no I/O, no
   print/exit; top-level key order is
-  `version`, `project`, `paths`, `sandbox`, `workflow`, `agent`, `patch`,
-  `approval`, `history`, `doctor`, `prune`, `telemetry`. Nested keys follow the
+  `version`, `project`, `paths`, `sandbox`, `agent`, `history`, `doctor`,
+  `prune`, `telemetry`. Nested keys follow the
   Pydantic model / `CANONICAL_V1_DEFAULTS` field order.
 - `as_json(config) -> str` — pretty JSON (`indent=2`, `ensure_ascii=False`) with
   a trailing newline. Parseable by `json.loads`.

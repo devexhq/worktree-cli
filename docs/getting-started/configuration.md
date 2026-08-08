@@ -67,7 +67,7 @@ Set specific configuration keys or nested dot-paths:
 ```bash
 wt config set agent.provider ollama
 wt config set agent.model llama3.1
-wt config set sandbox.default_branch_prefix "feature/"
+wt config set sandbox.base_ref main
 ```
 
 ### Validate Configuration
@@ -90,17 +90,16 @@ Below is the complete canonical V1 configuration structure:
     "initialized_at": "2026-08-06T00:00:00Z"
   },
   "paths": {
-    "sandboxes_dir": ".worktree/sandboxes",
-    "db_file": ".worktree/data.db"
+    "root_dir": ".worktree",
+    "workflows_dir": ".worktree/workflows",
+    "sessions_dir": ".worktree/sessions",
+    "artifacts_dir": ".worktree/artifacts",
+    "db_path": ".worktree/data.db"
   },
   "sandbox": {
-    "default_branch_prefix": "wt/",
-    "base_ref": "main"
-  },
-  "workflow": {
-    "default_max_attempts": 3,
-    "max_attempts_hard_limit": 10,
-    "default_timeout_seconds": 300
+    "base_ref": "HEAD",
+    "max_active_sandboxes": 3,
+    "default_timeout_seconds": 900
   },
   "agent": {
     "provider": "gemini",
@@ -109,21 +108,23 @@ Below is the complete canonical V1 configuration structure:
     "temperature": 0.2,
     "max_tokens": 4096
   },
-  "patch": {
-    "strategy": "unified_diff",
-    "max_files": 50,
-    "max_patch_kb": 512
-  },
-  "approval": {
-    "require_before_apply": false
-  },
   "history": {
-    "max_sessions": 100
+    "save_attempt_logs": true,
+    "save_agent_payloads": true,
+    "save_final_diff": true,
+    "max_sessions": 1000
   },
   "doctor": {
-    "strict_git_checks": true
+    "check_git": true,
+    "check_paths_writable": true,
+    "check_config_schema": true,
+    "check_stale_worktrees": true,
+    "check_required_binaries": true
   },
   "prune": {
+    "remove_stale_worktrees": true,
+    "remove_orphaned_sandboxes": true,
+    "remove_expired_artifacts": false,
     "artifact_ttl_days": 30
   },
   "telemetry": {

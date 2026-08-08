@@ -5,8 +5,6 @@ from __future__ import annotations
 import shutil
 import subprocess
 import uuid
-from collections.abc import Generator
-from contextlib import contextmanager
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
@@ -66,30 +64,6 @@ class SandboxCreateResult(BaseModel):
     def ok(self) -> bool:
         """Return True when a sandbox session was created successfully."""
         return self.status == SandboxCreateStatus.OK and not self.errors
-
-
-def should_cleanup_sandbox(
-    *,
-    auto_clean: bool,
-    keep_on_failure: bool,
-    command_passed: bool | None,
-) -> bool:
-    """Return whether a sandbox should be removed after a run.
-
-    Args:
-        auto_clean: When False, never clean up.
-        keep_on_failure: When True with auto_clean, retain sandboxes after failure.
-        command_passed: Run outcome; None means unclassified (still clean when
-            auto_clean is True).
-
-    Returns:
-        True when cleanup should run.
-    """
-    if not auto_clean:
-        return False
-    if keep_on_failure and command_passed is False:
-        return False
-    return True
 
 
 def _normalize_repo_rel(path: str) -> str:
@@ -547,57 +521,3 @@ class GitSandboxManager:
     def prune(self) -> None:
         """Prune stale Git worktree registrations."""
         self._run_git_cmd(["worktree", "prune"])
-
-
-@contextmanager
-def sandbox_scope(
-    cwd: Path | None = None,
-    session_id: str | None = None,
-    *,
-    auto_clean: bool | None = None,
-    keep_on_failure: bool | None = None,
-    include_wip: bool = False,
-) -> Generator[SandboxSession]:
-    """Create a sandbox and optionally clean it up on exit.
-
-    Cleanup flags come from explicit kwargs when provided; otherwise from
-    loaded config ``sandbox.auto_clean`` / ``sandbox.keep_on_failure``.
-
-    Args:
-        cwd: Repository root.
-        session_id: Optional fixed session id.
-        auto_clean: Override config auto_clean when not None.
-        keep_on_failure: Override config keep_on_failure when not None.
-        include_wip: Overlay uncommitted working-tree changes when True.
-
-    Yields:
-        The created ``SandboxSession``.
-
-    Raises:
-        RuntimeError: When sandbox creation fails.
-    """
-    manager = GitSandboxManager(cwd=cwd)
-    result = manager.create_sandbox_result(
-        session_id=session_id,
-        include_wip=include_wip,
-    )
-    if not result.ok or result.session is None:
-        message = result.errors[0] if result.errors else f"Sandbox create failed: {result.status}"
-        raise RuntimeError(message)
-
-    session = result.session
-    cfg = manager.config
-    resolved_auto = auto_clean if auto_clean is not None else (cfg.sandbox.auto_clean if cfg is not None else True)
-    resolved_keep = (
-        keep_on_failure if keep_on_failure is not None else (cfg.sandbox.keep_on_failure if cfg is not None else True)
-    )
-
-    try:
-        yield session
-    finally:
-        if should_cleanup_sandbox(
-            auto_clean=resolved_auto,
-            keep_on_failure=resolved_keep,
-            command_passed=session.command_passed,
-        ):
-            manager.cleanup_sandbox(session)

@@ -119,18 +119,6 @@ def _semantic_errors(config: WorktreeConfig) -> list[str]:
     """Return semantic errors in FR-6 rule order."""
     errors: list[str] = []
 
-    default_max = config.workflow.default_max_attempts
-    hard_limit = config.workflow.max_attempts_hard_limit
-    if default_max > hard_limit:
-        errors.append(
-            f"workflow.default_max_attempts ({default_max}) exceeds "
-            f"workflow.max_attempts_hard_limit ({hard_limit}) "
-            f"(CONFIG_SEMANTIC_MAX_ATTEMPTS).\n"
-            "Fix:\n"
-            "- lower workflow.default_max_attempts or raise "
-            "workflow.max_attempts_hard_limit"
-        )
-
     for field_name in sorted(_PATH_FIELD_NAMES):
         value = getattr(config.paths, field_name)
         if "\x00" in value or "\n" in value or "\r" in value:

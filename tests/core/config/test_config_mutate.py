@@ -107,9 +107,9 @@ class SetConfigValueResultTests:
     def test_sets_typed_non_string_values(self, tmp_path: Path) -> None:
         config_path = _write_default_config(tmp_path)
 
-        res_bool = set_config_value_result("sandbox.auto_clean", False, cwd=tmp_path)
+        res_bool = set_config_value_result("telemetry.enabled", True, cwd=tmp_path)
         assert res_bool.ok
-        assert res_bool.value is False
+        assert res_bool.value is True
 
         res_int = set_config_value_result("sandbox.max_active_sandboxes", 5, cwd=tmp_path)
         assert res_int.ok
@@ -120,7 +120,7 @@ class SetConfigValueResultTests:
         assert res_float.value == 0.7
 
         data = _read_config(config_path)
-        assert data["sandbox"]["auto_clean"] is False
+        assert data["telemetry"]["enabled"] is True
         assert data["sandbox"]["max_active_sandboxes"] == 5
         assert data["agent"]["temperature"] == 0.7
 

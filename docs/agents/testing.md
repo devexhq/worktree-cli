@@ -12,10 +12,30 @@ without package `__init__.py` files. Test classes must be named `Test*` or
 ## Test Rules
 
 Follow these rules:
+- One test = one behaviour
+- Do not reach into private/internal attributes to set up or assert state. Prefer a public constructor, factory, or fixture that produces the state you need.
 - Avoid using timeouts where there is a better option available, they slow down the test suite
-- Opt to create global test helpers that allow for per-parameter override instead of bloated test setups
+- Opt to create global test helpers that allow for per-parameter override instead of bloated test setups. See the example below.
 - Never modify production function/class signatures to add a test seam - use mocks and patches instead
-- When using mocks/patches, avoid asserting it was called unless materially relevant to the test. Assertions should focus on the business logic under test
+- When using mocks/patches, avoid asserting it was called unless materially relevant to the test. Assertions should focus on the business logic under test.
+
+Example global helper:
+```
+def make_dummy_session(git_repo: Path, **kwargs) -> SandboxSession:
+    """Generates a default valid session. Override specific fields via kwargs."""
+    defaults = {
+        "session_id": "wf-default-101",
+        "target_branch": "wt/default-branch",
+        "sandbox_path": git_repo / ".worktree" / "sandboxes" / "wf-default-101",
+        "base_commit": "HEAD",
+        "created_at": "2026-08-05 12:00:00",
+    }
+    defaults.update(kwargs)
+    return SandboxSession(**defaults)
+
+# USAGE IN TEST
+session = make_dummy_session(git_repo, session_id="wf-fail-202")
+```
 
 ## Fixture style
 

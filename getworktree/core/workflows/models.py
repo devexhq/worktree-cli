@@ -6,8 +6,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-WorkflowContextInclude = Literal["trigger_output", "changed_files", "relevant_source"]
-
 
 class WorkflowInput(BaseModel):
     """Execution input parameter declaration."""

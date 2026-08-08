@@ -17,8 +17,6 @@ from getworktree.core.git_sandbox import (
     GitSandboxManager,
     SandboxCreateStatus,
     SandboxSession,
-    sandbox_scope,
-    should_cleanup_sandbox,
 )
 
 
@@ -53,40 +51,6 @@ def repo(tmp_path: Path) -> Path:
     wt.mkdir()
     generate_default_config(wt / "config.json", tmp_path.name)
     return tmp_path
-
-
-class ShouldCleanupSandboxTests:
-    """Unit matrix for cleanup policy helper."""
-
-    @pytest.mark.parametrize(
-        ("auto_clean", "keep_on_failure", "command_passed", "expected"),
-        [
-            (False, False, True, False),
-            (False, False, False, False),
-            (False, True, None, False),
-            (True, False, True, True),
-            (True, False, False, True),
-            (True, False, None, True),
-            (True, True, True, True),
-            (True, True, False, False),
-            (True, True, None, True),
-        ],
-    )
-    def test_policy_matrix(
-        self,
-        auto_clean: bool,
-        keep_on_failure: bool,
-        command_passed: bool | None,
-        expected: bool,
-    ) -> None:
-        assert (
-            should_cleanup_sandbox(
-                auto_clean=auto_clean,
-                keep_on_failure=keep_on_failure,
-                command_passed=command_passed,
-            )
-            is expected
-        )
 
 
 class GitSandboxManagerTests:
@@ -210,7 +174,6 @@ class GitSandboxManagerTests:
         assert manager.config is None
         session = manager.create_sandbox(session_id="sbx_cfg")
         assert manager.config is not None
-        assert manager.config.sandbox.auto_clean is True
         manager.cleanup_sandbox(session)
 
     def test_cleanup_missing_path_and_branch(self, repo: Path) -> None:
@@ -223,61 +186,6 @@ class GitSandboxManagerTests:
             created_at="2020-01-01T00:00:00+00:00",
         )
         manager.cleanup_sandbox(ghost)  # must not raise
-
-    def test_sandbox_scope_auto_clean_on_success(self, repo: Path) -> None:
-        with sandbox_scope(cwd=repo, session_id="sbx_scope") as session:
-            session.command_passed = True
-            path = session.sandbox_path
-            assert path.is_dir()
-        assert not path.exists()
-
-    def test_keep_on_failure(self, repo: Path) -> None:
-        with sandbox_scope(cwd=repo, session_id="sbx_fail") as session:
-            session.command_passed = False
-            path = session.sandbox_path
-        assert path.exists()
-        GitSandboxManager(cwd=repo).cleanup_sandbox(
-            SandboxSession(
-                session_id=session.session_id,
-                target_branch=session.target_branch,
-                sandbox_path=path,
-                base_commit=session.base_commit,
-                created_at=session.created_at,
-            )
-        )
-
-    def test_scope_unclassified_outcome_cleans_when_auto_clean(self, repo: Path) -> None:
-        with sandbox_scope(cwd=repo, session_id="sbx_none") as session:
-            path = session.sandbox_path
-            assert session.command_passed is None
-        assert not path.exists()
-
-    def test_scope_kwarg_override_disables_clean(self, repo: Path) -> None:
-        with sandbox_scope(
-            cwd=repo,
-            session_id="sbx_keep",
-            auto_clean=False,
-        ) as session:
-            session.command_passed = True
-            path = session.sandbox_path
-        assert path.exists()
-        GitSandboxManager(cwd=repo).cleanup_sandbox(
-            SandboxSession(
-                session_id=session.session_id,
-                target_branch=session.target_branch,
-                sandbox_path=path,
-                base_commit=session.base_commit,
-                created_at=session.created_at,
-            )
-        )
-
-    def test_scope_does_not_swallow_body_exception(self, repo: Path) -> None:
-        with pytest.raises(ValueError, match="boom"):
-            with sandbox_scope(cwd=repo, session_id="sbx_exc") as session:
-                session.command_passed = True
-                path = session.sandbox_path
-                raise ValueError("boom")
-        assert not path.exists()
 
     def test_base_ref_uses_current_branch(self, repo: Path) -> None:
         manager = GitSandboxManager(cwd=repo)

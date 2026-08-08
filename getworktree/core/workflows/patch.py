@@ -1,15 +1,12 @@
-"""Validate and apply unified diffs inside a workflow sandbox."""
+"""Validate unified diffs against size/count/binary/path limits (no git apply)."""
 
 from __future__ import annotations
 
 import re
-import subprocess
 from enum import StrEnum
 from pathlib import Path
 
 from pydantic import BaseModel, Field
-
-from getworktree.common.constants import GIT_SUBPROCESS_TIMEOUT_SECONDS
 
 _DIFF_GIT_RE = re.compile(r"^diff --git a/(.+) b/(.+)$")
 _MINUS_RE = re.compile(r"^--- (?:a/)?(.+)$")
@@ -217,78 +214,6 @@ def _is_unsafe_path(rel_path: str, sandbox_path: Path) -> bool:
     return False
 
 
-def _run_git_apply(
-    *,
-    sandbox_path: Path,
-    unified_diff: str,
-    check_only: bool,
-) -> tuple[bool, str, bool]:
-    """Run ``git apply`` in the sandbox.
-
-    Returns:
-        ``(success, detail_text, timed_out)``.
-    """
-    cmd = ["git", "apply", "--verbose"]
-    if check_only:
-        cmd.append("--check")
-    try:
-        completed = subprocess.run(
-            cmd,
-            input=unified_diff.encode("utf-8"),
-            cwd=str(sandbox_path),
-            capture_output=True,
-            check=False,
-            timeout=GIT_SUBPROCESS_TIMEOUT_SECONDS,
-        )
-    except subprocess.TimeoutExpired:
-        return (
-            False,
-            f"git apply timed out after {GIT_SUBPROCESS_TIMEOUT_SECONDS}s",
-            True,
-        )
-    except OSError as exc:
-        return False, str(exc), False
-
-    detail_parts: list[str] = []
-    stderr = completed.stderr.decode("utf-8", errors="replace").strip()
-    stdout = completed.stdout.decode("utf-8", errors="replace").strip()
-    if stderr:
-        detail_parts.append(stderr)
-    if stdout:
-        detail_parts.append(stdout)
-    detail = "\n".join(detail_parts).strip() or f"git apply exited {completed.returncode}"
-    return completed.returncode == 0, detail, False
-
-
-def summarize_unified_diff(unified_diff: str) -> tuple[list[str], int, int]:
-    """Summarize touched paths and line change counts from a unified diff.
-
-    Line stats count content lines that start with ``+`` / ``-``, excluding
-    file headers (``+++`` / ``---``). Unparseable diffs return an empty path
-    list with whatever line stats could still be counted from the text.
-
-    Args:
-        unified_diff: Full unified diff text.
-
-    Returns:
-        ``(touched_files, additions, deletions)`` where ``touched_files`` is
-        sorted and unique when headers parse cleanly, else empty.
-    """
-    text = unified_diff if isinstance(unified_diff, str) else ""
-    additions = 0
-    deletions = 0
-    for line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
-        if line.startswith("+") and not line.startswith("+++"):
-            additions += 1
-        elif line.startswith("-") and not line.startswith("---"):
-            deletions += 1
-
-    touched, _, parse_error = _parse_unified_diff(text) if text.strip() else ([], [], None)
-    if parse_error is not None:
-        return [], additions, deletions
-    return list(touched), additions, deletions
-
-
 def validate_patch_text(
     unified_diff: str,
     *,
@@ -401,81 +326,4 @@ def validate_patch_text(
     return PatchApplyResult(
         status=PatchApplyStatus.CHECKED_OK,
         touched_files=list(touched),
-    )
-
-
-def apply_patch_result(
-    *,
-    sandbox_path: Path,
-    unified_diff: str,
-    max_files: int,
-    max_patch_kb: int,
-    reject_binary_changes: bool = True,
-    check_only: bool = False,
-) -> PatchApplyResult:
-    """Validate and optionally apply a unified diff inside ``sandbox_path``.
-
-    Classified outcomes never raise. Successful apply uses ``git apply`` with
-    cwd set to the sandbox so reject failures leave the tree unchanged.
-
-    Args:
-        sandbox_path: Directory that receives the patch (sandbox root).
-        unified_diff: Full unified diff text.
-        max_files: Maximum distinct target files allowed.
-        max_patch_kb: Maximum UTF-8 byte size of the diff in KiB.
-        reject_binary_changes: When True, reject binary file markers.
-        check_only: When True, validate + ``git apply --check`` only.
-
-    Returns:
-        Structured :class:`PatchApplyResult` with status, touched files, errors.
-    """
-    validation = validate_patch_text(
-        unified_diff,
-        max_files=max_files,
-        max_patch_kb=max_patch_kb,
-        reject_binary_changes=reject_binary_changes,
-        sandbox_path=sandbox_path,
-    )
-    if validation.status != PatchApplyStatus.CHECKED_OK:
-        return validation
-
-    success, detail, timed_out = _run_git_apply(
-        sandbox_path=sandbox_path,
-        unified_diff=unified_diff,
-        check_only=check_only,
-    )
-    if timed_out:
-        return PatchApplyResult(
-            status=PatchApplyStatus.GIT_TIMEOUT,
-            touched_files=list(validation.touched_files),
-            errors=[
-                f"git apply timed out after {GIT_SUBPROCESS_TIMEOUT_SECONDS}s "
-                f"(PATCH_GIT_TIMEOUT).\n"
-                f"Detail:\n{detail}\n"
-                "Fix:\n"
-                "- check for git lock files or a stuck git process in the "
-                "sandbox, then retry"
-            ],
-        )
-    if not success:
-        return PatchApplyResult(
-            status=PatchApplyStatus.CONFLICT,
-            touched_files=list(validation.touched_files),
-            errors=[
-                "Patch did not apply cleanly to the sandbox.\n"
-                f"Detail:\n{detail}\n"
-                "Fix:\n"
-                "- regenerate the patch against the current sandbox tree, or\n"
-                "- resolve conflicting local edits in the sandbox"
-            ],
-        )
-
-    if check_only:
-        return PatchApplyResult(
-            status=PatchApplyStatus.CHECKED_OK,
-            touched_files=list(validation.touched_files),
-        )
-    return PatchApplyResult(
-        status=PatchApplyStatus.APPLIED,
-        touched_files=list(validation.touched_files),
     )

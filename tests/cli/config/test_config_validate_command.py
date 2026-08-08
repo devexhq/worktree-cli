@@ -154,15 +154,14 @@ class ConfigValidateCommandTests:
         monkeypatch.chdir(git_repo)
         config_path = _write_default_config(git_repo)
         data = _read_config(config_path)
-        data["workflow"]["default_max_attempts"] = 50
-        data["workflow"]["max_attempts_hard_limit"] = 20
+        data["paths"]["root_dir"] = "root\x00dir"
         _write_config(config_path, data)
 
         with pytest.raises(typer.Exit) as exc_info:
             config_validate_command(cwd=git_repo)
         assert exc_info.value.exit_code == 1
         combined = _assert_failure_output(capsys.readouterr().out)
-        assert "CONFIG_SEMANTIC_MAX_ATTEMPTS" in combined
+        assert "CONFIG_SEMANTIC_PATH_INVALID" in combined
 
     def test_malformed_json_exits_one(
         self,
@@ -328,14 +327,13 @@ class ConfigValidateCliTests:
         monkeypatch.chdir(git_repo)
         config_path = _write_default_config(git_repo)
         data = _read_config(config_path)
-        data["workflow"]["default_max_attempts"] = 50
-        data["workflow"]["max_attempts_hard_limit"] = 20
+        data["paths"]["root_dir"] = "root\x00dir"
         _write_config(config_path, data)
 
         result = runner.invoke(app, ["config", "validate"])
         assert result.exit_code == 1
         combined = _assert_failure_output(result.stdout, result.stderr)
-        assert "CONFIG_SEMANTIC_MAX_ATTEMPTS" in combined
+        assert "CONFIG_SEMANTIC_PATH_INVALID" in combined
 
     def test_help_lists_config_validate(self) -> None:
         root = runner.invoke(app, ["--help"])

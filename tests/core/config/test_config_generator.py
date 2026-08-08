@@ -106,7 +106,7 @@ class GenerateDefaultConfigTests:
                 "initialized_at": "2020-01-01T00:00:00+00:00",
             },
             "paths": CANONICAL_V1_DEFAULTS["paths"],
-            "sandbox": {"auto_clean": False, "max_active_sandboxes": 2},
+            "sandbox": {"base_ref": "refs/heads/keep", "max_active_sandboxes": 2},
         }
         atomic_write_json(config_path, partial)
 
@@ -116,8 +116,8 @@ class GenerateDefaultConfigTests:
         assert result.inserted_keys
         data = json.loads(config_path.read_text(encoding="utf-8"))
         assert data["project"]["name"] == "keep-me"
-        assert data["sandbox"]["auto_clean"] is False
-        assert data["workflow"]["default_max_attempts"] == 5
+        assert data["sandbox"]["base_ref"] == "refs/heads/keep"
+        assert data["agent"]["provider"] == "local"
         assert CONFIG_VALIDATOR.validate(data).ok
 
     def test_repair_invalid_json_errors(self, project_tmp: Path):

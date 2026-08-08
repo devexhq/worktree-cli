@@ -293,9 +293,7 @@ class OllamaAgentAdapter:
                     f"Agent timed out after {request.timeout_seconds}s "
                     f"(provider=ollama).\n"
                     "Fix:\n"
-                    "- raise agent.timeout_seconds on the workflow, or\n"
-                    "- raise workflow.default_agent_timeout_seconds in "
-                    ".worktree/config.json"
+                    "- raise agent.timeout_seconds on the workflow"
                 ],
             )
         except urllib.error.URLError as exc:
@@ -309,9 +307,7 @@ class OllamaAgentAdapter:
                         f"Agent timed out after {request.timeout_seconds}s "
                         f"(provider=ollama).\n"
                         "Fix:\n"
-                        "- raise agent.timeout_seconds on the workflow, or\n"
-                        "- raise workflow.default_agent_timeout_seconds in "
-                        ".worktree/config.json"
+                        "- raise agent.timeout_seconds on the workflow"
                     ],
                 )
             return AgentResponse(
@@ -329,9 +325,7 @@ class OllamaAgentAdapter:
                         f"Agent timed out after {request.timeout_seconds}s "
                         f"(provider=ollama).\n"
                         "Fix:\n"
-                        "- raise agent.timeout_seconds on the workflow, or\n"
-                        "- raise workflow.default_agent_timeout_seconds in "
-                        ".worktree/config.json"
+                        "- raise agent.timeout_seconds on the workflow"
                     ],
                 )
             return AgentResponse(

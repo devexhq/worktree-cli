@@ -273,7 +273,7 @@ Fix:
 5. Empty file / truncated JSON → `malformed_json`
 6. JSON root array or scalar → `root_not_object`
 7. Object missing required V1 keys → `schema_invalid` with per-error list
-8. Wrong field types (e.g. `workflow.default_max_attempts` as string) → `schema_invalid`
+8. Wrong field types (e.g. `sandbox.max_active_sandboxes` as string) → `schema_invalid`
 9. `version` ≠ 1 → `schema_invalid`
 
 ---

@@ -56,9 +56,8 @@ class ParseAndValidateConfigTests:
         assert config.version == 1
         assert config.project.name == "demo"
         assert config.paths.db_path == ".worktree/data.db"
-        assert config.workflow.default_max_attempts == 5
-        assert config.patch.max_files == 30
-        assert config.approval.require_before_apply is True
+        assert config.sandbox.max_active_sandboxes == 3
+        assert config.agent.provider == "local"
         assert config.history.max_sessions == 1000
         assert config.doctor.check_git is True
         assert config.prune.artifact_ttl_days == 30
@@ -133,7 +132,7 @@ class LoadConfigResultTests:
 
     def test_schema_invalid_wrong_types(self, tmp_path: Path) -> None:
         raw = build_default_config("demo")
-        raw["workflow"]["default_max_attempts"] = "five"
+        raw["sandbox"]["max_active_sandboxes"] = "five"
         _write_config(tmp_path / ".worktree" / "config.json", raw)
         result = load_config_result(cwd=tmp_path)
         assert result.status == ConfigLoadStatus.SCHEMA_INVALID

@@ -9,10 +9,7 @@
     "project",
     "paths",
     "sandbox",
-    "workflow",
     "agent",
-    "patch",
-    "approval",
     "history",
     "doctor",
     "prune",
@@ -55,35 +52,13 @@
       "additionalProperties": false,
       "required": [
         "base_ref",
-        "auto_clean",
-        "keep_on_failure",
         "max_active_sandboxes",
         "default_timeout_seconds"
       ],
       "properties": {
         "base_ref": { "type": "string", "minLength": 1 },
-        "auto_clean": { "type": "boolean" },
-        "keep_on_failure": { "type": "boolean" },
         "max_active_sandboxes": { "type": "integer", "minimum": 1 },
         "default_timeout_seconds": { "type": "integer", "minimum": 1 }
-      }
-    },
-    "workflow": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "default_max_attempts",
-        "default_trigger_timeout_seconds",
-        "default_agent_timeout_seconds",
-        "max_attempts_hard_limit",
-        "detect_repeat_failures"
-      ],
-      "properties": {
-        "default_max_attempts": { "type": "integer", "minimum": 1 },
-        "default_trigger_timeout_seconds": { "type": "integer", "minimum": 1 },
-        "default_agent_timeout_seconds": { "type": "integer", "minimum": 1 },
-        "max_attempts_hard_limit": { "type": "integer", "minimum": 1 },
-        "detect_repeat_failures": { "type": "boolean" }
       }
     },
     "agent": {
@@ -115,34 +90,6 @@
         "endpoint": { "type": ["string", "null"], "minLength": 1 },
         "temperature": { "type": "number", "minimum": 0, "maximum": 2 },
         "max_tokens": { "type": "integer", "minimum": 1 }
-      }
-    },
-    "patch": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "strategy",
-        "max_files",
-        "max_patch_kb",
-        "reject_binary_changes"
-      ],
-      "properties": {
-        "strategy": {
-          "type": "string",
-          "enum": ["unified_diff"]
-        },
-        "max_files": { "type": "integer", "minimum": 1 },
-        "max_patch_kb": { "type": "integer", "minimum": 1 },
-        "reject_binary_changes": { "type": "boolean" }
-      }
-    },
-    "approval": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["require_before_apply", "require_before_final_apply"],
-      "properties": {
-        "require_before_apply": { "type": "boolean" },
-        "require_before_final_apply": { "type": "boolean" }
       }
     },
     "history": {

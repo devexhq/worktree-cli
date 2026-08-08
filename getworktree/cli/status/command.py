@@ -27,7 +27,6 @@ def status_command():
     table.add_row("Config Version", str(ctx.config.version))
     table.add_row("Active Git Branch", ctx.current_branch)
     table.add_row("Agent Model", ctx.config.agent.model or "[dim]Not Configured[/dim]")
-    table.add_row("Auto Clean Sandboxes", str(ctx.config.sandbox.auto_clean))
     table.add_row("Max Active Sandboxes", str(ctx.config.sandbox.max_active_sandboxes))
 
     rich_output.info(table)
