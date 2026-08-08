@@ -7,7 +7,7 @@ from pathlib import Path
 from rich.syntax import Syntax
 from rich.table import Table
 
-from getworktree.common.utils import RichOutput
+from getworktree.common.utils import RichOutput, enum_value
 from getworktree.core.db import CatalogRecord
 
 _DEFAULT_RICH_OUTPUT = RichOutput()
@@ -29,7 +29,7 @@ def build_catalog_table(items: list[CatalogRecord]) -> Table:
     table.add_column("CHECKSUM", no_wrap=True)
 
     for item in items:
-        t_type = item.item_type.value if hasattr(item.item_type, "value") else str(item.item_type)
+        t_type = enum_value(item.item_type)
         checksum_disp = f"{item.checksum[:7]}..." if len(item.checksum) > 7 else item.checksum
         table.add_row(
             item.sha,
@@ -63,7 +63,7 @@ def render_catalog_create_success(
     """Render blueprint creation confirmation message."""
     output = rich_output or _DEFAULT_RICH_OUTPUT
 
-    t_type = item.item_type.value if hasattr(item.item_type, "value") else str(item.item_type)
+    t_type = enum_value(item.item_type)
     rel_path = Path(".worktree") / "catalog" / item.path
     output.info(f"Created catalog blueprint '{item.sha}' (type: {t_type}) at '{rel_path}'.")
 
@@ -77,7 +77,7 @@ def render_catalog_show(
     """Render detailed catalog blueprint view including definition content."""
     output = rich_output or _DEFAULT_RICH_OUTPUT
 
-    t_type = item.item_type.value if hasattr(item.item_type, "value") else str(item.item_type)
+    t_type = enum_value(item.item_type)
     rel_path = Path(".worktree") / "catalog" / item.path
     output.info(f"[bold green]Blueprint:[/]   {item.name} ({item.sha})")
     output.info(f"[bold green]Type:[/]        {t_type}")

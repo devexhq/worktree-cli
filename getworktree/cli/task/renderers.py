@@ -7,7 +7,7 @@ from pathlib import Path
 from rich.syntax import Syntax
 from rich.table import Table
 
-from getworktree.common.utils import RichOutput
+from getworktree.common.utils import RichOutput, enum_value
 from getworktree.core.db import CatalogRecord, TaskRunRecord
 
 from .models import TaskBlueprintItem
@@ -56,7 +56,7 @@ def build_task_runs_table(runs: list[TaskRunRecord]) -> Table:
     table.add_column("COMPLETED AT")
 
     for run in runs:
-        status_val = run.status.value if hasattr(run.status, "value") else str(run.status)
+        status_val = enum_value(run.status)
         table.add_row(
             run.session_id,
             run.task_name,

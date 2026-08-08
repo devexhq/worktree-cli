@@ -6,7 +6,7 @@ from pathlib import Path
 
 from rich.table import Table
 
-from getworktree.common.utils import RichOutput
+from getworktree.common.utils import RichOutput, enum_value
 from getworktree.core.db import SandboxRecord, WorkflowRunRecord
 
 _DEFAULT_RICH_OUTPUT = RichOutput()
@@ -37,7 +37,7 @@ def build_recorded_workflows_table(
         sid = getattr(row, "session_id", getattr(row, "id", "-"))
         name = getattr(row, "workflow_name", getattr(row, "name", "-")) or "-"
         branch = getattr(row, "branch_name", "-")
-        status = row.status.value if hasattr(row.status, "value") else str(row.status)
+        status = enum_value(row.status)
         started = getattr(row, "started_at", getattr(row, "created_at", "-"))
         table.add_row(
             sid,
