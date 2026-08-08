@@ -9,6 +9,14 @@ without package `__init__.py` files. Test classes must be named `Test*` or
 `*Tests` per `python_classes` in [pyproject.toml](../../pyproject.toml); plain
 `test_*` functions work too.
 
+## Test Rules
+
+Follow these rules:
+- Avoid using timeouts where there is a better option available, they slow down the test suite
+- Opt to create global test helpers that allow for per-parameter override instead of bloated test setups
+- Never modify production function/class signatures to add a test seam - use mocks and patches instead
+- When using mocks/patches, avoid asserting it was called unless materially relevant to the test. Assertions should focus on the business logic under test
+
 ## Fixture style
 
 Prefer real integration over mocking: fixtures create a real Git repo in `tmp_path`
@@ -87,11 +95,13 @@ contents and help option lists are not, unless width is controlled.
 ## Running tests
 
 ```bash
-inv test                       # invoke task, tasks.py
-inv test --coverage            # adds --cov=getworktree --cov-report=term-missing
-inv test --fast-fail           # stop on first failure
-python -m pytest tests/ -q     # equivalent, no invoke dependency
+inv test                            # invoke task, tasks.py
+inv test --coverage                 # adds --cov=getworktree --cov-report=term-missing
+inv test --fast-fail                # stop on first failure
+python -m pytest tests/ -q {file}   # equivalent, no invoke dependency
 ```
+
+Prefer running targetted tests during iterations, do not run the full test-suite until the end.
 
 Total coverage must stay at **≥ 80%** (`fail_under = 80` in
 [pyproject.toml](../../pyproject.toml) under `[tool.coverage.report]`). Coverage

@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import subprocess
 import threading
-import time
 from pathlib import Path
 
 import pytest
@@ -28,9 +27,12 @@ from getworktree.core.workflows.patch import PatchApplyResult, PatchApplyStatus
 from getworktree.core.workflows.payload import AgentFailurePayload
 from getworktree.core.workflows.runner import (
     WorkflowFinalStatus,
+    WorkflowRunner,
+    WorkflowRunOptions,
     resolve_max_attempts,
     run_workflow_iteration,
 )
+from getworktree.core.workflows.runner_models import OnEventFn
 from getworktree.core.workflows.trigger import TriggerRunResult, TriggerRunStatus
 
 
@@ -148,12 +150,43 @@ def sandbox(tmp_path: Path) -> Path:
     return path
 
 
+class MockGitSandboxManager:
+    def __init__(
+        self,
+        cwd: Path,
+        session: SandboxSession,
+        create_status: SandboxCreateStatus = SandboxCreateStatus.OK,
+        create_errors: list[str] | None = None,
+        cleaned: list[SandboxSession] | None = None,
+    ) -> None:
+        self.session = session
+        self.create_status = create_status
+        self.create_errors = create_errors
+        self.cleaned = cleaned
+
+    def create_sandbox_result(self, session_id: str | None = None, include_wip: bool = False) -> SandboxCreateResult:
+        if self.create_status != SandboxCreateStatus.OK:
+            return SandboxCreateResult(
+                status=self.create_status,
+                errors=list(self.create_errors or ["create failed"]),
+            )
+        return SandboxCreateResult(
+            status=SandboxCreateStatus.OK,
+            session=self.session,
+        )
+
+    def cleanup_sandbox(self, session: SandboxSession) -> None:
+        if self.cleaned is not None:
+            self.cleaned.append(session)
+
+
 def _run(
     *,
     sandbox: Path,
     workflow: WorkflowDefinition | None = None,
     config: WorktreeConfig | None = None,
     triggers: list[TriggerRunResult] | None = None,
+    run_trigger_fn=None,
     agent_responses: list[AgentResponse] | None = None,
     patch_results: list[PatchApplyResult] | None = None,
     approve_patch=None,
@@ -166,6 +199,10 @@ def _run(
     discard_mutation_fn=None,
     spy: dict[str, list] | None = None,
     prompt_dump_dir: Path | None = None,
+    session_id: str | None = None,
+    on_event: OnEventFn | None = None,
+    session_override: SandboxSession | None = None,
+    session_timeout_seconds: float | int | None = None,
 ):
     workflow = workflow or _workflow()
     config = config or _config()
@@ -173,19 +210,9 @@ def _run(
     patch_queue = list(patch_results or [])
     cleaned: list[SandboxSession] = []
 
-    def create_fn() -> SandboxCreateResult:
-        if create_status != SandboxCreateStatus.OK:
-            return SandboxCreateResult(
-                status=create_status,
-                errors=list(create_errors or ["create failed"]),
-            )
-        return SandboxCreateResult(
-            status=SandboxCreateStatus.OK,
-            session=_session(sandbox),
-        )
-
     def trigger_fn(**kwargs):
-        _ = kwargs
+        if run_trigger_fn is not None:
+            return run_trigger_fn(**kwargs)
         if not trigger_queue:
             return _trigger(TriggerRunStatus.FAILED)
         return trigger_queue.pop(0)
@@ -224,25 +251,44 @@ def _run(
     eff_require = (
         require_before_apply if require_before_apply is not None else getattr(workflow, "_require_before_apply", None)
     )
+    eff_auto_clean: bool | None = getattr(workflow, "_auto_clean", None)
+    eff_keep_on_failure: bool | None = getattr(workflow, "_keep_on_failure", None)
+    eff_stop_when: set[str] | None = getattr(workflow, "_stop_when", None)
+
+    target_session = session_override or _session(sandbox)
+    mp = pytest.MonkeyPatch()
+    mp.setattr(
+        "getworktree.core.workflows.runner.runner.GitSandboxManager",
+        lambda cwd: MockGitSandboxManager(
+            cwd, target_session, create_status=create_status, create_errors=create_errors, cleaned=cleaned
+        ),
+    )
+    mp.setattr("getworktree.core.workflows.runner.steps.run_trigger", trigger_fn)
+    mp.setattr("getworktree.core.workflows.runner.steps.apply_patch_result", patch_fn)
+    mp.setattr("getworktree.core.workflows.runner.steps.discard_since", _discard_fn)
+    mp.setattr("getworktree.core.workflows.runner.steps.build_failure_payload", payload_fn)
+    mp.setattr("getworktree.core.workflows.runner.steps.default_list_changed_files", lambda _p: [])
+
+    options = WorkflowRunOptions(
+        config=config,
+        max_attempts=eff_max_attempts,
+        require_before_apply=eff_require,
+        auto_clean=eff_auto_clean,
+        keep_on_failure=eff_keep_on_failure,
+        stop_when=eff_stop_when,
+        abort_event=abort_event,
+        approve_patch=approve_patch,
+        agent=agent,
+        prompt_dump_dir=prompt_dump_dir,
+        session_id=session_id,
+        on_event=on_event,
+        session_timeout_seconds=session_timeout_seconds,
+    )
 
     result = run_workflow_iteration(
         workflow=workflow,
-        cwd=sandbox.parent,
-        config=config,
-        caller_max_attempts=eff_max_attempts,
-        abort_event=abort_event,
-        is_aborted=is_aborted,
-        approve_patch=approve_patch,
-        agent=agent,
-        list_changed_files=lambda _p: [],
-        run_trigger_fn=trigger_fn,
-        apply_patch_fn=patch_fn,
-        discard_mutation_fn=_discard_fn,
-        build_payload_fn=payload_fn,
-        create_sandbox_fn=create_fn,
-        cleanup_sandbox_fn=cleaned.append,
-        require_before_apply=eff_require,
-        prompt_dump_dir=prompt_dump_dir,
+        cwd=sandbox,
+        options=options,
     )
     return result, agent, cleaned
 
@@ -262,6 +308,146 @@ class ResolveMaxAttemptsTests:
         cfg = _config(max_attempts_hard_limit=2)
         workflow = _workflow(max_attempts=9)
         assert resolve_max_attempts(workflow=workflow, config=cfg, caller_max_attempts=5) == 2
+
+
+class ResolveWorkflowRequirementTests:
+    """Unit tests for WorkflowRunner._resolve_workflow_requirement."""
+
+    def _make_runner(
+        self,
+        *,
+        options: WorkflowRunOptions | None = None,
+        workflow: WorkflowDefinition | None = None,
+        config: WorktreeConfig | None = None,
+    ) -> WorkflowRunner:
+        wf = workflow or _workflow()
+        cfg = config or _config()
+        opts = options or WorkflowRunOptions(config=cfg)
+        if opts.config is None:
+            opts = WorkflowRunOptions(
+                config=cfg,
+                max_attempts=opts.max_attempts,
+                require_before_apply=opts.require_before_apply,
+                auto_clean=opts.auto_clean,
+            )
+        runner = WorkflowRunner(workflow=wf, options=opts)
+        runner.config = cfg
+        return runner
+
+    def test_options_wins_over_workflow_and_config(self) -> None:
+        opts = WorkflowRunOptions(config=_config(), auto_clean=False)
+        runner = self._make_runner(options=opts, workflow=_workflow(auto_clean=True))
+        # auto_clean on the workflow is True, but options says False → False wins
+        result = runner._resolve_workflow_requirement("auto_clean", True)
+        assert result is False
+
+    def test_options_require_before_apply_wins(self) -> None:
+        opts = WorkflowRunOptions(config=_config(), require_before_apply=False)
+        runner = self._make_runner(options=opts)
+        result = runner._resolve_workflow_requirement("require_before_apply", True, config_section="approval")
+        assert result is False
+
+    def test_workflow_attr_wins_over_config(self) -> None:
+        # Config sandbox.auto_clean defaults to True; workflow._auto_clean overrides it.
+        # The resolver looks up f"_{setting}" on the workflow, so _auto_clean is found.
+        runner = self._make_runner(workflow=_workflow(auto_clean=False))
+        result = runner._resolve_workflow_requirement("auto_clean", True)
+        assert result is False
+
+    def test_config_sandbox_auto_clean_false(self) -> None:
+        # Build a config with sandbox.auto_clean = False
+        cfg = WorktreeConfig(
+            version=1,
+            project={"name": "t"},
+            sandbox={"auto_clean": False},
+        )
+        runner = self._make_runner(config=cfg)
+        result = runner._resolve_workflow_requirement("auto_clean", True)
+        assert result is False
+
+    def test_config_approval_require_before_apply(self) -> None:
+        cfg = WorktreeConfig(
+            version=1,
+            project={"name": "t"},
+            approval={"require_before_apply": False, "require_before_final_apply": True},
+        )
+        runner = self._make_runner(config=cfg)
+        result = runner._resolve_workflow_requirement("require_before_apply", True, config_section="approval")
+        assert result is False
+
+    def test_default_returned_for_unknown_setting(self) -> None:
+        runner = self._make_runner()
+        sentinel = object()
+        result = runner._resolve_workflow_requirement("nonexistent_setting", sentinel)
+        assert result is sentinel
+
+    def test_stop_when_default_set(self) -> None:
+        runner = self._make_runner()
+        result = runner._resolve_workflow_requirement("stop_when", {"trigger_passes", "unfixable", "user_abort"})
+        assert result == {"trigger_passes", "unfixable", "user_abort"}
+
+    # ------------------------------------------------------------------ #
+    # Integration: setup() wires the four new resolved_* attrs correctly
+    # ------------------------------------------------------------------ #
+
+    def test_setup_resolved_auto_from_config(self, sandbox: Path) -> None:
+        """resolved_auto picks up sandbox.auto_clean from config."""
+        cfg = WorktreeConfig(
+            version=1,
+            project={"name": "t"},
+            sandbox={"auto_clean": False},
+            approval={"require_before_apply": False, "require_before_final_apply": False},
+        )
+        result, _, cleaned = _run(
+            sandbox=sandbox,
+            config=cfg,
+            triggers=[_trigger(TriggerRunStatus.PASSED)],
+        )
+        assert result.status == WorkflowFinalStatus.PASSED
+        # auto_clean=False → sandbox should be retained
+        assert result.sandbox_retained is True
+        assert cleaned == []
+
+    def test_setup_resolved_require_from_config(self, sandbox: Path) -> None:
+        """resolved_require=True (via options) causes approval_callback_missing when no callback."""
+        # Pass require_before_apply=True explicitly so the options path sets resolved_require=True.
+        # This is equivalent to the config path because _resolve_workflow_requirement
+        # already has a unit test (test_config_approval_require_before_apply) verifying
+        # that the config approval section is read correctly.
+        result, _, _ = _run(
+            sandbox=sandbox,
+            workflow=_workflow(max_attempts=1),
+            triggers=[_trigger(TriggerRunStatus.FAILED)],
+            agent_responses=[
+                AgentResponse(
+                    status=AgentResponseStatus.PROPOSED_PATCH,
+                    unified_diff="diff --git a/a.py b/a.py\n",
+                )
+            ],
+            approve_patch=None,
+            require_before_apply=True,
+        )
+        assert result.stop_reason == "configuration_error"
+        assert result.attempts[0].patch_status == "approval_callback_missing"
+
+    def test_setup_stop_when_default_used(self, sandbox: Path) -> None:
+        """stop_when falls back to the default set when no config/workflow override."""
+        # With the default stop_when including 'unfixable', an UNFIXABLE response
+        # should terminate the run immediately rather than continuing.
+        result, _, _ = _run(
+            sandbox=sandbox,
+            workflow=_workflow(max_attempts=3),
+            triggers=[_trigger(TriggerRunStatus.FAILED)],
+            agent_responses=[
+                AgentResponse(
+                    status=AgentResponseStatus.UNFIXABLE,
+                    unfixable_reason="cannot fix",
+                    duration_ms=1,
+                )
+            ],
+        )
+        assert result.status == WorkflowFinalStatus.UNFIXABLE
+        assert len(result.attempts) == 1
 
 
 class RunWorkflowIterationTests:
@@ -361,21 +547,11 @@ class RunWorkflowIterationTests:
             event.set()
             return _trigger(TriggerRunStatus.FAILED)
 
-        result = run_workflow_iteration(
-            workflow=_workflow(),
-            cwd=sandbox.parent,
-            config=_config(),
+        result, _, _ = _run(
+            sandbox=sandbox,
             abort_event=event,
-            agent=_FakeAgent([]),
-            list_changed_files=lambda _p: [],
             run_trigger_fn=trigger_fn,
-            apply_patch_fn=lambda **_k: PatchApplyResult(status=PatchApplyStatus.APPLIED),
-            build_payload_fn=lambda **_k: _payload(),
-            create_sandbox_fn=lambda: SandboxCreateResult(
-                status=SandboxCreateStatus.OK,
-                session=_session(sandbox),
-            ),
-            cleanup_sandbox_fn=lambda _s: None,
+            agent_responses=[],
         )
         assert result.status == WorkflowFinalStatus.ABORTED
         assert result.stop_reason == "user_abort"
@@ -523,20 +699,11 @@ class RunWorkflowIterationTests:
         def on_event(name: str, payload: dict) -> None:
             events.append((name, payload))
 
-        run_workflow_iteration(
+        _run(
+            sandbox=sandbox,
             workflow=_workflow(max_attempts=1),
-            cwd=sandbox.parent,
-            config=_config(),
-            agent=_FakeAgent([AgentResponse(status=AgentResponseStatus.NO_OP, duration_ms=1)]),
-            list_changed_files=lambda _p: [],
-            run_trigger_fn=lambda **_k: _trigger(TriggerRunStatus.FAILED),
-            apply_patch_fn=lambda **_k: PatchApplyResult(status=PatchApplyStatus.APPLIED),
-            build_payload_fn=lambda **_k: _payload(),
-            create_sandbox_fn=lambda: SandboxCreateResult(
-                status=SandboxCreateStatus.OK,
-                session=_session(sandbox),
-            ),
-            cleanup_sandbox_fn=lambda _s: None,
+            triggers=[_trigger(TriggerRunStatus.FAILED)],
+            agent_responses=[AgentResponse(status=AgentResponseStatus.NO_OP, duration_ms=1)],
             on_event=on_event,
         )
         names = [n for n, _ in events]
@@ -555,28 +722,17 @@ class RunWorkflowIterationTests:
         def on_event(name: str, payload: dict) -> None:
             events[name] = payload
 
-        run_workflow_iteration(
+        _run(
+            sandbox=sandbox,
             workflow=_workflow(max_attempts=1),
-            cwd=sandbox.parent,
-            config=_config(),
-            agent=_FakeAgent(
-                [
-                    AgentResponse(
-                        status=AgentResponseStatus.PROVIDER_ERROR,
-                        duration_ms=1,
-                        errors=["missing CURSOR_API_KEY"],
-                    )
-                ]
-            ),
-            list_changed_files=lambda _p: [],
-            run_trigger_fn=lambda **_k: _trigger(TriggerRunStatus.FAILED),
-            apply_patch_fn=lambda **_k: PatchApplyResult(status=PatchApplyStatus.APPLIED),
-            build_payload_fn=lambda **_k: _payload(),
-            create_sandbox_fn=lambda: SandboxCreateResult(
-                status=SandboxCreateStatus.OK,
-                session=_session(sandbox),
-            ),
-            cleanup_sandbox_fn=lambda _s: None,
+            triggers=[_trigger(TriggerRunStatus.FAILED)],
+            agent_responses=[
+                AgentResponse(
+                    status=AgentResponseStatus.PROVIDER_ERROR,
+                    duration_ms=1,
+                    errors=["missing CURSOR_API_KEY"],
+                )
+            ],
             on_event=on_event,
         )
         assert events["trigger"]["errors"] == ["trigger failed"]
@@ -588,28 +744,17 @@ class RunWorkflowIterationTests:
         def on_event(name: str, payload: dict) -> None:
             events[name] = payload
 
-        result = run_workflow_iteration(
+        result, _, _ = _run(
+            sandbox=sandbox,
             workflow=_workflow(max_attempts=1),
-            cwd=sandbox.parent,
-            config=_config(),
-            agent=_FakeAgent(
-                [
-                    AgentResponse(
-                        status=AgentResponseStatus.UNFIXABLE,
-                        duration_ms=1,
-                        unfixable_reason="cannot fix",
-                    )
-                ]
-            ),
-            list_changed_files=lambda _p: [],
-            run_trigger_fn=lambda **_k: _trigger(TriggerRunStatus.FAILED),
-            apply_patch_fn=lambda **_k: PatchApplyResult(status=PatchApplyStatus.APPLIED),
-            build_payload_fn=lambda **_k: _payload(),
-            create_sandbox_fn=lambda: SandboxCreateResult(
-                status=SandboxCreateStatus.OK,
-                session=_session(sandbox),
-            ),
-            cleanup_sandbox_fn=lambda _s: None,
+            triggers=[_trigger(TriggerRunStatus.FAILED)],
+            agent_responses=[
+                AgentResponse(
+                    status=AgentResponseStatus.UNFIXABLE,
+                    duration_ms=1,
+                    unfixable_reason="cannot fix",
+                )
+            ],
             on_event=on_event,
         )
         assert events["agent"]["errors"] == ["cannot fix"]
@@ -642,22 +787,13 @@ class RunWorkflowIterationTests:
         def on_event(name: str, payload: dict) -> None:
             events.append((name, payload))
 
-        run_workflow_iteration(
+        _run(
+            sandbox=sandbox,
             workflow=_workflow(max_attempts=1, provider="local"),
-            cwd=sandbox.parent,
-            config=_config(),
-            agent=_FakeAgent([AgentResponse(status=AgentResponseStatus.NO_OP, duration_ms=1)]),
-            list_changed_files=lambda _p: [],
-            run_trigger_fn=lambda **_k: _trigger(TriggerRunStatus.FAILED),
-            apply_patch_fn=lambda **_k: PatchApplyResult(status=PatchApplyStatus.APPLIED),
-            build_payload_fn=lambda **_k: _payload(),
-            create_sandbox_fn=lambda: SandboxCreateResult(
-                status=SandboxCreateStatus.OK,
-                session=_session(sandbox),
-            ),
-            cleanup_sandbox_fn=lambda _s: None,
-            on_event=on_event,
+            triggers=[_trigger(TriggerRunStatus.FAILED)],
+            agent_responses=[AgentResponse(status=AgentResponseStatus.NO_OP, duration_ms=1)],
             prompt_dump_dir=tmp_path / "dumps",
+            on_event=on_event,
         )
         names = [name for name, _ in events]
         assert "agent_prompt_dumped" in names
@@ -719,41 +855,32 @@ class RunWorkflowIterationTests:
         assert result.attempts[0].patch_status is None
         assert "patch_calls" not in spy
 
-    def test_session_timeout_between_attempts(self, sandbox: Path) -> None:
-        # Timeout tripped at the top of the workflow, between attempts, once a
-        # full attempt (fast trigger/agent, slow patch apply) has elapsed —
-        # distinct from the mid-attempt check in
-        # test_session_timeout_before_agent.
-        def slow_patch(**_k: object) -> PatchApplyResult:
-            time.sleep(0.02)
-            return PatchApplyResult(status=PatchApplyStatus.APPLIED)
+    def test_session_timeout_between_attempts(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        cfg = _config(detect_repeat_failures=False)
+        call_count = {"n": 0}
 
-        result = run_workflow_iteration(
+        def _fake_timed_out(state, *, session_timeout_seconds):
+            call_count["n"] += 1
+            # Expire after the first attempt completes (second check at top of loop)
+            return call_count["n"] > 1
+
+        monkeypatch.setattr("getworktree.core.workflows.runner.steps.session_timed_out", _fake_timed_out)
+
+        result, _, _ = _run(
+            sandbox=sandbox,
             workflow=_workflow(max_attempts=3),
-            cwd=sandbox.parent,
-            config=_config(),
-            agent=_FakeAgent(
-                [
-                    AgentResponse(
-                        status=AgentResponseStatus.PROPOSED_PATCH,
-                        unified_diff="diff --git a/a.py b/a.py\n",
-                        duration_ms=1,
-                    )
-                ]
-            ),
-            list_changed_files=lambda _p: [],
-            run_trigger_fn=lambda **_k: _trigger(TriggerRunStatus.FAILED),
-            apply_patch_fn=slow_patch,
-            build_payload_fn=lambda **_k: _payload(),
-            create_sandbox_fn=lambda: SandboxCreateResult(status=SandboxCreateStatus.OK, session=_session(sandbox)),
-            cleanup_sandbox_fn=lambda _s: None,
-            session_timeout_seconds=0.01,
-            detect_repeat_failures=False,
+            config=cfg,
+            agent_responses=[
+                AgentResponse(
+                    status=AgentResponseStatus.PROPOSED_PATCH,
+                    unified_diff="diff --git a/a.py b/a.py\n",
+                    duration_ms=1,
+                )
+            ],
+            session_timeout_seconds=60,
         )
         assert result.status == WorkflowFinalStatus.FAILED
         assert result.stop_reason == "session_timeout"
-        # First attempt completes (patch applied); second attempt never
-        # starts because the between-attempts timeout check trips first.
         assert len(result.attempts) == 1
 
 
@@ -932,14 +1059,13 @@ class DiffArtifactTests:
             created_at="2026-01-01T00:00:00+00:00",
         )
 
-        result = run_workflow_iteration(
+        result, _, _ = _run(
+            sandbox=tmp_path,
             workflow=_workflow(max_attempts=1),
-            cwd=tmp_path,
-            config=_config(),
             session_id=sid,
-            create_sandbox_fn=lambda: SandboxCreateResult(status=SandboxCreateStatus.OK, session=sess),
-            run_trigger_fn=lambda **kw: _trigger(TriggerRunStatus.PASSED),
-            agent=_FakeAgent([]),
+            triggers=[_trigger(TriggerRunStatus.PASSED)],
+            agent_responses=[],
+            session_override=sess,
         )
 
         assert result.status == WorkflowFinalStatus.PASSED
@@ -992,14 +1118,13 @@ class DiffArtifactTests:
             created_at="2026-01-01T00:00:00+00:00",
         )
 
-        result = run_workflow_iteration(
+        result, _, _ = _run(
+            sandbox=tmp_path,
             workflow=_workflow(max_attempts=1),
-            cwd=tmp_path,
-            config=_config(),
             session_id=sid,
-            create_sandbox_fn=lambda: SandboxCreateResult(status=SandboxCreateStatus.OK, session=sess),
-            run_trigger_fn=lambda **kw: _trigger(TriggerRunStatus.FAILED),
-            agent=_FakeAgent([AgentResponse(status=AgentResponseStatus.UNFIXABLE)]),
+            triggers=[_trigger(TriggerRunStatus.FAILED)],
+            agent_responses=[AgentResponse(status=AgentResponseStatus.UNFIXABLE)],
+            session_override=sess,
         )
 
         assert result.status == WorkflowFinalStatus.UNFIXABLE
@@ -1048,14 +1173,13 @@ class DiffArtifactTests:
             created_at="2026-01-01T00:00:00+00:00",
         )
 
-        result = run_workflow_iteration(
+        result, _, _ = _run(
+            sandbox=tmp_path,
             workflow=_workflow(max_attempts=1),
-            cwd=tmp_path,
-            config=_config(),
             session_id=sid,
-            create_sandbox_fn=lambda: SandboxCreateResult(status=SandboxCreateStatus.OK, session=sess),
-            run_trigger_fn=lambda **kw: _trigger(TriggerRunStatus.PASSED),
-            agent=_FakeAgent([]),
+            triggers=[_trigger(TriggerRunStatus.PASSED)],
+            agent_responses=[],
+            session_override=sess,
         )
         assert result.status == WorkflowFinalStatus.PASSED
         diff_path = tmp_path / ".worktree" / "sessions" / sid / "diff.patch"
@@ -1073,14 +1197,13 @@ class DiffArtifactTests:
             created_at="2026-01-01T00:00:00+00:00",
         )
 
-        result = run_workflow_iteration(
+        result, _, _ = _run(
+            sandbox=tmp_path,
             workflow=_workflow(max_attempts=1),
-            cwd=tmp_path,
-            config=_config(),
             session_id=sid,
-            create_sandbox_fn=lambda: SandboxCreateResult(status=SandboxCreateStatus.OK, session=sess),
-            run_trigger_fn=lambda **kw: _trigger(TriggerRunStatus.PASSED),
-            agent=_FakeAgent([]),
+            triggers=[_trigger(TriggerRunStatus.PASSED)],
+            agent_responses=[],
+            session_override=sess,
         )
 
         assert any("Sandbox directory missing" in w for w in result.warnings)
@@ -1097,14 +1220,13 @@ class DiffArtifactTests:
             created_at="2026-01-01T00:00:00+00:00",
         )
 
-        result = run_workflow_iteration(
+        result, _, _ = _run(
+            sandbox=tmp_path,
             workflow=_workflow(max_attempts=1),
-            cwd=tmp_path,
-            config=_config(),
             session_id=sid,
-            create_sandbox_fn=lambda: SandboxCreateResult(status=SandboxCreateStatus.OK, session=sess),
-            run_trigger_fn=lambda **kw: _trigger(TriggerRunStatus.PASSED),
-            agent=_FakeAgent([]),
+            triggers=[_trigger(TriggerRunStatus.PASSED)],
+            agent_responses=[],
+            session_override=sess,
         )
 
         diff_path = tmp_path / ".worktree" / "sessions" / sid / "diff.patch"
@@ -1129,14 +1251,13 @@ class DiffArtifactTests:
         session_dir.chmod(0o444)
 
         try:
-            result = run_workflow_iteration(
+            result, _, _ = _run(
+                sandbox=tmp_path,
                 workflow=_workflow(max_attempts=1),
-                cwd=tmp_path,
-                config=_config(),
                 session_id=sid,
-                create_sandbox_fn=lambda: SandboxCreateResult(status=SandboxCreateStatus.OK, session=sess),
-                run_trigger_fn=lambda **kw: _trigger(TriggerRunStatus.PASSED),
-                agent=_FakeAgent([]),
+                triggers=[_trigger(TriggerRunStatus.PASSED)],
+                agent_responses=[],
+                session_override=sess,
             )
             assert any(
                 "Failed to write diff artifact" in w or "unwritable" in w or "Permission denied" in w

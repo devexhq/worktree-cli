@@ -6,6 +6,8 @@ import hashlib
 import time
 from pathlib import Path
 
+import pytest
+
 from getworktree.core.config.models import WorktreeConfig
 from getworktree.core.git_sandbox import (
     SandboxCreateResult,
@@ -24,6 +26,7 @@ from getworktree.core.workflows.patch import PatchApplyResult, PatchApplyStatus
 from getworktree.core.workflows.payload import AgentFailurePayload
 from getworktree.core.workflows.runner import (
     WorkflowFinalStatus,
+    WorkflowRunOptions,
     run_workflow_iteration,
 )
 from getworktree.core.workflows.safety import (
@@ -207,8 +210,19 @@ class _FakeAgent:
         return resp
 
 
+class MockGitSandboxManager:
+    def __init__(self, cwd: Path, session: SandboxSession) -> None:
+        self.session = session
+
+    def create_sandbox_result(self, session_id: str | None = None, include_wip: bool = False) -> SandboxCreateResult:
+        return SandboxCreateResult(status=SandboxCreateStatus.OK, session=self.session)
+
+    def cleanup_sandbox(self, session: SandboxSession) -> None:
+        pass
+
+
 class SafetyControllerIntegrationTests:
-    def test_repeat_failure_signature_stop(self, tmp_path: Path) -> None:
+    def test_repeat_failure_signature_stop(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         sandbox = tmp_path / "sbx"
         sandbox.mkdir()
         triggers = [_trigger() for _ in range(5)]
@@ -221,51 +235,74 @@ class SafetyControllerIntegrationTests:
                 for _ in range(5)
             ]
         )
+
+        monkeypatch.setattr(
+            "getworktree.core.workflows.runner.runner.GitSandboxManager",
+            lambda cwd: MockGitSandboxManager(cwd, _session(sandbox)),
+        )
+        monkeypatch.setattr("getworktree.core.workflows.runner.steps.default_list_changed_files", lambda _p: [])
+        monkeypatch.setattr(
+            "getworktree.core.workflows.runner.steps.run_trigger",
+            lambda **_k: triggers.pop(0) if triggers else _trigger(),
+        )
+        monkeypatch.setattr(
+            "getworktree.core.workflows.runner.steps.apply_patch_result",
+            lambda **_k: PatchApplyResult(status=PatchApplyStatus.APPLIED, touched_files=["a.py"]),
+        )
+        monkeypatch.setattr("getworktree.core.workflows.runner.steps.build_failure_payload", lambda **_k: _payload())
+
+        options = WorkflowRunOptions(
+            config=_config(detect_repeat_failures=True),
+            agent=agent,
+            max_attempts=10,
+        )
+
         result = run_workflow_iteration(
             workflow=_workflow(max_attempts=10),
             cwd=tmp_path,
-            config=_config(detect_repeat_failures=True),
-            agent=agent,
-            list_changed_files=lambda _p: [],
-            run_trigger_fn=lambda **_k: triggers.pop(0) if triggers else _trigger(),
-            apply_patch_fn=lambda **_k: PatchApplyResult(status=PatchApplyStatus.APPLIED, touched_files=["a.py"]),
-            build_payload_fn=lambda **_k: _payload(),
-            create_sandbox_fn=lambda: SandboxCreateResult(status=SandboxCreateStatus.OK, session=_session(sandbox)),
-            cleanup_sandbox_fn=lambda _s: None,
+            options=options,
         )
         assert result.status == WorkflowFinalStatus.FAILED
         assert result.stop_reason == "repeat_failure_signature"
         assert len(result.attempts) == REPEAT_FAILURE_THRESHOLD
 
-    def test_repeat_disabled_continues(self, tmp_path: Path) -> None:
+    def test_repeat_disabled_continues(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         sandbox = tmp_path / "sbx"
         sandbox.mkdir()
         agent = _FakeAgent([AgentResponse(status=AgentResponseStatus.NO_OP, duration_ms=1)])
-        # With detect off, identical failures do not stop early; no-op streak
-        # will stop at 2 agent no_ops instead of repeat signature at 3.
         call_n = {"n": 0}
 
         def trigger_fn(**_k: object) -> TriggerRunResult:
             call_n["n"] += 1
             return _trigger()
 
+        monkeypatch.setattr(
+            "getworktree.core.workflows.runner.runner.GitSandboxManager",
+            lambda cwd: MockGitSandboxManager(cwd, _session(sandbox)),
+        )
+        monkeypatch.setattr("getworktree.core.workflows.runner.steps.default_list_changed_files", lambda _p: [])
+        monkeypatch.setattr("getworktree.core.workflows.runner.steps.run_trigger", trigger_fn)
+        monkeypatch.setattr(
+            "getworktree.core.workflows.runner.steps.apply_patch_result",
+            lambda **_k: PatchApplyResult(status=PatchApplyStatus.APPLIED),
+        )
+        monkeypatch.setattr("getworktree.core.workflows.runner.steps.build_failure_payload", lambda **_k: _payload())
+
+        options = WorkflowRunOptions(
+            config=_config(detect_repeat_failures=False),
+            agent=agent,
+            max_attempts=5,
+        )
+
         result = run_workflow_iteration(
             workflow=_workflow(max_attempts=5),
             cwd=tmp_path,
-            config=_config(detect_repeat_failures=False),
-            agent=agent,
-            list_changed_files=lambda _p: [],
-            run_trigger_fn=trigger_fn,
-            apply_patch_fn=lambda **_k: PatchApplyResult(status=PatchApplyStatus.APPLIED),
-            build_payload_fn=lambda **_k: _payload(),
-            create_sandbox_fn=lambda: SandboxCreateResult(status=SandboxCreateStatus.OK, session=_session(sandbox)),
-            cleanup_sandbox_fn=lambda _s: None,
-            detect_repeat_failures=False,
+            options=options,
         )
         assert result.stop_reason == "agent_no_op_streak"
         assert result.status == WorkflowFinalStatus.FAILED
 
-    def test_agent_no_op_streak_stop(self, tmp_path: Path) -> None:
+    def test_agent_no_op_streak_stop(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         sandbox = tmp_path / "sbx"
         sandbox.mkdir()
         agent = _FakeAgent(
@@ -274,48 +311,73 @@ class SafetyControllerIntegrationTests:
                 AgentResponse(status=AgentResponseStatus.NO_OP, duration_ms=1),
             ]
         )
-        # Distinct trigger outputs so repeat-failure does not trip first.
         outs = ["one", "two", "three"]
 
         def trigger_fn(**_k: object) -> TriggerRunResult:
             out = outs.pop(0) if outs else "more"
             return _trigger(stdout=out, stderr=out)
 
+        monkeypatch.setattr(
+            "getworktree.core.workflows.runner.runner.GitSandboxManager",
+            lambda cwd: MockGitSandboxManager(cwd, _session(sandbox)),
+        )
+        monkeypatch.setattr("getworktree.core.workflows.runner.steps.default_list_changed_files", lambda _p: [])
+        monkeypatch.setattr("getworktree.core.workflows.runner.steps.run_trigger", trigger_fn)
+        monkeypatch.setattr(
+            "getworktree.core.workflows.runner.steps.apply_patch_result",
+            lambda **_k: PatchApplyResult(status=PatchApplyStatus.APPLIED),
+        )
+        monkeypatch.setattr("getworktree.core.workflows.runner.steps.build_failure_payload", lambda **_k: _payload())
+
+        options = WorkflowRunOptions(
+            config=_config(),
+            agent=agent,
+            max_attempts=5,
+        )
+
         result = run_workflow_iteration(
             workflow=_workflow(max_attempts=5),
             cwd=tmp_path,
-            config=_config(),
-            agent=agent,
-            list_changed_files=lambda _p: [],
-            run_trigger_fn=trigger_fn,
-            apply_patch_fn=lambda **_k: PatchApplyResult(status=PatchApplyStatus.APPLIED),
-            build_payload_fn=lambda **_k: _payload(),
-            create_sandbox_fn=lambda: SandboxCreateResult(status=SandboxCreateStatus.OK, session=_session(sandbox)),
-            cleanup_sandbox_fn=lambda _s: None,
+            options=options,
         )
         assert result.stop_reason == "agent_no_op_streak"
         assert len(result.attempts) == NO_OP_STREAK_THRESHOLD
 
-    def test_session_timeout_disabled_when_non_positive(self, tmp_path: Path) -> None:
+    def test_session_timeout_disabled_when_non_positive(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         sandbox = tmp_path / "sbx"
         sandbox.mkdir()
+
+        monkeypatch.setattr(
+            "getworktree.core.workflows.runner.runner.GitSandboxManager",
+            lambda cwd: MockGitSandboxManager(cwd, _session(sandbox)),
+        )
+        monkeypatch.setattr("getworktree.core.workflows.runner.steps.default_list_changed_files", lambda _p: [])
+        monkeypatch.setattr(
+            "getworktree.core.workflows.runner.steps.run_trigger", lambda **_k: _trigger(TriggerRunStatus.PASSED)
+        )
+        monkeypatch.setattr(
+            "getworktree.core.workflows.runner.steps.apply_patch_result",
+            lambda **_k: PatchApplyResult(status=PatchApplyStatus.APPLIED),
+        )
+        monkeypatch.setattr("getworktree.core.workflows.runner.steps.build_failure_payload", lambda **_k: _payload())
+
+        cfg = _config()
+        cfg.sandbox.default_timeout_seconds = 0
+        options = WorkflowRunOptions(
+            config=cfg,
+            agent=_FakeAgent([]),
+            max_attempts=1,
+        )
+
         result = run_workflow_iteration(
             workflow=_workflow(max_attempts=1),
             cwd=tmp_path,
-            config=_config(),
-            agent=_FakeAgent([]),
-            list_changed_files=lambda _p: [],
-            run_trigger_fn=lambda **_k: _trigger(TriggerRunStatus.PASSED),
-            apply_patch_fn=lambda **_k: PatchApplyResult(status=PatchApplyStatus.APPLIED),
-            build_payload_fn=lambda **_k: _payload(),
-            create_sandbox_fn=lambda: SandboxCreateResult(status=SandboxCreateStatus.OK, session=_session(sandbox)),
-            cleanup_sandbox_fn=lambda _s: None,
-            session_timeout_seconds=0,
+            options=options,
         )
         assert result.status == WorkflowFinalStatus.PASSED
         assert result.stop_reason == "trigger_passed"
 
-    def test_session_timeout_before_agent(self, tmp_path: Path) -> None:
+    def test_session_timeout_before_agent(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         sandbox = tmp_path / "sbx"
         sandbox.mkdir()
 
@@ -323,20 +385,31 @@ class SafetyControllerIntegrationTests:
             time.sleep(0.02)
             return _trigger()
 
+        monkeypatch.setattr(
+            "getworktree.core.workflows.runner.runner.GitSandboxManager",
+            lambda cwd: MockGitSandboxManager(cwd, _session(sandbox)),
+        )
+        monkeypatch.setattr("getworktree.core.workflows.runner.steps.default_list_changed_files", lambda _p: [])
+        monkeypatch.setattr("getworktree.core.workflows.runner.steps.run_trigger", very_slow)
+        monkeypatch.setattr(
+            "getworktree.core.workflows.runner.steps.apply_patch_result",
+            lambda **_k: PatchApplyResult(status=PatchApplyStatus.APPLIED),
+        )
+        monkeypatch.setattr("getworktree.core.workflows.runner.steps.build_failure_payload", lambda **_k: _payload())
+
+        cfg = _config()
+        options = WorkflowRunOptions(
+            config=cfg,
+            agent=_FakeAgent([AgentResponse(status=AgentResponseStatus.NO_OP, duration_ms=1)]),
+            max_attempts=5,
+            session_timeout_seconds=0.01,
+        )
+
         result = run_workflow_iteration(
             workflow=_workflow(max_attempts=5),
             cwd=tmp_path,
-            config=_config(),
-            agent=_FakeAgent([AgentResponse(status=AgentResponseStatus.NO_OP, duration_ms=1)]),
-            list_changed_files=lambda _p: [],
-            run_trigger_fn=very_slow,
-            apply_patch_fn=lambda **_k: PatchApplyResult(status=PatchApplyStatus.APPLIED),
-            build_payload_fn=lambda **_k: _payload(),
-            create_sandbox_fn=lambda: SandboxCreateResult(status=SandboxCreateStatus.OK, session=_session(sandbox)),
-            cleanup_sandbox_fn=lambda _s: None,
-            session_timeout_seconds=0.01,
+            options=options,
         )
-        # First attempt starts; after slow trigger, pre-agent checkpoint trips.
         assert result.status == WorkflowFinalStatus.FAILED
         assert result.stop_reason == "session_timeout"
         assert len(result.attempts) == 1

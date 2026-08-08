@@ -13,7 +13,10 @@ ruff check .                    # lint
 ruff format .                   # format
 ```
 
-Use `inv test` during development. Before committing, all of these must pass:
+## Testing / Code Quality
+
+Use `pytest -q` during development. Prefer scoping to the test module/function during quick iterations. 
+Before committing, all of these must pass:
 `inv test -c` (coverage, **≥ 80%** via `fail_under` in `pyproject.toml`),
 `ruff format`, `ruff check`. Fix any failure before retrying the commit.
 

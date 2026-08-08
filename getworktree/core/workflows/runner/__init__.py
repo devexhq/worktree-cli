@@ -19,7 +19,10 @@ from getworktree.core.workflows.runner.helpers import (
     default_list_changed_files,
     resolve_max_attempts,
 )
-from getworktree.core.workflows.runner.runner import run_workflow_iteration
+from getworktree.core.workflows.runner.runner import (
+    WorkflowRunner,
+    run_workflow_iteration,
+)
 from getworktree.core.workflows.runner_models import (
     ApplyPatchFn,
     ApprovePatchFn,
@@ -36,6 +39,7 @@ from getworktree.core.workflows.runner_models import (
     StepOutcome,
     StopReason,
     WorkflowFinalStatus,
+    WorkflowRunOptions,
     WorkflowRunResult,
 )
 
@@ -55,7 +59,9 @@ __all__ = [
     "StepOutcome",
     "StopReason",
     "WorkflowFinalStatus",
+    "WorkflowRunOptions",
     "WorkflowRunResult",
+    "WorkflowRunner",
     "default_list_changed_files",
     "resolve_max_attempts",
     "run_workflow_iteration",

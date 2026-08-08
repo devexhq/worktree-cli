@@ -13,7 +13,10 @@ from getworktree.core.catalog.inventory import get_catalog_dir
 from getworktree.core.config.generator import generate_default_config
 from getworktree.core.config.loader import load_config
 from getworktree.core.workflows.runner.runner import run_workflow_iteration
-from getworktree.core.workflows.runner_models import WorkflowFinalStatus
+from getworktree.core.workflows.runner_models import (
+    WorkflowFinalStatus,
+    WorkflowRunOptions,
+)
 from getworktree.core.workflows.seeder import seed_starter_workflows
 from getworktree.core.workflows.validate import validate_workflow_result
 
@@ -69,7 +72,7 @@ def test_task_run_command_no_sandbox_flag(tmp_path: Path, monkeypatch: pytest.Mo
     assert "Sandbox: In-place (workspace)" in result.output
 
 
-def test_run_workflow_iteration_in_place(tmp_path: Path) -> None:
+def test_run_workflow_iteration_in_place(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     config_path = tmp_path / ".worktree" / "config.json"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     generate_default_config(config_path, project_name="test-project")
@@ -100,12 +103,17 @@ def test_run_workflow_iteration_in_place(tmp_path: Path) -> None:
             duration_ms=100,
         )
 
+    monkeypatch.setattr("getworktree.core.workflows.runner.steps.run_trigger", dummy_trigger)
+
+    options = WorkflowRunOptions(
+        config=config,
+        no_sandbox=True,
+    )
+
     result = run_workflow_iteration(
         workflow=workflow,
         cwd=tmp_path,
-        config=config,
-        run_trigger_fn=dummy_trigger,
-        use_git_worktree=False,
+        options=options,
     )
 
     assert result.status == WorkflowFinalStatus.PASSED
@@ -128,7 +136,8 @@ def test_workflow_run_command_no_sandbox_flag(tmp_path: Path, monkeypatch: pytes
             WorkflowRunResult,
         )
 
-        assert kwargs.get("use_git_worktree") is False
+        opts = kwargs.get("options")
+        assert opts is not None and opts.no_sandbox is True
         return WorkflowRunResult(
             status=WorkflowFinalStatus.PASSED,
             session_id="wf_test",

@@ -20,6 +20,7 @@ from getworktree.core.workflows.render import (
 from getworktree.core.workflows.resolve import resolve_workflow_by_name
 from getworktree.core.workflows.runner import (
     StopReason,
+    WorkflowRunOptions,
     WorkflowRunResult,
     run_workflow_iteration,
 )
@@ -265,22 +266,24 @@ def workflow_run_command(
     abort_event = threading.Event()
     result: WorkflowRunResult | None = None
 
+    options = WorkflowRunOptions(
+        max_attempts=max_attempts,
+        auto_clean=auto_clean,
+        require_before_apply=require_before_apply,
+        abort_event=abort_event,
+        approve_patch=approve_cb,
+        on_event=on_event,
+        include_wip=wip,
+        prompt_dump_dir=prompt_dump_dir,
+        no_sandbox=no_sandbox,
+        config=config,
+    )
+
     try:
         result = runner(
             workflow=workflow,
             cwd=root,
-            config=config,
-            caller_max_attempts=max_attempts,
-            auto_clean=auto_clean,
-            require_before_apply=require_before_apply,
-            abort_event=abort_event,
-            approve_patch=approve_cb,
-            on_event=on_event,
-            session_timeout_seconds=config.sandbox.default_timeout_seconds,
-            detect_repeat_failures=config.workflow.detect_repeat_failures,
-            include_wip=wip,
-            prompt_dump_dir=prompt_dump_dir,
-            use_git_worktree=False if no_sandbox else None,
+            options=options,
         )
     except KeyboardInterrupt:
         abort_event.set()

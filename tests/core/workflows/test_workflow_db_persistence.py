@@ -16,8 +16,22 @@ from getworktree.core.git_sandbox import (
 from getworktree.core.workflows.models import (
     WorkflowDefinition,
 )
-from getworktree.core.workflows.runner import run_workflow_iteration
+from getworktree.core.workflows.runner import (
+    WorkflowRunOptions,
+    run_workflow_iteration,
+)
 from getworktree.core.workflows.trigger import TriggerRunResult, TriggerRunStatus
+
+
+class MockGitSandboxManager:
+    def __init__(self, cwd: Path, session: SandboxSession) -> None:
+        self.session = session
+
+    def create_sandbox_result(self, session_id: str | None = None, include_wip: bool = False) -> SandboxCreateResult:
+        return SandboxCreateResult(status=SandboxCreateStatus.OK, session=self.session)
+
+    def cleanup_sandbox(self, session: SandboxSession) -> None:
+        pass
 
 
 def _init_config(repo: Path) -> None:
@@ -34,7 +48,7 @@ def _make_dummy_workflow(name: str = "test-workflow") -> WorkflowDefinition:
     )
 
 
-def test_run_workflow_iteration_records_workflow_passed(git_repo: Path) -> None:
+def test_run_workflow_iteration_records_workflow_passed(git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _init_config(git_repo)
     workflow = _make_dummy_workflow("passed-workflow")
     dummy_session = SandboxSession(
@@ -44,9 +58,6 @@ def test_run_workflow_iteration_records_workflow_passed(git_repo: Path) -> None:
         base_commit="HEAD",
         created_at="2026-08-05 12:00:00",
     )
-
-    def mock_create_sandbox() -> SandboxCreateResult:
-        return SandboxCreateResult(status=SandboxCreateStatus.OK, session=dummy_session)
 
     def mock_run_trigger(*args: object, **kwargs: object) -> TriggerRunResult:
         return TriggerRunResult(
@@ -58,12 +69,15 @@ def test_run_workflow_iteration_records_workflow_passed(git_repo: Path) -> None:
             duration_ms=10,
         )
 
+    monkeypatch.setattr(
+        "getworktree.core.workflows.runner.runner.GitSandboxManager",
+        lambda cwd: MockGitSandboxManager(cwd, dummy_session),
+    )
+    monkeypatch.setattr("getworktree.core.workflows.runner.steps.run_trigger", mock_run_trigger)
+
     result = run_workflow_iteration(
         workflow=workflow,
         cwd=git_repo,
-        create_sandbox_fn=mock_create_sandbox,
-        run_trigger_fn=mock_run_trigger,
-        cleanup_sandbox_fn=lambda s: None,
     )
 
     assert result.session_id == "wf-pass-101"
@@ -82,7 +96,7 @@ def test_run_workflow_iteration_records_workflow_passed(git_repo: Path) -> None:
     assert any(r.session_id == "wf-pass-101" for r in all_runs)
 
 
-def test_run_workflow_iteration_records_workflow_failed(git_repo: Path) -> None:
+def test_run_workflow_iteration_records_workflow_failed(git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _init_config(git_repo)
     workflow = _make_dummy_workflow("failed-workflow")
     dummy_session = SandboxSession(
@@ -92,9 +106,6 @@ def test_run_workflow_iteration_records_workflow_failed(git_repo: Path) -> None:
         base_commit="HEAD",
         created_at="2026-08-05 12:00:00",
     )
-
-    def mock_create_sandbox() -> SandboxCreateResult:
-        return SandboxCreateResult(status=SandboxCreateStatus.OK, session=dummy_session)
 
     def mock_run_trigger(*args: object, **kwargs: object) -> TriggerRunResult:
         return TriggerRunResult(
@@ -107,13 +118,17 @@ def test_run_workflow_iteration_records_workflow_failed(git_repo: Path) -> None:
             errors=["Test failure"],
         )
 
+    monkeypatch.setattr(
+        "getworktree.core.workflows.runner.runner.GitSandboxManager",
+        lambda cwd: MockGitSandboxManager(cwd, dummy_session),
+    )
+    monkeypatch.setattr("getworktree.core.workflows.runner.steps.run_trigger", mock_run_trigger)
+
+    options = WorkflowRunOptions(max_attempts=1)
     result = run_workflow_iteration(
         workflow=workflow,
         cwd=git_repo,
-        caller_max_attempts=1,
-        create_sandbox_fn=mock_create_sandbox,
-        run_trigger_fn=mock_run_trigger,
-        cleanup_sandbox_fn=lambda s: None,
+        options=options,
     )
 
     assert result.session_id == "wf-fail-202"
@@ -138,9 +153,6 @@ def test_run_workflow_iteration_fault_tolerant_db_write_error(git_repo: Path, mo
         created_at="2026-08-05 12:00:00",
     )
 
-    def mock_create_sandbox() -> SandboxCreateResult:
-        return SandboxCreateResult(status=SandboxCreateStatus.OK, session=dummy_session)
-
     def mock_run_trigger(*args: object, **kwargs: object) -> TriggerRunResult:
         return TriggerRunResult(
             status=TriggerRunStatus.PASSED,
@@ -151,18 +163,19 @@ def test_run_workflow_iteration_fault_tolerant_db_write_error(git_repo: Path, mo
             duration_ms=10,
         )
 
-    # Monkeypatch WorkflowsDb.insert to raise an Exception to verify fault tolerance
     def bad_insert(*args: object, **kwargs: object) -> None:
         raise RuntimeError("Database locked")
 
+    monkeypatch.setattr(
+        "getworktree.core.workflows.runner.runner.GitSandboxManager",
+        lambda cwd: MockGitSandboxManager(cwd, dummy_session),
+    )
+    monkeypatch.setattr("getworktree.core.workflows.runner.steps.run_trigger", mock_run_trigger)
     monkeypatch.setattr(WorkflowsDb, "insert", bad_insert)
 
     result = run_workflow_iteration(
         workflow=workflow,
         cwd=git_repo,
-        create_sandbox_fn=mock_create_sandbox,
-        run_trigger_fn=mock_run_trigger,
-        cleanup_sandbox_fn=lambda s: None,
     )
 
     assert result.session_id == "wf-err-303"
