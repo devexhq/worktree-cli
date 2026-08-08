@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from getworktree.common.formatters import format_warning_bullets
 from getworktree.core.workflows.models import (
     LoopStepBlock,
     StandardStepDefinition,
@@ -19,16 +20,6 @@ def _indent_block(text: str | None, *, prefix: str = "  ") -> str:
         return ""
     lines = text.splitlines() or [""]
     return "\n".join(f"{prefix}{line}" for line in lines)
-
-
-def _format_warning_bullets(warnings: list[str]) -> list[str]:
-    lines: list[str] = []
-    for warning in warnings:
-        parts = warning.splitlines() or [""]
-        lines.append(f"- {parts[0]}")
-        for continuation in parts[1:]:
-            lines.append(f"  {continuation}")
-    return lines
 
 
 def format_workflow_show_success(
@@ -59,7 +50,7 @@ def format_workflow_show_success(
     ]
     if warning_list:
         lines.append("Warnings:")
-        lines.extend(_format_warning_bullets(warning_list))
+        lines.extend(format_warning_bullets(warning_list))
         lines.append("")
 
     if workflow.description:
