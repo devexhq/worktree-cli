@@ -5,7 +5,10 @@ import os
 from pathlib import Path
 from typing import Any
 
-from getworktree.common.constants import GITIGNORE_ENTRY
+import yaml
+
+from .constants import GITIGNORE_ENTRY
+from .models import YamlFile
 
 
 def get_worktree_dir(cwd: Path) -> Path:
@@ -82,3 +85,44 @@ def update_gitignore(gitignore_path: Path) -> bool:
     with open(gitignore_path, "w", encoding="utf-8") as f:
         f.write(GITIGNORE_ENTRY.lstrip())
     return True
+
+
+def _process_yaml_file(file_path: Path) -> YamlFile:
+    name = file_path.stem
+    error = None
+    yaml_data = None
+
+    try:
+        content = file_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        error = f"Failed to read catalog blueprint '{file_path}': {exc}"
+        return YamlFile(name=name, path=file_path, error=error, parsed=yaml_data)
+
+    try:
+        yaml_data = yaml.safe_load(content)
+        if isinstance(yaml_data, dict) and yaml_data.get("name"):
+            name = str(yaml_data["name"])
+    except Exception:
+        # Fallback to file stem if YAML parsing fails or is non-dict
+        pass
+
+    return YamlFile(name=name, path=file_path, error=error, parsed=yaml_data, content=content)
+
+
+def scan_yaml_directory(
+    directory: Path,
+    *,
+    suffixes: tuple[str, ...] = (".yml", ".yaml"),
+) -> list[YamlFile]:
+    """Return one entry per matching file in `directory`, sorted by name."""
+    if not directory.exists():
+        return []
+
+    entries = []
+    for file_path in sorted(directory.glob("*")):
+        if not file_path.is_file() or file_path.suffix.lower() not in (".yml", ".yaml"):
+            continue
+
+        entries.append(_process_yaml_file(file_path))
+
+    return entries

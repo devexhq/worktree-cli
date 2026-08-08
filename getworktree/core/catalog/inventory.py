@@ -5,10 +5,8 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-import yaml
-
-from getworktree.common.fs import atomic_write_text
-from getworktree.core.catalog.models import CatalogScanResult
+from getworktree.common.fs import atomic_write_text, scan_yaml_directory
+from getworktree.core.catalog.models import CatalogScanResult, CatalogSubdirectoryScanResult
 from getworktree.core.db import (
     CatalogDb,
     CatalogItemType,
@@ -64,55 +62,27 @@ def compute_catalog_sha(item_type: CatalogItemType | str, content: str) -> tuple
     return sha, checksum
 
 
-def scan_and_index_catalog(cwd: Path | None = None) -> CatalogScanResult:
-    """Scan `.worktree/catalog/` subdirectories, compute SHA checksums, and sync SQLite database."""
-    catalog_dir = ensure_catalog_dirs(cwd)
-    migrate_legacy_workflows(cwd)
-
+def _scan_catalog_subdirectories(
+    *, cwd: Path | None = None, catalog_dir: Path, subdirs: list[tuple[CatalogItemType, Path]]
+) -> CatalogSubdirectoryScanResult:
     scanned_records: list[CatalogRecord] = []
     errors: list[str] = []
     scanned_shas: set[str] = set()
-
-    subdirs: list[tuple[CatalogItemType, Path]] = [
-        (CatalogItemType.WORKFLOW, catalog_dir / "workflows"),
-        (CatalogItemType.TASK, catalog_dir / "tasks"),
-        (CatalogItemType.STEP, catalog_dir / "steps"),
-    ]
 
     for item_type, sub_dir in subdirs:
         if not sub_dir.exists():
             continue
 
-        for file_path in sorted(sub_dir.glob("*")):
-            if not file_path.is_file() or file_path.suffix.lower() not in (
-                ".yml",
-                ".yaml",
-            ):
-                continue
-
-            try:
-                content = file_path.read_text(encoding="utf-8")
-            except OSError as exc:
-                errors.append(f"Failed to read catalog blueprint '{file_path}': {exc}")
-                continue
-
-            name = file_path.stem
-            try:
-                yaml_data = yaml.safe_load(content)
-                if isinstance(yaml_data, dict) and yaml_data.get("name"):
-                    name = str(yaml_data["name"])
-            except Exception:
-                # Fallback to file stem if YAML parsing fails or is non-dict
-                pass
-
-            sha, checksum = compute_catalog_sha(item_type, content)
-            rel_path = file_path.relative_to(catalog_dir)
+        yaml_files = scan_yaml_directory(sub_dir)
+        for file_entry in yaml_files:
+            sha, checksum = compute_catalog_sha(item_type, str(file_entry.content))
+            rel_path = file_entry.path.relative_to(catalog_dir)
 
             try:
                 record = CatalogDb(cwd).upsert(
                     sha=sha,
                     item_type=item_type,
-                    name=name,
+                    name=file_entry.name,
                     path=rel_path,
                     checksum=checksum,
                 )
@@ -121,18 +91,34 @@ def scan_and_index_catalog(cwd: Path | None = None) -> CatalogScanResult:
             except Exception as exc:
                 errors.append(f"Failed to index catalog record for '{rel_path}': {exc}")
 
+    return CatalogSubdirectoryScanResult(scanned_records=scanned_records, errors=errors, scanned_shas=scanned_shas)
+
+
+def scan_and_index_catalog(cwd: Path | None = None) -> CatalogScanResult:
+    """Scan `.worktree/catalog/` subdirectories, compute SHA checksums, and sync SQLite database."""
+    catalog_dir = ensure_catalog_dirs(cwd)
+    migrate_legacy_workflows(cwd)
+
+    subdirs: list[tuple[CatalogItemType, Path]] = [
+        (CatalogItemType.WORKFLOW, catalog_dir / "workflows"),
+        (CatalogItemType.TASK, catalog_dir / "tasks"),
+        (CatalogItemType.STEP, catalog_dir / "steps"),
+    ]
+    scan_result = _scan_catalog_subdirectories(cwd=cwd, catalog_dir=catalog_dir, subdirs=subdirs)
+    errors = scan_result.errors
+
     # Remove stale DB records for files no longer on disk
     try:
         db_items = CatalogDb(cwd).list()
         for record in db_items:
-            if record.sha not in scanned_shas:
+            if record.sha not in scan_result.scanned_shas:
                 disk_file = catalog_dir / record.path
                 if not disk_file.exists():
                     CatalogDb(cwd).delete(record.sha)
     except Exception as exc:
         errors.append(f"Error purging stale catalog DB records: {exc}")
 
-    return CatalogScanResult(items=scanned_records, errors=errors)
+    return CatalogScanResult(items=scan_result.scanned_records, errors=errors)
 
 
 def create_catalog_item(

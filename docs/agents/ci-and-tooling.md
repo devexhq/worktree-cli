@@ -23,11 +23,12 @@ function. Run it through the `inv complexity` task in
 inv complexity                                          # whole tree, rich output (matches CI)
 inv complexity --paths getworktree/cli/task/command.py  # scope to specific file(s), comma-separated
 inv complexity --plain                                  # script-friendly output for agents
+inv complexity --plain --failed                         # script-friendly output for agents, list failures only
 ```
 
-Agents must run `inv complexity --paths <changed-file1>,<changed-file2> --plain`
+Agents must run `inv complexity --paths <changed-file1>,<changed-file2> --plain --failed`
 before committing and must not commit while it reports a failure. The task
-wraps `complexipy <paths> --max-complexity-allowed 10 --failed` (add
+wraps `complexipy <paths> --max-complexity-allowed 10` (add
 `--suggest-refactors` for rich-mode refactor hints; ignored with `--plain`).
 Treat any function you touch that fails the threshold as a required fix in
 that PR, not a follow-up — see the "Structure" rules in

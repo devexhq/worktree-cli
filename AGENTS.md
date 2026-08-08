@@ -20,7 +20,7 @@ Use `pytest -q` during development. Prefer scoping to the test module/function d
 Before committing, all of these must pass:
 `inv test -c` (coverage, **≥ 80%** via `fail_under` in `pyproject.toml`),
 `ruff format`, `ruff check`,
-`inv complexity --paths <changed-file1>,<changed-file2> --plain` (no touched
+`inv complexity --paths <changed-file1>,<changed-file2> --plain --failed` (no touched
 function may exceed complexity 10). Fix any failure before retrying the commit
 — do not commit while `inv complexity` is failing.
 
