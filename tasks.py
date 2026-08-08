@@ -36,3 +36,29 @@ def docs(context, serve=True):
     cmd = [sys.executable, "-m", "mkdocs", "serve" if serve else "build"]
     env = os.environ.copy()
     context.run(" ".join(shlex.quote(part) for part in cmd), env=env, pty=False)
+
+
+@task
+def complexity(context, paths="getworktree", plain=False, max_complexity=10, suggest_refactors=False):
+    """Run complexipy, failing if any function exceeds max_complexity.
+
+    Agents: pass the changed file(s) via `paths` (comma-separated) and use
+    `plain=True` for script-friendly output; run this before every commit and
+    do not commit while it fails. CI/humans: leave `paths`/`plain` at their
+    defaults for a rich, whole-tree report.
+    """
+    targets = [p for p in paths.replace("\n", ",").split(",") if p.strip()]
+    cmd = [
+        "complexipy",
+        *targets,
+        "--max-complexity-allowed",
+        str(max_complexity),
+        "--failed",
+    ]
+    if plain:
+        cmd.append("--plain")
+    elif suggest_refactors:
+        cmd.append("--suggest-refactors")
+
+    env = os.environ.copy()
+    context.run(" ".join(shlex.quote(part) for part in cmd), env=env, pty=False)

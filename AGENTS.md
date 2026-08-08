@@ -11,6 +11,7 @@ uv sync --all-extras            # install dependencies with uv (or uv pip instal
 inv test                        # run tests (python -m pytest tests/ -q)
 ruff check .                    # lint
 ruff format .                   # format
+inv complexity --paths <changed-file1>,<changed-file2> --plain   # complexity gate for changed files
 ```
 
 ## Testing / Code Quality
@@ -18,7 +19,10 @@ ruff format .                   # format
 Use `pytest -q` during development. Prefer scoping to the test module/function during quick iterations. 
 Before committing, all of these must pass:
 `inv test -c` (coverage, **≥ 80%** via `fail_under` in `pyproject.toml`),
-`ruff format`, `ruff check`. Fix any failure before retrying the commit.
+`ruff format`, `ruff check`,
+`inv complexity --paths <changed-file1>,<changed-file2> --plain` (no touched
+function may exceed complexity 10). Fix any failure before retrying the commit
+— do not commit while `inv complexity` is failing.
 
 Coverage is a **backstop**, not a goal. Do **not** add tests only to raise the
 percentage. Prefer tests that lock real behavior and regressions; see

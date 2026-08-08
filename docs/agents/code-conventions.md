@@ -14,11 +14,27 @@ Follow this for any new `BaseModel` you add.
 ## Structure
 Use standalone functions or classes / packages of modules where appropriate. A function or class that requires > 5 arguments should be refactored to accept an env/context/configuration object (frozen dataclass) instead. 
 
-Do not create God-functions - opt instead to break down functionality into separate functions within a class or within the module if there is truly no shared logic that would warrant a class structure.
-
-Look to keep code DRY - avoid useless repetition in production code.
+Do not create God-functions - opt instead to break down functionality into separate functions within a class or within the module if there is truly no shared logic that would warrant a class structure. `complexipy` (see [ci-and-tooling.md](ci-and-tooling.md)) is the mechanical check for this — if a function you touched shows up in a fresh run, extract before merging rather than leaving it for later.
 
 Do not include test seams in function and class definitions. Production code should exercise production logic only, not test-related logic.
+
+### Keep code DRY
+
+Avoid useless repetition in production code. Before writing a new private helper, grep for an existing one with similar behavior in `common/` and in sibling packages — duplicated formatting/normalization helpers (e.g. two copies of the same warning-bullet formatter in two different modules, or the same `x.value if hasattr(x, "value") else str(x)` enum guard copy-pasted across every CLI renderer) are a recurring smell in this codebase. If two or more modules need the same small piece of logic:
+
+- Put it in `common/` when it has no dependency on a specific domain package.
+- Put it in the more foundational domain package (see the import-direction rule
+  in [architecture.md](architecture.md#package-boundaries-import-direction)) and import it from there, rather than copying it forward.
+
+### One model per concept
+
+Before adding a new Pydantic model, check whether an existing model in `core/`
+already represents the same domain concept (a "step", a "workflow run", etc.).
+Two divergent models for the same concept living in different packages —
+with mismatched required fields or different enum vocabularies for the same
+idea — are worse than one model imported across a package boundary. Prefer
+sharing the existing model, or explicitly replacing it in the same change,
+over adding a second one.
 
 ## Result/Outcome pattern
 
@@ -54,6 +70,15 @@ Prefer **inline f-strings** (or plain string literals) at the call site when
 building user-facing `errors` / `warnings` entries. Do **not** add private
 helpers whose only job is to format a single message template
 (e.g. `_invalid_diff_error(detail) -> str`).
+
+This scales up, too: a function whose only job is assembling a large text
+report by branching on input shape (e.g. building a multi-line `wt workflow
+show` summary via a long chain of `if isinstance(...)` blocks appending to a
+`list[str]`) is still a message-formatting function, just a bigger one — and
+it will show up as a God-function in `complexipy`. Decompose it into one small
+helper per section (header, warnings, steps, ...), each returning
+`list[str]`, and keep the public function as a thin composer that
+concatenates them. Don't let one function own the whole document.
 
 Good (see `core/workflows/metadata.py`):
 
@@ -100,6 +125,17 @@ Rules of thumb:
 - Do **not** introduce a shared error-catalog module of formatters; that
   recreates the pattern this convention removes.
 - Do **not** import private `_…_error` helpers across modules.
+
+## Exception handling
+
+`except Exception: pass` (or an equivalent silent `continue`) is not allowed
+outside genuinely best-effort cleanup (e.g. discarding a partial sandbox after
+a failed create). If the enclosing function already threads a
+`warnings: list[str]` or `errors: list[str]` through its `Result`/`Outcome`
+model — most do, per the pattern above — route the exception message into
+that list instead of discarding it; the caller and the CLI renderer already
+know how to surface it. If a broad `except` really is best-effort and nothing
+should be reported, leave a one-line comment at the `except` site saying so.
 
 ## Docstrings and imports
 
