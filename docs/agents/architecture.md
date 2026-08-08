@@ -420,10 +420,12 @@ baseline before the next attempt. `local`/`ollama` never set
 
 ## Iteration controller
 
-`run_workflow_iteration` ([getworktree/core/workflows/runner/runner.py](../../getworktree/core/workflows/runner/runner.py))
-owns one full workflow **session** attempt cycle. No Rich printing; returns
-`WorkflowRunResult` only. Engines are injected for tests (`run_trigger_fn`,
-`apply_patch_fn`, `agent`, sandbox create/cleanup, etc.). The `runner` package
+`WorkflowRunner` and `run_workflow_iteration` ([getworktree/core/workflows/runner/runner.py](../../getworktree/core/workflows/runner/runner.py))
+own one full workflow **session** attempt cycle. No Rich printing; returns
+`WorkflowRunResult` only. Invocations take `(workflow, cwd, options)` where
+`options` is a `WorkflowRunOptions` dataclass containing optional CLI overrides
+and UI event listeners. Unit tests use standard pytest module patching rather
+than passing test-injection callbacks into the production runner. The `runner` package
 also has `runner_models.py` (run-result models and callback type aliases,
 a sibling module), `helpers.py` (stateless utilities), and `steps.py`
 (`_WorkflowContext` plus the per-attempt `_run_*_step` functions);

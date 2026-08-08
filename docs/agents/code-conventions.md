@@ -11,6 +11,15 @@ model_config = {"extra": "forbid", "strict": True}
 This catches typos in constructed payloads and unexpected extra keys early.
 Follow this for any new `BaseModel` you add.
 
+## Structure
+Use standalone functions or classes / packages of modules where appropriate. A function or class that requires > 5 arguments should be refactored to accept an env/context/configuration object (frozen dataclass) instead. 
+
+Do not create God-functions - opt instead to break down functionality into separate functions within a class or within the module if there is truly no shared logic that would warrant a class structure.
+
+Look to keep code DRY - avoid useless repetition in production code.
+
+Do not include test seams in function and class definitions. Production code should exercise production logic only, not test-related logic.
+
 ## Result/Outcome pattern
 
 Operations that can partially succeed return a Pydantic result object instead of

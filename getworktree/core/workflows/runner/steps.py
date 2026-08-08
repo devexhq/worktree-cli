@@ -17,12 +17,15 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from getworktree.core.config.models import WorktreeConfig
+from getworktree.core.workflows.agents.mutation_git import discard_since
 from getworktree.core.workflows.models import WorkflowDefinition
 from getworktree.core.workflows.patch import (
     PatchApplyResult,
     PatchApplyStatus,
+    apply_patch_result,
     validate_patch_text,
 )
+from getworktree.core.workflows.payload import build_failure_payload
 from getworktree.core.workflows.runner.helpers import (
     _advance_or_exhaust,
     _dump_agent_input,
@@ -30,18 +33,13 @@ from getworktree.core.workflows.runner.helpers import (
     _is_aborted,
     _now_iso,
     _trigger_summary,
+    default_list_changed_files,
 )
 from getworktree.core.workflows.runner_models import (
-    ApplyPatchFn,
     ApprovePatchFn,
     AttemptRecord,
-    BuildPayloadFn,
-    DiscardMutationFn,
-    IsAbortedFn,
-    ListChangedFilesFn,
     OnAttemptEndFn,
     OnEventFn,
-    RunTriggerFn,
     StepOutcome,
     StopReason,
     WorkflowFinalStatus,
@@ -54,7 +52,7 @@ from getworktree.core.workflows.safety import (
     record_trigger_success,
     session_timed_out,
 )
-from getworktree.core.workflows.trigger import TriggerRunResult
+from getworktree.core.workflows.trigger import TriggerRunResult, run_trigger
 
 if TYPE_CHECKING:
     from getworktree.core.workflows.agents.base import AgentAdapter, AgentResponse
@@ -64,7 +62,7 @@ if TYPE_CHECKING:
 class _WorkflowContext:
     """Resolved, per-run state shared by every attempt step.
 
-    Built once by ``run_workflow_iteration`` after config/sandbox/agent
+    Built once by ``WorkflowRunner`` after config/sandbox/agent
     resolution. Step functions read from and append to this object plus the
     per-attempt ``AttemptRecord`` they're given, so the attempt workflow itself
     only has to dispatch on the ``StepOutcome`` each step returns.
@@ -83,14 +81,8 @@ class _WorkflowContext:
     max_patch_kb: int | None
     resolved_detect_repeat: bool
     resolved_session_timeout: int | None
-    trigger_runner: RunTriggerFn
-    patch_applier: ApplyPatchFn
-    mutation_discarder: DiscardMutationFn
-    payload_builder: BuildPayloadFn
-    changed_files_fn: ListChangedFilesFn
     approve_patch: ApprovePatchFn | None
     abort_event: threading.Event | None
-    is_aborted: IsAbortedFn | None
     on_event: OnEventFn | None
     on_attempt_end: OnAttemptEndFn | None
     prompt_dump_dir: Path | None
@@ -100,7 +92,7 @@ class _WorkflowContext:
 
     def aborted(self) -> bool:
         """Return True when a cooperative abort has been requested."""
-        return _is_aborted(abort_event=self.abort_event, is_aborted=self.is_aborted)
+        return _is_aborted(abort_event=self.abort_event)
 
     def timed_out(self) -> bool:
         """Return True when the session wall-clock cap has been exceeded."""
@@ -138,7 +130,7 @@ def _run_trigger_step(
         args=trig_args,
         timeout_seconds=trig_timeout,
     )
-    trigger_result = ctx.trigger_runner(
+    trigger_result = run_trigger(
         command=trig_cmd,
         args=trig_args,
         cwd=ctx.sandbox_path,
@@ -243,8 +235,8 @@ def _run_agent_step(
     # Lazy import avoids circular dependency: agents.base → workflows.payload → workflows.
     from getworktree.core.workflows.agents.base import AgentRequest, AgentResponseStatus
 
-    changed = ctx.changed_files_fn(ctx.sandbox_path)
-    payload = ctx.payload_builder(
+    changed = default_list_changed_files(ctx.sandbox_path)
+    payload = build_failure_payload(
         trigger=trigger_result,
         sandbox_path=ctx.sandbox_path,
         include=["trigger_output", "changed_files"],
@@ -323,7 +315,7 @@ def _run_agent_step(
 
     if agent_response.status == AgentResponseStatus.UNFIXABLE:
         if agent_response.mutation_baseline_ref is not None:
-            ctx.mutation_discarder(ctx.sandbox_path, agent_response.mutation_baseline_ref)
+            discard_since(ctx.sandbox_path, agent_response.mutation_baseline_ref)
         ctx.finish_attempt(record)
         if "unfixable" in ctx.stop_when:
             return (
@@ -355,7 +347,7 @@ def _run_agent_step(
         AgentResponseStatus.NO_OP,
     }:
         if agent_response.mutation_baseline_ref is not None:
-            ctx.mutation_discarder(ctx.sandbox_path, agent_response.mutation_baseline_ref)
+            discard_since(ctx.sandbox_path, agent_response.mutation_baseline_ref)
         ctx.finish_attempt(record)
         if ctx.aborted():
             return (
@@ -373,7 +365,7 @@ def _run_agent_step(
         record.errors.append("Agent proposed_patch without unified_diff")
         record.patch_status = PatchApplyStatus.EMPTY_DIFF.value
         if agent_response.mutation_baseline_ref is not None:
-            ctx.mutation_discarder(ctx.sandbox_path, agent_response.mutation_baseline_ref)
+            discard_since(ctx.sandbox_path, agent_response.mutation_baseline_ref)
         ctx.finish_attempt(record)
         return (_advance_or_exhaust(attempt_idx, ctx.max_attempts), None)
 
@@ -429,7 +421,7 @@ def _run_approval_step(
             rejection_error = "Patch apply skipped: approval rejected"
             record.errors.append(rejection_error)
             if agent_response.mutation_baseline_ref is not None:
-                ctx.mutation_discarder(ctx.sandbox_path, agent_response.mutation_baseline_ref)
+                discard_since(ctx.sandbox_path, agent_response.mutation_baseline_ref)
             ctx.finish_attempt(record)
             _emit(
                 ctx.on_event,
@@ -485,10 +477,10 @@ def _run_patch_step(
                 touched_files=list(validation.touched_files),
             )
         else:
-            ctx.mutation_discarder(ctx.sandbox_path, agent_response.mutation_baseline_ref)
+            discard_since(ctx.sandbox_path, agent_response.mutation_baseline_ref)
             patch_result = validation
     else:
-        patch_result = ctx.patch_applier(
+        patch_result = apply_patch_result(
             sandbox_path=ctx.sandbox_path,
             unified_diff=agent_response.unified_diff,
             max_files=ctx.max_files,

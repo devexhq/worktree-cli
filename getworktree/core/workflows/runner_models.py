@@ -8,10 +8,12 @@ signatures). Workflow *definition* schema (parsed from YAML) lives in
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Callable
+from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
 
@@ -19,6 +21,10 @@ from getworktree.core.git_sandbox import SandboxCreateResult, SandboxSession
 from getworktree.core.workflows.patch import PatchApplyResult
 from getworktree.core.workflows.payload import AgentFailurePayload
 from getworktree.core.workflows.trigger import TriggerRunResult
+
+if TYPE_CHECKING:
+    from getworktree.core.config.models import WorktreeConfig
+    from getworktree.core.workflows.agents.base import AgentAdapter
 
 
 class WorkflowFinalStatus(StrEnum):
@@ -118,3 +124,26 @@ OnEventFn = Callable[[str, dict[str, Any]], None]
 IsAbortedFn = Callable[[], bool]
 CreateSandboxFn = Callable[[], SandboxCreateResult]
 CleanupSandboxFn = Callable[[SandboxSession], None]
+
+
+@dataclass(kw_only=True)
+class WorkflowRunOptions:
+    """Runtime invocation overrides and event callbacks for a workflow execution session."""
+
+    max_attempts: int | None = None
+    require_before_apply: bool | None = None
+    auto_clean: bool | None = None
+    keep_on_failure: bool | None = None
+    stop_when: set[str] | None = None
+    include_wip: bool = False
+    prompt_dump_dir: Path | None = None
+    session_timeout_seconds: float | int | None = None
+    session_id: str | None = None
+    config: WorktreeConfig | None = None
+    no_sandbox: bool = False
+
+    agent: AgentAdapter | None = None
+    on_event: OnEventFn | None = None
+    on_attempt_end: OnAttemptEndFn | None = None
+    approve_patch: ApprovePatchFn | None = None
+    abort_event: threading.Event | None = None

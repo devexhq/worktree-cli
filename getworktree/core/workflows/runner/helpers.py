@@ -22,7 +22,6 @@ from getworktree.core.config.models import WorktreeConfig
 from getworktree.core.git_sandbox import SandboxSession
 from getworktree.core.workflows.models import WorkflowDefinition
 from getworktree.core.workflows.runner_models import (
-    IsAbortedFn,
     OnEventFn,
     StepOutcome,
     StopReason,
@@ -102,11 +101,8 @@ def default_list_changed_files(sandbox_path: Path) -> list[str]:
 def _is_aborted(
     *,
     abort_event: threading.Event | None,
-    is_aborted: IsAbortedFn | None,
 ) -> bool:
     if abort_event is not None and abort_event.is_set():
-        return True
-    if is_aborted is not None and is_aborted():
         return True
     return False
 
