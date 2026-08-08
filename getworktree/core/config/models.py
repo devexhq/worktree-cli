@@ -17,7 +17,6 @@ AgentProvider = Literal[
     "azure_openai",
     "custom",
 ]
-PatchStrategy = Literal["unified_diff"]
 
 
 class ProjectConfig(BaseModel):
@@ -47,22 +46,8 @@ class SandboxConfig(BaseModel):
     model_config = {"extra": "forbid", "strict": True}
 
     base_ref: str = Field(default="HEAD", min_length=1)
-    auto_clean: bool = True
-    keep_on_failure: bool = True
     max_active_sandboxes: int = Field(default=3, ge=1)
     default_timeout_seconds: int = Field(default=900, ge=1)
-
-
-class WorkflowConfig(BaseModel):
-    """Workflow attempt and timeout defaults."""
-
-    model_config = {"extra": "forbid", "strict": True}
-
-    default_max_attempts: int = Field(default=5, ge=1)
-    default_trigger_timeout_seconds: int = Field(default=600, ge=1)
-    default_agent_timeout_seconds: int = Field(default=120, ge=1)
-    max_attempts_hard_limit: int = Field(default=20, ge=1)
-    detect_repeat_failures: bool = True
 
 
 class AgentConfig(BaseModel):
@@ -75,26 +60,6 @@ class AgentConfig(BaseModel):
     endpoint: str | None = Field(default=None, min_length=1)
     temperature: float = Field(default=0.2, ge=0, le=2)
     max_tokens: int = Field(default=4096, ge=1)
-
-
-class PatchConfig(BaseModel):
-    """Patch application limits and strategy."""
-
-    model_config = {"extra": "forbid", "strict": True}
-
-    strategy: PatchStrategy = "unified_diff"
-    max_files: int = Field(default=30, ge=1)
-    max_patch_kb: int = Field(default=1024, ge=1)
-    reject_binary_changes: bool = True
-
-
-class ApprovalConfig(BaseModel):
-    """Human-approval gates before applying changes."""
-
-    model_config = {"extra": "forbid", "strict": True}
-
-    require_before_apply: bool = True
-    require_before_final_apply: bool = True
 
 
 class HistoryConfig(BaseModel):
@@ -148,10 +113,7 @@ class WorktreeConfig(BaseModel):
     project: ProjectConfig
     paths: PathsConfig = Field(default_factory=PathsConfig)
     sandbox: SandboxConfig = Field(default_factory=SandboxConfig)
-    workflow: WorkflowConfig = Field(default_factory=WorkflowConfig)
     agent: AgentConfig = Field(default_factory=AgentConfig)
-    patch: PatchConfig = Field(default_factory=PatchConfig)
-    approval: ApprovalConfig = Field(default_factory=ApprovalConfig)
     history: HistoryConfig = Field(default_factory=HistoryConfig)
     doctor: DoctorConfig = Field(default_factory=DoctorConfig)
     prune: PruneConfig = Field(default_factory=PruneConfig)

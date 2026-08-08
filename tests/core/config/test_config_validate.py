@@ -142,25 +142,6 @@ class ValidateConfigResultLoadFailureTests:
 class ValidateConfigResultSemanticErrorTests:
     """Semantic error rules after structural pass."""
 
-    def test_max_attempts_exceeds_hard_limit(self, tmp_path: Path) -> None:
-        raw = build_default_config("demo")
-        raw["workflow"]["default_max_attempts"] = 5
-        raw["workflow"]["max_attempts_hard_limit"] = 3
-        _write_config(tmp_path / ".worktree" / "config.json", raw)
-        result = validate_config_result(cwd=tmp_path)
-        assert result.status == ConfigValidationStatus.INVALID
-        assert not result.ok
-        assert result.config is None
-        assert result.raw is not None
-        assert len(result.errors) == 1
-        msg = result.errors[0]
-        assert "CONFIG_SEMANTIC_MAX_ATTEMPTS" in msg
-        assert "workflow.default_max_attempts" in msg
-        assert "workflow.max_attempts_hard_limit" in msg
-        assert "5" in msg
-        assert "3" in msg
-        assert "Fix:" in msg
-
     def test_path_invalid_control_characters(self, tmp_path: Path) -> None:
         raw = build_default_config("demo")
         raw["paths"]["workflows_dir"] = ".worktree/workflows\nbad"
@@ -174,21 +155,6 @@ class ValidateConfigResultSemanticErrorTests:
         assert "paths.db_path" in result.errors[0]
         assert "paths.workflows_dir" in result.errors[1]
         assert all("Fix:" in e for e in result.errors)
-
-    def test_semantic_error_order_max_attempts_then_paths(self, tmp_path: Path) -> None:
-        raw = build_default_config("demo")
-        raw["workflow"]["default_max_attempts"] = 9
-        raw["workflow"]["max_attempts_hard_limit"] = 2
-        raw["paths"]["artifacts_dir"] = "art\nifacts"
-        raw["paths"]["root_dir"] = "root\x00dir"
-        _write_config(tmp_path / ".worktree" / "config.json", raw)
-        result = validate_config_result(cwd=tmp_path)
-        assert result.status == ConfigValidationStatus.INVALID
-        assert len(result.errors) == 3
-        assert "CONFIG_SEMANTIC_MAX_ATTEMPTS" in result.errors[0]
-        # Path keys are reported in lexicographic order.
-        assert "paths.artifacts_dir" in result.errors[1]
-        assert "paths.root_dir" in result.errors[2]
 
 
 class ValidateConfigResultSemanticWarningTests:
@@ -263,8 +229,7 @@ class ValidateConfigResultSemanticWarningTests:
 
     def test_semantic_errors_with_warnings(self, tmp_path: Path) -> None:
         raw = build_default_config("demo")
-        raw["workflow"]["default_max_attempts"] = 8
-        raw["workflow"]["max_attempts_hard_limit"] = 1
+        raw["paths"]["root_dir"] = "root\x00dir"
         raw["agent"]["provider"] = "custom"
         raw["agent"]["model"] = None
         _write_config(tmp_path / ".worktree" / "config.json", raw)
@@ -272,5 +237,5 @@ class ValidateConfigResultSemanticWarningTests:
         assert result.status == ConfigValidationStatus.INVALID
         assert not result.ok
         assert result.config is None
-        assert any("CONFIG_SEMANTIC_MAX_ATTEMPTS" in e for e in result.errors)
+        assert any("CONFIG_SEMANTIC_PATH_INVALID" in e for e in result.errors)
         assert any("CONFIG_WARN_AGENT_MODEL_MISSING" in w for w in result.warnings)

@@ -1,6 +1,15 @@
 # `wt workflow`
 
-The `wt workflow` command manages autonomous AI workflows following a **Plan → Execute → Verify** loop cycle.
+The `wt workflow` command discovers, lists, and validates workflow definitions.
+
+> **Status:** `wt workflow run` and `wt workflow resume` currently only load and
+> validate a workflow definition — they do not execute any steps yet. Step
+> execution is being rebuilt incrementally on top of the Workflow Spec v1
+> model; see
+> [docs/agents/architecture.md](../agents/architecture.md#workflow-run-cli-not-yet-executing-workflows)
+> and issues [#171](https://github.com/getworktree/getworktree/issues/171),
+> [#172](https://github.com/getworktree/getworktree/issues/172), and
+> [#173](https://github.com/getworktree/getworktree/issues/173).
 
 ## Subcommands
 
@@ -22,28 +31,16 @@ wt workflow show <session_id>
 
 ### `wt workflow run`
 
-Executes an autonomous workflow loop in an isolated Git worktree sandbox:
+Validates a workflow definition by name. Execution is not implemented yet: on
+a valid definition the command prints an error panel and exits `1`.
 
 ```bash
-wt workflow run <name> [OPTIONS]
+wt workflow run <name>
 ```
 
 #### Arguments
 
-* `name`: Logical workflow blueprint name registered in catalog storage or built-in templates.
-
-#### Options
-
-* `--max-attempts INTEGER`: Override maximum loop attempts (>= 1).
-* `--keep / --no-keep`: Retain the sandbox worktree upon completion (overrides `auto_clean`).
-* `--approve-each / --no-approve-each`: Require explicit user confirmation before applying patch diffs.
-* `--wip / --no-wip`: Include uncommitted working-tree changes in the sandbox workspace.
-* `--dump-prompt / --no-dump-prompt`: Debugging aid to dump LLM prompt payloads to `/tmp`.
-
-```bash
-# Run a test fixing workflow with custom max attempts and WIP changes
-wt workflow run fix-tests --max-attempts 5 --wip
-```
+* `name`: Logical workflow name registered in catalog storage or built-in templates.
 
 ### `wt workflow resume`
 
@@ -57,64 +54,43 @@ wt workflow resume <session_id>
 
 ## Workflow YAML Definition Schema
 
-Workflow blueprints live in `.worktree/catalog/workflows/<name>.yml`. Below is the complete schema specification:
+Workflow blueprints live in `.worktree/workflows/<name>.yml` (see
+`paths.workflows_dir` in [config](../getting-started/configuration.md)). Below
+is an example matching the current Workflow Spec v1 schema
+(`getworktree/schemas/v1/workflow.json`):
 
 ```yaml
-name: fix-tests
-description: Autonomous test remediation loop
-
-trigger:
-  command: pytest
-  args: ["-q"]
-  timeout_seconds: 120
-
-agent:
-  provider: gemini
-  mode: fix_failure
-  timeout_seconds: 300
-
-iteration:
-  max_attempts: 3
-  stop_when:
-    - trigger_passes
-    - unfixable
-
-sandbox:
-  auto_clean: true
-  keep_on_failure: true
-
-approval:
-  require_before_apply: false
-
-context:
-  include:
-    - trigger_output
-    - changed_files
-
-patch:
-  strategy: unified_diff
+version: "1.0"
+name: "fix-tests"
+description: "Iteratively fix failing tests until they pass or attempts are exhausted"
+timeout_seconds: 600
 
 steps:
-  # 1. Inline Command Step
-  - name: lint-check
-    type: command
-    command: ruff check .
-    timeout_seconds: 60
-    failure_action: abort
+  - id: dev-cycle
+    type: loop
+    max_iterations: 5
+    until:
+      - "steps.run-tests.exit_code == 0"
+    on_max_iterations: prompt_user
+    do:
+      - id: run-tests
+        run: pytest
+        on_failure: continue
 
-  # 2. Step Reference (catalog step blueprint)
-  - step_id: run-coverage
-    override_timeout_seconds: 180
+      - id: ai-fix
+        uses: wt/ai-code-patcher
+        on_failure: abort
 ```
 
 ### Workflow Configuration Sections
 
 | Key | Description |
 | --- | --- |
-| `trigger` | Command executed to test success/failure (`command`, `args`, `timeout_seconds`). |
-| `agent` | LLM agent loop configuration (`provider`, `mode`, `timeout_seconds`). Providers: `gemini`, `openai`, `anthropic`, `copilot`, `cursor`, `ollama`, `local`. |
-| `iteration` | Stopping criteria (`max_attempts`, `stop_when`: `trigger_passes` \| `unfixable` \| `user_abort`). |
-| `sandbox` | Cleanup policy (`auto_clean`, `keep_on_failure`). |
-| `approval` | Require confirmation gate (`require_before_apply`). |
-| `context` | Context attached to prompt (`trigger_output`, `changed_files`, `relevant_source`). |
-| `steps` | List of pipeline steps (hybrid: inline step definitions or `step_id` catalog references). |
+| `version` | Must be `1` or `"1.0"`. |
+| `name` | Required; workflow identifier (defaults `id` to `name` if omitted). |
+| `description` | Optional human-readable summary. |
+| `timeout_seconds` | Optional overall workflow timeout (`>= 1`). |
+| `env` | Optional environment variables map. |
+| `inputs` | Optional named input declarations (`description`, `required`, `default`). |
+| `steps` | List of standard steps (`uses`/`run`, mutually exclusive) and/or `loop` blocks (`max_iterations`, `until`, `do`, `on_max_iterations`). |
+

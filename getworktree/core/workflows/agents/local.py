@@ -135,9 +135,7 @@ class LocalAgentAdapter:
                     f"Agent timed out after {request.timeout_seconds}s "
                     f"(provider=local).\n"
                     "Fix:\n"
-                    "- raise agent.timeout_seconds on the workflow, or\n"
-                    "- raise workflow.default_agent_timeout_seconds in "
-                    ".worktree/config.json"
+                    "- raise agent.timeout_seconds on the workflow"
                 ],
             )
         except FileNotFoundError as exc:

@@ -81,10 +81,6 @@ class ConfigV1SchemaAcceptTests:
             data = _mutate("agent.provider", provider)
             assert CONFIG_VALIDATOR.validate(data).ok, provider
 
-    def test_unified_diff_strategy(self) -> None:
-        data = _mutate("patch.strategy", "unified_diff")
-        assert CONFIG_VALIDATOR.validate(data).ok
-
 
 class ConfigV1SchemaRejectTests:
     """Each major invalid class must fail with path-qualified errors."""
@@ -96,8 +92,8 @@ class ConfigV1SchemaRejectTests:
 
     def test_missing_nested_key(self) -> None:
         data = _valid_config()
-        del data["workflow"]["default_max_attempts"]
-        _assert_schema_error(data, "workflow")
+        del data["sandbox"]["max_active_sandboxes"]
+        _assert_schema_error(data, "sandbox")
 
     def test_unknown_root_property(self) -> None:
         data = _valid_config()
@@ -114,12 +110,12 @@ class ConfigV1SchemaRejectTests:
 
     def test_wrong_types(self) -> None:
         _assert_schema_error(
-            _mutate("workflow.default_max_attempts", "five"),
-            "workflow.default_max_attempts",
+            _mutate("sandbox.max_active_sandboxes", "five"),
+            "sandbox.max_active_sandboxes",
         )
         _assert_schema_error(
-            _mutate("sandbox.auto_clean", "yes"),
-            "sandbox.auto_clean",
+            _mutate("sandbox.base_ref", 5),
+            "sandbox.base_ref",
         )
 
     def test_empty_path_strings(self) -> None:
@@ -141,16 +137,10 @@ class ConfigV1SchemaRejectTests:
             "agent.provider",
         )
 
-    def test_invalid_patch_strategy_enum(self) -> None:
-        _assert_schema_error(
-            _mutate("patch.strategy", "git_apply"),
-            "patch.strategy",
-        )
-
     def test_numeric_out_of_range(self) -> None:
         _assert_schema_error(
-            _mutate("workflow.default_max_attempts", 0),
-            "workflow.default_max_attempts",
+            _mutate("sandbox.max_active_sandboxes", 0),
+            "sandbox.max_active_sandboxes",
         )
         _assert_schema_error(
             _mutate("agent.temperature", -0.1),
@@ -180,7 +170,7 @@ class ConfigV1ModelAlignmentTests:
     def test_model_accepts_generated_defaults(self) -> None:
         config = parse_and_validate_config(build_default_config("demo"))
         assert config.agent.provider == "local"
-        assert config.patch.strategy == "unified_diff"
+        assert config.sandbox.max_active_sandboxes == 3
         assert config.agent.temperature == 0.2
 
     def test_model_rejects_unknown_keys(self) -> None:

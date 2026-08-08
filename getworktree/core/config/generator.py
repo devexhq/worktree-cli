@@ -29,17 +29,8 @@ CANONICAL_V1_DEFAULTS: dict[str, Any] = {
     },
     "sandbox": {
         "base_ref": "HEAD",
-        "auto_clean": True,
-        "keep_on_failure": True,
         "max_active_sandboxes": 3,
         "default_timeout_seconds": 900,
-    },
-    "workflow": {
-        "default_max_attempts": 5,
-        "default_trigger_timeout_seconds": 600,
-        "default_agent_timeout_seconds": 120,
-        "max_attempts_hard_limit": 20,
-        "detect_repeat_failures": True,
     },
     "agent": {
         "provider": "local",
@@ -47,16 +38,6 @@ CANONICAL_V1_DEFAULTS: dict[str, Any] = {
         "endpoint": None,
         "temperature": 0.2,
         "max_tokens": 4096,
-    },
-    "patch": {
-        "strategy": "unified_diff",
-        "max_files": 30,
-        "max_patch_kb": 1024,
-        "reject_binary_changes": True,
-    },
-    "approval": {
-        "require_before_apply": True,
-        "require_before_final_apply": True,
     },
     "history": {
         "save_attempt_logs": True,

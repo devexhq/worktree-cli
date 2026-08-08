@@ -88,8 +88,8 @@ Typed DB surface:
 
 ## Sandboxes
 
-`GitSandboxManager` / `sandbox_scope` ([getworktree/core/git_sandbox.py](../../getworktree/core/git_sandbox.py))
-own the V1 sandbox lifecycle used by workflow execution.
+`GitSandboxManager` ([getworktree/core/git_sandbox.py](../../getworktree/core/git_sandbox.py))
+owns the V1 sandbox lifecycle used by `wt sandbox create/show/delete`.
 
 ### CLI: Sandbox command group
 
@@ -202,109 +202,26 @@ Surface: `wt sandbox create|list|show|delete`. Shared patterns:
   Expiry → `git_timeout` / `SANDBOX_GIT_TIMEOUT` (distinct from trigger/agent
   timeouts; session timeout still does not cancel in-flight trigger/agent)
 
-### Cleanup policy
-`should_cleanup_sandbox(auto_clean, keep_on_failure, command_passed)`:
-
-| auto_clean | keep_on_failure | command_passed | clean? |
-|------------|-----------------|----------------|--------|
-| false | * | * | no |
-| true | false | * | yes |
-| true | true | True | yes |
-| true | true | False | no (retain failed run) |
-| true | true | None | yes (unclassified / aborted early) |
-
+### Cleanup
 `cleanup_sandbox` is idempotent: `git worktree remove` (force by default),
 best-effort `update_sandbox_status(..., CLEANED)` (DB errors swallowed; missing
 row is fine), best-effort `git branch -D`, then `git worktree prune`. Partial
-state (missing dir or branch) must not raise.
+state (missing dir or branch) must not raise. Used directly by
+`wt sandbox delete`; there is no automatic cleanup-policy wrapper yet.
 
-### Context manager
-`sandbox_scope(cwd, session_id=None, *, auto_clean=None, keep_on_failure=None)`
-creates one sandbox, yields `SandboxSession`, and on exit applies the policy
-above. Explicit kwargs override config; when omitted, cleanup defaults come from
-`GitSandboxManager.config` (public property set after a successful config load
-in `create_sandbox_result`). Callers set `session.command_passed` before leaving
-the scope. Body exceptions are never swallowed.
+## Patch validation
 
-
-## Trigger runner
-
-`run_trigger` ([getworktree/core/workflows/trigger.py](../../getworktree/core/workflows/trigger.py))
-executes a workflow trigger as **argv only** (`shell=False`) with `cwd` set to the
-sandbox (or any working directory the caller provides).
-
-### Inputs
-- `command` + `args` (list; empty allowed)
-- `cwd` — must be an existing directory or result is `cwd_missing`
-- `timeout_seconds` (≥ 1) — kills the direct child on expiry
-- `env` — `None` inherits the parent env; a mapping **replaces** the child env
-- `log_dir` — optional artifact directory
-
-### Result (`TriggerRunResult`)
-Statuses: `passed`, `failed`, `timeout`, `spawn_failed`, `cwd_missing`.
-`ok` is true only for `passed`. Captures full stdout/stderr (UTF-8 with
-replacement), `exit_code` (`None` on timeout/spawn/cwd miss), `timed_out`,
-`duration_ms`, and ISO-8601 `started_at` / `finished_at`.
-
-Never prints or calls `sys.exit`. Classified outcomes do not raise.
-
-### Artifacts (when `log_dir` is set)
-Written atomically under `log_dir`:
-- `trigger_stdout.log`
-- `trigger_stderr.log`
-- `trigger_meta.json` — `command`, `args`, `cwd`, `exit_code`, `timed_out`,
-  `status`, `duration_ms`, `started_at`, `finished_at` (`indent=2`)
-
-Artifact I/O failures become `warnings` and do **not** reclassify a successful
-process outcome.
-
-## Failure payload builder
-
-`build_failure_payload` ([getworktree/core/workflows/payload.py](../../getworktree/core/workflows/payload.py))
-turns a `TriggerRunResult` plus sandbox path into a bounded
-`AgentFailurePayload` for agent adapters. Pure data assembly: no network, no
-agent calls, no sandbox/git mutation.
-
-### Include tokens (`context.include`)
-| Token | Effect |
-|-------|--------|
-| `trigger_output` | Attach truncated `stdout`/`stderr` with `*_truncated` flags |
-| `changed_files` | Copy caller-supplied path list onto the payload (no git) |
-| `relevant_source` | Read selected source files into `files[]` |
-
-Identity fields always set: `command`, `args`, `trigger_status`, `exit_code`,
-`timed_out`, `duration_ms`. `include=[]` yields identity only.
-
-### Caps (defaults)
-- `max_trigger_chars=20_000` per stream; truncated streams keep the **tail**
-  (failure details are usually at the end) and prefix
-  `...[truncated, original_chars=<n>]\n`
-- `max_files=20`, `max_file_bytes=64_000` for `relevant_source`
-- Candidate paths for `relevant_source`:
-  1. Prefer failing test files inferred from trigger output (pytest
-     `FAILED`/`ERROR` node lines, else `file.py:line` markers)
-  2. If none found: regex extract from trigger streams (common source
-     suffixes) ∪ caller `changed_files`
-  Paths are normalized under sandbox, de-duped, then sorted
-- When failing test files are identified, only those files are attached
-  (a single failing test → one source file), not the full changed-file set
-- Skips recorded in `omissions` with reason:
-  `missing` | `outside_sandbox` | `directory` | `binary` | `max_files` |
-  `max_file_bytes`
-- Symlink escape outside the sandbox → `outside_sandbox` (no content)
-
-## Patch apply engine
-
-`apply_patch_result` ([getworktree/core/workflows/patch.py](../../getworktree/core/workflows/patch.py))
-validates and applies agent patches to a sandbox tree. Strategy is
-**`unified_diff` only**. Callers pass limits; the engine does not load config.
-Never commits or stages. Classified outcomes do not raise.
+`validate_patch_text` ([getworktree/core/workflows/patch.py](../../getworktree/core/workflows/patch.py))
+parses and validates a unified diff against size/count/binary/path limits. It
+does **not** apply the diff (no `git apply` call in this module — callers that
+need to write changes to disk do so themselves, e.g. via
+`core/workflows/agents/mutation_git.py`).
 
 ### API
-`apply_patch_result(*, sandbox_path, unified_diff, max_files, max_patch_kb,
-reject_binary_changes=True, check_only=False) -> PatchApplyResult`
+`validate_patch_text(unified_diff, *, max_files, max_patch_kb,
+reject_binary_changes=True) -> PatchApplyResult`
 
-### Pre-apply validation order
+### Validation order
 1. empty/whitespace diff → `empty_diff`
 2. UTF-8 byte size > `max_patch_kb * 1024` → `too_large`
 3. parse failure → `invalid_diff`
@@ -312,39 +229,39 @@ reject_binary_changes=True, check_only=False) -> PatchApplyResult`
 5. binary markers (`Binary files … differ`, `GIT binary patch`) when
    `reject_binary_changes` → `binary_rejected`
 6. absolute / `..` / sandbox escape paths → `unsafe_path`
-7. missing sandbox directory → `sandbox_missing`
-
-### Apply
-Uses `git apply --verbose` with `cwd=sandbox_path` (no `--unsafe-paths`).
-`check_only=True` adds `--check` and does not write. `git apply` reject is
-atomic (working tree unchanged on failure) → status `conflict`. `git apply`
-wall-clock capped by `GIT_SUBPROCESS_TIMEOUT_SECONDS` (120s) → `git_timeout`.
-Success → `applied` or `checked_ok` with sorted unique POSIX `touched_files`.
 
 ### Statuses
-`applied` | `checked_ok` | `empty_diff` | `too_large` | `too_many_files` |
-`binary_rejected` | `unsafe_path` | `invalid_diff` | `conflict` |
-`git_timeout` | `sandbox_missing` (`ok` only for `applied` / `checked_ok`).
+`checked_ok` | `empty_diff` | `too_large` | `too_many_files` |
+`binary_rejected` | `unsafe_path` | `invalid_diff` (`ok` only for `checked_ok`).
+
+## Failure payload models
+
+`AgentFailurePayload`, `PayloadFile`, `PayloadOmission`
+([getworktree/core/workflows/payload.py](../../getworktree/core/workflows/payload.py))
+are the shared Pydantic models for structured agent failure context. They are
+consumed by `AgentRequest.payload` in the agent adapter contract below. There is
+currently no builder that assembles a payload from a live trigger run (the
+previous `build_failure_payload` helper was removed with the legacy iteration
+runner); callers construct `AgentFailurePayload` directly today.
 
 ## Agent adapter
 
-`getworktree/core/workflows/agents/` owns the provider boundary for workflow fix
-requests. Adapters exist only to serve workflow iteration; they are not a peer
-domain of `core/workflows/`.
+`getworktree/core/workflows/agents/` owns the provider boundary for agent fix
+requests. It is used today by `core/step/runner.py`'s `AGENT` step type (`wt
+task run`).
 
 ### Contract
 - Protocol: `AgentAdapter.propose_fix(request: AgentRequest) -> AgentResponse`
 - Factory: `get_agent_adapter(provider, *, config=None)` — **v1 supports `local`,
   `ollama`, `cursor`, `gemini`, and `copilot`**; any other provider raises
   `ValueError` (`AGENT_PROVIDER_UNSUPPORTED`)
-- **Workflow** `agent.provider` selects the adapter; **config** `agent.model` /
-  `endpoint` / `temperature` / `max_tokens` populate `AgentRequest`
 - Request carries `mode`, `AgentFailurePayload`, `sandbox_path`,
   `timeout_seconds`, optional model/endpoint/temperature/max_tokens, and
   optional `max_files`/`max_patch_kb`/`reject_binary_changes`
 - Response statuses: `proposed_patch` | `no_op` | `unfixable` | `timeout` |
   `provider_error` (`ok` only for `proposed_patch`); response also carries
-  optional `mutation_baseline_ref` (set only by direct-mutation providers)
+  optional `mutation_baseline_ref` (set only by direct-mutation providers; no
+  current caller consumes it — see below)
 - Diff-returning adapters (`local`, `ollama`) must not apply patches or mutate
   the sandbox beyond the child process / HTTP client. Direct-mutation adapters
   (`cursor`, `gemini`, `copilot`) mutate the sandbox directly through the shared
@@ -356,8 +273,10 @@ domain of `core/workflows/`.
   `CliMutationRunFn`
 - Shared prompt builder: `build_mutation_prompt(request)`
 - Shared flow: preflight → baseline → run → capture diff → gate → classify
-- Gate violations call `discard_since` and return `provider_error`; the runner
-  later uses `mutation_baseline_ref` to reset the sandbox when needed
+- Gate violations call `discard_since` and return `provider_error`. A caller
+  that wires up direct-mutation providers is responsible for resetting the
+  sandbox to `mutation_baseline_ref` on any other terminal outcome (reject,
+  timeout, unfixable, no-op); no execution engine currently does this.
 
 ### Local provider (`LocalAgentAdapter`)
 Resolves argv from `WORKTREE_LOCAL_AGENT_CMD` (`shlex.split`) or default
@@ -410,154 +329,20 @@ Direct-mutation provider backed by `gh copilot`. Auth via `GH_TOKEN` or
 `GITHUB_TOKEN`. The CLI runs in the sandbox working directory and returns
 JSONL output that is mapped to the same direct-mutation base flow.
 
-The runner (`run_workflow_iteration`) treats any response with
-`mutation_baseline_ref is not None` as direct-mutation: on approval it skips
-re-`git apply` (files are already correct) and only re-derives touched files
-via `validate_patch_text`; on any other terminal outcome (reject, timeout,
-unfixable, no-op) it calls `discard_since` to reset the sandbox back to
-baseline before the next attempt. `local`/`ollama` never set
-`mutation_baseline_ref`, so their code path is unchanged.
-
-## Iteration controller
-
-`WorkflowRunner` and `run_workflow_iteration` ([getworktree/core/workflows/runner/runner.py](../../getworktree/core/workflows/runner/runner.py))
-own one full workflow **session** attempt cycle. No Rich printing; returns
-`WorkflowRunResult` only. Invocations take `(workflow, cwd, options)` where
-`options` is a `WorkflowRunOptions` dataclass containing optional CLI overrides
-and UI event listeners. Unit tests use standard pytest module patching rather
-than passing test-injection callbacks into the production runner. The `runner` package
-also has `runner_models.py` (run-result models and callback type aliases,
-a sibling module), `helpers.py` (stateless utilities), and `steps.py`
-(`_WorkflowContext` plus the per-attempt `_run_*_step` functions);
-`getworktree.core.workflows.runner` re-exports the full public API, so external
-imports are unaffected by this internal layout.
-
-### Attempt flowchart
-
-```mermaid
-flowchart TD
-  start[Create sandbox once] --> checkAbort{Aborted?}
-  checkAbort -->|yes| aborted[ABORTED / user_abort]
-  checkAbort -->|no| trigger[Run trigger in sandbox]
-  trigger --> passed{Trigger passed?}
-  passed -->|yes| ok[PASSED / trigger_passed]
-  passed -->|no| abort2{Aborted?}
-  abort2 -->|yes| aborted
-  abort2 -->|no| payload[Build failure payload]
-  payload --> agent[Agent propose_fix]
-  agent --> unfix{unfixable and in stop_when?}
-  unfix -->|yes| unf[UNFIXABLE / agent_unfixable]
-  unfix -->|no| soft{timeout / provider_error / no_op?}
-  soft -->|yes| nextOrFail{Attempts remain?}
-  soft -->|no| patchPath{proposed_patch}
-  patchPath --> approve{require_before_apply?}
-  approve -->|yes, reject or missing cb| nextOrFail
-  approve -->|no or approved| apply[apply_patch_result]
-  apply --> nextOrFail
-  nextOrFail -->|yes| checkAbort
-  nextOrFail -->|no| fail[FAILED / max_attempts_exhausted]
-```
-
-### Max attempts
-```text
-effective = caller_max_attempts or workflow.iteration.max_attempts
-effective = min(effective, config.workflow.max_attempts_hard_limit)
-```
-`effective < 1` → `configuration_error` (no attempts).
-
-### Final statuses / stop_reason
-| status | stop_reason examples |
-|--------|----------------------|
-| `PASSED` | `trigger_passed` |
-| `FAILED` | `max_attempts_exhausted`, `sandbox_create_failed`, `configuration_error` |
-| `UNFIXABLE` | `agent_unfixable` |
-| `ABORTED` | `user_abort` (terminal even if `user_abort` missing from `stop_when`) |
-
-### Sandbox / approval
-- One sandbox per session; `session.command_passed` is `True` only on final
-  `PASSED`, `False` on FAILED/UNFIXABLE, `None` on ABORTED
-- Cleanup via `should_cleanup_sandbox` using workflow sandbox flags (overridable)
-- When `approval.require_before_apply` is true: call `approve_patch(diff)`;
-  missing callback → `configuration_error` / `approval_callback_missing`
-
-### Hooks
-- `abort_event` / `is_aborted` checked before attempt, after trigger, after
-  agent, before/after patch
-- `on_event(name, payload)` and `on_attempt_end(record)` for UX/history
-
-## Safety controls
-
-`getworktree/core/workflows/safety.py` holds pure helpers + `SafetyState`; the
-iteration controller evaluates them at checkpoints.
-
-| Tripwire | Threshold | Config | `stop_reason` | Final status |
-|----------|-----------|--------|---------------|--------------|
-| Repeat failure signature | 3 consecutive identical failed triggers | `workflow.detect_repeat_failures` (false disables **only** this) | `repeat_failure_signature` | `FAILED` |
-| Agent no-op streak | 2 consecutive `no_op` | always on | `agent_no_op_streak` | `FAILED` |
-| Session wall-clock | `session_timeout_seconds` (default `sandbox.default_timeout_seconds`) | always on when > 0 | `session_timeout` | `FAILED` |
-| User abort | abort event / `is_aborted` | always on | `user_abort` | `ABORTED` |
-
-### Failure signature
-`failure_signature(trigger_status, exit_code, stdout, stderr)` → full sha256 hex
-of `status|exit_code|stdout_tail|stderr_tail` (tails: last 4000 chars, whitespace
-collapsed). Successful trigger resets the consecutive signature counter; a
-different signature also resets it.
-
-### Session timeout checkpoints
-Checked before each attempt starts and before the agent call. Does not cancel an
-in-flight trigger/agent; if the agent returns after the deadline, the next
-checkpoint still stops with `session_timeout`.
-
-### Abort
-CLI should set the same abort flag on SIGINT and let the controller finish
-cleanup (`should_cleanup_sandbox` with `command_passed=None` on abort).
-
-## Workflow run CLI UX
+## Workflow run CLI (not yet executing workflows)
 
 `wt workflow run NAME` ([getworktree/cli/workflow/command.py](../../getworktree/cli/workflow/command.py))
-orchestrates resolve → validate → `run_workflow_iteration` → render. Formatting lives
-in [renderers.py](../../getworktree/cli/workflow/renderers.py) (no bare `print`).
-`sandbox.base_ref` from config (default `HEAD`). `wt workflow run` continues to
-omit `base_ref` (unchanged behavior)
-
-### Live progress
-The CLI registers `on_event` and prints plain progress as the controller emits:
-`session_start`, `attempt_start`, `trigger_start` / `trigger`, `agent_start` /
-`agent`, `patch_start` / `patch` (plus optional prompt-dump events when enabled).
-Start events use a `running...` line so long triggers/agents do not look stalled.
-After the run, only the summary is reprinted (attempt blocks are not duplicated
-when progress streamed).
-
-### Flags
-- `--max-attempts INT` (≥1) → controller `caller_max_attempts`
-- `--keep / --no-keep` → `--keep` forces `auto_clean=False`
-- `--approve-each / --no-approve-each` → override approval gate; default follows
-  workflow `approval.require_before_apply` (non-TTY deny)
-- `--wip / --no-wip` → overlay uncommitted working-tree changes into the sandbox
-  (tracked + untracked, not ignored); default off
-- `--dump-prompt / --no-dump-prompt` → dump provider-specific agent input to
-  `/tmp/wt-agent-prompt-<session>-attempt-<nn>.(txt|json)` before each agent call
-
-### Approval prompt
-When the approval gate is on, the CLI prints a bordered `rich.panel.Panel`
-review block (`build_patch_review_panel` in
-[renderers.py](../../getworktree/cli/workflow/renderers.py)) before the y/N
-prompt: touched files, `+/-` line stats in the title, and the unified diff body
-(truncated after 200 lines) with added lines in green, removed lines in red,
-hunk headers in cyan, and file headers bold. Non-TTY stdin still prints the
-panel, then denies.
-
-### Exit codes
-| Final status | Exit |
-|--------------|------|
-| `PASSED` | 0 |
-| `FAILED` | 1 |
-| `UNFIXABLE` | 2 |
-| `ABORTED` | 130 |
-| pre-run resolve/validate/config failure | 1 |
-
-Summary labels: `Workflow:`, `Status:`, `Session:`, `Attempts:`, `Stop:`,
-`Sandbox:`, `Artifacts:`, `Next:`.
+loads config, resolves the workflow by name, and validates it against
+`workflow_v1.json`. If all of that succeeds it does **not** execute any steps —
+it prints an error panel ("Workflow Run Not Implemented") and exits `1`. Step
+execution is being rebuilt incrementally on top of the Workflow Spec v1 model
+(`core/workflows/models.py`); track progress in issues
+[#171](https://github.com/getworktree/getworktree/issues/171),
+[#172](https://github.com/getworktree/getworktree/issues/172), and
+[#173](https://github.com/getworktree/getworktree/issues/173). The previous
+iteration controller (trigger → agent → patch-apply loop with safety tripwires
+and approval gating) was removed along with its supporting `trigger.py` and
+`safety.py` modules; none of that behavior currently exists.
 
 ## Packaged resources
 

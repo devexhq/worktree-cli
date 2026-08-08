@@ -2,11 +2,7 @@
 
 from __future__ import annotations
 
-import sys
-import threading
-from collections.abc import Callable
 from pathlib import Path
-from typing import Any
 
 import typer
 
@@ -18,21 +14,9 @@ from getworktree.core.workflows.render import (
     format_workflow_show_validate_failure,
 )
 from getworktree.core.workflows.resolve import resolve_workflow_by_name
-from getworktree.core.workflows.runner import (
-    StopReason,
-    WorkflowRunOptions,
-    WorkflowRunResult,
-    run_workflow_iteration,
-)
 from getworktree.core.workflows.validate import validate_workflow_result
 
-from .renderers import (
-    build_patch_review_panel,
-    exit_code_for_status,
-    format_progress_event,
-    format_run_output,
-    render_workflow_list,
-)
+from .renderers import render_workflow_list
 
 rich_output = RichOutput()
 
@@ -143,59 +127,23 @@ def workflow_resume_command(session_id: str, *, cwd: Path | None = None) -> None
     raise typer.Exit(code=0)
 
 
-def _make_approve_callback(
-    *,
-    attempt_holder: dict[str, int],
-) -> Callable[[str], bool]:
-    """Build an approval callback that shows the diff, then prompts (non-TTY → deny)."""
-
-    def approve_patch(diff: str) -> bool:
-        attempt = attempt_holder.get("attempt", 1)
-        rich_output.console.print(build_patch_review_panel(diff))
-        prompt = f"Apply agent patch for attempt {attempt}? [y/N]"
-        if not sys.stdin.isatty():
-            rich_output.info(prompt)
-            rich_output.info("Non-interactive stdin: treating approval as rejected.")
-            return False
-        return bool(rich_output.console.input(prompt + " ").strip().lower() in {"y", "yes"})
-
-    return approve_patch
-
-
 def workflow_run_command(
     name: str,
     *,
-    max_attempts: int | None = None,
-    keep: bool | None = None,
-    approve_each: bool | None = None,
-    wip: bool = False,
-    dump_prompt: bool = False,
-    no_sandbox: bool = False,
     cwd: Path | None = None,
-    run_workflow_fn: Callable[..., WorkflowRunResult] | None = None,
 ) -> None:
-    """Resolve a workflow definition, run the iteration controller, render summary, exit.
+    """Resolve and validate a workflow definition, then report execution status.
+
+    The Workflow Spec v1 execution engine (step assertion checks, failure
+    policy, loop control-flow) has not landed yet; see
+    getworktree/getworktree#171, #172, and #173. Until it does, this command
+    validates the workflow definition and exits without executing any steps.
 
     Args:
         name: Workflow definition name.
-        max_attempts: Optional ``--max-attempts`` override (≥1).
-        keep: When True, force ``auto_clean=False``; when False/None, leave default.
-        approve_each: When set, override workflow approval.require_before_apply.
-        wip: When True, overlay uncommitted working-tree changes into sandbox.
-        dump_prompt: When True, dump provider-specific agent input to ``/tmp``.
-        no_sandbox: When True, run execution in-place without creating a Git sandbox.
-        cwd: Repository root.
-        run_workflow_fn: Injectable controller (tests); defaults to ``run_workflow_iteration``.
+        cwd: Repository root. Defaults to process CWD.
     """
     root = (cwd or Path.cwd()).resolve()
-    runner = run_workflow_fn or run_workflow_iteration
-
-    if max_attempts is not None and max_attempts < 1:
-        rich_output.error_panel(
-            "Workflow Run Failed",
-            "--max-attempts must be an integer >= 1.",
-        )
-        raise typer.Exit(code=1)
 
     load = load_config_result(cwd=root)
     if load.status == ConfigLoadStatus.NOT_FOUND:
@@ -209,7 +157,6 @@ def workflow_run_command(
         rich_output.error_panel("Workflow Run Failed", detail)
         raise typer.Exit(code=1)
 
-    config = load.config
     resolved = resolve_workflow_by_name(name, cwd=root)
     if not resolved.ok:
         rich_output.error_panel(
@@ -227,84 +174,10 @@ def workflow_run_command(
         )
         raise typer.Exit(code=1)
 
-    assert validated.workflow is not None
-    workflow = validated.workflow
-
-    auto_clean: bool | None = False if keep is True else None
-    require_before_apply: bool | None = approve_each
-    prompt_dump_dir = Path("/tmp") if dump_prompt else None
-
-    attempt_holder: dict[str, int] = {"attempt": 1}
-    streamed_progress = False
-
-    def _print_plain(text: str) -> None:
-        rich_output.console.print(
-            text,
-            end="",
-            markup=False,
-            highlight=False,
-            soft_wrap=True,
-        )
-
-    def on_event(event_name: str, payload: dict[str, Any]) -> None:
-        nonlocal streamed_progress
-        if event_name == "attempt_start":
-            attempt_holder["attempt"] = int(payload.get("attempt", 1))
-        line = format_progress_event(event_name, payload)
-        if line is None:
-            return
-        streamed_progress = True
-        _print_plain(line)
-
-    approve_cb = None
-    effective_require = (
-        require_before_apply if require_before_apply is not None else config.approval.require_before_apply
+    rich_output.error_panel(
+        "Workflow Run Not Implemented",
+        f"'{name}' is a valid workflow definition, but step execution is not "
+        "implemented yet.\n"
+        "Tracked in getworktree/getworktree#171, #172, and #173.",
     )
-    if effective_require:
-        approve_cb = _make_approve_callback(attempt_holder=attempt_holder)
-
-    abort_event = threading.Event()
-    result: WorkflowRunResult | None = None
-
-    options = WorkflowRunOptions(
-        max_attempts=max_attempts,
-        auto_clean=auto_clean,
-        require_before_apply=require_before_apply,
-        abort_event=abort_event,
-        approve_patch=approve_cb,
-        on_event=on_event,
-        include_wip=wip,
-        prompt_dump_dir=prompt_dump_dir,
-        no_sandbox=no_sandbox,
-        config=config,
-    )
-
-    try:
-        result = runner(
-            workflow=workflow,
-            cwd=root,
-            options=options,
-        )
-    except KeyboardInterrupt:
-        abort_event.set()
-        if result is None:
-            _print_plain("Interrupted.\n")
-            raise typer.Exit(code=130) from None
-
-    assert result is not None
-    if result.errors and result.stop_reason in {
-        StopReason.SANDBOX_CREATE_FAILED,
-        StopReason.CONFIGURATION_ERROR,
-    }:
-        for err in result.errors:
-            rich_output.error_panel("Workflow Run Failed", err)
-
-    text = format_run_output(
-        result,
-        cwd=root,
-        include_attempts=not streamed_progress,
-    )
-    if streamed_progress and text:
-        _print_plain("\n")
-    _print_plain(text)
-    raise typer.Exit(code=exit_code_for_status(result.status))
+    raise typer.Exit(code=1)

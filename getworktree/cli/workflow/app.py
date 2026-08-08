@@ -33,48 +33,9 @@ def workflow_show(
 @workflow_app.command("run")
 def workflow_run(
     name: str = typer.Argument(..., help="Logical workflow name to run."),
-    max_attempts: int | None = typer.Option(
-        None,
-        "--max-attempts",
-        help="Override effective max attempts (>= 1).",
-        min=1,
-    ),
-    keep: bool = typer.Option(
-        False,
-        "--keep/--no-keep",
-        help="When --keep, force retain the sandbox (auto_clean=False).",
-    ),
-    approve_each: bool | None = typer.Option(
-        None,
-        "--approve-each/--no-approve-each",
-        help="Require (or skip) approval before each patch apply.",
-    ),
-    wip: bool = typer.Option(
-        False,
-        "--wip/--no-wip",
-        help=("Include uncommitted working-tree changes in the sandbox (tracked + untracked; not ignored)."),
-    ),
-    dump_prompt: bool = typer.Option(
-        False,
-        "--dump-prompt/--no-dump-prompt",
-        help=("Dump provider-specific agent input to /tmp before each agent call (debugging aid)."),
-    ),
-    no_sandbox: bool = typer.Option(
-        False,
-        "--no-sandbox",
-        help="Run execution in-place in the working tree without creating a Git sandbox.",
-    ),
 ):
-    """Run a workflow in an isolated git worktree sandbox."""
-    workflow_run_command(
-        name,
-        max_attempts=max_attempts,
-        keep=keep if keep else None,
-        approve_each=approve_each,
-        wip=wip,
-        dump_prompt=dump_prompt,
-        no_sandbox=no_sandbox,
-    )
+    """Run a workflow (validates the definition; execution is not implemented yet)."""
+    workflow_run_command(name)
 
 
 @workflow_app.command("resume")

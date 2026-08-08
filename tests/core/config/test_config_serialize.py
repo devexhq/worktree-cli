@@ -18,10 +18,7 @@ _TOP_LEVEL = (
     "project",
     "paths",
     "sandbox",
-    "workflow",
     "agent",
-    "patch",
-    "approval",
     "history",
     "doctor",
     "prune",
@@ -63,8 +60,7 @@ class SerializeConfigTests:
     def test_native_scalar_types(self) -> None:
         data = serialize_config(_config_from_defaults())
         assert data["version"] == 1
-        assert data["sandbox"]["auto_clean"] is True
-        assert data["workflow"]["default_max_attempts"] == 5
+        assert data["sandbox"]["max_active_sandboxes"] == 3
         assert data["agent"]["temperature"] == 0.2
         assert isinstance(data["agent"]["temperature"], float)
 
@@ -77,7 +73,7 @@ class SerializeConfigTests:
         data = serialize_config(config)
         assert data["paths"]["root_dir"] == ".worktree"
         assert data["telemetry"]["enabled"] is False
-        assert data["workflow"]["default_max_attempts"] == 5
+        assert data["sandbox"]["max_active_sandboxes"] == 3
 
     def test_round_trip_json_types(self) -> None:
         data = serialize_config(_config_from_defaults())

@@ -105,9 +105,9 @@ class ConfigSetCliTests:
         monkeypatch.chdir(git_repo)
         assert runner.invoke(app, ["init"]).exit_code == 0
 
-        res_bool = runner.invoke(app, ["config", "set", "sandbox.auto_clean", "false"])
+        res_bool = runner.invoke(app, ["config", "set", "telemetry.enabled", "true"])
         assert res_bool.exit_code == 0
-        assert "Config updated: sandbox.auto_clean = false (bool)" in res_bool.stdout
+        assert "Config updated: telemetry.enabled = true (bool)" in res_bool.stdout
 
         res_float = runner.invoke(app, ["config", "set", "agent.temperature", "0.7"])
         assert res_float.exit_code == 0
@@ -122,7 +122,7 @@ class ConfigSetCliTests:
         assert "Config updated: agent.model = qwen2.5 (str)" in res_quoted.stdout
 
         data = _read_config(git_repo / ".worktree" / "config.json")
-        assert data["sandbox"]["auto_clean"] is False
+        assert data["telemetry"]["enabled"] is True
         assert data["agent"]["temperature"] == 0.7
         assert data["sandbox"]["max_active_sandboxes"] == 5
         assert data["agent"]["model"] == "qwen2.5"
