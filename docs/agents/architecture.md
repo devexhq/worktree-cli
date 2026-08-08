@@ -36,6 +36,27 @@ getworktree/schemas/                Versioned JSON Schemas (config_v1.json, work
 Not every command has all three files (e.g. `status` has only `command.py`) — add
 `models.py`/`renderers.py` when a command's output/result grows non-trivial.
 
+### Package boundaries (import direction)
+
+Dependencies flow one way; do not import "up" the stack:
+
+```
+common/  ->  core/step/  ->  core/workflows/  ->  cli/
+```
+
+- `common/` has no dependency on anything under `core/`.
+- `core/step/` (step primitive definitions and execution) must not import
+  from `core/workflows/` — shared vocabulary that both need (e.g. failure
+  policies) belongs in `common/`, not in whichever package happens to define
+  it first.
+- `core/workflows/` may depend on `core/step/`, not the reverse.
+- `cli/<name>/` packages may depend on any `core/`/`common/` module, but
+  `core/`/`common/` must never import from `cli/`.
+
+If you find yourself importing a name from a "higher" package to reuse it in a
+"lower" one, move the shared piece down to the lower package (or to
+`common/`) instead of adding the import.
+
 ## Adding a new command
 
 1. Create `getworktree/cli/<name>/{__init__.py,command.py}` (add `models.py`/
