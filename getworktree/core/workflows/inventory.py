@@ -63,9 +63,7 @@ class WorkflowInventoryResult(BaseModel):
 def _duplicate_name_warnings(
     valid: list[WorkflowInventoryValidEntry],
 ) -> list[str]:
-    by_name: dict[str, list[WorkflowInventoryValidEntry]] = defaultdict(list)
-    for entry in valid:
-        by_name[entry.name].append(entry)
+    by_name = group_valid_entries_by_name(valid)
 
     warnings: list[str] = []
     for name in sorted(by_name):
@@ -76,6 +74,17 @@ def _duplicate_name_warnings(
         joined = ", ".join(file_names)
         warnings.append(f"Duplicate workflow name '{name}' in multiple files: {joined}")
     return warnings
+
+
+def group_valid_entries_by_name(
+    valid: list[WorkflowInventoryValidEntry],
+) -> dict[str, list[WorkflowInventoryValidEntry]]:
+    """Group valid inventory entries by workflow name, insertion order preserved per group."""
+    by_name: dict[str, list[WorkflowInventoryValidEntry]] = defaultdict(list)
+    for entry in valid:
+        by_name[entry.name].append(entry)
+
+    return dict(by_name)
 
 
 def build_workflow_inventory(
