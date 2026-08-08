@@ -43,17 +43,6 @@ def workflow_list_command(*, cwd: Path | None = None) -> None:
     raise typer.Exit(code=0)
 
 
-def _format_warning_bullets(warnings: list[str]) -> list[str]:
-    """Format engine warnings as bullet lines with indented continuations."""
-    lines: list[str] = []
-    for warning in warnings:
-        parts = warning.splitlines() or [""]
-        lines.append(f"- {parts[0]}")
-        for continuation in parts[1:]:
-            lines.append(f"  {continuation}")
-    return lines
-
-
 def workflow_show_command(session_id: str, *, cwd: Path | None = None) -> None:
     """Show details for a specific workflow session by session ID.
 

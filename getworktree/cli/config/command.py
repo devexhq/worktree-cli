@@ -7,6 +7,7 @@ from pathlib import Path
 
 import typer
 
+from getworktree.common.formatters import format_warning_bullets
 from getworktree.common.utils import RichOutput
 from getworktree.core.config.loader import load_config_result
 from getworktree.core.config.mutate import set_config_value_result
@@ -110,7 +111,7 @@ def config_validate_command(*, cwd: Path | None = None) -> None:
         ]
         if result.warnings:
             lines.append("Warnings:")
-            lines.extend(_format_warning_bullets(result.warnings))
+            lines.extend(format_warning_bullets(result.warnings))
             lines.append("")
         lines.append("Config is valid.")
         payload = "\n".join(lines) + "\n"
@@ -127,7 +128,7 @@ def config_validate_command(*, cwd: Path | None = None) -> None:
     rich_output.error_panel("Config Validation Failed", message)
 
     if result.warnings:
-        warning_block = "Warnings:\n" + "\n".join(_format_warning_bullets(result.warnings))
+        warning_block = "Warnings:\n" + "\n".join(format_warning_bullets(result.warnings))
         rich_output.console.print(
             warning_block,
             markup=False,
@@ -136,14 +137,3 @@ def config_validate_command(*, cwd: Path | None = None) -> None:
         )
 
     raise typer.Exit(code=1)
-
-
-def _format_warning_bullets(warnings: list[str]) -> list[str]:
-    """Format engine warnings as bullet lines with indented continuations."""
-    lines: list[str] = []
-    for warning in warnings:
-        parts = warning.splitlines() or [""]
-        lines.append(f"- {parts[0]}")
-        for continuation in parts[1:]:
-            lines.append(f"  {continuation}")
-    return lines
