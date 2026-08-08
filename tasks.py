@@ -39,14 +39,24 @@ def docs(context, serve=True):
 
 
 @task
-def complexity(context, paths="getworktree", plain=False, max_complexity=10, suggest_refactors=False):
+def complexity(context, paths="getworktree", plain=False, max_complexity=10, suggest_refactors=False, local=False):
     """Run complexipy, failing if any function exceeds max_complexity.
 
     Agents: pass the changed file(s) via `paths` (comma-separated) and use
     `plain=True` for script-friendly output; run this before every commit and
     do not commit while it fails. CI/humans: leave `paths`/`plain` at their
     defaults for a rich, whole-tree report.
+
+    `local=True` sets `paths` to the currently staged files (`git diff
+    --name-only --staged`) and takes precedence over any explicit `paths`.
     """
+    if local:
+        result = context.run("git diff --name-only --staged | paste -sd, -", hide=True, pty=False)
+        paths = result.stdout.strip()
+        if not paths:
+            print("No staged files; nothing to check.")
+            return
+
     targets = [p for p in paths.replace("\n", ",").split(",") if p.strip()]
     cmd = [
         "complexipy",

@@ -75,3 +75,8 @@ def resolve_path_from_config(config_file: Path, path_key: str, default: str | Pa
     if isinstance(paths, dict) and paths.get(path_key):
         return Path(paths[path_key])
     return Path(default)
+
+
+def enum_value(value: object) -> str:
+    """Return `value.value` when present (enum-like), ekse `str(value)`."""
+    return value.value if hasattr(value, "value") else str(value)
