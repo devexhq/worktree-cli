@@ -14,6 +14,7 @@ from getworktree.core.step import (
     load_step_by_id,
     load_step_definition,
 )
+from getworktree.core.workflows.models import StepAssert
 
 
 def test_step_definition_command_valid():
@@ -208,3 +209,63 @@ command: echo other
 
     with pytest.raises(StepNotFoundError, match="not found in"):
         load_step_by_id("nonexistent_step", cwd=tmp_path)
+
+
+def test_step_definition_assert_alias_round_trip():
+    """``assert`` YAML key maps to ``assert_`` and serializes back under ``assert``."""
+    step = StepDefinition.model_validate(
+        {
+            "id": "step_build",
+            "name": "build",
+            "type": "command",
+            "description": "Build artifact",
+            "command": "make build",
+            "assert": {
+                "exit_code": [0, 1],
+                "file_exists": ["dist/app.bin", "dist/manifest.json"],
+                "file_not_exists": "tmp/lock",
+                "file_not_empty": "dist/app.bin",
+            },
+        }
+    )
+
+    dumped = step.model_dump(by_alias=True)
+    assert "assert_" not in dumped
+    assert dumped["assert"] == {
+        "exit_code": [0, 1],
+        "file_exists": ["dist/app.bin", "dist/manifest.json"],
+        "file_not_exists": "tmp/lock",
+        "file_not_empty": "dist/app.bin",
+        "output_contains": None,
+        "output_not_contains": None,
+        "regex_match": None,
+        "json_match": None,
+    }
+
+    reloaded = StepDefinition.model_validate(dumped)
+    assert reloaded.assert_ is not None
+    assert reloaded.assert_.exit_code == [0, 1]
+    assert reloaded.assert_.file_exists == ["dist/app.bin", "dist/manifest.json"]
+
+
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    [
+        ("file_exists", "/etc/passwd"),
+        ("file_exists", "../secrets.txt"),
+        ("file_exists", ["dist/app.bin", "a/../../x"]),
+        ("file_exists", ""),
+        ("file_not_exists", "C:/Windows/system32"),
+        ("file_not_empty", "\\..\\escape.txt"),
+    ],
+)
+def test_step_definition_assert_path_safety_rejects_unsafe_paths(field_name: str, value: str | list[str]) -> None:
+    with pytest.raises(ValidationError, match=field_name):
+        StepDefinition(
+            id="step_build",
+            name="build",
+            type=StepType.COMMAND,
+            description="Build artifact",
+            command="make build",
+            assert_=StepAssert(**{field_name: value}),
+        )

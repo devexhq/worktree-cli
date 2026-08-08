@@ -9,6 +9,8 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
+from getworktree.core.workflows.models import StepAssert
+
 
 class StepType(StrEnum):
     """Supported step primitive types."""
@@ -37,7 +39,7 @@ class StepValidationError(Exception):
 class StepDefinition(BaseModel):
     """Model for step definitions stored in .worktree/templates/steps/."""
 
-    model_config = {"extra": "forbid", "strict": True}
+    model_config = {"extra": "forbid", "strict": True, "populate_by_name": True}
 
     id: str
     name: str
@@ -50,6 +52,7 @@ class StepDefinition(BaseModel):
     script_path: str | None = None
     timeout_seconds: int = Field(default=120, gt=0)
     failure_action: FailureAction = FailureAction.ABORT
+    assert_: StepAssert | None = Field(default=None, alias="assert")
 
     @field_validator("type", mode="before")
     @classmethod

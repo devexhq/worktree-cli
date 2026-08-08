@@ -2,9 +2,30 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
+
+_DRIVE_PATH_RE = re.compile(r"^[A-Za-z]:/")
+
+
+def _is_unsafe_assert_path(path: str) -> bool:
+    """Return True when ``path`` is absolute, empty, or contains a ``..`` segment."""
+    normalized = path.replace("\\", "/")
+    if not normalized or normalized.startswith("/") or _DRIVE_PATH_RE.match(normalized):
+        return True
+    return any(part == ".." for part in normalized.split("/"))
+
+
+def _validate_assert_paths(value: str | list[str] | None, field_name: str) -> None:
+    """Reject empty, absolute, or parent-traversal paths in file-system asserts."""
+    if value is None:
+        return
+    entries = [value] if isinstance(value, str) else value
+    for entry in entries:
+        if _is_unsafe_assert_path(entry):
+            raise ValueError(f"{field_name} path must be a non-empty relative path without '..' segments: {entry!r}")
 
 
 class WorkflowInput(BaseModel):
@@ -22,11 +43,22 @@ class StepAssert(BaseModel):
 
     model_config = {"extra": "forbid", "strict": True}
 
-    exit_code: int | None = None
+    exit_code: int | list[int] | None = None
     output_contains: str | list[str] | None = None
     output_not_contains: str | list[str] | None = None
     regex_match: str | None = None
     json_match: dict[str, Any] | None = None
+    file_exists: str | list[str] | None = None
+    file_not_exists: str | list[str] | None = None
+    file_not_empty: str | list[str] | None = None
+
+    @model_validator(mode="after")
+    def validate_file_assert_paths(self) -> StepAssert:
+        """Reject absolute paths and parent-directory traversal in file asserts."""
+        _validate_assert_paths(self.file_exists, "file_exists")
+        _validate_assert_paths(self.file_not_exists, "file_not_exists")
+        _validate_assert_paths(self.file_not_empty, "file_not_empty")
+        return self
 
 
 class StandardStepDefinition(BaseModel):
