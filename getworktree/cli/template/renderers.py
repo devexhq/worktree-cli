@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from rich.table import Table
 
-from getworktree.common.utils import RichOutput
+from getworktree.common.utils import RichOutput, enum_value
 from getworktree.core.templates.models import BuiltinTemplate
 
 _DEFAULT_RICH_OUTPUT = RichOutput()
@@ -28,7 +28,7 @@ def build_templates_table(templates: list[BuiltinTemplate]) -> Table:
     for tmpl in templates:
         table.add_row(
             tmpl.name,
-            tmpl.type.value if hasattr(tmpl.type, "value") else str(tmpl.type),
+            enum_value(tmpl.type.value),
             tmpl.description,
             tmpl.summary,
         )
@@ -58,7 +58,7 @@ def render_template_show(
     """Render single template metadata and definition content."""
     output = rich_output or _DEFAULT_RICH_OUTPUT
 
-    t_type = template.type.value if hasattr(template.type, "value") else str(template.type)
+    t_type = enum_value(template.type)
     output.info(f"[bold green]Template:[/]     {template.name}")
     output.info(f"[bold green]Type:[/]         {t_type}")
     output.info(f"[bold green]Description:[/]  {template.description}")
