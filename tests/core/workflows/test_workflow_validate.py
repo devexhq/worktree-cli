@@ -316,36 +316,53 @@ class SharedWorkflowValidatorTests:
 class StepAssertSchemaAndModelTests:
     """Schema/model coverage for extended step assert fields."""
 
-    def test_step_assert_exit_code_list_and_file_keys(self) -> None:
-        assertion = StepAssert(
-            exit_code=[0, 2],
-            file_exists="dist/app.bin",
-            file_not_exists=["tmp/lock"],
-            file_not_empty=["dist/app.bin", "dist/manifest.json"],
-        )
-        step = StandardStepDefinition(
-            id="run-tests",
-            run="pytest",
-            assert_=assertion,
+    def test_standard_step_assert_alias_round_trip(self) -> None:
+        """``assert`` key maps onto ``assert_`` and dumps back under the alias."""
+        step = StandardStepDefinition.model_validate(
+            {
+                "id": "run-tests",
+                "run": "pytest",
+                "assert": {
+                    "exit_code": [0, 2],
+                    "file_exists": "dist/app.bin",
+                    "file_not_exists": ["tmp/lock"],
+                    "file_not_empty": ["dist/app.bin", "dist/manifest.json"],
+                },
+            }
         )
 
-        assert step.assert_ is assertion
-        assert step.assert_.exit_code == [0, 2]
-        assert step.assert_.file_exists == "dist/app.bin"
-        assert step.assert_.file_not_exists == ["tmp/lock"]
-        assert step.assert_.file_not_empty == ["dist/app.bin", "dist/manifest.json"]
+        dumped = step.model_dump(by_alias=True)
+        assert "assert_" not in dumped
+        assert dumped["assert"]["exit_code"] == [0, 2]
+        assert dumped["assert"]["file_exists"] == "dist/app.bin"
+        assert dumped["assert"]["file_not_exists"] == ["tmp/lock"]
+        assert dumped["assert"]["file_not_empty"] == ["dist/app.bin", "dist/manifest.json"]
 
-    def test_step_assert_path_safety_rejects_absolute_parent_and_empty(self) -> None:
-        with pytest.raises(ValidationError, match="file_exists"):
-            StepAssert(file_exists="/etc/passwd")
-        with pytest.raises(ValidationError, match="file_exists"):
-            StepAssert(file_exists="../secrets.txt")
-        with pytest.raises(ValidationError, match="file_not_exists"):
-            StepAssert(file_not_exists="C:/Windows/system32")
-        with pytest.raises(ValidationError, match="file_not_empty"):
-            StepAssert(file_not_empty=["ok.txt", "a/../../x"])
-        with pytest.raises(ValidationError, match="file_exists"):
-            StepAssert(file_exists="")
+        reloaded = StandardStepDefinition.model_validate(dumped)
+        assert reloaded.assert_ is not None
+        assert reloaded.assert_.exit_code == [0, 2]
+
+    @pytest.mark.parametrize(
+        ("field_name", "value"),
+        [
+            ("file_exists", "/etc/passwd"),
+            ("file_exists", "../secrets.txt"),
+            ("file_exists", ""),
+            ("file_not_exists", "C:/Windows/system32"),
+            ("file_not_empty", ["ok.txt", "a/../../x"]),
+            ("file_not_empty", "\\..\\escape.txt"),
+        ],
+    )
+    def test_step_assert_path_safety_rejects_unsafe_paths(self, field_name: str, value: str | list[str]) -> None:
+        with pytest.raises(ValidationError, match=field_name):
+            StepAssert(**{field_name: value})
+
+        with pytest.raises(ValidationError, match=field_name):
+            StandardStepDefinition(
+                id="run-tests",
+                run="pytest",
+                assert_=StepAssert(**{field_name: value}),
+            )
 
     def test_workflow_schema_accepts_extended_assert_block(self) -> None:
         raw = _valid_raw()
@@ -377,12 +394,6 @@ class StepAssertSchemaAndModelTests:
 
         assert not result.ok
         assert result.status == WorkflowValidationStatus.INVALID
-        assert any("WORKFLOW_INVALID_SCHEMA" in error for error in result.errors)
-
-    def test_standard_step_assert_path_safety_via_step_model(self) -> None:
-        with pytest.raises(ValidationError, match="file_exists"):
-            StandardStepDefinition(
-                id="run-tests",
-                run="pytest",
-                assert_=StepAssert(file_exists="/etc/passwd"),
-            )
+        joined = "\n".join(result.errors)
+        assert "WORKFLOW_INVALID_SCHEMA" in joined
+        assert "exit_code" in joined

@@ -211,29 +211,8 @@ command: echo other
         load_step_by_id("nonexistent_step", cwd=tmp_path)
 
 
-def test_step_definition_assert_exit_code_list_and_file_keys():
-    step = StepDefinition(
-        id="step_build",
-        name="build",
-        type=StepType.COMMAND,
-        description="Build artifact",
-        command="make build",
-        assert_=StepAssert(
-            exit_code=[0, 1],
-            file_exists="dist/app.bin",
-            file_not_exists=["tmp/lock", "tmp/partial"],
-            file_not_empty="dist/app.bin",
-        ),
-    )
-
-    assert step.assert_ is not None
-    assert step.assert_.exit_code == [0, 1]
-    assert step.assert_.file_exists == "dist/app.bin"
-    assert step.assert_.file_not_exists == ["tmp/lock", "tmp/partial"]
-    assert step.assert_.file_not_empty == "dist/app.bin"
-
-
-def test_step_definition_assert_alias_from_dict():
+def test_step_definition_assert_alias_round_trip():
+    """``assert`` YAML key maps to ``assert_`` and serializes back under ``assert``."""
     step = StepDefinition.model_validate(
         {
             "id": "step_build",
@@ -242,54 +221,51 @@ def test_step_definition_assert_alias_from_dict():
             "description": "Build artifact",
             "command": "make build",
             "assert": {
-                "exit_code": [0],
+                "exit_code": [0, 1],
                 "file_exists": ["dist/app.bin", "dist/manifest.json"],
+                "file_not_exists": "tmp/lock",
+                "file_not_empty": "dist/app.bin",
             },
         }
     )
 
-    assert step.assert_ is not None
-    assert step.assert_.exit_code == [0]
-    assert step.assert_.file_exists == ["dist/app.bin", "dist/manifest.json"]
+    dumped = step.model_dump(by_alias=True)
+    assert "assert_" not in dumped
+    assert dumped["assert"] == {
+        "exit_code": [0, 1],
+        "file_exists": ["dist/app.bin", "dist/manifest.json"],
+        "file_not_exists": "tmp/lock",
+        "file_not_empty": "dist/app.bin",
+        "output_contains": None,
+        "output_not_contains": None,
+        "regex_match": None,
+        "json_match": None,
+    }
+
+    reloaded = StepDefinition.model_validate(dumped)
+    assert reloaded.assert_ is not None
+    assert reloaded.assert_.exit_code == [0, 1]
+    assert reloaded.assert_.file_exists == ["dist/app.bin", "dist/manifest.json"]
 
 
-def test_step_definition_assert_path_safety_rejects_absolute_and_parent():
-    with pytest.raises(ValidationError, match="file_exists"):
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    [
+        ("file_exists", "/etc/passwd"),
+        ("file_exists", "../secrets.txt"),
+        ("file_exists", ["dist/app.bin", "a/../../x"]),
+        ("file_exists", ""),
+        ("file_not_exists", "C:/Windows/system32"),
+        ("file_not_empty", "\\..\\escape.txt"),
+    ],
+)
+def test_step_definition_assert_path_safety_rejects_unsafe_paths(field_name: str, value: str | list[str]) -> None:
+    with pytest.raises(ValidationError, match=field_name):
         StepDefinition(
             id="step_build",
             name="build",
             type=StepType.COMMAND,
             description="Build artifact",
             command="make build",
-            assert_=StepAssert(file_exists="/etc/passwd"),
-        )
-
-    with pytest.raises(ValidationError, match="file_exists"):
-        StepDefinition(
-            id="step_build",
-            name="build",
-            type=StepType.COMMAND,
-            description="Build artifact",
-            command="make build",
-            assert_=StepAssert(file_exists="../secrets.txt"),
-        )
-
-    with pytest.raises(ValidationError, match="file_exists"):
-        StepDefinition(
-            id="step_build",
-            name="build",
-            type=StepType.COMMAND,
-            description="Build artifact",
-            command="make build",
-            assert_=StepAssert(file_exists=["dist/app.bin", "a/../../x"]),
-        )
-
-    with pytest.raises(ValidationError, match="file_exists"):
-        StepDefinition(
-            id="step_build",
-            name="build",
-            type=StepType.COMMAND,
-            description="Build artifact",
-            command="make build",
-            assert_=StepAssert(file_exists=""),
+            assert_=StepAssert(**{field_name: value}),
         )
