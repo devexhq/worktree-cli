@@ -10,10 +10,12 @@ from typing import Any
 
 import pytest
 import yaml
+from pydantic import ValidationError
 
 from getworktree.core.workflows import (
     WORKFLOW_VALIDATOR,
     StandardStepDefinition,
+    StepAssert,
     WorkflowDefinition,
     WorkflowLoadError,
     WorkflowValidationError,
@@ -309,3 +311,78 @@ class SharedWorkflowValidatorTests:
 
     def test_package_and_seeder_share_same_validator(self) -> None:
         assert WORKFLOW_VALIDATOR is SEEDER_WORKFLOW_VALIDATOR
+
+
+class StepAssertSchemaAndModelTests:
+    """Schema/model coverage for extended step assert fields."""
+
+    def test_step_assert_exit_code_list_and_file_keys(self) -> None:
+        assertion = StepAssert(
+            exit_code=[0, 2],
+            file_exists="dist/app.bin",
+            file_not_exists=["tmp/lock"],
+            file_not_empty=["dist/app.bin", "dist/manifest.json"],
+        )
+        step = StandardStepDefinition(
+            id="run-tests",
+            run="pytest",
+            assert_=assertion,
+        )
+
+        assert step.assert_ is assertion
+        assert step.assert_.exit_code == [0, 2]
+        assert step.assert_.file_exists == "dist/app.bin"
+        assert step.assert_.file_not_exists == ["tmp/lock"]
+        assert step.assert_.file_not_empty == ["dist/app.bin", "dist/manifest.json"]
+
+    def test_step_assert_path_safety_rejects_absolute_parent_and_empty(self) -> None:
+        with pytest.raises(ValidationError, match="file_exists"):
+            StepAssert(file_exists="/etc/passwd")
+        with pytest.raises(ValidationError, match="file_exists"):
+            StepAssert(file_exists="../secrets.txt")
+        with pytest.raises(ValidationError, match="file_not_exists"):
+            StepAssert(file_not_exists="C:/Windows/system32")
+        with pytest.raises(ValidationError, match="file_not_empty"):
+            StepAssert(file_not_empty=["ok.txt", "a/../../x"])
+        with pytest.raises(ValidationError, match="file_exists"):
+            StepAssert(file_exists="")
+
+    def test_workflow_schema_accepts_extended_assert_block(self) -> None:
+        raw = _valid_raw()
+        raw["steps"][0]["assert"] = {
+            "exit_code": [0, 1],
+            "file_exists": "dist/app.bin",
+            "file_not_exists": ["tmp/lock"],
+            "file_not_empty": ["dist/app.bin", "dist/manifest.json"],
+            "output_contains": "ok",
+        }
+
+        result = validate_workflow_document(raw, source_path=Path("in-memory"))
+
+        assert result.ok
+        assert result.workflow is not None
+        step = result.workflow.steps[0]
+        assert isinstance(step, StandardStepDefinition)
+        assert step.assert_ is not None
+        assert step.assert_.exit_code == [0, 1]
+        assert step.assert_.file_exists == "dist/app.bin"
+        assert step.assert_.file_not_exists == ["tmp/lock"]
+        assert step.assert_.file_not_empty == ["dist/app.bin", "dist/manifest.json"]
+
+    def test_workflow_schema_rejects_empty_exit_code_list(self) -> None:
+        raw = _valid_raw()
+        raw["steps"][0]["assert"] = {"exit_code": []}
+
+        result = validate_workflow_document(raw, source_path=Path("in-memory"))
+
+        assert not result.ok
+        assert result.status == WorkflowValidationStatus.INVALID
+        assert any("WORKFLOW_INVALID_SCHEMA" in error for error in result.errors)
+
+    def test_standard_step_assert_path_safety_via_step_model(self) -> None:
+        with pytest.raises(ValidationError, match="file_exists"):
+            StandardStepDefinition(
+                id="run-tests",
+                run="pytest",
+                assert_=StepAssert(file_exists="/etc/passwd"),
+            )

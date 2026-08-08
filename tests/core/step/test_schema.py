@@ -14,6 +14,7 @@ from getworktree.core.step import (
     load_step_by_id,
     load_step_definition,
 )
+from getworktree.core.workflows.models import StepAssert
 
 
 def test_step_definition_command_valid():
@@ -208,3 +209,87 @@ command: echo other
 
     with pytest.raises(StepNotFoundError, match="not found in"):
         load_step_by_id("nonexistent_step", cwd=tmp_path)
+
+
+def test_step_definition_assert_exit_code_list_and_file_keys():
+    step = StepDefinition(
+        id="step_build",
+        name="build",
+        type=StepType.COMMAND,
+        description="Build artifact",
+        command="make build",
+        assert_=StepAssert(
+            exit_code=[0, 1],
+            file_exists="dist/app.bin",
+            file_not_exists=["tmp/lock", "tmp/partial"],
+            file_not_empty="dist/app.bin",
+        ),
+    )
+
+    assert step.assert_ is not None
+    assert step.assert_.exit_code == [0, 1]
+    assert step.assert_.file_exists == "dist/app.bin"
+    assert step.assert_.file_not_exists == ["tmp/lock", "tmp/partial"]
+    assert step.assert_.file_not_empty == "dist/app.bin"
+
+
+def test_step_definition_assert_alias_from_dict():
+    step = StepDefinition.model_validate(
+        {
+            "id": "step_build",
+            "name": "build",
+            "type": "command",
+            "description": "Build artifact",
+            "command": "make build",
+            "assert": {
+                "exit_code": [0],
+                "file_exists": ["dist/app.bin", "dist/manifest.json"],
+            },
+        }
+    )
+
+    assert step.assert_ is not None
+    assert step.assert_.exit_code == [0]
+    assert step.assert_.file_exists == ["dist/app.bin", "dist/manifest.json"]
+
+
+def test_step_definition_assert_path_safety_rejects_absolute_and_parent():
+    with pytest.raises(ValidationError, match="file_exists"):
+        StepDefinition(
+            id="step_build",
+            name="build",
+            type=StepType.COMMAND,
+            description="Build artifact",
+            command="make build",
+            assert_=StepAssert(file_exists="/etc/passwd"),
+        )
+
+    with pytest.raises(ValidationError, match="file_exists"):
+        StepDefinition(
+            id="step_build",
+            name="build",
+            type=StepType.COMMAND,
+            description="Build artifact",
+            command="make build",
+            assert_=StepAssert(file_exists="../secrets.txt"),
+        )
+
+    with pytest.raises(ValidationError, match="file_exists"):
+        StepDefinition(
+            id="step_build",
+            name="build",
+            type=StepType.COMMAND,
+            description="Build artifact",
+            command="make build",
+            assert_=StepAssert(file_exists=["dist/app.bin", "a/../../x"]),
+        )
+
+    with pytest.raises(ValidationError, match="file_exists"):
+        StepDefinition(
+            id="step_build",
+            name="build",
+            type=StepType.COMMAND,
+            description="Build artifact",
+            command="make build",
+            assert_=StepAssert(file_exists=""),
+        )

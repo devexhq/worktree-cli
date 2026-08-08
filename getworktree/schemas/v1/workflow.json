@@ -106,7 +106,12 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "exit_code": { "type": "integer" },
+            "exit_code": {
+              "oneOf": [
+                { "type": "integer" },
+                { "type": "array", "items": { "type": "integer" }, "minItems": 1 }
+              ]
+            },
             "output_contains": {
               "oneOf": [
                 { "type": "string" },
@@ -120,7 +125,37 @@
               ]
             },
             "regex_match": { "type": "string" },
-            "json_match": { "type": "object", "additionalProperties": true }
+            "json_match": { "type": "object", "additionalProperties": true },
+            "file_exists": {
+              "oneOf": [
+                { "type": "string", "minLength": 1 },
+                {
+                  "type": "array",
+                  "items": { "type": "string", "minLength": 1 },
+                  "minItems": 1
+                }
+              ]
+            },
+            "file_not_exists": {
+              "oneOf": [
+                { "type": "string", "minLength": 1 },
+                {
+                  "type": "array",
+                  "items": { "type": "string", "minLength": 1 },
+                  "minItems": 1
+                }
+              ]
+            },
+            "file_not_empty": {
+              "oneOf": [
+                { "type": "string", "minLength": 1 },
+                {
+                  "type": "array",
+                  "items": { "type": "string", "minLength": 1 },
+                  "minItems": 1
+                }
+              ]
+            }
           }
         },
         "on_failure": {
