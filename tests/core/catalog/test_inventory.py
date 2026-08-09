@@ -11,7 +11,6 @@ from getworktree.core.catalog.inventory import (
     delete_catalog_item_by_sha_or_name,
     ensure_catalog_dirs,
     get_catalog_item,
-    migrate_legacy_workflows,
     scan_and_index_catalog,
 )
 from getworktree.core.db import (
@@ -26,19 +25,6 @@ def test_ensure_catalog_dirs_creates_structure(tmp_path: Path) -> None:
     assert (catalog_dir / "workflows").is_dir()
     assert (catalog_dir / "tasks").is_dir()
     assert (catalog_dir / "steps").is_dir()
-
-
-def test_migrate_legacy_workflows(tmp_path: Path) -> None:
-    legacy_loops = tmp_path / ".worktree" / "loops"
-    legacy_loops.mkdir(parents=True)
-    legacy_file = legacy_loops / "legacy-wf.yml"
-    legacy_file.write_text("name: legacy-wf\n", encoding="utf-8")
-
-    migrated = migrate_legacy_workflows(tmp_path)
-    assert len(migrated) == 1
-    assert migrated[0] == tmp_path / ".worktree" / "catalog" / "workflows" / "legacy-wf.yml"
-    assert not legacy_file.exists()
-    assert migrated[0].exists()
 
 
 def test_compute_catalog_sha() -> None:

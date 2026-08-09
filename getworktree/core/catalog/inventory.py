@@ -30,31 +30,6 @@ def ensure_catalog_dirs(cwd: Path | None = None) -> Path:
     return catalog_dir
 
 
-def migrate_legacy_workflows(cwd: Path | None = None) -> list[Path]:
-    """Migrate legacy blueprint files from `.worktree/loops/` or `.worktree/workflows/` to `.worktree/catalog/workflows/`."""
-    base_dir = (cwd or Path.cwd()).resolve()
-    target_dir = get_catalog_dir(cwd) / "workflows"
-
-    legacy_dirs = [
-        base_dir / ".worktree" / "loops",
-        base_dir / ".worktree" / "workflows",
-    ]
-
-    migrated: list[Path] = []
-    for legacy_dir in legacy_dirs:
-        if not legacy_dir.exists() or not legacy_dir.is_dir():
-            continue
-        for item in sorted(legacy_dir.glob("*")):
-            if item.is_file() and item.suffix.lower() in (".yml", ".yaml"):
-                target_dir.mkdir(parents=True, exist_ok=True)
-                dest = target_dir / item.name
-                if not dest.exists():
-                    item.rename(dest)
-                    migrated.append(dest)
-
-    return migrated
-
-
 def compute_catalog_sha(item_type: CatalogItemType | str, content: str) -> tuple[str, str]:
     """Compute SHA-256 checksum and formatted SHA string (e.g. `workflow_a1b2c3d`)."""
     type_str = item_type.value if isinstance(item_type, CatalogItemType) else str(item_type)
@@ -114,7 +89,6 @@ def _scan_catalog_subdirectories(
 def scan_and_index_catalog(cwd: Path | None = None) -> CatalogScanResult:
     """Scan `.worktree/catalog/` subdirectories, compute SHA checksums, and sync SQLite database."""
     catalog_dir = ensure_catalog_dirs(cwd)
-    migrate_legacy_workflows(cwd)
 
     subdirs: list[tuple[CatalogItemType, Path]] = [
         (CatalogItemType.WORKFLOW, catalog_dir / "workflows"),
