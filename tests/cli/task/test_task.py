@@ -57,6 +57,28 @@ def test_task_list_command_with_items(tmp_path: Path, monkeypatch: pytest.Monkey
     assert item_map["run-tests"].summary == "Runs pytest with coverage"
 
 
+def test_task_list_command_surfaces_malformed_blueprint_warning(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Malformed per-blueprint YAML is still listed, with a warning instead of a silent skip."""
+    monkeypatch.chdir(tmp_path)
+
+    tasks_dir = get_catalog_dir(tmp_path) / "tasks"
+    tasks_dir.mkdir(parents=True, exist_ok=True)
+    # Catalog indexing falls back to file stem on parse failure and still indexes the path.
+    # task_list_command re-reads/parses and must surface the failure as a warning.
+    bad_path = tasks_dir / "broken-task.yml"
+    bad_path.write_text("name: [unterminated\n", encoding="utf-8")
+
+    outcome = task_list_command(cwd=tmp_path)
+
+    assert any("Failed to parse task blueprint" in w and "broken-task.yml" in w for w in outcome.warnings)
+    item = next(i for i in outcome.items if i.name == "broken-task")
+    assert item.description == ""
+    assert item.summary == ""
+    assert item.use_git_worktree is True
+
+
 def test_task_show_and_run_commands(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
 

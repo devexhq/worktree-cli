@@ -58,6 +58,8 @@ def display_path(path: Path, cwd: Path | None = None) -> str:
     try:
         return path.as_posix()
     except Exception:
+        # Intentional fallback for path types that don't support as_posix();
+        # display_path has no error-reporting channel.
         return str(path)
 
 

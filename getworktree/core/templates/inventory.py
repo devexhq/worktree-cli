@@ -14,18 +14,25 @@ from getworktree.core.templates.models import (
 )
 
 
-def _load_builtin_template(yaml_file: YamlFile, template_type: TemplateType) -> BuiltinTemplate | None:
-    """Read and parse a single template YAML file into a BuiltinTemplate model."""
+def _load_builtin_template(
+    yaml_file: YamlFile, template_type: TemplateType
+) -> tuple[BuiltinTemplate | None, str | None]:
+    """Read and parse a single template YAML file into a BuiltinTemplate model.
+
+    Returns:
+        (template, error). On success error is None. Soft validation skips return
+        (None, None). Unexpected failures return (None, error message).
+    """
     try:
         if not isinstance(yaml_file.parsed, dict):
-            return None
+            return None, None
 
         name = str(yaml_file.parsed.get("name", ""))
         description = str(yaml_file.parsed.get("description", ""))
         summary = str(yaml_file.parsed.get("summary", ""))
 
         if not name or not description:
-            return None
+            return None, None
 
         # If YAML explicitly defines type, use it if valid, otherwise fallback to directory type
         raw_type = yaml_file.parsed.get("type")
@@ -36,18 +43,21 @@ def _load_builtin_template(yaml_file: YamlFile, template_type: TemplateType) -> 
             except ValueError:
                 pass
 
-        return BuiltinTemplate(
-            name=name,
-            type=resolved_type,
-            description=description,
-            summary=summary,
-            content=str(yaml_file.content),
+        return (
+            BuiltinTemplate(
+                name=name,
+                type=resolved_type,
+                description=description,
+                summary=summary,
+                content=str(yaml_file.content),
+            ),
+            None,
         )
-    except Exception:
-        return None
+    except Exception as exc:
+        return None, f"Failed to load built-in template '{yaml_file.path}': {exc}"
 
 
-def _locate_template_files(*, filter_enum: TemplateType | None = None) -> list[BuiltinTemplate]:
+def _locate_template_files(*, filter_enum: TemplateType | None = None) -> tuple[list[BuiltinTemplate], list[str]]:
     type_subdirs: list[tuple[str, TemplateType]] = [
         ("workflows", TemplateType.WORKFLOW),
         ("tasks", TemplateType.TASK),
@@ -55,6 +65,7 @@ def _locate_template_files(*, filter_enum: TemplateType | None = None) -> list[B
     ]
 
     templates: list[BuiltinTemplate] = []
+    errors: list[str] = []
 
     root = importlib.resources.files("getworktree.core.templates")
 
@@ -66,10 +77,12 @@ def _locate_template_files(*, filter_enum: TemplateType | None = None) -> list[B
         yaml_files = scan_yaml_directory(subdir)
 
         for file in yaml_files:
-            tmpl = _load_builtin_template(file, t_type)
+            tmpl, error = _load_builtin_template(file, t_type)
+            if error:
+                errors.append(error)
             if tmpl is not None:
                 templates.append(tmpl)
-    return templates
+    return templates, errors
 
 
 def list_builtin_templates(
@@ -95,9 +108,9 @@ def list_builtin_templates(
 
     # Sort templates by name, then by type
     try:
-        templates = _locate_template_files(filter_enum=filter_enum)
+        templates, errors = _locate_template_files(filter_enum=filter_enum)
         templates.sort(key=lambda t: (t.name, t.type.value))
-        return BuiltinTemplateResult(templates=templates)
+        return BuiltinTemplateResult(templates=templates, errors=errors)
     except Exception as exc:
         return BuiltinTemplateResult(errors=[f"Failed to access package templates resource: {exc}"])
 
@@ -116,8 +129,6 @@ def get_builtin_template(
         Matching BuiltinTemplate or None if not found.
     """
     res = list_builtin_templates(type_filter=type_filter)
-    if not res.ok:
-        return None
     for tmpl in res.templates:
         if tmpl.name == name:
             return tmpl

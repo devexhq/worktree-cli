@@ -1,6 +1,16 @@
 """Unit tests for built-in templates inventory parsing and filtering."""
 
-from getworktree.core.templates.inventory import list_builtin_templates
+from pathlib import Path
+from unittest.mock import MagicMock
+
+import pytest
+
+from getworktree.common.models import YamlFile
+from getworktree.core.templates import inventory as inventory_mod
+from getworktree.core.templates.inventory import (
+    _load_builtin_template,
+    list_builtin_templates,
+)
 from getworktree.core.templates.models import TemplateType
 
 
@@ -14,6 +24,42 @@ def test_list_builtin_templates_all() -> None:
     assert "feature-dev" in names
     assert "run-tests" in names
     assert "git-checkpoint" in names
+
+
+def test_load_builtin_template_surfaces_exception() -> None:
+    """Unexpected load failures return (None, error) instead of swallowing silently."""
+    yaml_file = MagicMock(spec=YamlFile)
+    yaml_file.path = Path("tasks/broken.yml")
+    type(yaml_file).parsed = property(lambda self: (_ for _ in ()).throw(RuntimeError("boom")))
+
+    tmpl, error = _load_builtin_template(yaml_file, TemplateType.TASK)
+
+    assert tmpl is None
+    assert error is not None
+    assert "Failed to load built-in template" in error
+    assert "tasks/broken.yml" in error
+    assert "boom" in error
+
+
+def test_list_builtin_templates_collects_per_file_load_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Per-file load errors land in BuiltinTemplateResult.errors; other templates still load."""
+    original = inventory_mod._load_builtin_template
+    calls = {"n": 0}
+
+    def flaky_load(yaml_file: YamlFile, template_type: TemplateType):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return None, f"Failed to load built-in template '{yaml_file.path}': boom"
+        return original(yaml_file, template_type)
+
+    monkeypatch.setattr(inventory_mod, "_load_builtin_template", flaky_load)
+
+    result = inventory_mod.list_builtin_templates()
+
+    assert any("Failed to load built-in template" in err and "boom" in err for err in result.errors)
+    assert len(result.templates) >= 1
 
 
 def test_list_builtin_templates_filtered_by_workflow() -> None:

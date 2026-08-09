@@ -506,6 +506,8 @@ class GitSandboxManager:
                 SandboxStatus.CLEANED,
             )
         except Exception:
+            # Intentional best-effort local-DB bookkeeping during cleanup:
+            # worktree removal and branch deletion proceed independently.
             pass
 
         try:

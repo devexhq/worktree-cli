@@ -38,19 +38,11 @@ def templates_list_command(
     output = rich_output or _DEFAULT_RICH_OUTPUT
 
     result = list_builtin_templates(type_filter=type_filter)
-    if not result.ok:
-        for error in result.errors:
-            output.error_panel("Template Listing Error", error)
-        parsed_type = None
-        if type_filter is not None and isinstance(type_filter, TemplateType):
-            parsed_type = type_filter
-        return TemplatesCommandOutcome(
-            templates=[],
-            type_filter=parsed_type,
-            errors=list(result.errors),
-        )
+    for error in result.errors:
+        output.error_panel("Template Listing Error", error)
 
-    render_templates_list(result.templates, rich_output=output)
+    if result.templates:
+        render_templates_list(result.templates, rich_output=output)
 
     parsed_type = None
     if type_filter is not None:
@@ -65,6 +57,7 @@ def templates_list_command(
     return TemplatesCommandOutcome(
         templates=result.templates,
         type_filter=parsed_type,
+        errors=list(result.errors),
     )
 
 
