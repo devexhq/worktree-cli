@@ -39,7 +39,9 @@ def docs(context, serve=True):
 
 
 @task
-def complexity(context, paths="getworktree", plain=False, max_complexity=10, suggest_refactors=False, local=False):
+def complexity(
+    context, paths="getworktree", plain=False, max_complexity=10, suggest_refactors=False, local=False, failed=False
+):
     """Run complexipy, failing if any function exceeds max_complexity.
 
     Agents: pass the changed file(s) via `paths` (comma-separated) and use
@@ -63,8 +65,10 @@ def complexity(context, paths="getworktree", plain=False, max_complexity=10, sug
         *targets,
         "--max-complexity-allowed",
         str(max_complexity),
-        "--failed",
     ]
+
+    if failed:
+        cmd.append("--failed")
     if plain:
         cmd.append("--plain")
     elif suggest_refactors:

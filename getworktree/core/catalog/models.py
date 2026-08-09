@@ -21,4 +21,14 @@ class CatalogScanResult(BaseModel):
         return not self.errors
 
 
-__all__ = ["CatalogItemType", "CatalogRecord", "CatalogScanResult"]
+class CatalogSubdirectoryScanResult(BaseModel):
+    """Result of scanning a catalog subdirectory."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    scanned_records: list[CatalogRecord] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
+    scanned_shas: set[str] = Field(default_factory=set)
+
+
+__all__ = ["CatalogItemType", "CatalogRecord", "CatalogScanResult", "CatalogSubdirectoryScanResult"]

@@ -1,6 +1,7 @@
 """Unit tests for catalog directory scanner, legacy migration engine, and inventory CRUD functions."""
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -80,6 +81,36 @@ def test_scan_and_index_catalog(tmp_path: Path) -> None:
     assert len(res2.items) == 2
     db_items2 = CatalogDb(tmp_path).list()
     assert len(db_items2) == 2
+
+
+def test_scan_and_index_catalog_sha_reflects_raw_content(tmp_path: Path) -> None:
+    """SHA must change when raw file content changes, even if parsed structure is unchanged."""
+    catalog_dir = ensure_catalog_dirs(tmp_path)
+    wf_file = catalog_dir / "workflows" / "feature-dev.yml"
+
+    wf_file.write_text("name: Feature Dev Workflow\n", encoding="utf-8")
+    result1 = scan_and_index_catalog(tmp_path)
+    sha1 = result1.items[0].sha
+
+    # Same parsed value, different raw text (extra comment/whitespace)
+    wf_file.write_text("# comment\nname: Feature Dev Workflow\n", encoding="utf-8")
+    result2 = scan_and_index_catalog(tmp_path)
+    sha2 = result2.items[0].sha
+
+    assert sha1 != sha2
+
+
+def test_scan_and_index_catalog_skips_unreadable_file(tmp_path: Path) -> None:
+    catalog_dir = ensure_catalog_dirs(tmp_path)
+    wf_file = catalog_dir / "workflows" / "feature-dev.yml"
+    wf_file.write_text("name: Feature Dev Workflow\n", encoding="utf-8")
+
+    with patch.object(Path, "read_text", side_effect=OSError("permission denied")):
+        result = scan_and_index_catalog(tmp_path)
+
+    assert not result.ok
+    assert len(result.items) == 0
+    assert any("feature-dev.yml" in err and "permission denied" in err for err in result.errors)
 
 
 def test_create_catalog_item_default(tmp_path: Path) -> None:
