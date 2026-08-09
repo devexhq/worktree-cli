@@ -54,6 +54,198 @@ class PatchApplyResult(BaseModel):
         }
 
 
+class _MalformedDiffHeader(Exception):
+    """Raised when a ``diff --git`` header cannot be parsed."""
+
+
+class GitDiffParser:
+    """Parse a unified diff for target paths and binary markers."""
+
+    # Tried in order for each line; first handler to return truthy wins.
+    _HANDLERS = (
+        "_parse_diff_git_header",
+        "_parse_loose_diff_git_header",
+        "_parse_old_file_header",
+        "_parse_new_file_header",
+        "_parse_rename_or_copy_from",
+        "_parse_rename_or_copy_to",
+        "_parse_binary_files_header",
+        "_mark_git_binary_patch_paths",
+        "_mark_literal_or_delta_binary_paths",
+    )
+
+    def __init__(self, unified_diff: str):
+        self.has_file_header = False
+        self.paths: set[str] = set()
+        self.binary_paths: set[str] = set()
+        # Paths belonging to the current ``diff --git`` file section.
+        self.section_paths: set[str] = set()
+        self.unified_diff = unified_diff
+
+    def _record_path(
+        self, raw: str, *, paths: bool = False, section_paths: bool = False, binary_paths: bool = False
+    ) -> None:
+        if paths:
+            _add_path(self.paths, raw)
+
+        if section_paths:
+            _add_path(self.section_paths, raw)
+
+        if binary_paths:
+            _add_path(self.binary_paths, raw)
+
+    def _record_binary_fallback(self) -> None:
+        """Mark the current section (or all known paths) as binary."""
+        if self.section_paths:
+            self.binary_paths.update(self.section_paths)
+        elif self.paths:
+            self.binary_paths.update(self.paths)
+        else:
+            self.binary_paths.add("(unknown)")
+
+    def _parse_diff_git_header(self):
+        m = _DIFF_GIT_RE.match(self.line)
+        if m:
+            self.has_file_header = True
+            self.section_paths = set()
+
+            for group in m.groups():
+                self._record_path(group, paths=True, section_paths=True)
+
+            return True
+
+    def _parse_loose_diff_git_header(self):
+        if not self.line.startswith("diff --git "):
+            return False
+
+        rest = self.line[len("diff --git ") :].strip()
+        parts = rest.split(" ", 1)
+
+        if len(parts) != 2:
+            raise _MalformedDiffHeader("malformed diff --git header")
+
+        self.has_file_header = True
+        self.section_paths = set()
+
+        for part in parts:
+            token = _strip_ab_prefix(part)
+            self._record_path(token, paths=True, section_paths=True)
+
+        return True
+
+    def _parse_old_file_header(self):
+        if self.line.startswith("--- "):
+            self.has_file_header = True
+            body = self.line[4:]
+
+            if body != "/dev/null":
+                m = _MINUS_RE.match(self.line)
+                raw = m.group(1) if m else body
+                self._record_path(raw, paths=True, section_paths=True)
+
+            return True
+
+    def _parse_new_file_header(self):
+        if self.line.startswith("+++ "):
+            self.has_file_header = True
+            body = self.line[4:]
+            if body != "/dev/null":
+                m = _PLUS_RE.match(self.line)
+                raw = m.group(1) if m else body
+                self._record_path(raw, paths=True, section_paths=True)
+            return True
+
+    def _parse_rename_or_copy_from(self):
+        m = _RENAME_FROM_RE.match(self.line) or _COPY_FROM_RE.match(self.line)
+        if m:
+            self._record_path(m.group(1), paths=True, section_paths=True)
+            return True
+
+    def _parse_rename_or_copy_to(self):
+        m = _RENAME_TO_RE.match(self.line) or _COPY_TO_RE.match(self.line)
+        if m:
+            self._record_path(m.group(1), paths=True, section_paths=True)
+            return True
+
+    def _parse_binary_files_header(self):
+        m = _BINARY_FILES_RE.match(self.line)
+        if m:
+            self.has_file_header = True
+            for group in m.groups():
+                self._record_path(group, paths=True, section_paths=True, binary_paths=True)
+            return True
+
+    def _mark_git_binary_patch_paths(self):
+        if _GIT_BINARY_PATCH_RE.match(self.line):
+            if self.section_paths:
+                self.binary_paths.update(self.section_paths)
+            elif self.paths:
+                self.binary_paths.update(self.paths)
+            else:
+                self.binary_paths.add("(unknown)")
+            return True
+
+    def _mark_literal_or_delta_binary_paths(self):
+        if self.line.startswith("literal ") or self.line.startswith("delta "):
+            if self.section_paths:
+                self.binary_paths.update(self.section_paths)
+            elif self.paths:
+                self.binary_paths.update(self.paths)
+            else:
+                self.binary_paths.add("(unknown)")
+            return True
+
+    def parse(self):
+        """Run the parse operation."""
+        text = self.unified_diff.replace("\r\n", "\n").replace("\r", "\n")
+        lines = text.split("\n")
+
+        for line in lines:
+            self.line = line
+            m = _DIFF_GIT_RE.match(self.line)
+            if self._parse_diff_git_header(m):
+                continue
+
+            parsed_loose_header = self._parse_loose_diff_git_header()
+            if parsed_loose_header is False:
+                return [], [], "malformed diff --git header"
+            elif parsed_loose_header:
+                continue
+
+            if self._parse_old_file_header():
+                continue
+
+            if self._parse_new_file_header():
+                continue
+
+            if self._parse_rename_or_copy_from():
+                continue
+
+            if self._parse_rename_or_copy_to():
+                continue
+
+            if self._parse_binary_files_header():
+                continue
+
+            if self._mark_git_binary_patch_paths():
+                continue
+
+            if self._mark_literal_or_delta_binary_paths():
+                continue
+
+        if not self.has_file_header:
+            return (
+                [],
+                [],
+                "no file headers found (expected diff --git or --- / +++ )",
+            )
+
+        if not self.paths and not self.binary_paths:
+            return [], [], "no target file paths found in diff headers"
+
+        return sorted(self.paths), sorted(self.binary_paths), None
+
+
 def _normalize_diff_path(raw: str) -> str | None:
     """Normalize a path token from a diff header to a relative posix path.
 
@@ -80,118 +272,6 @@ def _strip_ab_prefix(token: str) -> str:
     if token.startswith("a/") or token.startswith("b/"):
         return token[2:]
     return token
-
-
-def _parse_unified_diff(
-    unified_diff: str,
-) -> tuple[list[str], list[str], str | None]:
-    """Parse a unified diff for target paths and binary markers.
-
-    Returns:
-        (touched_paths_sorted_unique, binary_paths, parse_error_or_none)
-    """
-    text = unified_diff.replace("\r\n", "\n").replace("\r", "\n")
-    lines = text.split("\n")
-
-    has_file_header = False
-    paths: set[str] = set()
-    binary_paths: set[str] = set()
-    # Paths belonging to the current ``diff --git`` file section.
-    section_paths: set[str] = set()
-
-    for line in lines:
-        m = _DIFF_GIT_RE.match(line)
-        if m:
-            has_file_header = True
-            section_paths = set()
-            for group in m.groups():
-                _add_path(paths, group)
-                _add_path(section_paths, group)
-            continue
-
-        if line.startswith("diff --git "):
-            rest = line[len("diff --git ") :].strip()
-            parts = rest.split(" ", 1)
-            if len(parts) != 2:
-                return [], [], "malformed diff --git header"
-            has_file_header = True
-            section_paths = set()
-            for part in parts:
-                token = _strip_ab_prefix(part)
-                _add_path(paths, token)
-                _add_path(section_paths, token)
-            continue
-
-        if line.startswith("--- "):
-            has_file_header = True
-            body = line[4:]
-            if body != "/dev/null":
-                m = _MINUS_RE.match(line)
-                raw = m.group(1) if m else body
-                _add_path(paths, raw)
-                _add_path(section_paths, raw)
-            continue
-
-        if line.startswith("+++ "):
-            has_file_header = True
-            body = line[4:]
-            if body != "/dev/null":
-                m = _PLUS_RE.match(line)
-                raw = m.group(1) if m else body
-                _add_path(paths, raw)
-                _add_path(section_paths, raw)
-            continue
-
-        m = _RENAME_FROM_RE.match(line) or _COPY_FROM_RE.match(line)
-        if m:
-            _add_path(paths, m.group(1))
-            _add_path(section_paths, m.group(1))
-            continue
-
-        m = _RENAME_TO_RE.match(line) or _COPY_TO_RE.match(line)
-        if m:
-            _add_path(paths, m.group(1))
-            _add_path(section_paths, m.group(1))
-            continue
-
-        m = _BINARY_FILES_RE.match(line)
-        if m:
-            has_file_header = True
-            for group in m.groups():
-                _add_path(paths, group)
-                _add_path(section_paths, group)
-                _add_path(binary_paths, group)
-            continue
-
-        if _GIT_BINARY_PATCH_RE.match(line):
-            if section_paths:
-                binary_paths.update(section_paths)
-            elif paths:
-                binary_paths.update(paths)
-            else:
-                binary_paths.add("(unknown)")
-            continue
-
-        if line.startswith("literal ") or line.startswith("delta "):
-            if section_paths:
-                binary_paths.update(section_paths)
-            elif paths:
-                binary_paths.update(paths)
-            else:
-                binary_paths.add("(unknown)")
-            continue
-
-    if not has_file_header:
-        return (
-            [],
-            [],
-            "no file headers found (expected diff --git or --- / +++ )",
-        )
-
-    if not paths and not binary_paths:
-        return [], [], "no target file paths found in diff headers"
-
-    return sorted(paths), sorted(binary_paths), None
 
 
 def _is_unsafe_path(rel_path: str, sandbox_path: Path) -> bool:
@@ -260,7 +340,8 @@ def validate_patch_text(
             ],
         )
 
-    touched, binary_paths, parse_error = _parse_unified_diff(unified_diff)
+    git_diff_parser = GitDiffParser(unified_diff)
+    touched, binary_paths, parse_error = git_diff_parser.parse()
     if parse_error is not None:
         return PatchApplyResult(
             status=PatchApplyStatus.INVALID_DIFF,
