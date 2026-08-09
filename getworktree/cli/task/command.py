@@ -85,8 +85,8 @@ def task_list_command(
                     summary = str(yaml_data.get("summary", ""))
                     if "use_git_worktree" in yaml_data:
                         use_git_worktree = bool(yaml_data.get("use_git_worktree", True))
-            except Exception:
-                pass
+            except Exception as exc:
+                warnings.append(f"Failed to parse task blueprint '{record.path}': {exc}")
 
         items.append(
             TaskBlueprintItem(

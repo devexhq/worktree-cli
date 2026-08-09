@@ -68,6 +68,8 @@ def default_cursor_run(request: CliMutationRunRequest) -> CliMutationOutcome:
             try:
                 run.cancel()  # type: ignore[attr-defined]
             except Exception:
+                # A failed `run.cancel()` after a timeout is non-fatal: the function already returns
+                # CliMutationOutcome(status="timeout") regardless of whether cancellation itself succeeded.
                 pass
         thread.join(timeout=5)
         return CliMutationOutcome(status="timeout")
