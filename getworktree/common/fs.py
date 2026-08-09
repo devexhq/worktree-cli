@@ -120,7 +120,7 @@ def scan_yaml_directory(
 
     entries = []
     for file_path in sorted(directory.glob("*")):
-        if not file_path.is_file() or file_path.suffix.lower() not in (".yml", ".yaml"):
+        if not file_path.is_file() or file_path.suffix.lower() not in suffixes:
             continue
 
         entries.append(_process_yaml_file(file_path))

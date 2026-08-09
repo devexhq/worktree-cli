@@ -8,7 +8,94 @@ from unittest.mock import patch
 
 import pytest
 
-from getworktree.common.fs import atomic_write_json
+from getworktree.common.fs import atomic_write_json, scan_yaml_directory
+
+
+class ScanYamlDirectoryTests:
+    """Tests for scan_yaml_directory."""
+
+    def test_nonexistent_directory_returns_empty_list(self, tmp_path: Path) -> None:
+        assert scan_yaml_directory(tmp_path / "missing") == []
+
+    def test_parses_yaml_file(self, tmp_path: Path) -> None:
+        (tmp_path / "a.yml").write_text("name: My Blueprint\nkey: value\n", encoding="utf-8")
+
+        entries = scan_yaml_directory(tmp_path)
+
+        assert len(entries) == 1
+        entry = entries[0]
+        assert entry.path == tmp_path / "a.yml"
+        assert entry.name == "My Blueprint"
+        assert entry.parsed == {"name": "My Blueprint", "key": "value"}
+        assert entry.content == "name: My Blueprint\nkey: value\n"
+        assert entry.error is None
+
+    def test_uses_name_field_when_present(self, tmp_path: Path) -> None:
+        (tmp_path / "a.yml").write_text("name: My Blueprint\nkey: value\n", encoding="utf-8")
+
+        entries = scan_yaml_directory(tmp_path)
+
+        assert len(entries) == 1
+        entry = entries[0]
+        assert entry.name == "My Blueprint"
+        assert entry.parsed == {"name": "My Blueprint", "key": "value"}
+
+    def test_falls_back_to_file_stem_when_no_name_field(self, tmp_path: Path) -> None:
+        (tmp_path / "no-name.yaml").write_text("key: value\n", encoding="utf-8")
+
+        entries = scan_yaml_directory(tmp_path)
+
+        assert len(entries) == 1
+        assert entries[0].name == "no-name"
+
+    def test_sorted_by_filename(self, tmp_path: Path) -> None:
+        (tmp_path / "b.yml").write_text("name: b\n", encoding="utf-8")
+        (tmp_path / "a.yaml").write_text("name: a\n", encoding="utf-8")
+        (tmp_path / "c.yaml").write_text("name: c\n", encoding="utf-8")
+
+        entries = scan_yaml_directory(tmp_path)
+
+        assert [e.path.name for e in entries] == ["a.yaml", "b.yml", "c.yaml"]
+
+    def test_ignores_non_yaml_files(self, tmp_path: Path) -> None:
+        (tmp_path / "ignore.txt").write_text("not yaml\n", encoding="utf-8")
+
+        entries = scan_yaml_directory(tmp_path)
+
+        assert [e.path.name for e in entries] == []
+
+    def test_unparseable_yaml_has_no_error_and_no_parsed_value(self, tmp_path: Path) -> None:
+        (tmp_path / "bad.yml").write_text("key: [unterminated\n", encoding="utf-8")
+
+        entries = scan_yaml_directory(tmp_path)
+
+        assert len(entries) == 1
+        entry = entries[0]
+        assert entry.parsed is None
+        assert entry.error is None
+        assert entry.name == "bad"
+        assert entry.content == "key: [unterminated\n"
+
+    def test_read_failure_sets_error_and_leaves_parsed_none(self, tmp_path: Path) -> None:
+        (tmp_path / "unreadable.yml").write_text("name: test\n", encoding="utf-8")
+
+        with patch.object(Path, "read_text", side_effect=OSError("permission denied")):
+            entries = scan_yaml_directory(tmp_path)
+
+        assert len(entries) == 1
+        entry = entries[0]
+        assert entry.parsed is None
+        assert entry.error is not None
+        assert "unreadable.yml" in entry.error
+        assert "permission denied" in entry.error
+
+    def test_custom_suffixes_are_respected(self, tmp_path: Path) -> None:
+        (tmp_path / "a.yml").write_text("name: a\n", encoding="utf-8")
+        (tmp_path / "b.myyaml").write_text("name: b\n", encoding="utf-8")
+
+        entries = scan_yaml_directory(tmp_path, suffixes=(".myyaml",))
+
+        assert [e.path.name for e in entries] == ["b.myyaml"]
 
 
 class AtomicWriteJsonTests:

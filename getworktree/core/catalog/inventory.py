@@ -6,6 +6,7 @@ import hashlib
 from pathlib import Path
 
 from getworktree.common.fs import atomic_write_text, scan_yaml_directory
+from getworktree.common.models import YamlFile
 from getworktree.core.catalog.models import CatalogScanResult, CatalogSubdirectoryScanResult
 from getworktree.core.db import (
     CatalogDb,
@@ -62,6 +63,32 @@ def compute_catalog_sha(item_type: CatalogItemType | str, content: str) -> tuple
     return sha, checksum
 
 
+def _index_catalog_entry(
+    cwd: Path | None,
+    item_type: CatalogItemType,
+    catalog_dir: Path,
+    file_entry: YamlFile,
+) -> tuple[CatalogRecord | None, str | None]:
+    """Upsert a single scanned YAML file into the catalog DB, or return an error message."""
+    if file_entry.error:
+        return None, file_entry.error
+
+    sha, checksum = compute_catalog_sha(item_type, str(file_entry.content))
+    rel_path = file_entry.path.relative_to(catalog_dir)
+
+    try:
+        record = CatalogDb(cwd).upsert(
+            sha=sha,
+            item_type=item_type,
+            name=file_entry.name,
+            path=rel_path,
+            checksum=checksum,
+        )
+        return record, None
+    except Exception as exc:
+        return None, f"Failed to index catalog record for '{rel_path}': {exc}"
+
+
 def _scan_catalog_subdirectories(
     *, cwd: Path | None = None, catalog_dir: Path, subdirs: list[tuple[CatalogItemType, Path]]
 ) -> CatalogSubdirectoryScanResult:
@@ -73,23 +100,13 @@ def _scan_catalog_subdirectories(
         if not sub_dir.exists():
             continue
 
-        yaml_files = scan_yaml_directory(sub_dir)
-        for file_entry in yaml_files:
-            sha, checksum = compute_catalog_sha(item_type, str(file_entry.content))
-            rel_path = file_entry.path.relative_to(catalog_dir)
-
-            try:
-                record = CatalogDb(cwd).upsert(
-                    sha=sha,
-                    item_type=item_type,
-                    name=file_entry.name,
-                    path=rel_path,
-                    checksum=checksum,
-                )
-                scanned_records.append(record)
-                scanned_shas.add(sha)
-            except Exception as exc:
-                errors.append(f"Failed to index catalog record for '{rel_path}': {exc}")
+        for file_entry in scan_yaml_directory(sub_dir):
+            record, error = _index_catalog_entry(cwd, item_type, catalog_dir, file_entry)
+            if error:
+                errors.append(error)
+                continue
+            scanned_records.append(record)
+            scanned_shas.add(record.sha)
 
     return CatalogSubdirectoryScanResult(scanned_records=scanned_records, errors=errors, scanned_shas=scanned_shas)
 
