@@ -177,61 +177,30 @@ class GitDiffParser:
 
     def _mark_git_binary_patch_paths(self):
         if _GIT_BINARY_PATCH_RE.match(self.line):
-            if self.section_paths:
-                self.binary_paths.update(self.section_paths)
-            elif self.paths:
-                self.binary_paths.update(self.paths)
-            else:
-                self.binary_paths.add("(unknown)")
+            self._record_binary_fallback()
             return True
 
     def _mark_literal_or_delta_binary_paths(self):
         if self.line.startswith("literal ") or self.line.startswith("delta "):
-            if self.section_paths:
-                self.binary_paths.update(self.section_paths)
-            elif self.paths:
-                self.binary_paths.update(self.paths)
-            else:
-                self.binary_paths.add("(unknown)")
+            self._record_binary_fallback()
             return True
+
+    def _parse_line(self) -> None:
+        """Try each header handler in turn, stopping at the first match."""
+        for name in self._HANDLERS:
+            if getattr(self, name)():
+                return
 
     def parse(self):
         """Run the parse operation."""
         text = self.unified_diff.replace("\r\n", "\n").replace("\r", "\n")
-        lines = text.split("\n")
 
-        for line in lines:
-            self.line = line
-            m = _DIFF_GIT_RE.match(self.line)
-            if self._parse_diff_git_header(m):
-                continue
-
-            parsed_loose_header = self._parse_loose_diff_git_header()
-            if parsed_loose_header is False:
-                return [], [], "malformed diff --git header"
-            elif parsed_loose_header:
-                continue
-
-            if self._parse_old_file_header():
-                continue
-
-            if self._parse_new_file_header():
-                continue
-
-            if self._parse_rename_or_copy_from():
-                continue
-
-            if self._parse_rename_or_copy_to():
-                continue
-
-            if self._parse_binary_files_header():
-                continue
-
-            if self._mark_git_binary_patch_paths():
-                continue
-
-            if self._mark_literal_or_delta_binary_paths():
-                continue
+        try:
+            for line in text.split("\n"):
+                self.line = line
+                self._parse_line()
+        except _MalformedDiffHeader as exc:
+            return [], [], str(exc)
 
         if not self.has_file_header:
             return (
