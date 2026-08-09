@@ -40,9 +40,8 @@ from getworktree.core.workflows.payload import (
     PayloadOmission,
 )
 from getworktree.core.workflows.render import (
-    format_workflow_show_resolve_failure,
-    format_workflow_show_success,
-    format_workflow_show_validate_failure,
+    format_workflow_run_resolve_failure,
+    format_workflow_run_validate_failure,
 )
 from getworktree.core.workflows.resolve import (
     WorkflowResolveResult,
@@ -93,9 +92,8 @@ __all__ = [
     "WorkflowValidationStatus",
     "build_workflow_inventory",
     "discover_workflow_files",
-    "format_workflow_show_resolve_failure",
-    "format_workflow_show_success",
-    "format_workflow_show_validate_failure",
+    "format_workflow_run_resolve_failure",
+    "format_workflow_run_validate_failure",
     "load_workflow_definition",
     "parse_workflow_metadata",
     "resolve_workflow_by_name",
