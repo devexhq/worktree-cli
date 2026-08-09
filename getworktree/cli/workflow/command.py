@@ -10,8 +10,8 @@ from getworktree.common.utils import RichOutput
 from getworktree.core.config.loader import ConfigLoadStatus, load_config_result
 from getworktree.core.db import SandboxesDb, WorkflowsDb
 from getworktree.core.workflows.render import (
-    format_workflow_show_resolve_failure,
-    format_workflow_show_validate_failure,
+    format_workflow_run_resolve_failure,
+    format_workflow_run_validate_failure,
 )
 from getworktree.core.workflows.resolve import resolve_workflow_by_name
 from getworktree.core.workflows.validate import validate_workflow_result
@@ -150,7 +150,7 @@ def workflow_run_command(
     if not resolved.ok:
         rich_output.error_panel(
             "Workflow Run Failed",
-            format_workflow_show_resolve_failure(resolved),
+            format_workflow_run_resolve_failure(resolved),
         )
         raise typer.Exit(code=1)
 
@@ -159,7 +159,7 @@ def workflow_run_command(
     if not validated.ok:
         rich_output.error_panel(
             "Workflow Run Failed",
-            format_workflow_show_validate_failure(validated),
+            format_workflow_run_validate_failure(validated),
         )
         raise typer.Exit(code=1)
 

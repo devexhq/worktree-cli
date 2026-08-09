@@ -814,57 +814,27 @@ Command entry: `getworktree.cli.workflow.command.workflow_show_command`.
 Registration: `wt workflow show` under `workflow_app` in
 [getworktree/cli.py](../../getworktree/cli.py).
 
-Read-only: query workflow session by session ID and print details.
-
-Pipeline:
-
-1. `resolve_workflow_by_name(name, cwd=cwd)`
-2. On resolve failure → error panel, exit `1` (no validate)
-3. `validate_workflow_result(resolved.entry.source_path)`
-4. On validate failure → error panel, exit `1` (resolve warnings may print after)
-5. On success → plain-text summary, exit `0` (warnings allowed)
-
-Pure formatters (no IO/print/exit) live in
-[getworktree/core/workflows/render.py](../../getworktree/core/workflows/render.py):
-
-- `format_workflow_show_success(workflow, *, source_path, warnings=None) -> str`
-- `format_workflow_show_resolve_failure(result) -> str`
-- `format_workflow_show_validate_failure(result) -> str`
+Read-only: query a recorded workflow session by session ID and print details
+(session id, name, branch, status, timestamps, error). Workflow *definition*
+display is handled by `wt catalog show`, not this command.
 
 ### Exit codes
 
 | Condition | Exit |
 |-----------|------|
-| resolve ok + validate ok (warnings allowed) | `0` |
-| resolve not ok | `1` |
-| validate not ok | `1` |
-| unexpected internal exception | non-zero (never silent `0`) |
+| session found | `0` |
+| uninitialized worktree, config load error, or session not found | `1` |
 
-### Success layout
+## `wt workflow run` error bodies
 
-Plain text (no Rich markup), trailing newline. Header:
+Pure formatters (no IO/print/exit) for resolve/validate failure panel bodies live in
+[getworktree/core/workflows/render.py](../../getworktree/core/workflows/render.py):
 
-```text
-Workflow: <name>
-Source: <absolute-source-path>
-Status: valid
-```
+- `format_workflow_run_resolve_failure(result) -> str`
+- `format_workflow_run_validate_failure(result) -> str`
 
-or `Status: valid with warnings` plus a `Warnings:` bullet list when
-`resolved.warnings + validated.warnings` is non-empty. Then sections in order:
-`Description`, `Trigger`, `Agent`, `Iteration`, `Sandbox`, `Approval`,
-`Context`, `Patch` (field labels/casing as in the issue / render module).
-Booleans are `true`/`false`; lists use `json.dumps`; optional
-`reject_binary_changes` is `null` when unset.
-
-### Failure layout
-
-- Exit `1`
-- Rich error panel titled exactly `Workflow Show Failed`
-- Resolve body: `"\n\n".join(errors)` or `Failed to resolve workflow.`
-- Validate body: `"\n\n".join(errors)` or `Workflow definition is invalid.`
-- No success header on failure
-- If resolve warnings exist on a validate failure, print them after the panel
+Resolve body: `"\n\n".join(errors)` or `Failed to resolve workflow.`
+Validate body: `"\n\n".join(errors)` or `Workflow definition is invalid.`
 
 ## Changing config or workflow shape
 
