@@ -29,8 +29,6 @@ from getworktree.core.workflows.metadata import (
 )
 from getworktree.core.workflows.models import (
     LoopStepBlock,
-    StandardStepDefinition,
-    StepAssert,
     WorkflowDefinition,
     WorkflowInput,
 )
@@ -68,8 +66,6 @@ __all__ = [
     "LoopStepBlock",
     "PayloadFile",
     "PayloadOmission",
-    "StandardStepDefinition",
-    "StepAssert",
     "WorkflowDefinition",
     "WorkflowDiscoveryResult",
     "WorkflowDiscoveryStatus",

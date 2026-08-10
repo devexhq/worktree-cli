@@ -12,10 +12,9 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
+from getworktree.core.step import StepAssert, StepDefinition
 from getworktree.core.workflows import (
     WORKFLOW_VALIDATOR,
-    StandardStepDefinition,
-    StepAssert,
     WorkflowDefinition,
     WorkflowLoadError,
     WorkflowValidationError,
@@ -240,16 +239,16 @@ class ValidateWorkflowResultMutualExclusivityTests:
         assert "WORKFLOW_INVALID_SCHEMA" in result.errors[0]
 
     def test_model_validates_uses_and_run_mutual_exclusivity(self) -> None:
-        with pytest.raises(ValueError, match="Cannot specify both 'uses' and 'run'"):
-            StandardStepDefinition(
+        with pytest.raises(ValueError, match="cannot be combined with"):
+            StepDefinition(
                 id="run-tests",
                 uses="wt/run-tests",
                 run="pytest",
             )
 
     def test_model_validates_neither_uses_nor_run(self) -> None:
-        with pytest.raises(ValueError, match="must specify either 'uses' or 'run'"):
-            StandardStepDefinition(id="run-tests")
+        with pytest.raises(ValueError, match="must specify one of 'run', 'uses', or 'type'"):
+            StepDefinition(id="run-tests")
 
 
 class ValidateWorkflowInputsTests:
@@ -318,7 +317,7 @@ class StepAssertSchemaAndModelTests:
 
     def test_standard_step_assert_alias_round_trip(self) -> None:
         """``assert`` key maps onto ``assert_`` and dumps back under the alias."""
-        step = StandardStepDefinition.model_validate(
+        step = StepDefinition.model_validate(
             {
                 "id": "run-tests",
                 "run": "pytest",
@@ -338,7 +337,7 @@ class StepAssertSchemaAndModelTests:
         assert dumped["assert"]["file_not_exists"] == ["tmp/lock"]
         assert dumped["assert"]["file_not_empty"] == ["dist/app.bin", "dist/manifest.json"]
 
-        reloaded = StandardStepDefinition.model_validate(dumped)
+        reloaded = StepDefinition.model_validate(dumped)
         assert reloaded.assert_ is not None
         assert reloaded.assert_.exit_code == [0, 2]
 
@@ -358,7 +357,7 @@ class StepAssertSchemaAndModelTests:
             StepAssert(**{field_name: value})
 
         with pytest.raises(ValidationError, match=field_name):
-            StandardStepDefinition(
+            StepDefinition(
                 id="run-tests",
                 run="pytest",
                 assert_=StepAssert(**{field_name: value}),
@@ -379,7 +378,7 @@ class StepAssertSchemaAndModelTests:
         assert result.ok
         assert result.workflow is not None
         step = result.workflow.steps[0]
-        assert isinstance(step, StandardStepDefinition)
+        assert isinstance(step, StepDefinition)
         assert step.assert_ is not None
         assert step.assert_.exit_code == [0, 1]
         assert step.assert_.file_exists == "dist/app.bin"

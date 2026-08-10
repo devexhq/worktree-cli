@@ -1,12 +1,8 @@
 from pathlib import Path
 
-from getworktree.core.step import (
-    FailureAction,
-    StepDefinition,
-    StepResult,
-    StepType,
-    execute_step,
-)
+import pytest
+
+from getworktree.core.step import StepDefinition, StepResult, StepType, execute_step
 
 
 def test_step_result_ok_property():
@@ -44,9 +40,7 @@ def test_step_result_ok_property():
 def test_execute_command_step_success(tmp_path: Path):
     step = StepDefinition(
         id="cmd_success",
-        name="cmd-success",
         type=StepType.COMMAND,
-        description="Run echo",
         command="echo 'hello world'",
     )
 
@@ -61,11 +55,9 @@ def test_execute_command_step_success(tmp_path: Path):
 def test_execute_command_step_failure_abort(tmp_path: Path):
     step = StepDefinition(
         id="cmd_fail",
-        name="cmd-fail",
         type=StepType.COMMAND,
-        description="Run failing command",
         command="exit 42",
-        failure_action=FailureAction.ABORT,
+        on_failure="abort",
     )
 
     res = execute_step(step, sandbox_path=tmp_path)
@@ -76,14 +68,12 @@ def test_execute_command_step_failure_abort(tmp_path: Path):
     assert "exit code 42" in (res.error_message or "")
 
 
-def test_execute_command_step_failure_ignore(tmp_path: Path):
+def test_execute_command_step_failure_continue_is_ignored(tmp_path: Path):
     step = StepDefinition(
         id="cmd_ignore",
-        name="cmd-ignore",
         type=StepType.COMMAND,
-        description="Ignore failure",
         command="exit 1",
-        failure_action=FailureAction.IGNORE,
+        on_failure="continue",
     )
 
     res = execute_step(step, sandbox_path=tmp_path)
@@ -91,6 +81,50 @@ def test_execute_command_step_failure_ignore(tmp_path: Path):
     assert res.status == "ignored"
     assert res.exit_code == 0
     assert res.attempts == 1
+
+
+def test_execute_command_step_retry_exhausted_aborts_by_default(tmp_path: Path):
+    step = StepDefinition(
+        id="cmd_retry_fail",
+        type=StepType.COMMAND,
+        command="exit 1",
+        on_failure={"action": "retry", "max_retries": 2},
+    )
+
+    res = execute_step(step, sandbox_path=tmp_path)
+    assert res.ok is False
+    assert res.status == "failed"
+    assert res.attempts == 2
+
+
+def test_execute_command_step_retry_exhausted_continue_is_ignored(tmp_path: Path):
+    step = StepDefinition(
+        id="cmd_retry_continue",
+        type=StepType.COMMAND,
+        command="exit 1",
+        on_failure={"action": "retry", "max_retries": 2, "on_max_retries": "continue"},
+    )
+
+    res = execute_step(step, sandbox_path=tmp_path)
+    assert res.ok is True
+    assert res.status == "ignored"
+    assert res.attempts == 2
+
+
+def test_execute_command_step_retry_sleeps_backoff_between_attempts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    sleep_calls: list[float] = []
+    monkeypatch.setattr("getworktree.core.step.runner.time.sleep", lambda secs: sleep_calls.append(secs))
+
+    step = StepDefinition(
+        id="cmd_backoff",
+        type=StepType.COMMAND,
+        command="exit 1",
+        on_failure={"action": "retry", "max_retries": 3, "backoff_ms": 250},
+    )
+
+    res = execute_step(step, sandbox_path=tmp_path)
+    assert res.attempts == 3
+    assert sleep_calls == [0.25, 0.25]
 
 
 def test_execute_command_step_retry(tmp_path: Path):
@@ -104,11 +138,9 @@ def test_execute_command_step_retry(tmp_path: Path):
 
     step = StepDefinition(
         id="cmd_retry",
-        name="cmd-retry",
         type=StepType.COMMAND,
-        description="Retry 3 times",
         command=cmd,
-        failure_action=FailureAction.RETRY,
+        on_failure="retry",
     )
 
     res = execute_step(step, sandbox_path=tmp_path)
@@ -122,9 +154,7 @@ def test_execute_command_step_retry(tmp_path: Path):
 def test_execute_command_step_timeout(tmp_path: Path):
     step = StepDefinition(
         id="cmd_timeout",
-        name="cmd-timeout",
         type=StepType.COMMAND,
-        description="Sleep long",
         command="sleep 5",
         timeout_seconds=1,
     )
@@ -141,9 +171,7 @@ def test_execute_script_step(tmp_path: Path):
 
     step = StepDefinition(
         id="script_step",
-        name="script-step",
         type=StepType.SCRIPT,
-        description="Run script",
         script_path="test_script.py",
     )
 
@@ -156,9 +184,7 @@ def test_execute_script_step(tmp_path: Path):
 def test_execute_script_step_missing_file(tmp_path: Path):
     step = StepDefinition(
         id="script_missing",
-        name="script-missing",
         type=StepType.SCRIPT,
-        description="Run missing script",
         script_path="nonexistent.sh",
     )
 
@@ -174,9 +200,7 @@ def test_execute_agent_step_custom_handler(tmp_path: Path):
 
     step = StepDefinition(
         id="agent_step",
-        name="agent-step",
         type=StepType.AGENT,
-        description="Run agent prompt",
         prompt="Fix bugs",
         tools=["edit_file"],
     )
@@ -187,13 +211,26 @@ def test_execute_agent_step_custom_handler(tmp_path: Path):
     assert res.stdout == "agent result"
 
 
+def test_execute_agent_step_defaults_to_local_provider(tmp_path: Path):
+    step = StepDefinition(id="agent_step", type=StepType.AGENT, prompt="Fix bugs")
+
+    res = execute_step(step, sandbox_path=tmp_path)
+    assert res.ok is True
+    assert res.status == "completed"
+
+
+def test_execute_agent_step_uses_context_provider_override(tmp_path: Path):
+    step = StepDefinition(id="agent_step", type=StepType.AGENT, prompt="Fix bugs")
+
+    res = execute_step(step, sandbox_path=tmp_path, context={"agent": "ollama"})
+    assert res.ok is True
+
+
 def test_execute_step_invalid_sandbox_path(tmp_path: Path):
     nonexistent = tmp_path / "sandbox_missing"
     step = StepDefinition(
         id="step_sb",
-        name="step-sb",
         type=StepType.COMMAND,
-        description="Test",
         command="echo 1",
     )
 
@@ -201,3 +238,26 @@ def test_execute_step_invalid_sandbox_path(tmp_path: Path):
     assert res.ok is False
     assert res.status == "failed"
     assert "does not exist" in (res.error_message or "").lower()
+
+
+def test_execute_step_resolves_run_shorthand(tmp_path: Path):
+    step = StepDefinition(id="run-step", run="echo from-run")
+
+    res = execute_step(step, sandbox_path=tmp_path)
+    assert res.ok is True
+    assert "from-run" in res.stdout
+
+
+def test_execute_step_resolves_uses_reference(tmp_path: Path):
+    steps_dir = tmp_path / ".worktree" / "catalog" / "steps"
+    steps_dir.mkdir(parents=True)
+    (steps_dir / "greet.yaml").write_text(
+        "id: greet\ntype: command\ncommand: echo from-uses\n",
+        encoding="utf-8",
+    )
+
+    step = StepDefinition(id="uses-step", uses="greet")
+
+    res = execute_step(step, sandbox_path=tmp_path)
+    assert res.ok is True
+    assert "from-uses" in res.stdout

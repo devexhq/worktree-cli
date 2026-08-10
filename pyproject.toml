@@ -94,8 +94,8 @@ exclude = [
 # UP pyupgrade, RUF ruff, FA future-annotations, D pydocstyle (Google).
 select = ["E", "W", "F", "I", "B", "C4", "UP", "RUF", "FA", "D"]
 # E501 handled by formatter; FA100 allow missing future annotations;
-# D100/D104/D105/D107 skip noisy docstring requirements.
-ignore = ["E501", "FA100", "D100", "D104", "D105", "D107"]
+# D100/D101/D104/D105/D107 skip noisy docstring requirements.
+ignore = ["E501", "FA100", "D100", "D104", "D105", "D107", "D101"]
 dummy-variable-rgx = "^_$"
 
 [tool.ruff.lint.per-file-ignores]

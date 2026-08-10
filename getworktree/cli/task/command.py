@@ -6,8 +6,10 @@ import logging
 import uuid
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import yaml
+from pydantic import ValidationError
 
 from getworktree.common.utils import RichOutput
 from getworktree.core.catalog.inventory import (
@@ -23,10 +25,9 @@ from getworktree.core.db import (
 )
 from getworktree.core.git_sandbox import GitSandboxManager, SandboxSession
 from getworktree.core.step import (
-    FailureAction,
     StepDefinition,
-    StepType,
     execute_step,
+    resolve_step_definition,
 )
 
 from .models import (
@@ -43,6 +44,15 @@ from .renderers import (
 
 _DEFAULT_RICH_OUTPUT = RichOutput()
 logger = logging.getLogger(__name__)
+
+
+def _normalize_task_step_dict(raw: dict[str, Any], idx: int) -> dict[str, Any]:
+    """Fill in id/type defaults so simple 'commands:' blueprint entries validate."""
+    data = dict(raw)
+    data.setdefault("id", str(data.get("name") or f"step_{idx}"))
+    if not any(k in data for k in ("run", "uses", "type")) and data.get("command"):
+        data["type"] = "command"
+    return data
 
 
 def task_list_command(
@@ -250,37 +260,13 @@ def task_run_command(
             raw_steps = yaml_data.get("steps") or yaml_data.get("commands") or []
             step_defs: list[StepDefinition] = []
             for idx, s in enumerate(raw_steps, start=1):
-                if isinstance(s, dict):
-                    step_id = str(s.get("id") or s.get("name") or f"step_{idx}")
-                    step_name = str(s.get("name") or step_id)
-                    st_str = str(s.get("type", "command")).lower()
-                    try:
-                        st = StepType(st_str)
-                    except ValueError:
-                        st = StepType.COMMAND
-
-                    fa_str = str(s.get("failure_action", "abort")).lower()
-                    try:
-                        fa = FailureAction(fa_str)
-                    except ValueError:
-                        fa = FailureAction.ABORT
-
-                    tools_list = s.get("tools") if isinstance(s.get("tools"), list) else []
-
-                    step_def = StepDefinition(
-                        id=step_id,
-                        name=step_name,
-                        type=st,
-                        description=str(s.get("description", step_name)),
-                        command=s.get("command"),
-                        prompt=s.get("prompt"),
-                        agent=agent or s.get("agent"),
-                        tools=tools_list,
-                        script_path=s.get("script_path"),
-                        timeout_seconds=int(s.get("timeout_seconds", 120)),
-                        failure_action=fa,
-                    )
-                    step_defs.append(step_def)
+                if not isinstance(s, dict):
+                    continue
+                try:
+                    step_def = StepDefinition.model_validate(_normalize_task_step_dict(s, idx))
+                except (ValidationError, ValueError) as exc:
+                    raise RuntimeError(f"Invalid step definition at index {idx}: {exc}") from exc
+                step_defs.append(resolve_step_definition(step_def, cwd=root))
 
             if not step_defs:
                 output.info("No step definitions found in task blueprint.")
@@ -288,8 +274,9 @@ def task_run_command(
             # 3. Execute Step Definitions
             total_steps = len(step_defs)
             for idx, step_def in enumerate(step_defs, start=1):
+                step_label = step_def.name or step_def.id
                 cmd_info = f" (command: {step_def.command})" if step_def.command else ""
-                output.info(f"[STEP {idx}/{total_steps}] Executing {step_def.name}{cmd_info}...")
+                output.info(f"[STEP {idx}/{total_steps}] Executing {step_label}{cmd_info}...")
 
                 step_res = execute_step(
                     step=step_def,
@@ -298,15 +285,14 @@ def task_run_command(
                 )
 
                 if step_res.ok:
-                    output.info(f"[bold green][STEP {idx}/{total_steps}] {step_def.name} COMPLETED[/]")
+                    output.info(f"[bold green][STEP {idx}/{total_steps}] {step_label} COMPLETED[/]")
                 else:
                     output.info(
-                        f"[bold red][STEP {idx}/{total_steps}] {step_def.name} FAILED[/]: {step_res.error_message or step_res.stderr}"
+                        f"[bold red][STEP {idx}/{total_steps}] {step_label} FAILED[/]: {step_res.error_message or step_res.stderr}"
                     )
-                    if step_def.failure_action == FailureAction.ABORT:
-                        raise RuntimeError(
-                            f"Step '{step_def.name}' failed: {step_res.error_message or step_res.stderr or 'exit code ' + str(step_res.exit_code)}"
-                        )
+                    raise RuntimeError(
+                        f"Step '{step_label}' failed: {step_res.error_message or step_res.stderr or 'exit code ' + str(step_res.exit_code)}"
+                    )
 
             run_status = RunStatus.COMPLETED
 

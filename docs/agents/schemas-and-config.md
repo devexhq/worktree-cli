@@ -850,40 +850,76 @@ changes to a `v1` schema that users may already have on disk.
 
 ## Step Definition Schema and Execution Engine
 
-Step primitives stored in `.worktree/templates/steps/` represent reusable tasks and workflow primitives.
-Models and engine live in [getworktree/core/step/](../../getworktree/core/step/).
+Step primitives stored in `.worktree/catalog/steps/` represent reusable blueprints shared by
+catalog steps, workflow steps, and task steps. Models and engine live in
+[getworktree/core/step/](../../getworktree/core/step/).
+
+### `FailurePolicy` and `FailureSpec`
+
+`FailurePolicy` (`getworktree/core/step/models.py`) is a `StrEnum`: `abort`, `continue`,
+`prompt_user`, `retry`. `FailurePolicy.context("terminal")` returns `{abort, continue,
+prompt_user}` (excludes `retry`); any other name returns the full set.
+
+`FailureSpec` is the normalized `on_failure` directive (`extra: forbid`):
+
+- `action`: FailurePolicy (required)
+- `max_retries`: int (default `3`, `>= 1`)
+- `backoff_ms`: int (default `0`, `>= 0`)
+- `on_max_retries`: FailurePolicy (default `abort`; must be in `FailurePolicy.context("terminal")`)
 
 ### StepDefinition Model
 
-`StepDefinition` uses `model_config = {"extra": "forbid", "strict": True}`:
+`StepDefinition` uses `model_config = {"extra": "forbid", "strict": True, "populate_by_name": True}`
+and is the single model for catalog step blueprints, workflow steps, and task steps:
 
-- `id`: str (required, unique step identifier e.g. `step_pytest_verify`)
-- `name`: str (required, human-readable slug e.g. `run-pytest`)
-- `type`: StepType (`command`, `agent`, `script`)
-- `description`: str (required)
+- `id`: str (required, unique step identifier)
+- `uses`: str | null (reference to another step by id/name)
+- `run`: str | null (shorthand for a `type=command` step)
+- `name`: str | null
+- `type`: StepType | null (`command`, `agent`, `script`)
+- `description`: str | null
 - `command`: str | null (required if `type == "command"`)
 - `prompt`: str | null (required if `type == "agent"`)
-- `agent`: str | null (LLM model / provider string)
-- `tools`: list[str] (tool permission strings, default `[]`)
 - `script_path`: str | null (relative path, required if `type == "script"`)
+- `tools`: list[str] (tool permission strings, default `[]`)
+- `env`: dict[str, str] (default `{}`)
 - `timeout_seconds`: int (default `120`, must be > 0)
-- `failure_action`: FailureAction (`abort`, `retry`, `ignore`, default `abort`)
+- `assert_`: StepAssert | null (aliased to `assert`)
+- `on_failure`: FailureSpec (default `FailureSpec(action=abort)`; accepts a bare policy string or a full object)
 
-Model validators enforce required type fields (`command` for command steps, `prompt` for agent steps, `script_path` for script steps).
+A step-shape validator enforces exactly one of `run` / `uses` / inline `type`:
+
+- `run` cannot be combined with `uses`, `command`, `type`, `prompt`, `script_path`, or `tools`.
+- Inline `type=command` requires `command`; `type=agent` requires `prompt`; `type=script`
+  requires `script_path`.
+- If none of `run`, `uses`, or `type` is set, validation fails.
+
+`StepDefinition` does not support a `with`/override mechanism in v1 — `uses` steps load the
+referenced step definition as-is.
+
+### `LoopStepBlock`
+
+`LoopStepBlock` also lives in `core/step/models.py`: `id`, `type: Literal["loop"]`,
+`max_iterations` (default `5`), `until` (non-empty list), `do` (non-empty list of
+`StepDefinition`), and `on_max_iterations: FailurePolicy` (default `prompt_user`, restricted to
+`FailurePolicy.context("terminal")` — a value of `retry` raises a validation error).
 
 ### Step Loader & Resolver
 
 - `load_step_definition(path: Path) -> StepDefinition`: Loads and parses a step YAML file. Raises `StepNotFoundError` if file missing/unreadable, `StepValidationError` on YAML or Pydantic validation error.
-- `load_step_by_id(step_id_or_name: str, cwd: Path | None = None) -> StepDefinition`: Resolves step definition from `.worktree/templates/steps/` by direct filename or matching `id`/`name`.
+- `load_step_by_id(step_id_or_name: str, cwd: Path | None = None) -> StepDefinition`: Resolves step definition from `.worktree/catalog/steps/` by direct filename or matching `id`/`name`.
+- `resolve_step_definition(step: StepDefinition, *, cwd: Path | None = None) -> StepDefinition`: Normalizes a step with `uses` (loads the referenced step via `load_step_by_id()`) or `run` (synthesizes `type=command`, `command=run`) into a concrete, directly executable `StepDefinition`. Inline `type` steps pass through unchanged.
 
 ### Step Execution Engine
 
 `execute_step(step: StepDefinition, sandbox_path: Path, context: dict | None = None) -> StepResult`:
 
-- Executes step primitive inside `sandbox_path` with isolated working directory `cwd=sandbox_path`.
+- Resolves `uses`/`run` steps via `resolve_step_definition()` before dispatch.
+- Executes the step primitive inside `sandbox_path` with isolated working directory `cwd=sandbox_path`.
 - Enforces process timeouts via `timeout_seconds`.
-- Handles `failure_action` policies:
-  - `abort`: sets `status="failed"` on failure.
-  - `retry`: retries execution up to 3 attempts before setting `status="failed"`.
-  - `ignore`: logs warning, returns `StepResult` with `status="ignored"` and `exit_code=0` (`ok=True`).
+- Handles `on_failure` policies:
+  - `action == "retry"`: retries execution up to `max_retries` attempts, sleeping `backoff_ms` milliseconds between attempts. After the final failed attempt, evaluates `on_max_retries`: `continue` returns `status="ignored"` (`ok=True`); `abort`/`prompt_user` return `status="failed"`.
+  - `action == "continue"` (no retry): a single failed attempt returns `status="ignored"` (`ok=True`).
+  - `action == "abort"` / `"prompt_user"` (no retry): a single failed attempt returns `status="failed"`. There is no interactive `prompt_user` UI yet, so it behaves like `abort`.
 - Returns `StepResult`: `step_id`, `status` (`completed`, `failed`, `ignored`), `exit_code`, `stdout`, `stderr`, `duration_seconds`, `attempts`, `error_message`. `@property def ok` returns `True` for `completed` or `ignored`.
+

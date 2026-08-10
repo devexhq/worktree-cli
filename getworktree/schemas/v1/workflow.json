@@ -82,16 +82,6 @@
         "name": { "type": "string" },
         "uses": { "type": "string", "minLength": 1 },
         "run": { "type": "string", "minLength": 1 },
-        "with": {
-          "type": "object",
-          "additionalProperties": true
-        },
-        "agent": {
-          "oneOf": [
-            { "type": "string" },
-            { "type": "object", "additionalProperties": true }
-          ]
-        },
         "prompt": { "type": "string" },
         "tools": {
           "type": "array",
@@ -161,7 +151,7 @@
         "on_failure": {
           "oneOf": [
             { "type": "string", "enum": ["abort", "continue", "prompt_user", "retry"] },
-            { "type": "object", "additionalProperties": true }
+            { "$ref": "#/$defs/failure_spec" }
           ]
         }
       }
@@ -185,11 +175,20 @@
           "items": { "$ref": "#/$defs/standard_step" }
         },
         "on_max_iterations": {
-          "oneOf": [
-            { "type": "string", "enum": ["prompt_user", "abort", "continue"] },
-            { "type": "object", "additionalProperties": true }
-          ]
+          "type": "string",
+          "enum": ["abort", "continue", "prompt_user"]
         }
+      }
+    },
+    "failure_spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action"],
+      "properties": {
+        "action": { "type": "string", "enum": ["abort", "continue", "prompt_user", "retry"] },
+        "max_retries": { "type": "integer", "minimum": 1 },
+        "backoff_ms": { "type": "integer", "minimum": 0 },
+        "on_max_retries": { "type": "string", "enum": ["abort", "continue", "prompt_user"] }
       }
     }
   }
