@@ -94,3 +94,22 @@ steps:
 | `inputs` | Optional named input declarations (`description`, `required`, `default`). |
 | `steps` | List of standard steps (`uses`/`run`, mutually exclusive) and/or `loop` blocks (`max_iterations`, `until`, `do`, `on_max_iterations`). |
 
+### `on_failure`
+
+Each standard step's `on_failure` accepts either a bare policy string or a configurable object:
+
+```yaml
+# Bare string form
+on_failure: abort   # abort | continue | prompt_user | retry
+
+# Object form (retry tuning + post-retry escalation)
+on_failure:
+  action: retry
+  max_retries: 3
+  backoff_ms: 500
+  on_max_retries: abort   # abort | continue | prompt_user (no retry-on-retry)
+```
+
+`on_max_iterations` on `loop` blocks is always a bare string (`abort`, `continue`, or
+`prompt_user` — `retry` is not valid there).
+

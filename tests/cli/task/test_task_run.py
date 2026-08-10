@@ -81,7 +81,7 @@ def test_task_run_step_failure_aborts(tmp_path: Path, monkeypatch: pytest.Monkey
         "    command: echo ok\n"
         "  - name: fail-step\n"
         "    command: exit 1\n"
-        "    failure_action: abort\n"
+        "    on_failure: abort\n"
         "  - name: unreachable-step\n"
         "    command: echo should not run\n",
         encoding="utf-8",

@@ -255,7 +255,6 @@ class SchemaOllamaTests:
                 {
                     "id": "ai-fix",
                     "uses": "wt/ai-code-patcher",
-                    "agent": "ollama",
                 }
             ],
         }

@@ -1,11 +1,14 @@
+"""Resolve a step's ``uses``/``run`` shorthand into a concrete, executable ``StepDefinition``."""
+
 from pathlib import Path
 
-from getworktree.common.models import FailurePolicy, FailureSpec
-from getworktree.core.step import DEFAULT_STEP_TIMEOUT_SECONDS, StepAssert, StepDefinition, StepType, StepValidationError
+from getworktree.core.step import (
+    StepDefinition,
+    StepType,
+    StepValidationError,
+)
 
 from .loader import load_step_by_id
-
-_DEFAULT_FAILURE = FailureSpec(action=FailurePolicy.ABORT)
 
 
 def resolve_step_definition(step: StepDefinition, *, cwd: Path | None = None) -> StepDefinition:
@@ -37,28 +40,24 @@ def _resolve_run(step: StepDefinition) -> StepDefinition:
 
 
 def _resolve_from_uses(step: StepDefinition, cwd: Path | None = None) -> StepDefinition:
+    """Load the referenced step and apply only the fields the referencing step explicitly set."""
     base_step = load_step_by_id(str(step.uses), cwd)
+    fields_set = step.model_fields_set
+
+    def _pick(field_name: str):
+        return getattr(step, field_name) if field_name in fields_set else getattr(base_step, field_name)
+
     return StepDefinition(
         id=step.id,
-        name=step.name or base_step.name,
+        name=_pick("name"),
         type=base_step.type,
-        description=step.description or base_step.description,
+        description=_pick("description"),
         command=base_step.command,
-        prompt=step.prompt or base_step.prompt,
-        script_path=step.script_path or base_step.script_path,
-        tools=step.tools or base_step.tools,
+        prompt=_pick("prompt"),
+        script_path=_pick("script_path"),
+        tools=_pick("tools"),
         env={**base_step.env, **step.env},
-        timeout_seconds=step.timeout_seconds if step.timeout_seconds != DEFAULT_STEP_TIMEOUT_SECONDS else base_step.timeout_seconds,  # Only take `step` if different from "DEFAULT_VALUE"
-        assert_=_merge_assert(base_step.assert_, step.assert_),
-        on_failure=_merge_on_failure(base_step.on_failure, step.on_failure)
+        timeout_seconds=_pick("timeout_seconds"),
+        assert_=_pick("assert_"),
+        on_failure=_pick("on_failure"),
     )
-
-
-def _merge_assert(base_value: StepAssert | None, step_value: StepAssert | None) -> StepAssert | None:
-    return step_value if step_value is not None else base_value
-
-
-def _merge_on_failure(base_value: FailureSpec, step_value: FailureSpec) -> FailureSpec:
-    if step_value != _DEFAULT_FAILURE:
-        return step_value
-    return base_value
