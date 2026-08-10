@@ -11,7 +11,8 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from getworktree.core.step.schema import FailureAction, StepDefinition, StepType
+#from getworktree.core.step.schema import FailureAction, StepDefinition, StepType
+from getworktree.core.step import StepDefinition, StepType
 from getworktree.core.workflows.agents.factory import get_agent_adapter
 
 

@@ -23,7 +23,6 @@ from getworktree.core.db import (
 )
 from getworktree.core.git_sandbox import GitSandboxManager, SandboxSession
 from getworktree.core.step import (
-    FailureAction,
     StepDefinition,
     StepType,
     execute_step,
@@ -152,6 +151,11 @@ def task_show_command(
 
     render_task_show(item, content, rich_output=output)
     return TaskShowCommandOutcome(item=item, content=content)
+
+
+class FailureAction:
+    pass
+
 
 
 def task_run_command(

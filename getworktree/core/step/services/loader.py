@@ -1,91 +1,9 @@
-"""Step definition schema models, enums, and loading helpers."""
-
-from __future__ import annotations
-
-from enum import StrEnum
 from pathlib import Path
-from typing import Any
 
 import yaml
-from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
+from pydantic import ValidationError
 
-from getworktree.core.workflows.models import StepAssert
-
-
-class StepType(StrEnum):
-    """Supported step primitive types."""
-
-    COMMAND = "command"
-    AGENT = "agent"
-    SCRIPT = "script"
-
-
-class FailureAction(StrEnum):
-    """Supported failure handling policies."""
-
-    RETRY = "retry"
-    ABORT = "abort"
-    IGNORE = "ignore"
-
-
-class StepNotFoundError(Exception):
-    """Raised when a step definition file or ID cannot be found."""
-
-
-class StepValidationError(Exception):
-    """Raised when step definition YAML parsing or schema validation fails."""
-
-
-class StepDefinition(BaseModel):
-    """Model for step definitions stored in .worktree/templates/steps/."""
-
-    model_config = {"extra": "forbid", "strict": True, "populate_by_name": True}
-
-    id: str
-    name: str
-    type: StepType
-    description: str
-    command: str | None = None
-    prompt: str | None = None
-    agent: str | None = None
-    tools: list[str] = Field(default_factory=list)
-    script_path: str | None = None
-    timeout_seconds: int = Field(default=120, gt=0)
-    failure_action: FailureAction = FailureAction.ABORT
-    assert_: StepAssert | None = Field(default=None, alias="assert")
-
-    @field_validator("type", mode="before")
-    @classmethod
-    def parse_step_type(cls, val: Any) -> Any:
-        """Coerce string value to StepType enum instance."""
-        if isinstance(val, str):
-            try:
-                return StepType(val)
-            except ValueError:
-                pass
-        return val
-
-    @field_validator("failure_action", mode="before")
-    @classmethod
-    def parse_failure_action(cls, val: Any) -> Any:
-        """Coerce string value to FailureAction enum instance."""
-        if isinstance(val, str):
-            try:
-                return FailureAction(val)
-            except ValueError:
-                pass
-        return val
-
-    @model_validator(mode="after")
-    def validate_type_fields(self) -> StepDefinition:
-        """Enforce required fields based on step primitive type."""
-        if self.type == StepType.COMMAND and not self.command:
-            raise ValueError("Command steps must specify a non-empty 'command' string.")
-        if self.type == StepType.AGENT and not self.prompt:
-            raise ValueError("Agent steps must specify a non-empty 'prompt' string.")
-        if self.type == StepType.SCRIPT and not self.script_path:
-            raise ValueError("Script steps must specify a non-empty 'script_path' string.")
-        return self
+from getworktree.core.step import StepDefinition, StepNotFoundError, StepValidationError
 
 
 def load_step_definition(path: Path) -> StepDefinition:
@@ -135,7 +53,7 @@ def load_step_by_id(step_id_or_name: str, cwd: Path | None = None) -> StepDefini
         StepValidationError: If matching file has schema validation errors.
     """
     root_dir = cwd or Path.cwd()
-    steps_dir = root_dir / ".worktree" / "templates" / "steps"
+    steps_dir = root_dir / ".worktree" / "catalog" / "steps"
 
     if not steps_dir.exists() or not steps_dir.is_dir():
         raise StepNotFoundError(f"Step '{step_id_or_name}' not found. Directory '{steps_dir}' does not exist.")
