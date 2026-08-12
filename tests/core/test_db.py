@@ -13,6 +13,7 @@ from getworktree.core.db import (
     CatalogRecord,
     DbBase,
     RunStatus,
+    RunTrackingDb,
     TaskRunRecord,
     TasksDb,
     WorkflowRunRecord,
@@ -222,6 +223,75 @@ class TestCatalogDb:
         assert db.delete("to_delete") is True
         assert db.get_by_sha("to_delete") is None
         assert db.delete("to_delete") is False
+
+
+class DummyRunTrackingDb(RunTrackingDb[TaskRunRecord]):
+    """Concrete subclass for testing generic RunTrackingDb behavior."""
+
+    table = "tasks"
+    record_cls = TaskRunRecord
+    extra_columns = ("task_name",)
+
+
+class TestRunTrackingDb:
+    """Tests for RunTrackingDb generic base repository operations."""
+
+    def test_insert_and_get(self, fs: FileSystem) -> None:
+        db = DummyRunTrackingDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        rec = db.insert("s1", status=RunStatus.RUNNING, task_name="dummy_task")
+
+        assert isinstance(rec, TaskRunRecord)
+        assert rec.session_id == "s1"
+        assert rec.task_name == "dummy_task"
+        assert rec.status is RunStatus.RUNNING
+
+        fetched = db.get("s1")
+        assert fetched == rec
+
+    def test_insert_duplicate_session_id_raises_value_error(self, fs: FileSystem) -> None:
+        db = DummyRunTrackingDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        db.insert("s_dup", task_name="t1")
+
+        with pytest.raises(ValueError, match="already exists"):
+            db.insert("s_dup", task_name="t2")
+
+    def test_insert_invalid_extra_columns_raises_value_error(self, fs: FileSystem) -> None:
+        db = DummyRunTrackingDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        with pytest.raises(ValueError, match="mismatched keys"):
+            db.insert("s_bad", wrong_arg="val")  # type: ignore[call-arg]
+
+    def test_get_missing_returns_none(self, fs: FileSystem) -> None:
+        db = DummyRunTrackingDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        assert db.get("non_existent") is None
+
+    def test_update_status(self, fs: FileSystem) -> None:
+        db = DummyRunTrackingDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        db.insert("s_upd", task_name="t_upd")
+
+        updated = db.update_status("s_upd", status=RunStatus.COMPLETED, error_message=None)
+        assert updated is not None
+        assert updated.status is RunStatus.COMPLETED
+        assert updated.completed_at is not None
+
+    def test_update_status_missing_returns_none(self, fs: FileSystem) -> None:
+        db = DummyRunTrackingDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        assert db.update_status("missing", status=RunStatus.COMPLETED) is None
+
+    def test_update_status_invalid_raises_value_error(self, fs: FileSystem) -> None:
+        db = DummyRunTrackingDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        db.insert("s_inv", task_name="t")
+
+        with pytest.raises(ValueError, match="constraint"):
+            db.update_status("s_inv", status="invalid_status")  # type: ignore[arg-type]
+
+    def test_list(self, fs: FileSystem) -> None:
+        db = DummyRunTrackingDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        db.insert("s_list1", task_name="t1")
+        db.insert("s_list2", task_name="t2")
+
+        runs = db.list()
+        assert len(runs) == 2
+        assert {r.session_id for r in runs} == {"s_list1", "s_list2"}
 
 
 class TestWorkflowsDb:

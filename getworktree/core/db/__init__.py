@@ -30,6 +30,7 @@ from getworktree.core.db.models import (
     TaskRunRecord,
     WorkflowRunRecord,
 )
+from getworktree.core.db.run_tracking import RunTrackingDb
 from getworktree.core.db.sandboxes import SandboxesDb
 from getworktree.core.db.tasks import TasksDb
 from getworktree.core.db.workflows import WorkflowsDb
@@ -47,6 +48,7 @@ __all__ = [
     "CostsDb",
     "DbBase",
     "RunStatus",
+    "RunTrackingDb",
     "SandboxRecord",
     "SandboxStatus",
     "SandboxesDb",
