@@ -15,6 +15,7 @@ from getworktree.core.workflows.agents.cli_mutation import (
     build_mutation_prompt,
 )
 from getworktree.core.workflows.payload import AgentFailurePayload
+from tests.helpers import FileSystem
 
 
 def _git(args: list[str], *, cwd: Path) -> None:
@@ -68,8 +69,8 @@ def _fake_run(
 
 
 @pytest.fixture
-def sandbox(tmp_path: Path) -> Path:
-    root = tmp_path / "sandbox"
+def sandbox(fs: FileSystem) -> Path:
+    root = fs.base_path / "sandbox"
     root.mkdir()
     _git(["init"], cwd=root)
     _git(["config", "user.email", "test@example.com"], cwd=root)

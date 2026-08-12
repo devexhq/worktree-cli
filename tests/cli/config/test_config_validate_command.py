@@ -13,21 +13,13 @@ from typer.testing import CliRunner
 
 from getworktree.cli import app
 from getworktree.cli.config.command import config_validate_command
-from getworktree.core.config.generator import generate_default_config
 from getworktree.core.config.validate import (
     ConfigValidationResult,
     ConfigValidationStatus,
 )
+from tests.helpers import GitFileSystem
 
 runner = CliRunner()
-
-
-def _write_default_config(repo: Path) -> Path:
-    config_path = repo / ".worktree" / "config.json"
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    gen = generate_default_config(config_path, project_name=repo.name)
-    assert gen.ok
-    return config_path
 
 
 def _read_config(config_path: Path) -> dict:
@@ -77,15 +69,15 @@ class ConfigValidateCommandTests:
 
     def test_valid_config_exits_zero(
         self,
-        git_repo: Path,
+        git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.chdir(git_repo)
-        config_path = _write_default_config(git_repo)
+        monkeypatch.chdir(git_fs.base_path)
+        config_path = git_fs.init_repo()
 
         with pytest.raises(typer.Exit) as exc_info:
-            config_validate_command(cwd=git_repo)
+            config_validate_command(cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 0
         _assert_success_stdout(
             capsys.readouterr().out,
@@ -95,19 +87,19 @@ class ConfigValidateCommandTests:
 
     def test_valid_with_warnings_exits_zero(
         self,
-        git_repo: Path,
+        git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.chdir(git_repo)
-        config_path = _write_default_config(git_repo)
+        monkeypatch.chdir(git_fs.base_path)
+        config_path = git_fs.init_repo()
         data = _read_config(config_path)
         data["agent"]["provider"] = "openai"
         data["agent"]["model"] = None
         _write_config(config_path, data)
 
         with pytest.raises(typer.Exit) as exc_info:
-            config_validate_command(cwd=git_repo)
+            config_validate_command(cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 0
         out = capsys.readouterr().out
         _assert_success_stdout(out, config_path=config_path, with_warnings=True)
@@ -117,95 +109,95 @@ class ConfigValidateCommandTests:
 
     def test_missing_config_exits_one(
         self,
-        git_repo: Path,
+        git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.chdir(git_repo)
+        monkeypatch.chdir(git_fs.base_path)
         with pytest.raises(typer.Exit) as exc_info:
-            config_validate_command(cwd=git_repo)
+            config_validate_command(cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 1
         combined = _assert_failure_output(capsys.readouterr().out)
         assert "CONFIG_NOT_FOUND" in combined or "not found" in combined.lower()
 
     def test_schema_invalid_exits_one(
         self,
-        git_repo: Path,
+        git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.chdir(git_repo)
-        config_path = git_repo / ".worktree" / "config.json"
+        monkeypatch.chdir(git_fs.base_path)
+        config_path = git_fs.base_path / ".worktree" / "config.json"
         config_path.parent.mkdir(parents=True)
         config_path.write_text('{"version": 1}\n', encoding="utf-8")
 
         with pytest.raises(typer.Exit) as exc_info:
-            config_validate_command(cwd=git_repo)
+            config_validate_command(cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 1
         combined = _assert_failure_output(capsys.readouterr().out)
         assert "schema" in combined.lower() or "CONFIG_SCHEMA_INVALID" in combined
 
     def test_semantic_invalid_exits_one(
         self,
-        git_repo: Path,
+        git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.chdir(git_repo)
-        config_path = _write_default_config(git_repo)
+        monkeypatch.chdir(git_fs.base_path)
+        config_path = git_fs.init_repo()
         data = _read_config(config_path)
         data["paths"]["root_dir"] = "root\x00dir"
         _write_config(config_path, data)
 
         with pytest.raises(typer.Exit) as exc_info:
-            config_validate_command(cwd=git_repo)
+            config_validate_command(cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 1
         combined = _assert_failure_output(capsys.readouterr().out)
         assert "CONFIG_SEMANTIC_PATH_INVALID" in combined
 
     def test_malformed_json_exits_one(
         self,
-        git_repo: Path,
+        git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.chdir(git_repo)
-        config_path = git_repo / ".worktree" / "config.json"
+        monkeypatch.chdir(git_fs.base_path)
+        config_path = git_fs.base_path / ".worktree" / "config.json"
         config_path.parent.mkdir(parents=True)
         config_path.write_text("{not-json\n", encoding="utf-8")
 
         with pytest.raises(typer.Exit) as exc_info:
-            config_validate_command(cwd=git_repo)
+            config_validate_command(cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 1
         combined = _assert_failure_output(capsys.readouterr().out)
         assert "CONFIG_MALFORMED_JSON" in combined or "json" in combined.lower()
 
     def test_path_is_directory_exits_one(
         self,
-        git_repo: Path,
+        git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.chdir(git_repo)
-        config_path = git_repo / ".worktree" / "config.json"
+        monkeypatch.chdir(git_fs.base_path)
+        config_path = git_fs.base_path / ".worktree" / "config.json"
         config_path.mkdir(parents=True)
 
         with pytest.raises(typer.Exit) as exc_info:
-            config_validate_command(cwd=git_repo)
+            config_validate_command(cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 1
         combined = _assert_failure_output(capsys.readouterr().out)
         assert "CONFIG_PATH_IS_DIRECTORY" in combined or "directory" in combined.lower()
 
     def test_empty_errors_uses_fallback_body(
         self,
-        git_repo: Path,
+        git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.chdir(git_repo)
+        monkeypatch.chdir(git_fs.base_path)
         fake = ConfigValidationResult(
             status=ConfigValidationStatus.INVALID,
-            config_path=(git_repo / ".worktree" / "config.json").resolve(),
+            config_path=(git_fs.base_path / ".worktree" / "config.json").resolve(),
             errors=[],
             warnings=[],
         )
@@ -214,21 +206,21 @@ class ConfigValidateCommandTests:
             return_value=fake,
         ):
             with pytest.raises(typer.Exit) as exc_info:
-                config_validate_command(cwd=git_repo)
+                config_validate_command(cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 1
         combined = _assert_failure_output(capsys.readouterr().out)
         assert "Configuration validation failed." in combined
 
     def test_invalid_with_warnings_prints_warnings_after_panel(
         self,
-        git_repo: Path,
+        git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.chdir(git_repo)
+        monkeypatch.chdir(git_fs.base_path)
         fake = ConfigValidationResult(
             status=ConfigValidationStatus.INVALID,
-            config_path=(git_repo / ".worktree" / "config.json").resolve(),
+            config_path=(git_fs.base_path / ".worktree" / "config.json").resolve(),
             errors=["semantic boom (CONFIG_SEMANTIC_MAX_ATTEMPTS)."],
             warnings=[
                 "agent.provider is not 'local' but agent.model is missing "
@@ -242,7 +234,7 @@ class ConfigValidateCommandTests:
             return_value=fake,
         ):
             with pytest.raises(typer.Exit) as exc_info:
-                config_validate_command(cwd=git_repo)
+                config_validate_command(cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 1
         out = capsys.readouterr().out
         combined = _assert_failure_output(out)
@@ -254,15 +246,15 @@ class ConfigValidateCommandTests:
 
     def test_does_not_create_config_when_missing(
         self,
-        git_repo: Path,
+        git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.chdir(git_repo)
-        config_path = git_repo / ".worktree" / "config.json"
+        monkeypatch.chdir(git_fs.base_path)
+        config_path = git_fs.base_path / ".worktree" / "config.json"
         assert not config_path.exists()
         with pytest.raises(typer.Exit) as exc_info:
-            config_validate_command(cwd=git_repo)
+            config_validate_command(cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 1
         assert not config_path.exists()
         _assert_failure_output(capsys.readouterr().out)
@@ -271,23 +263,23 @@ class ConfigValidateCommandTests:
 class ConfigValidateCliTests:
     """CLI wiring tests for `wt config validate`."""
 
-    def test_validate_after_init(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.chdir(git_repo)
+    def test_validate_after_init(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(git_fs.base_path)
         init = runner.invoke(app, ["init"])
         assert init.exit_code == 0
 
         result = runner.invoke(app, ["config", "validate"])
         assert result.exit_code == 0
-        config_path = git_repo / ".worktree" / "config.json"
+        config_path = git_fs.base_path / ".worktree" / "config.json"
         _assert_success_stdout(
             result.stdout,
             config_path=config_path,
             with_warnings=False,
         )
 
-    def test_validate_with_warnings(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.chdir(git_repo)
-        config_path = _write_default_config(git_repo)
+    def test_validate_with_warnings(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+        config_path = git_fs.init_repo()
         data = _read_config(config_path)
         data["agent"]["provider"] = "openai"
         data["agent"]["model"] = None
@@ -304,17 +296,17 @@ class ConfigValidateCliTests:
         assert "CONFIG_WARN_AGENT_MODEL_MISSING" in result.stdout
         assert "CONFIG_WARN_SANDBOX_LIMIT" in result.stdout
 
-    def test_validate_missing_config(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.chdir(git_repo)
+    def test_validate_missing_config(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(git_fs.base_path)
         result = runner.invoke(app, ["config", "validate"])
         assert result.exit_code == 1
         combined = _assert_failure_output(result.stdout, result.stderr)
         assert "CONFIG_NOT_FOUND" in combined or "not found" in combined.lower()
         assert "wt init" in combined
 
-    def test_validate_schema_invalid(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.chdir(git_repo)
-        config_path = git_repo / ".worktree" / "config.json"
+    def test_validate_schema_invalid(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+        config_path = git_fs.base_path / ".worktree" / "config.json"
         config_path.parent.mkdir(parents=True)
         config_path.write_text('{"version": 1}\n', encoding="utf-8")
 
@@ -323,9 +315,9 @@ class ConfigValidateCliTests:
         combined = _assert_failure_output(result.stdout, result.stderr)
         assert "schema" in combined.lower() or "CONFIG_SCHEMA_INVALID" in combined
 
-    def test_validate_semantic_invalid(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.chdir(git_repo)
-        config_path = _write_default_config(git_repo)
+    def test_validate_semantic_invalid(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+        config_path = git_fs.init_repo()
         data = _read_config(config_path)
         data["paths"]["root_dir"] = "root\x00dir"
         _write_config(config_path, data)

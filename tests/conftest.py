@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.helpers import FileSystem, GitFileSystem
+
 
 @pytest.fixture(autouse=True, scope="session")
 def _set_test_terminal_width() -> None:
@@ -63,8 +65,12 @@ def _git_repo_template(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 
 @pytest.fixture
-def git_repo(tmp_path: Path, _git_repo_template: Path) -> Path:
-    """Fast function-scoped git repository fixture backed by session template copy."""
+def fs(tmp_path: Path) -> FileSystem:
+    return FileSystem(tmp_path)
+
+
+@pytest.fixture
+def git_fs(tmp_path: Path, _git_repo_template: Path) -> GitFileSystem:
     target = tmp_path / "repo"
     shutil.copytree(_git_repo_template, target)
-    return target
+    return GitFileSystem(target)

@@ -25,6 +25,7 @@ from getworktree.core.workflows.agents.cursor import (
     resolve_cursor_api_key,
 )
 from getworktree.core.workflows.payload import AgentFailurePayload
+from tests.helpers import FileSystem
 
 
 def _git(args: list[str], *, cwd: Path) -> None:
@@ -57,8 +58,8 @@ def _request(sandbox: Path, **kwargs: object) -> AgentRequest:
 
 
 @pytest.fixture
-def sandbox(tmp_path: Path) -> Path:
-    root = tmp_path / "sandbox"
+def sandbox(fs: FileSystem) -> Path:
+    root = fs.base_path / "sandbox"
     root.mkdir()
     _git(["init"], cwd=root)
     _git(["config", "user.email", "test@example.com"], cwd=root)

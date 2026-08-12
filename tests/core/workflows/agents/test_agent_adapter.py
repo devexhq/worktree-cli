@@ -24,6 +24,7 @@ from getworktree.core.workflows.agents.local import (
     resolve_local_agent_argv_for_tests,
 )
 from getworktree.core.workflows.payload import AgentFailurePayload
+from tests.helpers import FileSystem
 
 
 def _payload() -> AgentFailurePayload:
@@ -60,8 +61,8 @@ def _write_agent_script(path: Path, body: str) -> Path:
 
 
 @pytest.fixture
-def sandbox(tmp_path: Path) -> Path:
-    root = tmp_path / "sandbox"
+def sandbox(fs: FileSystem) -> Path:
+    root = fs.base_path / "sandbox"
     root.mkdir()
     return root
 
@@ -112,9 +113,9 @@ class LocalAgentArgvTests:
 
 
 class LocalAgentAdapterTests:
-    def test_proposed_patch(self, sandbox: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_proposed_patch(self, sandbox: Path, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         script = _write_agent_script(
-            tmp_path / "agent.py",
+            fs.base_path / "agent.py",
             """
             import json, sys
             req = json.load(sys.stdin)
@@ -136,9 +137,9 @@ class LocalAgentAdapterTests:
         assert resp.errors == []
         assert resp.raw_text is not None
 
-    def test_no_op(self, sandbox: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_no_op(self, sandbox: Path, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         script = _write_agent_script(
-            tmp_path / "agent.py",
+            fs.base_path / "agent.py",
             """
             import json, sys
             print(json.dumps({"unified_diff": "", "summary": "nothing"}))
@@ -149,9 +150,9 @@ class LocalAgentAdapterTests:
         assert not resp.ok
         assert resp.status == AgentResponseStatus.NO_OP
 
-    def test_unfixable(self, sandbox: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_unfixable(self, sandbox: Path, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         script = _write_agent_script(
-            tmp_path / "agent.py",
+            fs.base_path / "agent.py",
             """
             import json, sys
             print(json.dumps({
@@ -166,9 +167,9 @@ class LocalAgentAdapterTests:
         assert resp.unfixable_reason == "needs human"
         assert resp.unified_diff is None
 
-    def test_timeout(self, sandbox: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_timeout(self, sandbox: Path, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         script = _write_agent_script(
-            tmp_path / "agent.py",
+            fs.base_path / "agent.py",
             """
             import time
             time.sleep(30)
@@ -188,9 +189,9 @@ class LocalAgentAdapterTests:
         assert resp.status == AgentResponseStatus.PROVIDER_ERROR
         assert "AGENT_PROVIDER_ERROR" in resp.errors[0]
 
-    def test_invalid_json(self, sandbox: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_invalid_json(self, sandbox: Path, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         script = _write_agent_script(
-            tmp_path / "agent.py",
+            fs.base_path / "agent.py",
             """
             import sys
             sys.stdout.write("not-json")
@@ -202,9 +203,9 @@ class LocalAgentAdapterTests:
         assert "invalid JSON" in resp.errors[0]
         assert resp.raw_text == "not-json"
 
-    def test_extra_keys_rejected(self, sandbox: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_extra_keys_rejected(self, sandbox: Path, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         script = _write_agent_script(
-            tmp_path / "agent.py",
+            fs.base_path / "agent.py",
             """
             import json, sys
             print(json.dumps({"unified_diff": "x", "extra": 1}))
@@ -215,9 +216,9 @@ class LocalAgentAdapterTests:
         assert resp.status == AgentResponseStatus.PROVIDER_ERROR
         assert "schema validation" in resp.errors[0]
 
-    def test_nonzero_exit_without_json(self, sandbox: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_nonzero_exit_without_json(self, sandbox: Path, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         script = _write_agent_script(
-            tmp_path / "agent.py",
+            fs.base_path / "agent.py",
             """
             import sys
             sys.stderr.write("crash")
@@ -228,11 +229,11 @@ class LocalAgentAdapterTests:
         resp = LocalAgentAdapter().propose_fix(_request(sandbox))
         assert resp.status == AgentResponseStatus.PROVIDER_ERROR
 
-    def test_cwd_is_sandbox(self, sandbox: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_cwd_is_sandbox(self, sandbox: Path, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         marker = sandbox / "marker.txt"
         marker.write_text("hi", encoding="utf-8")
         script = _write_agent_script(
-            tmp_path / "agent.py",
+            fs.base_path / "agent.py",
             """
             import json, os, sys
             assert os.path.isfile("marker.txt")
@@ -243,17 +244,17 @@ class LocalAgentAdapterTests:
         resp = LocalAgentAdapter().propose_fix(_request(sandbox))
         assert resp.status == AgentResponseStatus.PROPOSED_PATCH
 
-    def test_missing_sandbox_dir(self, tmp_path: Path) -> None:
-        missing = tmp_path / "nope"
+    def test_missing_sandbox_dir(self, fs: FileSystem) -> None:
+        missing = fs.base_path / "nope"
         resp = LocalAgentAdapter().propose_fix(_request(missing))
         assert resp.status == AgentResponseStatus.PROVIDER_ERROR
         assert "sandbox path" in resp.errors[0]
 
-    def test_no_sandbox_mutation(self, sandbox: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_no_sandbox_mutation(self, sandbox: Path, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         (sandbox / "keep.py").write_text("x\n", encoding="utf-8")
         before = sorted(p.name for p in sandbox.iterdir())
         script = _write_agent_script(
-            tmp_path / "agent.py",
+            fs.base_path / "agent.py",
             """
             import json, sys
             print(json.dumps({"unified_diff": "diff --git a/a b/a\\n"}))
@@ -265,10 +266,10 @@ class LocalAgentAdapterTests:
         assert before == after
 
     def test_unfixable_takes_priority_over_diff(
-        self, sandbox: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, sandbox: Path, fs: FileSystem, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         script = _write_agent_script(
-            tmp_path / "agent.py",
+            fs.base_path / "agent.py",
             """
             import json, sys
             print(json.dumps({

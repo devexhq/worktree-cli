@@ -27,6 +27,7 @@ from getworktree.core.workflows import (
 from getworktree.core.workflows.seeder import (
     WORKFLOW_VALIDATOR as SEEDER_WORKFLOW_VALIDATOR,
 )
+from tests.helpers import FileSystem
 
 
 def _write(path: Path, text: str) -> Path:
@@ -100,8 +101,8 @@ def _dump_yaml(path: Path, payload: object) -> Path:
 class ValidateWorkflowResultSuccessTests:
     """Success paths for packaged templates and document API."""
 
-    def test_valid_packaged_fix_tests_template(self, tmp_path: Path) -> None:
-        path = _write(tmp_path / "fix-tests.yml", _template_text("fix-tests.yml"))
+    def test_valid_packaged_fix_tests_template(self, fs: FileSystem) -> None:
+        path = _write(fs.base_path / "fix-tests.yml", _template_text("fix-tests.yml"))
         on_disk = path.read_text(encoding="utf-8")
 
         result = validate_workflow_result(path)
@@ -119,8 +120,8 @@ class ValidateWorkflowResultSuccessTests:
         assert len(result.workflow.steps) == 1
         assert path.read_text(encoding="utf-8") == on_disk
 
-    def test_valid_packaged_review_fix_template(self, tmp_path: Path) -> None:
-        path = _write(tmp_path / "review-fix.yml", _template_text("review-fix.yml"))
+    def test_valid_packaged_review_fix_template(self, fs: FileSystem) -> None:
+        path = _write(fs.base_path / "review-fix.yml", _template_text("review-fix.yml"))
 
         result = validate_workflow_result(path)
 
@@ -144,8 +145,8 @@ class ValidateWorkflowResultSuccessTests:
 class ValidateWorkflowResultIoFailureTests:
     """IO and parse failure classification."""
 
-    def test_not_found(self, tmp_path: Path) -> None:
-        path = tmp_path / "missing.yml"
+    def test_not_found(self, fs: FileSystem) -> None:
+        path = fs.base_path / "missing.yml"
 
         result = validate_workflow_result(path)
 
@@ -161,8 +162,8 @@ class ValidateWorkflowResultIoFailureTests:
         assert "wt workflow list" in msg
         assert "Fix:" in msg
 
-    def test_not_a_file(self, tmp_path: Path) -> None:
-        path = tmp_path / "as-dir"
+    def test_not_a_file(self, fs: FileSystem) -> None:
+        path = fs.base_path / "as-dir"
         path.mkdir()
 
         result = validate_workflow_result(path)
@@ -172,8 +173,8 @@ class ValidateWorkflowResultIoFailureTests:
         assert any("WORKFLOW_INVALID_NOT_A_FILE" in e for e in result.errors)
         assert any("Fix:" in e for e in result.errors)
 
-    def test_unreadable(self, tmp_path: Path) -> None:
-        path = _dump_yaml(tmp_path / "secret.yml", _valid_raw())
+    def test_unreadable(self, fs: FileSystem) -> None:
+        path = _dump_yaml(fs.base_path / "secret.yml", _valid_raw())
         path.chmod(0)
         try:
             result = validate_workflow_result(path)
@@ -187,8 +188,8 @@ class ValidateWorkflowResultIoFailureTests:
         finally:
             path.chmod(stat.S_IRUSR | stat.S_IWUSR)
 
-    def test_malformed_yaml(self, tmp_path: Path) -> None:
-        path = _write(tmp_path / "bad.yml", "version: [\n")
+    def test_malformed_yaml(self, fs: FileSystem) -> None:
+        path = _write(fs.base_path / "bad.yml", "version: [\n")
 
         result = validate_workflow_result(path)
 
@@ -198,8 +199,8 @@ class ValidateWorkflowResultIoFailureTests:
         assert any("WORKFLOW_INVALID_MALFORMED_YAML" in e for e in result.errors)
         assert any("Fix:" in e for e in result.errors)
 
-    def test_root_not_mapping_list(self, tmp_path: Path) -> None:
-        path = _write(tmp_path / "list.yml", "- just\n- a\n- list\n")
+    def test_root_not_mapping_list(self, fs: FileSystem) -> None:
+        path = _write(fs.base_path / "list.yml", "- just\n- a\n- list\n")
 
         result = validate_workflow_result(path)
 
@@ -207,8 +208,8 @@ class ValidateWorkflowResultIoFailureTests:
         assert not result.ok
         assert any("WORKFLOW_INVALID_ROOT_NOT_MAPPING" in e for e in result.errors)
 
-    def test_root_not_mapping_null_empty_file(self, tmp_path: Path) -> None:
-        path = _write(tmp_path / "empty.yml", "")
+    def test_root_not_mapping_null_empty_file(self, fs: FileSystem) -> None:
+        path = _write(fs.base_path / "empty.yml", "")
 
         result = validate_workflow_result(path)
 
@@ -220,7 +221,7 @@ class ValidateWorkflowResultIoFailureTests:
 class ValidateWorkflowResultMutualExclusivityTests:
     """Mutual exclusivity tests between uses and run."""
 
-    def test_step_with_both_uses_and_run_fails(self, tmp_path: Path) -> None:
+    def test_step_with_both_uses_and_run_fails(self, fs: FileSystem) -> None:
         raw = _valid_raw()
         raw["steps"].append(
             {
@@ -229,7 +230,7 @@ class ValidateWorkflowResultMutualExclusivityTests:
                 "run": "pytest",
             }
         )
-        path = _dump_yaml(tmp_path / "both.yml", raw)
+        path = _dump_yaml(fs.base_path / "both.yml", raw)
 
         result = validate_workflow_result(path)
 
@@ -279,8 +280,8 @@ class ValidateWorkflowInputsTests:
 class LoadWorkflowDefinitionTests:
     """Raising thin wrapper around validate_workflow_result."""
 
-    def test_load_success(self, tmp_path: Path) -> None:
-        path = _dump_yaml(tmp_path / "ok.yml", _valid_raw())
+    def test_load_success(self, fs: FileSystem) -> None:
+        path = _dump_yaml(fs.base_path / "ok.yml", _valid_raw())
 
         workflow = load_workflow_definition(path)
 
@@ -288,18 +289,18 @@ class LoadWorkflowDefinitionTests:
         assert workflow.name == "Feature Dev with Review Loop"
         assert workflow.id == "feature-dev-v1"
 
-    def test_load_not_found_raises(self, tmp_path: Path) -> None:
+    def test_load_not_found_raises(self, fs: FileSystem) -> None:
         with pytest.raises(FileNotFoundError, match="WORKFLOW_INVALID_NOT_FOUND"):
-            load_workflow_definition(tmp_path / "missing.yml")
+            load_workflow_definition(fs.base_path / "missing.yml")
 
-    def test_load_malformed_yaml_raises_load_error(self, tmp_path: Path) -> None:
-        path = _write(tmp_path / "bad.yml", "version: [\n")
+    def test_load_malformed_yaml_raises_load_error(self, fs: FileSystem) -> None:
+        path = _write(fs.base_path / "bad.yml", "version: [\n")
 
         with pytest.raises(WorkflowLoadError, match="WORKFLOW_INVALID_MALFORMED_YAML"):
             load_workflow_definition(path)
 
-    def test_load_invalid_raises_validation_error(self, tmp_path: Path) -> None:
-        path = _write(tmp_path / "bad.yml", "[]\n")
+    def test_load_invalid_raises_validation_error(self, fs: FileSystem) -> None:
+        path = _write(fs.base_path / "bad.yml", "[]\n")
 
         with pytest.raises(WorkflowValidationError, match="WORKFLOW_INVALID_ROOT_NOT_MAPPING"):
             load_workflow_definition(path)

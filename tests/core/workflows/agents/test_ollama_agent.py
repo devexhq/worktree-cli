@@ -27,6 +27,7 @@ from getworktree.core.workflows.agents.ollama import (
 )
 from getworktree.core.workflows.payload import AgentFailurePayload
 from getworktree.core.workflows.validate import validate_workflow_document
+from tests.helpers import FileSystem
 
 
 def _payload() -> AgentFailurePayload:
@@ -62,8 +63,8 @@ def _chat_body(content: str) -> str:
 
 
 @pytest.fixture
-def sandbox(tmp_path: Path) -> Path:
-    root = tmp_path / "sandbox"
+def sandbox(fs: FileSystem) -> Path:
+    root = fs.base_path / "sandbox"
     root.mkdir()
     return root
 

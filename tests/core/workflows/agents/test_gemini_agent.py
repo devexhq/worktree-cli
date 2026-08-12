@@ -23,6 +23,7 @@ from getworktree.core.workflows.agents.gemini import (
     resolve_gemini_api_key,
 )
 from getworktree.core.workflows.payload import AgentFailurePayload
+from tests.helpers import FileSystem
 
 
 def _git(args: list[str], *, cwd: Path) -> None:
@@ -55,8 +56,8 @@ def _request(sandbox: Path, **kwargs: object) -> AgentRequest:
 
 
 @pytest.fixture
-def sandbox(tmp_path: Path) -> Path:
-    root = tmp_path / "sandbox"
+def sandbox(fs: FileSystem) -> Path:
+    root = fs.base_path / "sandbox"
     root.mkdir()
     return root
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import sqlite3
-from pathlib import Path
 
 import pytest
 
@@ -13,6 +12,7 @@ from getworktree.core.db import (
     SandboxStatus,
     init_database,
 )
+from tests.helpers import FileSystem
 
 DB_REL = ".worktree/data.db"
 
@@ -20,8 +20,8 @@ DB_REL = ".worktree/data.db"
 class DatabaseTests:
     """Tests for init/record/aggregate token usage."""
 
-    def test_init_creates_db(self, tmp_path: Path) -> None:
-        db_path = init_database(cwd=tmp_path, db_rel_path=DB_REL)
+    def test_init_creates_db(self, fs: FileSystem) -> None:
+        db_path = init_database(cwd=fs.base_path, db_rel_path=DB_REL)
         assert db_path.is_file()
 
         with sqlite3.connect(db_path) as conn:
@@ -29,14 +29,14 @@ class DatabaseTests:
         assert "workflow_costs" in tables
         assert "sandboxes" in tables
 
-    def test_init_is_idempotent(self, tmp_path: Path) -> None:
-        first = init_database(cwd=tmp_path, db_rel_path=DB_REL)
-        second = init_database(cwd=tmp_path, db_rel_path=DB_REL)
+    def test_init_is_idempotent(self, fs: FileSystem) -> None:
+        first = init_database(cwd=fs.base_path, db_rel_path=DB_REL)
+        second = init_database(cwd=fs.base_path, db_rel_path=DB_REL)
         assert first == second
         assert first.is_file()
 
-    def test_record_and_aggregate(self, tmp_path: Path) -> None:
-        db = CostsDb(cwd=tmp_path, db_rel_path=DB_REL)
+    def test_record_and_aggregate(self, fs: FileSystem) -> None:
+        db = CostsDb(cwd=fs.base_path, db_rel_path=DB_REL)
         row_id = db.record_token_usage(
             session_id="s1",
             branch_name="feature",
@@ -53,8 +53,8 @@ class DatabaseTests:
         assert totals["total_tokens"] == 15
         assert totals["total_usd_cost"] == pytest.approx(0.01)
 
-    def test_empty_session_totals(self, tmp_path: Path) -> None:
-        db = CostsDb(cwd=tmp_path, db_rel_path=DB_REL)
+    def test_empty_session_totals(self, fs: FileSystem) -> None:
+        db = CostsDb(cwd=fs.base_path, db_rel_path=DB_REL)
         db.init_db()
         totals = db.get_session_total_cost("missing")
         assert totals["total_tokens"] == 0
@@ -66,28 +66,28 @@ class SandboxDatabaseTests:
 
     def _insert(
         self,
-        tmp_path: Path,
+        fs: FileSystem,
         *,
         sandbox_id: str = "sbx_a1b2c3d4",
         name: str | None = "alpha",
         path_suffix: str = "a",
     ):
-        return SandboxesDb(cwd=tmp_path, db_rel_path=DB_REL).insert(
+        return SandboxesDb(cwd=fs.base_path, db_rel_path=DB_REL).insert(
             id=sandbox_id,
             branch_name=f"worktree/sandbox-{sandbox_id}",
             base_commit="abc123",
-            sandbox_path=tmp_path / ".worktree" / "sandboxes" / path_suffix,
+            sandbox_path=fs.base_path / ".worktree" / "sandboxes" / path_suffix,
             name=name,
         )
 
-    def test_insert_and_get_sandbox(self, tmp_path: Path) -> None:
-        db = SandboxesDb(cwd=tmp_path, db_rel_path=DB_REL)
-        created = self._insert(tmp_path)
+    def test_insert_and_get_sandbox(self, fs: FileSystem) -> None:
+        db = SandboxesDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        created = self._insert(fs)
         assert created.id == "sbx_a1b2c3d4"
         assert created.name == "alpha"
         assert created.branch_name == "worktree/sandbox-sbx_a1b2c3d4"
         assert created.base_commit == "abc123"
-        assert created.sandbox_path == (tmp_path / ".worktree" / "sandboxes" / "a")
+        assert created.sandbox_path == (fs.base_path / ".worktree" / "sandboxes" / "a")
         assert created.status is SandboxStatus.ACTIVE
         assert created.created_at
         assert created.updated_at
@@ -96,32 +96,32 @@ class SandboxDatabaseTests:
         assert loaded is not None
         assert loaded == created
 
-    def test_insert_name_none_stores_null(self, tmp_path: Path) -> None:
-        db = SandboxesDb(cwd=tmp_path, db_rel_path=DB_REL)
-        created = self._insert(tmp_path, name=None)
+    def test_insert_name_none_stores_null(self, fs: FileSystem) -> None:
+        db = SandboxesDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        created = self._insert(fs, name=None)
         assert created.name is None
         loaded = db.get(created.id)
         assert loaded is not None
         assert loaded.name is None
 
-    def test_insert_duplicate_id_raises(self, tmp_path: Path) -> None:
-        db = SandboxesDb(cwd=tmp_path, db_rel_path=DB_REL)
-        self._insert(tmp_path, sandbox_id="dup", path_suffix="one")
+    def test_insert_duplicate_id_raises(self, fs: FileSystem) -> None:
+        db = SandboxesDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        self._insert(fs, sandbox_id="dup", path_suffix="one")
         with pytest.raises(ValueError, match="dup"):
-            self._insert(tmp_path, sandbox_id="dup", path_suffix="two")
+            self._insert(fs, sandbox_id="dup", path_suffix="two")
 
         assert db.get("dup") is not None
         listed = db.list()
         assert len(listed) == 1
 
-    def test_get_sandbox_missing_returns_none(self, tmp_path: Path) -> None:
-        db = SandboxesDb(cwd=tmp_path, db_rel_path=DB_REL)
+    def test_get_sandbox_missing_returns_none(self, fs: FileSystem) -> None:
+        db = SandboxesDb(cwd=fs.base_path, db_rel_path=DB_REL)
         assert db.get("missing") is None
 
-    def test_list_sandboxes_order_and_filter(self, tmp_path: Path) -> None:
-        db = SandboxesDb(cwd=tmp_path, db_rel_path=DB_REL)
-        first = self._insert(tmp_path, sandbox_id="sbx_first", path_suffix="1")
-        second = self._insert(tmp_path, sandbox_id="sbx_second", path_suffix="2", name="beta")
+    def test_list_sandboxes_order_and_filter(self, fs: FileSystem) -> None:
+        db = SandboxesDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        first = self._insert(fs, sandbox_id="sbx_first", path_suffix="1")
+        second = self._insert(fs, sandbox_id="sbx_second", path_suffix="2", name="beta")
         db.execute("UPDATE sandboxes SET created_at = '2026-01-01 00:00:00' WHERE id = ?", (first.id,))
         db.execute("UPDATE sandboxes SET created_at = '2026-01-01 00:00:01' WHERE id = ?", (second.id,))
         db.update_status(second.id, SandboxStatus.CLEANED)
@@ -138,13 +138,13 @@ class SandboxDatabaseTests:
         empty = db.list(status=SandboxStatus.CONFLICT)
         assert empty == []
 
-    def test_list_sandboxes_empty(self, tmp_path: Path) -> None:
-        db = SandboxesDb(cwd=tmp_path, db_rel_path=DB_REL)
+    def test_list_sandboxes_empty(self, fs: FileSystem) -> None:
+        db = SandboxesDb(cwd=fs.base_path, db_rel_path=DB_REL)
         assert db.list() == []
 
-    def test_update_sandbox_status(self, tmp_path: Path) -> None:
-        db = SandboxesDb(cwd=tmp_path, db_rel_path=DB_REL)
-        created = self._insert(tmp_path)
+    def test_update_sandbox_status(self, fs: FileSystem) -> None:
+        db = SandboxesDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        created = self._insert(fs)
         original_updated = created.updated_at
         db.execute("UPDATE sandboxes SET updated_at = '2026-01-01 00:00:00' WHERE id = ?", (created.id,))
         original_updated = "2026-01-01 00:00:00"
@@ -159,24 +159,24 @@ class SandboxDatabaseTests:
         assert loaded is not None
         assert loaded.status is SandboxStatus.MERGED
 
-    def test_update_sandbox_status_missing(self, tmp_path: Path) -> None:
-        db = SandboxesDb(cwd=tmp_path, db_rel_path=DB_REL)
+    def test_update_sandbox_status_missing(self, fs: FileSystem) -> None:
+        db = SandboxesDb(cwd=fs.base_path, db_rel_path=DB_REL)
         assert db.update_status("missing", SandboxStatus.CLEANED) is None
 
-    def test_delete_sandbox_row(self, tmp_path: Path) -> None:
-        db = SandboxesDb(cwd=tmp_path, db_rel_path=DB_REL)
-        created = self._insert(tmp_path)
+    def test_delete_sandbox_row(self, fs: FileSystem) -> None:
+        db = SandboxesDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        created = self._insert(fs)
         assert db.delete(created.id)
         assert db.get(created.id) is None
         assert not db.delete(created.id)
 
-    def test_helpers_auto_init_database(self, tmp_path: Path) -> None:
-        db = SandboxesDb(cwd=tmp_path, db_rel_path=DB_REL)
+    def test_helpers_auto_init_database(self, fs: FileSystem) -> None:
+        db = SandboxesDb(cwd=fs.base_path, db_rel_path=DB_REL)
         created = db.insert(
             id="sbx_auto",
             branch_name="worktree/sandbox-sbx_auto",
             base_commit="deadbeef",
-            sandbox_path=tmp_path / "sandboxes" / "auto",
+            sandbox_path=fs.base_path / "sandboxes" / "auto",
         )
         assert created.status is SandboxStatus.ACTIVE
-        assert (tmp_path / DB_REL).is_file()
+        assert (fs.base_path / DB_REL).is_file()

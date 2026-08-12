@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 from typer.testing import CliRunner
 
 from getworktree.cli.cli import __version__, app
+from tests.helpers import GitFileSystem
 
 runner = CliRunner()
 
@@ -27,9 +26,9 @@ class CliSmokeTests:
         assert "Worktree CLI" in result.stdout
         assert __version__ in result.stdout
 
-    def test_init_via_cli(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.chdir(git_repo)
+    def test_init_via_cli(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(git_fs.base_path)
         result = runner.invoke(app, ["init"])
         assert result.exit_code == 0
-        assert (git_repo / ".worktree" / "config.json").is_file()
-        assert (git_repo / ".worktree" / "data.db").is_file()
+        assert (git_fs.base_path / ".worktree" / "config.json").is_file()
+        assert (git_fs.base_path / ".worktree" / "data.db").is_file()

@@ -13,6 +13,7 @@ from getworktree.core.config.mutate import (
     set_config_value_result,
     set_nested_value,
 )
+from tests.helpers import FileSystem
 
 
 def _write_default_config(repo: Path) -> Path:
@@ -67,14 +68,14 @@ class SetNestedValueTests:
 class SetConfigValueResultTests:
     """Filesystem-backed tests for set_config_value_result."""
 
-    def test_sets_nested_key_and_preserves_siblings(self, tmp_path: Path) -> None:
-        config_path = _write_default_config(tmp_path)
+    def test_sets_nested_key_and_preserves_siblings(self, fs: FileSystem) -> None:
+        config_path = _write_default_config(fs.base_path)
         before = _read_config(config_path)
 
         result = set_config_value_result(
             "agent.model",
             "qwen2.5-coder",
-            cwd=tmp_path,
+            cwd=fs.base_path,
         )
 
         assert result.ok
@@ -89,14 +90,14 @@ class SetConfigValueResultTests:
         assert after["project"]["name"] == before["project"]["name"]
         assert after["paths"] == before["paths"]
 
-    def test_creates_new_nested_path(self, tmp_path: Path) -> None:
-        config_path = _write_default_config(tmp_path)
+    def test_creates_new_nested_path(self, fs: FileSystem) -> None:
+        config_path = _write_default_config(fs.base_path)
         before = _read_config(config_path)
 
         result = set_config_value_result(
             "agent.endpoint",
             "http://localhost:11434",
-            cwd=tmp_path,
+            cwd=fs.base_path,
         )
 
         assert result.ok
@@ -104,18 +105,18 @@ class SetConfigValueResultTests:
         assert after["agent"]["endpoint"] == "http://localhost:11434"
         assert after["version"] == before["version"]
 
-    def test_sets_typed_non_string_values(self, tmp_path: Path) -> None:
-        config_path = _write_default_config(tmp_path)
+    def test_sets_typed_non_string_values(self, fs: FileSystem) -> None:
+        config_path = _write_default_config(fs.base_path)
 
-        res_bool = set_config_value_result("telemetry.enabled", True, cwd=tmp_path)
+        res_bool = set_config_value_result("telemetry.enabled", True, cwd=fs.base_path)
         assert res_bool.ok
         assert res_bool.value is True
 
-        res_int = set_config_value_result("sandbox.max_active_sandboxes", 5, cwd=tmp_path)
+        res_int = set_config_value_result("sandbox.max_active_sandboxes", 5, cwd=fs.base_path)
         assert res_int.ok
         assert res_int.value == 5
 
-        res_float = set_config_value_result("agent.temperature", 0.7, cwd=tmp_path)
+        res_float = set_config_value_result("agent.temperature", 0.7, cwd=fs.base_path)
         assert res_float.ok
         assert res_float.value == 0.7
 
@@ -124,14 +125,14 @@ class SetConfigValueResultTests:
         assert data["sandbox"]["max_active_sandboxes"] == 5
         assert data["agent"]["temperature"] == 0.7
 
-    def test_invalid_schema_key_does_not_write(self, tmp_path: Path) -> None:
-        config_path = _write_default_config(tmp_path)
+    def test_invalid_schema_key_does_not_write(self, fs: FileSystem) -> None:
+        config_path = _write_default_config(fs.base_path)
         original = config_path.read_text(encoding="utf-8")
 
         result = set_config_value_result(
             "sandboxes.max_active_sandboxes",
             3,
-            cwd=tmp_path,
+            cwd=fs.base_path,
         )
 
         assert not result.ok
@@ -140,14 +141,14 @@ class SetConfigValueResultTests:
         assert "sandboxes" in result.errors[0]
         assert config_path.read_text(encoding="utf-8") == original
 
-    def test_invalid_schema_value_does_not_write(self, tmp_path: Path) -> None:
-        config_path = _write_default_config(tmp_path)
+    def test_invalid_schema_value_does_not_write(self, fs: FileSystem) -> None:
+        config_path = _write_default_config(fs.base_path)
         original = config_path.read_text(encoding="utf-8")
 
         result = set_config_value_result(
             "sandbox.max_active_sandboxes",
             -1,
-            cwd=tmp_path,
+            cwd=fs.base_path,
         )
 
         assert not result.ok
@@ -155,8 +156,8 @@ class SetConfigValueResultTests:
         assert "CONFIG_SCHEMA_INVALID" in result.errors[0]
         assert config_path.read_text(encoding="utf-8") == original
 
-    def test_type_collision_does_not_write(self, tmp_path: Path) -> None:
-        config_path = _write_default_config(tmp_path)
+    def test_type_collision_does_not_write(self, fs: FileSystem) -> None:
+        config_path = _write_default_config(fs.base_path)
         data = _read_config(config_path)
         data["agent"] = "scalar-value"
         config_path.write_text(
@@ -168,7 +169,7 @@ class SetConfigValueResultTests:
         result = set_config_value_result(
             "agent.model",
             "qwen2.5-coder",
-            cwd=tmp_path,
+            cwd=fs.base_path,
         )
 
         assert not result.ok
@@ -178,40 +179,40 @@ class SetConfigValueResultTests:
         assert "scalar" in result.errors[0]
         assert config_path.read_text(encoding="utf-8") == original
 
-    def test_missing_config(self, tmp_path: Path) -> None:
-        result = set_config_value_result("agent.model", "x", cwd=tmp_path)
+    def test_missing_config(self, fs: FileSystem) -> None:
+        result = set_config_value_result("agent.model", "x", cwd=fs.base_path)
         assert not result.ok
         assert result.status is ConfigSetStatus.NOT_FOUND
         assert "CONFIG_NOT_FOUND" in result.errors[0]
 
-    def test_malformed_json(self, tmp_path: Path) -> None:
-        config_path = tmp_path / ".worktree" / "config.json"
+    def test_malformed_json(self, fs: FileSystem) -> None:
+        config_path = fs.base_path / ".worktree" / "config.json"
         config_path.parent.mkdir(parents=True)
         config_path.write_text("{not-json\n", encoding="utf-8")
 
-        result = set_config_value_result("agent.model", "x", cwd=tmp_path)
+        result = set_config_value_result("agent.model", "x", cwd=fs.base_path)
         assert not result.ok
         assert result.status is ConfigSetStatus.MALFORMED_JSON
         assert "CONFIG_MALFORMED_JSON" in result.errors[0]
 
-    def test_root_not_object(self, tmp_path: Path) -> None:
-        config_path = tmp_path / ".worktree" / "config.json"
+    def test_root_not_object(self, fs: FileSystem) -> None:
+        config_path = fs.base_path / ".worktree" / "config.json"
         config_path.parent.mkdir(parents=True)
         config_path.write_text("[]\n", encoding="utf-8")
 
-        result = set_config_value_result("agent.model", "x", cwd=tmp_path)
+        result = set_config_value_result("agent.model", "x", cwd=fs.base_path)
         assert not result.ok
         assert result.status is ConfigSetStatus.ROOT_NOT_OBJECT
         assert "CONFIG_ROOT_NOT_OBJECT" in result.errors[0]
 
-    def test_top_level_key(self, tmp_path: Path) -> None:
-        config_path = _write_default_config(tmp_path)
-        result = set_config_value_result("version", 1, cwd=tmp_path)
+    def test_top_level_key(self, fs: FileSystem) -> None:
+        config_path = _write_default_config(fs.base_path)
+        result = set_config_value_result("version", 1, cwd=fs.base_path)
         assert result.ok
         assert _read_config(config_path)["version"] == 1
 
-    def test_explicit_config_path(self, tmp_path: Path) -> None:
-        explicit_dir = tmp_path / "elsewhere"
+    def test_explicit_config_path(self, fs: FileSystem) -> None:
+        explicit_dir = fs.base_path / "elsewhere"
         config_path = _write_default_config(explicit_dir)
 
         result = set_config_value_result(
@@ -222,8 +223,8 @@ class SetConfigValueResultTests:
         assert result.ok
         assert _read_config(config_path)["sandbox"]["max_active_sandboxes"] == 5
 
-    def test_write_failed_on_os_error(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        config_path = _write_default_config(tmp_path)
+    def test_write_failed_on_os_error(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        config_path = _write_default_config(fs.base_path)
         original_text = config_path.read_text(encoding="utf-8")
 
         def mock_write_json(*args, **kwargs):
@@ -231,7 +232,7 @@ class SetConfigValueResultTests:
 
         monkeypatch.setattr("getworktree.core.config.mutate.atomic_write_json", mock_write_json)
 
-        result = set_config_value_result("agent.model", "qwen2.5-coder", cwd=tmp_path)
+        result = set_config_value_result("agent.model", "qwen2.5-coder", cwd=fs.base_path)
         assert not result.ok
         assert result.status is ConfigSetStatus.WRITE_FAILED
         assert "CONFIG_WRITE_FAILED" in result.errors[0]

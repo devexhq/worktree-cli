@@ -2,25 +2,16 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 import typer
 from typer.testing import CliRunner
 
 from getworktree.cli import app
 from getworktree.cli.workflow.command import workflow_list_command
-from getworktree.core.config.generator import generate_default_config
 from getworktree.core.db import WorkflowsDb
+from tests.helpers import GitFileSystem
 
 runner = CliRunner()
-
-
-def _init_repo(repo: Path) -> Path:
-    config_path = repo / ".worktree" / "config.json"
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    assert generate_default_config(config_path, project_name=repo.name).ok
-    return config_path
 
 
 class WorkflowListCommandDirectTests:
@@ -28,21 +19,21 @@ class WorkflowListCommandDirectTests:
 
     def test_success_recorded_workflows(
         self,
-        git_repo: Path,
+        git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.chdir(git_repo)
-        _init_repo(git_repo)
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
 
-        WorkflowsDb(git_repo).insert(
+        WorkflowsDb(git_fs.base_path).insert(
             session_id="wf-20260805-01",
             workflow_name="refactor-pipeline",
             branch_name="wt/refactor-pipe",
         )
 
         with pytest.raises(typer.Exit) as exc_info:
-            workflow_list_command(cwd=git_repo)
+            workflow_list_command(cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 0
 
         out = capsys.readouterr().out
@@ -53,15 +44,15 @@ class WorkflowListCommandDirectTests:
 
     def test_empty_recorded_workflows(
         self,
-        git_repo: Path,
+        git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.chdir(git_repo)
-        _init_repo(git_repo)
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
 
         with pytest.raises(typer.Exit) as exc_info:
-            workflow_list_command(cwd=git_repo)
+            workflow_list_command(cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 0
 
         out = capsys.readouterr().out
@@ -69,14 +60,14 @@ class WorkflowListCommandDirectTests:
 
     def test_uninitialized_repo_exits_one(
         self,
-        git_repo: Path,
+        git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.chdir(git_repo)
+        monkeypatch.chdir(git_fs.base_path)
 
         with pytest.raises(typer.Exit) as exc_info:
-            workflow_list_command(cwd=git_repo)
+            workflow_list_command(cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 1
 
         out = capsys.readouterr().out
@@ -91,10 +82,10 @@ class WorkflowListCliTests:
         assert result.exit_code == 0
         assert "List workflow run sessions" in result.stdout
 
-    def test_cli_success(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.chdir(git_repo)
-        _init_repo(git_repo)
-        WorkflowsDb(git_repo).insert(
+    def test_cli_success(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
+        WorkflowsDb(git_fs.base_path).insert(
             session_id="wf-20260805-01",
             workflow_name="refactor-pipeline",
             branch_name="wt/refactor-pipe",
@@ -105,10 +96,10 @@ class WorkflowListCliTests:
         assert "Recorded Workflows" in result.stdout
         assert "wf-20260805-01" in result.stdout
 
-    def test_cli_default_invocation_matches_list(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.chdir(git_repo)
-        _init_repo(git_repo)
-        WorkflowsDb(git_repo).insert(
+    def test_cli_default_invocation_matches_list(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
+        WorkflowsDb(git_fs.base_path).insert(
             session_id="wf-20260805-02",
             workflow_name="run-tests",
             branch_name="wt/run-tests",
@@ -125,8 +116,8 @@ class WorkflowListCliTests:
         result = runner.invoke(app, ["workflow", "unknown"])
         assert result.exit_code == 2
 
-    def test_cli_uninitialized(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.chdir(git_repo)
+    def test_cli_uninitialized(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(git_fs.base_path)
         result = runner.invoke(app, ["workflow", "list"])
         assert result.exit_code == 1
         assert "Workflow List Failed" in result.stdout
