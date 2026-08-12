@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from getworktree.common.utils import RichOutput
-from getworktree.core.catalog.inventory import (
+from getworktree.core.catalog.services.inventory import (
     create_catalog_item,
     delete_catalog_item_by_sha_or_name,
     get_catalog_dir,
@@ -139,8 +139,9 @@ def catalog_show_command(
     """
     output = rich_output or _DEFAULT_RICH_OUTPUT
 
-    item = get_catalog_item(sha_or_name, cwd=cwd)
-    if item is None:
+    res = get_catalog_item(sha_or_name, cwd=cwd)
+    item = res.resolved
+    if not res.ok or item is None:
         error_msg = f"Catalog blueprint '{sha_or_name}' not found."
         output.error_panel("Catalog Show Failed", error_msg)
         return CatalogShowCommandOutcome(item=None, content=None, errors=[error_msg])

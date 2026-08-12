@@ -12,7 +12,7 @@ import yaml
 from pydantic import ValidationError
 
 from getworktree.common.utils import RichOutput
-from getworktree.core.catalog.inventory import (
+from getworktree.core.catalog.services.inventory import (
     get_catalog_dir,
     get_catalog_item,
     scan_and_index_catalog,
@@ -132,10 +132,10 @@ def task_show_command(
     *,
     rich_output: RichOutput | None = None,
 ) -> TaskShowCommandOutcome:
-    """Show details and definition of a specific task blueprint.
+    """Show details and definition content of a task blueprint.
 
     Args:
-        name: Task name or SHA identifier.
+        name: Name of the task to show.
         cwd: Optional working directory.
         rich_output: Optional RichOutput presenter.
 
@@ -144,8 +144,9 @@ def task_show_command(
     """
     output = rich_output or _DEFAULT_RICH_OUTPUT
 
-    item = get_catalog_item(name, cwd=cwd)
-    if item is None or item.item_type != CatalogItemType.TASK:
+    res = get_catalog_item(name, cwd=cwd)
+    item = res.resolved
+    if not res.ok or item is None or item.item_type != CatalogItemType.TASK:
         error_msg = f"Task blueprint '{name}' not found."
         output.error_panel("Task Show Failed", error_msg)
         return TaskShowCommandOutcome(item=None, content=None, errors=[error_msg])
@@ -192,8 +193,9 @@ def task_run_command(
     """
     output = rich_output or _DEFAULT_RICH_OUTPUT
 
-    item = get_catalog_item(name, cwd=cwd)
-    if item is None or item.item_type != CatalogItemType.TASK:
+    res = get_catalog_item(name, cwd=cwd)
+    item = res.resolved
+    if not res.ok or item is None or item.item_type != CatalogItemType.TASK:
         error_msg = f"Task blueprint '{name}' not found."
         output.error_panel("Task Run Failed", error_msg)
         return TaskRunCommandOutcome(run_record=None, errors=[error_msg])

@@ -12,6 +12,8 @@ class YamlFile(BaseModel):
     name: str
     content: str | None = ""
     parsed: Any | None = None
+    checksum: str | None = None
+    file_size: int | None = None
     error: str | None = None
 
 

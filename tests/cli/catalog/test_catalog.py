@@ -10,7 +10,7 @@ from getworktree.cli.catalog.command import (
     catalog_list_command,
     catalog_show_command,
 )
-from getworktree.core.catalog.inventory import create_catalog_item
+from getworktree.core.catalog.services.inventory import create_catalog_item
 from getworktree.core.db import CatalogItemType
 from tests.helpers import FileSystem
 

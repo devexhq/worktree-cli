@@ -9,7 +9,7 @@ from getworktree.cli.task.command import (
     task_run_command,
     task_show_command,
 )
-from getworktree.core.catalog.inventory import create_catalog_item
+from getworktree.core.catalog.services.inventory import create_catalog_item
 from getworktree.core.db import TasksDb
 from tests.helpers import FileSystem
 

@@ -2,11 +2,22 @@
 
 from __future__ import annotations
 
-import hashlib
 from pathlib import Path
+from typing import Any
 
-from getworktree.common.fs import atomic_write_text, scan_yaml_directory
-from getworktree.common.models import YamlFile
+from getworktree.common.exceptions import DefinitionLoadError, DefinitionValidationError
+from getworktree.common.fs import (
+    _process_yaml_file,
+    atomic_write_text,
+    compute_content_checksum,
+    delete_file,
+    scan_yaml_directory,
+)
+from getworktree.common.models import (
+    DefinitionResolutionResult,
+    DefinitionResolutionStatus,
+    YamlFile,
+)
 from getworktree.core.catalog.models import CatalogScanResult, CatalogSubdirectoryScanResult
 from getworktree.core.db import (
     CatalogDb,
@@ -33,7 +44,7 @@ def ensure_catalog_dirs(cwd: Path | None = None) -> Path:
 def compute_catalog_sha(item_type: CatalogItemType | str, content: str) -> tuple[str, str]:
     """Compute SHA-256 checksum and formatted SHA string (e.g. `workflow_a1b2c3d`)."""
     type_str = item_type.value if isinstance(item_type, CatalogItemType) else str(item_type)
-    checksum = hashlib.sha256(content.encode("utf-8")).hexdigest()
+    checksum = compute_content_checksum(content)
     sha = f"{type_str}_{checksum[:7]}"
     return sha, checksum
 
@@ -112,18 +123,27 @@ def scan_and_index_catalog(cwd: Path | None = None) -> CatalogScanResult:
     return CatalogScanResult(items=scan_result.scanned_records, errors=errors)
 
 
+def _get_initial_template_content(type_enum: CatalogItemType, stem: str, template_name: str | None) -> str:
+    if template_name:
+        tmpl = get_builtin_template(template_name, type_filter=type_enum.value)
+        if tmpl is None:
+            raise ValueError(f"Built-in template '{template_name}' of type '{type_enum.value}' not found.")
+        return tmpl.content
+
+    if type_enum == CatalogItemType.WORKFLOW:
+        return f"name: {stem}\ndescription: Custom workflow blueprint\nsteps: []\n"
+    if type_enum == CatalogItemType.TASK:
+        return f"name: {stem}\ndescription: Custom task blueprint\nuse_git_worktree: false\ncommands: []\n"
+    return f"name: {stem}\ndescription: Custom step blueprint\naction: run\n"
+
+
 def create_catalog_item(
     item_type: CatalogItemType | str,
     name: str,
     template_name: str | None = None,
     cwd: Path | None = None,
 ) -> CatalogRecord:
-    """Create a new catalog blueprint under `.worktree/catalog/<type>s/<name>.yml` and sync database.
-
-    Raises:
-        ValueError: If `item_type` is invalid or `template_name` is not found.
-        FileExistsError: If a blueprint file already exists at the target path.
-    """
+    """Create a new catalog blueprint under `.worktree/catalog/<type>s/<name>.yml` and sync database."""
     try:
         type_enum = item_type if isinstance(item_type, CatalogItemType) else CatalogItemType(str(item_type).lower())
     except ValueError as exc:
@@ -139,19 +159,7 @@ def create_catalog_item(
         rel_str = target_path.relative_to(catalog_dir)
         raise FileExistsError(f"Catalog blueprint collision at path '{rel_str}'")
 
-    if template_name:
-        tmpl = get_builtin_template(template_name, type_filter=type_enum.value)
-        if tmpl is None:
-            raise ValueError(f"Built-in template '{template_name}' of type '{type_enum.value}' not found.")
-        content = tmpl.content
-    else:
-        if type_enum == CatalogItemType.WORKFLOW:
-            content = f"name: {stem}\ndescription: Custom workflow blueprint\nsteps: []\n"
-        elif type_enum == CatalogItemType.TASK:
-            content = f"name: {stem}\ndescription: Custom task blueprint\nuse_git_worktree: false\ncommands: []\n"
-        else:
-            content = f"name: {stem}\ndescription: Custom step blueprint\naction: run\n"
-
+    content = _get_initial_template_content(type_enum, stem, template_name)
     atomic_write_text(target_path, content)
 
     sha, checksum = compute_catalog_sha(type_enum, content)
@@ -166,23 +174,108 @@ def create_catalog_item(
     )
 
 
-def get_catalog_item(
+def _find_catalog_matches(
+    cwd: Path | None,
+    sha_or_name: str,
+    type_filter: CatalogItemType | str | None,
+) -> list[CatalogRecord]:
+    tf_str = (
+        type_filter.value
+        if isinstance(type_filter, CatalogItemType)
+        else (str(type_filter).lower() if type_filter is not None else None)
+    )
+
+    item_by_sha = CatalogDb(cwd).get_by_sha(sha_or_name)
+    if item_by_sha is not None:
+        if tf_str is None or item_by_sha.item_type.value == tf_str:
+            return [item_by_sha]
+        return []
+    return CatalogDb(cwd).list_by_name(sha_or_name, item_type=type_filter)
+
+
+def _read_and_parse_yaml(file_path: Path, rel_path: Path) -> tuple[dict[str, Any] | None, list[str]]:
+    yaml_file = _process_yaml_file(file_path)
+    if yaml_file.error or yaml_file.parsed is None or not isinstance(yaml_file.parsed, dict):
+        err_msg = (
+            yaml_file.error or f"Failed to load catalog blueprint '{rel_path}': invalid or non-object YAML content."
+        )
+        return None, [err_msg]
+    return yaml_file.parsed, []
+
+
+def _validate_definition[T](
+    winner: CatalogRecord,
+    definition_cls: type[T],
+    cwd: Path | None,
+    sha_or_name: str,
+) -> tuple[Any | None, DefinitionResolutionStatus, list[str]]:
+    catalog_dir = get_catalog_dir(cwd)
+    file_path = catalog_dir / winner.path
+    parsed_data, errors = _read_and_parse_yaml(file_path, winner.path)
+    if errors:
+        return None, DefinitionResolutionStatus.LOAD_ERROR, errors
+
+    schema_val = getattr(definition_cls, "schema_validator", None)
+    if schema_val is not None and hasattr(schema_val, "validate"):
+        val_res = schema_val.validate(parsed_data)
+        if hasattr(val_res, "ok") and not val_res.ok:
+            errs = list(getattr(val_res, "errors", [str(val_res)]))
+            return None, DefinitionResolutionStatus.LOAD_ERROR, errs
+
+    try:
+        if hasattr(definition_cls, "model_validate"):
+            definition = definition_cls.model_validate(parsed_data)
+        else:
+            definition = definition_cls(**parsed_data)  # type: ignore[call-arg]
+        return definition, DefinitionResolutionStatus.OK, []
+    except (Exception, DefinitionLoadError, DefinitionValidationError) as exc:
+        return None, DefinitionResolutionStatus.LOAD_ERROR, [f"Model validation failed for '{sha_or_name}': {exc}"]
+
+
+def get_catalog_item[T](
     sha_or_name: str,
     type_filter: CatalogItemType | str | None = None,
+    *,
+    definition_cls: type[T] | None = None,
     cwd: Path | None = None,
-) -> CatalogRecord | None:
-    """Retrieve catalog blueprint record by SHA or name."""
+) -> DefinitionResolutionResult[CatalogRecord]:
+    """Retrieve catalog blueprint record by SHA or name, optionally validating its content into ``definition_cls``."""
     scan_and_index_catalog(cwd)
+    matches = _find_catalog_matches(cwd, sha_or_name, type_filter)
 
-    item = CatalogDb(cwd).get_by_sha(sha_or_name)
-    if item is not None:
-        if type_filter:
-            tf_str = type_filter.value if isinstance(type_filter, CatalogItemType) else str(type_filter).lower()
-            if item.item_type.value != tf_str:
-                return None
-        return item
+    if not matches:
+        return DefinitionResolutionResult(
+            status=DefinitionResolutionStatus.NOT_FOUND,
+            requested_name=sha_or_name,
+            resolved=None,
+            matches=[],
+            errors=[f"Catalog blueprint '{sha_or_name}' not found."],
+        )
 
-    return CatalogDb(cwd).get_by_name(sha_or_name, item_type=type_filter)
+    winner = matches[0]
+    warnings: list[str] = []
+    if len(matches) > 1:
+        others = ", ".join(m.path.as_posix() for m in matches if m.path != winner.path)
+        warnings.append(
+            f"Duplicate catalog name '{sha_or_name}'; using '{winner.path.as_posix()}' (also found in: {others})."
+        )
+
+    definition: Any | None = None
+    errors: list[str] = []
+    status = DefinitionResolutionStatus.OK
+
+    if definition_cls is not None:
+        definition, status, errors = _validate_definition(winner, definition_cls, cwd, sha_or_name)
+
+    return DefinitionResolutionResult(
+        status=status,
+        requested_name=sha_or_name,
+        resolved=winner,
+        definition=definition,
+        matches=matches,
+        errors=errors,
+        warnings=warnings,
+    )
 
 
 def delete_catalog_item_by_sha_or_name(
@@ -190,14 +283,14 @@ def delete_catalog_item_by_sha_or_name(
     cwd: Path | None = None,
 ) -> CatalogRecord | None:
     """Delete a catalog blueprint file and its database record."""
-    item = get_catalog_item(sha_or_name, cwd=cwd)
+    result = get_catalog_item(sha_or_name, cwd=cwd)
+    item = result.resolved
     if item is None:
         return None
 
     catalog_dir = get_catalog_dir(cwd)
     file_path = catalog_dir / item.path
-    if file_path.exists():
-        file_path.unlink(missing_ok=True)
+    delete_file(file_path)
 
     CatalogDb(cwd).delete(item.sha)
     return item
