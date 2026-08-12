@@ -23,21 +23,15 @@ from getworktree.cli.sandbox.renderers import (
     render_sandbox_show,
 )
 from getworktree.common.utils import RichOutput
-from getworktree.core.config.generator import generate_default_config
 from getworktree.core.db import (
     SandboxesDb,
     SandboxRecord,
     SandboxStatus,
 )
+from tests.helpers import GitFileSystem
 
 runner = CliRunner()
 DB_REL = ".worktree/data.db"
-
-
-def _init_config(repo: Path) -> None:
-    config_path = repo / ".worktree" / "config.json"
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    assert generate_default_config(config_path, project_name=repo.name).ok
 
 
 def _insert(
@@ -76,28 +70,28 @@ def _rich(*, width: int = 120) -> tuple[RichOutput, StringIO]:
 class SandboxShowCollectTests:
     """Tests for collect_sandbox_show (data path, no Rich width coupling)."""
 
-    def test_not_initialized(self, git_repo: Path) -> None:
-        result = collect_sandbox_show("sbx_any", cwd=git_repo)
+    def test_not_initialized(self, git_fs: GitFileSystem) -> None:
+        result = collect_sandbox_show("sbx_any", cwd=git_fs.base_path)
         assert result.status is SandboxShowStatus.NOT_INITIALIZED
         assert not result.ok
         assert result.errors
         assert result.sandbox is None
-        assert not (git_repo / DB_REL).exists()
+        assert not (git_fs.base_path / DB_REL).exists()
 
-    def test_invalid_config_is_not_initialized(self, git_repo: Path) -> None:
-        config_path = git_repo / ".worktree" / "config.json"
+    def test_invalid_config_is_not_initialized(self, git_fs: GitFileSystem) -> None:
+        config_path = git_fs.base_path / ".worktree" / "config.json"
         config_path.parent.mkdir(parents=True, exist_ok=True)
         config_path.write_text("{not-json", encoding="utf-8")
 
-        result = collect_sandbox_show("sbx_any", cwd=git_repo)
+        result = collect_sandbox_show("sbx_any", cwd=git_fs.base_path)
         assert result.status is SandboxShowStatus.NOT_INITIALIZED
         assert not result.ok
         assert result.errors
-        assert not (git_repo / DB_REL).exists()
+        assert not (git_fs.base_path / DB_REL).exists()
 
-    def test_not_found(self, git_repo: Path) -> None:
-        _init_config(git_repo)
-        result = collect_sandbox_show("sbx_missing", cwd=git_repo)
+    def test_not_found(self, git_fs: GitFileSystem) -> None:
+        git_fs.init_repo()
+        result = collect_sandbox_show("sbx_missing", cwd=git_fs.base_path)
         assert result.status is SandboxShowStatus.NOT_FOUND
         assert not result.ok
         assert result.sandbox is None
@@ -113,27 +107,27 @@ class SandboxShowCollectTests:
     )
     def test_found_each_status(
         self,
-        git_repo: Path,
+        git_fs: GitFileSystem,
         status: SandboxStatus,
         create_dir: bool,
     ) -> None:
-        _init_config(git_repo)
+        git_fs.init_repo()
         created = _insert(
-            git_repo,
+            git_fs.base_path,
             sandbox_id=f"sbx_{status.value}",
             name="detail" if status is SandboxStatus.ACTIVE else None,
             path_suffix=status.value,
             create_dir=create_dir,
         )
         if status is not SandboxStatus.ACTIVE:
-            updated = SandboxesDb(git_repo, DB_REL).update_status(
+            updated = SandboxesDb(git_fs.base_path, DB_REL).update_status(
                 created.id,
                 status,
             )
             assert updated is not None
             created = updated
 
-        result = collect_sandbox_show(created.id, cwd=git_repo)
+        result = collect_sandbox_show(created.id, cwd=git_fs.base_path)
         assert result.status is SandboxShowStatus.OK
         assert result.ok
         assert result.sandbox is not None
@@ -142,41 +136,41 @@ class SandboxShowCollectTests:
         assert result.reconciled is False
         assert result.disk_present is create_dir
 
-    def test_reconciles_stale_active_missing_directory(self, git_repo: Path) -> None:
-        _init_config(git_repo)
+    def test_reconciles_stale_active_missing_directory(self, git_fs: GitFileSystem) -> None:
+        git_fs.init_repo()
         stale = _insert(
-            git_repo,
+            git_fs.base_path,
             sandbox_id="sbx_stale",
             path_suffix="gone",
             create_dir=False,
         )
         assert not Path(stale.sandbox_path).exists()
 
-        result = collect_sandbox_show(stale.id, cwd=git_repo)
+        result = collect_sandbox_show(stale.id, cwd=git_fs.base_path)
         assert result.status is SandboxShowStatus.OK
         assert result.ok
         assert result.sandbox is not None
         assert result.sandbox.status is SandboxStatus.CLEANED
         assert result.reconciled is True
         assert result.disk_present is False
-        loaded = SandboxesDb(git_repo, DB_REL).get(stale.id)
+        loaded = SandboxesDb(git_fs.base_path, DB_REL).get(stale.id)
         assert loaded is not None
         assert loaded.status is SandboxStatus.CLEANED
 
-    def test_non_active_missing_dir_does_not_reconcile(self, git_repo: Path) -> None:
-        _init_config(git_repo)
+    def test_non_active_missing_dir_does_not_reconcile(self, git_fs: GitFileSystem) -> None:
+        git_fs.init_repo()
         created = _insert(
-            git_repo,
+            git_fs.base_path,
             sandbox_id="sbx_merged_gone",
             path_suffix="merged-gone",
             create_dir=False,
         )
-        SandboxesDb(git_repo, DB_REL).update_status(
+        SandboxesDb(git_fs.base_path, DB_REL).update_status(
             created.id,
             SandboxStatus.MERGED,
         )
 
-        result = collect_sandbox_show(created.id, cwd=git_repo)
+        result = collect_sandbox_show(created.id, cwd=git_fs.base_path)
         assert result.ok
         assert result.sandbox is not None
         assert result.sandbox.status is SandboxStatus.MERGED
@@ -265,47 +259,47 @@ class SandboxShowCommandDirectTests:
 
     def test_not_initialized_exits_one(
         self,
-        git_repo: Path,
+        git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.chdir(git_repo)
+        monkeypatch.chdir(git_fs.base_path)
 
         with pytest.raises(typer.Exit) as exc_info:
-            sandbox_show_command("sbx_any", cwd=git_repo)
+            sandbox_show_command("sbx_any", cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 1
 
         out = capsys.readouterr().out
         assert "Worktree Not Initialized" in out
-        assert not (git_repo / DB_REL).exists()
+        assert not (git_fs.base_path / DB_REL).exists()
 
     def test_not_found_exits_one(
         self,
-        git_repo: Path,
+        git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.chdir(git_repo)
-        _init_config(git_repo)
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
 
         with pytest.raises(typer.Exit) as exc_info:
-            sandbox_show_command("sbx_missing", cwd=git_repo)
+            sandbox_show_command("sbx_missing", cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 1
         out = capsys.readouterr().out
         assert "Sandbox Not Found" in out
 
     def test_found_exits_zero(
         self,
-        git_repo: Path,
+        git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.chdir(git_repo)
-        _init_config(git_repo)
-        created = _insert(git_repo, sandbox_id="sbx_one", path_suffix="1")
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
+        created = _insert(git_fs.base_path, sandbox_id="sbx_one", path_suffix="1")
 
         with pytest.raises(typer.Exit) as exc_info:
-            sandbox_show_command(created.id, cwd=git_repo)
+            sandbox_show_command(created.id, cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 0
         out = capsys.readouterr().out
         assert created.id in out
@@ -314,21 +308,21 @@ class SandboxShowCommandDirectTests:
 
     def test_reconcile_exits_zero_with_note(
         self,
-        git_repo: Path,
+        git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.chdir(git_repo)
-        _init_config(git_repo)
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
         stale = _insert(
-            git_repo,
+            git_fs.base_path,
             sandbox_id="sbx_stale_cmd",
             path_suffix="gone-cmd",
             create_dir=False,
         )
 
         with pytest.raises(typer.Exit) as exc_info:
-            sandbox_show_command(stale.id, cwd=git_repo)
+            sandbox_show_command(stale.id, cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 0
         out = capsys.readouterr().out
         assert "cleaned" in out
@@ -355,11 +349,11 @@ class SandboxShowCliTests:
         assert show_cmd.help == "Show full detail for one tracked sandbox."
         assert any(param.name == "sandbox_id" for param in show_cmd.params)
 
-    def test_show_via_cli(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.chdir(git_repo)
-        _init_config(git_repo)
+    def test_show_via_cli(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
         created = _insert(
-            git_repo,
+            git_fs.base_path,
             sandbox_id="sbx_cli",
             name="cli-name",
             path_suffix="cli",

@@ -14,11 +14,12 @@ from getworktree.core.bootstrap import (
     BootstrapResult,
     bootstrap_worktree,
 )
+from tests.helpers import FileSystem
 
 
 @pytest.fixture
-def project_tmp(tmp_path: Path) -> Path:
-    return tmp_path
+def project_tmp(fs: FileSystem) -> Path:
+    return fs.base_path
 
 
 class BootstrapWorktreeTests:

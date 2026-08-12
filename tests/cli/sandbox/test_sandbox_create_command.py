@@ -21,22 +21,16 @@ from getworktree.cli.sandbox.renderers import (
     render_sandbox_create_success,
 )
 from getworktree.common.utils import RichOutput
-from getworktree.core.config.generator import generate_default_config
 from getworktree.core.db import SandboxesDb, SandboxStatus
 from getworktree.core.git_sandbox import (
     SandboxCreateResult,
     SandboxCreateStatus,
     SandboxSession,
 )
+from tests.helpers import FileSystem, GitFileSystem
 
 runner = CliRunner()
 DB_REL = ".worktree/data.db"
-
-
-def _init_config(repo: Path) -> None:
-    config_path = repo / ".worktree" / "config.json"
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    assert generate_default_config(config_path, project_name=repo.name).ok
 
 
 def _rich(*, width: int = 120) -> tuple[RichOutput, StringIO]:
@@ -67,25 +61,25 @@ def _session(
 class SandboxCreateRenderTests:
     """Renderer unit tests with a fixed console width."""
 
-    def test_success_block(self, tmp_path: Path) -> None:
-        session = _session(sandbox_path=tmp_path / ".worktree" / "sandboxes" / "sbx_a1b2c3d4")
+    def test_success_block(self, fs: FileSystem) -> None:
+        session = _session(sandbox_path=fs.base_path / ".worktree" / "sandboxes" / "sbx_a1b2c3d4")
         rich_output, buffer = _rich()
-        render_sandbox_create_success(session, cwd=tmp_path, rich_output=rich_output)
+        render_sandbox_create_success(session, cwd=fs.base_path, rich_output=rich_output)
         out = buffer.getvalue()
         assert "Sandbox created: sbx_a1b2c3d4" in out
         assert "Branch: worktree/sandbox-sbx_a1b2c3d4" in out
         assert "Path: .worktree/sandboxes/sbx_a1b2c3d4" in out
 
-    def test_success_with_warnings(self, tmp_path: Path) -> None:
+    def test_success_with_warnings(self, fs: FileSystem) -> None:
         session = _session(
             session_id="sbx_warn",
-            sandbox_path=tmp_path / ".worktree" / "sandboxes" / "sbx_warn",
+            sandbox_path=fs.base_path / ".worktree" / "sandboxes" / "sbx_warn",
         )
         rich_output, buffer = _rich()
         render_sandbox_create_success(
             session,
             warnings=["db write failed"],
-            cwd=tmp_path,
+            cwd=fs.base_path,
             rich_output=rich_output,
         )
         out = buffer.getvalue()
@@ -116,100 +110,100 @@ class SandboxCreateCommandDirectTests:
 
     def test_default_create_exits_zero(
         self,
-        git_repo: Path,
+        git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.chdir(git_repo)
-        _init_config(git_repo)
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
 
         with pytest.raises(typer.Exit) as exc_info:
-            sandbox_create_command(cwd=git_repo)
+            sandbox_create_command(cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 0
         out = capsys.readouterr().out
         assert "Sandbox created:" in out
         assert "Branch: worktree/sandbox-" in out
         assert "Path: .worktree/sandboxes/" in out
 
-        rows = SandboxesDb(git_repo).list()
+        rows = SandboxesDb(git_fs.base_path).list()
         assert len(rows) == 1
         assert rows[0].status is SandboxStatus.ACTIVE
 
     def test_name_flag(
         self,
-        git_repo: Path,
+        git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.chdir(git_repo)
-        _init_config(git_repo)
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
 
         with pytest.raises(typer.Exit) as exc_info:
-            sandbox_create_command(name="  demo  ", cwd=git_repo)
+            sandbox_create_command(name="  demo  ", cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 0
-        rows = SandboxesDb(git_repo).list()
+        rows = SandboxesDb(git_fs.base_path).list()
         assert len(rows) == 1
         assert rows[0].name == "demo"
         assert "Sandbox created:" in capsys.readouterr().out
 
     def test_base_ref_override(
         self,
-        git_repo: Path,
+        git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.chdir(git_repo)
-        _init_config(git_repo)
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
         subprocess.run(
             ["git", "checkout", "-b", "other"],
-            cwd=git_repo,
+            cwd=git_fs.base_path,
             check=True,
             capture_output=True,
             text=True,
         )
-        (git_repo / "other.txt").write_text("other\n", encoding="utf-8")
+        (git_fs.base_path / "other.txt").write_text("other\n", encoding="utf-8")
         subprocess.run(
             ["git", "add", "other.txt"],
-            cwd=git_repo,
+            cwd=git_fs.base_path,
             check=True,
             capture_output=True,
             text=True,
         )
         subprocess.run(
             ["git", "commit", "-m", "other tip"],
-            cwd=git_repo,
+            cwd=git_fs.base_path,
             check=True,
             capture_output=True,
             text=True,
         )
         feature_tip = subprocess.run(
             ["git", "rev-parse", "feature"],
-            cwd=git_repo,
+            cwd=git_fs.base_path,
             check=True,
             capture_output=True,
             text=True,
         ).stdout.strip()
 
         with pytest.raises(typer.Exit) as exc_info:
-            sandbox_create_command(base_ref="feature", cwd=git_repo)
+            sandbox_create_command(base_ref="feature", cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 0
-        rows = SandboxesDb(git_repo).list()
+        rows = SandboxesDb(git_fs.base_path).list()
         assert len(rows) == 1
         assert rows[0].base_commit == feature_tip
 
     def test_wip_flag(
         self,
-        git_repo: Path,
+        git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.chdir(git_repo)
-        _init_config(git_repo)
-        (git_repo / "f.txt").write_text("dirty\n", encoding="utf-8")
-        (git_repo / "new.txt").write_text("untracked\n", encoding="utf-8")
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
+        (git_fs.base_path / "f.txt").write_text("dirty\n", encoding="utf-8")
+        (git_fs.base_path / "new.txt").write_text("untracked\n", encoding="utf-8")
 
         with pytest.raises(typer.Exit) as exc_info:
-            sandbox_create_command(wip=True, cwd=git_repo)
+            sandbox_create_command(wip=True, cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 0
-        rows = SandboxesDb(git_repo).list()
+        rows = SandboxesDb(git_fs.base_path).list()
         assert len(rows) == 1
         sandbox_path = Path(rows[0].sandbox_path)
         assert (sandbox_path / "f.txt").read_text(encoding="utf-8") == "dirty\n"
@@ -227,13 +221,13 @@ class SandboxCreateCommandDirectTests:
     )
     def test_failure_statuses_exit_one(
         self,
-        git_repo: Path,
+        git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
         status: SandboxCreateStatus,
         errors: list[str],
     ) -> None:
-        monkeypatch.chdir(git_repo)
+        monkeypatch.chdir(git_fs.base_path)
 
         mock_manager = MagicMock()
         mock_manager.create_sandbox_result.return_value = SandboxCreateResult(
@@ -246,7 +240,7 @@ class SandboxCreateCommandDirectTests:
         )
 
         with pytest.raises(typer.Exit) as exc_info:
-            sandbox_create_command(cwd=git_repo)
+            sandbox_create_command(cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 1
         out = capsys.readouterr().out
         assert "Sandbox Create Failed" in out
@@ -254,14 +248,14 @@ class SandboxCreateCommandDirectTests:
 
     def test_warnings_on_success_exit_zero(
         self,
-        git_repo: Path,
+        git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.chdir(git_repo)
+        monkeypatch.chdir(git_fs.base_path)
         session = _session(
             session_id="sbx_warnok",
-            sandbox_path=git_repo / ".worktree" / "sandboxes" / "sbx_warnok",
+            sandbox_path=git_fs.base_path / ".worktree" / "sandboxes" / "sbx_warnok",
         )
         mock_manager = MagicMock()
         mock_manager.create_sandbox_result.return_value = SandboxCreateResult(
@@ -275,7 +269,7 @@ class SandboxCreateCommandDirectTests:
         )
 
         with pytest.raises(typer.Exit) as exc_info:
-            sandbox_create_command(cwd=git_repo)
+            sandbox_create_command(cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 0
         out = capsys.readouterr().out
         assert "Sandbox created: sbx_warnok" in out
@@ -310,9 +304,9 @@ class SandboxCreateCliTests:
         assert "--wip" in opts
         assert "--no-wip" in opts
 
-    def test_create_appears_in_list_and_show(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.chdir(git_repo)
-        _init_config(git_repo)
+    def test_create_appears_in_list_and_show(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
 
         created = runner.invoke(
             app,
@@ -321,11 +315,11 @@ class SandboxCreateCliTests:
         assert created.exit_code == 0
         assert "Sandbox created:" in created.stdout
 
-        rows = SandboxesDb(git_repo).list()
+        rows = SandboxesDb(git_fs.base_path).list()
         assert len(rows) == 1
         sandbox_id = rows[0].id
         assert rows[0].name == "integration"
-        assert SandboxesDb(git_repo).get(sandbox_id) is not None
+        assert SandboxesDb(git_fs.base_path).get(sandbox_id) is not None
 
         listed = runner.invoke(app, ["sandbox", "list"])
         assert listed.exit_code == 0
@@ -339,15 +333,15 @@ class SandboxCreateCliTests:
         assert "present" in shown.stdout
         assert "active" in shown.stdout
 
-    def test_create_not_initialized_via_cli(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.chdir(git_repo)
+    def test_create_not_initialized_via_cli(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(git_fs.base_path)
         result = runner.invoke(app, ["sandbox", "create"])
         assert result.exit_code == 1
         assert "Sandbox Create Failed" in result.stdout
 
-    def test_create_invalid_base_ref_via_cli(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.chdir(git_repo)
-        _init_config(git_repo)
+    def test_create_invalid_base_ref_via_cli(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
         result = runner.invoke(
             app,
             ["sandbox", "create", "--base-ref", "refs/does-not-exist"],
@@ -355,10 +349,10 @@ class SandboxCreateCliTests:
         assert result.exit_code == 1
         assert "Sandbox Create Failed" in result.stdout
 
-    def test_create_capacity_exceeded_via_cli(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.chdir(git_repo)
-        _init_config(git_repo)
-        config_path = git_repo / ".worktree" / "config.json"
+    def test_create_capacity_exceeded_via_cli(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
+        config_path = git_fs.base_path / ".worktree" / "config.json"
         data = json.loads(config_path.read_text(encoding="utf-8"))
         data["sandbox"]["max_active_sandboxes"] = 1
         config_path.write_text(json.dumps(data), encoding="utf-8")

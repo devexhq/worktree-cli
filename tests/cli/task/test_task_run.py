@@ -1,60 +1,53 @@
 """Comprehensive CLI unit tests for task execution (wt task run)."""
 
-from pathlib import Path
-
 import pytest
 from typer.testing import CliRunner
 
 from getworktree.cli import app
 from getworktree.cli.task.command import task_run_command
-from getworktree.core.catalog.inventory import get_catalog_dir
 from getworktree.core.db import TasksDb
+from tests.helpers import FileSystem
 
 runner = CliRunner()
 
 
-def test_task_run_command_steps_execution(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.chdir(tmp_path)
-    tasks_dir = get_catalog_dir(tmp_path) / "tasks"
-    tasks_dir.mkdir(parents=True, exist_ok=True)
-    task_file = tasks_dir / "build-task.yml"
-    task_file.write_text(
-        "name: build-task\n"
-        "description: Build and test task\n"
-        "summary: Build and test\n"
-        "use_git_worktree: false\n"
-        "commands:\n"
-        "  - name: step-1\n"
-        "    command: echo step1\n"
-        "  - name: step-2\n"
-        "    command: echo step2\n",
-        encoding="utf-8",
+def test_task_run_command_steps_execution(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(fs.base_path)
+    fs.write_file(
+        ".worktree/catalog/tasks/build-task.yml",
+        {
+            "name": "build-task",
+            "description": "Build and test task",
+            "summary": "Build and test",
+            "use_git_worktree": False,
+            "commands": [
+                {"name": "step-1", "command": "echo step1"},
+                {"name": "step-2", "command": "echo step2"},
+            ],
+        },
     )
 
-    res = task_run_command("build-task", cwd=tmp_path, session_id="task_build_1")
+    res = task_run_command("build-task", cwd=fs.base_path, session_id="task_build_1")
     assert res.ok
     assert res.run_record is not None
     assert res.run_record.status.value == "completed"
 
-    rec = TasksDb(tmp_path).get("task_build_1")
+    rec = TasksDb(fs.base_path).get("task_build_1")
     assert rec is not None
     assert rec.status.value == "completed"
 
 
-def test_task_run_cli_options(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.chdir(tmp_path)
-    tasks_dir = get_catalog_dir(tmp_path) / "tasks"
-    tasks_dir.mkdir(parents=True, exist_ok=True)
-    task_file = tasks_dir / "lint-task.yml"
-    task_file.write_text(
-        "name: lint-task\n"
-        "description: Lint task\n"
-        "summary: Lint task\n"
-        "use_git_worktree: false\n"
-        "commands:\n"
-        "  - name: check-lints\n"
-        "    command: echo lint ok\n",
-        encoding="utf-8",
+def test_task_run_cli_options(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(fs.base_path)
+    fs.write_file(
+        ".worktree/catalog/tasks/lint-task.yml",
+        {
+            "name": "lint-task",
+            "description": "Lint task",
+            "summary": "Lint task",
+            "use_git_worktree": False,
+            "commands": [{"name": "check-lints", "command": "echo lint ok"}],
+        },
     )
 
     result = runner.invoke(
@@ -66,33 +59,29 @@ def test_task_run_cli_options(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     assert "Sandbox: In-place (workspace)" in result.output
 
 
-def test_task_run_step_failure_aborts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.chdir(tmp_path)
-    tasks_dir = get_catalog_dir(tmp_path) / "tasks"
-    tasks_dir.mkdir(parents=True, exist_ok=True)
-    task_file = tasks_dir / "failing-task.yml"
-    task_file.write_text(
-        "name: failing-task\n"
-        "description: Failing task\n"
-        "summary: Failing task\n"
-        "use_git_worktree: false\n"
-        "commands:\n"
-        "  - name: pass-step\n"
-        "    command: echo ok\n"
-        "  - name: fail-step\n"
-        "    command: exit 1\n"
-        "    on_failure: abort\n"
-        "  - name: unreachable-step\n"
-        "    command: echo should not run\n",
-        encoding="utf-8",
+def test_task_run_step_failure_aborts(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(fs.base_path)
+    fs.write_file(
+        ".worktree/catalog/tasks/failing-task.yml",
+        {
+            "name": "failing-task",
+            "description": "Failing task",
+            "summary": "Failing task",
+            "use_git_worktree": False,
+            "commands": [
+                {"name": "pass-step", "command": "echo ok"},
+                {"name": "fail-step", "command": "exit 1", "on_failure": "abort"},
+                {"name": "unreachable-step", "command": "echo should not run"},
+            ],
+        },
     )
 
-    res = task_run_command("failing-task", cwd=tmp_path, session_id="task_fail_1")
+    res = task_run_command("failing-task", cwd=fs.base_path, session_id="task_fail_1")
     assert not res.ok
     assert res.run_record is not None
     assert res.run_record.status.value == "failed"
 
-    rec = TasksDb(tmp_path).get("task_fail_1")
+    rec = TasksDb(fs.base_path).get("task_fail_1")
     assert rec is not None
     assert rec.status.value == "failed"
     assert "fail-step" in rec.error_message

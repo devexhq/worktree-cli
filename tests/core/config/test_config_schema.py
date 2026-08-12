@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import copy
 import json
-from pathlib import Path
 from typing import Any
 
 import pytest
@@ -22,6 +21,7 @@ from getworktree.core.config.loader import (
     parse_and_validate_config,
 )
 from getworktree.core.config.models import WorktreeConfig
+from tests.helpers import FileSystem
 
 
 def _valid_config() -> dict[str, Any]:
@@ -213,16 +213,16 @@ class ConfigV1ModelAlignmentTests:
 class ConfigV1LoaderCompatibilityTests:
     """Loader still maps schema outcomes correctly."""
 
-    def test_loader_ok_on_generated_config(self, tmp_path: Path) -> None:
-        config_path = tmp_path / ".worktree" / "config.json"
+    def test_loader_ok_on_generated_config(self, fs: FileSystem) -> None:
+        config_path = fs.base_path / ".worktree" / "config.json"
         config_path.parent.mkdir(parents=True)
         assert generate_default_config(config_path, "demo").ok
-        result = load_config_result(cwd=tmp_path)
+        result = load_config_result(cwd=fs.base_path)
         assert result.status == ConfigLoadStatus.OK
         assert result.config is not None
 
-    def test_loader_schema_invalid_on_unknown_key(self, tmp_path: Path) -> None:
-        config_path = tmp_path / ".worktree" / "config.json"
+    def test_loader_schema_invalid_on_unknown_key(self, fs: FileSystem) -> None:
+        config_path = fs.base_path / ".worktree" / "config.json"
         config_path.parent.mkdir(parents=True)
         data = build_default_config("demo")
         data["extra"] = 1
@@ -230,7 +230,7 @@ class ConfigV1LoaderCompatibilityTests:
             json.dumps(data, indent=2) + "\n",
             encoding="utf-8",
         )
-        result = load_config_result(cwd=tmp_path)
+        result = load_config_result(cwd=fs.base_path)
         assert result.status == ConfigLoadStatus.SCHEMA_INVALID
         joined = "\n".join(result.errors)
         assert "CONFIG_SCHEMA_INVALID" in joined

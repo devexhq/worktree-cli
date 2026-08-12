@@ -18,13 +18,14 @@ from getworktree.core.config.generator import (
     generate_default_config,
     merge_missing_keys,
 )
+from tests.helpers import FileSystem
 
 CONFIG_VALIDATOR = SchemaValidator(resources.files("getworktree.schemas.v1") / "config.json")
 
 
 @pytest.fixture
-def project_tmp(tmp_path: Path) -> Path:
-    return tmp_path
+def project_tmp(fs: FileSystem) -> Path:
+    return fs.base_path
 
 
 class BuildDefaultConfigTests:

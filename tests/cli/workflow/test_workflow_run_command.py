@@ -15,17 +15,15 @@ from typer.testing import CliRunner
 
 from getworktree.cli import app
 from getworktree.cli.workflow.command import workflow_run_command
-from getworktree.core.config.generator import generate_default_config
 from getworktree.core.workflows.seeder import seed_starter_workflows
+from tests.helpers import GitFileSystem
 
 runner = CliRunner()
 
 
-def _init_with_workflows(repo: Path) -> Path:
-    config_path = repo / ".worktree" / "config.json"
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    assert generate_default_config(config_path, project_name=repo.name).ok
-    workflows_dir = repo / ".worktree" / "workflows"
+def _init_with_workflows(git_fs: GitFileSystem) -> Path:
+    git_fs.init_repo()
+    workflows_dir = git_fs.base_path / ".worktree" / "workflows"
     assert seed_starter_workflows(workflows_dir).ok
     return workflows_dir
 
@@ -33,24 +31,26 @@ def _init_with_workflows(repo: Path) -> Path:
 class WorkflowRunCommandDirectTests:
     """Direct tests for workflow_run_command."""
 
-    def test_uninitialized_worktree_exits_1(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.chdir(git_repo)
+    def test_uninitialized_worktree_exits_1(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(git_fs.base_path)
         with pytest.raises(typer.Exit) as exc_info:
-            workflow_run_command("fix-tests", cwd=git_repo)
+            workflow_run_command("fix-tests", cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 1
 
-    def test_nonexistent_workflow_exits_1(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.chdir(git_repo)
-        _init_with_workflows(git_repo)
+    def test_nonexistent_workflow_exits_1(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+        _init_with_workflows(git_fs)
         with pytest.raises(typer.Exit) as exc_info:
-            workflow_run_command("no-such-workflow", cwd=git_repo)
+            workflow_run_command("no-such-workflow", cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 1
 
-    def test_valid_workflow_reports_not_implemented(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.chdir(git_repo)
-        _init_with_workflows(git_repo)
+    def test_valid_workflow_reports_not_implemented(
+        self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+        _init_with_workflows(git_fs)
         with pytest.raises(typer.Exit) as exc_info:
-            workflow_run_command("fix-tests", cwd=git_repo)
+            workflow_run_command("fix-tests", cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 1
 
 
@@ -62,15 +62,17 @@ class WorkflowRunCliTests:
         assert result.exit_code == 0
         assert "Run a workflow" in result.stdout
 
-    def test_valid_workflow_reports_not_implemented(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.chdir(git_repo)
-        _init_with_workflows(git_repo)
+    def test_valid_workflow_reports_not_implemented(
+        self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+        _init_with_workflows(git_fs)
         result = runner.invoke(app, ["workflow", "run", "fix-tests"])
         assert result.exit_code == 1
         assert "Workflow Run Not Implemented" in result.stdout
 
-    def test_nonexistent_workflow_exits_1(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.chdir(git_repo)
-        _init_with_workflows(git_repo)
+    def test_nonexistent_workflow_exits_1(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+        _init_with_workflows(git_fs)
         result = runner.invoke(app, ["workflow", "run", "no-such-workflow"])
         assert result.exit_code == 1

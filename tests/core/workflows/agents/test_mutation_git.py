@@ -13,6 +13,7 @@ from getworktree.core.workflows.agents.mutation_git import (
     discard_since,
     resolve_pre_agent_baseline,
 )
+from tests.helpers import FileSystem
 
 
 def _git(args: list[str], *, cwd: Path) -> None:
@@ -20,8 +21,8 @@ def _git(args: list[str], *, cwd: Path) -> None:
 
 
 @pytest.fixture
-def repo(tmp_path: Path) -> Path:
-    root = tmp_path / "sandbox"
+def repo(fs: FileSystem) -> Path:
+    root = fs.base_path / "sandbox"
     root.mkdir()
     _git(["init"], cwd=root)
     _git(["config", "user.email", "test@example.com"], cwd=root)
@@ -69,8 +70,8 @@ class ResolvePreAgentBaselineTests:
         assert log == "wt: pre-agent baseline"
         assert (repo / "a.txt").read_text(encoding="utf-8") == "wip change\n"
 
-    def test_raises_on_git_failure(self, tmp_path: Path) -> None:
-        not_a_repo = tmp_path / "not-a-repo"
+    def test_raises_on_git_failure(self, fs: FileSystem) -> None:
+        not_a_repo = fs.base_path / "not-a-repo"
         not_a_repo.mkdir()
         with pytest.raises(MutationGitError):
             resolve_pre_agent_baseline(not_a_repo)

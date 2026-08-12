@@ -21,12 +21,12 @@ Follow these rules:
 
 Example global helper:
 ```
-def make_dummy_session(git_repo: Path, **kwargs) -> SandboxSession:
+def make_dummy_session(git_fs: GitFileSystem, **kwargs) -> SandboxSession:
     """Generates a default valid session. Override specific fields via kwargs."""
     defaults = {
         "session_id": "wf-default-101",
         "target_branch": "wt/default-branch",
-        "sandbox_path": git_repo / ".worktree" / "sandboxes" / "wf-default-101",
+        "sandbox_path": git_fs.base_path / ".worktree" / "sandboxes" / "wf-default-101",
         "base_commit": "HEAD",
         "created_at": "2026-08-05 12:00:00",
     }
@@ -34,15 +34,21 @@ def make_dummy_session(git_repo: Path, **kwargs) -> SandboxSession:
     return SandboxSession(**defaults)
 
 # USAGE IN TEST
-session = make_dummy_session(git_repo, session_id="wf-fail-202")
+session = make_dummy_session(git_fs, session_id="wf-fail-202")
 ```
 
 ## Fixture style
 
-Prefer real integration over mocking: fixtures create a real Git repo in `tmp_path`
-via `subprocess.run(["git", "init"], ...)` and use `monkeypatch.chdir` to point
-commands at it. See [tests/cli/init/test_init_command.py](../../tests/cli/init/test_init_command.py)
-for the canonical `git_repo` fixture.
+Prefer real integration over mocking: use the `fs` (`FileSystem`) and `git_fs`
+(`GitFileSystem`) fixtures from [tests/conftest.py](../../tests/conftest.py),
+backed by helpers in [tests/helpers.py](../../tests/helpers.py), instead of
+raw `tmp_path`. `git_fs` gives a real Git repo (via `subprocess.run(["git",
+"init"], ...)`) with a `.base_path`; `fs` gives a plain temp dir. Both expose
+`write_file`/`create_config_file`/`create_step_file`/`create_workflow_file`/
+`create_task_file` for building fixture files, and `git_fs` additionally has
+`init_repo()` for writing a valid default config. See
+[tests/cli/init/test_init_command.py](../../tests/cli/init/test_init_command.py)
+for example usage.
 
 ## CLI help and Rich output
 

@@ -1,8 +1,7 @@
-from pathlib import Path
-
 import pytest
 
 from getworktree.core.step import StepDefinition, StepResult, StepType, execute_step
+from tests.helpers import FileSystem
 
 
 def test_step_result_ok_property():
@@ -37,14 +36,14 @@ def test_step_result_ok_property():
     assert res_failed.ok is False
 
 
-def test_execute_command_step_success(tmp_path: Path):
+def test_execute_command_step_success(fs: FileSystem):
     step = StepDefinition(
         id="cmd_success",
         type=StepType.COMMAND,
         command="echo 'hello world'",
     )
 
-    res = execute_step(step, sandbox_path=tmp_path)
+    res = execute_step(step, sandbox_path=fs.base_path)
     assert res.ok is True
     assert res.status == "completed"
     assert res.exit_code == 0
@@ -52,7 +51,7 @@ def test_execute_command_step_success(tmp_path: Path):
     assert res.attempts == 1
 
 
-def test_execute_command_step_failure_abort(tmp_path: Path):
+def test_execute_command_step_failure_abort(fs: FileSystem):
     step = StepDefinition(
         id="cmd_fail",
         type=StepType.COMMAND,
@@ -60,7 +59,7 @@ def test_execute_command_step_failure_abort(tmp_path: Path):
         on_failure="abort",
     )
 
-    res = execute_step(step, sandbox_path=tmp_path)
+    res = execute_step(step, sandbox_path=fs.base_path)
     assert res.ok is False
     assert res.status == "failed"
     assert res.exit_code == 42
@@ -68,7 +67,7 @@ def test_execute_command_step_failure_abort(tmp_path: Path):
     assert "exit code 42" in (res.error_message or "")
 
 
-def test_execute_command_step_failure_continue_is_ignored(tmp_path: Path):
+def test_execute_command_step_failure_continue_is_ignored(fs: FileSystem):
     step = StepDefinition(
         id="cmd_ignore",
         type=StepType.COMMAND,
@@ -76,14 +75,14 @@ def test_execute_command_step_failure_continue_is_ignored(tmp_path: Path):
         on_failure="continue",
     )
 
-    res = execute_step(step, sandbox_path=tmp_path)
+    res = execute_step(step, sandbox_path=fs.base_path)
     assert res.ok is True
     assert res.status == "ignored"
     assert res.exit_code == 0
     assert res.attempts == 1
 
 
-def test_execute_command_step_retry_exhausted_aborts_by_default(tmp_path: Path):
+def test_execute_command_step_retry_exhausted_aborts_by_default(fs: FileSystem):
     step = StepDefinition(
         id="cmd_retry_fail",
         type=StepType.COMMAND,
@@ -91,13 +90,13 @@ def test_execute_command_step_retry_exhausted_aborts_by_default(tmp_path: Path):
         on_failure={"action": "retry", "max_retries": 2},
     )
 
-    res = execute_step(step, sandbox_path=tmp_path)
+    res = execute_step(step, sandbox_path=fs.base_path)
     assert res.ok is False
     assert res.status == "failed"
     assert res.attempts == 2
 
 
-def test_execute_command_step_retry_exhausted_continue_is_ignored(tmp_path: Path):
+def test_execute_command_step_retry_exhausted_continue_is_ignored(fs: FileSystem):
     step = StepDefinition(
         id="cmd_retry_continue",
         type=StepType.COMMAND,
@@ -105,13 +104,13 @@ def test_execute_command_step_retry_exhausted_continue_is_ignored(tmp_path: Path
         on_failure={"action": "retry", "max_retries": 2, "on_max_retries": "continue"},
     )
 
-    res = execute_step(step, sandbox_path=tmp_path)
+    res = execute_step(step, sandbox_path=fs.base_path)
     assert res.ok is True
     assert res.status == "ignored"
     assert res.attempts == 2
 
 
-def test_execute_command_step_retry_sleeps_backoff_between_attempts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_execute_command_step_retry_sleeps_backoff_between_attempts(fs: FileSystem, monkeypatch: pytest.MonkeyPatch):
     sleep_calls: list[float] = []
     monkeypatch.setattr("getworktree.core.step.runner.time.sleep", lambda secs: sleep_calls.append(secs))
 
@@ -122,13 +121,13 @@ def test_execute_command_step_retry_sleeps_backoff_between_attempts(tmp_path: Pa
         on_failure={"action": "retry", "max_retries": 3, "backoff_ms": 250},
     )
 
-    res = execute_step(step, sandbox_path=tmp_path)
+    res = execute_step(step, sandbox_path=fs.base_path)
     assert res.attempts == 3
     assert sleep_calls == [0.25, 0.25]
 
 
-def test_execute_command_step_retry(tmp_path: Path):
-    counter_file = tmp_path / "count.txt"
+def test_execute_command_step_retry(fs: FileSystem):
+    counter_file = fs.base_path / "count.txt"
     # Write shell command that increments counter in file and fails first 2 tries
     cmd = (
         f"python3 -c \"import pathlib; p = pathlib.Path('{counter_file}'); "
@@ -143,7 +142,7 @@ def test_execute_command_step_retry(tmp_path: Path):
         on_failure="retry",
     )
 
-    res = execute_step(step, sandbox_path=tmp_path)
+    res = execute_step(step, sandbox_path=fs.base_path)
     assert res.ok is True
     assert res.status == "completed"
     assert res.exit_code == 0
@@ -151,7 +150,7 @@ def test_execute_command_step_retry(tmp_path: Path):
     assert counter_file.read_text() == "3"
 
 
-def test_execute_command_step_timeout(tmp_path: Path):
+def test_execute_command_step_timeout(fs: FileSystem):
     step = StepDefinition(
         id="cmd_timeout",
         type=StepType.COMMAND,
@@ -159,15 +158,14 @@ def test_execute_command_step_timeout(tmp_path: Path):
         timeout_seconds=1,
     )
 
-    res = execute_step(step, sandbox_path=tmp_path)
+    res = execute_step(step, sandbox_path=fs.base_path)
     assert res.ok is False
     assert res.status == "failed"
     assert "timed out" in (res.error_message or "").lower()
 
 
-def test_execute_script_step(tmp_path: Path):
-    script_file = tmp_path / "test_script.py"
-    script_file.write_text("print('script output')", encoding="utf-8")
+def test_execute_script_step(fs: FileSystem):
+    fs.write_file("test_script.py", "print('script output')")
 
     step = StepDefinition(
         id="script_step",
@@ -175,26 +173,26 @@ def test_execute_script_step(tmp_path: Path):
         script_path="test_script.py",
     )
 
-    res = execute_step(step, sandbox_path=tmp_path)
+    res = execute_step(step, sandbox_path=fs.base_path)
     assert res.ok is True
     assert res.status == "completed"
     assert "script output" in res.stdout
 
 
-def test_execute_script_step_missing_file(tmp_path: Path):
+def test_execute_script_step_missing_file(fs: FileSystem):
     step = StepDefinition(
         id="script_missing",
         type=StepType.SCRIPT,
         script_path="nonexistent.sh",
     )
 
-    res = execute_step(step, sandbox_path=tmp_path)
+    res = execute_step(step, sandbox_path=fs.base_path)
     assert res.ok is False
     assert res.status == "failed"
     assert "not found" in (res.error_message or "").lower()
 
 
-def test_execute_agent_step_custom_handler(tmp_path: Path):
+def test_execute_agent_step_custom_handler(fs: FileSystem):
     def custom_handler(step_def, sb_path, ctx):
         return "completed", 0, "agent result", "", None
 
@@ -205,29 +203,29 @@ def test_execute_agent_step_custom_handler(tmp_path: Path):
         tools=["edit_file"],
     )
 
-    res = execute_step(step, sandbox_path=tmp_path, context={"agent_handler": custom_handler})
+    res = execute_step(step, sandbox_path=fs.base_path, context={"agent_handler": custom_handler})
     assert res.ok is True
     assert res.status == "completed"
     assert res.stdout == "agent result"
 
 
-def test_execute_agent_step_defaults_to_local_provider(tmp_path: Path):
+def test_execute_agent_step_defaults_to_local_provider(fs: FileSystem):
     step = StepDefinition(id="agent_step", type=StepType.AGENT, prompt="Fix bugs")
 
-    res = execute_step(step, sandbox_path=tmp_path)
+    res = execute_step(step, sandbox_path=fs.base_path)
     assert res.ok is True
     assert res.status == "completed"
 
 
-def test_execute_agent_step_uses_context_provider_override(tmp_path: Path):
+def test_execute_agent_step_uses_context_provider_override(fs: FileSystem):
     step = StepDefinition(id="agent_step", type=StepType.AGENT, prompt="Fix bugs")
 
-    res = execute_step(step, sandbox_path=tmp_path, context={"agent": "ollama"})
+    res = execute_step(step, sandbox_path=fs.base_path, context={"agent": "ollama"})
     assert res.ok is True
 
 
-def test_execute_step_invalid_sandbox_path(tmp_path: Path):
-    nonexistent = tmp_path / "sandbox_missing"
+def test_execute_step_invalid_sandbox_path(fs: FileSystem):
+    nonexistent = fs.base_path / "sandbox_missing"
     step = StepDefinition(
         id="step_sb",
         type=StepType.COMMAND,
@@ -240,24 +238,19 @@ def test_execute_step_invalid_sandbox_path(tmp_path: Path):
     assert "does not exist" in (res.error_message or "").lower()
 
 
-def test_execute_step_resolves_run_shorthand(tmp_path: Path):
+def test_execute_step_resolves_run_shorthand(fs: FileSystem):
     step = StepDefinition(id="run-step", run="echo from-run")
 
-    res = execute_step(step, sandbox_path=tmp_path)
+    res = execute_step(step, sandbox_path=fs.base_path)
     assert res.ok is True
     assert "from-run" in res.stdout
 
 
-def test_execute_step_resolves_uses_reference(tmp_path: Path):
-    steps_dir = tmp_path / ".worktree" / "catalog" / "steps"
-    steps_dir.mkdir(parents=True)
-    (steps_dir / "greet.yaml").write_text(
-        "id: greet\ntype: command\ncommand: echo from-uses\n",
-        encoding="utf-8",
-    )
+def test_execute_step_resolves_uses_reference(fs: FileSystem):
+    fs.create_step_file(step_id="greet", command="echo from-uses")
 
     step = StepDefinition(id="uses-step", uses="greet")
 
-    res = execute_step(step, sandbox_path=tmp_path)
+    res = execute_step(step, sandbox_path=fs.base_path)
     assert res.ok is True
     assert "from-uses" in res.stdout

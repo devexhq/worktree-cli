@@ -20,6 +20,7 @@ from getworktree.core.db import (
     WorktreeDb,
     init_database,
 )
+from tests.helpers import FileSystem
 
 DB_REL = ".worktree/data.db"
 
@@ -27,8 +28,8 @@ DB_REL = ".worktree/data.db"
 class TestDatabaseMigrations:
     """Tests for database initialization and schema creation."""
 
-    def test_init_creates_tables_and_indexes(self, tmp_path: Path) -> None:
-        db_path = init_database(cwd=tmp_path, db_rel_path=DB_REL)
+    def test_init_creates_tables_and_indexes(self, fs: FileSystem) -> None:
+        db_path = init_database(cwd=fs.base_path, db_rel_path=DB_REL)
         assert db_path.is_file()
 
         with sqlite3.connect(db_path) as conn:
@@ -47,9 +48,9 @@ class TestDatabaseMigrations:
         assert "idx_tasks_session" in indexes
         assert "idx_tasks_status" in indexes
 
-    def test_init_is_idempotent(self, tmp_path: Path) -> None:
-        path1 = init_database(cwd=tmp_path, db_rel_path=DB_REL)
-        path2 = init_database(cwd=tmp_path, db_rel_path=DB_REL)
+    def test_init_is_idempotent(self, fs: FileSystem) -> None:
+        path1 = init_database(cwd=fs.base_path, db_rel_path=DB_REL)
+        path2 = init_database(cwd=fs.base_path, db_rel_path=DB_REL)
         assert path1 == path2
         assert path1.is_file()
 
@@ -57,16 +58,16 @@ class TestDatabaseMigrations:
 class TestDbBase:
     """Tests for DbBase core path resolution, cursor management, and helper methods."""
 
-    def test_db_path_resolution(self, tmp_path: Path) -> None:
-        db_base = DbBase(cwd=tmp_path, db_rel_path=DB_REL)
-        assert db_base.db_path == tmp_path / DB_REL
+    def test_db_path_resolution(self, fs: FileSystem) -> None:
+        db_base = DbBase(cwd=fs.base_path, db_rel_path=DB_REL)
+        assert db_base.db_path == fs.base_path / DB_REL
 
-        custom_path = tmp_path / "custom.db"
+        custom_path = fs.base_path / "custom.db"
         db_base_custom = DbBase(db_path=custom_path)
         assert db_base_custom.db_path == custom_path
 
-    def test_cursor_and_transaction(self, tmp_path: Path) -> None:
-        db_base = DbBase(cwd=tmp_path, db_rel_path=DB_REL)
+    def test_cursor_and_transaction(self, fs: FileSystem) -> None:
+        db_base = DbBase(cwd=fs.base_path, db_rel_path=DB_REL)
         assert db_base.execute_insert("INSERT INTO tasks (session_id, task_name) VALUES (?, ?);", ("s1", "t1")) == 1
 
         row = db_base.fetch_one("SELECT * FROM tasks WHERE session_id = ?;", ("s1",))
@@ -76,8 +77,8 @@ class TestDbBase:
         all_rows = db_base.fetch_all("SELECT * FROM tasks;")
         assert len(all_rows) == 1
 
-    def test_transaction_rollback_on_exception(self, tmp_path: Path) -> None:
-        db_base = DbBase(cwd=tmp_path, db_rel_path=DB_REL)
+    def test_transaction_rollback_on_exception(self, fs: FileSystem) -> None:
+        db_base = DbBase(cwd=fs.base_path, db_rel_path=DB_REL)
         db_base.init_db()
 
         with pytest.raises(sqlite3.IntegrityError):
@@ -91,8 +92,8 @@ class TestDbBase:
 class TestCatalogDb:
     """Tests for CatalogDb repository methods."""
 
-    def test_upsert_insert_and_get_by_sha_and_name(self, tmp_path: Path) -> None:
-        db = CatalogDb(cwd=tmp_path, db_rel_path=DB_REL)
+    def test_upsert_insert_and_get_by_sha_and_name(self, fs: FileSystem) -> None:
+        db = CatalogDb(cwd=fs.base_path, db_rel_path=DB_REL)
         path = Path(".worktree/catalog/workflow_a.yaml")
         rec = db.upsert(
             sha="workflow_1234567",
@@ -124,8 +125,8 @@ class TestCatalogDb:
         )
         assert by_name_and_type == rec
 
-    def test_upsert_update_preserves_id_and_updates_fields(self, tmp_path: Path) -> None:
-        db = CatalogDb(cwd=tmp_path, db_rel_path=DB_REL)
+    def test_upsert_update_preserves_id_and_updates_fields(self, fs: FileSystem) -> None:
+        db = CatalogDb(cwd=fs.base_path, db_rel_path=DB_REL)
         path = Path(".worktree/catalog/task_b.yaml")
         first = db.upsert(
             sha="task_1111111",
@@ -157,13 +158,13 @@ class TestCatalogDb:
         assert second.created_at == first.created_at
         assert second.updated_at != first.updated_at
 
-    def test_get_missing_catalog_item_returns_none(self, tmp_path: Path) -> None:
-        db = CatalogDb(cwd=tmp_path, db_rel_path=DB_REL)
+    def test_get_missing_catalog_item_returns_none(self, fs: FileSystem) -> None:
+        db = CatalogDb(cwd=fs.base_path, db_rel_path=DB_REL)
         assert db.get_by_sha("missing") is None
         assert db.get_by_name("missing_name") is None
 
-    def test_list_catalog_items_filtering(self, tmp_path: Path) -> None:
-        db = CatalogDb(cwd=tmp_path, db_rel_path=DB_REL)
+    def test_list_catalog_items_filtering(self, fs: FileSystem) -> None:
+        db = CatalogDb(cwd=fs.base_path, db_rel_path=DB_REL)
         db.upsert(
             sha="w1",
             item_type=CatalogItemType.WORKFLOW,
@@ -197,8 +198,8 @@ class TestCatalogDb:
         assert len(steps) == 1
         assert steps[0].sha == "s1"
 
-    def test_invalid_catalog_item_type_raises_value_error(self, tmp_path: Path) -> None:
-        db = CatalogDb(cwd=tmp_path, db_rel_path=DB_REL)
+    def test_invalid_catalog_item_type_raises_value_error(self, fs: FileSystem) -> None:
+        db = CatalogDb(cwd=fs.base_path, db_rel_path=DB_REL)
         with pytest.raises(ValueError, match="constraint"):
             db.upsert(
                 sha="invalid",
@@ -208,8 +209,8 @@ class TestCatalogDb:
                 checksum="c",
             )
 
-    def test_delete_catalog_item(self, tmp_path: Path) -> None:
-        db = CatalogDb(cwd=tmp_path, db_rel_path=DB_REL)
+    def test_delete_catalog_item(self, fs: FileSystem) -> None:
+        db = CatalogDb(cwd=fs.base_path, db_rel_path=DB_REL)
         db.upsert(
             sha="to_delete",
             item_type=CatalogItemType.WORKFLOW,
@@ -226,8 +227,8 @@ class TestCatalogDb:
 class TestWorkflowsDb:
     """Tests for WorkflowsDb repository methods."""
 
-    def test_insert_and_get_workflow_run(self, tmp_path: Path) -> None:
-        db = WorkflowsDb(cwd=tmp_path, db_rel_path=DB_REL)
+    def test_insert_and_get_workflow_run(self, fs: FileSystem) -> None:
+        db = WorkflowsDb(cwd=fs.base_path, db_rel_path=DB_REL)
         rec = db.insert(
             session_id="wf_session_1",
             workflow_name="dev-workflow",
@@ -247,8 +248,8 @@ class TestWorkflowsDb:
         fetched = db.get("wf_session_1")
         assert fetched == rec
 
-    def test_insert_duplicate_session_id_raises_value_error(self, tmp_path: Path) -> None:
-        db = WorkflowsDb(cwd=tmp_path, db_rel_path=DB_REL)
+    def test_insert_duplicate_session_id_raises_value_error(self, fs: FileSystem) -> None:
+        db = WorkflowsDb(cwd=fs.base_path, db_rel_path=DB_REL)
         db.insert(
             session_id="dup_wf",
             workflow_name="wf",
@@ -262,12 +263,12 @@ class TestWorkflowsDb:
                 branch_name="b",
             )
 
-    def test_get_missing_workflow_run_returns_none(self, tmp_path: Path) -> None:
-        db = WorkflowsDb(cwd=tmp_path, db_rel_path=DB_REL)
+    def test_get_missing_workflow_run_returns_none(self, fs: FileSystem) -> None:
+        db = WorkflowsDb(cwd=fs.base_path, db_rel_path=DB_REL)
         assert db.get("non_existent") is None
 
-    def test_update_workflow_run_status(self, tmp_path: Path) -> None:
-        db = WorkflowsDb(cwd=tmp_path, db_rel_path=DB_REL)
+    def test_update_workflow_run_status(self, fs: FileSystem) -> None:
+        db = WorkflowsDb(cwd=fs.base_path, db_rel_path=DB_REL)
         db.insert(
             session_id="wf_to_update",
             workflow_name="wf",
@@ -285,12 +286,12 @@ class TestWorkflowsDb:
         assert updated.completed_at is not None
         assert updated.error_message == "Execution timeout"
 
-    def test_update_missing_workflow_run_returns_none(self, tmp_path: Path) -> None:
-        db = WorkflowsDb(cwd=tmp_path, db_rel_path=DB_REL)
+    def test_update_missing_workflow_run_returns_none(self, fs: FileSystem) -> None:
+        db = WorkflowsDb(cwd=fs.base_path, db_rel_path=DB_REL)
         assert db.update_status(session_id="missing", status=RunStatus.COMPLETED) is None
 
-    def test_invalid_workflow_status_raises_value_error(self, tmp_path: Path) -> None:
-        db = WorkflowsDb(cwd=tmp_path, db_rel_path=DB_REL)
+    def test_invalid_workflow_status_raises_value_error(self, fs: FileSystem) -> None:
+        db = WorkflowsDb(cwd=fs.base_path, db_rel_path=DB_REL)
         db.insert(
             session_id="wf_invalid_status",
             workflow_name="wf",
@@ -303,8 +304,8 @@ class TestWorkflowsDb:
                 status="invalid_status",  # type: ignore[arg-type]
             )
 
-    def test_list_workflow_runs(self, tmp_path: Path) -> None:
-        db = WorkflowsDb(cwd=tmp_path, db_rel_path=DB_REL)
+    def test_list_workflow_runs(self, fs: FileSystem) -> None:
+        db = WorkflowsDb(cwd=fs.base_path, db_rel_path=DB_REL)
         db.insert(
             session_id="wf_1",
             workflow_name="wf1",
@@ -324,8 +325,8 @@ class TestWorkflowsDb:
 class TestTasksDb:
     """Tests for TasksDb repository methods."""
 
-    def test_insert_and_get_task_run(self, tmp_path: Path) -> None:
-        db = TasksDb(cwd=tmp_path, db_rel_path=DB_REL)
+    def test_insert_and_get_task_run(self, fs: FileSystem) -> None:
+        db = TasksDb(cwd=fs.base_path, db_rel_path=DB_REL)
         rec = db.insert(
             session_id="task_session_1",
             task_name="lint-fix",
@@ -343,8 +344,8 @@ class TestTasksDb:
         fetched = db.get("task_session_1")
         assert fetched == rec
 
-    def test_insert_duplicate_task_session_id_raises_value_error(self, tmp_path: Path) -> None:
-        db = TasksDb(cwd=tmp_path, db_rel_path=DB_REL)
+    def test_insert_duplicate_task_session_id_raises_value_error(self, fs: FileSystem) -> None:
+        db = TasksDb(cwd=fs.base_path, db_rel_path=DB_REL)
         db.insert(
             session_id="dup_task",
             task_name="task",
@@ -356,12 +357,12 @@ class TestTasksDb:
                 task_name="task",
             )
 
-    def test_get_missing_task_run_returns_none(self, tmp_path: Path) -> None:
-        db = TasksDb(cwd=tmp_path, db_rel_path=DB_REL)
+    def test_get_missing_task_run_returns_none(self, fs: FileSystem) -> None:
+        db = TasksDb(cwd=fs.base_path, db_rel_path=DB_REL)
         assert db.get("non_existent") is None
 
-    def test_update_task_run_status(self, tmp_path: Path) -> None:
-        db = TasksDb(cwd=tmp_path, db_rel_path=DB_REL)
+    def test_update_task_run_status(self, fs: FileSystem) -> None:
+        db = TasksDb(cwd=fs.base_path, db_rel_path=DB_REL)
         db.insert(
             session_id="task_to_update",
             task_name="task",
@@ -377,12 +378,12 @@ class TestTasksDb:
         assert updated.completed_at is not None
         assert updated.error_message is None
 
-    def test_update_missing_task_run_returns_none(self, tmp_path: Path) -> None:
-        db = TasksDb(cwd=tmp_path, db_rel_path=DB_REL)
+    def test_update_missing_task_run_returns_none(self, fs: FileSystem) -> None:
+        db = TasksDb(cwd=fs.base_path, db_rel_path=DB_REL)
         assert db.update_status(session_id="missing", status=RunStatus.COMPLETED) is None
 
-    def test_invalid_task_status_raises_value_error(self, tmp_path: Path) -> None:
-        db = TasksDb(cwd=tmp_path, db_rel_path=DB_REL)
+    def test_invalid_task_status_raises_value_error(self, fs: FileSystem) -> None:
+        db = TasksDb(cwd=fs.base_path, db_rel_path=DB_REL)
         db.insert(
             session_id="task_invalid_status",
             task_name="task",
@@ -394,8 +395,8 @@ class TestTasksDb:
                 status="invalid_status",  # type: ignore[arg-type]
             )
 
-    def test_list_task_runs(self, tmp_path: Path) -> None:
-        db = TasksDb(cwd=tmp_path, db_rel_path=DB_REL)
+    def test_list_task_runs(self, fs: FileSystem) -> None:
+        db = TasksDb(cwd=fs.base_path, db_rel_path=DB_REL)
         db.insert(
             session_id="t_1",
             task_name="t1",
@@ -413,15 +414,15 @@ class TestTasksDb:
 class TestWorktreeDbFacade:
     """Tests for WorktreeDb unified facade."""
 
-    def test_facade_sub_repository_access(self, tmp_path: Path) -> None:
-        db = WorktreeDb(cwd=tmp_path, db_rel_path=DB_REL)
+    def test_facade_sub_repository_access(self, fs: FileSystem) -> None:
+        db = WorktreeDb(cwd=fs.base_path, db_rel_path=DB_REL)
         db.init_db()
 
         sb = db.sandboxes.insert(
             id="sb_facade",
             branch_name="feat/facade",
             base_commit="abc",
-            sandbox_path=tmp_path / "sb_facade",
+            sandbox_path=fs.base_path / "sb_facade",
         )
         assert db.sandboxes.get("sb_facade") == sb
 

@@ -2,25 +2,16 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 import typer
 from typer.testing import CliRunner
 
 from getworktree.cli import app
 from getworktree.cli.workflow.command import workflow_resume_command
-from getworktree.core.config.generator import generate_default_config
 from getworktree.core.db import SandboxesDb
+from tests.helpers import GitFileSystem
 
 runner = CliRunner()
-
-
-def _init_repo(repo: Path) -> Path:
-    config_path = repo / ".worktree" / "config.json"
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    assert generate_default_config(config_path, project_name=repo.name).ok
-    return config_path
 
 
 class WorkflowResumeCommandDirectTests:
@@ -28,23 +19,23 @@ class WorkflowResumeCommandDirectTests:
 
     def test_workflow_resume_success(
         self,
-        git_repo: Path,
+        git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.chdir(git_repo)
-        _init_repo(git_repo)
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
 
-        SandboxesDb(git_repo).insert(
+        SandboxesDb(git_fs.base_path).insert(
             id="wf-99999",
             branch_name="wt/resume-me",
             base_commit="HEAD",
-            sandbox_path=git_repo / ".worktree" / "sandboxes" / "wf-99999",
+            sandbox_path=git_fs.base_path / ".worktree" / "sandboxes" / "wf-99999",
             name="resume-me",
         )
 
         with pytest.raises(typer.Exit) as exc_info:
-            workflow_resume_command("wf-99999", cwd=git_repo)
+            workflow_resume_command("wf-99999", cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 0
 
         out = capsys.readouterr().out
@@ -52,15 +43,15 @@ class WorkflowResumeCommandDirectTests:
 
     def test_workflow_resume_not_found(
         self,
-        git_repo: Path,
+        git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.chdir(git_repo)
-        _init_repo(git_repo)
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
 
         with pytest.raises(typer.Exit) as exc_info:
-            workflow_resume_command("nonexistent", cwd=git_repo)
+            workflow_resume_command("nonexistent", cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 1
 
         out = capsys.readouterr().out
@@ -69,14 +60,14 @@ class WorkflowResumeCommandDirectTests:
 
     def test_workflow_resume_uninitialized(
         self,
-        git_repo: Path,
+        git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.chdir(git_repo)
+        monkeypatch.chdir(git_fs.base_path)
 
         with pytest.raises(typer.Exit) as exc_info:
-            workflow_resume_command("wf-99999", cwd=git_repo)
+            workflow_resume_command("wf-99999", cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 1
 
         out = capsys.readouterr().out
@@ -91,14 +82,14 @@ class WorkflowResumeCliTests:
         assert result.exit_code == 0
         assert "Resume an interrupted workflow session" in result.stdout
 
-    def test_cli_resume_success(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.chdir(git_repo)
-        _init_repo(git_repo)
-        SandboxesDb(git_repo).insert(
+    def test_cli_resume_success(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
+        SandboxesDb(git_fs.base_path).insert(
             id="wf-88888",
             branch_name="wt/resume-cli",
             base_commit="HEAD",
-            sandbox_path=git_repo / ".worktree" / "sandboxes" / "wf-88888",
+            sandbox_path=git_fs.base_path / ".worktree" / "sandboxes" / "wf-88888",
             name="resume-cli",
         )
 

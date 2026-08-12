@@ -1,7 +1,5 @@
 """Unit tests for step definition YAML loading helpers."""
 
-from pathlib import Path
-
 import pytest
 
 from getworktree.core.step import (
@@ -12,11 +10,12 @@ from getworktree.core.step import (
     load_step_by_id,
     load_step_definition,
 )
+from tests.helpers import FileSystem
 
 
-def test_load_step_definition_valid(tmp_path: Path):
-    step_file = tmp_path / "step_verify.yaml"
-    step_file.write_text(
+def test_load_step_definition_valid(fs: FileSystem):
+    step_file = fs.write_file(
+        "step_verify.yaml",
         """
 id: step_verify
 name: verify-build
@@ -26,7 +25,6 @@ command: inv test
 timeout_seconds: 300
 on_failure: retry
 """,
-        encoding="utf-8",
     )
 
     step = load_step_definition(step_file)
@@ -38,46 +36,40 @@ on_failure: retry
     assert step.on_failure.action.value == "retry"
 
 
-def test_load_step_definition_not_found(tmp_path: Path):
-    missing_path = tmp_path / "nonexistent.yaml"
+def test_load_step_definition_not_found(fs: FileSystem):
+    missing_path = fs.base_path / "nonexistent.yaml"
     with pytest.raises(StepNotFoundError, match="not found"):
         load_step_definition(missing_path)
 
 
-def test_load_step_definition_malformed_yaml(tmp_path: Path):
-    invalid_yaml = tmp_path / "invalid.yaml"
-    invalid_yaml.write_text("id: [unclosed list", encoding="utf-8")
+def test_load_step_definition_malformed_yaml(fs: FileSystem):
+    invalid_yaml = fs.write_file("invalid.yaml", "id: [unclosed list")
     with pytest.raises(StepValidationError, match="Failed to read or parse YAML"):
         load_step_definition(invalid_yaml)
 
 
-def test_load_step_definition_root_not_mapping(tmp_path: Path):
-    scalar_yaml = tmp_path / "scalar.yaml"
-    scalar_yaml.write_text("just a string", encoding="utf-8")
+def test_load_step_definition_root_not_mapping(fs: FileSystem):
+    scalar_yaml = fs.write_file("scalar.yaml", "just a string")
     with pytest.raises(StepValidationError, match="must be a mapping object"):
         load_step_definition(scalar_yaml)
 
 
-def test_load_step_definition_schema_validation_failure(tmp_path: Path):
-    bad_schema = tmp_path / "bad_schema.yaml"
-    bad_schema.write_text(
+def test_load_step_definition_schema_validation_failure(fs: FileSystem):
+    bad_schema = fs.write_file(
+        "bad_schema.yaml",
         """
 id: bad_step
 type: command
 description: Missing command field
 """,
-        encoding="utf-8",
     )
     with pytest.raises(StepValidationError, match="validation failed"):
         load_step_definition(bad_schema)
 
 
-def test_load_step_by_id_success(tmp_path: Path):
-    steps_dir = tmp_path / ".worktree" / "catalog" / "steps"
-    steps_dir.mkdir(parents=True)
-
-    step_file = steps_dir / "step_lint.yaml"
-    step_file.write_text(
+def test_load_step_by_id_success(fs: FileSystem):
+    fs.write_file(
+        ".worktree/catalog/steps/step_lint.yaml",
         """
 id: step_lint_id
 name: run-lint
@@ -85,31 +77,29 @@ type: command
 description: Run linter
 command: ruff check .
 """,
-        encoding="utf-8",
     )
 
     # Resolve by direct filename
-    step1 = load_step_by_id("step_lint", cwd=tmp_path)
+    step1 = load_step_by_id("step_lint", cwd=fs.base_path)
     assert step1.id == "step_lint_id"
 
     # Resolve by id field
-    step2 = load_step_by_id("step_lint_id", cwd=tmp_path)
+    step2 = load_step_by_id("step_lint_id", cwd=fs.base_path)
     assert step2.name == "run-lint"
 
     # Resolve by name slug
-    step3 = load_step_by_id("run-lint", cwd=tmp_path)
+    step3 = load_step_by_id("run-lint", cwd=fs.base_path)
     assert step3.id == "step_lint_id"
 
 
-def test_load_step_by_id_missing_directory(tmp_path: Path):
+def test_load_step_by_id_missing_directory(fs: FileSystem):
     with pytest.raises(StepNotFoundError, match=r"Directory .* does not exist"):
-        load_step_by_id("step_test", cwd=tmp_path)
+        load_step_by_id("step_test", cwd=fs.base_path)
 
 
-def test_load_step_by_id_not_found(tmp_path: Path):
-    steps_dir = tmp_path / ".worktree" / "catalog" / "steps"
-    steps_dir.mkdir(parents=True)
-    (steps_dir / "other.yaml").write_text(
+def test_load_step_by_id_not_found(fs: FileSystem):
+    fs.write_file(
+        ".worktree/catalog/steps/other.yaml",
         """
 id: other_id
 name: other-name
@@ -117,15 +107,13 @@ type: command
 description: Other
 command: echo other
 """,
-        encoding="utf-8",
     )
 
     with pytest.raises(StepNotFoundError, match="not found in"):
-        load_step_by_id("nonexistent_step", cwd=tmp_path)
+        load_step_by_id("nonexistent_step", cwd=fs.base_path)
 
 
-def test_load_step_definition_returns_step_definition_instance(tmp_path: Path):
-    step_file = tmp_path / "step.yaml"
-    step_file.write_text("id: s1\nrun: echo 1\n", encoding="utf-8")
+def test_load_step_definition_returns_step_definition_instance(fs: FileSystem):
+    step_file = fs.write_file("step.yaml", "id: s1\nrun: echo 1\n")
     step = load_step_definition(step_file)
     assert isinstance(step, StepDefinition)

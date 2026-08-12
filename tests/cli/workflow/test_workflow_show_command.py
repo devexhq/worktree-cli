@@ -2,25 +2,16 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 import typer
 from typer.testing import CliRunner
 
 from getworktree.cli import app
 from getworktree.cli.workflow.command import workflow_show_command
-from getworktree.core.config.generator import generate_default_config
 from getworktree.core.db import WorkflowsDb
+from tests.helpers import GitFileSystem
 
 runner = CliRunner()
-
-
-def _init_repo(repo: Path) -> Path:
-    config_path = repo / ".worktree" / "config.json"
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    assert generate_default_config(config_path, project_name=repo.name).ok
-    return config_path
 
 
 class WorkflowShowCommandDirectTests:
@@ -28,21 +19,21 @@ class WorkflowShowCommandDirectTests:
 
     def test_workflow_show_success(
         self,
-        git_repo: Path,
+        git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.chdir(git_repo)
-        _init_repo(git_repo)
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
 
-        WorkflowsDb(git_repo).insert(
+        WorkflowsDb(git_fs.base_path).insert(
             session_id="wf-12345",
             workflow_name="fix-tests",
             branch_name="wt/fix-tests",
         )
 
         with pytest.raises(typer.Exit) as exc_info:
-            workflow_show_command("wf-12345", cwd=git_repo)
+            workflow_show_command("wf-12345", cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 0
 
         out = capsys.readouterr().out
@@ -52,15 +43,15 @@ class WorkflowShowCommandDirectTests:
 
     def test_workflow_show_not_found(
         self,
-        git_repo: Path,
+        git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.chdir(git_repo)
-        _init_repo(git_repo)
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
 
         with pytest.raises(typer.Exit) as exc_info:
-            workflow_show_command("nonexistent", cwd=git_repo)
+            workflow_show_command("nonexistent", cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 1
 
         out = capsys.readouterr().out
@@ -69,14 +60,14 @@ class WorkflowShowCommandDirectTests:
 
     def test_workflow_show_uninitialized(
         self,
-        git_repo: Path,
+        git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.chdir(git_repo)
+        monkeypatch.chdir(git_fs.base_path)
 
         with pytest.raises(typer.Exit) as exc_info:
-            workflow_show_command("wf-12345", cwd=git_repo)
+            workflow_show_command("wf-12345", cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 1
 
         out = capsys.readouterr().out
@@ -91,10 +82,10 @@ class WorkflowShowCliTests:
         assert result.exit_code == 0
         assert "Show details for a specific workflow session" in result.stdout
 
-    def test_cli_show_success(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.chdir(git_repo)
-        _init_repo(git_repo)
-        WorkflowsDb(git_repo).insert(
+    def test_cli_show_success(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
+        WorkflowsDb(git_fs.base_path).insert(
             session_id="wf-55555",
             workflow_name="test-workflow",
             branch_name="wt/test-workflow",

@@ -22,6 +22,7 @@ from getworktree.core.config.loader import (
     parse_and_validate_config,
     resolve_config_path,
 )
+from tests.helpers import FileSystem, GitFileSystem
 
 
 def _write_config(path: Path, payload: object) -> Path:
@@ -36,14 +37,14 @@ def _write_config(path: Path, payload: object) -> Path:
 class ResolveConfigPathTests:
     """Tests for resolve_config_path."""
 
-    def test_default_path_is_absolute(self, tmp_path: Path) -> None:
-        resolved = resolve_config_path(cwd=tmp_path)
+    def test_default_path_is_absolute(self, fs: FileSystem) -> None:
+        resolved = resolve_config_path(cwd=fs.base_path)
         assert resolved.is_absolute()
-        assert resolved == (tmp_path / ".worktree" / "config.json").resolve()
+        assert resolved == (fs.base_path / ".worktree" / "config.json").resolve()
 
-    def test_explicit_path_wins(self, tmp_path: Path) -> None:
-        explicit = tmp_path / "custom" / "cfg.json"
-        resolved = resolve_config_path(cwd=tmp_path, config_path=explicit)
+    def test_explicit_path_wins(self, fs: FileSystem) -> None:
+        explicit = fs.base_path / "custom" / "cfg.json"
+        resolved = resolve_config_path(cwd=fs.base_path, config_path=explicit)
         assert resolved == explicit.resolve()
 
 
@@ -77,12 +78,12 @@ class ParseAndValidateConfigTests:
 class LoadConfigResultTests:
     """Tests for load_config_result status classification."""
 
-    def test_ok_after_init(self, tmp_path: Path) -> None:
-        config_path = tmp_path / ".worktree" / "config.json"
+    def test_ok_after_init(self, fs: FileSystem) -> None:
+        config_path = fs.base_path / ".worktree" / "config.json"
         config_path.parent.mkdir(parents=True)
         result_gen = generate_default_config(config_path, "demo")
         assert result_gen.ok
-        result = load_config_result(cwd=tmp_path)
+        result = load_config_result(cwd=fs.base_path)
         assert result.status == ConfigLoadStatus.OK
         assert result.ok
         assert result.config_path == config_path.resolve()
@@ -94,8 +95,8 @@ class LoadConfigResultTests:
         on_disk = json.loads(config_path.read_text(encoding="utf-8"))
         assert on_disk == result.raw
 
-    def test_not_found(self, tmp_path: Path) -> None:
-        result = load_config_result(cwd=tmp_path)
+    def test_not_found(self, fs: FileSystem) -> None:
+        result = load_config_result(cwd=fs.base_path)
         assert result.status == ConfigLoadStatus.NOT_FOUND
         assert not result.ok
         assert result.config is None
@@ -104,61 +105,61 @@ class LoadConfigResultTests:
         assert str(result.config_path) in joined
         assert "CONFIG_NOT_FOUND" in joined
 
-    def test_not_found_missing_parent(self, tmp_path: Path) -> None:
-        result = load_config_result(cwd=tmp_path)
+    def test_not_found_missing_parent(self, fs: FileSystem) -> None:
+        result = load_config_result(cwd=fs.base_path)
         assert result.status == ConfigLoadStatus.NOT_FOUND
 
-    def test_malformed_json(self, tmp_path: Path) -> None:
-        path = _write_config(tmp_path / ".worktree" / "config.json", "{not-json")
-        result = load_config_result(cwd=tmp_path)
+    def test_malformed_json(self, fs: FileSystem) -> None:
+        path = _write_config(fs.base_path / ".worktree" / "config.json", "{not-json")
+        result = load_config_result(cwd=fs.base_path)
         assert result.status == ConfigLoadStatus.MALFORMED_JSON
         assert any("Malformed" in e for e in result.errors)
         assert any(str(path.resolve()) in e for e in result.errors)
 
-    def test_root_not_object(self, tmp_path: Path) -> None:
-        _write_config(tmp_path / ".worktree" / "config.json", [])
-        result = load_config_result(cwd=tmp_path)
+    def test_root_not_object(self, fs: FileSystem) -> None:
+        _write_config(fs.base_path / ".worktree" / "config.json", [])
+        result = load_config_result(cwd=fs.base_path)
         assert result.status == ConfigLoadStatus.ROOT_NOT_OBJECT
         assert any("CONFIG_ROOT_NOT_OBJECT" in e for e in result.errors)
 
-    def test_schema_invalid_missing_keys(self, tmp_path: Path) -> None:
-        _write_config(tmp_path / ".worktree" / "config.json", {"version": 1})
-        result = load_config_result(cwd=tmp_path)
+    def test_schema_invalid_missing_keys(self, fs: FileSystem) -> None:
+        _write_config(fs.base_path / ".worktree" / "config.json", {"version": 1})
+        result = load_config_result(cwd=fs.base_path)
         assert result.status == ConfigLoadStatus.SCHEMA_INVALID
         assert result.raw == {"version": 1}
         assert result.config is None
         assert result.errors
         assert any("schema validation failed" in e.lower() for e in result.errors)
 
-    def test_schema_invalid_wrong_types(self, tmp_path: Path) -> None:
+    def test_schema_invalid_wrong_types(self, fs: FileSystem) -> None:
         raw = build_default_config("demo")
         raw["sandbox"]["max_active_sandboxes"] = "five"
-        _write_config(tmp_path / ".worktree" / "config.json", raw)
-        result = load_config_result(cwd=tmp_path)
+        _write_config(fs.base_path / ".worktree" / "config.json", raw)
+        result = load_config_result(cwd=fs.base_path)
         assert result.status == ConfigLoadStatus.SCHEMA_INVALID
 
-    def test_schema_invalid_wrong_version(self, tmp_path: Path) -> None:
+    def test_schema_invalid_wrong_version(self, fs: FileSystem) -> None:
         raw = build_default_config("demo")
         raw["version"] = 2
-        _write_config(tmp_path / ".worktree" / "config.json", raw)
-        result = load_config_result(cwd=tmp_path)
+        _write_config(fs.base_path / ".worktree" / "config.json", raw)
+        result = load_config_result(cwd=fs.base_path)
         assert result.status == ConfigLoadStatus.SCHEMA_INVALID
 
-    def test_path_is_directory(self, tmp_path: Path) -> None:
-        path = tmp_path / ".worktree" / "config.json"
+    def test_path_is_directory(self, fs: FileSystem) -> None:
+        path = fs.base_path / ".worktree" / "config.json"
         path.mkdir(parents=True)
-        result = load_config_result(cwd=tmp_path)
+        result = load_config_result(cwd=fs.base_path)
         assert result.status == ConfigLoadStatus.PATH_IS_DIRECTORY
         assert any("CONFIG_PATH_IS_DIRECTORY" in e for e in result.errors)
 
-    def test_unreadable(self, tmp_path: Path) -> None:
+    def test_unreadable(self, fs: FileSystem) -> None:
         path = _write_config(
-            tmp_path / ".worktree" / "config.json",
+            fs.base_path / ".worktree" / "config.json",
             build_default_config("demo"),
         )
         path.chmod(0)
         try:
-            result = load_config_result(cwd=tmp_path)
+            result = load_config_result(cwd=fs.base_path)
             # Some environments (e.g. root) may still read the file.
             if os.access(path, os.R_OK):
                 pytest.skip("filesystem still allows reading unreadable mode")
@@ -167,11 +168,11 @@ class LoadConfigResultTests:
         finally:
             path.chmod(stat.S_IRUSR | stat.S_IWUSR)
 
-    def test_explicit_config_path(self, tmp_path: Path) -> None:
-        alt = tmp_path / "elsewhere" / "config.json"
+    def test_explicit_config_path(self, fs: FileSystem) -> None:
+        alt = fs.base_path / "elsewhere" / "config.json"
         alt.parent.mkdir(parents=True)
         assert generate_default_config(alt, "alt-demo").ok
-        result = load_config_result(cwd=tmp_path, config_path=alt)
+        result = load_config_result(cwd=fs.base_path, config_path=alt)
         assert result.ok
         assert result.config is not None
         assert result.config.project.name == "alt-demo"
@@ -181,25 +182,25 @@ class LoadConfigResultTests:
 class LoadConfigRaisingHelpersTests:
     """Tests for raising wrappers over load_config_result."""
 
-    def test_load_config_ok(self, tmp_path: Path) -> None:
-        config_path = tmp_path / ".worktree" / "config.json"
+    def test_load_config_ok(self, fs: FileSystem) -> None:
+        config_path = fs.base_path / ".worktree" / "config.json"
         config_path.parent.mkdir(parents=True)
         assert generate_default_config(config_path, "demo").ok
-        config = load_config(cwd=tmp_path)
+        config = load_config(cwd=fs.base_path)
         assert config.project.name == "demo"
 
-    def test_load_config_missing_raises(self, tmp_path: Path) -> None:
+    def test_load_config_missing_raises(self, fs: FileSystem) -> None:
         with pytest.raises(FileNotFoundError, match="wt init"):
-            load_config(cwd=tmp_path)
+            load_config(cwd=fs.base_path)
 
-    def test_load_raw_config_object_required(self, tmp_path: Path) -> None:
-        path = tmp_path / "config.json"
+    def test_load_raw_config_object_required(self, fs: FileSystem) -> None:
+        path = fs.base_path / "config.json"
         path.write_text("[]\n", encoding="utf-8")
         with pytest.raises(ValueError, match="object"):
             load_raw_config(path)
 
-    def test_load_raw_config_malformed_raises(self, tmp_path: Path) -> None:
-        path = tmp_path / "config.json"
+    def test_load_raw_config_malformed_raises(self, fs: FileSystem) -> None:
+        path = fs.base_path / "config.json"
         path.write_text("{bad", encoding="utf-8")
         with pytest.raises(ValueError, match="Malformed"):
             load_raw_config(path)
@@ -208,21 +209,19 @@ class LoadConfigRaisingHelpersTests:
 class LoadContextTests:
     """Tests for load_context and warnings."""
 
-    def test_missing_config_raises(self, tmp_path: Path) -> None:
+    def test_missing_config_raises(self, fs: FileSystem) -> None:
         with pytest.raises(FileNotFoundError):
-            load_context(tmp_path)
+            load_context(fs.base_path)
 
-    def test_invalid_json_raises(self, git_repo: Path) -> None:
-        config_path = git_repo / ".worktree" / "config.json"
+    def test_invalid_json_raises(self, git_fs: GitFileSystem) -> None:
+        config_path = git_fs.base_path / ".worktree" / "config.json"
         config_path.parent.mkdir(parents=True)
         config_path.write_text("{not-json", encoding="utf-8")
         with pytest.raises(ValueError, match="Malformed"):
-            load_context(git_repo)
+            load_context(git_fs.base_path)
 
-    def test_warnings_for_main_and_missing_model(self, git_repo: Path) -> None:
-        config_path = git_repo / ".worktree" / "config.json"
-        config_path.parent.mkdir(parents=True)
-        generate_default_config(config_path, git_repo.name)
-        ctx = load_context(git_repo)
+    def test_warnings_for_main_and_missing_model(self, git_fs: GitFileSystem) -> None:
+        git_fs.init_repo()
+        ctx = load_context(git_fs.base_path)
         assert any("agent.model" in w for w in ctx.warnings)
         assert any("main" in w for w in ctx.warnings)

@@ -23,21 +23,15 @@ from getworktree.cli.sandbox.renderers import (
     render_sandbox_list,
 )
 from getworktree.common.utils import RichOutput
-from getworktree.core.config.generator import generate_default_config
 from getworktree.core.db import (
     SandboxesDb,
     SandboxRecord,
     SandboxStatus,
 )
+from tests.helpers import GitFileSystem
 
 runner = CliRunner()
 DB_REL = ".worktree/data.db"
-
-
-def _init_config(repo: Path) -> None:
-    config_path = repo / ".worktree" / "config.json"
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    assert generate_default_config(config_path, project_name=repo.name).ok
 
 
 def _insert(
@@ -75,31 +69,31 @@ def _rich(*, width: int = 120) -> tuple[RichOutput, StringIO]:
 class SandboxListCollectTests:
     """Tests for collect_sandbox_list (data path, no Rich width coupling)."""
 
-    def test_not_initialized(self, git_repo: Path) -> None:
-        result = collect_sandbox_list(cwd=git_repo)
+    def test_not_initialized(self, git_fs: GitFileSystem) -> None:
+        result = collect_sandbox_list(cwd=git_fs.base_path)
         assert result.status is SandboxListStatus.NOT_INITIALIZED
         assert not result.ok
         assert result.errors
-        assert not (git_repo / DB_REL).exists()
+        assert not (git_fs.base_path / DB_REL).exists()
 
-    def test_empty_state(self, git_repo: Path) -> None:
-        _init_config(git_repo)
-        result = collect_sandbox_list(cwd=git_repo)
+    def test_empty_state(self, git_fs: GitFileSystem) -> None:
+        git_fs.init_repo()
+        result = collect_sandbox_list(cwd=git_fs.base_path)
         assert result.status is SandboxListStatus.OK
         assert result.ok
         assert result.sandboxes == []
 
-    def test_multiple_rows_sorted_by_created_at_desc(self, git_repo: Path) -> None:
-        _init_config(git_repo)
-        first = _insert(git_repo, sandbox_id="sbx_first", name=None, path_suffix="1")
-        second = _insert(git_repo, sandbox_id="sbx_second", name="beta", path_suffix="2")
-        db = SandboxesDb(cwd=git_repo)
+    def test_multiple_rows_sorted_by_created_at_desc(self, git_fs: GitFileSystem) -> None:
+        git_fs.init_repo()
+        first = _insert(git_fs.base_path, sandbox_id="sbx_first", name=None, path_suffix="1")
+        second = _insert(git_fs.base_path, sandbox_id="sbx_second", name="beta", path_suffix="2")
+        db = SandboxesDb(cwd=git_fs.base_path)
         db.execute("UPDATE sandboxes SET created_at = '2026-01-01 00:00:00' WHERE id = ?", (first.id,))
         db.execute("UPDATE sandboxes SET created_at = '2026-01-01 00:00:01' WHERE id = ?", (second.id,))
         first = db.get(first.id)
         second = db.get(second.id)
 
-        result = collect_sandbox_list(cwd=git_repo)
+        result = collect_sandbox_list(cwd=git_fs.base_path)
         assert result.ok
         assert [row.id for row in result.sandboxes] == [second.id, first.id]
         assert result.sandboxes[0].name == "beta"
@@ -107,65 +101,65 @@ class SandboxListCollectTests:
         assert result.sandboxes[0].created_at == second.created_at
         assert result.sandboxes[1].created_at == first.created_at
 
-    def test_status_filter(self, git_repo: Path) -> None:
-        _init_config(git_repo)
-        active = _insert(git_repo, sandbox_id="sbx_active", path_suffix="a")
-        cleaned = _insert(git_repo, sandbox_id="sbx_cleaned", path_suffix="c")
-        SandboxesDb(git_repo, DB_REL).update_status(
+    def test_status_filter(self, git_fs: GitFileSystem) -> None:
+        git_fs.init_repo()
+        active = _insert(git_fs.base_path, sandbox_id="sbx_active", path_suffix="a")
+        cleaned = _insert(git_fs.base_path, sandbox_id="sbx_cleaned", path_suffix="c")
+        SandboxesDb(git_fs.base_path, DB_REL).update_status(
             cleaned.id,
             SandboxStatus.CLEANED,
         )
 
-        result = collect_sandbox_list(status="cleaned", cwd=git_repo)
+        result = collect_sandbox_list(status="cleaned", cwd=git_fs.base_path)
         assert result.ok
         assert [row.id for row in result.sandboxes] == [cleaned.id]
         assert active.id not in {row.id for row in result.sandboxes}
 
-    def test_reconciles_stale_active_missing_directory(self, git_repo: Path) -> None:
-        _init_config(git_repo)
+    def test_reconciles_stale_active_missing_directory(self, git_fs: GitFileSystem) -> None:
+        git_fs.init_repo()
         stale = _insert(
-            git_repo,
+            git_fs.base_path,
             sandbox_id="sbx_stale",
             path_suffix="gone",
             create_dir=False,
         )
         assert not Path(stale.sandbox_path).exists()
 
-        result = collect_sandbox_list(cwd=git_repo)
+        result = collect_sandbox_list(cwd=git_fs.base_path)
         assert result.ok
         assert len(result.sandboxes) == 1
         assert result.sandboxes[0].id == stale.id
         assert result.sandboxes[0].status is SandboxStatus.CLEANED
-        loaded = SandboxesDb(git_repo, DB_REL).get(stale.id)
+        loaded = SandboxesDb(git_fs.base_path, DB_REL).get(stale.id)
         assert loaded is not None
         assert loaded.status is SandboxStatus.CLEANED
 
-    def test_status_filter_after_reconciliation(self, git_repo: Path) -> None:
-        _init_config(git_repo)
+    def test_status_filter_after_reconciliation(self, git_fs: GitFileSystem) -> None:
+        git_fs.init_repo()
         stale = _insert(
-            git_repo,
+            git_fs.base_path,
             sandbox_id="sbx_stale_filter",
             path_suffix="missing",
             create_dir=False,
         )
 
-        result = collect_sandbox_list(status="active", cwd=git_repo)
+        result = collect_sandbox_list(status="active", cwd=git_fs.base_path)
         assert result.ok
         assert result.sandboxes == []
-        loaded = SandboxesDb(git_repo, DB_REL).get(stale.id)
+        loaded = SandboxesDb(git_fs.base_path, DB_REL).get(stale.id)
         assert loaded is not None
         assert loaded.status is SandboxStatus.CLEANED
 
-    def test_collect_invalid_config_is_not_initialized(self, git_repo: Path) -> None:
-        config_path = git_repo / ".worktree" / "config.json"
+    def test_collect_invalid_config_is_not_initialized(self, git_fs: GitFileSystem) -> None:
+        config_path = git_fs.base_path / ".worktree" / "config.json"
         config_path.parent.mkdir(parents=True, exist_ok=True)
         config_path.write_text("{not-json", encoding="utf-8")
 
-        result = collect_sandbox_list(cwd=git_repo)
+        result = collect_sandbox_list(cwd=git_fs.base_path)
         assert result.status is SandboxListStatus.NOT_INITIALIZED
         assert not result.ok
         assert result.errors
-        assert not (git_repo / DB_REL).exists()
+        assert not (git_fs.base_path / DB_REL).exists()
 
 
 class SandboxListRenderTests:
@@ -236,46 +230,46 @@ class SandboxListCommandDirectTests:
 
     def test_not_initialized_exits_one(
         self,
-        git_repo: Path,
+        git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.chdir(git_repo)
+        monkeypatch.chdir(git_fs.base_path)
 
         with pytest.raises(typer.Exit) as exc_info:
-            sandbox_list_command(cwd=git_repo)
+            sandbox_list_command(cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 1
 
         out = capsys.readouterr().out
         assert "Worktree Not Initialized" in out
-        assert not (git_repo / DB_REL).exists()
+        assert not (git_fs.base_path / DB_REL).exists()
 
     def test_empty_state_exits_zero(
         self,
-        git_repo: Path,
+        git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.chdir(git_repo)
-        _init_config(git_repo)
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
 
         with pytest.raises(typer.Exit) as exc_info:
-            sandbox_list_command(cwd=git_repo)
+            sandbox_list_command(cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 0
         assert "No sandboxes found." in capsys.readouterr().out
 
     def test_populated_exits_zero(
         self,
-        git_repo: Path,
+        git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.chdir(git_repo)
-        _init_config(git_repo)
-        _insert(git_repo, sandbox_id="sbx_one", path_suffix="1")
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
+        _insert(git_fs.base_path, sandbox_id="sbx_one", path_suffix="1")
 
         with pytest.raises(typer.Exit) as exc_info:
-            sandbox_list_command(cwd=git_repo)
+            sandbox_list_command(cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 0
         assert "Worktree Sandboxes" in capsys.readouterr().out
 
@@ -308,17 +302,17 @@ class SandboxListCliTests:
             opts.update(secondary)
         assert "--status" in opts
 
-    def test_invalid_status_rejected_by_typer(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.chdir(git_repo)
-        _init_config(git_repo)
+    def test_invalid_status_rejected_by_typer(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
         result = runner.invoke(app, ["sandbox", "list", "--status", "bogus"])
         assert result.exit_code != 0
         combined = result.stdout + result.stderr
         assert "bogus" in combined.lower() or "invalid" in combined.lower()
 
-    def test_list_via_cli_empty(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.chdir(git_repo)
-        _init_config(git_repo)
+    def test_list_via_cli_empty(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
         result = runner.invoke(app, ["sandbox", "list"])
         assert result.exit_code == 0
         assert "No sandboxes found." in result.stdout
