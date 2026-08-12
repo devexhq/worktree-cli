@@ -9,7 +9,6 @@ from getworktree.core.workflows.discovery import (
     resolve_workflows_dir,
 )
 from getworktree.core.workflows.exceptions import (
-    WorkflowError,
     WorkflowLoadError,
     WorkflowValidationError,
 )
@@ -69,7 +68,6 @@ __all__ = [
     "WorkflowDefinition",
     "WorkflowDiscoveryResult",
     "WorkflowDiscoveryStatus",
-    "WorkflowError",
     "WorkflowFinalStatus",
     "WorkflowInput",
     "WorkflowInventoryInvalidEntry",
