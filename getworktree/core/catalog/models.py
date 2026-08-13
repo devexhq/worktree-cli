@@ -7,7 +7,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from getworktree.common.models import DefinitionResolutionStatus
-from getworktree.core.db import CatalogItemType, CatalogRecord
+from getworktree.core.db import CatalogRecord
 
 
 class CatalogScanResult(BaseModel):
@@ -51,13 +51,3 @@ class DefinitionValidationOutcome(BaseModel):
     definition: Any | None = None
     status: DefinitionResolutionStatus = DefinitionResolutionStatus.OK
     errors: list[str] = Field(default_factory=list)
-
-
-__all__ = [
-    "CatalogItemType",
-    "CatalogRecord",
-    "CatalogScanResult",
-    "CatalogSubdirectoryScanResult",
-    "DefinitionValidationOutcome",
-    "YamlParseOutcome",
-]

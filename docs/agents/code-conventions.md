@@ -151,3 +151,4 @@ should be reported, leave a one-line comment at the `except` site saying so.
   `tests/*` are exempt.
 - `getworktree` is registered as first-party for isort; keep local imports grouped
   accordingly and let `ruff format`/`ruff check --fix` handle ordering.
+- Use `__all__` in package root `__init__.py` files when re-exporting internal symbols into a public subpackage surface (e.g. `core/db/__init__.py`). Omit `__all__` in leaf `models.py` modules and standard implementation files.
