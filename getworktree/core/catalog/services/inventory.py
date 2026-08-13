@@ -18,7 +18,12 @@ from getworktree.common.models import (
     DefinitionResolutionStatus,
     YamlFile,
 )
-from getworktree.core.catalog.models import CatalogScanResult, CatalogSubdirectoryScanResult
+from getworktree.core.catalog.models import (
+    CatalogScanResult,
+    CatalogSubdirectoryScanResult,
+    DefinitionValidationOutcome,
+    YamlParseOutcome,
+)
 from getworktree.core.db import (
     CatalogDb,
     CatalogItemType,
@@ -193,14 +198,14 @@ def _find_catalog_matches(
     return CatalogDb(cwd).list_by_name(sha_or_name, item_type=type_filter)
 
 
-def _read_and_parse_yaml(file_path: Path, rel_path: Path) -> tuple[dict[str, Any] | None, list[str]]:
+def _read_and_parse_yaml(file_path: Path, rel_path: Path) -> YamlParseOutcome:
     yaml_file = read_yaml_file(file_path)
     if yaml_file.error or yaml_file.parsed is None or not isinstance(yaml_file.parsed, dict):
         error_message = (
             yaml_file.error or f"Failed to load catalog blueprint '{rel_path}': invalid or non-object YAML content."
         )
-        return None, [error_message]
-    return yaml_file.parsed, []
+        return YamlParseOutcome(parsed_data=None, errors=[error_message])
+    return YamlParseOutcome(parsed_data=yaml_file.parsed, errors=[])
 
 
 def _validate_definition[T](
@@ -208,28 +213,45 @@ def _validate_definition[T](
     definition_cls: type[T],
     cwd: Path | None,
     sha_or_name: str,
-) -> tuple[Any | None, DefinitionResolutionStatus, list[str]]:
+) -> DefinitionValidationOutcome:
     catalog_dir = get_catalog_dir(cwd)
     file_path = catalog_dir / winner.path
-    parsed_data, errors = _read_and_parse_yaml(file_path, winner.path)
-    if errors:
-        return None, DefinitionResolutionStatus.LOAD_ERROR, errors
+    parse_outcome = _read_and_parse_yaml(file_path, winner.path)
+    if parse_outcome.errors or parse_outcome.parsed_data is None:
+        return DefinitionValidationOutcome(
+            definition=None,
+            status=DefinitionResolutionStatus.LOAD_ERROR,
+            errors=parse_outcome.errors,
+        )
 
+    parsed_data = parse_outcome.parsed_data
     schema_validator = getattr(definition_cls, "schema_validator", None)
     if schema_validator is not None and hasattr(schema_validator, "validate"):
         validation_result = schema_validator.validate(parsed_data)
         if hasattr(validation_result, "ok") and not validation_result.ok:
             validation_errors = list(getattr(validation_result, "errors", [str(validation_result)]))
-            return None, DefinitionResolutionStatus.LOAD_ERROR, validation_errors
+            return DefinitionValidationOutcome(
+                definition=None,
+                status=DefinitionResolutionStatus.LOAD_ERROR,
+                errors=validation_errors,
+            )
 
     try:
         if hasattr(definition_cls, "model_validate"):
             definition = definition_cls.model_validate(parsed_data)
         else:
             definition = definition_cls(**parsed_data)  # type: ignore[call-arg]
-        return definition, DefinitionResolutionStatus.OK, []
+        return DefinitionValidationOutcome(
+            definition=definition,
+            status=DefinitionResolutionStatus.OK,
+            errors=[],
+        )
     except (Exception, DefinitionLoadError, DefinitionValidationError) as exc:
-        return None, DefinitionResolutionStatus.LOAD_ERROR, [f"Model validation failed for '{sha_or_name}': {exc}"]
+        return DefinitionValidationOutcome(
+            definition=None,
+            status=DefinitionResolutionStatus.LOAD_ERROR,
+            errors=[f"Model validation failed for '{sha_or_name}': {exc}"],
+        )
 
 
 def get_catalog_item[T](
@@ -265,7 +287,10 @@ def get_catalog_item[T](
     status = DefinitionResolutionStatus.OK
 
     if definition_cls is not None:
-        definition, status, errors = _validate_definition(winner, definition_cls, cwd, sha_or_name)
+        validation_outcome = _validate_definition(winner, definition_cls, cwd, sha_or_name)
+        definition = validation_outcome.definition
+        status = validation_outcome.status
+        errors = validation_outcome.errors
 
     return DefinitionResolutionResult(
         status=status,

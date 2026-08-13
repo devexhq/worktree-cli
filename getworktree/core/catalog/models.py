@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
+from getworktree.common.models import DefinitionResolutionStatus
 from getworktree.core.db import CatalogItemType, CatalogRecord
 
 
@@ -31,4 +34,30 @@ class CatalogSubdirectoryScanResult(BaseModel):
     scanned_shas: set[str] = Field(default_factory=set)
 
 
-__all__ = ["CatalogItemType", "CatalogRecord", "CatalogScanResult", "CatalogSubdirectoryScanResult"]
+class YamlParseOutcome(BaseModel):
+    """Outcome of reading and parsing a YAML catalog blueprint file."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    parsed_data: dict[str, Any] | None = None
+    errors: list[str] = Field(default_factory=list)
+
+
+class DefinitionValidationOutcome(BaseModel):
+    """Outcome of validating a catalog blueprint definition against schema and model."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    definition: Any | None = None
+    status: DefinitionResolutionStatus = DefinitionResolutionStatus.OK
+    errors: list[str] = Field(default_factory=list)
+
+
+__all__ = [
+    "CatalogItemType",
+    "CatalogRecord",
+    "CatalogScanResult",
+    "CatalogSubdirectoryScanResult",
+    "DefinitionValidationOutcome",
+    "YamlParseOutcome",
+]
