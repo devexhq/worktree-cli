@@ -7,9 +7,9 @@ import pytest
 from pydantic import BaseModel
 
 from getworktree.common.fs import (
-    _process_yaml_file,
     compute_content_checksum,
     delete_file,
+    read_yaml_file,
 )
 from getworktree.common.models import DefinitionResolutionStatus
 from getworktree.core.catalog.services.inventory import (
@@ -53,7 +53,7 @@ def test_common_fs_checksum_and_delete(fs: FileSystem) -> None:
     test_path = fs.base_path / "sample.txt"
     fs.write_file("sample.txt", content)
 
-    yaml_file = _process_yaml_file(test_path)
+    yaml_file = read_yaml_file(test_path)
     assert yaml_file.checksum == chk
     assert yaml_file.file_size == len(content.encode("utf-8"))
 

@@ -100,7 +100,8 @@ def update_gitignore(gitignore_path: Path) -> bool:
     return True
 
 
-def _process_yaml_file(file_path: Path) -> YamlFile:
+def read_yaml_file(file_path: Path) -> YamlFile:
+    """Read and parse a YAML file into a typed YamlFile model."""
     name = file_path.stem
     error = None
     yaml_data = None
@@ -147,6 +148,6 @@ def scan_yaml_directory(
         if not file_path.is_file() or file_path.suffix.lower() not in suffixes:
             continue
 
-        entries.append(_process_yaml_file(file_path))
+        entries.append(read_yaml_file(file_path))
 
     return entries

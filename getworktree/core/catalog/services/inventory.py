@@ -7,10 +7,10 @@ from typing import Any
 
 from getworktree.common.exceptions import DefinitionLoadError, DefinitionValidationError
 from getworktree.common.fs import (
-    _process_yaml_file,
     atomic_write_text,
     compute_content_checksum,
     delete_file,
+    read_yaml_file,
     scan_yaml_directory,
 )
 from getworktree.common.models import (
@@ -194,7 +194,7 @@ def _find_catalog_matches(
 
 
 def _read_and_parse_yaml(file_path: Path, rel_path: Path) -> tuple[dict[str, Any] | None, list[str]]:
-    yaml_file = _process_yaml_file(file_path)
+    yaml_file = read_yaml_file(file_path)
     if yaml_file.error or yaml_file.parsed is None or not isinstance(yaml_file.parsed, dict):
         err_msg = (
             yaml_file.error or f"Failed to load catalog blueprint '{rel_path}': invalid or non-object YAML content."
