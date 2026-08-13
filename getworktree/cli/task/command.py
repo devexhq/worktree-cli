@@ -144,12 +144,12 @@ def task_show_command(
     """
     output = rich_output or _DEFAULT_RICH_OUTPUT
 
-    res = get_catalog_item(name, cwd=cwd)
-    item = res.resolved
-    if not res.ok or item is None or item.item_type != CatalogItemType.TASK:
-        error_msg = f"Task blueprint '{name}' not found."
-        output.error_panel("Task Show Failed", error_msg)
-        return TaskShowCommandOutcome(item=None, content=None, errors=[error_msg])
+    resolution_result = get_catalog_item(name, cwd=cwd)
+    item = resolution_result.resolved
+    if not resolution_result.ok or item is None or item.item_type != CatalogItemType.TASK:
+        error_message = f"Task blueprint '{name}' not found."
+        output.error_panel("Task Show Failed", error_message)
+        return TaskShowCommandOutcome(item=None, content=None, errors=[error_message])
 
     catalog_dir = get_catalog_dir(cwd)
     file_path = catalog_dir / item.path
@@ -157,9 +157,9 @@ def task_show_command(
     try:
         content = file_path.read_text(encoding="utf-8")
     except OSError as exc:
-        error_msg = f"Failed to read file for task blueprint '{name}': {exc}"
-        output.error_panel("Task Show Failed", error_msg)
-        return TaskShowCommandOutcome(item=item, content=None, errors=[error_msg])
+        error_message = f"Failed to read file for task blueprint '{name}': {exc}"
+        output.error_panel("Task Show Failed", error_message)
+        return TaskShowCommandOutcome(item=item, content=None, errors=[error_message])
 
     render_task_show(item, content, rich_output=output)
     return TaskShowCommandOutcome(item=item, content=content)
@@ -193,12 +193,12 @@ def task_run_command(
     """
     output = rich_output or _DEFAULT_RICH_OUTPUT
 
-    res = get_catalog_item(name, cwd=cwd)
-    item = res.resolved
-    if not res.ok or item is None or item.item_type != CatalogItemType.TASK:
-        error_msg = f"Task blueprint '{name}' not found."
-        output.error_panel("Task Run Failed", error_msg)
-        return TaskRunCommandOutcome(run_record=None, errors=[error_msg])
+    resolution_result = get_catalog_item(name, cwd=cwd)
+    item = resolution_result.resolved
+    if not resolution_result.ok or item is None or item.item_type != CatalogItemType.TASK:
+        error_message = f"Task blueprint '{name}' not found."
+        output.error_panel("Task Run Failed", error_message)
+        return TaskRunCommandOutcome(run_record=None, errors=[error_message])
 
     catalog_dir = get_catalog_dir(cwd)
     file_path = catalog_dir / item.path

@@ -11,6 +11,13 @@ model_config = {"extra": "forbid", "strict": True}
 This catches typos in constructed payloads and unexpected extra keys early.
 Follow this for any new `BaseModel` you add.
 
+## Variable naming
+
+Prefer self-explanatory variable names that clearly describe the contained value without requiring the reader to inspect surrounding code context. Avoid arbitrary or non-standard abbreviations.
+
+- **Acceptable**: Standard conventions or transparent shorthands (`exc`, `rel_path`, `i`/`v` in list comprehensions or loops, `fs`, `cwd`, `db`).
+- **Unacceptable**: Cryptic or truncated abbreviations (e.g. `val_res` instead of `validation_result`, `tf_str` instead of `type_filter_string`, `err_msg` instead of `error_message`, `tmpl` instead of `template`, `res` instead of `result`, `shas` instead of `checksum_hashes` or `record_shas`).
+
 ## Structure
 Use standalone functions or classes / packages of modules where appropriate. A function or class that requires > 5 arguments should be refactored to accept an env/context/configuration object (frozen dataclass) instead. 
 

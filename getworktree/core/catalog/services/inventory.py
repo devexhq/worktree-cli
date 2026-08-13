@@ -125,10 +125,10 @@ def scan_and_index_catalog(cwd: Path | None = None) -> CatalogScanResult:
 
 def _get_initial_template_content(type_enum: CatalogItemType, stem: str, template_name: str | None) -> str:
     if template_name:
-        tmpl = get_builtin_template(template_name, type_filter=type_enum.value)
-        if tmpl is None:
+        template = get_builtin_template(template_name, type_filter=type_enum.value)
+        if template is None:
             raise ValueError(f"Built-in template '{template_name}' of type '{type_enum.value}' not found.")
-        return tmpl.content
+        return template.content
 
     if type_enum == CatalogItemType.WORKFLOW:
         return f"name: {stem}\ndescription: Custom workflow blueprint\nsteps: []\n"
@@ -156,8 +156,8 @@ def create_catalog_item(
     target_path = catalog_dir / f"{type_enum.value}s" / filename
 
     if target_path.exists():
-        rel_str = target_path.relative_to(catalog_dir)
-        raise FileExistsError(f"Catalog blueprint collision at path '{rel_str}'")
+        rel_path = target_path.relative_to(catalog_dir)
+        raise FileExistsError(f"Catalog blueprint collision at path '{rel_path}'")
 
     content = _get_initial_template_content(type_enum, stem, template_name)
     atomic_write_text(target_path, content)
@@ -179,7 +179,7 @@ def _find_catalog_matches(
     sha_or_name: str,
     type_filter: CatalogItemType | str | None,
 ) -> list[CatalogRecord]:
-    tf_str = (
+    type_filter_string = (
         type_filter.value
         if isinstance(type_filter, CatalogItemType)
         else (str(type_filter).lower() if type_filter is not None else None)
@@ -187,7 +187,7 @@ def _find_catalog_matches(
 
     item_by_sha = CatalogDb(cwd).get_by_sha(sha_or_name)
     if item_by_sha is not None:
-        if tf_str is None or item_by_sha.item_type.value == tf_str:
+        if type_filter_string is None or item_by_sha.item_type.value == type_filter_string:
             return [item_by_sha]
         return []
     return CatalogDb(cwd).list_by_name(sha_or_name, item_type=type_filter)
@@ -196,10 +196,10 @@ def _find_catalog_matches(
 def _read_and_parse_yaml(file_path: Path, rel_path: Path) -> tuple[dict[str, Any] | None, list[str]]:
     yaml_file = read_yaml_file(file_path)
     if yaml_file.error or yaml_file.parsed is None or not isinstance(yaml_file.parsed, dict):
-        err_msg = (
+        error_message = (
             yaml_file.error or f"Failed to load catalog blueprint '{rel_path}': invalid or non-object YAML content."
         )
-        return None, [err_msg]
+        return None, [error_message]
     return yaml_file.parsed, []
 
 
@@ -215,12 +215,12 @@ def _validate_definition[T](
     if errors:
         return None, DefinitionResolutionStatus.LOAD_ERROR, errors
 
-    schema_val = getattr(definition_cls, "schema_validator", None)
-    if schema_val is not None and hasattr(schema_val, "validate"):
-        val_res = schema_val.validate(parsed_data)
-        if hasattr(val_res, "ok") and not val_res.ok:
-            errs = list(getattr(val_res, "errors", [str(val_res)]))
-            return None, DefinitionResolutionStatus.LOAD_ERROR, errs
+    schema_validator = getattr(definition_cls, "schema_validator", None)
+    if schema_validator is not None and hasattr(schema_validator, "validate"):
+        validation_result = schema_validator.validate(parsed_data)
+        if hasattr(validation_result, "ok") and not validation_result.ok:
+            validation_errors = list(getattr(validation_result, "errors", [str(validation_result)]))
+            return None, DefinitionResolutionStatus.LOAD_ERROR, validation_errors
 
     try:
         if hasattr(definition_cls, "model_validate"):
@@ -255,9 +255,9 @@ def get_catalog_item[T](
     winner = matches[0]
     warnings: list[str] = []
     if len(matches) > 1:
-        others = ", ".join(m.path.as_posix() for m in matches if m.path != winner.path)
+        other_matching_paths = ", ".join(m.path.as_posix() for m in matches if m.path != winner.path)
         warnings.append(
-            f"Duplicate catalog name '{sha_or_name}'; using '{winner.path.as_posix()}' (also found in: {others})."
+            f"Duplicate catalog name '{sha_or_name}'; using '{winner.path.as_posix()}' (also found in: {other_matching_paths})."
         )
 
     definition: Any | None = None

@@ -47,14 +47,14 @@ def test_compute_catalog_sha() -> None:
 
 def test_common_fs_checksum_and_delete(fs: FileSystem) -> None:
     content = "test text"
-    chk = compute_content_checksum(content)
-    assert len(chk) == 64
+    checksum = compute_content_checksum(content)
+    assert len(checksum) == 64
 
     test_path = fs.base_path / "sample.txt"
     fs.write_file("sample.txt", content)
 
     yaml_file = read_yaml_file(test_path)
-    assert yaml_file.checksum == chk
+    assert yaml_file.checksum == checksum
     assert yaml_file.file_size == len(content.encode("utf-8"))
 
     assert delete_file(test_path) is True
@@ -77,29 +77,29 @@ def test_scan_and_index_catalog(fs: FileSystem) -> None:
     # Check indexed DB items
     db_items = CatalogDb(fs.base_path).list()
     assert len(db_items) == 3
-    shas = {item.sha for item in db_items}
-    assert any(sha.startswith("workflow_") for sha in shas)
-    assert any(sha.startswith("task_") for sha in shas)
-    assert any(sha.startswith("step_") for sha in shas)
+    sha_hashes = {item.sha for item in db_items}
+    assert any(sha.startswith("workflow_") for sha in sha_hashes)
+    assert any(sha.startswith("task_") for sha in sha_hashes)
+    assert any(sha.startswith("step_") for sha in sha_hashes)
 
     # Remove one file and verify DB purge on re-scan
     step_file.unlink()
-    res2 = scan_and_index_catalog(fs.base_path)
-    assert res2.ok
-    assert len(res2.items) == 2
-    db_items2 = CatalogDb(fs.base_path).list()
-    assert len(db_items2) == 2
+    second_result = scan_and_index_catalog(fs.base_path)
+    assert second_result.ok
+    assert len(second_result.items) == 2
+    second_db_items = CatalogDb(fs.base_path).list()
+    assert len(second_db_items) == 2
 
 
 def test_scan_and_index_catalog_sha_reflects_raw_content(fs: FileSystem) -> None:
     """SHA must change when raw file content changes, even if parsed structure is unchanged."""
     ensure_catalog_dirs(fs.base_path)
-    wf_file = fs.write_file(".worktree/catalog/workflows/feature-dev.yml", "name: Feature Dev Workflow\n")
+    workflow_file = fs.write_file(".worktree/catalog/workflows/feature-dev.yml", "name: Feature Dev Workflow\n")
     result1 = scan_and_index_catalog(fs.base_path)
     sha1 = result1.items[0].sha
 
     # Same parsed value, different raw text (extra comment/whitespace)
-    wf_file.write_text("# comment\nname: Feature Dev Workflow\n", encoding="utf-8")
+    workflow_file.write_text("# comment\nname: Feature Dev Workflow\n", encoding="utf-8")
     result2 = scan_and_index_catalog(fs.base_path)
     sha2 = result2.items[0].sha
 
@@ -168,32 +168,32 @@ def test_catalog_db_list_by_name(fs: FileSystem) -> None:
     scan_and_index_catalog(fs.base_path)
 
     db = CatalogDb(fs.base_path)
-    all_dups = db.list_by_name("dup")
-    assert len(all_dups) == 2
-    assert [d.path.as_posix() for d in all_dups] == ["tasks/dup.yml", "workflows/dup.yml"]
+    all_duplicates = db.list_by_name("dup")
+    assert len(all_duplicates) == 2
+    assert [d.path.as_posix() for d in all_duplicates] == ["tasks/dup.yml", "workflows/dup.yml"]
 
-    wf_dups = db.list_by_name("dup", item_type=CatalogItemType.WORKFLOW)
-    assert len(wf_dups) == 1
-    assert wf_dups[0].path.as_posix() == "workflows/dup.yml"
+    workflow_duplicates = db.list_by_name("dup", item_type=CatalogItemType.WORKFLOW)
+    assert len(workflow_duplicates) == 1
+    assert workflow_duplicates[0].path.as_posix() == "workflows/dup.yml"
 
-    none_dups = db.list_by_name("nonexistent")
-    assert len(none_dups) == 0
+    nonexistent_duplicates = db.list_by_name("nonexistent")
+    assert len(nonexistent_duplicates) == 0
 
 
 def test_get_and_delete_catalog_item(fs: FileSystem) -> None:
     record = create_catalog_item("step", "checkpoint", cwd=fs.base_path)
 
     # Retrieve by SHA
-    res_sha = get_catalog_item(record.sha, cwd=fs.base_path)
-    assert res_sha.ok
-    assert res_sha.resolved is not None
-    assert res_sha.resolved.sha == record.sha
+    resolution_by_sha = get_catalog_item(record.sha, cwd=fs.base_path)
+    assert resolution_by_sha.ok
+    assert resolution_by_sha.resolved is not None
+    assert resolution_by_sha.resolved.sha == record.sha
 
     # Retrieve by Name
-    res_name = get_catalog_item("checkpoint", cwd=fs.base_path)
-    assert res_name.ok
-    assert res_name.resolved is not None
-    assert res_name.resolved.sha == record.sha
+    resolution_by_name = get_catalog_item("checkpoint", cwd=fs.base_path)
+    assert resolution_by_name.ok
+    assert resolution_by_name.resolved is not None
+    assert resolution_by_name.resolved.sha == record.sha
 
     # Delete
     deleted = delete_catalog_item_by_sha_or_name(record.sha, cwd=fs.base_path)
@@ -204,11 +204,11 @@ def test_get_and_delete_catalog_item(fs: FileSystem) -> None:
 
 
 def test_get_catalog_item_not_found(fs: FileSystem) -> None:
-    res = get_catalog_item("missing-item", cwd=fs.base_path)
-    assert not res.ok
-    assert res.status == DefinitionResolutionStatus.NOT_FOUND
-    assert res.resolved is None
-    assert any("not found" in err for err in res.errors)
+    resolution_result = get_catalog_item("missing-item", cwd=fs.base_path)
+    assert not resolution_result.ok
+    assert resolution_result.status == DefinitionResolutionStatus.NOT_FOUND
+    assert resolution_result.resolved is None
+    assert any("not found" in err for err in resolution_result.errors)
 
 
 def test_get_catalog_item_duplicate_names(fs: FileSystem) -> None:
@@ -217,13 +217,13 @@ def test_get_catalog_item_duplicate_names(fs: FileSystem) -> None:
     fs.write_file(".worktree/catalog/tasks/shared.yml", "name: shared\n")
     scan_and_index_catalog(fs.base_path)
 
-    res = get_catalog_item("shared", cwd=fs.base_path)
-    assert res.ok
-    assert res.resolved is not None
-    assert res.resolved.path.as_posix() == "tasks/shared.yml"  # tasks comes before workflows alphabetically
-    assert len(res.matches) == 2
-    assert len(res.warnings) == 1
-    assert "Duplicate catalog name 'shared'" in res.warnings[0]
+    resolution_result = get_catalog_item("shared", cwd=fs.base_path)
+    assert resolution_result.ok
+    assert resolution_result.resolved is not None
+    assert resolution_result.resolved.path.as_posix() == "tasks/shared.yml"  # tasks comes before workflows
+    assert len(resolution_result.matches) == 2
+    assert len(resolution_result.warnings) == 1
+    assert "Duplicate catalog name 'shared'" in resolution_result.warnings[0]
 
 
 class SampleDefinition(BaseModel):
@@ -234,11 +234,11 @@ class SampleDefinition(BaseModel):
 def test_get_catalog_item_with_definition_cls(fs: FileSystem) -> None:
     record = create_catalog_item("task", "sample-task", cwd=fs.base_path)
 
-    res = get_catalog_item("sample-task", definition_cls=SampleDefinition, cwd=fs.base_path)
-    assert res.ok
-    assert res.definition is not None
-    assert res.definition.name == record.name
-    assert res.definition.description == "Custom task blueprint"
+    resolution_result = get_catalog_item("sample-task", definition_cls=SampleDefinition, cwd=fs.base_path)
+    assert resolution_result.ok
+    assert resolution_result.definition is not None
+    assert resolution_result.definition.name == record.name
+    assert resolution_result.definition.description == "Custom task blueprint"
 
 
 def test_get_catalog_item_with_definition_cls_load_error(fs: FileSystem) -> None:
@@ -246,8 +246,8 @@ def test_get_catalog_item_with_definition_cls_load_error(fs: FileSystem) -> None
     fs.write_file(".worktree/catalog/tasks/bad.yml", "invalid: yaml: [")
     scan_and_index_catalog(fs.base_path)
 
-    res = get_catalog_item("bad", definition_cls=SampleDefinition, cwd=fs.base_path)
-    assert not res.ok
-    assert res.status == DefinitionResolutionStatus.LOAD_ERROR
-    assert res.definition is None
-    assert len(res.errors) > 0
+    resolution_result = get_catalog_item("bad", definition_cls=SampleDefinition, cwd=fs.base_path)
+    assert not resolution_result.ok
+    assert resolution_result.status == DefinitionResolutionStatus.LOAD_ERROR
+    assert resolution_result.definition is None
+    assert len(resolution_result.errors) > 0
