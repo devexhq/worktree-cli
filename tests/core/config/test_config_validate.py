@@ -145,7 +145,7 @@ class ValidateConfigResultSemanticErrorTests:
 
     def test_path_invalid_control_characters(self, fs: FileSystem) -> None:
         raw = build_default_config("demo")
-        raw["paths"]["workflows_dir"] = ".worktree/workflows\nbad"
+        raw["paths"]["sessions_dir"] = ".worktree/sessions\nbad"
         raw["paths"]["db_path"] = ".worktree/token\x00audit.db"
         _write_config(fs.base_path / ".worktree" / "config.json", raw)
         result = validate_config_result(cwd=fs.base_path)
@@ -154,7 +154,7 @@ class ValidateConfigResultSemanticErrorTests:
         assert len(result.errors) == 2
         assert all("CONFIG_SEMANTIC_PATH_INVALID" in e for e in result.errors)
         assert "paths.db_path" in result.errors[0]
-        assert "paths.workflows_dir" in result.errors[1]
+        assert "paths.sessions_dir" in result.errors[1]
         assert all("Fix:" in e for e in result.errors)
 
 

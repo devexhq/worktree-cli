@@ -34,7 +34,6 @@ class PathsConfig(BaseModel):
     model_config = {"extra": "forbid", "strict": True}
 
     root_dir: str = Field(default=".worktree", min_length=1)
-    workflows_dir: str = Field(default=".worktree/workflows", min_length=1)
     sessions_dir: str = Field(default=".worktree/sessions", min_length=1)
     artifacts_dir: str = Field(default=".worktree/artifacts", min_length=1)
     db_path: str = Field(default=".worktree/data.db", min_length=1)

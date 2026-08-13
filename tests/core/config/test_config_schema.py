@@ -121,7 +121,6 @@ class ConfigV1SchemaRejectTests:
     def test_empty_path_strings(self) -> None:
         for field in (
             "root_dir",
-            "workflows_dir",
             "sessions_dir",
             "artifacts_dir",
             "db_path",

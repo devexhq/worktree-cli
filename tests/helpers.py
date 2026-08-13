@@ -57,7 +57,6 @@ class FileSystem:
             "project": {"name": "test-project"},
             "paths": {
                 "root_dir": ".worktree",
-                "workflows_dir": ".worktree/workflows",
                 "sessions_dir": ".worktree/sessions",
                 "artifacts_dir": ".worktree/artifacts",
                 "db_path": ".worktree/data.db",

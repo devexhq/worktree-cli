@@ -22,7 +22,6 @@ CANONICAL_V1_DEFAULTS: dict[str, Any] = {
     },
     "paths": {
         "root_dir": ".worktree",
-        "workflows_dir": ".worktree/workflows",
         "sessions_dir": ".worktree/sessions",
         "artifacts_dir": ".worktree/artifacts",
         "db_path": ".worktree/data.db",
@@ -129,6 +128,72 @@ def _preflight_config_path(config_path: Path) -> list[str]:
     return []
 
 
+def _write_fresh_config(
+    config_path: Path,
+    project_name: str,
+    result: ConfigGenerationResult,
+    *,
+    existed_before: bool,
+    overwrite: bool,
+) -> ConfigGenerationResult:
+    payload = build_default_config(project_name)
+    validation = CONFIG_VALIDATOR.validate(payload)
+    if not validation.ok:
+        result.errors.extend([f"CONFIG_VALIDATION_FAILED: {e}" for e in validation.errors])
+        return result
+    try:
+        atomic_write_json(config_path, payload)
+    except OSError as exc:
+        result.errors.append(f"CONFIG_WRITE_FAILED at {config_path.as_posix()}: {exc}")
+        return result
+    if existed_before and overwrite:
+        result.overwritten = True
+    else:
+        result.created = True
+    return result
+
+
+def _repair_existing_config(
+    config_path: Path,
+    project_name: str,
+    result: ConfigGenerationResult,
+) -> ConfigGenerationResult:
+    try:
+        with open(config_path, encoding="utf-8") as f:
+            existing: dict[str, Any] = json.load(f)
+        if not isinstance(existing, dict):
+            result.errors.append("CONFIG_INVALID_JSON: root must be a JSON object")
+            return result
+    except json.JSONDecodeError as exc:
+        result.errors.append(
+            f"CONFIG_INVALID_JSON at {config_path.as_posix()}: {exc}\n"
+            "Fix:\n"
+            "- repair invalid JSON manually, or run wt init --overwrite"
+        )
+        return result
+
+    defaults = build_default_config(project_name)
+    if existing.get("project", {}).get("initialized_at"):
+        defaults["project"]["initialized_at"] = existing["project"]["initialized_at"]
+    if existing.get("project", {}).get("name"):
+        defaults["project"]["name"] = existing["project"]["name"]
+
+    inserted = merge_missing_keys(existing, defaults)
+    validation = CONFIG_VALIDATOR.validate(existing)
+    if not validation.ok:
+        result.errors.extend([f"CONFIG_VALIDATION_FAILED: {e}" for e in validation.errors])
+        return result
+    try:
+        atomic_write_json(config_path, existing)
+    except OSError as exc:
+        result.errors.append(f"CONFIG_WRITE_FAILED at {config_path.as_posix()}: {exc}")
+        return result
+
+    result.repaired = True
+    result.inserted_keys = inserted
+    return result
+
+
 def generate_default_config(
     config_path: Path,
     project_name: str,
@@ -155,55 +220,12 @@ def generate_default_config(
         return result
 
     if overwrite or not existed_before:
-        payload = build_default_config(project_name)
-        validation = CONFIG_VALIDATOR.validate(payload)
-        if not validation.ok:
-            result.errors.extend([f"CONFIG_VALIDATION_FAILED: {e}" for e in validation.errors])
-            return result
-        try:
-            atomic_write_json(config_path, payload)
-        except OSError as exc:
-            result.errors.append(f"CONFIG_WRITE_FAILED at {config_path.as_posix()}: {exc}")
-            return result
-        if existed_before and overwrite:
-            result.overwritten = True
-        else:
-            result.created = True
-        return result
-
-    # repair mode: file exists, overwrite=False
-    try:
-        with open(config_path, encoding="utf-8") as f:
-            existing: dict[str, Any] = json.load(f)
-        if not isinstance(existing, dict):
-            result.errors.append("CONFIG_INVALID_JSON: root must be a JSON object")
-            return result
-    except json.JSONDecodeError as exc:
-        result.errors.append(
-            f"CONFIG_INVALID_JSON at {config_path.as_posix()}: {exc}\n"
-            "Fix:\n"
-            "- repair invalid JSON manually, or run wt init --overwrite"
+        return _write_fresh_config(
+            config_path,
+            project_name,
+            result,
+            existed_before=existed_before,
+            overwrite=overwrite,
         )
-        return result
 
-    defaults = build_default_config(project_name)
-    # Preserve user project identity timestamps when repairing
-    if existing.get("project", {}).get("initialized_at"):
-        defaults["project"]["initialized_at"] = existing["project"]["initialized_at"]
-    if existing.get("project", {}).get("name"):
-        defaults["project"]["name"] = existing["project"]["name"]
-
-    inserted = merge_missing_keys(existing, defaults)
-    validation = CONFIG_VALIDATOR.validate(existing)
-    if not validation.ok:
-        result.errors.extend([f"CONFIG_VALIDATION_FAILED: {e}" for e in validation.errors])
-        return result
-    try:
-        atomic_write_json(config_path, existing)
-    except OSError as exc:
-        result.errors.append(f"CONFIG_WRITE_FAILED at {config_path.as_posix()}: {exc}")
-        return result
-
-    result.repaired = True
-    result.inserted_keys = inserted
-    return result
+    return _repair_existing_config(config_path, project_name, result)

@@ -34,14 +34,12 @@
       "additionalProperties": false,
       "required": [
         "root_dir",
-        "workflows_dir",
         "sessions_dir",
         "artifacts_dir",
         "db_path"
       ],
       "properties": {
         "root_dir": { "type": "string", "minLength": 1 },
-        "workflows_dir": { "type": "string", "minLength": 1 },
         "sessions_dir": { "type": "string", "minLength": 1 },
         "artifacts_dir": { "type": "string", "minLength": 1 },
         "db_path": { "type": "string", "minLength": 1 }

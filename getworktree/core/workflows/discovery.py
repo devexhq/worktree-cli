@@ -95,7 +95,7 @@ def resolve_workflows_dir(
             "- or pass an explicit workflows directory"
         ]
 
-    return _resolve_path(load_result.config.paths.workflows_dir, cwd=root), []
+    return (root / DEFAULT_WORKFLOWS_DIR).resolve(), []
 
 
 def _is_candidate_workflow_file(path: Path) -> bool:

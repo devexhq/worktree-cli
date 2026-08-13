@@ -429,7 +429,7 @@ paths. It does **not** parse YAML, validate `workflow_v1.json`, print, call
 `sys.exit`, or create/mutate workflow files.
 
 Default relative directory: `.worktree/workflows` (`DEFAULT_WORKFLOWS_DIR`).
-Config key: `paths.workflows_dir`. Explicit `workflows_dir` wins over config.
+Explicit `workflows_dir` wins when provided.
 
 ### Primary API
 
@@ -462,8 +462,7 @@ class WorkflowDiscoveryResult(BaseModel):
 Resolution order:
 
 1. Explicit `workflows_dir` (absolute as-is after resolve; relative against `cwd`)
-2. Else if `use_config`: `load_config_result` → `config.paths.workflows_dir`
-3. Else: `cwd / ".worktree/workflows"`
+2. Default `.worktree/workflows` (`cwd / ".worktree/workflows"`)
 
 When config is required and load is not ok, status is `config_unavailable`
 (no second config parser). Empty directories are success with `paths=[]`.
