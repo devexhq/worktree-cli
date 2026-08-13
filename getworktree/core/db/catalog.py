@@ -1,4 +1,4 @@
-"""CRUD helpers for catalog index records in SQLite using CatalogDb repository."""
+from __future__ import annotations
 
 import sqlite3
 from datetime import UTC, datetime
@@ -93,6 +93,22 @@ class CatalogDb(DbBase):
             type_str = item_type.value if isinstance(item_type, CatalogItemType) else str(item_type)
             row = self.fetch_one("SELECT * FROM catalog WHERE name = ? AND item_type = ?;", (name, type_str))
         return _catalog_record_from_row(row) if row is not None else None
+
+    def list_by_name(
+        self,
+        name: str,
+        item_type: CatalogItemType | str | None = None,
+    ) -> list[CatalogRecord]:
+        """Return all catalog records matching ``name`` (and optional ``item_type``), ordered by path ASC."""
+        if item_type is None:
+            rows = self.fetch_all("SELECT * FROM catalog WHERE name = ? ORDER BY path ASC;", (name,))
+        else:
+            type_str = item_type.value if isinstance(item_type, CatalogItemType) else str(item_type)
+            rows = self.fetch_all(
+                "SELECT * FROM catalog WHERE name = ? AND item_type = ? ORDER BY path ASC;",
+                (name, type_str),
+            )
+        return [_catalog_record_from_row(row) for row in rows]
 
     def delete(self, sha: str) -> bool:
         """Delete a catalog record by ``sha``. Returns ``True`` if a row was deleted."""

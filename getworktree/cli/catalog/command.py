@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from getworktree.common.utils import RichOutput
-from getworktree.core.catalog.inventory import (
+from getworktree.core.catalog.services.inventory import (
     create_catalog_item,
     delete_catalog_item_by_sha_or_name,
     get_catalog_dir,
@@ -65,12 +65,12 @@ def catalog_list_command(
                     errors=[error_msg],
                 )
 
-    scan_res = scan_and_index_catalog(cwd=cwd)
-    if not scan_res.ok:
-        for err in scan_res.errors:
-            output.error_panel("Catalog Scan Warning", err)
+    scan_result = scan_and_index_catalog(cwd=cwd)
+    if not scan_result.ok:
+        for error in scan_result.errors:
+            output.error_panel("Catalog Scan Warning", error)
 
-    items = scan_res.items
+    items = scan_result.items
     if parsed_type is not None:
         items = [i for i in items if i.item_type == parsed_type]
 
@@ -79,7 +79,7 @@ def catalog_list_command(
     return CatalogListCommandOutcome(
         items=items,
         type_filter=parsed_type,
-        errors=list(scan_res.errors),
+        errors=list(scan_result.errors),
     )
 
 
@@ -113,9 +113,9 @@ def catalog_create_command(
             cwd=cwd,
         )
     except Exception as exc:
-        error_msg = str(exc)
-        output.error_panel("Catalog Creation Failed", error_msg)
-        return CatalogCreateCommandOutcome(item=None, errors=[error_msg])
+        error_message = str(exc)
+        output.error_panel("Catalog Creation Failed", error_message)
+        return CatalogCreateCommandOutcome(item=None, errors=[error_message])
 
     render_catalog_create_success(record, rich_output=output)
     return CatalogCreateCommandOutcome(item=record)
@@ -139,11 +139,12 @@ def catalog_show_command(
     """
     output = rich_output or _DEFAULT_RICH_OUTPUT
 
-    item = get_catalog_item(sha_or_name, cwd=cwd)
-    if item is None:
-        error_msg = f"Catalog blueprint '{sha_or_name}' not found."
-        output.error_panel("Catalog Show Failed", error_msg)
-        return CatalogShowCommandOutcome(item=None, content=None, errors=[error_msg])
+    resolution_result = get_catalog_item(sha_or_name, cwd=cwd)
+    item = resolution_result.resolved
+    if not resolution_result.ok or item is None:
+        error_message = f"Catalog blueprint '{sha_or_name}' not found."
+        output.error_panel("Catalog Show Failed", error_message)
+        return CatalogShowCommandOutcome(item=None, content=None, errors=[error_message])
 
     catalog_dir = get_catalog_dir(cwd)
     file_path = catalog_dir / item.path
@@ -151,9 +152,9 @@ def catalog_show_command(
     try:
         content = file_path.read_text(encoding="utf-8")
     except OSError as exc:
-        error_msg = f"Failed to read file for catalog blueprint '{sha_or_name}': {exc}"
-        output.error_panel("Catalog Show Failed", error_msg)
-        return CatalogShowCommandOutcome(item=item, content=None, errors=[error_msg])
+        error_message = f"Failed to read file for catalog blueprint '{sha_or_name}': {exc}"
+        output.error_panel("Catalog Show Failed", error_message)
+        return CatalogShowCommandOutcome(item=item, content=None, errors=[error_message])
 
     render_catalog_show(item, content, rich_output=output)
     return CatalogShowCommandOutcome(item=item, content=content)
@@ -179,9 +180,9 @@ def catalog_delete_command(
 
     deleted_item = delete_catalog_item_by_sha_or_name(sha_or_name, cwd=cwd)
     if deleted_item is None:
-        error_msg = f"Catalog blueprint '{sha_or_name}' not found."
-        output.error_panel("Catalog Delete Failed", error_msg)
-        return CatalogDeleteCommandOutcome(item=None, deleted=False, errors=[error_msg])
+        error_message = f"Catalog blueprint '{sha_or_name}' not found."
+        output.error_panel("Catalog Delete Failed", error_message)
+        return CatalogDeleteCommandOutcome(item=None, deleted=False, errors=[error_message])
 
     render_catalog_delete_success(deleted_item, rich_output=output)
     return CatalogDeleteCommandOutcome(item=deleted_item, deleted=True)

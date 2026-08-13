@@ -1,5 +1,6 @@
 """File system paths for the worktree CLI."""
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -9,6 +10,18 @@ import yaml
 
 from .constants import GITIGNORE_ENTRY
 from .models import YamlFile
+
+
+def compute_content_checksum(content: str) -> str:
+    """Return SHA-256 hex digest of UTF-8-encoded content."""
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+def delete_file(path: Path) -> bool:
+    """Delete a file if it exists. Returns True if the file existed before deletion."""
+    existed = path.exists()
+    path.unlink(missing_ok=True)
+    return existed
 
 
 def get_worktree_dir(cwd: Path) -> Path:
@@ -87,7 +100,8 @@ def update_gitignore(gitignore_path: Path) -> bool:
     return True
 
 
-def _process_yaml_file(file_path: Path) -> YamlFile:
+def read_yaml_file(file_path: Path) -> YamlFile:
+    """Read and parse a YAML file into a typed YamlFile model."""
     name = file_path.stem
     error = None
     yaml_data = None
@@ -98,6 +112,9 @@ def _process_yaml_file(file_path: Path) -> YamlFile:
         error = f"Failed to read catalog blueprint '{file_path}': {exc}"
         return YamlFile(name=name, path=file_path, error=error, parsed=yaml_data)
 
+    checksum = compute_content_checksum(content)
+    file_size = len(content.encode("utf-8"))
+
     try:
         yaml_data = yaml.safe_load(content)
         if isinstance(yaml_data, dict) and yaml_data.get("name"):
@@ -106,7 +123,15 @@ def _process_yaml_file(file_path: Path) -> YamlFile:
         # Fallback to file stem if YAML parsing fails or is non-dict
         pass
 
-    return YamlFile(name=name, path=file_path, error=error, parsed=yaml_data, content=content)
+    return YamlFile(
+        name=name,
+        path=file_path,
+        error=error,
+        parsed=yaml_data,
+        content=content,
+        checksum=checksum,
+        file_size=file_size,
+    )
 
 
 def scan_yaml_directory(
@@ -123,6 +148,6 @@ def scan_yaml_directory(
         if not file_path.is_file() or file_path.suffix.lower() not in suffixes:
             continue
 
-        entries.append(_process_yaml_file(file_path))
+        entries.append(read_yaml_file(file_path))
 
     return entries
