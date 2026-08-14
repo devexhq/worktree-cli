@@ -513,8 +513,7 @@ def run_task(
     keep: bool = False,
     agent: str | None = None,
     observer: RunObserver | None = None,
-) -> RunOutcome:
-    ...
+) -> RunOutcome: ...
 ```
 
 Builds a `RunContext` (`steps=definition.steps`,
