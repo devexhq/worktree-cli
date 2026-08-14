@@ -15,7 +15,7 @@ from typer.testing import CliRunner
 
 from getworktree.cli import app
 from getworktree.cli.workflow.command import workflow_run_command
-from getworktree.core.workflows.seeder import seed_starter_workflows
+from getworktree.core.catalog.services.inventory import scan_and_index_catalog
 from tests.helpers import GitFileSystem
 
 runner = CliRunner()
@@ -23,8 +23,14 @@ runner = CliRunner()
 
 def _init_with_workflows(git_fs: GitFileSystem) -> Path:
     git_fs.init_repo()
-    workflows_dir = git_fs.base_path / ".worktree" / "workflows"
-    assert seed_starter_workflows(workflows_dir).ok
+    workflows_dir = git_fs.base_path / ".worktree" / "catalog" / "workflows"
+    git_fs.create_workflow_file(
+        "fix-tests",
+        dir=workflows_dir,
+        id="fix-tests",
+        steps=[{"id": "step-1", "run": "echo hi"}],
+    )
+    scan_and_index_catalog(cwd=git_fs.base_path)
     return workflows_dir
 
 

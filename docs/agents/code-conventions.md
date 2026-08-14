@@ -62,7 +62,7 @@ Reuse this shape for new core operations instead of introducing ad-hoc return ty
 Never write a config/state file directly. Write to a `.tmp` sibling, flush,
 `os.fsync`, then `Path.replace` to swap it into place atomically. See
 `atomic_write_json` in [getworktree/common/fs.py](../../getworktree/common/fs.py)
-and `_atomic_write_text` in `core/workflows/seeder.py` for the pattern.
+and `_atomic_write_text` in `core/workflows/services/seeder.py` for the pattern.
 
 ## Console output
 
@@ -87,13 +87,13 @@ helper per section (header, warnings, steps, ...), each returning
 `list[str]`, and keep the public function as a thin composer that
 concatenates them. Don't let one function own the whole document.
 
-Good (see `core/workflows/metadata.py`):
+Good (see `core/config/loader.py`):
 
 ```python
-return WorkflowMetadataParseResult(
-    status=WorkflowMetadataStatus.NOT_FOUND,
-    source_path=source_path,
-    errors=[f"Workflow definition not found at '{source_path}' (WORKFLOW_META_NOT_FOUND)."],
+return ConfigLoadResult(
+    status=ConfigLoadStatus.NOT_FOUND,
+    config_path=path,
+    errors=[f"Configuration file not found at '{path}' (CONFIG_NOT_FOUND)."],
 )
 ```
 

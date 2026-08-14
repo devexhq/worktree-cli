@@ -21,7 +21,7 @@ from getworktree.common.constants import (
 )
 from getworktree.common.fs import atomic_write_json
 from getworktree.common.utils import display_path
-from getworktree.core.workflows.seeder import WorkflowSeedResult
+from getworktree.core.workflows.services.seeder import WorkflowSeedResult
 
 
 class DirEnsureOutcome(Enum):

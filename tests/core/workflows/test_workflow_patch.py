@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from getworktree.core.workflows.patch import GitDiffParser
+from getworktree.core.workflows.services.patch import GitDiffParser
 
 
 class GitDiffParserTests:

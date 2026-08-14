@@ -25,8 +25,8 @@ from getworktree.core.workflows.agents.ollama import (
     resolve_ollama_endpoint,
     validate_ollama_endpoint,
 )
-from getworktree.core.workflows.payload import AgentFailurePayload
-from getworktree.core.workflows.validate import validate_workflow_document
+from getworktree.core.workflows.models import WORKFLOW_VALIDATOR
+from getworktree.core.workflows.services.payload import AgentFailurePayload
 from tests.helpers import FileSystem
 
 
@@ -259,7 +259,7 @@ class SchemaOllamaTests:
                 }
             ],
         }
-        result = validate_workflow_document(raw, source_path=Path("in-memory.yml"))
+        result = WORKFLOW_VALIDATOR.validate(raw)
         assert result.ok, result.errors
 
     def test_workflow_schema_rejects_missing_name(self) -> None:
@@ -273,5 +273,5 @@ class SchemaOllamaTests:
                 }
             ],
         }
-        result = validate_workflow_document(raw, source_path=Path("in-memory.yml"))
+        result = WORKFLOW_VALIDATOR.validate(raw)
         assert not result.ok

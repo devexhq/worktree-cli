@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from getworktree.core.workflows.seeder import seed_starter_workflows
+from getworktree.core.workflows.services.seeder import seed_starter_workflows
 from tests.helpers import FileSystem
 
 

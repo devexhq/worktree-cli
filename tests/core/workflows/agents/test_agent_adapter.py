@@ -23,7 +23,7 @@ from getworktree.core.workflows.agents.local import (
     LocalAgentStdout,
     resolve_local_agent_argv_for_tests,
 )
-from getworktree.core.workflows.payload import AgentFailurePayload
+from getworktree.core.workflows.services.payload import AgentFailurePayload
 from tests.helpers import FileSystem
 
 

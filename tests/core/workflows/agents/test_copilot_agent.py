@@ -21,7 +21,7 @@ from getworktree.core.workflows.agents.copilot import (
     default_copilot_run,
     resolve_copilot_token,
 )
-from getworktree.core.workflows.payload import AgentFailurePayload
+from getworktree.core.workflows.services.payload import AgentFailurePayload
 from tests.helpers import FileSystem
 
 
