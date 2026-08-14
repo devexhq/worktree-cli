@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import importlib.resources
 from pathlib import Path
 
-from getworktree.common.fs import atomic_write_text
+from getworktree.common.fs import atomic_write_text, get_catalog_templates_dir
 from getworktree.common.utils import display_path
 from getworktree.core.catalog.models import SeedResult
 from getworktree.core.db import CatalogItemType
@@ -47,7 +46,7 @@ def seed_catalog_templates(
     """Copy curated `wt/` seed files for `item_type` into `.worktree/catalog/<type>s/wt/`."""
     result = SeedResult()
 
-    source_dir = importlib.resources.files("getworktree.core.catalog.templates") / f"{item_type.value}s" / "wt"
+    source_dir = get_catalog_templates_dir() / f"{item_type.value}s" / "wt"
     if not source_dir.is_dir():
         return result
 

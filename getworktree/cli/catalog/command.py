@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import importlib.resources
 from pathlib import Path
 
+from getworktree.common.fs import get_catalog_templates_dir
 from getworktree.common.utils import RichOutput
 from getworktree.core.catalog.services.inventory import (
     create_catalog_item,
@@ -32,12 +32,10 @@ from .renderers import (
 
 _DEFAULT_RICH_OUTPUT = RichOutput()
 
-_TEMPLATE_ROOT_PACKAGE = "getworktree.core.catalog.templates"
-
 
 def _packaged_template_defaults() -> list[tuple[str, str]]:
     """Return (type, relative_path) pairs for the three packaged `default.yml` templates."""
-    root = importlib.resources.files(_TEMPLATE_ROOT_PACKAGE)
+    root = get_catalog_templates_dir()
     rows: list[tuple[str, str]] = []
     for item_type in (CatalogItemType.WORKFLOW, CatalogItemType.TASK, CatalogItemType.STEP):
         rel_path = f"{item_type.value}s/default.yml"
@@ -48,7 +46,7 @@ def _packaged_template_defaults() -> list[tuple[str, str]]:
 
 def _find_packaged_templates(sha_or_name: str) -> list[tuple[str, str]]:
     """Return (relative_path, content) pairs for packaged templates matching `sha_or_name`."""
-    root = importlib.resources.files(_TEMPLATE_ROOT_PACKAGE)
+    root = get_catalog_templates_dir()
     found: list[tuple[str, str]] = []
     for type_dir in ("workflows", "tasks", "steps"):
         candidate = (

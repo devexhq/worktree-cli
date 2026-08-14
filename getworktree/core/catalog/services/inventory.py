@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import importlib.resources
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +10,7 @@ from getworktree.common.fs import (
     atomic_write_text,
     compute_content_checksum,
     delete_file,
+    get_catalog_templates_dir,
     read_yaml_file,
     scan_yaml_directory,
 )
@@ -129,9 +129,7 @@ def scan_and_index_catalog(cwd: Path | None = None) -> CatalogScanResult:
 
 
 def _get_initial_template_content(type_enum: CatalogItemType, stem: str) -> str:
-    template_path = (
-        importlib.resources.files("getworktree.core.catalog.templates") / f"{type_enum.value}s" / "default.yml"
-    )
+    template_path = get_catalog_templates_dir() / f"{type_enum.value}s" / "default.yml"
     try:
         content = template_path.read_text(encoding="utf-8")
         return content.replace("my-workflow", stem).replace("my-task", stem).replace("my-step", stem)
