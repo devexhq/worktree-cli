@@ -4,29 +4,29 @@ import pytest
 from typer.testing import CliRunner
 
 from getworktree.cli import app
-from getworktree.cli.task.command import task_list_command, task_run_command
+from getworktree.cli.task.command import task_run_command
+from getworktree.core.task import resolve_and_load_task
 from tests.helpers import FileSystem
 
 runner = CliRunner()
 
 
-def test_task_blueprint_use_git_worktree_parsing(fs: FileSystem) -> None:
+def test_task_blueprint_use_sandbox_parsing(fs: FileSystem) -> None:
     fs.write_file(
         ".worktree/catalog/tasks/in-place-task.yml",
         {
             "name": "in-place-task",
             "description": "Run linters in-place",
             "summary": "In-place task",
-            "use_git_worktree": False,
-            "commands": [{"name": "echo-test", "command": "echo test"}],
+            "use_sandbox": False,
+            "steps": [{"id": "echo-test", "run": "echo test"}],
         },
     )
 
-    outcome = task_list_command(cwd=fs.base_path)
-    assert outcome.ok
-    assert len(outcome.items) == 1
-    assert outcome.items[0].name == "in-place-task"
-    assert outcome.items[0].use_git_worktree is False
+    result = resolve_and_load_task("in-place-task", cwd=fs.base_path)
+    assert result.ok
+    assert result.definition is not None
+    assert result.definition.use_sandbox is False
 
 
 def test_task_run_command_no_sandbox_flag(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -37,8 +37,8 @@ def test_task_run_command_no_sandbox_flag(fs: FileSystem, monkeypatch: pytest.Mo
             "name": "sample-task",
             "description": "Sample task",
             "summary": "Sample task",
-            "use_git_worktree": False,
-            "commands": [{"name": "test-step", "command": "echo hello"}],
+            "use_sandbox": False,
+            "steps": [{"id": "test-step", "run": "echo hello"}],
         },
     )
 

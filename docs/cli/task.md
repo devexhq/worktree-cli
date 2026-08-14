@@ -6,7 +6,8 @@ The `wt task` command manages bounded, single-shot execution blueprints such as 
 
 ### `wt task` / `wt task list` (Default)
 
-Lists available task blueprints and recent execution history. Running `wt task` without subcommands defaults to running `wt task list`:
+Lists recorded task run history. Task blueprints themselves are managed via
+`wt catalog`. Running `wt task` without subcommands defaults to `wt task list`:
 
 ```bash
 wt task

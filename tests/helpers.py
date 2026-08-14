@@ -90,15 +90,13 @@ class FileSystem:
         filename: str | None = None,
         **overrides: Any,
     ) -> Path:
-        # No TaskDefinition model exists yet (cli/task/command.py does ad hoc
-        # yaml_data.get(...) parsing) - defaults mirror the loose dict shape it reads today.
+        """Write a task blueprint matching ``TaskDefinition`` shape."""
         defaults = {
-            "id": task_id,
             "name": task_id,
             "description": "Test task",
             "summary": "",
-            "use_git_worktree": True,
-            "steps": ["echo hi"],
+            "use_sandbox": True,
+            "steps": [{"id": "step-1", "run": "echo hi"}],
         }
         body = _deep_merge(defaults, overrides)
         return self.write_file(Path(dir) / (filename or f"{task_id}.yml"), body)

@@ -10,33 +10,7 @@ from rich.table import Table
 from getworktree.common.utils import RichOutput, enum_value
 from getworktree.core.db import CatalogRecord, TaskRunRecord
 
-from .models import TaskBlueprintItem
-
 _DEFAULT_RICH_OUTPUT = RichOutput()
-
-
-def build_task_table(items: list[TaskBlueprintItem]) -> Table:
-    """Build the Rich table displaying available task blueprints.
-
-    Args:
-        items: List of TaskBlueprintItem instances.
-
-    Returns:
-        A Rich Table titled "Available Tasks:" with NAME, DESCRIPTION, SUMMARY columns.
-    """
-    table = Table(title="Available Tasks:", show_header=True)
-    table.add_column("NAME", no_wrap=True)
-    table.add_column("DESCRIPTION")
-    table.add_column("SUMMARY")
-
-    for item in items:
-        table.add_row(
-            item.name,
-            item.description,
-            item.summary,
-        )
-
-    return table
 
 
 def build_task_runs_table(runs: list[TaskRunRecord]) -> Table:
@@ -48,7 +22,7 @@ def build_task_runs_table(runs: list[TaskRunRecord]) -> Table:
     Returns:
         A Rich Table titled "Recorded Task Runs:" with SESSION ID, TASK NAME, STATUS, STARTED AT, COMPLETED AT.
     """
-    table = Table(title="Recorded Task Runs:", show_header=True)
+    table = Table(title="Recorded Task Runs:", title_justify="left", show_header=True)
     table.add_column("SESSION ID", no_wrap=True)
     table.add_column("TASK NAME")
     table.add_column("STATUS")
@@ -69,21 +43,17 @@ def build_task_runs_table(runs: list[TaskRunRecord]) -> Table:
 
 
 def render_task_list(
-    items: list[TaskBlueprintItem],
     runs: list[TaskRunRecord] | None = None,
     *,
     rich_output: RichOutput | None = None,
 ) -> None:
-    """Render empty state, available tasks table, and recorded task run history."""
+    """Render recorded task run history (or an empty-state message)."""
     output = rich_output or _DEFAULT_RICH_OUTPUT
 
-    if not items and not runs:
-        output.info("No task blueprints found.")
+    if not runs:
+        output.info("No recorded task runs found.")
     else:
-        if items:
-            output.info(build_task_table(items))
-        if runs:
-            output.info(build_task_runs_table(runs))
+        output.info(build_task_runs_table(runs))
 
 
 def render_task_show(

@@ -83,7 +83,7 @@ def build_sandbox_table(sandboxes: list[SandboxRecord]) -> Table:
     Returns:
         A Rich table with ID, Name, Branch, Status, Created columns.
     """
-    table = Table(title="Worktree Sandboxes", show_header=True)
+    table = Table(title="Worktree Sandboxes", title_justify="left", show_header=True)
     table.add_column("ID", style="cyan")
     table.add_column("Name")
     table.add_column("Branch")

@@ -22,7 +22,7 @@ def build_catalog_table(items: list[CatalogRecord]) -> Table:
     Returns:
         A Rich Table with SHA, TYPE, NAME / PATH, CHECKSUM columns.
     """
-    table = Table(title="Catalog Blueprints:", show_header=True)
+    table = Table(title="Catalog Blueprints:", title_justify="left", show_header=True)
     table.add_column("SHA", no_wrap=True)
     table.add_column("TYPE", no_wrap=True)
     table.add_column("NAME / PATH")
@@ -107,7 +107,7 @@ def build_catalog_template_table(rows: list[tuple[str, str]]) -> Table:
     Returns:
         A Rich Table with TYPE and PATH columns.
     """
-    table = Table(title="Catalog Templates:", show_header=True)
+    table = Table(title="Catalog Templates:", title_justify="left", show_header=True)
     table.add_column("TYPE", no_wrap=True)
     table.add_column("PATH")
 
