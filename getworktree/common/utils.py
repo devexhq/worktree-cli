@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from rich.console import Console
+from rich.console import Console, RenderableType
 from rich.panel import Panel
 
 
@@ -34,8 +34,8 @@ class RichOutput:
         """Print an error message."""
         self.console.print(message)
 
-    def info(self, message: str) -> None:
-        """Print a plain message."""
+    def info(self, message: str | RenderableType) -> None:
+        """Print a plain message or Rich renderable."""
         self.console.print(message)
 
     def dim_bullet(self, message: str) -> None:
@@ -80,5 +80,6 @@ def resolve_path_from_config(config_file: Path, path_key: str, default: str | Pa
 
 
 def enum_value(value: object) -> str:
-    """Return `value.value` when present (enum-like), ekse `str(value)`."""
-    return value.value if hasattr(value, "value") else str(value)
+    """Return `value.value` when present (enum-like), else `str(value)`."""
+    attr = getattr(value, "value", None)
+    return attr if isinstance(attr, str) else str(value)

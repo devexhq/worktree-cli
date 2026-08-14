@@ -6,12 +6,13 @@ import os
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from pydantic import BaseModel
 
-from getworktree.core.step import FailurePolicy, StepDefinition, StepType
+from getworktree.core.step.models import FailurePolicy, StepDefinition, StepType
 from getworktree.core.step.services.resolver import resolve_step_definition
 from getworktree.core.workflows.agents.factory import get_agent_adapter
 
@@ -176,8 +177,12 @@ def _execute_agent_step(
 ) -> StepDispatchOutcome:
     """Execute an AGENT step inside sandbox_path."""
     if context and "agent_handler" in context and callable(context["agent_handler"]):
+        handler = cast(
+            Callable[[StepDefinition, Path, dict[str, Any] | None], StepDispatchOutcome],
+            context["agent_handler"],
+        )
         try:
-            return context["agent_handler"](step, sandbox_path, context)
+            return handler(step, sandbox_path, context)
         except Exception as exc:
             return _failed_dispatch(f"Agent handler exception: {exc}")
 

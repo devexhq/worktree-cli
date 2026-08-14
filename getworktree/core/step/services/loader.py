@@ -3,7 +3,8 @@ from pathlib import Path
 import yaml
 from pydantic import ValidationError
 
-from getworktree.core.step import StepDefinition, StepNotFoundError, StepValidationError
+from getworktree.core.step.exceptions import StepNotFoundError, StepValidationError
+from getworktree.core.step.models import StepDefinition
 
 
 def load_step_definition(path: Path) -> StepDefinition:
@@ -38,6 +39,34 @@ def load_step_definition(path: Path) -> StepDefinition:
         raise StepValidationError(f"Step definition validation failed for '{path}': {exc}") from exc
 
 
+def _direct_step_path(steps_dir: Path, step_id_or_name: str) -> Path | None:
+    """Return a direct filename match under ``steps_dir``, if present."""
+    for ext in (".yaml", ".yml"):
+        direct_path = steps_dir / f"{step_id_or_name}{ext}"
+        if direct_path.exists() and direct_path.is_file():
+            return direct_path
+    return None
+
+
+def _step_matches(step: StepDefinition, step_id_or_name: str) -> bool:
+    return step.id == step_id_or_name or step.name == step_id_or_name
+
+
+def _find_step_by_scan(steps_dir: Path, step_id_or_name: str) -> StepDefinition | None:
+    """Scan YAML step files for an id/name match, skipping unrelated invalid files."""
+    for path in sorted(steps_dir.iterdir()):
+        if not (path.is_file() and path.suffix in (".yaml", ".yml")):
+            continue
+        try:
+            step = load_step_definition(path)
+        except StepValidationError:
+            # Invalid siblings are ignored during scan; direct path load still raises.
+            continue
+        if _step_matches(step, step_id_or_name):
+            return step
+    return None
+
+
 def load_step_by_id(step_id_or_name: str, cwd: Path | None = None) -> StepDefinition:
     """Resolve a StepDefinition from .worktree/templates/steps/ by ID or name.
 
@@ -58,22 +87,12 @@ def load_step_by_id(step_id_or_name: str, cwd: Path | None = None) -> StepDefini
     if not steps_dir.exists() or not steps_dir.is_dir():
         raise StepNotFoundError(f"Step '{step_id_or_name}' not found. Directory '{steps_dir}' does not exist.")
 
-    # Check direct filename match first (<step_id_or_name>.yaml / .yml)
-    for ext in (".yaml", ".yml"):
-        direct_path = steps_dir / f"{step_id_or_name}{ext}"
-        if direct_path.exists() and direct_path.is_file():
-            return load_step_definition(direct_path)
+    direct_path = _direct_step_path(steps_dir, step_id_or_name)
+    if direct_path is not None:
+        return load_step_definition(direct_path)
 
-    # Scan step files in steps_dir for matching id or name
-    for path in sorted(steps_dir.iterdir()):
-        if path.is_file() and path.suffix in (".yaml", ".yml"):
-            try:
-                step = load_step_definition(path)
-                if step.id == step_id_or_name or step.name == step_id_or_name:
-                    return step
-            except StepValidationError:
-                # If searching by ID, invalid files will raise when directly selected,
-                # but during directory scan we log/ignore unrelated broken files.
-                continue
+    matched = _find_step_by_scan(steps_dir, step_id_or_name)
+    if matched is not None:
+        return matched
 
     raise StepNotFoundError(f"Step '{step_id_or_name}' not found in '{steps_dir}'.")

@@ -12,6 +12,23 @@ ruff check .
 ruff format --check .   # use `ruff format .` to apply
 ```
 
+
+## Type checking
+
+Config lives in [pyproject.toml](../../pyproject.toml) under `[tool.basedpyright]`
+(`typeCheckingMode = "recommended"`, package `getworktree/` only). `basedpyright`
+is a dev dependency. Run:
+
+```bash
+basedpyright getworktree
+basedpyright getworktree --level error   # errors only
+```
+
+First-pass noise from Typer defaults, unused callback params, Pydantic
+`model_config`, and intentional discarded call results is silenced in config.
+Warnings (especially `reportAny` / unknown types) remain visible; the current
+gate target is **zero errors**.
+
 ## Complexity
 
 `complexipy` is a dev dependency (`[project.optional-dependencies].dev` in

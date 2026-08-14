@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol, cast
 
 from getworktree.common.exceptions import DefinitionLoadError, DefinitionValidationError
 from getworktree.common.fs import (
@@ -30,6 +30,13 @@ from getworktree.core.db import (
     CatalogItemType,
     CatalogRecord,
 )
+
+
+class _PydanticModel(Protocol):
+    """Minimal protocol for catalog definition classes validated via Pydantic."""
+
+    @classmethod
+    def model_validate(cls, obj: Any) -> Any: ...
 
 
 def get_catalog_dir(cwd: Path | None = None) -> Path:
@@ -80,26 +87,48 @@ def _index_catalog_entry(
         return None, f"Failed to index catalog record for '{rel_path}': {exc}"
 
 
+def _index_scanned_entry(
+    cwd: Path | None,
+    item_type: CatalogItemType,
+    catalog_dir: Path,
+    file_entry: YamlFile,
+) -> tuple[CatalogRecord | None, str | None]:
+    """Index one catalog YAML entry and normalize the optional error payload."""
+    record, error = _index_catalog_entry(cwd, item_type, catalog_dir, file_entry)
+    if error is not None:
+        return None, error
+    return record, None
+
+
+def _append_scan_result(
+    result: CatalogSubdirectoryScanResult,
+    *,
+    record: CatalogRecord | None,
+    error: str | None,
+) -> None:
+    """Accumulate one indexed catalog entry into the scan result."""
+    if error is not None:
+        result.errors.append(error)
+        return
+    if record is None:
+        return
+    result.scanned_records.append(record)
+    result.scanned_shas.add(record.sha)
+
+
 def _scan_catalog_subdirectories(
     *, cwd: Path | None = None, catalog_dir: Path, subdirs: list[tuple[CatalogItemType, Path]]
 ) -> CatalogSubdirectoryScanResult:
-    scanned_records: list[CatalogRecord] = []
-    errors: list[str] = []
-    scanned_shas: set[str] = set()
+    result = CatalogSubdirectoryScanResult(scanned_records=[], errors=[], scanned_shas=set())
 
     for item_type, sub_dir in subdirs:
         if not sub_dir.exists():
             continue
-
         for file_entry in scan_yaml_directory(sub_dir):
-            record, error = _index_catalog_entry(cwd, item_type, catalog_dir, file_entry)
-            if error:
-                errors.append(error)
-                continue
-            scanned_records.append(record)
-            scanned_shas.add(record.sha)
+            record, error = _index_scanned_entry(cwd, item_type, catalog_dir, file_entry)
+            _append_scan_result(result, record=record, error=error)
 
-    return CatalogSubdirectoryScanResult(scanned_records=scanned_records, errors=errors, scanned_shas=scanned_shas)
+    return result
 
 
 def scan_and_index_catalog(cwd: Path | None = None) -> CatalogScanResult:
@@ -236,10 +265,8 @@ def _validate_definition[T](
             )
 
     try:
-        if hasattr(definition_cls, "model_validate"):
-            definition = definition_cls.model_validate(parsed_data)
-        else:
-            definition = definition_cls(**parsed_data)  # type: ignore[call-arg]
+        model_cls = cast(type[_PydanticModel], definition_cls)
+        definition = model_cls.model_validate(parsed_data)
         return DefinitionValidationOutcome(
             definition=definition,
             status=DefinitionResolutionStatus.OK,

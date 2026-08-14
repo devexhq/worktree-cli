@@ -2,11 +2,8 @@
 
 from pathlib import Path
 
-from getworktree.core.step import (
-    StepDefinition,
-    StepType,
-    StepValidationError,
-)
+from getworktree.core.step.exceptions import StepValidationError
+from getworktree.core.step.models import StepDefinition, StepType
 
 from .loader import load_step_by_id
 
@@ -26,16 +23,18 @@ def resolve_step_definition(step: StepDefinition, *, cwd: Path | None = None) ->
 
 
 def _resolve_run(step: StepDefinition) -> StepDefinition:
-    return StepDefinition(
-        id=step.id,
-        name=step.name,
-        description=step.description,
-        type=StepType.COMMAND,
-        command=step.run,
-        env=step.env,
-        timeout_seconds=step.timeout_seconds,
-        assert_=step.assert_,
-        on_failure=step.on_failure,
+    return StepDefinition.model_validate(
+        {
+            "id": step.id,
+            "name": step.name,
+            "description": step.description,
+            "type": StepType.COMMAND,
+            "command": step.run,
+            "env": step.env,
+            "timeout_seconds": step.timeout_seconds,
+            "assert": step.assert_,
+            "on_failure": step.on_failure,
+        }
     )
 
 
@@ -47,17 +46,19 @@ def _resolve_from_uses(step: StepDefinition, cwd: Path | None = None) -> StepDef
     def _pick(field_name: str):
         return getattr(step, field_name) if field_name in fields_set else getattr(base_step, field_name)
 
-    return StepDefinition(
-        id=step.id,
-        name=_pick("name"),
-        type=base_step.type,
-        description=_pick("description"),
-        command=base_step.command,
-        prompt=_pick("prompt"),
-        script_path=_pick("script_path"),
-        tools=_pick("tools"),
-        env={**base_step.env, **step.env},
-        timeout_seconds=_pick("timeout_seconds"),
-        assert_=_pick("assert_"),
-        on_failure=_pick("on_failure"),
+    return StepDefinition.model_validate(
+        {
+            "id": step.id,
+            "name": _pick("name"),
+            "type": base_step.type,
+            "description": _pick("description"),
+            "command": base_step.command,
+            "prompt": _pick("prompt"),
+            "script_path": _pick("script_path"),
+            "tools": _pick("tools"),
+            "env": {**base_step.env, **step.env},
+            "timeout_seconds": _pick("timeout_seconds"),
+            "assert": _pick("assert_"),
+            "on_failure": _pick("on_failure"),
+        }
     )

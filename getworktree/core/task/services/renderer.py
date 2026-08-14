@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from getworktree.common.models import DefinitionResolutionResult
+from getworktree.core.db.models import CatalogRecord
 from getworktree.core.runtime import RunOutcome
 
 
-def format_task_resolve_failure(result: DefinitionResolutionResult) -> str:
+def format_task_resolve_failure(result: DefinitionResolutionResult[CatalogRecord]) -> str:
     """Return plain failure body text for a task resolution failure."""
     if result.errors:
         return "\n\n".join(result.errors)

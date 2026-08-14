@@ -2,7 +2,7 @@
 
 import sqlite3
 from datetime import UTC, datetime
-from typing import ClassVar
+from typing import ClassVar, cast
 
 from pydantic import BaseModel
 
@@ -29,7 +29,7 @@ class RunTrackingDb[T: BaseModel](DbBase):
         }
         for col in self.extra_columns:
             kwargs[col] = row[col]
-        return self.record_cls(**kwargs)  # type: ignore[return-value]
+        return cast(T, self.record_cls.model_validate(kwargs))
 
     def insert(
         self,

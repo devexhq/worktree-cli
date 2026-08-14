@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from importlib import resources
+from importlib.resources.abc import Traversable
 from typing import Any
 
 from jsonschema import Draft202012Validator
@@ -25,7 +26,7 @@ class ValidationResult(BaseModel):
 class SchemaValidator:
     """Validate a document against a packaged JSON schema path."""
 
-    def __init__(self, schema_path: resources.Traversable) -> None:
+    def __init__(self, schema_path: Traversable) -> None:
         self.schema_path = schema_path
 
     def validate(self, document: dict[str, Any]) -> ValidationResult:
@@ -41,7 +42,7 @@ class SchemaValidator:
         return ValidationResult(ok=not messages, errors=messages)
 
 
-def _config_schema_path() -> resources.Traversable:
+def _config_schema_path() -> Traversable:
     return resources.files("getworktree.schemas.v1") / "config.json"
 
 
