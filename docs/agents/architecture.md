@@ -16,27 +16,33 @@ getworktree/core/                  Business logic, no Typer/CLI concerns
   git_sandbox.py                   Isolated `git worktree` sandbox lifecycle
   step/                            Step primitive definitions, resolve, and single-step execute
   runtime/                         Shared multi-step engine + sandbox lifecycle (`run_steps`)
+  task/                            Task domain (models, loader, runner adapter, plain-text renderers)
   catalog/                         Blueprint scanning, indexing, and packaged template seeds
   catalog/services/seeder.py       Seeds curated `wt/` templates into `.worktree/catalog/`
-  catalog/templates/               Packaged default.yml scaffolds + curated workflow seeds
-  workflows/                           Workflow domain (iteration, payloads, patches, safety, agents)
-  workflows/agents/                    Agent adapter protocol + providers (owned by workflows)
-  workflows/patch.py                   Unified-diff validate/apply in sandbox
-  workflows/runner/                    Iteration controller (package: models/helpers/steps/orchestrator)
-  workflows/safety.py                  Repeat-failure / no-op / session-timeout policy
+  catalog/templates/               Packaged default.yml scaffolds + curated workflow/task/step seeds
+  workflows/                       Workflow domain (models, payloads, patches, agents)
+  workflows/agents/                Agent adapter protocol + providers (owned by workflows)
+  workflows/services/              patch.py, payload.py, renderer.py
 getworktree/common/                Shared, dependency-light helpers
-  constants.py, fs.py, utils.py, schema_validation.py
+  constants.py, fs.py, utils.py, schema_validation.py, models.py, exceptions.py
 getworktree/schemas/                Versioned JSON Schemas (config_v1.json, workflow_v1.json)
 ```
 
 ### Domain ownership
 
-- **Workflow domain** (`core/workflows/`) owns iteration, triggers, payloads, patches,
-  safety, and agent adapters (`core/workflows/agents/`).
-- **Catalog domain** (`core/catalog/`) owns blueprint scanning/indexing and packaged
-  template resources (`core/catalog/templates/`).
+- **Task domain** (`core/task/`) owns task models, resolution loader, runner
+  adapter, and plain-text renderers
+  (`models.py`, `exceptions.py`, `services/loader.py`, `services/runner.py`,
+  `services/renderer.py`).
+- **Runtime domain** (`core/runtime/`) owns the shared multi-step execution
+  engine (`run_steps`), `RunContext`, `RunObserver`, and `RunOutcome`.
+- **Workflow domain** (`core/workflows/`) owns workflow models, payloads, patch
+  validation helpers, and agent adapters (`core/workflows/agents/`).
+- **Catalog domain** (`core/catalog/`) owns blueprint scanning/indexing, database
+  synchronization (`CatalogDb`), and packaged template resources
+  (`core/catalog/templates/`).
 - **Shared core infra** stays at `core/` top level: `config/`, `git_sandbox.py`,
-  `db/`, `bootstrap.py`, `step/`, `runtime/`.
+  `db/`, `bootstrap.py`, `step/`.
 
 Not every command has all three files (e.g. `status` has only `command.py`) — add
 `models.py`/`renderers.py` when a command's output/result grows non-trivial.
@@ -46,17 +52,21 @@ Not every command has all three files (e.g. `status` has only `command.py`) — 
 Dependencies flow one way; do not import "up" the stack:
 
 ```
-common/  ->  core/step/  ->  core/runtime/  ->  core/workflows/  ->  cli/
+common/  ->  core/{db,catalog}/  ->  core/step/  ->  core/runtime/  ->  {core/task/, core/workflows/}  ->  cli/
 ```
 
 - `common/` has no dependency on anything under `core/`.
+- `core/catalog/` sits alongside `db/` as shared core infra (blueprint scan,
+  index, and packaged templates).
 - `core/step/` (step primitive definitions and execution) must not import
-  from `core/runtime/` or `core/workflows/` — shared vocabulary that both need
-  (e.g. failure policies) belongs in `common/`, not in whichever package happens
-  to define it first.
+  from `core/runtime/`, `core/task/`, or `core/workflows/` — shared vocabulary
+  that both need (e.g. failure policies) belongs in `common/` or `core/step/`,
+  not in whichever package happens to define it first.
 - `core/runtime/` may depend on `core/step/`, `core/db/`, and `git_sandbox.py`,
   but must not import from `core/task/`, `core/workflows/`, or `cli/`.
-- `core/workflows/` may depend on `core/step/` and `core/runtime/`, not the reverse.
+- `core/task/` and `core/workflows/` are sibling domain packages depending on
+  `core/runtime/`, `core/step/`, and `core/catalog/`; neither domain imports the
+  other.
 - `cli/<name>/` packages may depend on any `core/`/`common/` module, but
   `core/`/`common/` must never import from `cli/`.
 
@@ -73,6 +83,28 @@ If you find yourself importing a name from a "higher" package to reuse it in a
 3. Register it in [getworktree/cli.py](../../getworktree/cli.py) with `@app.command(name="...")`.
 4. Add tests under `tests/cli/<name>/` mirroring [tests/cli/init](../../tests/cli/init).
 
+## Adding a new catalog-backed domain
+
+When creating or refactoring a blueprint domain (e.g. `task`, `workflow`, `step`):
+
+1. **Define typed definition model**: Create `<X>Definition` in `core/<x>/models.py`
+   (mirrors `TaskDefinition` / `WorkflowDefinition`).
+2. **Subclass common exceptions**: In `core/<x>/exceptions.py`, define
+   `<X>LoadError(DefinitionLoadError)` and
+   `<X>ValidationError(DefinitionValidationError)`.
+   Do not create a new base exception hierarchy.
+3. **Resolve via catalog**: In `core/<x>/services/loader.py`, implement
+   `resolve_and_load_<x>(name, cwd)` as a thin call to
+   `get_catalog_item(name, CatalogItemType.<X>, definition_cls=<X>Definition, cwd=cwd)`.
+4. **Delegate step execution**: If the domain runs steps, build a `RunContext`
+   and delegate to `run_steps(context)` in `core.runtime.engine`. Do not write
+   duplicate step loops or sandbox lifecycle logic.
+5. **Keep CLI thin**: `cli/<x>/command.py` orchestrates
+   (`resolve` → `act` → `persist` → `render`). Put Rich formatting in
+   `cli/<x>/renderers.py` and plain text failure formatters in
+   `core/<x>/services/renderer.py`. Never add production test seam parameters
+   (such as `execute_fn=...`); use real step fixtures in tests.
+
 ## The `.worktree/` directory
 
 `bootstrap_worktree` ([getworktree/core/bootstrap.py](../../getworktree/core/bootstrap.py))
@@ -82,14 +114,17 @@ creates this layout inside a Git repo, analogous to `.git/`:
 .worktree/
   .meta/bootstrap.json   status, tool_version, initialized_at
   config.json            V1 config, validated against schemas/v1/config.json
-  workflows/                 seeded + user workflow definitions (validated against schemas/v1/workflow.json)
+  catalog/               blueprint inventory (workflows/, tasks/, steps/) + seeded wt/ templates
+  workflows/             legacy bootstrap dir (workflow blueprints live under catalog/workflows/)
   sessions/              workflow session artifacts: <session_id>/diff.patch
   artifacts/, tmp/, logs/
-  data.db                 SQLite token/cost + sandbox metadata (getworktree/core/db/)
+  data.db                 SQLite token/cost + sandbox + catalog + run metadata (getworktree/core/db/)
 ```
 
 Bootstrap is idempotent and never deletes user data; it only creates missing
-subdirectories and repairs metadata.
+subdirectories and repairs metadata. Catalog blueprints are ensured/scanned via
+`core/catalog` (`ensure_catalog_dirs`, `scan_and_index_catalog`); curated seeds
+land under `.worktree/catalog/<type>s/wt/` from `seed_all_catalog_templates`.
 
 ### Local SQLite (`data.db`)
 
