@@ -12,7 +12,7 @@ import typer
 from getworktree.cli.init.command import init_command
 from getworktree.common.schema_validation import SchemaValidator
 from getworktree.core.bootstrap import BootstrapResult
-from getworktree.core.catalog.services.seeder import SeedResult
+from getworktree.core.catalog.models import SeedResult
 from getworktree.core.config.generator import ConfigGenerationResult
 from getworktree.core.config.models import PathsConfig
 from tests.helpers import FileSystem, GitFileSystem

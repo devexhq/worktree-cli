@@ -6,7 +6,7 @@ from pathlib import Path
 
 from getworktree.common.utils import RichOutput, display_path
 from getworktree.core.bootstrap import BootstrapResult
-from getworktree.core.catalog.services.seeder import SeedResult
+from getworktree.core.catalog.models import SeedResult
 from getworktree.core.config.generator import ConfigGenerationResult
 
 from .models import InitCommandOutcome

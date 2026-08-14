@@ -5,31 +5,10 @@ from __future__ import annotations
 import importlib.resources
 from pathlib import Path
 
-from pydantic import BaseModel, Field
-
 from getworktree.common.fs import atomic_write_text
 from getworktree.common.utils import display_path
+from getworktree.core.catalog.models import SeedResult
 from getworktree.core.db import CatalogItemType
-
-
-class SeedResult(BaseModel):
-    """Outcome of seeding packaged catalog blueprint templates."""
-
-    model_config = {
-        "extra": "forbid",
-        "strict": True,
-    }
-
-    created_files: list[Path] = Field(default_factory=list)
-    skipped_existing_files: list[Path] = Field(default_factory=list)
-    overwritten_files: list[Path] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
-    errors: list[str] = Field(default_factory=list)
-
-    @property
-    def ok(self) -> bool:
-        """True when seeding completed without blocking errors."""
-        return not self.errors
 
 
 def _iter_source_files(source_dir: Path) -> list[Path]:
