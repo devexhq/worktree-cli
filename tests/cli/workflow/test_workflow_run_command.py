@@ -26,7 +26,6 @@ def _init_with_workflows(git_fs: GitFileSystem) -> Path:
     workflows_dir = git_fs.base_path / ".worktree" / "catalog" / "workflows"
     git_fs.create_workflow_file(
         "fix-tests",
-        dir=workflows_dir,
         id="fix-tests",
         steps=[{"id": "step-1", "run": "echo hi"}],
     )
