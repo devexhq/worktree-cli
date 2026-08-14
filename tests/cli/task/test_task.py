@@ -18,59 +18,18 @@ runner = CliRunner()
 
 def test_task_list_command_empty(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(fs.base_path)
-    outcome = task_list_command(cwd=fs.base_path)
-    assert outcome.ok
-    assert len(outcome.items) == 0
-
-
-def test_task_list_command_with_items(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.chdir(fs.base_path)
-
-    fs.create_task_file(
-        "run-lints",
-        description="Execute Ruff linter and formatter checks",
-        summary="Runs ruff check and format",
-        use_sandbox=False,
-    )
-    fs.create_task_file(
-        "run-tests",
-        description="Execute pytest test suite",
-        summary="Runs pytest with coverage",
-        use_sandbox=False,
-    )
+    # Blueprints alone must not appear in task list output.
+    fs.create_task_file("run-lints", use_sandbox=False)
 
     outcome = task_list_command(cwd=fs.base_path)
     assert outcome.ok
-    assert len(outcome.items) == 2
+    assert outcome.runs == []
 
-    item_map = {i.name: i for i in outcome.items}
-    assert "run-lints" in item_map
-    assert item_map["run-lints"].description == "Execute Ruff linter and formatter checks"
-    assert item_map["run-lints"].summary == "Runs ruff check and format"
-    assert item_map["run-lints"].use_sandbox is False
-
-    assert "run-tests" in item_map
-    assert item_map["run-tests"].description == "Execute pytest test suite"
-    assert item_map["run-tests"].summary == "Runs pytest with coverage"
-
-
-def test_task_list_command_surfaces_malformed_blueprint_warning(
-    fs: FileSystem, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Malformed per-blueprint YAML is still listed, with a warning instead of a silent skip."""
-    monkeypatch.chdir(fs.base_path)
-
-    # Catalog indexing falls back to file stem on parse failure and still indexes the path.
-    # task_list_command re-reads/parses and must surface the failure as a warning.
-    fs.write_file(".worktree/catalog/tasks/broken-task.yml", "name: [unterminated\n")
-
-    outcome = task_list_command(cwd=fs.base_path)
-
-    assert any("Failed to parse task blueprint" in w and "broken-task.yml" in w for w in outcome.warnings)
-    item = next(i for i in outcome.items if i.name == "broken-task")
-    assert item.description == ""
-    assert item.summary == ""
-    assert item.use_sandbox is True
+    res_cli = runner.invoke(app, ["task", "list"])
+    assert res_cli.exit_code == 0
+    assert "No recorded task runs found." in res_cli.output
+    assert "Available Tasks:" not in res_cli.output
+    assert "run-lints" not in res_cli.output
 
 
 def test_task_show_and_run_commands(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -116,17 +75,15 @@ def test_cli_wt_task_default_and_subcommands(fs: FileSystem, monkeypatch: pytest
         use_sandbox=False,
     )
 
-    # wt task (default invocation should match wt task list)
+    # wt task (default invocation should match wt task list) — runs only
     res_default = runner.invoke(app, ["task"])
     assert res_default.exit_code == 0
-    assert "Available Tasks:" in res_default.output
-    assert "run-lints" in res_default.output
+    assert "No recorded task runs found." in res_default.output
+    assert "Available Tasks:" not in res_default.output
 
     # wt task list
     res_list = runner.invoke(app, ["task", "list"])
     assert res_list.exit_code == 0
-    assert "Available Tasks:" in res_list.output
-    assert "run-lints" in res_list.output
     assert res_default.output == res_list.output
 
     # wt task show run-lints
@@ -138,6 +95,13 @@ def test_cli_wt_task_default_and_subcommands(fs: FileSystem, monkeypatch: pytest
     res_run = runner.invoke(app, ["task", "run", "run-lints"])
     assert res_run.exit_code == 0
     assert "Task Run Completed:" in res_run.output
+
+    # After a run, list shows the recorded session (not blueprints)
+    res_list_after = runner.invoke(app, ["task", "list"])
+    assert res_list_after.exit_code == 0
+    assert "Recorded Task Runs:" in res_list_after.output
+    assert "run-lints" in res_list_after.output
+    assert "Available Tasks:" not in res_list_after.output
 
     # wt task non-existent -> invalid subcommand error code 2
     res_invalid = runner.invoke(app, ["task", "non-existent"])

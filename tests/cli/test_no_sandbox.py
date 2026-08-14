@@ -4,7 +4,8 @@ import pytest
 from typer.testing import CliRunner
 
 from getworktree.cli import app
-from getworktree.cli.task.command import task_list_command, task_run_command
+from getworktree.cli.task.command import task_run_command
+from getworktree.core.task import resolve_and_load_task
 from tests.helpers import FileSystem
 
 runner = CliRunner()
@@ -22,11 +23,10 @@ def test_task_blueprint_use_sandbox_parsing(fs: FileSystem) -> None:
         },
     )
 
-    outcome = task_list_command(cwd=fs.base_path)
-    assert outcome.ok
-    assert len(outcome.items) == 1
-    assert outcome.items[0].name == "in-place-task"
-    assert outcome.items[0].use_sandbox is False
+    result = resolve_and_load_task("in-place-task", cwd=fs.base_path)
+    assert result.ok
+    assert result.definition is not None
+    assert result.definition.use_sandbox is False
 
 
 def test_task_run_command_no_sandbox_flag(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:

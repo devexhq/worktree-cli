@@ -8,17 +8,8 @@ from pathlib import Path
 
 from getworktree.common.fs import read_yaml_file
 from getworktree.common.utils import RichOutput
-from getworktree.core.catalog.services.inventory import (
-    get_catalog_dir,
-    scan_and_index_catalog,
-)
-from getworktree.core.db import (
-    CatalogItemType,
-    CatalogRecord,
-    RunStatus,
-    TaskRunRecord,
-    TasksDb,
-)
+from getworktree.core.catalog.services.inventory import get_catalog_dir
+from getworktree.core.db import RunStatus, TaskRunRecord, TasksDb
 from getworktree.core.runtime import RunOutcome
 from getworktree.core.step import StepDefinition, StepResult
 from getworktree.core.task import (
@@ -30,7 +21,6 @@ from getworktree.core.task import (
 )
 
 from .models import (
-    TaskBlueprintItem,
     TaskListCommandOutcome,
     TaskRunCommandOutcome,
     TaskShowCommandOutcome,
@@ -79,38 +69,6 @@ class CliRunObserver:
             self.output.info(f"Sandbox: Retained ({path})")
         else:
             self.output.info("Sandbox: Cleaned")
-
-
-def _blueprint_from_record(
-    record: CatalogRecord,
-    cwd: Path | None,
-) -> tuple[TaskBlueprintItem, str | None]:
-    """Build a list item from a catalog record, loading TaskDefinition when possible."""
-    load_result = resolve_and_load_task(record.name, cwd=cwd)
-    if load_result.ok and isinstance(load_result.definition, TaskDefinition):
-        definition = load_result.definition
-        item = TaskBlueprintItem(
-            name=record.name,
-            description=definition.description,
-            summary=definition.summary,
-            sha=record.sha,
-            path=str(record.path),
-            use_sandbox=definition.use_sandbox,
-        )
-        return item, None
-
-    warning: str | None = None
-    if load_result.errors:
-        warning = f"Failed to parse task blueprint '{record.path}': {load_result.errors[0]}"
-    item = TaskBlueprintItem(
-        name=record.name,
-        description="",
-        summary="",
-        sha=record.sha,
-        path=str(record.path),
-        use_sandbox=True,
-    )
-    return item, warning
 
 
 def _insert_running_record(
@@ -214,22 +172,10 @@ def task_list_command(
     *,
     rich_output: RichOutput | None = None,
 ) -> TaskListCommandOutcome:
-    """List task blueprints under ``.worktree/catalog/tasks/`` and recorded runs."""
+    """List recorded task runs. Blueprint inventory lives under ``wt catalog``."""
     output = rich_output or _DEFAULT_RICH_OUTPUT
     warnings: list[str] = []
-
-    scan_result = scan_and_index_catalog(cwd=cwd)
-    if not scan_result.ok:
-        for err in scan_result.errors:
-            output.error_panel("Task Catalog Scan Warning", err)
-
-    task_records = [record for record in scan_result.items if record.item_type == CatalogItemType.TASK]
-    items: list[TaskBlueprintItem] = []
-    for record in task_records:
-        item, warning = _blueprint_from_record(record, cwd)
-        items.append(item)
-        if warning:
-            warnings.append(warning)
+    errors: list[str] = []
 
     runs: list[TaskRunRecord] = []
     try:
@@ -238,11 +184,10 @@ def task_list_command(
         warnings.append(f"Failed to query task run history from database: {exc}")
         logger.warning("Failed to query task run history from database: %s", exc)
 
-    render_task_list(items, runs=runs, rich_output=output)
+    render_task_list(runs=runs, rich_output=output)
     return TaskListCommandOutcome(
-        items=items,
         runs=runs,
-        errors=list(scan_result.errors),
+        errors=errors,
         warnings=warnings,
     )
 

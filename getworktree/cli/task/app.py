@@ -4,14 +4,14 @@ from .command import task_list_command, task_run_command, task_show_command
 
 task_app = typer.Typer(
     name="task",
-    help="Inspect and execute task blueprints.",
+    help="Inspect task runs and execute task blueprints.",
     invoke_without_command=True,
 )
 
 
 @task_app.callback(invoke_without_command=True)
 def task_callback(ctx: typer.Context):
-    """Inspect and execute task blueprints."""
+    """Inspect task runs and execute task blueprints."""
     if ctx.invoked_subcommand is None:
         outcome = task_list_command()
         if not outcome.ok:
@@ -20,7 +20,7 @@ def task_callback(ctx: typer.Context):
 
 @task_app.command("list")
 def task_list(ctx: typer.Context):
-    """List available task blueprints."""
+    """List recorded task runs."""
     outcome = task_list_command()
     if not outcome.ok:
         raise typer.Exit(code=1)

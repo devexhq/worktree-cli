@@ -26,7 +26,7 @@ def build_recorded_workflows_table(
     Returns:
         A Rich table with SESSION ID, WORKFLOW NAME, BRANCH, STATUS, STARTED AT columns.
     """
-    table = Table(title="Recorded Workflows", show_header=True)
+    table = Table(title="Recorded Workflows", title_justify="left", show_header=True)
     table.add_column("SESSION ID", style="cyan", no_wrap=True)
     table.add_column("WORKFLOW NAME", no_wrap=True)
     table.add_column("BRANCH", no_wrap=True)

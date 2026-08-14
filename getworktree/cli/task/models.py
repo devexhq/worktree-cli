@@ -7,25 +7,11 @@ from pydantic import BaseModel, Field
 from getworktree.core.db import CatalogRecord, TaskRunRecord
 
 
-class TaskBlueprintItem(BaseModel):
-    """View model for a task catalog blueprint."""
-
-    model_config = {"extra": "forbid", "strict": True}
-
-    name: str
-    description: str
-    summary: str
-    sha: str
-    path: str
-    use_sandbox: bool = True
-
-
 class TaskListCommandOutcome(BaseModel):
     """Outcome for ``wt task list`` (or default ``wt task``)."""
 
     model_config = {"extra": "forbid", "strict": True}
 
-    items: list[TaskBlueprintItem] = Field(default_factory=list)
     runs: list[TaskRunRecord] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
