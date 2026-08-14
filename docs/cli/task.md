@@ -63,6 +63,7 @@ environment:
 | --- | --- | --- |
 | `name` | string | Unique task blueprint name (required). |
 | `description` | string | Human-readable explanation of what the task performs. |
+| `use_sandbox` | boolean | When `true` (default if omitted), run steps in a Git sandbox worktree. When `false`, run in-place in the workspace. CLI `--no-sandbox` forces in-place regardless. |
 | `command` | string | Primary shell command to execute. |
 | `args` | list[string] | Arguments passed to the command. |
 | `prompt` | string | LLM prompt instruction for agent-driven tasks. |

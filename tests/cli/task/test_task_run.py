@@ -19,7 +19,7 @@ def test_task_run_command_steps_execution(fs: FileSystem, monkeypatch: pytest.Mo
             "name": "build-task",
             "description": "Build and test task",
             "summary": "Build and test",
-            "use_git_worktree": False,
+            "use_sandbox": False,
             "commands": [
                 {"name": "step-1", "command": "echo step1"},
                 {"name": "step-2", "command": "echo step2"},
@@ -45,7 +45,7 @@ def test_task_run_cli_options(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -
             "name": "lint-task",
             "description": "Lint task",
             "summary": "Lint task",
-            "use_git_worktree": False,
+            "use_sandbox": False,
             "commands": [{"name": "check-lints", "command": "echo lint ok"}],
         },
     )
@@ -67,7 +67,7 @@ def test_task_run_step_failure_aborts(fs: FileSystem, monkeypatch: pytest.Monkey
             "name": "failing-task",
             "description": "Failing task",
             "summary": "Failing task",
-            "use_git_worktree": False,
+            "use_sandbox": False,
             "commands": [
                 {"name": "pass-step", "command": "echo ok"},
                 {"name": "fail-step", "command": "exit 1", "on_failure": "abort"},

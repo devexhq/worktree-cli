@@ -83,7 +83,7 @@ def task_list_command(
     items: list[TaskBlueprintItem] = []
     for record in task_records:
         file_path = catalog_dir / record.path
-        use_git_worktree = True
+        use_sandbox = True
         description = ""
         summary = ""
         if file_path.exists():
@@ -93,8 +93,8 @@ def task_list_command(
                 if isinstance(yaml_data, dict):
                     description = str(yaml_data.get("description", ""))
                     summary = str(yaml_data.get("summary", ""))
-                    if "use_git_worktree" in yaml_data:
-                        use_git_worktree = bool(yaml_data.get("use_git_worktree", True))
+                    if "use_sandbox" in yaml_data:
+                        use_sandbox = bool(yaml_data.get("use_sandbox", True))
             except Exception as exc:
                 warnings.append(f"Failed to parse task blueprint '{record.path}': {exc}")
 
@@ -105,7 +105,7 @@ def task_list_command(
                 summary=summary,
                 sha=record.sha,
                 path=str(record.path),
-                use_git_worktree=use_git_worktree,
+                use_sandbox=use_sandbox,
             )
         )
 
@@ -203,7 +203,7 @@ def task_run_command(
     catalog_dir = get_catalog_dir(cwd)
     file_path = catalog_dir / item.path
 
-    task_use_git_wt = True
+    task_use_sandbox = True
     yaml_data: dict = {}
     if file_path.exists():
         try:
@@ -211,12 +211,12 @@ def task_run_command(
             parsed = yaml.safe_load(content)
             if isinstance(parsed, dict):
                 yaml_data = parsed
-                if "use_git_worktree" in yaml_data:
-                    task_use_git_wt = bool(yaml_data.get("use_git_worktree", True))
+                if "use_sandbox" in yaml_data:
+                    task_use_sandbox = bool(yaml_data.get("use_sandbox", True))
         except Exception as exc:
             logger.warning("Failed to parse task blueprint YAML: %s", exc)
 
-    effective_use_git_worktree = False if no_sandbox else task_use_git_wt
+    effective_use_sandbox = False if no_sandbox else task_use_sandbox
     root = (cwd or Path.cwd()).resolve()
 
     sid = session_id or f"task_{uuid.uuid4().hex[:8]}"
@@ -245,7 +245,7 @@ def task_run_command(
             run_status = RunStatus.COMPLETED
         else:
             # 1. Setup Sandbox or workspace root
-            if effective_use_git_worktree:
+            if effective_use_sandbox:
                 manager = GitSandboxManager(cwd=root)
                 create_res = manager.create_sandbox_result(session_id=sid)
                 if not create_res.ok or create_res.session is None:

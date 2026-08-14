@@ -132,7 +132,7 @@ class FileSystem:
             "name": task_id,
             "description": "Test task",
             "summary": "",
-            "use_git_worktree": True,
+            "use_sandbox": True,
             "steps": ["echo hi"],
         }
         body = _deep_merge(defaults, overrides)
@@ -166,7 +166,7 @@ git_fs.create_config_file(project={"name": "demo"}, sandbox={"max_active_sandbox
 fs.create_workflow_file(name="fix-tests", description="Run and fix failing tests", dir="workflows")
 
 # Task file
-git_fs.create_task_file(task_id="run-lint", steps=["ruff check ."], use_git_worktree=False)
+git_fs.create_task_file(task_id="run-lint", steps=["ruff check ."], use_sandbox=False)
 ```
 
 ## Fixtures: `fs` / `git_fs` (`git_repo` retired)

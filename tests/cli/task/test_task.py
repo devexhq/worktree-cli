@@ -67,17 +67,16 @@ def test_task_list_command_surfaces_malformed_blueprint_warning(
     item = next(i for i in outcome.items if i.name == "broken-task")
     assert item.description == ""
     assert item.summary == ""
-    assert item.use_git_worktree is True
+    assert item.use_sandbox is True
 
 
 def test_task_show_and_run_commands(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(fs.base_path)
 
     create_catalog_item("task", "sample-task", cwd=fs.base_path)
-    # Task runner still keys off use_git_worktree (use_sandbox lands in a later task rewire).
     fs.write_file(
         ".worktree/catalog/tasks/sample-task.yml",
-        "name: sample-task\ndescription: Custom task blueprint\nuse_git_worktree: false\nsteps: []\n",
+        "name: sample-task\ndescription: Custom task blueprint\nuse_sandbox: false\nsteps: []\n",
     )
 
     # Show valid task
@@ -111,7 +110,7 @@ def test_cli_wt_task_default_and_subcommands(fs: FileSystem, monkeypatch: pytest
         "run-lints",
         description="Execute Ruff linter and formatter checks",
         summary="Runs ruff check and format",
-        use_git_worktree=False,
+        use_sandbox=False,
     )
 
     # wt task (default invocation should match wt task list)
@@ -148,7 +147,7 @@ def test_task_run_status_transitions_and_persistence(fs: FileSystem, monkeypatch
     create_catalog_item("task", "sample-task", cwd=fs.base_path)
     fs.write_file(
         ".worktree/catalog/tasks/sample-task.yml",
-        "name: sample-task\ndescription: Custom task blueprint\nuse_git_worktree: false\nsteps: []\n",
+        "name: sample-task\ndescription: Custom task blueprint\nuse_sandbox: false\nsteps: []\n",
     )
 
     # 1. Success task run
@@ -205,7 +204,7 @@ def test_task_run_db_fault_tolerance(fs: FileSystem, monkeypatch: pytest.MonkeyP
     create_catalog_item("task", "sample-task", cwd=fs.base_path)
     fs.write_file(
         ".worktree/catalog/tasks/sample-task.yml",
-        "name: sample-task\ndescription: Custom task blueprint\nuse_git_worktree: false\nsteps: []\n",
+        "name: sample-task\ndescription: Custom task blueprint\nuse_sandbox: false\nsteps: []\n",
     )
 
     # Monkeypatch TasksDb.insert to raise DB exception
@@ -224,7 +223,7 @@ def test_task_list_displays_recorded_runs(fs: FileSystem, monkeypatch: pytest.Mo
     create_catalog_item("task", "sample-task", cwd=fs.base_path)
     fs.write_file(
         ".worktree/catalog/tasks/sample-task.yml",
-        "name: sample-task\ndescription: Custom task blueprint\nuse_git_worktree: false\nsteps: []\n",
+        "name: sample-task\ndescription: Custom task blueprint\nuse_sandbox: false\nsteps: []\n",
     )
 
     # Execute a task to record it in DB

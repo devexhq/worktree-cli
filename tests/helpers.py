@@ -97,7 +97,7 @@ class FileSystem:
             "name": task_id,
             "description": "Test task",
             "summary": "",
-            "use_git_worktree": True,
+            "use_sandbox": True,
             "steps": ["echo hi"],
         }
         body = _deep_merge(defaults, overrides)
