@@ -485,7 +485,9 @@ Validate body: `"\n\n".join(errors)` or `Workflow definition is invalid.`
 
 1. Update the relevant JSON Schema (`config_v1.json` or `workflow_v1.json`).
 2. Update `CANONICAL_V1_DEFAULTS` (config) or the packaged template under
-   `core/templates/workflows/*.yml` (workflows).
+   `core/catalog/templates/workflows/*.yml` (workflows). `wt catalog list --type
+   template` lists the packaged `default.yml` scaffolds; `wt catalog show <name>`
+   falls back to packaged templates when a blueprint isn't indexed locally.
 3. Update the corresponding Pydantic model in `core/config/models.py` or
    `core/workflows/models.py`.
 4. Add/adjust tests in `tests/core/config/` or `tests/core/workflows/`.

@@ -47,8 +47,8 @@ class CatalogShowCommandOutcome(BaseModel):
 
     @property
     def ok(self) -> bool:
-        """Return True if template item was found and rendered."""
-        return not self.errors and self.item is not None
+        """Return True if a catalog item or packaged template was found and rendered."""
+        return not self.errors and (self.item is not None or self.content is not None)
 
 
 class CatalogDeleteCommandOutcome(BaseModel):

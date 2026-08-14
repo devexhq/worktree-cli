@@ -49,14 +49,9 @@ def catalog_create(
     ctx: typer.Context,
     type: str = typer.Argument(..., help="Blueprint item type (workflow, task, step)."),
     name: str = typer.Option(..., "--name", help="Name for the catalog blueprint file."),
-    template: str | None = typer.Option(
-        None,
-        "--template",
-        help="Optional built-in template name to populate content from.",
-    ),
 ):
     """Create a new catalog blueprint under .worktree/catalog/<type>s/<name>.yml."""
-    outcome = catalog_create_command(item_type=type, name=name, template=template)
+    outcome = catalog_create_command(item_type=type, name=name)
     if not outcome.ok:
         raise typer.Exit(code=1)
 

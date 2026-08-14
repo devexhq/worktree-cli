@@ -2,12 +2,33 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 from getworktree.common.models import DefinitionResolutionStatus
 from getworktree.core.db import CatalogRecord
+
+
+class SeedResult(BaseModel):
+    """Outcome of seeding packaged catalog blueprint templates."""
+
+    model_config = {
+        "extra": "forbid",
+        "strict": True,
+    }
+
+    created_files: list[Path] = Field(default_factory=list)
+    skipped_existing_files: list[Path] = Field(default_factory=list)
+    overwritten_files: list[Path] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        """True when seeding completed without blocking errors."""
+        return not self.errors
 
 
 class CatalogScanResult(BaseModel):

@@ -40,7 +40,6 @@ wt sandbox create my-feature
   - [Workspace Init (`wt init`)](cli/init.md): Provision local workspace and configuration defaults.
   - [Status (`wt status`)](cli/status.md): Inspect active sandboxes, workflow sessions, and database state.
   - [Config (`wt config`)](cli/config.md): Display, modify, and validate project configuration.
-  - [Template (`wt template`)](cli/template.md): Inspect built-in workflow, task, and step templates.
   - [Workflow (`wt workflow`)](cli/workflow.md): Plan, execute, and verify agent loops.
   - [Task (`wt task`)](cli/task.md): Single-shot bounded actions.
   - [Sandbox (`wt sandbox`)](cli/sandbox.md): Git worktree isolation.

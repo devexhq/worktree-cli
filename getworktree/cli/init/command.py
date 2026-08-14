@@ -13,11 +13,11 @@ from getworktree.common.fs import (
 )
 from getworktree.common.utils import RichOutput
 from getworktree.core.bootstrap import bootstrap_worktree
+from getworktree.core.catalog.services.seeder import seed_all_catalog_templates
 from getworktree.core.config.generator import generate_default_config
 from getworktree.core.config.loader import load_config_result
 from getworktree.core.config.models import PathsConfig
 from getworktree.core.db import init_database
-from getworktree.core.workflows.services.seeder import seed_starter_workflows
 
 from .models import InitCommandOutcome
 from .renderers import (
@@ -70,12 +70,12 @@ def init_command(
         db_rel = loaded.config.paths.db_path
     init_database(cwd=cwd, db_rel_path=db_rel)
 
-    workflow_seed_result = seed_starter_workflows(get_worktree_dir(cwd) / "workflows")
-    if workflow_seed_result.errors:
+    seed_result = seed_all_catalog_templates(cwd=cwd)
+    if seed_result.errors:
         outcome = InitCommandOutcome(
             bootstrap_result=result,
             config_result=config_result,
-            workflow_seed_result=workflow_seed_result,
+            seed_result=seed_result,
         )
         render_init_outcome(cwd, outcome, rich_output=rich_output)
         raise typer.Exit(code=1)
@@ -83,6 +83,6 @@ def init_command(
     outcome = InitCommandOutcome(
         bootstrap_result=result,
         config_result=config_result,
-        workflow_seed_result=workflow_seed_result,
+        seed_result=seed_result,
     )
     render_init_outcome(cwd, outcome, rich_output=rich_output)

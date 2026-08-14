@@ -14,8 +14,8 @@ from getworktree.cli.init.renderers import (
 )
 from getworktree.common.utils import RichOutput
 from getworktree.core.bootstrap import BootstrapResult
+from getworktree.core.catalog.models import SeedResult
 from getworktree.core.config.generator import ConfigGenerationResult
-from getworktree.core.workflows.services.seeder import WorkflowSeedResult
 from tests.helpers import FileSystem
 
 
@@ -61,9 +61,7 @@ class RenderInitOutcomeTests:
                 config_path=fs.base_path / ".worktree" / "config.json",
                 skipped_existing=True,
             ),
-            workflow_seed_result=WorkflowSeedResult(
-                created_files=[fs.base_path / ".worktree" / "workflows" / "fix-tests.yml"]
-            ),
+            seed_result=SeedResult(created_files=[fs.base_path / ".worktree" / "workflows" / "fix-tests.yml"]),
         )
         render_init_outcome(fs.base_path, outcome, rich_output=rich_output)
         rendered = output.getvalue()
@@ -85,7 +83,7 @@ class RenderInitOutcomeTests:
                 repaired=True,
                 inserted_keys=["telemetry.enabled"],
             ),
-            workflow_seed_result=WorkflowSeedResult(
+            seed_result=SeedResult(
                 skipped_existing_files=[root / "workflows" / "fix-tests.yml"],
             ),
         )
@@ -108,7 +106,7 @@ class RenderInitOutcomeTests:
                 config_path=root / "config.json",
                 overwritten=True,
             ),
-            workflow_seed_result=WorkflowSeedResult(overwritten_files=[root / "workflows" / "x.yml"]),
+            seed_result=SeedResult(overwritten_files=[root / "workflows" / "x.yml"]),
         )
         render_init_outcome(fs.base_path, outcome, rich_output=rich_output)
         rendered = output.getvalue()
@@ -125,7 +123,7 @@ class RenderInitOutcomeTests:
                 config_path=root / "config.json",
                 created=True,
             ),
-            workflow_seed_result=WorkflowSeedResult(errors=["could not seed"]),
+            seed_result=SeedResult(errors=["could not seed"]),
         )
         render_init_outcome(fs.base_path, outcome, rich_output=rich_output)
         rendered = output.getvalue()
@@ -138,7 +136,7 @@ class RenderInitOutcomeTests:
         outcome = InitCommandOutcome(
             bootstrap_result=BootstrapResult(root_path=fs.base_path / ".worktree"),
             config_result=ConfigGenerationResult(config_path=None),
-            workflow_seed_result=WorkflowSeedResult(),
+            seed_result=SeedResult(),
         )
         render_init_outcome(fs.base_path, outcome, rich_output=rich_output)
         rendered = output.getvalue()
@@ -152,6 +150,6 @@ class RenderInitOutcomeTests:
                 config_path=fs.base_path / ".worktree" / "config.json",
                 skipped_existing=True,
             ),
-            workflow_seed_result=WorkflowSeedResult(),
+            seed_result=SeedResult(),
         )
         render_init_outcome(fs.base_path, outcome)

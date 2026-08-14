@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from getworktree.common.fs import get_catalog_templates_dir
 from getworktree.common.utils import RichOutput
 from getworktree.core.catalog.services.inventory import (
     create_catalog_item,
@@ -25,9 +26,58 @@ from .renderers import (
     render_catalog_delete_success,
     render_catalog_list,
     render_catalog_show,
+    render_catalog_template_list,
+    render_template_show_content,
 )
 
 _DEFAULT_RICH_OUTPUT = RichOutput()
+
+
+def _packaged_template_defaults() -> list[tuple[str, str]]:
+    """Return (type, relative_path) pairs for the three packaged `default.yml` templates."""
+    root = get_catalog_templates_dir()
+    rows: list[tuple[str, str]] = []
+    for item_type in (CatalogItemType.WORKFLOW, CatalogItemType.TASK, CatalogItemType.STEP):
+        rel_path = f"{item_type.value}s/default.yml"
+        if (root / rel_path).is_file():
+            rows.append((item_type.value, rel_path))
+    return rows
+
+
+def _find_packaged_templates(sha_or_name: str) -> list[tuple[str, str]]:
+    """Return (relative_path, content) pairs for packaged templates matching `sha_or_name`."""
+    root = get_catalog_templates_dir()
+    found: list[tuple[str, str]] = []
+    for type_dir in ("workflows", "tasks", "steps"):
+        candidate = (
+            (root / type_dir / "default.yml")
+            if sha_or_name == "default"
+            else (root / type_dir / "wt" / f"{sha_or_name}.yml")
+        )
+        if candidate.is_file():
+            rel_path = f"{type_dir}/default.yml" if sha_or_name == "default" else f"{type_dir}/wt/{sha_or_name}.yml"
+            found.append((rel_path, candidate.read_text(encoding="utf-8")))
+    return found
+
+
+def _parse_catalog_type_filter(
+    type_filter: CatalogItemType | str | None,
+) -> tuple[CatalogItemType | None, str | None]:
+    """Return (parsed_type, error_message). error_message is set on invalid filter strings."""
+    if type_filter is None:
+        return None, None
+    if isinstance(type_filter, CatalogItemType):
+        return type_filter, None
+    try:
+        return CatalogItemType(str(type_filter).lower()), None
+    except ValueError:
+        allowed = ", ".join([t.value for t in CatalogItemType])
+        return None, f"Invalid --type argument '{type_filter}'. Allowed choices: {allowed}"
+
+
+def _render_scan_warnings(errors: list[str], *, rich_output: RichOutput) -> None:
+    for error in errors:
+        rich_output.error_panel("Catalog Scan Warning", error)
 
 
 def catalog_list_command(
@@ -48,45 +98,27 @@ def catalog_list_command(
     """
     output = rich_output or _DEFAULT_RICH_OUTPUT
 
-    parsed_type: CatalogItemType | None = None
-    if type_filter is not None:
-        if isinstance(type_filter, CatalogItemType):
-            parsed_type = type_filter
-        else:
-            try:
-                parsed_type = CatalogItemType(str(type_filter).lower())
-            except ValueError:
-                allowed = ", ".join([t.value for t in CatalogItemType])
-                error_msg = f"Invalid --type argument '{type_filter}'. Allowed choices: {allowed}"
-                output.error_panel("Catalog Filter Error", error_msg)
-                return CatalogListCommandOutcome(
-                    items=[],
-                    type_filter=None,
-                    errors=[error_msg],
-                )
+    if type_filter is not None and str(type_filter).lower() == "template":
+        render_catalog_template_list(_packaged_template_defaults(), rich_output=output)
+        return CatalogListCommandOutcome(items=[], type_filter=None, errors=[])
+
+    parsed_type, type_error = _parse_catalog_type_filter(type_filter)
+    if type_error is not None:
+        output.error_panel("Catalog Filter Error", type_error)
+        return CatalogListCommandOutcome(items=[], type_filter=None, errors=[type_error])
 
     scan_result = scan_and_index_catalog(cwd=cwd)
     if not scan_result.ok:
-        for error in scan_result.errors:
-            output.error_panel("Catalog Scan Warning", error)
+        _render_scan_warnings(scan_result.errors, rich_output=output)
 
-    items = scan_result.items
-    if parsed_type is not None:
-        items = [i for i in items if i.item_type == parsed_type]
-
+    items = [i for i in scan_result.items if parsed_type is None or i.item_type == parsed_type]
     render_catalog_list(items, rich_output=output)
-
-    return CatalogListCommandOutcome(
-        items=items,
-        type_filter=parsed_type,
-        errors=list(scan_result.errors),
-    )
+    return CatalogListCommandOutcome(items=items, type_filter=parsed_type, errors=list(scan_result.errors))
 
 
 def catalog_create_command(
     item_type: CatalogItemType | str,
     name: str,
-    template: str | None = None,
     cwd: Path | None = None,
     *,
     rich_output: RichOutput | None = None,
@@ -96,7 +128,6 @@ def catalog_create_command(
     Args:
         item_type: Blueprint type (workflow, task, step).
         name: Blueprint name.
-        template: Optional built-in template name to instantiate from.
         cwd: Optional CWD path.
         rich_output: Optional RichOutput presenter.
 
@@ -109,7 +140,6 @@ def catalog_create_command(
         record = create_catalog_item(
             item_type=item_type,
             name=name,
-            template_name=template,
             cwd=cwd,
         )
     except Exception as exc:
@@ -142,7 +172,13 @@ def catalog_show_command(
     resolution_result = get_catalog_item(sha_or_name, cwd=cwd)
     item = resolution_result.resolved
     if not resolution_result.ok or item is None:
-        error_message = f"Catalog blueprint '{sha_or_name}' not found."
+        found = _find_packaged_templates(sha_or_name)
+        if found:
+            for rel_path, content in found:
+                render_template_show_content(rel_path, content, rich_output=output)
+            return CatalogShowCommandOutcome(item=None, content=found[0][1])
+
+        error_message = f"Catalog blueprint or template '{sha_or_name}' not found."
         output.error_panel("Catalog Show Failed", error_message)
         return CatalogShowCommandOutcome(item=None, content=None, errors=[error_message])
 

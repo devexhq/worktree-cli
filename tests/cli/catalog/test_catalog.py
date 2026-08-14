@@ -87,6 +87,44 @@ def test_catalog_show_command(fs: FileSystem) -> None:
     assert "not found" in show_missing.errors[0]
 
 
+def test_catalog_list_type_template(fs: FileSystem) -> None:
+    outcome = catalog_list_command(type_filter="template", cwd=fs.base_path)
+    assert outcome.ok
+    assert outcome.items == []
+
+
+def test_catalog_show_packaged_template_fallback(fs: FileSystem) -> None:
+    show_fix = catalog_show_command("fix-tests", cwd=fs.base_path)
+    assert show_fix.ok
+    assert show_fix.item is None
+    assert show_fix.content is not None
+    assert "fix-tests" in show_fix.content
+
+    show_default = catalog_show_command("default", cwd=fs.base_path)
+    assert show_default.ok
+    assert show_default.content is not None
+
+
+def test_cli_catalog_list_type_template(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(fs.base_path)
+    res = runner.invoke(app, ["catalog", "list", "--type", "template"])
+    assert res.exit_code == 0
+    assert "workflows/default.yml" in res.output
+    assert "tasks/default.yml" in res.output
+    assert "steps/default.yml" in res.output
+
+
+def test_cli_catalog_show_template_fallback(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(fs.base_path)
+    res = runner.invoke(app, ["catalog", "show", "fix-tests"])
+    assert res.exit_code == 0
+    assert "fix-tests" in res.output
+
+    res_missing = runner.invoke(app, ["catalog", "show", "no-such-name"])
+    assert res_missing.exit_code == 1
+    assert "Catalog blueprint or template 'no-such-name' not found" in res_missing.output
+
+
 def test_catalog_delete_command(fs: FileSystem) -> None:
     item = create_catalog_item("task", "del-task", cwd=fs.base_path)
 

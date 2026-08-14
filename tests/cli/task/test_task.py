@@ -74,6 +74,11 @@ def test_task_show_and_run_commands(fs: FileSystem, monkeypatch: pytest.MonkeyPa
     monkeypatch.chdir(fs.base_path)
 
     create_catalog_item("task", "sample-task", cwd=fs.base_path)
+    # Task runner still keys off use_git_worktree (use_sandbox lands in a later task rewire).
+    fs.write_file(
+        ".worktree/catalog/tasks/sample-task.yml",
+        "name: sample-task\ndescription: Custom task blueprint\nuse_git_worktree: false\nsteps: []\n",
+    )
 
     # Show valid task
     show_res = task_show_command("sample-task", cwd=fs.base_path)
@@ -141,6 +146,10 @@ def test_cli_wt_task_default_and_subcommands(fs: FileSystem, monkeypatch: pytest
 def test_task_run_status_transitions_and_persistence(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(fs.base_path)
     create_catalog_item("task", "sample-task", cwd=fs.base_path)
+    fs.write_file(
+        ".worktree/catalog/tasks/sample-task.yml",
+        "name: sample-task\ndescription: Custom task blueprint\nuse_git_worktree: false\nsteps: []\n",
+    )
 
     # 1. Success task run
     res_success = task_run_command("sample-task", cwd=fs.base_path, session_id="task_succ1")
@@ -194,6 +203,10 @@ def test_task_run_status_transitions_and_persistence(fs: FileSystem, monkeypatch
 def test_task_run_db_fault_tolerance(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(fs.base_path)
     create_catalog_item("task", "sample-task", cwd=fs.base_path)
+    fs.write_file(
+        ".worktree/catalog/tasks/sample-task.yml",
+        "name: sample-task\ndescription: Custom task blueprint\nuse_git_worktree: false\nsteps: []\n",
+    )
 
     # Monkeypatch TasksDb.insert to raise DB exception
     def _faulty_insert(*args, **kwargs):
@@ -209,6 +222,10 @@ def test_task_run_db_fault_tolerance(fs: FileSystem, monkeypatch: pytest.MonkeyP
 def test_task_list_displays_recorded_runs(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(fs.base_path)
     create_catalog_item("task", "sample-task", cwd=fs.base_path)
+    fs.write_file(
+        ".worktree/catalog/tasks/sample-task.yml",
+        "name: sample-task\ndescription: Custom task blueprint\nuse_git_worktree: false\nsteps: []\n",
+    )
 
     # Execute a task to record it in DB
     task_run_command("sample-task", cwd=fs.base_path, session_id="task_rec1")

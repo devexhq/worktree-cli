@@ -11,7 +11,6 @@ from getworktree.cli.init.app import init_app
 from getworktree.cli.sandbox.app import sandbox_app
 from getworktree.cli.status.app import status_app
 from getworktree.cli.task.app import task_app
-from getworktree.cli.template.app import template_app
 from getworktree.cli.workflow.app import workflow_app
 from getworktree.common.version import get_version
 
@@ -35,7 +34,6 @@ app.add_typer(init_app, name="init")
 app.add_typer(sandbox_app, name="sandbox")
 app.add_typer(status_app, name="status")
 app.add_typer(task_app, name="task")
-app.add_typer(template_app, name="template")
 app.add_typer(workflow_app, name="workflow")
 
 

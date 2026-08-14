@@ -6,8 +6,8 @@ from pathlib import Path
 
 from getworktree.common.utils import RichOutput, display_path
 from getworktree.core.bootstrap import BootstrapResult
+from getworktree.core.catalog.models import SeedResult
 from getworktree.core.config.generator import ConfigGenerationResult
-from getworktree.core.workflows.services.seeder import WorkflowSeedResult
 
 from .models import InitCommandOutcome
 
@@ -69,22 +69,24 @@ def _render_bootstrap_success(cwd: Path, result: BootstrapResult, *, rich_output
     rich_output.dim_text("No changes required.")
 
 
-def _render_workflow_seed_result(cwd: Path, result: WorkflowSeedResult, *, rich_output: RichOutput) -> None:
+def _render_path_bullets(cwd: Path, paths: list[Path], *, label: str, rich_output: RichOutput) -> None:
+    rich_output.dim_text(f"{label}:")
+    for path in paths:
+        rich_output.dim_bullet(f"[cyan]{display_path(path, cwd)}[/cyan]")
+
+
+def _render_seed_result(cwd: Path, result: SeedResult, *, rich_output: RichOutput) -> None:
     rich_output.spacer()
     if result.created_files:
         rich_output.success("Seeded starter workflows")
-        rich_output.dim_text("Created:")
-        for path in result.created_files:
-            rich_output.dim_bullet(f"[cyan]{display_path(path, cwd)}[/cyan]")
+        _render_path_bullets(cwd, result.created_files, label="Created", rich_output=rich_output)
     elif result.overwritten_files:
         rich_output.success("Refreshed starter workflows")
     else:
         rich_output.success("Starter workflows already present")
 
     if result.skipped_existing_files:
-        rich_output.dim_text("Skipped existing:")
-        for path in result.skipped_existing_files:
-            rich_output.dim_bullet(f"[cyan]{display_path(path, cwd)}[/cyan]")
+        _render_path_bullets(cwd, result.skipped_existing_files, label="Skipped existing", rich_output=rich_output)
 
     if result.errors:
         lines = "\n".join(f"- {err}" for err in result.errors)
@@ -102,6 +104,6 @@ def render_init_outcome(
     rich_output.spacer()
     _render_bootstrap_success(cwd, outcome.bootstrap_result, rich_output=rich_output)
     _render_config_result(cwd, outcome.config_result, rich_output=rich_output)
-    _render_workflow_seed_result(cwd, outcome.workflow_seed_result, rich_output=rich_output)
+    _render_seed_result(cwd, outcome.seed_result, rich_output=rich_output)
     rich_output.spacer()
     rich_output.dim_text("Next: run [bold cyan]wt config show[/bold cyan] or [bold cyan]wt workflow list[/bold cyan]")

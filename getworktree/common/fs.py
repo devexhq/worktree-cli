@@ -1,8 +1,10 @@
 """File system paths for the worktree CLI."""
 
 import hashlib
+import importlib.resources
 import json
 import os
+from importlib.resources.abc import Traversable
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +24,11 @@ def delete_file(path: Path) -> bool:
     existed = path.exists()
     path.unlink(missing_ok=True)
     return existed
+
+
+def get_catalog_templates_dir() -> Traversable:
+    """Return the packaged catalog templates resource root."""
+    return importlib.resources.files("getworktree.core.catalog.templates")
 
 
 def get_worktree_dir(cwd: Path) -> Path:
@@ -144,7 +151,7 @@ def scan_yaml_directory(
         return []
 
     entries = []
-    for file_path in sorted(directory.glob("*")):
+    for file_path in sorted(directory.rglob("*")):
         if not file_path.is_file() or file_path.suffix.lower() not in suffixes:
             continue
 

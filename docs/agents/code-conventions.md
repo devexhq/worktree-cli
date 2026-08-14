@@ -46,7 +46,7 @@ over adding a second one.
 ## Result/Outcome pattern
 
 Operations that can partially succeed return a Pydantic result object instead of
-raising, e.g. `BootstrapResult`, `ConfigGenerationResult`, `WorkflowSeedResult`,
+raising, e.g. `BootstrapResult`, `ConfigGenerationResult`, `SeedResult`,
 `ValidationResult`. The convention:
 
 - Lists describing what happened: `created_files`, `dirs_existing`, `inserted_keys`, etc.
@@ -62,7 +62,7 @@ Reuse this shape for new core operations instead of introducing ad-hoc return ty
 Never write a config/state file directly. Write to a `.tmp` sibling, flush,
 `os.fsync`, then `Path.replace` to swap it into place atomically. See
 `atomic_write_json` in [getworktree/common/fs.py](../../getworktree/common/fs.py)
-and `_atomic_write_text` in `core/workflows/services/seeder.py` for the pattern.
+and `atomic_write_text` in the same module for the pattern.
 
 ## Console output
 

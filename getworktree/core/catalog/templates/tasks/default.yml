@@ -1,0 +1,4 @@
+name: my-task
+description: Custom task blueprint
+use_sandbox: false
+steps: []

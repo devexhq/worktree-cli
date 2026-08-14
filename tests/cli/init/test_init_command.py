@@ -12,9 +12,9 @@ import typer
 from getworktree.cli.init.command import init_command
 from getworktree.common.schema_validation import SchemaValidator
 from getworktree.core.bootstrap import BootstrapResult
+from getworktree.core.catalog.models import SeedResult
 from getworktree.core.config.generator import ConfigGenerationResult
 from getworktree.core.config.models import PathsConfig
-from getworktree.core.workflows.services.seeder import WorkflowSeedResult
 from tests.helpers import FileSystem, GitFileSystem
 
 CONFIG_VALIDATOR = SchemaValidator(resources.files("getworktree.schemas.v1") / "config.json")
@@ -103,8 +103,8 @@ class InitCommandGuardrailTests:
         assert meta["initialized_at"]
 
         assert (root / "config.json").is_file()
-        assert (root / "workflows" / "fix-tests.yml").is_file()
-        assert (root / "workflows" / "review-fix.yml").is_file()
+        assert (root / "catalog" / "workflows" / "wt" / "fix-tests.yml").is_file()
+        assert (root / "catalog" / "workflows" / "wt" / "review-fix.yml").is_file()
         assert "/.worktree/" in (git_fs.base_path / ".gitignore").read_text(encoding="utf-8")
 
     def test_second_init_is_non_destructive(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -112,7 +112,7 @@ class InitCommandGuardrailTests:
         init_command(tool_version="0.1.1")
 
         config_path = git_fs.base_path / ".worktree" / "config.json"
-        workflow_path = git_fs.base_path / ".worktree" / "workflows" / "fix-tests.yml"
+        workflow_path = git_fs.base_path / ".worktree" / "catalog" / "workflows" / "wt" / "fix-tests.yml"
         config_before = config_path.read_text(encoding="utf-8")
         workflow_path.write_text("edited by user\n", encoding="utf-8")
         meta_before = json.loads(
@@ -152,7 +152,7 @@ class InitCommandWorkflowSeedingTests:
 
         init_command(tool_version="0.1.1")
 
-        workflows_dir = git_fs.base_path / ".worktree" / "workflows"
+        workflows_dir = git_fs.base_path / ".worktree" / "catalog" / "workflows" / "wt"
         assert (workflows_dir / "fix-tests.yml").is_file()
         assert (workflows_dir / "review-fix.yml").is_file()
 
@@ -162,7 +162,7 @@ class InitCommandWorkflowSeedingTests:
         monkeypatch.chdir(git_fs.base_path)
 
         init_command(tool_version="0.1.1")
-        workflow_path = git_fs.base_path / ".worktree" / "workflows" / "fix-tests.yml"
+        workflow_path = git_fs.base_path / ".worktree" / "catalog" / "workflows" / "wt" / "fix-tests.yml"
         workflow_path.write_text("edited by user\n", encoding="utf-8")
 
         init_command(tool_version="0.1.1")
@@ -231,9 +231,9 @@ class InitCommandFailureTests:
         monkeypatch.chdir(git_fs.base_path)
 
         def bad_seed(*args, **kwargs):
-            return WorkflowSeedResult(errors=["seed failed"])
+            return SeedResult(errors=["seed failed"])
 
-        monkeypatch.setattr("getworktree.cli.init.command.seed_starter_workflows", bad_seed)
+        monkeypatch.setattr("getworktree.cli.init.command.seed_all_catalog_templates", bad_seed)
         with pytest.raises(typer.Exit) as exc:
             init_command(tool_version="0.1.1")
         assert exc.value.exit_code == 1
@@ -261,8 +261,8 @@ class InitCommandFailureTests:
             ),
         )
         monkeypatch.setattr(
-            "getworktree.cli.init.command.seed_starter_workflows",
-            lambda *a, **k: WorkflowSeedResult(),
+            "getworktree.cli.init.command.seed_all_catalog_templates",
+            lambda *a, **k: SeedResult(),
         )
         monkeypatch.setattr(
             "getworktree.cli.init.command.bootstrap_worktree",
