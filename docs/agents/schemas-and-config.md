@@ -437,6 +437,179 @@ in `result.errors`, formatted for CLI panels by
 `format_workflow_run_resolve_failure` in
 [getworktree/core/workflows/services/renderer.py](../../getworktree/core/workflows/services/renderer.py).
 
+## Task blueprint resolution & execution
+
+Task blueprints live under `.worktree/catalog/tasks/` and resolve through the
+same catalog inventory path as workflows.
+
+### `TaskDefinition`
+
+Model: [getworktree/core/task/models.py](../../getworktree/core/task/models.py)
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `name` | `str` | Required |
+| `description` | `str` | Default `""` |
+| `summary` | `str` | Default `""` |
+| `use_sandbox` | `bool` | Default `True` |
+| `steps` | `list[StepDefinition]` | Default `[]` |
+
+Before validation, `_fill_step_shorthand_defaults` normalizes each raw step dict:
+
+- Missing/empty `id` → slug from `name`, else `step-{idx}` (1-based).
+- Bare `command: ...` with no `run` / `uses` / `type` → mapped to `run`.
+
+Example:
+
+```yaml
+name: lint-fix
+description: Run project linters
+use_sandbox: true
+steps:
+  - command: ruff check .
+  - id: tests
+    name: unit tests
+    run: pytest -q
+```
+
+Exceptions subclass the shared definition bases in
+[getworktree/common/exceptions.py](../../getworktree/common/exceptions.py):
+
+- `TaskLoadError(DefinitionLoadError)`
+- `TaskValidationError(DefinitionValidationError)`
+
+### Resolve: `resolve_and_load_task`
+
+[getworktree/core/task/services/loader.py](../../getworktree/core/task/services/loader.py)
+
+```python
+def resolve_and_load_task(
+    name: str,
+    cwd: Path | None = None,
+) -> DefinitionResolutionResult[CatalogRecord]:
+    return get_catalog_item(
+        name,
+        CatalogItemType.TASK,
+        definition_cls=TaskDefinition,
+        cwd=cwd,
+    )
+```
+
+Thin catalog wrapper only — no custom YAML scan/parse pipeline. On success,
+`result.definition` is a `TaskDefinition`. Failure bodies for CLI panels come
+from `format_task_resolve_failure` in
+[getworktree/core/task/services/renderer.py](../../getworktree/core/task/services/renderer.py).
+
+### Execute: `run_task`
+
+[getworktree/core/task/services/runner.py](../../getworktree/core/task/services/runner.py)
+
+```python
+def run_task(
+    definition: TaskDefinition,
+    cwd: Path,
+    *,
+    use_sandbox: bool = True,
+    keep: bool = False,
+    agent: str | None = None,
+    observer: RunObserver | None = None,
+) -> RunOutcome:
+    ...
+```
+
+Builds a `RunContext` (`steps=definition.steps`,
+`use_sandbox=use_sandbox and definition.use_sandbox`, plus `keep` / `agent` /
+`observer`) and delegates to `run_steps`. CLI orchestration
+(`resolve` → insert RUNNING row → `run_task` → update status → render) lives in
+[getworktree/cli/task/command.py](../../getworktree/cli/task/command.py); Rich
+output is in `cli/task/renderers.py`, plain failure text in
+`core/task/services/renderer.py` (`format_task_run_failure`).
+
+## Shared step execution layer (`core/runtime/`)
+
+Package: [getworktree/core/runtime/](../../getworktree/core/runtime/)
+(`models.py`, `engine.py`). Used by `run_task` today; workflow multi-step
+execution should reuse the same surface when implemented.
+
+### `RunContext`
+
+Immutable dataclass inputs:
+
+| Field | Type | Default |
+|-------|------|---------|
+| `steps` | `list[StepDefinition]` | required |
+| `cwd` | `Path` | required |
+| `use_sandbox` | `bool` | `True` |
+| `keep` | `bool` | `False` |
+| `agent` | `str \| None` | `None` |
+| `observer` | `RunObserver \| None` | `None` |
+
+### `RunObserver`
+
+Optional protocol hooks (no-ops when `observer is None`):
+
+- `on_sandbox_ready(path: Path, active: bool)`
+- `on_step_start(idx: int, total: int, step: StepDefinition)`
+- `on_step_done(idx: int, total: int, result: StepResult)`
+- `on_sandbox_cleanup(kept: bool, path: Path)`
+
+`cli/task/command.py` implements `CliRunObserver` against `RichOutput`.
+
+### `RunOutcome`
+
+Pydantic model (`extra=forbid`, `strict=True`):
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `status` | `RunStatus` | `running` / `completed` / `failed` / `cancelled` |
+| `step_results` | `list[StepResult]` | default `[]` |
+| `error_message` | `str \| None` | setup failure, first failed step, or cancel |
+| `sandbox_kept` | `bool` | default `False` |
+| `sandbox_path` | `Path` | sandbox path or resolved cwd |
+
+`ok` is true when `status == RunStatus.COMPLETED`.
+
+### `run_steps(context) -> RunOutcome`
+
+Flow in [getworktree/core/runtime/engine.py](../../getworktree/core/runtime/engine.py):
+
+1. **Sandbox setup** (`_setup_sandbox`): if `use_sandbox` is false, execute in
+   `cwd` and notify `on_sandbox_ready(..., active=False)`. Otherwise
+   `GitSandboxManager.create_sandbox_result()`; setup failure returns
+   `status=failed` with `error_message` and no steps run.
+2. **Step loop** (`_run_step_loop`): for each step, notify start, call
+   `execute_step(step, sandbox_path=target_dir, context=agent_context)`, notify
+   done. First non-ok `StepResult` stops the loop with `status=failed`.
+   `KeyboardInterrupt` → `status=cancelled`.
+3. **Cleanup** (always in `finally`): unless `keep` is true, best-effort
+   `cleanup_sandbox`; notify `on_sandbox_cleanup`.
+
+Domain packages must not re-implement this loop or sandbox lifecycle.
+
+## Catalog templates & seeding
+
+Packaged scaffolds live under
+[getworktree/core/catalog/templates/](../../getworktree/core/catalog/templates/)
+(`workflows/`, `tasks/`, `steps/`), including `default.yml` per type and curated
+`wt/` seed trees. Path helper: `get_catalog_templates_dir()` in
+[getworktree/common/fs.py](../../getworktree/common/fs.py).
+
+Seeding ([getworktree/core/catalog/services/seeder.py](../../getworktree/core/catalog/services/seeder.py)):
+
+- `seed_catalog_templates(item_type, cwd=None, *, force=False) -> SeedResult` —
+  copies packaged `wt/` files into
+  `.worktree/catalog/<type>s/wt/` (skips existing files unless `force`).
+- `seed_all_catalog_templates(cwd=None, *, force=False) -> SeedResult` —
+  seeds `workflow`, `task`, and `step` and aggregates `SeedResult`.
+
+CLI template surfaces (no separate `wt template` command group):
+
+- `wt catalog list --type template` — lists packaged `default.yml` scaffolds
+  (type + relative path table).
+- `wt catalog show <name>` — after a local catalog miss, falls back to packaged
+  templates matching the name and prints raw YAML via
+  `render_template_show_content`.
+
 ## `wt workflow list`
 
 Command entry: `getworktree.cli.workflow.command.workflow_list_command`.
@@ -484,13 +657,12 @@ Validate body: `"\n\n".join(errors)` or `Workflow definition is invalid.`
 ## Changing config or workflow shape
 
 1. Update the relevant JSON Schema (`config_v1.json` or `workflow_v1.json`).
-2. Update `CANONICAL_V1_DEFAULTS` (config) or the packaged template under
-   `core/catalog/templates/workflows/*.yml` (workflows). `wt catalog list --type
-   template` lists the packaged `default.yml` scaffolds; `wt catalog show <name>`
-   falls back to packaged templates when a blueprint isn't indexed locally.
-3. Update the corresponding Pydantic model in `core/config/models.py` or
-   `core/workflows/models.py`.
-4. Add/adjust tests in `tests/core/config/` or `tests/core/workflows/`.
+2. Update `CANONICAL_V1_DEFAULTS` (config) or the packaged templates under
+   `core/catalog/templates/` (workflows/tasks/steps `default.yml` and curated
+   `wt/` seeds). See **Catalog templates & seeding** above for list/show fallback.
+3. Update the corresponding Pydantic model (`core/config/models.py`,
+   `core/workflows/models.py`, or `core/task/models.py` as applicable).
+4. Add/adjust tests under the matching `tests/core/...` package.
 
 Bump the schema version (`config_v2.json`, etc.) instead of making breaking
 changes to a `v1` schema that users may already have on disk.
