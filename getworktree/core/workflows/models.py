@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Any
+from importlib import resources
+from typing import Any, ClassVar
 
 from pydantic import BaseModel, Field, model_validator
 
+from getworktree.common.schema_validation import SchemaValidator
 from getworktree.core.step import LoopStepBlock, StepDefinition
+
+WORKFLOW_VALIDATOR: SchemaValidator = SchemaValidator(resources.files("getworktree.schemas.v1") / "workflow.json")
 
 
 class WorkflowInput(BaseModel):
@@ -23,6 +27,8 @@ class WorkflowDefinition(BaseModel):
     """Full workflow definition V1 model."""
 
     model_config = {"extra": "ignore", "populate_by_name": True}
+
+    schema_validator: ClassVar[SchemaValidator] = WORKFLOW_VALIDATOR
 
     version: int | str
     name: str = Field(min_length=1)

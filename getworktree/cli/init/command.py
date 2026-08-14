@@ -17,7 +17,7 @@ from getworktree.core.config.generator import generate_default_config
 from getworktree.core.config.loader import load_config_result
 from getworktree.core.config.models import PathsConfig
 from getworktree.core.db import init_database
-from getworktree.core.workflows.seeder import seed_starter_workflows
+from getworktree.core.workflows.services.seeder import seed_starter_workflows
 
 from .models import InitCommandOutcome
 from .renderers import (

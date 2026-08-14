@@ -14,7 +14,7 @@ from getworktree.common.schema_validation import SchemaValidator
 from getworktree.core.bootstrap import BootstrapResult
 from getworktree.core.config.generator import ConfigGenerationResult
 from getworktree.core.config.models import PathsConfig
-from getworktree.core.workflows.seeder import WorkflowSeedResult
+from getworktree.core.workflows.services.seeder import WorkflowSeedResult
 from tests.helpers import FileSystem, GitFileSystem
 
 CONFIG_VALIDATOR = SchemaValidator(resources.files("getworktree.schemas.v1") / "config.json")

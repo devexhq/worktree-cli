@@ -22,7 +22,7 @@ from getworktree.core.workflows.agents.gemini import (
     default_gemini_run,
     resolve_gemini_api_key,
 )
-from getworktree.core.workflows.payload import AgentFailurePayload
+from getworktree.core.workflows.services.payload import AgentFailurePayload
 from tests.helpers import FileSystem
 
 

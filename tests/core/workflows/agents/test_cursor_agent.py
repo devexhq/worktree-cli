@@ -24,7 +24,7 @@ from getworktree.core.workflows.agents.cursor import (
     default_cursor_run,
     resolve_cursor_api_key,
 )
-from getworktree.core.workflows.payload import AgentFailurePayload
+from getworktree.core.workflows.services.payload import AgentFailurePayload
 from tests.helpers import FileSystem
 
 

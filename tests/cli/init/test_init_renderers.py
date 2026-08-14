@@ -15,7 +15,7 @@ from getworktree.cli.init.renderers import (
 from getworktree.common.utils import RichOutput
 from getworktree.core.bootstrap import BootstrapResult
 from getworktree.core.config.generator import ConfigGenerationResult
-from getworktree.core.workflows.seeder import WorkflowSeedResult
+from getworktree.core.workflows.services.seeder import WorkflowSeedResult
 from tests.helpers import FileSystem
 
 

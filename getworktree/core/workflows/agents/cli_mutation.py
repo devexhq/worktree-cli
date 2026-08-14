@@ -21,7 +21,7 @@ from getworktree.core.workflows.agents.mutation_git import (
     discard_since,
     resolve_pre_agent_baseline,
 )
-from getworktree.core.workflows.patch import PatchApplyStatus, validate_patch_text
+from getworktree.core.workflows.services.patch import PatchApplyStatus, validate_patch_text
 
 CliMutationRunStatus = Literal["finished", "timeout", "error"]
 

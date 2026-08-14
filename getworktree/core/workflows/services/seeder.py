@@ -11,7 +11,7 @@ import yaml
 from pydantic import BaseModel, Field
 
 from getworktree.common.utils import display_path
-from getworktree.core.workflows.validate import WORKFLOW_VALIDATOR
+from getworktree.core.workflows.models import WORKFLOW_VALIDATOR
 
 
 class WorkflowSeedResult(BaseModel):

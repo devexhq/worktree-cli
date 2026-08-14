@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-from getworktree.core.workflows.resolve import WorkflowResolveResult
-from getworktree.core.workflows.validate import WorkflowValidationResult
+from getworktree.common.models import DefinitionResolutionResult
+from getworktree.core.catalog.models import DefinitionValidationOutcome
+from getworktree.core.db import CatalogRecord
 
 
-def format_workflow_run_resolve_failure(result: WorkflowResolveResult) -> str:
+def format_workflow_run_resolve_failure(result: DefinitionResolutionResult[CatalogRecord]) -> str:
     """Return plain failure body text for a resolve failure.
 
     Args:
-        result: Non-ok ``WorkflowResolveResult``.
+        result: Non-ok ``DefinitionResolutionResult``.
 
     Returns:
         Joined resolve errors, or a defensive fallback string.
@@ -20,11 +21,11 @@ def format_workflow_run_resolve_failure(result: WorkflowResolveResult) -> str:
     return "Failed to resolve workflow."
 
 
-def format_workflow_run_validate_failure(result: WorkflowValidationResult) -> str:
+def format_workflow_run_validate_failure(result: DefinitionValidationOutcome) -> str:
     """Return plain failure body text for a validation failure.
 
     Args:
-        result: Non-ok ``WorkflowValidationResult``.
+        result: Non-ok ``DefinitionValidationOutcome``.
 
     Returns:
         Joined validation errors, or a defensive fallback string.

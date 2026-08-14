@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from getworktree.core.bootstrap import BootstrapResult
 from getworktree.core.config.generator import ConfigGenerationResult
-from getworktree.core.workflows.seeder import WorkflowSeedResult
+from getworktree.core.workflows.services.seeder import WorkflowSeedResult
 
 
 class InitCommandOutcome(BaseModel):

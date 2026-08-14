@@ -14,7 +14,7 @@ from getworktree.core.workflows.agents.cli_mutation import (
     CliMutationRunRequest,
     build_mutation_prompt,
 )
-from getworktree.core.workflows.payload import AgentFailurePayload
+from getworktree.core.workflows.services.payload import AgentFailurePayload
 from tests.helpers import FileSystem
 
 

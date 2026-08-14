@@ -232,7 +232,7 @@ state (missing dir or branch) must not raise. Used directly by
 
 ## Patch validation
 
-`validate_patch_text` ([getworktree/core/workflows/patch.py](../../getworktree/core/workflows/patch.py))
+`validate_patch_text` ([getworktree/core/workflows/services/patch.py](../../getworktree/core/workflows/services/patch.py))
 parses and validates a unified diff against size/count/binary/path limits. It
 does **not** apply the diff (no `git apply` call in this module — callers that
 need to write changes to disk do so themselves, e.g. via
@@ -258,7 +258,7 @@ reject_binary_changes=True) -> PatchApplyResult`
 ## Failure payload models
 
 `AgentFailurePayload`, `PayloadFile`, `PayloadOmission`
-([getworktree/core/workflows/payload.py](../../getworktree/core/workflows/payload.py))
+([getworktree/core/workflows/services/payload.py](../../getworktree/core/workflows/services/payload.py))
 are the shared Pydantic models for structured agent failure context. They are
 consumed by `AgentRequest.payload` in the agent adapter contract below. There is
 currently no builder that assembles a payload from a live trigger run (the
@@ -369,6 +369,6 @@ and approval gating) was removed along with its supporting `trigger.py` and
 
 Schemas and workflow templates ship inside the installed package and are read via
 `importlib.resources.files(...)` (see shared `CONFIG_VALIDATOR` in
-`common/schema_validation.py` and `WORKFLOW_VALIDATOR` in `core/workflows/seeder.py`)
+`common/schema_validation.py` and `WORKFLOW_VALIDATOR` in `core/workflows/models.py`)
 rather than relative filesystem paths, so they work correctly when installed as a
 wheel.

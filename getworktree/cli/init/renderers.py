@@ -7,7 +7,7 @@ from pathlib import Path
 from getworktree.common.utils import RichOutput, display_path
 from getworktree.core.bootstrap import BootstrapResult
 from getworktree.core.config.generator import ConfigGenerationResult
-from getworktree.core.workflows.seeder import WorkflowSeedResult
+from getworktree.core.workflows.services.seeder import WorkflowSeedResult
 
 from .models import InitCommandOutcome
 

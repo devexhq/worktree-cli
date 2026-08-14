@@ -69,7 +69,7 @@ class FileSystem:
         self,
         name: str = "default-workflow",
         *,
-        dir: str | Path = ".worktree/workflows",
+        dir: str | Path = ".worktree/catalog/workflows",
         filename: str | None = None,
         **overrides: Any,
     ) -> Path:

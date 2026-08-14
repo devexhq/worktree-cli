@@ -7,14 +7,11 @@ from pathlib import Path
 import typer
 
 from getworktree.common.utils import RichOutput
+from getworktree.core.catalog.services.inventory import get_catalog_item
 from getworktree.core.config.loader import ConfigLoadStatus, load_config_result
-from getworktree.core.db import SandboxesDb, WorkflowsDb
-from getworktree.core.workflows.render import (
-    format_workflow_run_resolve_failure,
-    format_workflow_run_validate_failure,
-)
-from getworktree.core.workflows.resolve import resolve_workflow_by_name
-from getworktree.core.workflows.validate import validate_workflow_result
+from getworktree.core.db import CatalogItemType, SandboxesDb, WorkflowsDb
+from getworktree.core.workflows.models import WorkflowDefinition
+from getworktree.core.workflows.services.renderer import format_workflow_run_resolve_failure
 
 from .renderers import render_workflow_list
 
@@ -146,20 +143,11 @@ def workflow_run_command(
         rich_output.error_panel("Workflow Run Failed", detail)
         raise typer.Exit(code=1)
 
-    resolved = resolve_workflow_by_name(name, cwd=root)
-    if not resolved.ok:
+    result = get_catalog_item(name, CatalogItemType.WORKFLOW, definition_cls=WorkflowDefinition, cwd=root)
+    if not result.ok:
         rich_output.error_panel(
             "Workflow Run Failed",
-            format_workflow_run_resolve_failure(resolved),
-        )
-        raise typer.Exit(code=1)
-
-    assert resolved.entry is not None
-    validated = validate_workflow_result(resolved.entry.source_path)
-    if not validated.ok:
-        rich_output.error_panel(
-            "Workflow Run Failed",
-            format_workflow_run_validate_failure(validated),
+            format_workflow_run_resolve_failure(result),
         )
         raise typer.Exit(code=1)
 
