@@ -30,11 +30,13 @@ def test_task_list_command_with_items(fs: FileSystem, monkeypatch: pytest.Monkey
         "run-lints",
         description="Execute Ruff linter and formatter checks",
         summary="Runs ruff check and format",
+        use_sandbox=False,
     )
     fs.create_task_file(
         "run-tests",
         description="Execute pytest test suite",
         summary="Runs pytest with coverage",
+        use_sandbox=False,
     )
 
     outcome = task_list_command(cwd=fs.base_path)
@@ -45,6 +47,7 @@ def test_task_list_command_with_items(fs: FileSystem, monkeypatch: pytest.Monkey
     assert "run-lints" in item_map
     assert item_map["run-lints"].description == "Execute Ruff linter and formatter checks"
     assert item_map["run-lints"].summary == "Runs ruff check and format"
+    assert item_map["run-lints"].use_sandbox is False
 
     assert "run-tests" in item_map
     assert item_map["run-tests"].description == "Execute pytest test suite"
@@ -67,17 +70,16 @@ def test_task_list_command_surfaces_malformed_blueprint_warning(
     item = next(i for i in outcome.items if i.name == "broken-task")
     assert item.description == ""
     assert item.summary == ""
-    assert item.use_git_worktree is True
+    assert item.use_sandbox is True
 
 
 def test_task_show_and_run_commands(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(fs.base_path)
 
     create_catalog_item("task", "sample-task", cwd=fs.base_path)
-    # Task runner still keys off use_git_worktree (use_sandbox lands in a later task rewire).
     fs.write_file(
         ".worktree/catalog/tasks/sample-task.yml",
-        "name: sample-task\ndescription: Custom task blueprint\nuse_git_worktree: false\nsteps: []\n",
+        "name: sample-task\ndescription: Custom task blueprint\nuse_sandbox: false\nsteps: []\n",
     )
 
     # Show valid task
@@ -90,7 +92,7 @@ def test_task_show_and_run_commands(fs: FileSystem, monkeypatch: pytest.MonkeyPa
     # Show missing task
     show_missing = task_show_command("non-existent-task", cwd=fs.base_path)
     assert not show_missing.ok
-    assert "not found" in show_missing.errors[0]
+    assert "not found" in show_missing.errors[0].lower()
 
     # Run valid task
     run_res = task_run_command("sample-task", cwd=fs.base_path)
@@ -101,7 +103,7 @@ def test_task_show_and_run_commands(fs: FileSystem, monkeypatch: pytest.MonkeyPa
     # Run missing task
     run_missing = task_run_command("non-existent-task", cwd=fs.base_path)
     assert not run_missing.ok
-    assert "not found" in run_missing.errors[0]
+    assert "not found" in run_missing.errors[0].lower()
 
 
 def test_cli_wt_task_default_and_subcommands(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -111,7 +113,7 @@ def test_cli_wt_task_default_and_subcommands(fs: FileSystem, monkeypatch: pytest
         "run-lints",
         description="Execute Ruff linter and formatter checks",
         summary="Runs ruff check and format",
-        use_git_worktree=False,
+        use_sandbox=False,
     )
 
     # wt task (default invocation should match wt task list)
@@ -145,14 +147,20 @@ def test_cli_wt_task_default_and_subcommands(fs: FileSystem, monkeypatch: pytest
 
 def test_task_run_status_transitions_and_persistence(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(fs.base_path)
-    create_catalog_item("task", "sample-task", cwd=fs.base_path)
-    fs.write_file(
-        ".worktree/catalog/tasks/sample-task.yml",
-        "name: sample-task\ndescription: Custom task blueprint\nuse_git_worktree: false\nsteps: []\n",
+
+    fs.create_task_file(
+        "passing-task",
+        use_sandbox=False,
+        steps=[{"id": "ok", "run": "echo ok"}],
+    )
+    fs.create_task_file(
+        "failing-task",
+        use_sandbox=False,
+        steps=[{"id": "boom", "run": "exit 1"}],
     )
 
     # 1. Success task run
-    res_success = task_run_command("sample-task", cwd=fs.base_path, session_id="task_succ1")
+    res_success = task_run_command("passing-task", cwd=fs.base_path, session_id="task_succ1")
     assert res_success.ok
     assert res_success.run_record is not None
     assert res_success.run_record.status.value == "completed"
@@ -163,31 +171,38 @@ def test_task_run_status_transitions_and_persistence(fs: FileSystem, monkeypatch
     assert rec_succ.completed_at is not None
     assert rec_succ.error_message is None
 
-    # 2. Failed task run
-    def _fail_hook() -> None:
-        raise ValueError("Simulated task failure")
-
-    res_failed = task_run_command("sample-task", cwd=fs.base_path, session_id="task_fail1", execute_task_fn=_fail_hook)
+    # 2. Failed task run via real failing step
+    res_failed = task_run_command("failing-task", cwd=fs.base_path, session_id="task_fail1")
     assert not res_failed.ok
     assert res_failed.run_record is not None
     assert res_failed.run_record.status.value == "failed"
-    assert "Simulated task failure" in res_failed.errors[0]
+    assert res_failed.errors
 
     rec_fail = TasksDb(fs.base_path).get("task_fail1")
     assert rec_fail is not None
     assert rec_fail.status.value == "failed"
     assert rec_fail.completed_at is not None
-    assert rec_fail.error_message == "Simulated task failure"
+    assert rec_fail.error_message is not None
+    assert "boom" in rec_fail.error_message
 
-    # 3. Cancelled task run
-    def _cancel_hook() -> None:
-        raise KeyboardInterrupt()
+    # 3. Cancelled task run (runtime returns CANCELLED)
+    from getworktree.core.db import RunStatus
+    from getworktree.core.runtime import RunOutcome
 
+    def _cancel_run(definition, cwd, *, use_sandbox=True, keep=False, agent=None, observer=None):
+        return RunOutcome(
+            status=RunStatus.CANCELLED,
+            step_results=[],
+            error_message="Execution cancelled by user.",
+            sandbox_kept=False,
+            sandbox_path=cwd,
+        )
+
+    monkeypatch.setattr("getworktree.cli.task.command.run_task", _cancel_run)
     res_cancel = task_run_command(
-        "sample-task",
+        "passing-task",
         cwd=fs.base_path,
         session_id="task_canc1",
-        execute_task_fn=_cancel_hook,
     )
     assert not res_cancel.ok
     assert res_cancel.run_record is not None
@@ -197,15 +212,15 @@ def test_task_run_status_transitions_and_persistence(fs: FileSystem, monkeypatch
     assert rec_canc is not None
     assert rec_canc.status.value == "cancelled"
     assert rec_canc.completed_at is not None
-    assert "cancelled by user" in rec_canc.error_message.lower()
+    assert "cancelled" in (rec_canc.error_message or "").lower()
 
 
 def test_task_run_db_fault_tolerance(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(fs.base_path)
-    create_catalog_item("task", "sample-task", cwd=fs.base_path)
-    fs.write_file(
-        ".worktree/catalog/tasks/sample-task.yml",
-        "name: sample-task\ndescription: Custom task blueprint\nuse_git_worktree: false\nsteps: []\n",
+    fs.create_task_file(
+        "sample-task",
+        use_sandbox=False,
+        steps=[],
     )
 
     # Monkeypatch TasksDb.insert to raise DB exception
@@ -221,10 +236,10 @@ def test_task_run_db_fault_tolerance(fs: FileSystem, monkeypatch: pytest.MonkeyP
 
 def test_task_list_displays_recorded_runs(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(fs.base_path)
-    create_catalog_item("task", "sample-task", cwd=fs.base_path)
-    fs.write_file(
-        ".worktree/catalog/tasks/sample-task.yml",
-        "name: sample-task\ndescription: Custom task blueprint\nuse_git_worktree: false\nsteps: []\n",
+    fs.create_task_file(
+        "sample-task",
+        use_sandbox=False,
+        steps=[],
     )
 
     # Execute a task to record it in DB

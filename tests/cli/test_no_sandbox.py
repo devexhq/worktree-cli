@@ -10,15 +10,15 @@ from tests.helpers import FileSystem
 runner = CliRunner()
 
 
-def test_task_blueprint_use_git_worktree_parsing(fs: FileSystem) -> None:
+def test_task_blueprint_use_sandbox_parsing(fs: FileSystem) -> None:
     fs.write_file(
         ".worktree/catalog/tasks/in-place-task.yml",
         {
             "name": "in-place-task",
             "description": "Run linters in-place",
             "summary": "In-place task",
-            "use_git_worktree": False,
-            "commands": [{"name": "echo-test", "command": "echo test"}],
+            "use_sandbox": False,
+            "steps": [{"id": "echo-test", "run": "echo test"}],
         },
     )
 
@@ -26,7 +26,7 @@ def test_task_blueprint_use_git_worktree_parsing(fs: FileSystem) -> None:
     assert outcome.ok
     assert len(outcome.items) == 1
     assert outcome.items[0].name == "in-place-task"
-    assert outcome.items[0].use_git_worktree is False
+    assert outcome.items[0].use_sandbox is False
 
 
 def test_task_run_command_no_sandbox_flag(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -37,8 +37,8 @@ def test_task_run_command_no_sandbox_flag(fs: FileSystem, monkeypatch: pytest.Mo
             "name": "sample-task",
             "description": "Sample task",
             "summary": "Sample task",
-            "use_git_worktree": False,
-            "commands": [{"name": "test-step", "command": "echo hello"}],
+            "use_sandbox": False,
+            "steps": [{"id": "test-step", "run": "echo hello"}],
         },
     )
 

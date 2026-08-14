@@ -4,30 +4,29 @@ from __future__ import annotations
 
 import logging
 import uuid
-from collections.abc import Callable
 from pathlib import Path
-from typing import Any
 
-import yaml
-from pydantic import ValidationError
-
+from getworktree.common.fs import read_yaml_file
 from getworktree.common.utils import RichOutput
 from getworktree.core.catalog.services.inventory import (
     get_catalog_dir,
-    get_catalog_item,
     scan_and_index_catalog,
 )
 from getworktree.core.db import (
     CatalogItemType,
+    CatalogRecord,
     RunStatus,
     TaskRunRecord,
     TasksDb,
 )
-from getworktree.core.git_sandbox import GitSandboxManager, SandboxSession
-from getworktree.core.step import (
-    StepDefinition,
-    execute_step,
-    resolve_step_definition,
+from getworktree.core.runtime import RunOutcome
+from getworktree.core.step import StepDefinition, StepResult
+from getworktree.core.task import (
+    TaskDefinition,
+    format_task_resolve_failure,
+    format_task_run_failure,
+    resolve_and_load_task,
+    run_task,
 )
 
 from .models import (
@@ -46,13 +45,168 @@ _DEFAULT_RICH_OUTPUT = RichOutput()
 logger = logging.getLogger(__name__)
 
 
-def _normalize_task_step_dict(raw: dict[str, Any], idx: int) -> dict[str, Any]:
-    """Fill in id/type defaults so simple 'commands:' blueprint entries validate."""
-    data = dict(raw)
-    data.setdefault("id", str(data.get("name") or f"step_{idx}"))
-    if not any(k in data for k in ("run", "uses", "type")) and data.get("command"):
-        data["type"] = "command"
-    return data
+class CliRunObserver:
+    """Observer adapter forwarding runtime step lifecycle events to RichOutput."""
+
+    def __init__(self, output: RichOutput) -> None:
+        self.output = output
+
+    def on_sandbox_ready(self, path: Path, active: bool) -> None:
+        """Report sandbox readiness to the CLI."""
+        if active:
+            self.output.info(f"Sandbox: Active ({path})")
+        else:
+            self.output.info("Sandbox: In-place (workspace)")
+
+    def on_step_start(self, idx: int, total: int, step: StepDefinition) -> None:
+        """Report step start progress to the CLI."""
+        step_label = step.name or step.id
+        cmd_info = f" (command: {step.run})" if step.run else ""
+        self.output.info(f"[STEP {idx}/{total}] Executing {step_label}{cmd_info}...")
+
+    def on_step_done(self, idx: int, total: int, result: StepResult) -> None:
+        """Report step completion or failure to the CLI."""
+        step_label = result.step_id
+        if result.ok:
+            self.output.info(f"[bold green][STEP {idx}/{total}] {step_label} COMPLETED[/]")
+            return
+        msg = result.error_message or result.stderr or f"exit code {result.exit_code}"
+        self.output.info(f"[bold red][STEP {idx}/{total}] {step_label} FAILED[/]: {msg}")
+
+    def on_sandbox_cleanup(self, kept: bool, path: Path) -> None:
+        """Report sandbox cleanup or retention to the CLI."""
+        if kept:
+            self.output.info(f"Sandbox: Retained ({path})")
+        else:
+            self.output.info("Sandbox: Cleaned")
+
+
+def _blueprint_from_record(
+    record: CatalogRecord,
+    cwd: Path | None,
+) -> tuple[TaskBlueprintItem, str | None]:
+    """Build a list item from a catalog record, loading TaskDefinition when possible."""
+    load_result = resolve_and_load_task(record.name, cwd=cwd)
+    if load_result.ok and isinstance(load_result.definition, TaskDefinition):
+        definition = load_result.definition
+        item = TaskBlueprintItem(
+            name=record.name,
+            description=definition.description,
+            summary=definition.summary,
+            sha=record.sha,
+            path=str(record.path),
+            use_sandbox=definition.use_sandbox,
+        )
+        return item, None
+
+    warning: str | None = None
+    if load_result.errors:
+        warning = f"Failed to parse task blueprint '{record.path}': {load_result.errors[0]}"
+    item = TaskBlueprintItem(
+        name=record.name,
+        description="",
+        summary="",
+        sha=record.sha,
+        path=str(record.path),
+        use_sandbox=True,
+    )
+    return item, warning
+
+
+def _insert_running_record(
+    cwd: Path | None,
+    session_id: str,
+    task_name: str,
+) -> tuple[TaskRunRecord | None, list[str]]:
+    """Insert a RUNNING task row; DB faults become warnings."""
+    try:
+        return TasksDb(cwd).insert(
+            session_id=session_id,
+            task_name=task_name,
+            status=RunStatus.RUNNING,
+        ), []
+    except Exception as exc:
+        logger.warning("Failed to record task run start in database: %s", exc)
+        return None, [f"Failed to record task run start in database: {exc}"]
+
+
+def _update_run_status(
+    cwd: Path | None,
+    session_id: str,
+    status: RunStatus,
+    error_message: str | None,
+) -> tuple[TaskRunRecord | None, list[str]]:
+    """Update task run status; DB faults become warnings."""
+    try:
+        return TasksDb(cwd).update_status(
+            session_id=session_id,
+            status=status,
+            error_message=error_message,
+        ), []
+    except Exception as exc:
+        logger.warning("Failed to update task run status in database: %s", exc)
+        return None, [f"Failed to update task run status in database: {exc}"]
+
+
+def _fallback_run_record(
+    session_id: str,
+    task_name: str,
+    status: RunStatus,
+    error_message: str | None,
+) -> TaskRunRecord:
+    return TaskRunRecord(
+        id=-1,
+        session_id=session_id,
+        task_name=task_name,
+        status=status,
+        started_at="",
+        completed_at=None,
+        error_message=error_message,
+    )
+
+
+def _finalize_run_outcome(
+    *,
+    name: str,
+    session_id: str,
+    run_outcome: RunOutcome,
+    run_record: TaskRunRecord | None,
+    updated_record: TaskRunRecord | None,
+    warnings: list[str],
+    output: RichOutput,
+) -> TaskRunCommandOutcome:
+    """Render run result and build the CLI outcome."""
+    final_record = (
+        updated_record
+        or run_record
+        or _fallback_run_record(
+            session_id,
+            name,
+            run_outcome.status,
+            run_outcome.error_message,
+        )
+    )
+
+    if run_outcome.ok:
+        render_task_run_success(final_record, rich_output=output)
+        return TaskRunCommandOutcome(run_record=final_record, warnings=warnings)
+
+    if run_outcome.status == RunStatus.CANCELLED:
+        message = run_outcome.error_message or "Cancelled by user."
+        output.error_panel("Task Run Cancelled", message)
+        return TaskRunCommandOutcome(
+            run_record=final_record,
+            errors=[message],
+            warnings=warnings,
+        )
+
+    message = format_task_run_failure(run_outcome)
+    output.error_panel("Task Run Failed", message)
+    return TaskRunCommandOutcome(
+        run_record=final_record,
+        errors=[message],
+        warnings=warnings,
+    )
 
 
 def task_list_command(
@@ -60,54 +214,22 @@ def task_list_command(
     *,
     rich_output: RichOutput | None = None,
 ) -> TaskListCommandOutcome:
-    """List task blueprints discovered under ``.worktree/catalog/tasks/`` and recorded task runs.
-
-    Args:
-        cwd: Optional working directory.
-        rich_output: Optional RichOutput presenter.
-
-    Returns:
-        TaskListCommandOutcome containing listed task blueprint items, task run history, and errors.
-    """
+    """List task blueprints under ``.worktree/catalog/tasks/`` and recorded runs."""
     output = rich_output or _DEFAULT_RICH_OUTPUT
     warnings: list[str] = []
 
-    scan_res = scan_and_index_catalog(cwd=cwd)
-    if not scan_res.ok:
-        for err in scan_res.errors:
+    scan_result = scan_and_index_catalog(cwd=cwd)
+    if not scan_result.ok:
+        for err in scan_result.errors:
             output.error_panel("Task Catalog Scan Warning", err)
 
-    task_records = [r for r in scan_res.items if r.item_type == CatalogItemType.TASK]
-    catalog_dir = get_catalog_dir(cwd)
-
+    task_records = [record for record in scan_result.items if record.item_type == CatalogItemType.TASK]
     items: list[TaskBlueprintItem] = []
     for record in task_records:
-        file_path = catalog_dir / record.path
-        use_git_worktree = True
-        description = ""
-        summary = ""
-        if file_path.exists():
-            try:
-                content = file_path.read_text(encoding="utf-8")
-                yaml_data = yaml.safe_load(content)
-                if isinstance(yaml_data, dict):
-                    description = str(yaml_data.get("description", ""))
-                    summary = str(yaml_data.get("summary", ""))
-                    if "use_git_worktree" in yaml_data:
-                        use_git_worktree = bool(yaml_data.get("use_git_worktree", True))
-            except Exception as exc:
-                warnings.append(f"Failed to parse task blueprint '{record.path}': {exc}")
-
-        items.append(
-            TaskBlueprintItem(
-                name=record.name,
-                description=description,
-                summary=summary,
-                sha=record.sha,
-                path=str(record.path),
-                use_git_worktree=use_git_worktree,
-            )
-        )
+        item, warning = _blueprint_from_record(record, cwd)
+        items.append(item)
+        if warning:
+            warnings.append(warning)
 
     runs: list[TaskRunRecord] = []
     try:
@@ -117,11 +239,10 @@ def task_list_command(
         logger.warning("Failed to query task run history from database: %s", exc)
 
     render_task_list(items, runs=runs, rich_output=output)
-
     return TaskListCommandOutcome(
         items=items,
         runs=runs,
-        errors=list(scan_res.errors),
+        errors=list(scan_result.errors),
         warnings=warnings,
     )
 
@@ -132,35 +253,24 @@ def task_show_command(
     *,
     rich_output: RichOutput | None = None,
 ) -> TaskShowCommandOutcome:
-    """Show details and definition content of a task blueprint.
-
-    Args:
-        name: Name of the task to show.
-        cwd: Optional working directory.
-        rich_output: Optional RichOutput presenter.
-
-    Returns:
-        TaskShowCommandOutcome containing catalog item record and YAML definition.
-    """
+    """Show details and definition content of a task blueprint."""
     output = rich_output or _DEFAULT_RICH_OUTPUT
 
-    resolution_result = get_catalog_item(name, cwd=cwd)
-    item = resolution_result.resolved
-    if not resolution_result.ok or item is None or item.item_type != CatalogItemType.TASK:
-        error_message = f"Task blueprint '{name}' not found."
+    resolution = resolve_and_load_task(name, cwd=cwd)
+    item = resolution.resolved
+    if not resolution.ok or item is None:
+        error_message = format_task_resolve_failure(resolution)
         output.error_panel("Task Show Failed", error_message)
         return TaskShowCommandOutcome(item=None, content=None, errors=[error_message])
 
-    catalog_dir = get_catalog_dir(cwd)
-    file_path = catalog_dir / item.path
-
-    try:
-        content = file_path.read_text(encoding="utf-8")
-    except OSError as exc:
-        error_message = f"Failed to read file for task blueprint '{name}': {exc}"
+    file_path = get_catalog_dir(cwd) / item.path
+    yaml_file = read_yaml_file(file_path)
+    if yaml_file.error or yaml_file.content is None:
+        error_message = yaml_file.error or f"Failed to read file for task blueprint '{name}'."
         output.error_panel("Task Show Failed", error_message)
         return TaskShowCommandOutcome(item=item, content=None, errors=[error_message])
 
+    content = yaml_file.content
     render_task_show(item, content, rich_output=output)
     return TaskShowCommandOutcome(item=item, content=content)
 
@@ -173,189 +283,45 @@ def task_run_command(
     keep: bool = False,
     agent: str | None = None,
     session_id: str | None = None,
-    execute_task_fn: Callable[[], None] | None = None,
     rich_output: RichOutput | None = None,
 ) -> TaskRunCommandOutcome:
-    """Execute a task blueprint by name, running defined steps and persisting status.
-
-    Args:
-        name: Name of the task to run.
-        cwd: Optional working directory.
-        no_sandbox: When True, run execution in-place without creating a Git sandbox.
-        keep: When True, retain the sandbox worktree after task completion.
-        agent: Optional agent adapter override.
-        session_id: Optional fixed session ID.
-        execute_task_fn: Optional custom execution hook (for testing/simulation).
-        rich_output: Optional RichOutput presenter.
-
-    Returns:
-        TaskRunCommandOutcome containing task run record, warnings, or errors.
-    """
+    """Resolve a task blueprint, execute it via core runtime, and persist status."""
     output = rich_output or _DEFAULT_RICH_OUTPUT
+    root = (cwd or Path.cwd()).resolve()
 
-    resolution_result = get_catalog_item(name, cwd=cwd)
-    item = resolution_result.resolved
-    if not resolution_result.ok or item is None or item.item_type != CatalogItemType.TASK:
-        error_message = f"Task blueprint '{name}' not found."
+    resolution = resolve_and_load_task(name, cwd=root)
+    if not resolution.ok or not isinstance(resolution.definition, TaskDefinition):
+        error_message = format_task_resolve_failure(resolution)
         output.error_panel("Task Run Failed", error_message)
         return TaskRunCommandOutcome(run_record=None, errors=[error_message])
 
-    catalog_dir = get_catalog_dir(cwd)
-    file_path = catalog_dir / item.path
-
-    task_use_git_wt = True
-    yaml_data: dict = {}
-    if file_path.exists():
-        try:
-            content = file_path.read_text(encoding="utf-8")
-            parsed = yaml.safe_load(content)
-            if isinstance(parsed, dict):
-                yaml_data = parsed
-                if "use_git_worktree" in yaml_data:
-                    task_use_git_wt = bool(yaml_data.get("use_git_worktree", True))
-        except Exception as exc:
-            logger.warning("Failed to parse task blueprint YAML: %s", exc)
-
-    effective_use_git_worktree = False if no_sandbox else task_use_git_wt
-    root = (cwd or Path.cwd()).resolve()
-
     sid = session_id or f"task_{uuid.uuid4().hex[:8]}"
-    warnings: list[str] = []
-    run_record: TaskRunRecord | None = None
+    run_record, warnings = _insert_running_record(cwd, sid, name)
 
-    try:
-        run_record = TasksDb(cwd).insert(
-            session_id=sid,
-            task_name=name,
-            status=RunStatus.RUNNING,
-        )
-    except Exception as exc:
-        warnings.append(f"Failed to record task run start in database: {exc}")
-        logger.warning("Failed to record task run start in database: %s", exc)
-
-    run_status = RunStatus.RUNNING
-    error_msg: str | None = None
-    manager: GitSandboxManager | None = None
-    session: SandboxSession | None = None
-
-    try:
-        output.info(f"Running task '{name}'...")
-        if execute_task_fn is not None:
-            execute_task_fn()
-            run_status = RunStatus.COMPLETED
-        else:
-            # 1. Setup Sandbox or workspace root
-            if effective_use_git_worktree:
-                manager = GitSandboxManager(cwd=root)
-                create_res = manager.create_sandbox_result(session_id=sid)
-                if not create_res.ok or create_res.session is None:
-                    err_detail = create_res.errors[0] if create_res.errors else "Sandbox creation failed."
-                    raise RuntimeError(f"Git sandbox creation failed: {err_detail}")
-                session = create_res.session
-                sandbox_path = session.sandbox_path
-                output.info(f"Sandbox: Active ({sandbox_path})")
-            else:
-                sandbox_path = root
-                output.info("Sandbox: In-place (workspace)")
-
-            # 2. Parse Step Definitions from task blueprint YAML
-            raw_steps = yaml_data.get("steps") or yaml_data.get("commands") or []
-            step_defs: list[StepDefinition] = []
-            for idx, s in enumerate(raw_steps, start=1):
-                if not isinstance(s, dict):
-                    continue
-                try:
-                    step_def = StepDefinition.model_validate(_normalize_task_step_dict(s, idx))
-                except (ValidationError, ValueError) as exc:
-                    raise RuntimeError(f"Invalid step definition at index {idx}: {exc}") from exc
-                step_defs.append(resolve_step_definition(step_def, cwd=root))
-
-            if not step_defs:
-                output.info("No step definitions found in task blueprint.")
-
-            # 3. Execute Step Definitions
-            total_steps = len(step_defs)
-            for idx, step_def in enumerate(step_defs, start=1):
-                step_label = step_def.name or step_def.id
-                cmd_info = f" (command: {step_def.command})" if step_def.command else ""
-                output.info(f"[STEP {idx}/{total_steps}] Executing {step_label}{cmd_info}...")
-
-                step_res = execute_step(
-                    step=step_def,
-                    sandbox_path=sandbox_path,
-                    context={"agent": agent} if agent else None,
-                )
-
-                if step_res.ok:
-                    output.info(f"[bold green][STEP {idx}/{total_steps}] {step_label} COMPLETED[/]")
-                else:
-                    output.info(
-                        f"[bold red][STEP {idx}/{total_steps}] {step_label} FAILED[/]: {step_res.error_message or step_res.stderr}"
-                    )
-                    raise RuntimeError(
-                        f"Step '{step_label}' failed: {step_res.error_message or step_res.stderr or 'exit code ' + str(step_res.exit_code)}"
-                    )
-
-            run_status = RunStatus.COMPLETED
-
-    except KeyboardInterrupt:
-        run_status = RunStatus.CANCELLED
-        error_msg = "Task execution cancelled by user."
-    except Exception as exc:
-        run_status = RunStatus.FAILED
-        error_msg = str(exc)
-
-    # 4. Sandbox Cleanup (unless keep=True or sandbox not created)
-    if manager is not None and session is not None:
-        if not keep:
-            try:
-                manager.cleanup_sandbox(session)
-                output.info("Sandbox: Cleaned")
-            except Exception as exc:
-                warnings.append(f"Failed to clean up sandbox: {exc}")
-        else:
-            output.info(f"Sandbox: Retained ({session.sandbox_path})")
-
-    # 5. DB Status Update
-    updated_record: TaskRunRecord | None = None
-    try:
-        updated_record = TasksDb(cwd).update_status(
-            session_id=sid,
-            status=run_status,
-            error_message=error_msg,
-        )
-    except Exception as exc:
-        warnings.append(f"Failed to update task run status in database: {exc}")
-        logger.warning("Failed to update task run status in database: %s", exc)
-
-    final_record = (
-        updated_record
-        or run_record
-        or TaskRunRecord(
-            id=-1,
-            session_id=sid,
-            task_name=name,
-            status=run_status,
-            started_at="",
-            completed_at=None,
-            error_message=error_msg,
-        )
+    output.info(f"Running task '{name}'...")
+    run_outcome = run_task(
+        definition=resolution.definition,
+        cwd=root,
+        use_sandbox=not no_sandbox,
+        keep=keep,
+        agent=agent,
+        observer=CliRunObserver(output),
     )
 
-    if run_status == RunStatus.COMPLETED:
-        render_task_run_success(final_record, rich_output=output)
-        return TaskRunCommandOutcome(run_record=final_record, warnings=warnings)
-    elif run_status == RunStatus.CANCELLED:
-        output.error_panel("Task Run Cancelled", error_msg or "Cancelled by user.")
-        return TaskRunCommandOutcome(
-            run_record=final_record,
-            errors=[error_msg or "Task execution cancelled."],
-            warnings=warnings,
-        )
-    else:
-        output.error_panel("Task Run Failed", error_msg or "Task execution failed.")
-        return TaskRunCommandOutcome(
-            run_record=final_record,
-            errors=[error_msg or "Task execution failed."],
-            warnings=warnings,
-        )
+    updated_record, update_warnings = _update_run_status(
+        cwd,
+        sid,
+        run_outcome.status,
+        run_outcome.error_message,
+    )
+    warnings.extend(update_warnings)
+
+    return _finalize_run_outcome(
+        name=name,
+        session_id=sid,
+        run_outcome=run_outcome,
+        run_record=run_record,
+        updated_record=updated_record,
+        warnings=warnings,
+        output=output,
+    )
