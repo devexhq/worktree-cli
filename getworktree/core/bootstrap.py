@@ -21,7 +21,7 @@ from getworktree.common.constants import (
 )
 from getworktree.common.fs import atomic_write_json
 from getworktree.common.utils import display_path
-from getworktree.core.workflows.services.seeder import WorkflowSeedResult
+from getworktree.core.catalog.services.seeder import SeedResult
 
 
 class DirEnsureOutcome(Enum):
@@ -46,12 +46,26 @@ class BootstrapResult(BaseModel):
     repaired: bool = False
     warnings: list[str] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
-    workflow_seed_result: WorkflowSeedResult = Field(default_factory=WorkflowSeedResult)
+    seed_result: SeedResult = Field(default_factory=SeedResult)
 
     @property
     def ok(self) -> bool:
         """True when bootstrap completed without errors."""
         return not self.errors
+
+
+def _validate_existing_dir(path: Path, *, allow_symlink: bool) -> None:
+    """Raise ValueError when an existing path is not a usable directory."""
+    if path.is_symlink():
+        if allow_symlink:
+            if not path.is_dir():
+                raise ValueError(f"{display_path(path)} is a symlink that does not resolve to a directory.")
+            return
+        raise ValueError(f"{display_path(path)} must be a directory, not a symlink.")
+    if path.is_file():
+        raise ValueError(f"{display_path(path)} exists but is a file, not a directory.")
+    if not path.is_dir():
+        raise ValueError(f"{display_path(path)} is not a usable directory.")
 
 
 def ensure_dir(path: Path, *, allow_symlink: bool = False) -> DirEnsureOutcome:
@@ -68,16 +82,7 @@ def ensure_dir(path: Path, *, allow_symlink: bool = False) -> DirEnsureOutcome:
             ) from exc
         return DirEnsureOutcome.CREATED
 
-    if path.is_symlink():
-        if allow_symlink:
-            if not path.is_dir():
-                raise ValueError(f"{display_path(path)} is a symlink that does not resolve to a directory.")
-            return DirEnsureOutcome.EXISTING
-        raise ValueError(f"{display_path(path)} must be a directory, not a symlink.")
-    if path.is_file():
-        raise ValueError(f"{display_path(path)} exists but is a file, not a directory.")
-    if not path.is_dir():
-        raise ValueError(f"{display_path(path)} is not a usable directory.")
+    _validate_existing_dir(path, allow_symlink=allow_symlink)
     return DirEnsureOutcome.EXISTING
 
 
@@ -122,6 +127,50 @@ def write_bootstrap_metadata(
     atomic_write_json(meta_path, payload)
 
 
+def _ensure_required_subdirs(root_path: Path, result: BootstrapResult) -> bool:
+    """Ensure REQUIRED_SUBDIRS under root_path. Returns False when a path error is recorded."""
+    for name in REQUIRED_SUBDIRS:
+        sub_path = root_path / name
+        try:
+            outcome = ensure_dir(sub_path, allow_symlink=False)
+        except ValueError as exc:
+            result.errors.append(str(exc))
+            return False
+        if outcome == DirEnsureOutcome.CREATED:
+            result.dirs_created.append(sub_path)
+        else:
+            result.dirs_existing.append(sub_path)
+    return True
+
+
+def _assert_layout_writable(root_path: Path, result: BootstrapResult) -> bool:
+    """Assert root and known subdirs are writable. Returns False when a path error is recorded."""
+    try:
+        assert_writable(root_path)
+        for sub_path in result.dirs_created + result.dirs_existing:
+            assert_writable(sub_path)
+    except ValueError as exc:
+        result.errors.append(str(exc))
+        return False
+    return True
+
+
+def _bootstrap_status(
+    *,
+    repaired: bool,
+    root_created: bool,
+    dirs_created: list[Path],
+    prior_meta: dict | None,
+) -> str:
+    if repaired:
+        return "repaired"
+    if root_created or dirs_created:
+        return "initialized"
+    if prior_meta:
+        return str(prior_meta.get("status", "initialized"))
+    return "initialized"
+
+
 def bootstrap_worktree(
     root_path: Path,
     *,
@@ -150,24 +199,9 @@ def bootstrap_worktree(
             result.errors.append(str(exc))
             return result
 
-    for name in REQUIRED_SUBDIRS:
-        sub_path = root_path / name
-        try:
-            outcome = ensure_dir(sub_path, allow_symlink=False)
-        except ValueError as exc:
-            result.errors.append(str(exc))
-            return result
-        if outcome == DirEnsureOutcome.CREATED:
-            result.dirs_created.append(sub_path)
-        else:
-            result.dirs_existing.append(sub_path)
-
-    try:
-        assert_writable(root_path)
-        for sub_path in result.dirs_created + result.dirs_existing:
-            assert_writable(sub_path)
-    except ValueError as exc:
-        result.errors.append(str(exc))
+    if not _ensure_required_subdirs(root_path, result):
+        return result
+    if not _assert_layout_writable(root_path, result):
         return result
 
     result.repaired = _is_repair(
@@ -176,20 +210,16 @@ def bootstrap_worktree(
         dirs_existing=result.dirs_existing,
         prior_meta=prior_meta,
     )
-
     if result.errors:
         return result
 
-    if result.repaired:
-        status = "repaired"
-    elif result.root_created or result.dirs_created:
-        status = "initialized"
-    else:
-        status = str(prior_meta.get("status", "initialized")) if prior_meta else "initialized"
-
-    initialized_at: str | None = None
-    if prior_meta and prior_meta.get("initialized_at"):
-        initialized_at = str(prior_meta["initialized_at"])
+    status = _bootstrap_status(
+        repaired=result.repaired,
+        root_created=result.root_created,
+        dirs_created=result.dirs_created,
+        prior_meta=prior_meta,
+    )
+    initialized_at = str(prior_meta["initialized_at"]) if prior_meta and prior_meta.get("initialized_at") else None
 
     try:
         write_bootstrap_metadata(
@@ -202,7 +232,7 @@ def bootstrap_worktree(
     except OSError as exc:
         result.errors.append(f"Could not write bootstrap metadata at {display_path(meta_path)}: {exc}")
 
-    result.workflow_seed_result = WorkflowSeedResult()
+    result.seed_result = SeedResult()
     return result
 
 

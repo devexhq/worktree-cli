@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.resources
 from pathlib import Path
 from typing import Any
 
@@ -29,7 +30,6 @@ from getworktree.core.db import (
     CatalogItemType,
     CatalogRecord,
 )
-from getworktree.core.templates.inventory import get_builtin_template
 
 
 def get_catalog_dir(cwd: Path | None = None) -> Path:
@@ -128,24 +128,25 @@ def scan_and_index_catalog(cwd: Path | None = None) -> CatalogScanResult:
     return CatalogScanResult(items=scan_result.scanned_records, errors=errors)
 
 
-def _get_initial_template_content(type_enum: CatalogItemType, stem: str, template_name: str | None) -> str:
-    if template_name:
-        template = get_builtin_template(template_name, type_filter=type_enum.value)
-        if template is None:
-            raise ValueError(f"Built-in template '{template_name}' of type '{type_enum.value}' not found.")
-        return template.content
-
-    if type_enum == CatalogItemType.WORKFLOW:
-        return f"name: {stem}\ndescription: Custom workflow blueprint\nsteps: []\n"
-    if type_enum == CatalogItemType.TASK:
-        return f"name: {stem}\ndescription: Custom task blueprint\nuse_git_worktree: false\ncommands: []\n"
-    return f"name: {stem}\ndescription: Custom step blueprint\naction: run\n"
+def _get_initial_template_content(type_enum: CatalogItemType, stem: str) -> str:
+    template_path = (
+        importlib.resources.files("getworktree.core.catalog.templates") / f"{type_enum.value}s" / "default.yml"
+    )
+    try:
+        content = template_path.read_text(encoding="utf-8")
+        return content.replace("my-workflow", stem).replace("my-task", stem).replace("my-step", stem)
+    except Exception:
+        # Defensive fallback if the packaged resource is unreadable
+        if type_enum == CatalogItemType.WORKFLOW:
+            return f'version: "1.0"\nname: {stem}\ndescription: Custom workflow blueprint\nsteps: []\n'
+        if type_enum == CatalogItemType.TASK:
+            return f"name: {stem}\ndescription: Custom task blueprint\nuse_sandbox: false\nsteps: []\n"
+        return f"name: {stem}\ndescription: Custom step blueprint\naction: run\n"
 
 
 def create_catalog_item(
     item_type: CatalogItemType | str,
     name: str,
-    template_name: str | None = None,
     cwd: Path | None = None,
 ) -> CatalogRecord:
     """Create a new catalog blueprint under `.worktree/catalog/<type>s/<name>.yml` and sync database."""
@@ -164,7 +165,7 @@ def create_catalog_item(
         rel_path = target_path.relative_to(catalog_dir)
         raise FileExistsError(f"Catalog blueprint collision at path '{rel_path}'")
 
-    content = _get_initial_template_content(type_enum, stem, template_name)
+    content = _get_initial_template_content(type_enum, stem)
     atomic_write_text(target_path, content)
 
     sha, checksum = compute_catalog_sha(type_enum, content)

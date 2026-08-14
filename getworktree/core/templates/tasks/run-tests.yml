@@ -1,5 +1,0 @@
-version: 1
-name: run-tests
-type: task
-description: Execute pytest suite with coverage
-summary: Runs pytest

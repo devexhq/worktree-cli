@@ -28,7 +28,7 @@ wt catalog
 
 #### Options
 
-* `--type [workflow|task|step]`: Filter blueprints by item type.
+* `--type [workflow|task|step|template]`: Filter blueprints by item type. `--type template` lists the packaged `default.yml` blueprint scaffolds instead of querying the database.
 
 ```bash
 # List workflow blueprints
@@ -39,6 +39,9 @@ wt catalog list --type task
 
 # List step blueprints
 wt catalog list --type step
+
+# List packaged default.yml templates
+wt catalog list --type template
 ```
 
 ### `wt catalog create`
@@ -56,13 +59,12 @@ wt catalog create <type> --name <name> [OPTIONS]
 #### Options
 
 - `--name TEXT`: Unique blueprint name (required).
-- `--template TEXT`: Optional built-in template name to pre-populate content from.
 
 #### Examples
 
 ```bash
-# Create a new workflow blueprint from the built-in feature-dev template
-wt catalog create workflow --name my-feature --template feature-dev
+# Create a new workflow blueprint (seeded from the packaged default.yml scaffold)
+wt catalog create workflow --name my-feature
 
 # Create a new custom task blueprint
 wt catalog create task --name format-code
@@ -70,7 +72,7 @@ wt catalog create task --name format-code
 
 ### `wt catalog show`
 
-Displays definition content and metadata for a specific catalog blueprint:
+Displays definition content and metadata for a specific catalog blueprint. If `<sha_or_name>` is not indexed in the database, falls back to packaged templates under `core/catalog/templates/` (e.g. `default`, or curated names like `fix-tests`):
 
 ```bash
 wt catalog show <sha_or_name>

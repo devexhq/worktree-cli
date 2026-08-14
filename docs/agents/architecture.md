@@ -14,13 +14,14 @@ getworktree/core/                  Business logic, no Typer/CLI concerns
                                    Defaults write + load/set + validate + typed models + repo context
   db/                              SQLite connection, migrations, models, and domain CRUD package
   git_sandbox.py                   Isolated `git worktree` sandbox lifecycle
+  catalog/                         Blueprint scanning, indexing, and packaged template seeds
+  catalog/services/seeder.py       Seeds curated `wt/` templates into `.worktree/catalog/`
+  catalog/templates/               Packaged default.yml scaffolds + curated workflow seeds
   workflows/                           Workflow domain (iteration, payloads, patches, safety, agents)
   workflows/agents/                    Agent adapter protocol + providers (owned by workflows)
-  workflows/seeder.py                  Seeds packaged starter workflow YAML files
   workflows/patch.py                   Unified-diff validate/apply in sandbox
   workflows/runner/                    Iteration controller (package: models/helpers/steps/orchestrator)
   workflows/safety.py                  Repeat-failure / no-op / session-timeout policy
-  templates/workflows/*.yml            Packaged starter workflow definitions
 getworktree/common/                Shared, dependency-light helpers
   constants.py, fs.py, utils.py, schema_validation.py
 getworktree/schemas/                Versioned JSON Schemas (config_v1.json, workflow_v1.json)
@@ -30,8 +31,10 @@ getworktree/schemas/                Versioned JSON Schemas (config_v1.json, work
 
 - **Workflow domain** (`core/workflows/`) owns iteration, triggers, payloads, patches,
   safety, and agent adapters (`core/workflows/agents/`).
+- **Catalog domain** (`core/catalog/`) owns blueprint scanning/indexing and packaged
+  template resources (`core/catalog/templates/`).
 - **Shared core infra** stays at `core/` top level: `config/`, `git_sandbox.py`,
-  `db/`, `bootstrap.py`, `templates/`.
+  `db/`, `bootstrap.py`.
 
 Not every command has all three files (e.g. `status` has only `command.py`) — add
 `models.py`/`renderers.py` when a command's output/result grows non-trivial.
@@ -367,8 +370,8 @@ and approval gating) was removed along with its supporting `trigger.py` and
 
 ## Packaged resources
 
-Schemas and workflow templates ship inside the installed package and are read via
+Schemas and catalog templates ship inside the installed package and are read via
 `importlib.resources.files(...)` (see shared `CONFIG_VALIDATOR` in
-`common/schema_validation.py` and `WORKFLOW_VALIDATOR` in `core/workflows/models.py`)
-rather than relative filesystem paths, so they work correctly when installed as a
-wheel.
+`common/schema_validation.py`, `WORKFLOW_VALIDATOR` in `core/workflows/models.py`,
+and `core/catalog/templates/`) rather than relative filesystem paths, so they work
+correctly when installed as a wheel.

@@ -5,8 +5,8 @@ from __future__ import annotations
 from pydantic import BaseModel
 
 from getworktree.core.bootstrap import BootstrapResult
+from getworktree.core.catalog.services.seeder import SeedResult
 from getworktree.core.config.generator import ConfigGenerationResult
-from getworktree.core.workflows.services.seeder import WorkflowSeedResult
 
 
 class InitCommandOutcome(BaseModel):
@@ -19,4 +19,4 @@ class InitCommandOutcome(BaseModel):
 
     bootstrap_result: BootstrapResult
     config_result: ConfigGenerationResult
-    workflow_seed_result: WorkflowSeedResult
+    seed_result: SeedResult

@@ -139,7 +139,6 @@ def test_create_catalog_item_from_template(fs: FileSystem) -> None:
     record = create_catalog_item(
         item_type="workflow",
         name="from-template-wf",
-        template_name="feature-dev",
         cwd=fs.base_path,
     )
     assert record.item_type == CatalogItemType.WORKFLOW
@@ -147,7 +146,21 @@ def test_create_catalog_item_from_template(fs: FileSystem) -> None:
     content = (fs.base_path / ".worktree" / "catalog" / "workflows" / "from-template-wf.yml").read_text(
         encoding="utf-8"
     )
-    assert "feature-dev" in content or "Workflow" in content
+    assert "from-template-wf" in content
+
+
+@pytest.mark.parametrize("item_type", ["workflow", "task", "step"])
+def test_create_catalog_item_default_content_is_non_empty_and_unnamed(fs: FileSystem, item_type: str) -> None:
+    """Default content for each type is non-empty and no longer contains the packaged placeholder name."""
+    record = create_catalog_item(item_type=item_type, name="my-blueprint", cwd=fs.base_path)
+    content = (fs.base_path / ".worktree" / "catalog" / f"{item_type}s" / "my-blueprint.yml").read_text(
+        encoding="utf-8"
+    )
+    assert content.strip()
+    assert "my-workflow" not in content
+    assert "my-task" not in content
+    assert "my-step" not in content
+    assert record.name == "my-blueprint"
 
 
 def test_create_catalog_item_collision_raises(fs: FileSystem) -> None:

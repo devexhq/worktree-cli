@@ -144,7 +144,7 @@ def scan_yaml_directory(
         return []
 
     entries = []
-    for file_path in sorted(directory.glob("*")):
+    for file_path in sorted(directory.rglob("*")):
         if not file_path.is_file() or file_path.suffix.lower() not in suffixes:
             continue
 

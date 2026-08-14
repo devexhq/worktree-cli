@@ -46,7 +46,7 @@ over adding a second one.
 ## Result/Outcome pattern
 
 Operations that can partially succeed return a Pydantic result object instead of
-raising, e.g. `BootstrapResult`, `ConfigGenerationResult`, `WorkflowSeedResult`,
+raising, e.g. `BootstrapResult`, `ConfigGenerationResult`, `SeedResult`,
 `ValidationResult`. The convention:
 
 - Lists describing what happened: `created_files`, `dirs_existing`, `inserted_keys`, etc.
