@@ -81,6 +81,7 @@ class GitDiffParser:
         # Paths belonging to the current ``diff --git`` file section.
         self.section_paths: set[str] = set()
         self.unified_diff = unified_diff
+        self.line = ""
 
     def _record_path(
         self, raw: str, *, paths: bool = False, section_paths: bool = False, binary_paths: bool = False
@@ -263,6 +264,110 @@ def _is_unsafe_path(rel_path: str, sandbox_path: Path) -> bool:
     return False
 
 
+def _empty_or_large_patch_result(
+    unified_diff: object,
+    *,
+    max_patch_kb: int,
+) -> PatchApplyResult | None:
+    """Return an early failure for empty/oversized patches, else None."""
+    if not isinstance(unified_diff, str) or not unified_diff.strip():
+        return PatchApplyResult(
+            status=PatchApplyStatus.EMPTY_DIFF,
+            errors=["Patch is empty or whitespace-only.\nFix:\n- ensure the agent returned a non-empty unified diff"],
+        )
+    size_bytes = len(unified_diff.encode("utf-8"))
+    max_bytes = max_patch_kb * 1024
+    if size_bytes > max_bytes:
+        return PatchApplyResult(
+            status=PatchApplyStatus.TOO_LARGE,
+            errors=[
+                f"Patch exceeds max_patch_kb ({max_patch_kb} KiB) "
+                f"(size={size_bytes} bytes).\n"
+                "Fix:\n"
+                "- reduce agent change size or raise patch.max_patch_kb / "
+                "workflow patch.max_patch_kb"
+            ],
+        )
+    return None
+
+
+def _patch_parse_and_limits_result(
+    unified_diff: str,
+    *,
+    max_files: int,
+    reject_binary_changes: bool,
+) -> tuple[list[str], PatchApplyResult | None]:
+    """Parse diff headers and enforce file-count / binary gates."""
+    git_diff_parser = GitDiffParser(unified_diff)
+    touched, binary_paths, parse_error = git_diff_parser.parse()
+    if parse_error is not None:
+        return [], PatchApplyResult(
+            status=PatchApplyStatus.INVALID_DIFF,
+            errors=[
+                f"Patch is not a valid unified diff: {parse_error}\n"
+                "Fix:\n"
+                "- return a standard unified diff (diff --git / --- +++ / @@ hunks)"
+            ],
+        )
+    if len(touched) > max_files:
+        return touched, PatchApplyResult(
+            status=PatchApplyStatus.TOO_MANY_FILES,
+            errors=[
+                f"Patch touches {len(touched)} files; max_files is {max_files}.\n"
+                "Fix:\n"
+                "- split the change or raise patch.max_files"
+            ],
+        )
+    if reject_binary_changes and binary_paths:
+        joined = ", ".join(binary_paths) if binary_paths else "(binary change)"
+        return touched, PatchApplyResult(
+            status=PatchApplyStatus.BINARY_REJECTED,
+            touched_files=list(touched),
+            errors=[
+                f"Patch includes binary file changes which are rejected: {joined}.\n"
+                "Fix:\n"
+                "- avoid binary edits in the agent patch, or set "
+                "reject_binary_changes=false when allowed"
+            ],
+        )
+    return touched, None
+
+
+def _sandbox_path_safety_result(
+    touched: list[str],
+    sandbox_path: Path,
+) -> PatchApplyResult | None:
+    """Reject missing sandboxes and paths that escape the sandbox root."""
+    try:
+        sandbox_ok = sandbox_path.is_dir()
+    except OSError:
+        sandbox_ok = False
+    if not sandbox_ok:
+        return PatchApplyResult(
+            status=PatchApplyStatus.SANDBOX_MISSING,
+            touched_files=list(touched),
+            errors=[
+                f"Sandbox path does not exist or is not a directory: "
+                f"'{sandbox_path}'.\n"
+                "Fix:\n"
+                "- create the sandbox before applying a patch"
+            ],
+        )
+    for rel in touched:
+        if _is_unsafe_path(rel, sandbox_path):
+            return PatchApplyResult(
+                status=PatchApplyStatus.UNSAFE_PATH,
+                touched_files=list(touched),
+                errors=[
+                    f"Patch path is absolute or escapes the sandbox: '{rel}'.\n"
+                    "Fix:\n"
+                    "- use sandbox-relative paths only "
+                    "(no absolute paths or '..' segments)"
+                ],
+            )
+    return None
+
+
 def validate_patch_text(
     unified_diff: str,
     *,
@@ -289,89 +394,21 @@ def validate_patch_text(
     Returns:
         Structured :class:`PatchApplyResult` with status, touched files, errors.
     """
-    if not isinstance(unified_diff, str) or not unified_diff.strip():
-        return PatchApplyResult(
-            status=PatchApplyStatus.EMPTY_DIFF,
-            errors=["Patch is empty or whitespace-only.\nFix:\n- ensure the agent returned a non-empty unified diff"],
-        )
+    early = _empty_or_large_patch_result(unified_diff, max_patch_kb=max_patch_kb)
+    if early is not None:
+        return early
 
-    size_bytes = len(unified_diff.encode("utf-8"))
-    max_bytes = max_patch_kb * 1024
-    if size_bytes > max_bytes:
-        return PatchApplyResult(
-            status=PatchApplyStatus.TOO_LARGE,
-            errors=[
-                f"Patch exceeds max_patch_kb ({max_patch_kb} KiB) "
-                f"(size={size_bytes} bytes).\n"
-                "Fix:\n"
-                "- reduce agent change size or raise patch.max_patch_kb / "
-                "workflow patch.max_patch_kb"
-            ],
-        )
+    touched, limit_result = _patch_parse_and_limits_result(
+        unified_diff,
+        max_files=max_files,
+        reject_binary_changes=reject_binary_changes,
+    )
+    if limit_result is not None:
+        return limit_result
 
-    git_diff_parser = GitDiffParser(unified_diff)
-    touched, binary_paths, parse_error = git_diff_parser.parse()
-    if parse_error is not None:
-        return PatchApplyResult(
-            status=PatchApplyStatus.INVALID_DIFF,
-            errors=[
-                f"Patch is not a valid unified diff: {parse_error}\n"
-                "Fix:\n"
-                "- return a standard unified diff (diff --git / --- +++ / @@ hunks)"
-            ],
-        )
-
-    if len(touched) > max_files:
-        return PatchApplyResult(
-            status=PatchApplyStatus.TOO_MANY_FILES,
-            errors=[
-                f"Patch touches {len(touched)} files; max_files is {max_files}.\n"
-                "Fix:\n"
-                "- split the change or raise patch.max_files"
-            ],
-        )
-
-    if reject_binary_changes and binary_paths:
-        joined = ", ".join(binary_paths) if binary_paths else "(binary change)"
-        return PatchApplyResult(
-            status=PatchApplyStatus.BINARY_REJECTED,
-            touched_files=list(touched),
-            errors=[
-                f"Patch includes binary file changes which are rejected: {joined}.\n"
-                "Fix:\n"
-                "- avoid binary edits in the agent patch, or set "
-                "reject_binary_changes=false when allowed"
-            ],
-        )
-
-    try:
-        sandbox_ok = sandbox_path.is_dir()
-    except OSError:
-        sandbox_ok = False
-    if not sandbox_ok:
-        return PatchApplyResult(
-            status=PatchApplyStatus.SANDBOX_MISSING,
-            touched_files=list(touched),
-            errors=[
-                f"Sandbox path does not exist or is not a directory: "
-                f"'{sandbox_path}'.\n"
-                "Fix:\n"
-                "- create the sandbox before applying a patch"
-            ],
-        )
-
-    for rel in touched:
-        if _is_unsafe_path(rel, sandbox_path):
-            return PatchApplyResult(
-                status=PatchApplyStatus.UNSAFE_PATH,
-                touched_files=list(touched),
-                errors=[
-                    f"Patch path is absolute or escapes the sandbox: '{rel}'.\n"
-                    "Fix:\n"
-                    "- use sandbox-relative paths only "
-                    "(no absolute paths or '..' segments)"
-                ],
-            )
+    safety = _sandbox_path_safety_result(touched, sandbox_path)
+    if safety is not None:
+        return safety
 
     return PatchApplyResult(
         status=PatchApplyStatus.CHECKED_OK,

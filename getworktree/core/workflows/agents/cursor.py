@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import threading
+from typing import Any
 
 from getworktree.core.workflows.agents.base import AgentRequest
 from getworktree.core.workflows.agents.cli_mutation import (
@@ -25,63 +26,20 @@ def resolve_cursor_api_key(env: dict[str, str] | None = None) -> str | None:
     return key.strip()
 
 
-def default_cursor_run(request: CliMutationRunRequest) -> CliMutationOutcome:
-    """Invoke the real Cursor SDK agent; lazily imported."""
+def _cancel_cursor_run(run: object) -> None:
+    """Best-effort cancel for a timed-out Cursor SDK run handle."""
     try:
-        from cursor_sdk import Agent, AgentOptions, LocalAgentOptions
-    except ImportError as exc:
-        return CliMutationOutcome(
-            status="error",
-            error_detail=(f"cursor-sdk is not installed ({exc}). Fix: pip install getworktree[cursor]"),
-        )
+        cancel = getattr(run, "cancel", None)
+        if callable(cancel):
+            cancel()
+    except Exception:
+        # A failed `run.cancel()` after a timeout is non-fatal: the caller already
+        # returns CliMutationOutcome(status="timeout") regardless of cancel success.
+        pass
 
-    api_key = resolve_cursor_api_key()
-    if api_key is None:
-        return CliMutationOutcome(
-            status="error",
-            error_detail=f"missing {CURSOR_API_KEY_ENV}",
-        )
 
-    outcome: dict[str, object] = {}
-
-    def _run() -> None:
-        try:
-            with Agent.create(
-                AgentOptions(
-                    model=request.model,
-                    api_key=api_key,
-                    local=LocalAgentOptions(cwd=str(request.sandbox_path)),
-                )
-            ) as agent:
-                run = agent.send(request.prompt)
-                outcome["run"] = run
-                outcome["result"] = run.wait()
-        except Exception as exc:  # defensive: classify, never raise cross-thread
-            outcome["exception"] = exc
-
-    thread = threading.Thread(target=_run, daemon=True)
-    thread.start()
-    thread.join(timeout=request.timeout_seconds)
-    if thread.is_alive():
-        run = outcome.get("run")
-        if run is not None:
-            try:
-                run.cancel()  # type: ignore[attr-defined]
-            except Exception:
-                # A failed `run.cancel()` after a timeout is non-fatal: the function already returns
-                # CliMutationOutcome(status="timeout") regardless of whether cancellation itself succeeded.
-                pass
-        thread.join(timeout=5)
-        return CliMutationOutcome(status="timeout")
-
-    exception = outcome.get("exception")
-    if exception is not None:
-        return CliMutationOutcome(status="error", error_detail=str(exception))
-
-    result = outcome.get("result")
-    if result is None:
-        return CliMutationOutcome(status="error", error_detail="no run result")
-
+def _cursor_outcome_from_result(result: object) -> CliMutationOutcome:
+    """Map a finished Cursor SDK wait() result into a CliMutationOutcome."""
     raw_status = str(getattr(result, "status", "error"))
     text = getattr(result, "result", None)
     text_str = text if isinstance(text, str) else None
@@ -100,6 +58,81 @@ def default_cursor_run(request: CliMutationRunRequest) -> CliMutationOutcome:
         result_text=text_str,
         error_detail=f"unrecognized Cursor run status {raw_status!r}",
     )
+
+
+def _run_cursor_agent_thread(
+    request: CliMutationRunRequest,
+    *,
+    api_key: str,
+    agent_cls: type,
+    agent_options_cls: type,
+    local_options_cls: type,
+) -> dict[str, Any]:
+    """Start the Cursor agent on a worker thread and collect run/result/exception."""
+    outcome: dict[str, Any] = {}
+
+    def _run() -> None:
+        try:
+            with agent_cls.create(
+                agent_options_cls(
+                    model=request.model,
+                    api_key=api_key,
+                    local=local_options_cls(cwd=str(request.sandbox_path)),
+                )
+            ) as agent:
+                run = agent.send(request.prompt)
+                outcome["run"] = run
+                outcome["result"] = run.wait()
+        except Exception as exc:  # defensive: classify, never raise cross-thread
+            outcome["exception"] = exc
+
+    thread = threading.Thread(target=_run, daemon=True)
+    thread.start()
+    thread.join(timeout=request.timeout_seconds)
+    if thread.is_alive():
+        run = outcome.get("run")
+        if run is not None:
+            _cancel_cursor_run(run)
+        thread.join(timeout=5)
+        outcome["timed_out"] = True
+    return outcome
+
+
+def default_cursor_run(request: CliMutationRunRequest) -> CliMutationOutcome:
+    """Invoke the real Cursor SDK agent; lazily imported."""
+    try:
+        from cursor_sdk import Agent, AgentOptions, LocalAgentOptions
+    except ImportError as exc:
+        return CliMutationOutcome(
+            status="error",
+            error_detail=(f"cursor-sdk is not installed ({exc}). Fix: pip install getworktree[cursor]"),
+        )
+
+    api_key = resolve_cursor_api_key()
+    if api_key is None:
+        return CliMutationOutcome(
+            status="error",
+            error_detail=f"missing {CURSOR_API_KEY_ENV}",
+        )
+
+    outcome = _run_cursor_agent_thread(
+        request,
+        api_key=api_key,
+        agent_cls=Agent,
+        agent_options_cls=AgentOptions,
+        local_options_cls=LocalAgentOptions,
+    )
+    if outcome.get("timed_out"):
+        return CliMutationOutcome(status="timeout")
+
+    exception = outcome.get("exception")
+    if exception is not None:
+        return CliMutationOutcome(status="error", error_detail=str(exception))
+
+    result = outcome.get("result")
+    if result is None:
+        return CliMutationOutcome(status="error", error_detail="no run result")
+    return _cursor_outcome_from_result(result)
 
 
 class CursorAgentAdapter(CliDirectMutationAdapter):

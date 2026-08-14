@@ -94,7 +94,7 @@ def assert_writable(path: Path) -> None:
         raise ValueError(f"{display_path(path)} is not writable. Check directory permissions and try again.")
 
 
-def load_existing_bootstrap_metadata(meta_path: Path) -> dict | None:
+def load_existing_bootstrap_metadata(meta_path: Path) -> dict[str, object] | None:
     """Load `.meta/bootstrap.json` if present and valid."""
     if not meta_path.is_file():
         return None
@@ -160,7 +160,7 @@ def _bootstrap_status(
     repaired: bool,
     root_created: bool,
     dirs_created: list[Path],
-    prior_meta: dict | None,
+    prior_meta: dict[str, object] | None,
 ) -> str:
     if repaired:
         return "repaired"
@@ -241,7 +241,7 @@ def _is_repair(
     root_created: bool,
     dirs_created: list[Path],
     dirs_existing: list[Path],
-    prior_meta: dict | None,
+    prior_meta: dict[str, object] | None,
 ) -> bool:
     """True when missing pieces were added to an already-present worktree layout."""
     if not dirs_created:

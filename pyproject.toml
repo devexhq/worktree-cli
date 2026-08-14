@@ -35,6 +35,7 @@ dev = [
     "ruff>=0.6.0",
     "invoke>=2.0.0",
     "complexipy>=6.2.0",
+    "basedpyright>=1.39.10",
 ]
 docs = [
     "mkdocs>=1.5.0",
@@ -121,3 +122,35 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 docstring-code-format = true
 docstring-code-line-length = "dynamic"
+
+[dependency-groups]
+dev = [
+    "basedpyright>=1.39.10",
+]
+
+[tool.basedpyright]
+# Package-only gate for the ljb/typing rollout. Tests stay untyped until the
+# library surface is clean under recommended mode.
+include = ["getworktree"]
+exclude = [
+    "**/__pycache__",
+    "build",
+    "dist",
+    ".venv",
+    "venv",
+    "site",
+    "scratch",
+]
+pythonVersion = "3.13"
+pythonPlatform = "Linux"
+typeCheckingMode = "recommended"
+venvPath = "."
+venv = ".venv"
+
+# Framework / Pydantic noise that dominates first-run volume without catching
+# real package bugs. Keep true type errors as errors; leave most unknown/Any
+# rules at recommended defaults so they remain visible as warnings.
+reportCallInDefaultInitializer = "none"  # Typer Option()/Argument() defaults
+reportUnusedParameter = "none"  # Typer ctx and callback-required params
+reportUnannotatedClassAttribute = "none"  # Pydantic model_config / ClassVar flood
+reportUnusedCallResult = "none"  # Path.mkdir, list.append-style intentional discards
