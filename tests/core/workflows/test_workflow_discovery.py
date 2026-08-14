@@ -50,18 +50,15 @@ class ResolveWorkflowsDirTests:
         assert errors == []
         assert resolved == (fs.base_path / DEFAULT_WORKFLOWS_DIR).resolve()
 
-    def test_uses_config_paths_workflows_dir(self, fs: FileSystem) -> None:
+    def test_uses_config_default_workflows_dir(self, fs: FileSystem) -> None:
         config_path = fs.base_path / ".worktree" / "config.json"
         config_path.parent.mkdir(parents=True)
         result_gen = generate_default_config(config_path, "demo")
         assert result_gen.ok
-        raw = json.loads(config_path.read_text(encoding="utf-8"))
-        raw["paths"]["workflows_dir"] = "custom-workflows"
-        _write_config(config_path, raw)
 
         resolved, errors = resolve_workflows_dir(cwd=fs.base_path)
         assert errors == []
-        assert resolved == (fs.base_path / "custom-workflows").resolve()
+        assert resolved == (fs.base_path / DEFAULT_WORKFLOWS_DIR).resolve()
 
     def test_config_unavailable_when_missing(self, fs: FileSystem) -> None:
         resolved, errors = resolve_workflows_dir(cwd=fs.base_path, use_config=True)
@@ -211,11 +208,8 @@ class DiscoverWorkflowFilesTests:
         config_path = fs.base_path / ".worktree" / "config.json"
         config_path.parent.mkdir(parents=True)
         assert generate_default_config(config_path, "demo").ok
-        raw = json.loads(config_path.read_text(encoding="utf-8"))
-        raw["paths"]["workflows_dir"] = "from-config"
-        _write_config(config_path, raw)
-        workflows_dir = fs.base_path / "from-config"
-        workflows_dir.mkdir()
+        workflows_dir = fs.base_path / ".worktree" / "workflows"
+        workflows_dir.mkdir(parents=True, exist_ok=True)
         (workflows_dir / "one.yaml").write_text("1\n", encoding="utf-8")
 
         result = discover_workflow_files(cwd=fs.base_path)

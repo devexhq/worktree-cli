@@ -55,7 +55,6 @@ _LOAD_STATUS_TO_VALIDATION: dict[ConfigLoadStatus, ConfigValidationStatus] = {
 
 _PATH_FIELD_NAMES = (
     "root_dir",
-    "workflows_dir",
     "sessions_dir",
     "artifacts_dir",
     "db_path",

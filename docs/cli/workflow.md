@@ -54,8 +54,7 @@ wt workflow resume <session_id>
 
 ## Workflow YAML Definition Schema
 
-Workflow blueprints live in `.worktree/workflows/<name>.yml` (see
-`paths.workflows_dir` in [config](../getting-started/configuration.md)). Below
+Workflow blueprints live in `.worktree/workflows/<name>.yml`. Below
 is an example matching the current Workflow Spec v1 schema
 (`getworktree/schemas/v1/workflow.json`):
 

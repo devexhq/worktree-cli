@@ -91,7 +91,6 @@ Below is the complete canonical V1 configuration structure:
   },
   "paths": {
     "root_dir": ".worktree",
-    "workflows_dir": ".worktree/workflows",
     "sessions_dir": ".worktree/sessions",
     "artifacts_dir": ".worktree/artifacts",
     "db_path": ".worktree/data.db"
