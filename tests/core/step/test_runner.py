@@ -1,6 +1,7 @@
 import pytest
 
 from getworktree.core.step import StepDefinition, StepResult, StepType, execute_step
+from getworktree.core.step.runner import StepDispatchOutcome
 from tests.helpers import FileSystem
 
 
@@ -194,7 +195,12 @@ def test_execute_script_step_missing_file(fs: FileSystem):
 
 def test_execute_agent_step_custom_handler(fs: FileSystem):
     def custom_handler(step_def, sb_path, ctx):
-        return "completed", 0, "agent result", "", None
+        return StepDispatchOutcome(
+            status="completed",
+            exit_code=0,
+            stdout="agent result",
+            stderr="",
+        )
 
     step = StepDefinition(
         id="agent_step",
