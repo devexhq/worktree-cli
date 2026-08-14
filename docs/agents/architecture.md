@@ -14,6 +14,8 @@ getworktree/core/                  Business logic, no Typer/CLI concerns
                                    Defaults write + load/set + validate + typed models + repo context
   db/                              SQLite connection, migrations, models, and domain CRUD package
   git_sandbox.py                   Isolated `git worktree` sandbox lifecycle
+  step/                            Step primitive definitions, resolve, and single-step execute
+  runtime/                         Shared multi-step engine + sandbox lifecycle (`run_steps`)
   catalog/                         Blueprint scanning, indexing, and packaged template seeds
   catalog/services/seeder.py       Seeds curated `wt/` templates into `.worktree/catalog/`
   catalog/templates/               Packaged default.yml scaffolds + curated workflow seeds
@@ -34,7 +36,7 @@ getworktree/schemas/                Versioned JSON Schemas (config_v1.json, work
 - **Catalog domain** (`core/catalog/`) owns blueprint scanning/indexing and packaged
   template resources (`core/catalog/templates/`).
 - **Shared core infra** stays at `core/` top level: `config/`, `git_sandbox.py`,
-  `db/`, `bootstrap.py`.
+  `db/`, `bootstrap.py`, `step/`, `runtime/`.
 
 Not every command has all three files (e.g. `status` has only `command.py`) — add
 `models.py`/`renderers.py` when a command's output/result grows non-trivial.
@@ -44,15 +46,17 @@ Not every command has all three files (e.g. `status` has only `command.py`) — 
 Dependencies flow one way; do not import "up" the stack:
 
 ```
-common/  ->  core/step/  ->  core/workflows/  ->  cli/
+common/  ->  core/step/  ->  core/runtime/  ->  core/workflows/  ->  cli/
 ```
 
 - `common/` has no dependency on anything under `core/`.
 - `core/step/` (step primitive definitions and execution) must not import
-  from `core/workflows/` — shared vocabulary that both need (e.g. failure
-  policies) belongs in `common/`, not in whichever package happens to define
-  it first.
-- `core/workflows/` may depend on `core/step/`, not the reverse.
+  from `core/runtime/` or `core/workflows/` — shared vocabulary that both need
+  (e.g. failure policies) belongs in `common/`, not in whichever package happens
+  to define it first.
+- `core/runtime/` may depend on `core/step/`, `core/db/`, and `git_sandbox.py`,
+  but must not import from `core/task/`, `core/workflows/`, or `cli/`.
+- `core/workflows/` may depend on `core/step/` and `core/runtime/`, not the reverse.
 - `cli/<name>/` packages may depend on any `core/`/`common/` module, but
   `core/`/`common/` must never import from `cli/`.
 
