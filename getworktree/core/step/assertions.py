@@ -11,8 +11,8 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Callable
+from os.path import commonprefix
 from typing import Any
-from unittest.util import _common_shorten_repr, safe_repr
 
 
 def evaluate_exit_code(expected: int | list[int], actual_exit_code: int) -> list[str]:
@@ -56,6 +56,16 @@ def evaluate_regex_match(pattern: str, combined_output: str) -> list[str]:
 
 _PATH_NOT_FOUND = object()
 
+# Truncation constants/helpers adapted from CPython's unittest.util
+# (safe_repr / _shorten / _common_shorten_repr) so long failure values stay
+# readable without importing private unittest APIs.
+_MAX_LENGTH = 80
+_PLACEHOLDER_LEN = 12
+_MIN_BEGIN_LEN = 5
+_MIN_END_LEN = 5
+_MIN_COMMON_LEN = 5
+_MIN_DIFF_LEN = _MAX_LENGTH - (_MIN_BEGIN_LEN + _PLACEHOLDER_LEN + _MIN_COMMON_LEN + _PLACEHOLDER_LEN + _MIN_END_LEN)
+
 
 def _is_numeric(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
@@ -71,15 +81,55 @@ def _resolve_json_path(root: Any, path: str) -> Any:
     return current
 
 
+def _safe_repr(value: Any, *, short: bool = False) -> str:
+    try:
+        result = repr(value)
+    except Exception:
+        result = object.__repr__(value)
+    if not short or len(result) < _MAX_LENGTH:
+        return result
+    return result[:_MAX_LENGTH] + " [truncated]..."
+
+
+def _shorten(text: str, prefix_len: int, suffix_len: int) -> str:
+    skip = len(text) - prefix_len - suffix_len
+    if skip > _PLACEHOLDER_LEN:
+        return f"{text[:prefix_len]}[{skip} chars]{text[len(text) - suffix_len :]}"
+    return text
+
+
+def _common_shorten_repr(left: Any, right: Any) -> tuple[str, str]:
+    left_repr = _safe_repr(left)
+    right_repr = _safe_repr(right)
+    max_len = max(len(left_repr), len(right_repr))
+    if max_len <= _MAX_LENGTH:
+        return left_repr, right_repr
+
+    prefix = commonprefix([left_repr, right_repr])
+    prefix_len = len(prefix)
+    common_len = _MAX_LENGTH - (max_len - prefix_len + _MIN_BEGIN_LEN + _PLACEHOLDER_LEN)
+    if common_len > _MIN_COMMON_LEN:
+        shortened_prefix = _shorten(prefix, _MIN_BEGIN_LEN, common_len)
+        return (
+            shortened_prefix + left_repr[prefix_len:],
+            shortened_prefix + right_repr[prefix_len:],
+        )
+
+    shortened_prefix = _shorten(prefix, _MIN_BEGIN_LEN, _MIN_COMMON_LEN)
+    return (
+        shortened_prefix + _shorten(left_repr[prefix_len:], _MIN_DIFF_LEN, _MIN_END_LEN),
+        shortened_prefix + _shorten(right_repr[prefix_len:], _MIN_DIFF_LEN, _MIN_END_LEN),
+    )
+
+
 def _short_repr(value: Any) -> str:
     """Single-value repr truncated like unittest failure output."""
-    return safe_repr(value, short=True)
+    return _safe_repr(value, short=True)
 
 
 def _short_pair(actual: Any, expected: Any) -> tuple[str, str]:
     """Paired reprs shortened around the first differing region (unittest-style)."""
-    shortened = _common_shorten_repr(actual, expected)
-    return shortened[0], shortened[1]
+    return _common_shorten_repr(actual, expected)
 
 
 def _compare_eq(actual: Any, value: Any, path: str) -> list[str]:
