@@ -4,11 +4,15 @@ import json
 
 from getworktree.core.step.assertions import (
     evaluate_exit_code,
+    evaluate_file_exists,
+    evaluate_file_not_empty,
+    evaluate_file_not_exists,
     evaluate_json_match,
     evaluate_output_contains,
     evaluate_output_not_contains,
     evaluate_regex_match,
 )
+from tests.helpers import FileSystem
 
 
 def test_evaluate_exit_code_pass_scalar():
@@ -335,3 +339,149 @@ def test_evaluate_json_match_unsupported_operator():
     assert evaluate_json_match({"path": "a", "operator": "regex", "value": 1}, stdout) == [
         "json_match: unsupported operator 'regex'"
     ]
+
+
+def test_evaluate_file_exists_pass_scalar(fs: FileSystem):
+    fs.write_file("dist/app.bin", "payload")
+    assert evaluate_file_exists("dist/app.bin", fs.base_path) == []
+
+
+def test_evaluate_file_exists_pass_list(fs: FileSystem):
+    fs.write_file("dist/app.bin", "payload")
+    fs.write_file("dist/manifest.json", "{}")
+    assert evaluate_file_exists(["dist/app.bin", "dist/manifest.json"], fs.base_path) == []
+
+
+def test_evaluate_file_exists_missing(fs: FileSystem):
+    assert evaluate_file_exists("dist/missing.bin", fs.base_path) == [
+        "file_exists: path 'dist/missing.bin' does not exist"
+    ]
+
+
+def test_evaluate_file_exists_directory(fs: FileSystem):
+    (fs.base_path / "dist").mkdir()
+    assert evaluate_file_exists("dist", fs.base_path) == ["file_exists: path 'dist' is a directory, not a file"]
+
+
+def test_evaluate_file_exists_sandbox_escape(fs: FileSystem):
+    assert evaluate_file_exists("../outside.txt", fs.base_path) == [
+        "file_exists: path '../outside.txt' escapes the worktree sandbox"
+    ]
+
+
+def test_evaluate_file_exists_preserves_order_and_duplicates(fs: FileSystem):
+    assert evaluate_file_exists(["missing-a", "missing-b", "missing-a"], fs.base_path) == [
+        "file_exists: path 'missing-a' does not exist",
+        "file_exists: path 'missing-b' does not exist",
+        "file_exists: path 'missing-a' does not exist",
+    ]
+
+
+def test_evaluate_file_exists_empty_list(fs: FileSystem):
+    assert evaluate_file_exists([], fs.base_path) == []
+
+
+def test_evaluate_file_exists_missing_sandbox_does_not_raise(fs: FileSystem):
+    missing_sandbox = fs.base_path / "no-such-sandbox"
+    assert evaluate_file_exists("a.txt", missing_sandbox) == ["file_exists: path 'a.txt' does not exist"]
+
+
+def test_evaluate_file_exists_broken_symlink(fs: FileSystem):
+    link = fs.base_path / "broken.link"
+    link.symlink_to(fs.base_path / "gone.txt")
+    assert evaluate_file_exists("broken.link", fs.base_path) == ["file_exists: path 'broken.link' does not exist"]
+
+
+def test_evaluate_file_exists_symlink_escape(fs: FileSystem):
+    outside = fs.base_path.parent / "outside-secret.txt"
+    outside.write_text("secret", encoding="utf-8")
+    link = fs.base_path / "escape.link"
+    link.symlink_to(outside)
+    assert evaluate_file_exists("escape.link", fs.base_path) == [
+        "file_exists: path 'escape.link' escapes the worktree sandbox"
+    ]
+
+
+def test_evaluate_file_not_exists_pass_missing(fs: FileSystem):
+    assert evaluate_file_not_exists("tmp/lock", fs.base_path) == []
+
+
+def test_evaluate_file_not_exists_fail_file(fs: FileSystem):
+    fs.write_file("tmp/lock", "")
+    assert evaluate_file_not_exists("tmp/lock", fs.base_path) == [
+        "file_not_exists: path 'tmp/lock' exists but must not"
+    ]
+
+
+def test_evaluate_file_not_exists_fail_directory(fs: FileSystem):
+    (fs.base_path / "tmp").mkdir()
+    assert evaluate_file_not_exists("tmp", fs.base_path) == ["file_not_exists: path 'tmp' exists but must not"]
+
+
+def test_evaluate_file_not_exists_sandbox_escape(fs: FileSystem):
+    assert evaluate_file_not_exists("../outside.txt", fs.base_path) == [
+        "file_not_exists: path '../outside.txt' escapes the worktree sandbox"
+    ]
+
+
+def test_evaluate_file_not_exists_missing_sandbox_passes(fs: FileSystem):
+    missing_sandbox = fs.base_path / "no-such-sandbox"
+    assert evaluate_file_not_exists("a.txt", missing_sandbox) == []
+
+
+def test_evaluate_file_not_exists_empty_list(fs: FileSystem):
+    assert evaluate_file_not_exists([], fs.base_path) == []
+
+
+def test_evaluate_file_not_empty_pass(fs: FileSystem):
+    fs.write_file("dist/report.txt", "ok")
+    assert evaluate_file_not_empty("dist/report.txt", fs.base_path) == []
+
+
+def test_evaluate_file_not_empty_missing(fs: FileSystem):
+    assert evaluate_file_not_empty("dist/report.txt", fs.base_path) == [
+        "file_not_empty: path 'dist/report.txt' does not exist"
+    ]
+
+
+def test_evaluate_file_not_empty_directory(fs: FileSystem):
+    (fs.base_path / "dist").mkdir()
+    assert evaluate_file_not_empty("dist", fs.base_path) == ["file_not_empty: path 'dist' is a directory, not a file"]
+
+
+def test_evaluate_file_not_empty_zero_bytes(fs: FileSystem):
+    fs.write_file("dist/report.txt", "")
+    assert evaluate_file_not_empty("dist/report.txt", fs.base_path) == [
+        "file_not_empty: path 'dist/report.txt' is empty (0 bytes)"
+    ]
+
+
+def test_evaluate_file_not_empty_sandbox_escape(fs: FileSystem):
+    assert evaluate_file_not_empty("../outside.txt", fs.base_path) == [
+        "file_not_empty: path '../outside.txt' escapes the worktree sandbox"
+    ]
+
+
+def test_evaluate_file_not_empty_list_preserves_order(fs: FileSystem):
+    fs.write_file("empty.txt", "")
+    (fs.base_path / "dir").mkdir()
+    assert evaluate_file_not_empty(["missing.txt", "empty.txt", "dir"], fs.base_path) == [
+        "file_not_empty: path 'missing.txt' does not exist",
+        "file_not_empty: path 'empty.txt' is empty (0 bytes)",
+        "file_not_empty: path 'dir' is a directory, not a file",
+    ]
+
+
+def test_evaluate_file_not_empty_empty_list(fs: FileSystem):
+    assert evaluate_file_not_empty([], fs.base_path) == []
+
+
+def test_evaluate_file_not_empty_missing_sandbox_does_not_raise(fs: FileSystem):
+    missing_sandbox = fs.base_path / "no-such-sandbox"
+    assert evaluate_file_not_empty("a.txt", missing_sandbox) == ["file_not_empty: path 'a.txt' does not exist"]
+
+
+def test_evaluate_file_not_empty_broken_symlink(fs: FileSystem):
+    link = fs.base_path / "broken.link"
+    link.symlink_to(fs.base_path / "gone.txt")
+    assert evaluate_file_not_empty("broken.link", fs.base_path) == ["file_not_empty: path 'broken.link' does not exist"]

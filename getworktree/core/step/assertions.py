@@ -1,9 +1,9 @@
-"""Pure process/output assertion evaluators for step results.
+"""Pure assertion evaluators for step results.
 
-Each function is side-effect-free, never raises for well-formed inputs, and
-returns a list of failure strings (empty means the check passed). Callers that
-inspect process output must pass ``combined_output`` built as stdout, a newline,
-then stderr.
+Each function never raises for well-formed inputs and returns a list of failure
+strings (empty means the check passed). Callers that inspect process output must
+pass ``combined_output`` built as stdout, a newline, then stderr. File-system
+evaluators resolve paths under ``sandbox_path`` and reject sandbox escapes.
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from getworktree.core.step.utils.assertion_helpers import short_pair, short_repr
@@ -146,3 +147,63 @@ def evaluate_json_match(config: dict[str, Any], stdout: str) -> list[str]:
         return [f"json_match: unsupported operator '{operator}'"]
 
     return comparator(actual, config["value"], path)
+
+
+def _normalize_path_list(paths: str | list[str]) -> list[str]:
+    return paths if isinstance(paths, list) else [paths]
+
+
+def _sandbox_candidate(rel_path: str, sandbox_path: Path) -> Path | None:
+    """Resolve ``rel_path`` under ``sandbox_path``, or ``None`` if it escapes the sandbox."""
+    sandbox_resolved = sandbox_path.resolve()
+    candidate = (sandbox_path / rel_path).resolve()
+    try:
+        candidate.relative_to(sandbox_resolved)
+    except ValueError:
+        return None
+    return candidate
+
+
+def evaluate_file_exists(paths: str | list[str], sandbox_path: Path) -> list[str]:
+    """Return failures when each path is missing, a directory, or escapes the sandbox."""
+    failures: list[str] = []
+    for rel_path in _normalize_path_list(paths):
+        candidate = _sandbox_candidate(rel_path, sandbox_path)
+        if candidate is None:
+            failures.append(f"file_exists: path '{rel_path}' escapes the worktree sandbox")
+            continue
+        if not candidate.exists():
+            failures.append(f"file_exists: path '{rel_path}' does not exist")
+        elif candidate.is_dir():
+            failures.append(f"file_exists: path '{rel_path}' is a directory, not a file")
+    return failures
+
+
+def evaluate_file_not_exists(paths: str | list[str], sandbox_path: Path) -> list[str]:
+    """Return failures when each path exists inside the sandbox or escapes it."""
+    failures: list[str] = []
+    for rel_path in _normalize_path_list(paths):
+        candidate = _sandbox_candidate(rel_path, sandbox_path)
+        if candidate is None:
+            failures.append(f"file_not_exists: path '{rel_path}' escapes the worktree sandbox")
+            continue
+        if candidate.exists():
+            failures.append(f"file_not_exists: path '{rel_path}' exists but must not")
+    return failures
+
+
+def evaluate_file_not_empty(paths: str | list[str], sandbox_path: Path) -> list[str]:
+    """Return failures when each path is missing, a directory, empty, or escapes the sandbox."""
+    failures: list[str] = []
+    for rel_path in _normalize_path_list(paths):
+        candidate = _sandbox_candidate(rel_path, sandbox_path)
+        if candidate is None:
+            failures.append(f"file_not_empty: path '{rel_path}' escapes the worktree sandbox")
+            continue
+        if not candidate.exists():
+            failures.append(f"file_not_empty: path '{rel_path}' does not exist")
+        elif candidate.is_dir():
+            failures.append(f"file_not_empty: path '{rel_path}' is a directory, not a file")
+        elif candidate.stat().st_size == 0:
+            failures.append(f"file_not_empty: path '{rel_path}' is empty (0 bytes)")
+    return failures
