@@ -8,7 +8,10 @@ then stderr.
 
 from __future__ import annotations
 
+import json
 import re
+from collections.abc import Callable
+from typing import Any
 
 
 def evaluate_exit_code(expected: int | list[int], actual_exit_code: int) -> list[str]:
@@ -48,3 +51,91 @@ def evaluate_regex_match(pattern: str, combined_output: str) -> list[str]:
     if compiled.search(combined_output) is None:
         return [f"regex_match: pattern '{pattern}' did not match output"]
     return []
+
+
+_PATH_NOT_FOUND = object()
+
+
+def _is_numeric(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _resolve_json_path(root: Any, path: str) -> Any:
+    """Walk nested dict keys along ``path``. Return ``_PATH_NOT_FOUND`` if unresolved."""
+    current = root
+    for segment in path.split("."):
+        if not isinstance(current, dict) or segment not in current:
+            return _PATH_NOT_FOUND
+        current = current[segment]
+    return current
+
+
+def _compare_eq(actual: Any, value: Any, path: str) -> list[str]:
+    if actual == value:
+        return []
+    return [f"json_match: '{path}' was '{actual}', expected '{value}'"]
+
+
+def _compare_neq(actual: Any, value: Any, path: str) -> list[str]:
+    if actual != value:
+        return []
+    return [f"json_match: '{path}' was '{actual}', expected not '{value}'"]
+
+
+def _compare_contains(actual: Any, value: Any, path: str) -> list[str]:
+    try:
+        if value in actual:
+            return []
+    except TypeError:
+        pass
+    return [f"json_match: '{path}' does not contain '{value}' (was '{actual}')"]
+
+
+def _compare_ordered(
+    actual: Any,
+    value: Any,
+    path: str,
+    operator: str,
+    predicate: Callable[[Any, Any], bool],
+    expected_phrase: str,
+) -> list[str]:
+    if not _is_numeric(actual) or not _is_numeric(value):
+        return [f"json_match: operator '{operator}' requires numeric values, got {type(actual).__name__}"]
+    if predicate(actual, value):
+        return []
+    return [f"json_match: '{path}' was '{actual}', expected {expected_phrase} '{value}'"]
+
+
+_JSON_MATCH_OPERATORS: dict[str, Callable[[Any, Any, str], list[str]]] = {
+    "eq": _compare_eq,
+    "neq": _compare_neq,
+    "contains": _compare_contains,
+    "gt": lambda actual, value, path: _compare_ordered(actual, value, path, "gt", lambda a, v: a > v, "greater than"),
+    "gte": lambda actual, value, path: _compare_ordered(actual, value, path, "gte", lambda a, v: a >= v, "at least"),
+    "lt": lambda actual, value, path: _compare_ordered(actual, value, path, "lt", lambda a, v: a < v, "less than"),
+    "lte": lambda actual, value, path: _compare_ordered(actual, value, path, "lte", lambda a, v: a <= v, "at most"),
+}
+
+
+def evaluate_json_match(config: dict[str, Any], stdout: str) -> list[str]:
+    """Parse stdout as JSON and check a dot-path value against an operator/value.
+
+    Returns a single failure string on mismatch/error, or ``[]`` on success.
+    Dot-paths walk nested mapping keys only (no list indexes).
+    """
+    try:
+        parsed = json.loads(stdout)
+    except json.JSONDecodeError:
+        return ["json_match: Invalid JSON output"]
+
+    path = config["path"]
+    actual = _resolve_json_path(parsed, path)
+    if actual is _PATH_NOT_FOUND:
+        return [f"json_match: JSON path '{path}' not found"]
+
+    operator = config["operator"]
+    comparator = _JSON_MATCH_OPERATORS.get(operator)
+    if comparator is None:
+        return [f"json_match: unsupported operator '{operator}'"]
+
+    return comparator(actual, config["value"], path)
