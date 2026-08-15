@@ -1,6 +1,6 @@
 import pytest
 
-from getworktree.core.step import StepDefinition, StepResult, StepType, execute_step
+from getworktree.core.step import StepAssert, StepDefinition, StepResult, StepType, execute_step
 from getworktree.core.step.runner import StepDispatchOutcome
 from tests.helpers import FileSystem
 
@@ -260,3 +260,99 @@ def test_execute_step_resolves_uses_reference(fs: FileSystem):
     res = execute_step(step, sandbox_path=fs.base_path)
     assert res.ok is True
     assert "from-uses" in res.stdout
+
+
+def test_execute_step_assertion_failure_keeps_exit_code(fs: FileSystem):
+    """Exit 0 with a missing asserted file is still a failed step; exit_code stays 0."""
+    step = StepDefinition(
+        id="assert-missing-file",
+        name="build-artifact",
+        type=StepType.COMMAND,
+        command="echo built",
+        assert_=StepAssert(file_exists="dist/app.bin"),
+    )
+
+    res = execute_step(step, sandbox_path=fs.base_path)
+    assert res.ok is False
+    assert res.status == "failed"
+    assert res.exit_code == 0
+    assert res.attempts == 1
+    assert res.error_message is not None
+    assert "Step 'build-artifact' failed assertion checks:" in res.error_message
+    assert "[FAIL]" in res.error_message
+    assert "dist/app.bin" in res.error_message
+
+
+def test_execute_step_assertion_failure_retries_until_pass(fs: FileSystem):
+    """failure_action=retry re-runs until the asserted file appears."""
+    marker = fs.base_path / "artifact.bin"
+    cmd = (
+        f"python3 -c \"from pathlib import Path; p = Path('{marker}'); "
+        "n = int(p.with_suffix('.count').read_text()) if p.with_suffix('.count').exists() else 0; "
+        "p.with_suffix('.count').write_text(str(n + 1)); "
+        "p.write_text('ok') if n >= 2 else None\""
+    )
+    step = StepDefinition(
+        id="assert-retry",
+        type=StepType.COMMAND,
+        command=cmd,
+        assert_=StepAssert(file_exists="artifact.bin"),
+        on_failure={"action": "retry", "max_retries": 3, "backoff_ms": 0},
+    )
+
+    res = execute_step(step, sandbox_path=fs.base_path)
+    assert res.ok is True
+    assert res.status == "completed"
+    assert res.exit_code == 0
+    assert res.attempts == 3
+    assert marker.exists()
+
+
+def test_execute_step_assertion_failure_continue_is_ignored(fs: FileSystem):
+    """on_failure=continue marks assertion failures ignored while keeping the diagnostic."""
+    step = StepDefinition(
+        id="assert-continue",
+        type=StepType.COMMAND,
+        command="echo ok",
+        assert_=StepAssert(file_exists="missing.bin"),
+        on_failure="continue",
+    )
+
+    res = execute_step(step, sandbox_path=fs.base_path)
+    assert res.ok is True
+    assert res.status == "ignored"
+    assert res.exit_code == 0
+    assert res.error_message is not None
+    assert "failed assertion checks" in res.error_message
+
+
+def test_execute_step_assertion_passes_when_file_exists(fs: FileSystem):
+    fs.write_file("dist/app.bin", "payload")
+    step = StepDefinition(
+        id="assert-pass",
+        type=StepType.COMMAND,
+        command="echo ok",
+        assert_=StepAssert(file_exists="dist/app.bin"),
+    )
+
+    res = execute_step(step, sandbox_path=fs.base_path)
+    assert res.ok is True
+    assert res.status == "completed"
+    assert res.exit_code == 0
+    assert res.error_message is None
+
+
+def test_execute_agent_step_assertions_apply_to_placeholder_stdout(fs: FileSystem):
+    step = StepDefinition(
+        id="agent-assert",
+        type=StepType.AGENT,
+        prompt="do work",
+        assert_=StepAssert(output_contains="never-present-token"),
+    )
+
+    res = execute_step(step, sandbox_path=fs.base_path)
+    assert res.ok is False
+    assert res.status == "failed"
+    assert res.exit_code == 0
+    assert res.error_message is not None
+    assert "failed assertion checks" in res.error_message
