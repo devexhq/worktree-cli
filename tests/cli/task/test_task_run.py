@@ -152,3 +152,31 @@ def test_task_run_cancelled_status(fs: FileSystem, monkeypatch: pytest.MonkeyPat
     assert rec is not None
     assert rec.status.value == "cancelled"
     assert "cancelled" in (rec.error_message or "").lower()
+
+
+def test_task_run_uses_step_with_override(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Blueprint uses: references a catalog step and applies a field override."""
+    monkeypatch.chdir(fs.base_path)
+    fs.create_step_file(step_id="greet", command="echo from-catalog-step")
+    fs.create_task_file(
+        "uses-task",
+        description="Task that references a catalog step",
+        summary="uses step",
+        use_sandbox=False,
+        steps=[
+            {
+                "id": "greet-step",
+                "uses": "greet",
+                "name": "overridden-greet",
+            }
+        ],
+    )
+
+    res = task_run_command("uses-task", cwd=fs.base_path, session_id="task_uses_1")
+    assert res.ok
+    assert res.run_record is not None
+    assert res.run_record.status.value == "completed"
+
+    rec = TasksDb(fs.base_path).get("task_uses_1")
+    assert rec is not None
+    assert rec.status.value == "completed"
