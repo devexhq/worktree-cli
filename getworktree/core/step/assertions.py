@@ -3,7 +3,7 @@
 Each function never raises for well-formed inputs and returns a list of failure
 strings (empty means the check passed). Callers that inspect process output must
 pass ``combined_output`` built as stdout, a newline, then stderr. File-system
-evaluators resolve paths under ``sandbox_path`` (execution root) and reject root escapes.
+evaluators resolve paths under ``sandbox_or_root_path`` and reject root escapes.
 """
 
 from __future__ import annotations
@@ -153,10 +153,10 @@ def _normalize_path_list(paths: str | list[str]) -> list[str]:
     return paths if isinstance(paths, list) else [paths]
 
 
-def _resolve_path_candidate(rel_path: str, root_path: Path) -> Path | None:
-    """Resolve ``rel_path`` under ``root_path``, or ``None`` if it escapes the root."""
-    root_resolved = root_path.resolve()
-    candidate = (root_path / rel_path).resolve()
+def _resolve_path_candidate(rel_path: str, sandbox_or_root_path: Path) -> Path | None:
+    """Resolve ``rel_path`` under ``sandbox_or_root_path``, or ``None`` if it escapes the root."""
+    root_resolved = sandbox_or_root_path.resolve()
+    candidate = (sandbox_or_root_path / rel_path).resolve()
     try:
         candidate.relative_to(root_resolved)
     except ValueError:
@@ -164,11 +164,11 @@ def _resolve_path_candidate(rel_path: str, root_path: Path) -> Path | None:
     return candidate
 
 
-def evaluate_file_exists(paths: str | list[str], sandbox_path: Path) -> list[str]:
+def evaluate_file_exists(paths: str | list[str], sandbox_or_root_path: Path) -> list[str]:
     """Return failures when each path is missing, a directory, or escapes the root."""
     failures: list[str] = []
     for rel_path in _normalize_path_list(paths):
-        candidate = _resolve_path_candidate(rel_path, sandbox_path)
+        candidate = _resolve_path_candidate(rel_path, sandbox_or_root_path)
         if candidate is None:
             failures.append(f"file_exists: path '{rel_path}' escapes the root path")
             continue
@@ -179,11 +179,11 @@ def evaluate_file_exists(paths: str | list[str], sandbox_path: Path) -> list[str
     return failures
 
 
-def evaluate_file_not_exists(paths: str | list[str], sandbox_path: Path) -> list[str]:
+def evaluate_file_not_exists(paths: str | list[str], sandbox_or_root_path: Path) -> list[str]:
     """Return failures when each path exists under the root or escapes it."""
     failures: list[str] = []
     for rel_path in _normalize_path_list(paths):
-        candidate = _resolve_path_candidate(rel_path, sandbox_path)
+        candidate = _resolve_path_candidate(rel_path, sandbox_or_root_path)
         if candidate is None:
             failures.append(f"file_not_exists: path '{rel_path}' escapes the root path")
             continue
@@ -192,11 +192,11 @@ def evaluate_file_not_exists(paths: str | list[str], sandbox_path: Path) -> list
     return failures
 
 
-def evaluate_file_not_empty(paths: str | list[str], sandbox_path: Path) -> list[str]:
+def evaluate_file_not_empty(paths: str | list[str], sandbox_or_root_path: Path) -> list[str]:
     """Return failures when each path is missing, a directory, empty, or escapes the root."""
     failures: list[str] = []
     for rel_path in _normalize_path_list(paths):
-        candidate = _resolve_path_candidate(rel_path, sandbox_path)
+        candidate = _resolve_path_candidate(rel_path, sandbox_or_root_path)
         if candidate is None:
             failures.append(f"file_not_empty: path '{rel_path}' escapes the root path")
             continue
