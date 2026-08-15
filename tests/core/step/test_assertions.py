@@ -138,6 +138,25 @@ def test_evaluate_json_match_path_not_found_empty_path():
     ]
 
 
+def test_evaluate_json_match_all_operators_pass_on_valid_values():
+    stdout = _json_stdout(
+        {
+            "summary": {"status": "APPROVED", "score": 10.5},
+            "count": 3,
+            "tags": ["a", "b"],
+            "name": "alpha",
+        }
+    )
+    assert evaluate_json_match({"path": "summary.status", "operator": "eq", "value": "APPROVED"}, stdout) == []
+    assert evaluate_json_match({"path": "count", "operator": "neq", "value": 0}, stdout) == []
+    assert evaluate_json_match({"path": "summary.score", "operator": "gt", "value": 10}, stdout) == []
+    assert evaluate_json_match({"path": "summary.score", "operator": "gte", "value": 10.5}, stdout) == []
+    assert evaluate_json_match({"path": "count", "operator": "lt", "value": 5}, stdout) == []
+    assert evaluate_json_match({"path": "count", "operator": "lte", "value": 3}, stdout) == []
+    assert evaluate_json_match({"path": "tags", "operator": "contains", "value": "a"}, stdout) == []
+    assert evaluate_json_match({"path": "name", "operator": "contains", "value": "ph"}, stdout) == []
+
+
 def test_evaluate_json_match_eq_pass_and_fail():
     stdout = _json_stdout({"summary": {"status": "APPROVED"}})
     config = {"path": "summary.status", "operator": "eq", "value": "APPROVED"}
