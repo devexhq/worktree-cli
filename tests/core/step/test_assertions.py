@@ -365,7 +365,7 @@ def test_evaluate_file_exists_directory(fs: FileSystem):
 
 def test_evaluate_file_exists_sandbox_escape(fs: FileSystem):
     assert evaluate_file_exists("../outside.txt", fs.base_path) == [
-        "file_exists: path '../outside.txt' escapes the worktree sandbox"
+        "file_exists: path '../outside.txt' escapes the root path"
     ]
 
 
@@ -398,7 +398,7 @@ def test_evaluate_file_exists_symlink_escape(fs: FileSystem):
     link = fs.base_path / "escape.link"
     link.symlink_to(outside)
     assert evaluate_file_exists("escape.link", fs.base_path) == [
-        "file_exists: path 'escape.link' escapes the worktree sandbox"
+        "file_exists: path 'escape.link' escapes the root path"
     ]
 
 
@@ -420,7 +420,7 @@ def test_evaluate_file_not_exists_fail_directory(fs: FileSystem):
 
 def test_evaluate_file_not_exists_sandbox_escape(fs: FileSystem):
     assert evaluate_file_not_exists("../outside.txt", fs.base_path) == [
-        "file_not_exists: path '../outside.txt' escapes the worktree sandbox"
+        "file_not_exists: path '../outside.txt' escapes the root path"
     ]
 
 
@@ -458,7 +458,7 @@ def test_evaluate_file_not_empty_zero_bytes(fs: FileSystem):
 
 def test_evaluate_file_not_empty_sandbox_escape(fs: FileSystem):
     assert evaluate_file_not_empty("../outside.txt", fs.base_path) == [
-        "file_not_empty: path '../outside.txt' escapes the worktree sandbox"
+        "file_not_empty: path '../outside.txt' escapes the root path"
     ]
 
 
