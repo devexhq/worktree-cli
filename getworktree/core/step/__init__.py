@@ -1,8 +1,10 @@
 """Core step package for loading, resolving, and executing step primitives."""
 
+from getworktree.core.step.assertions import evaluate_assertions
 from getworktree.core.step.exceptions import StepNotFoundError, StepValidationError
 from getworktree.core.step.models import (
     DEFAULT_STEP_TIMEOUT_SECONDS,
+    AssertionResult,
     FailurePolicy,
     FailureSpec,
     LoopStepBlock,
@@ -19,6 +21,7 @@ from getworktree.core.step.services import (
 
 __all__ = [
     "DEFAULT_STEP_TIMEOUT_SECONDS",
+    "AssertionResult",
     "FailurePolicy",
     "FailureSpec",
     "LoopStepBlock",
@@ -28,6 +31,7 @@ __all__ = [
     "StepResult",
     "StepType",
     "StepValidationError",
+    "evaluate_assertions",
     "execute_step",
     "load_step_by_id",
     "load_step_definition",

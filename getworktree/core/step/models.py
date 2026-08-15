@@ -103,6 +103,16 @@ class StepAssert(BaseModel):
         return self
 
 
+class AssertionResult(BaseModel):
+    """Aggregate result of evaluating a step's assert block."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    passed: bool
+    failed_conditions: list[str] = Field(default_factory=list)
+    message: str
+
+
 def _validate_run_shape(step: "StepDefinition") -> None:
     """Reject 'run' combined with any uses/inline-type-mode-only fields."""
     run_incompatible = ("uses", "command", "type", "prompt", "script_path", "tools")
