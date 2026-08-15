@@ -9,21 +9,6 @@ from __future__ import annotations
 from pathlib import Path
 
 
-def _normalize_path_list(paths: str | list[str]) -> list[str]:
-    return paths if isinstance(paths, list) else [paths]
-
-
-def _resolve_path_candidate(rel_path: str, sandbox_or_root_path: Path) -> Path | None:
-    """Resolve ``rel_path`` under ``sandbox_or_root_path``, or ``None`` if it escapes the root."""
-    root_resolved = sandbox_or_root_path.resolve()
-    candidate = (sandbox_or_root_path / rel_path).resolve()
-    try:
-        candidate.relative_to(root_resolved)
-    except ValueError:
-        return None
-    return candidate
-
-
 def evaluate_file_exists(paths: str | list[str], sandbox_or_root_path: Path) -> list[str]:
     """Return failures when each path is missing, a directory, or escapes the root."""
     failures: list[str] = []
@@ -67,3 +52,18 @@ def evaluate_file_not_empty(paths: str | list[str], sandbox_or_root_path: Path) 
         elif candidate.stat().st_size == 0:
             failures.append(f"file_not_empty: path '{rel_path}' is empty (0 bytes)")
     return failures
+
+
+def _normalize_path_list(paths: str | list[str]) -> list[str]:
+    return paths if isinstance(paths, list) else [paths]
+
+
+def _resolve_path_candidate(rel_path: str, sandbox_or_root_path: Path) -> Path | None:
+    """Resolve ``rel_path`` under ``sandbox_or_root_path``, or ``None`` if it escapes the root."""
+    root_resolved = sandbox_or_root_path.resolve()
+    candidate = (sandbox_or_root_path / rel_path).resolve()
+    try:
+        candidate.relative_to(root_resolved)
+    except ValueError:
+        return None
+    return candidate

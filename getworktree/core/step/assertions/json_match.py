@@ -11,6 +11,30 @@ from getworktree.core.step.utils.assertion_helpers import short_pair, short_repr
 _PATH_NOT_FOUND = object()
 
 
+def evaluate_json_match(config: dict[str, Any], stdout: str) -> list[str]:
+    """Parse stdout as JSON and check a dot-path value against an operator/value.
+
+    Returns a single failure string on mismatch/error, or ``[]`` on success.
+    Dot-paths walk nested mapping keys only (no list indexes).
+    """
+    try:
+        parsed = json.loads(stdout)
+    except json.JSONDecodeError:
+        return ["json_match: Invalid JSON output"]
+
+    path = config["path"]
+    actual = _resolve_json_path(parsed, path)
+    if actual is _PATH_NOT_FOUND:
+        return [f"json_match: JSON path '{path}' not found"]
+
+    operator = config["operator"]
+    comparator = _JSON_MATCH_OPERATORS.get(operator)
+    if comparator is None:
+        return [f"json_match: unsupported operator '{operator}'"]
+
+    return comparator(actual, config["value"], path)
+
+
 def _is_numeric(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
@@ -76,27 +100,3 @@ _JSON_MATCH_OPERATORS: dict[str, Callable[[Any, Any, str], list[str]]] = {
     "lt": lambda actual, value, path: _compare_ordered(actual, value, path, "lt", lambda a, v: a < v, "less than"),
     "lte": lambda actual, value, path: _compare_ordered(actual, value, path, "lte", lambda a, v: a <= v, "at most"),
 }
-
-
-def evaluate_json_match(config: dict[str, Any], stdout: str) -> list[str]:
-    """Parse stdout as JSON and check a dot-path value against an operator/value.
-
-    Returns a single failure string on mismatch/error, or ``[]`` on success.
-    Dot-paths walk nested mapping keys only (no list indexes).
-    """
-    try:
-        parsed = json.loads(stdout)
-    except json.JSONDecodeError:
-        return ["json_match: Invalid JSON output"]
-
-    path = config["path"]
-    actual = _resolve_json_path(parsed, path)
-    if actual is _PATH_NOT_FOUND:
-        return [f"json_match: JSON path '{path}' not found"]
-
-    operator = config["operator"]
-    comparator = _JSON_MATCH_OPERATORS.get(operator)
-    if comparator is None:
-        return [f"json_match: unsupported operator '{operator}'"]
-
-    return comparator(actual, config["value"], path)
