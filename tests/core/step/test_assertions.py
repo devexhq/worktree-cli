@@ -212,12 +212,18 @@ def test_evaluate_json_match_contains_type_error_treated_as_failure():
 
 
 def test_evaluate_json_match_ordering_rejects_non_numeric():
-    stdout = _json_stdout({"flag": True, "label": "x"})
+    stdout = _json_stdout({"flag": True, "label": "x", "n": 5})
     assert evaluate_json_match({"path": "flag", "operator": "gt", "value": 0}, stdout) == [
-        "json_match: operator 'gt' requires numeric values, got bool"
+        "json_match: operator 'gt' requires numeric values, got bool and int"
     ]
     assert evaluate_json_match({"path": "label", "operator": "lte", "value": 1}, stdout) == [
-        "json_match: operator 'lte' requires numeric values, got str"
+        "json_match: operator 'lte' requires numeric values, got str and int"
+    ]
+    assert evaluate_json_match({"path": "n", "operator": "gt", "value": "3"}, stdout) == [
+        "json_match: operator 'gt' requires numeric values, got int and str"
+    ]
+    assert evaluate_json_match({"path": "flag", "operator": "lt", "value": False}, stdout) == [
+        "json_match: operator 'lt' requires numeric values, got bool and bool"
     ]
 
 

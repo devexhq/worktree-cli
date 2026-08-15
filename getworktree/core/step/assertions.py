@@ -100,7 +100,10 @@ def _compare_ordered(
     expected_phrase: str,
 ) -> list[str]:
     if not _is_numeric(actual) or not _is_numeric(value):
-        return [f"json_match: operator '{operator}' requires numeric values, got {type(actual).__name__}"]
+        return [
+            f"json_match: operator '{operator}' requires numeric values, "
+            f"got {type(actual).__name__} and {type(value).__name__}"
+        ]
     if predicate(actual, value):
         return []
     return [f"json_match: '{path}' was '{actual}', expected {expected_phrase} '{value}'"]
