@@ -14,6 +14,17 @@ from collections.abc import Callable
 from os.path import commonprefix
 from typing import Any
 
+_PATH_NOT_FOUND = object()
+
+# Truncation constants/helpers adapted from CPython's unittest.util
+# (safe_repr / _shorten / _common_shorten_repr) so long failure values stay readable.
+_MAX_LENGTH = 80
+_PLACEHOLDER_LEN = 12
+_MIN_BEGIN_LEN = 5
+_MIN_END_LEN = 5
+_MIN_COMMON_LEN = 5
+_MIN_DIFF_LEN = _MAX_LENGTH - (_MIN_BEGIN_LEN + _PLACEHOLDER_LEN + _MIN_COMMON_LEN + _PLACEHOLDER_LEN + _MIN_END_LEN)
+
 
 def evaluate_exit_code(expected: int | list[int], actual_exit_code: int) -> list[str]:
     """Return failure strings when ``actual_exit_code`` is not in ``expected``."""
@@ -54,19 +65,6 @@ def evaluate_regex_match(pattern: str, combined_output: str) -> list[str]:
     return []
 
 
-_PATH_NOT_FOUND = object()
-
-# Truncation constants/helpers adapted from CPython's unittest.util
-# (safe_repr / _shorten / _common_shorten_repr) so long failure values stay
-# readable without importing private unittest APIs.
-_MAX_LENGTH = 80
-_PLACEHOLDER_LEN = 12
-_MIN_BEGIN_LEN = 5
-_MIN_END_LEN = 5
-_MIN_COMMON_LEN = 5
-_MIN_DIFF_LEN = _MAX_LENGTH - (_MIN_BEGIN_LEN + _PLACEHOLDER_LEN + _MIN_COMMON_LEN + _PLACEHOLDER_LEN + _MIN_END_LEN)
-
-
 def _is_numeric(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
@@ -82,6 +80,12 @@ def _resolve_json_path(root: Any, path: str) -> Any:
 
 
 def _safe_repr(value: Any, *, short: bool = False) -> str:
+    """Return ``repr(value)``, optionally hard-truncated when longer than ``_MAX_LENGTH``.
+
+    Falls back to ``object.__repr__`` if ``repr`` raises. When ``short`` is true
+    and the result exceeds ``_MAX_LENGTH``, keeps the first ``_MAX_LENGTH``
+    characters and appends `` [truncated]...``.
+    """
     try:
         result = repr(value)
     except Exception:
@@ -92,6 +96,12 @@ def _safe_repr(value: Any, *, short: bool = False) -> str:
 
 
 def _shorten(text: str, prefix_len: int, suffix_len: int) -> str:
+    """Collapse the middle of ``text`` into a ``[N chars]`` placeholder.
+
+    Keeps ``prefix_len`` leading and ``suffix_len`` trailing characters. If the
+    omitted span is not longer than ``_PLACEHOLDER_LEN``, returns ``text``
+    unchanged (placeholder would not save space).
+    """
     skip = len(text) - prefix_len - suffix_len
     if skip > _PLACEHOLDER_LEN:
         return f"{text[:prefix_len]}[{skip} chars]{text[len(text) - suffix_len :]}"
@@ -99,6 +109,12 @@ def _shorten(text: str, prefix_len: int, suffix_len: int) -> str:
 
 
 def _common_shorten_repr(left: Any, right: Any) -> tuple[str, str]:
+    """Return paired reprs shortened around their first differing region.
+
+    When either full ``repr`` is longer than ``_MAX_LENGTH``, shares a common
+    shortened prefix and keeps a window of differing characters so failure
+    messages stay comparable side-by-side (unittest-style).
+    """
     left_repr = _safe_repr(left)
     right_repr = _safe_repr(right)
     max_len = max(len(left_repr), len(right_repr))
