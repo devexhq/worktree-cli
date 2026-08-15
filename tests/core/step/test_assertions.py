@@ -253,6 +253,9 @@ def test_evaluate_json_match_contains_type_error_treated_as_failure():
 
 
 def test_evaluate_json_match_eq_truncates_long_strings():
+    # Generated failure message looks like:
+    # json_match: 'blob' was 'AAAA[491 chars]AAAAAMISMATCHBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB[463 chars]BBBB',
+    # expected 'AAAA[491 chars]AAAAAPERFECTBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB[462 chars]BBBB'
     actual = "A" * 500 + "MISMATCH" + "B" * 500
     expected = "A" * 500 + "PERFECT" + "B" * 500
     stdout = _json_stdout({"blob": actual})
@@ -269,6 +272,9 @@ def test_evaluate_json_match_eq_truncates_long_strings():
 
 
 def test_evaluate_json_match_eq_truncates_long_object_values():
+    # Generated failure message looks like:
+    # json_match: 'payload' was {'key[532 chars]AAAAAMISMATCHBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB[464 chars]BBB'},
+    # expected {'key[532 chars]AAAAAPERFECTBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB[463 chars]BBB'}
     actual = {"key_1": "constant", "large_value_key": "A" * 500 + "MISMATCH" + "B" * 500}
     expected = {"key_1": "constant", "large_value_key": "A" * 500 + "PERFECT" + "B" * 500}
     stdout = _json_stdout({"payload": actual})
@@ -283,6 +289,9 @@ def test_evaluate_json_match_eq_truncates_long_object_values():
 
 
 def test_evaluate_json_match_contains_truncates_long_actual():
+    # Generated failure message looks like:
+    # json_match: 'blob' does not contain 'missing'
+    # (was 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA [truncated]...)
     actual = "A" * 500 + "NEEDLE" + "B" * 500
     stdout = _json_stdout({"blob": actual})
     failures = evaluate_json_match({"path": "blob", "operator": "contains", "value": "missing"}, stdout)
