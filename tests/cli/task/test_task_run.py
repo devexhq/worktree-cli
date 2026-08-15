@@ -180,3 +180,57 @@ def test_task_run_uses_step_with_override(fs: FileSystem, monkeypatch: pytest.Mo
     rec = TasksDb(fs.base_path).get("task_uses_1")
     assert rec is not None
     assert rec.status.value == "completed"
+
+
+def test_task_run_honors_step_assert_block(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Task YAML assert is loaded and gates step success through execute_step."""
+    monkeypatch.chdir(fs.base_path)
+    fs.create_task_file(
+        "assert-task",
+        description="Task with assert",
+        summary="assert task",
+        use_sandbox=False,
+        steps=[
+            {
+                "id": "make-artifact",
+                "run": "echo ok",
+                "assert": {"file_exists": "missing.bin"},
+            }
+        ],
+    )
+
+    res = task_run_command("assert-task", cwd=fs.base_path, session_id="task_assert_1")
+    assert not res.ok
+    assert res.run_record is not None
+    assert res.run_record.status.value == "failed"
+    assert res.run_record.error_message is not None
+    assert "failed assertion checks" in res.run_record.error_message
+    assert "missing.bin" in res.run_record.error_message
+
+
+def test_task_run_invalid_assert_aborts_before_steps(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Unsafe assert paths fail task load; no run record and no step execution."""
+    monkeypatch.chdir(fs.base_path)
+    fs.create_task_file(
+        "bad-assert-task",
+        description="Invalid assert paths",
+        summary="bad assert",
+        use_sandbox=False,
+        steps=[
+            {
+                "id": "unsafe-step",
+                "run": "echo should-not-run",
+                "assert": {"file_exists": "../etc/passwd"},
+            }
+        ],
+    )
+
+    run_task = MagicMock()
+    monkeypatch.setattr("getworktree.cli.task.command.run_task", run_task)
+
+    res = task_run_command("bad-assert-task", cwd=fs.base_path, session_id="task_bad_assert")
+    assert not res.ok
+    assert res.run_record is None
+    run_task.assert_not_called()
+    assert any("assert" in err.lower() or "validation" in err.lower() for err in res.errors)
+    assert TasksDb(fs.base_path).get("task_bad_assert") is None

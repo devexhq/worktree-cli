@@ -12,6 +12,7 @@ from typing import Any, cast
 
 from pydantic import BaseModel
 
+from getworktree.core.step.assertions import evaluate_assertions
 from getworktree.core.step.models import FailurePolicy, StepDefinition, StepType
 from getworktree.core.step.services.resolver import resolve_step_definition
 from getworktree.core.workflows.agents.factory import get_agent_adapter
@@ -251,6 +252,41 @@ def _prepare_step_for_execution(step: StepDefinition, sandbox_path: Path) -> tup
     return step, max_attempts
 
 
+def _format_assertion_failure(step: StepDefinition, failed_conditions: list[str]) -> str:
+    """Build the multi-line diagnostic block for a failed step assertion."""
+    step_label = step.name or step.id
+    lines = [f"Step '{step_label}' failed assertion checks:"]
+    lines.extend(f"  [FAIL] {condition}" for condition in failed_conditions)
+    return "\n".join(lines)
+
+
+def _apply_assertions(
+    step: StepDefinition,
+    outcome: StepDispatchOutcome,
+    sandbox_path: Path,
+) -> StepDispatchOutcome:
+    """Downgrade a completed attempt to failed when step.assert_ checks do not pass."""
+    if outcome.status != "completed" or step.assert_ is None:
+        return outcome
+
+    result = evaluate_assertions(
+        step.assert_,
+        exit_code=outcome.exit_code,
+        stdout=outcome.stdout,
+        stderr=outcome.stderr,
+        sandbox_path=sandbox_path,
+    )
+    if result.passed:
+        return outcome
+
+    return outcome.model_copy(
+        update={
+            "status": "failed",
+            "error_message": _format_assertion_failure(step, result.failed_conditions),
+        }
+    )
+
+
 def _run_step_attempts(
     step: StepDefinition,
     sandbox_path: Path,
@@ -263,6 +299,7 @@ def _run_step_attempts(
     for attempt in range(1, max_attempts + 1):
         outcome = _dispatch_step_primitive(step, sandbox_path, context)
         outcome = outcome.model_copy(update={"attempts": attempt})
+        outcome = _apply_assertions(step, outcome, sandbox_path)
         if outcome.status == "completed":
             return outcome
         if attempt < max_attempts and backoff_ms > 0:
