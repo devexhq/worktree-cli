@@ -164,7 +164,7 @@ def test_evaluate_json_match_eq_null_pass():
 def test_evaluate_json_match_eq_null_fail():
     stdout = _json_stdout({"result": None})
     assert evaluate_json_match({"path": "result", "operator": "eq", "value": "x"}, stdout) == [
-        "json_match: 'result' was 'None', expected 'x'"
+        "json_match: 'result' was None, expected 'x'"
     ]
 
 
@@ -176,7 +176,7 @@ def test_evaluate_json_match_neq_pass():
 def test_evaluate_json_match_neq_fail():
     stdout = _json_stdout({"count": 3})
     assert evaluate_json_match({"path": "count", "operator": "neq", "value": 3}, stdout) == [
-        "json_match: 'count' was '3', expected not '3'"
+        "json_match: 'count' was 3, expected not 3"
     ]
 
 
@@ -188,7 +188,7 @@ def test_evaluate_json_match_gt_pass():
 def test_evaluate_json_match_gt_fail():
     stdout = _json_stdout({"n": 5})
     assert evaluate_json_match({"path": "n", "operator": "gt", "value": 5}, stdout) == [
-        "json_match: 'n' was '5', expected greater than '5'"
+        "json_match: 'n' was 5, expected greater than 5"
     ]
 
 
@@ -200,7 +200,7 @@ def test_evaluate_json_match_gte_pass():
 def test_evaluate_json_match_gte_fail():
     stdout = _json_stdout({"n": 5})
     assert evaluate_json_match({"path": "n", "operator": "gte", "value": 6}, stdout) == [
-        "json_match: 'n' was '5', expected at least '6'"
+        "json_match: 'n' was 5, expected at least 6"
     ]
 
 
@@ -212,7 +212,7 @@ def test_evaluate_json_match_lt_pass():
 def test_evaluate_json_match_lt_fail():
     stdout = _json_stdout({"n": 5})
     assert evaluate_json_match({"path": "n", "operator": "lt", "value": 5}, stdout) == [
-        "json_match: 'n' was '5', expected less than '5'"
+        "json_match: 'n' was 5, expected less than 5"
     ]
 
 
@@ -224,7 +224,7 @@ def test_evaluate_json_match_lte_pass():
 def test_evaluate_json_match_lte_fail():
     stdout = _json_stdout({"n": 5})
     assert evaluate_json_match({"path": "n", "operator": "lte", "value": 4}, stdout) == [
-        "json_match: 'n' was '5', expected at most '4'"
+        "json_match: 'n' was 5, expected at most 4"
     ]
 
 
@@ -241,15 +241,56 @@ def test_evaluate_json_match_contains_string_pass():
 def test_evaluate_json_match_contains_fail():
     stdout = _json_stdout({"tags": ["a", "b"]})
     assert evaluate_json_match({"path": "tags", "operator": "contains", "value": "z"}, stdout) == [
-        "json_match: 'tags' does not contain 'z' (was '['a', 'b']')"
+        "json_match: 'tags' does not contain 'z' (was ['a', 'b'])"
     ]
 
 
 def test_evaluate_json_match_contains_type_error_treated_as_failure():
     stdout = _json_stdout({"n": 42})
     assert evaluate_json_match({"path": "n", "operator": "contains", "value": 4}, stdout) == [
-        "json_match: 'n' does not contain '4' (was '42')"
+        "json_match: 'n' does not contain 4 (was 42)"
     ]
+
+
+def test_evaluate_json_match_eq_truncates_long_strings():
+    actual = "A" * 500 + "MISMATCH" + "B" * 500
+    expected = "A" * 500 + "PERFECT" + "B" * 500
+    stdout = _json_stdout({"blob": actual})
+    failures = evaluate_json_match({"path": "blob", "operator": "eq", "value": expected}, stdout)
+    assert len(failures) == 1
+    message = failures[0]
+    assert message.startswith("json_match: 'blob' was ")
+    assert ", expected " in message
+    assert "[491 chars]" in message
+    assert "MISMATCH" in message
+    assert "PERFECT" in message
+    assert actual not in message
+    assert expected not in message
+
+
+def test_evaluate_json_match_eq_truncates_long_object_values():
+    actual = {"key_1": "constant", "large_value_key": "A" * 500 + "MISMATCH" + "B" * 500}
+    expected = {"key_1": "constant", "large_value_key": "A" * 500 + "PERFECT" + "B" * 500}
+    stdout = _json_stdout({"payload": actual})
+    failures = evaluate_json_match({"path": "payload", "operator": "eq", "value": expected}, stdout)
+    assert len(failures) == 1
+    message = failures[0]
+    assert message.startswith("json_match: 'payload' was ")
+    assert "chars]" in message
+    assert "MISMATCH" in message
+    assert "PERFECT" in message
+    assert "A" * 100 not in message
+
+
+def test_evaluate_json_match_contains_truncates_long_actual():
+    actual = "A" * 500 + "NEEDLE" + "B" * 500
+    stdout = _json_stdout({"blob": actual})
+    failures = evaluate_json_match({"path": "blob", "operator": "contains", "value": "missing"}, stdout)
+    assert len(failures) == 1
+    message = failures[0]
+    assert "does not contain 'missing'" in message
+    assert "[truncated]..." in message
+    assert actual not in message
 
 
 def test_evaluate_json_match_ordering_rejects_bool_actual():

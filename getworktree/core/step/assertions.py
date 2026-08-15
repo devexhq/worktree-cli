@@ -12,6 +12,7 @@ import json
 import re
 from collections.abc import Callable
 from typing import Any
+from unittest.util import _common_shorten_repr, safe_repr
 
 
 def evaluate_exit_code(expected: int | list[int], actual_exit_code: int) -> list[str]:
@@ -70,16 +71,29 @@ def _resolve_json_path(root: Any, path: str) -> Any:
     return current
 
 
+def _short_repr(value: Any) -> str:
+    """Single-value repr truncated like unittest failure output."""
+    return safe_repr(value, short=True)
+
+
+def _short_pair(actual: Any, expected: Any) -> tuple[str, str]:
+    """Paired reprs shortened around the first differing region (unittest-style)."""
+    shortened = _common_shorten_repr(actual, expected)
+    return shortened[0], shortened[1]
+
+
 def _compare_eq(actual: Any, value: Any, path: str) -> list[str]:
     if actual == value:
         return []
-    return [f"json_match: '{path}' was '{actual}', expected '{value}'"]
+    actual_repr, expected_repr = _short_pair(actual, value)
+    return [f"json_match: '{path}' was {actual_repr}, expected {expected_repr}"]
 
 
 def _compare_neq(actual: Any, value: Any, path: str) -> list[str]:
     if actual != value:
         return []
-    return [f"json_match: '{path}' was '{actual}', expected not '{value}'"]
+    actual_repr, expected_repr = _short_pair(actual, value)
+    return [f"json_match: '{path}' was {actual_repr}, expected not {expected_repr}"]
 
 
 def _compare_contains(actual: Any, value: Any, path: str) -> list[str]:
@@ -88,7 +102,7 @@ def _compare_contains(actual: Any, value: Any, path: str) -> list[str]:
             return []
     except TypeError:
         pass
-    return [f"json_match: '{path}' does not contain '{value}' (was '{actual}')"]
+    return [f"json_match: '{path}' does not contain {_short_repr(value)} (was {_short_repr(actual)})"]
 
 
 def _compare_ordered(
@@ -106,7 +120,8 @@ def _compare_ordered(
         ]
     if predicate(actual, value):
         return []
-    return [f"json_match: '{path}' was '{actual}', expected {expected_phrase} '{value}'"]
+    actual_repr, expected_repr = _short_pair(actual, value)
+    return [f"json_match: '{path}' was {actual_repr}, expected {expected_phrase} {expected_repr}"]
 
 
 _JSON_MATCH_OPERATORS: dict[str, Callable[[Any, Any, str], list[str]]] = {
