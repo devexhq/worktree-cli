@@ -101,8 +101,11 @@ def _json_stdout(payload: object) -> str:
     return json.dumps(payload)
 
 
-def test_evaluate_json_match_invalid_json():
+def test_evaluate_json_match_invalid_json_empty_stdout():
     assert evaluate_json_match({"path": "a", "operator": "eq", "value": 1}, "") == ["json_match: Invalid JSON output"]
+
+
+def test_evaluate_json_match_invalid_json_malformed_stdout():
     assert evaluate_json_match({"path": "a", "operator": "eq", "value": 1}, "not-json") == [
         "json_match: Invalid JSON output"
     ]
@@ -115,10 +118,13 @@ def test_evaluate_json_match_path_not_found_missing_key():
     ]
 
 
-def test_evaluate_json_match_path_not_found_non_dict_root():
+def test_evaluate_json_match_path_not_found_list_root():
     assert evaluate_json_match({"path": "status", "operator": "eq", "value": 1}, _json_stdout([1, 2, 3])) == [
         "json_match: JSON path 'status' not found"
     ]
+
+
+def test_evaluate_json_match_path_not_found_scalar_root():
     assert evaluate_json_match({"path": "status", "operator": "eq", "value": 1}, _json_stdout(42)) == [
         "json_match: JSON path 'status' not found"
     ]
@@ -138,86 +144,102 @@ def test_evaluate_json_match_path_not_found_empty_path():
     ]
 
 
-def test_evaluate_json_match_all_operators_pass_on_valid_values():
-    stdout = _json_stdout(
-        {
-            "summary": {"status": "APPROVED", "score": 10.5},
-            "count": 3,
-            "tags": ["a", "b"],
-            "name": "alpha",
-        }
-    )
-    assert evaluate_json_match({"path": "summary.status", "operator": "eq", "value": "APPROVED"}, stdout) == []
-    assert evaluate_json_match({"path": "count", "operator": "neq", "value": 0}, stdout) == []
-    assert evaluate_json_match({"path": "summary.score", "operator": "gt", "value": 10}, stdout) == []
-    assert evaluate_json_match({"path": "summary.score", "operator": "gte", "value": 10.5}, stdout) == []
-    assert evaluate_json_match({"path": "count", "operator": "lt", "value": 5}, stdout) == []
-    assert evaluate_json_match({"path": "count", "operator": "lte", "value": 3}, stdout) == []
-    assert evaluate_json_match({"path": "tags", "operator": "contains", "value": "a"}, stdout) == []
-    assert evaluate_json_match({"path": "name", "operator": "contains", "value": "ph"}, stdout) == []
-
-
-def test_evaluate_json_match_eq_pass_and_fail():
+def test_evaluate_json_match_eq_pass():
     stdout = _json_stdout({"summary": {"status": "APPROVED"}})
-    config = {"path": "summary.status", "operator": "eq", "value": "APPROVED"}
-    assert evaluate_json_match(config, stdout) == []
+    assert evaluate_json_match({"path": "summary.status", "operator": "eq", "value": "APPROVED"}, stdout) == []
+
+
+def test_evaluate_json_match_eq_fail():
+    stdout = _json_stdout({"summary": {"status": "APPROVED"}})
     assert evaluate_json_match({"path": "summary.status", "operator": "eq", "value": "DENIED"}, stdout) == [
         "json_match: 'summary.status' was 'APPROVED', expected 'DENIED'"
     ]
 
 
-def test_evaluate_json_match_eq_null_value():
+def test_evaluate_json_match_eq_null_pass():
     stdout = _json_stdout({"result": None})
     assert evaluate_json_match({"path": "result", "operator": "eq", "value": None}, stdout) == []
+
+
+def test_evaluate_json_match_eq_null_fail():
+    stdout = _json_stdout({"result": None})
     assert evaluate_json_match({"path": "result", "operator": "eq", "value": "x"}, stdout) == [
         "json_match: 'result' was 'None', expected 'x'"
     ]
 
 
-def test_evaluate_json_match_neq_pass_and_fail():
+def test_evaluate_json_match_neq_pass():
     stdout = _json_stdout({"count": 3})
     assert evaluate_json_match({"path": "count", "operator": "neq", "value": 0}, stdout) == []
+
+
+def test_evaluate_json_match_neq_fail():
+    stdout = _json_stdout({"count": 3})
     assert evaluate_json_match({"path": "count", "operator": "neq", "value": 3}, stdout) == [
         "json_match: 'count' was '3', expected not '3'"
     ]
 
 
-def test_evaluate_json_match_gt_pass_and_fail():
+def test_evaluate_json_match_gt_pass():
     stdout = _json_stdout({"n": 5})
     assert evaluate_json_match({"path": "n", "operator": "gt", "value": 4}, stdout) == []
+
+
+def test_evaluate_json_match_gt_fail():
+    stdout = _json_stdout({"n": 5})
     assert evaluate_json_match({"path": "n", "operator": "gt", "value": 5}, stdout) == [
         "json_match: 'n' was '5', expected greater than '5'"
     ]
 
 
-def test_evaluate_json_match_gte_pass_and_fail():
+def test_evaluate_json_match_gte_pass():
     stdout = _json_stdout({"n": 5})
     assert evaluate_json_match({"path": "n", "operator": "gte", "value": 5}, stdout) == []
+
+
+def test_evaluate_json_match_gte_fail():
+    stdout = _json_stdout({"n": 5})
     assert evaluate_json_match({"path": "n", "operator": "gte", "value": 6}, stdout) == [
         "json_match: 'n' was '5', expected at least '6'"
     ]
 
 
-def test_evaluate_json_match_lt_pass_and_fail():
+def test_evaluate_json_match_lt_pass():
     stdout = _json_stdout({"n": 5})
     assert evaluate_json_match({"path": "n", "operator": "lt", "value": 6}, stdout) == []
+
+
+def test_evaluate_json_match_lt_fail():
+    stdout = _json_stdout({"n": 5})
     assert evaluate_json_match({"path": "n", "operator": "lt", "value": 5}, stdout) == [
         "json_match: 'n' was '5', expected less than '5'"
     ]
 
 
-def test_evaluate_json_match_lte_pass_and_fail():
+def test_evaluate_json_match_lte_pass():
     stdout = _json_stdout({"n": 5})
     assert evaluate_json_match({"path": "n", "operator": "lte", "value": 5}, stdout) == []
+
+
+def test_evaluate_json_match_lte_fail():
+    stdout = _json_stdout({"n": 5})
     assert evaluate_json_match({"path": "n", "operator": "lte", "value": 4}, stdout) == [
         "json_match: 'n' was '5', expected at most '4'"
     ]
 
 
-def test_evaluate_json_match_contains_pass_and_fail():
-    stdout = _json_stdout({"tags": ["a", "b"], "name": "alpha"})
+def test_evaluate_json_match_contains_list_pass():
+    stdout = _json_stdout({"tags": ["a", "b"]})
     assert evaluate_json_match({"path": "tags", "operator": "contains", "value": "a"}, stdout) == []
+
+
+def test_evaluate_json_match_contains_string_pass():
+    stdout = _json_stdout({"name": "alpha"})
     assert evaluate_json_match({"path": "name", "operator": "contains", "value": "ph"}, stdout) == []
+
+
+def test_evaluate_json_match_contains_fail():
+    stdout = _json_stdout({"tags": ["a", "b"]})
     assert evaluate_json_match({"path": "tags", "operator": "contains", "value": "z"}, stdout) == [
         "json_match: 'tags' does not contain 'z' (was '['a', 'b']')"
     ]
@@ -230,17 +252,29 @@ def test_evaluate_json_match_contains_type_error_treated_as_failure():
     ]
 
 
-def test_evaluate_json_match_ordering_rejects_non_numeric():
-    stdout = _json_stdout({"flag": True, "label": "x", "n": 5})
+def test_evaluate_json_match_ordering_rejects_bool_actual():
+    stdout = _json_stdout({"flag": True})
     assert evaluate_json_match({"path": "flag", "operator": "gt", "value": 0}, stdout) == [
         "json_match: operator 'gt' requires numeric values, got bool and int"
     ]
+
+
+def test_evaluate_json_match_ordering_rejects_str_actual():
+    stdout = _json_stdout({"label": "x"})
     assert evaluate_json_match({"path": "label", "operator": "lte", "value": 1}, stdout) == [
         "json_match: operator 'lte' requires numeric values, got str and int"
     ]
+
+
+def test_evaluate_json_match_ordering_rejects_str_value():
+    stdout = _json_stdout({"n": 5})
     assert evaluate_json_match({"path": "n", "operator": "gt", "value": "3"}, stdout) == [
         "json_match: operator 'gt' requires numeric values, got int and str"
     ]
+
+
+def test_evaluate_json_match_ordering_rejects_bool_value():
+    stdout = _json_stdout({"flag": True})
     assert evaluate_json_match({"path": "flag", "operator": "lt", "value": False}, stdout) == [
         "json_match: operator 'lt' requires numeric values, got bool and bool"
     ]
