@@ -74,7 +74,7 @@ class SeedCatalogTemplatesTests:
         assert (target_dir / "review-fix.yml") in result.created_files
 
     def test_no_source_wt_dir_is_a_no_op(self, fs: FileSystem) -> None:
-        """Tasks/steps currently have no curated `wt/` seed files."""
+        """Tasks currently have no curated `wt/` seed files."""
         result = seed_catalog_templates(CatalogItemType.TASK, cwd=fs.base_path)
 
         assert result.ok
@@ -82,6 +82,27 @@ class SeedCatalogTemplatesTests:
         assert result.skipped_existing_files == []
         assert result.overwritten_files == []
         assert result.errors == []
+
+    def test_seeds_step_wt_stdlib(self, fs: FileSystem) -> None:
+        result = seed_catalog_templates(CatalogItemType.STEP, cwd=fs.base_path)
+
+        assert result.ok
+        assert {path.name for path in result.created_files} == {
+            "git-sync-base.yml",
+            "ai-planner.yml",
+            "ai-code-patcher.yml",
+            "run-tests.yml",
+            "ai-reviewer.yml",
+        }
+        target_dir = fs.base_path / ".worktree" / "catalog" / "steps" / "wt"
+        for name in (
+            "git-sync-base.yml",
+            "ai-planner.yml",
+            "ai-code-patcher.yml",
+            "run-tests.yml",
+            "ai-reviewer.yml",
+        ):
+            assert (target_dir / name).is_file()
 
 
 class SeedAllCatalogTemplatesTests:
@@ -94,10 +115,17 @@ class SeedAllCatalogTemplatesTests:
         assert {path.name for path in result.created_files} == {
             "fix-tests.yml",
             "review-fix.yml",
+            "git-sync-base.yml",
+            "ai-planner.yml",
+            "ai-code-patcher.yml",
+            "run-tests.yml",
+            "ai-reviewer.yml",
         }
         workflows_dir = fs.base_path / ".worktree" / "catalog" / "workflows" / "wt"
         assert (workflows_dir / "fix-tests.yml").is_file()
         assert (workflows_dir / "review-fix.yml").is_file()
+        steps_dir = fs.base_path / ".worktree" / "catalog" / "steps" / "wt"
+        assert (steps_dir / "ai-code-patcher.yml").is_file()
 
     def test_force_overwrites_across_all_types(self, fs: FileSystem) -> None:
         workflows_dir = fs.base_path / ".worktree" / "catalog" / "workflows" / "wt"

@@ -1,7 +1,12 @@
 """Unit tests for step definition YAML loading helpers."""
 
+from pathlib import Path
+
 import pytest
 
+from getworktree.common.fs import get_catalog_templates_dir
+from getworktree.core.catalog.services.seeder import seed_catalog_templates
+from getworktree.core.db import CatalogItemType
 from getworktree.core.step import (
     StepDefinition,
     StepNotFoundError,
@@ -10,7 +15,16 @@ from getworktree.core.step import (
     load_step_by_id,
     load_step_definition,
 )
+from getworktree.core.step.services.resolver import resolve_step_definition
 from tests.helpers import FileSystem
+
+_PACKAGED_STEP_NAMES = (
+    "git-sync-base",
+    "ai-planner",
+    "ai-code-patcher",
+    "run-tests",
+    "ai-reviewer",
+)
 
 
 def test_load_step_definition_valid(fs: FileSystem):
@@ -117,3 +131,56 @@ def test_load_step_definition_returns_step_definition_instance(fs: FileSystem):
     step_file = fs.write_file("step.yaml", "id: s1\nrun: echo 1\n")
     step = load_step_definition(step_file)
     assert isinstance(step, StepDefinition)
+
+
+def test_packaged_step_seeds_validate_as_step_definition():
+    steps_wt = Path(str(get_catalog_templates_dir() / "steps" / "wt"))
+    for name in _PACKAGED_STEP_NAMES:
+        step = load_step_definition(steps_wt / f"{name}.yml")
+        assert step.id == name
+        assert step.name == name
+
+
+def test_load_step_by_id_resolves_wt_prefix_after_seed(fs: FileSystem):
+    seed_catalog_templates(CatalogItemType.STEP, cwd=fs.base_path)
+
+    step = load_step_by_id("wt/ai-code-patcher", cwd=fs.base_path)
+
+    assert step.id == "ai-code-patcher"
+    assert step.type == StepType.AGENT
+    assert step.prompt is not None
+
+
+def test_load_step_by_id_scan_finds_wt_subdir_by_id(fs: FileSystem):
+    seed_catalog_templates(CatalogItemType.STEP, cwd=fs.base_path)
+
+    step = load_step_by_id("ai-code-patcher", cwd=fs.base_path)
+
+    assert step.id == "ai-code-patcher"
+    assert step.type == StepType.AGENT
+
+
+def test_load_step_by_id_wt_missing_step_error(fs: FileSystem):
+    (fs.base_path / ".worktree" / "catalog" / "steps").mkdir(parents=True)
+
+    with pytest.raises(StepNotFoundError, match=r"Step 'wt/ai-code-patcher' not found in"):
+        load_step_by_id("wt/ai-code-patcher", cwd=fs.base_path)
+
+
+def test_load_step_by_id_direct_invalid_yaml_raises(fs: FileSystem):
+    fs.write_file(".worktree/catalog/steps/wt/broken.yml", "id: [unclosed")
+
+    with pytest.raises(StepValidationError, match="Failed to read or parse YAML"):
+        load_step_by_id("wt/broken", cwd=fs.base_path)
+
+
+def test_resolve_uses_wt_ai_code_patcher_after_seed(fs: FileSystem):
+    seed_catalog_templates(CatalogItemType.STEP, cwd=fs.base_path)
+    step = StepDefinition(id="ai-fix", uses="wt/ai-code-patcher")
+
+    resolved = resolve_step_definition(step, cwd=fs.base_path)
+
+    assert resolved.id == "ai-fix"
+    assert resolved.type == StepType.AGENT
+    assert resolved.uses is None
+    assert resolved.prompt is not None
