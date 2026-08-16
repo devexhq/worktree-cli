@@ -4,12 +4,14 @@ import pytest
 from pydantic import ValidationError
 
 from getworktree.core.step import (
+    BlueprintDefaults,
     FailurePolicy,
     FailureSpec,
     LoopStepBlock,
     StepAssert,
     StepDefinition,
     StepType,
+    apply_on_failure_default,
 )
 
 
@@ -46,6 +48,45 @@ def test_failure_spec_rejects_retry_on_max_retries():
 def test_failure_spec_forbids_extra_keys():
     with pytest.raises(ValidationError):
         FailureSpec(action=FailurePolicy.ABORT, unknown_key="nope")
+
+
+def test_blueprint_defaults_coerces_string_on_failure():
+    defaults = BlueprintDefaults.model_validate({"on_failure": "continue"})
+    assert defaults.on_failure is not None
+    assert defaults.on_failure.action == FailurePolicy.CONTINUE
+
+
+def test_blueprint_defaults_forbids_extra_keys():
+    with pytest.raises(ValidationError):
+        BlueprintDefaults.model_validate({"on_failure": "abort", "extra": True})
+
+
+def test_apply_on_failure_default_fill_if_omitted_only():
+    filled = apply_on_failure_default({"id": "a", "run": "true"}, "continue")
+    assert filled["on_failure"] == "continue"
+
+    from_spec = apply_on_failure_default(
+        {"id": "a", "run": "true"},
+        FailureSpec(action=FailurePolicy.CONTINUE),
+    )
+    assert from_spec["on_failure"] == {
+        "action": "continue",
+        "max_retries": 3,
+        "backoff_ms": 0,
+        "on_max_retries": "abort",
+    }
+
+    explicit = apply_on_failure_default(
+        {"id": "b", "run": "true", "on_failure": "abort"},
+        "continue",
+    )
+    assert explicit["on_failure"] == "abort"
+
+    loop = apply_on_failure_default(
+        {"id": "loop", "type": "loop", "until": ["x"], "do": []},
+        "continue",
+    )
+    assert "on_failure" not in loop
 
 
 def test_step_definition_command_valid():

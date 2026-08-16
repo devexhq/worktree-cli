@@ -1,6 +1,9 @@
 """Unit tests for TaskDefinition model and step shorthand normalization."""
 
-from getworktree.core.step import StepType
+import pytest
+from pydantic import ValidationError
+
+from getworktree.core.step import FailurePolicy, StepType
 from getworktree.core.task.models import TaskDefinition
 
 
@@ -33,6 +36,100 @@ def test_task_definition_defaults_use_sandbox_true() -> None:
     assert task.description == ""
     assert task.summary == ""
     assert task.steps == []
+    assert task.defaults.on_failure is None
+
+
+def test_task_defaults_on_failure_omitted_keeps_step_abort() -> None:
+    task = TaskDefinition.model_validate(
+        {
+            "name": "no-defaults",
+            "steps": [{"id": "unit", "run": "pytest"}],
+        }
+    )
+    assert task.steps[0].on_failure.action == FailurePolicy.ABORT
+
+
+def test_task_defaults_on_failure_inherited_when_step_omits() -> None:
+    task = TaskDefinition.model_validate(
+        {
+            "name": "inherit",
+            "defaults": {"on_failure": "continue"},
+            "steps": [{"id": "unit", "run": "pytest"}],
+        }
+    )
+    assert task.defaults.on_failure is not None
+    assert task.defaults.on_failure.action == FailurePolicy.CONTINUE
+    assert task.steps[0].on_failure.action == FailurePolicy.CONTINUE
+
+
+def test_task_defaults_on_failure_object_form_inherited() -> None:
+    task = TaskDefinition.model_validate(
+        {
+            "name": "retry-default",
+            "defaults": {
+                "on_failure": {
+                    "action": "retry",
+                    "max_retries": 5,
+                    "backoff_ms": 200,
+                    "on_max_retries": "prompt_user",
+                }
+            },
+            "steps": [{"id": "unit", "run": "pytest"}],
+        }
+    )
+    step_failure = task.steps[0].on_failure
+    assert step_failure.action == FailurePolicy.RETRY
+    assert step_failure.max_retries == 5
+    assert step_failure.backoff_ms == 200
+    assert step_failure.on_max_retries == FailurePolicy.PROMPT_USER
+
+
+def test_task_explicit_step_on_failure_wins_unchanged() -> None:
+    task = TaskDefinition.model_validate(
+        {
+            "name": "explicit-wins",
+            "defaults": {"on_failure": "continue"},
+            "steps": [
+                {"id": "unit", "run": "pytest"},
+                {"id": "publish", "run": "./publish.sh", "on_failure": "abort"},
+            ],
+        }
+    )
+    assert task.steps[0].on_failure.action == FailurePolicy.CONTINUE
+    assert task.steps[1].on_failure.action == FailurePolicy.ABORT
+
+
+def test_task_defaults_reject_unknown_keys() -> None:
+    with pytest.raises(ValidationError):
+        TaskDefinition.model_validate(
+            {
+                "name": "bad-defaults",
+                "defaults": {"on_failure": "abort", "unknown": True},
+                "steps": [{"id": "unit", "run": "pytest"}],
+            }
+        )
+
+
+def test_task_defaults_on_failure_invalid_action_rejected() -> None:
+    with pytest.raises(ValidationError):
+        TaskDefinition.model_validate(
+            {
+                "name": "bad-action",
+                "defaults": {"on_failure": "not-a-policy"},
+                "steps": [{"id": "unit", "run": "pytest"}],
+            }
+        )
+
+
+def test_task_defaults_on_failure_invalid_bounds_rejected() -> None:
+    with pytest.raises(ValidationError):
+        TaskDefinition.model_validate(
+            {
+                "name": "bad-bounds",
+                "defaults": {"on_failure": {"action": "retry", "max_retries": 0}},
+                "steps": [{"id": "unit", "run": "pytest"}],
+            }
+        )
 
 
 def test_fill_step_shorthand_command_maps_to_run() -> None:

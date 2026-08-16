@@ -64,6 +64,9 @@ name: "fix-tests"
 description: "Iteratively fix failing tests until they pass or attempts are exhausted"
 timeout_seconds: 600
 
+defaults:
+  on_failure: continue
+
 steps:
   - id: dev-cycle
     type: loop
@@ -91,6 +94,7 @@ steps:
 | `timeout_seconds` | Optional overall workflow timeout (`>= 1`). |
 | `env` | Optional environment variables map. |
 | `inputs` | Optional named input declarations (`description`, `required`, `default`). |
+| `defaults` | Optional blueprint defaults. Currently only `defaults.on_failure`, which fills top-level standard steps that omit `on_failure` (fill-if-omitted; step-level values win). |
 | `steps` | List of standard steps (`uses`/`run`, mutually exclusive) and/or `loop` blocks (`max_iterations`, `until`, `do`, `on_max_iterations`). |
 
 ### `on_failure`
@@ -108,6 +112,11 @@ on_failure:
   backoff_ms: 500
   on_max_retries: abort   # abort | continue | prompt_user (no retry-on-retry)
 ```
+
+Optional root-level `defaults.on_failure` uses the same string-or-object shape and
+is applied only when a top-level standard step omits `on_failure`. Explicit step
+`on_failure` always wins unchanged (no partial merge). This is inheritance only —
+not a second post-step policy ladder.
 
 `on_max_iterations` on `loop` blocks is always a bare string (`abort`, `continue`, or
 `prompt_user` — `retry` is not valid there).

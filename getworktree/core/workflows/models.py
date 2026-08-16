@@ -3,18 +3,31 @@
 from __future__ import annotations
 
 from importlib import resources
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from pydantic import BaseModel, Field, model_validator
 
 from getworktree.common.schema_validation import SchemaValidator
 from getworktree.core.inputs import ParameterInput
-from getworktree.core.step import LoopStepBlock, StepDefinition
+from getworktree.core.step import (
+    BlueprintDefaults,
+    LoopStepBlock,
+    StepDefinition,
+    apply_on_failure_default,
+    extract_defaults_on_failure,
+)
 
 WORKFLOW_VALIDATOR: SchemaValidator = SchemaValidator(resources.files("getworktree.schemas.v1") / "workflow.json")
 
 # Back-compat alias: WorkflowInput is the shared ParameterInput model.
 WorkflowInput = ParameterInput
+
+
+def _normalize_workflow_step_item(item: Any, on_failure_default: Any | None) -> Any:
+    """Apply fill-if-omitted defaults.on_failure to top-level standard steps only."""
+    if not isinstance(item, dict):
+        return item
+    return apply_on_failure_default(dict(item), on_failure_default)
 
 
 class WorkflowDefinition(BaseModel):
@@ -31,7 +44,21 @@ class WorkflowDefinition(BaseModel):
     timeout_seconds: int | None = Field(default=None, ge=1)
     env: dict[str, str] = Field(default_factory=dict)
     inputs: dict[str, ParameterInput] = Field(default_factory=dict)
+    defaults: BlueprintDefaults = Field(default_factory=BlueprintDefaults)
     steps: list[StepDefinition | LoopStepBlock] | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _apply_blueprint_defaults(cls, data: Any) -> Any:
+        """Fill omitted step on_failure from defaults at load/normalize time."""
+        if not isinstance(data, dict):
+            return data
+        raw_steps = data.get("steps")
+        if not isinstance(raw_steps, list):
+            return data
+        on_failure_default = extract_defaults_on_failure(data.get("defaults"))
+        data["steps"] = [_normalize_workflow_step_item(item, on_failure_default) for item in raw_steps]
+        return data
 
     @model_validator(mode="after")
     def validate_workflow(self) -> WorkflowDefinition:
