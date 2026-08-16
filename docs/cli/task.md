@@ -45,17 +45,16 @@ Task blueprints live in `.worktree/catalog/tasks/<name>.yml`.
 ```yaml
 name: audit-tokens
 description: Scan project files for hardcoded API keys and token strings
+use_sandbox: true
 
-command: python
-args:
-  - "-m"
-  - "scripts.audit_tokens"
-prompt: null
-tools: []
-script_path: null
-timeout_seconds: 60
-environment:
-  AUDIT_STRICT: "true"
+defaults:
+  on_failure: continue
+
+steps:
+  - command: python -m scripts.audit_tokens
+  - id: publish-report
+    run: ./scripts/publish_report.sh
+    on_failure: abort   # explicit step value wins over defaults
 ```
 
 ### Task Definition Properties
@@ -64,10 +63,28 @@ environment:
 | --- | --- | --- |
 | `name` | string | Unique task blueprint name (required). |
 | `description` | string | Human-readable explanation of what the task performs. |
-| `command` | string | Primary shell command to execute. |
-| `args` | list[string] | Arguments passed to the command. |
-| `prompt` | string | LLM prompt instruction for agent-driven tasks. |
-| `tools` | list[string] | Tools available to agent task runners. |
-| `script_path` | string | Relative path to a local executable script. |
-| `timeout_seconds` | integer | Maximum execution duration before timing out (default: `120`). |
-| `environment` | dict[string, string] | Environment variables set during task execution. |
+| `summary` | string | Optional short summary. |
+| `use_sandbox` | boolean | Whether the task runs in a sandbox (default: `true`). |
+| `inputs` | object | Optional named parameter inputs. |
+| `defaults` | object | Optional blueprint defaults. Currently only `defaults.on_failure` (bare policy string or full failure object). Fills steps that omit `on_failure`; explicit step values win unchanged. |
+| `steps` | list | Ordered `StepDefinition` entries (`run` / `uses` / inline `type`). |
+
+### `defaults.on_failure`
+
+Same shape as step-level `on_failure`:
+
+```yaml
+defaults:
+  on_failure: continue
+
+# or
+defaults:
+  on_failure:
+    action: retry
+    max_retries: 5
+    backoff_ms: 200
+    on_max_retries: prompt_user
+```
+
+Resolution is fill-if-omitted only at load time. It is not a second task-level
+escalation ladder after steps run.

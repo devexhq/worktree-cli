@@ -8,7 +8,12 @@ from typing import Any
 from pydantic import BaseModel, Field, model_validator
 
 from getworktree.core.inputs import ParameterInput
-from getworktree.core.step import StepDefinition
+from getworktree.core.step import (
+    BlueprintDefaults,
+    StepDefinition,
+    apply_on_failure_default,
+    extract_defaults_on_failure,
+)
 
 _SLUG_RE = re.compile(r"[^\w-]+")
 
@@ -40,14 +45,14 @@ def _map_command_shorthand(step_dict: dict[str, Any]) -> None:
     step_dict["run"] = step_dict.pop("command")
 
 
-def _normalize_step_item(item: Any, idx: int) -> Any:
+def _normalize_step_item(item: Any, idx: int, on_failure_default: Any | None = None) -> Any:
     """Normalize one raw step entry for ``StepDefinition`` validation."""
     if not isinstance(item, dict):
         return item
     step_dict = dict(item)
     _ensure_step_id(step_dict, idx)
     _map_command_shorthand(step_dict)
-    return step_dict
+    return apply_on_failure_default(step_dict, on_failure_default)
 
 
 class TaskDefinition(BaseModel):
@@ -60,12 +65,13 @@ class TaskDefinition(BaseModel):
     summary: str = ""
     use_sandbox: bool = True
     inputs: dict[str, ParameterInput] = Field(default_factory=dict)
+    defaults: BlueprintDefaults = Field(default_factory=BlueprintDefaults)
     steps: list[StepDefinition] = Field(default_factory=list)
 
     @model_validator(mode="before")
     @classmethod
     def _fill_step_shorthand_defaults(cls, data: Any) -> Any:
-        """Fill missing step ids and map bare ``command:`` keys before validation."""
+        """Fill missing step ids, map bare ``command:``, and inherit defaults.on_failure."""
         if not isinstance(data, dict):
             return data
 
@@ -73,5 +79,8 @@ class TaskDefinition(BaseModel):
         if not isinstance(raw_steps, list):
             return data
 
-        data["steps"] = [_normalize_step_item(item, idx) for idx, item in enumerate(raw_steps, start=1)]
+        on_failure_default = extract_defaults_on_failure(data.get("defaults"))
+        data["steps"] = [
+            _normalize_step_item(item, idx, on_failure_default) for idx, item in enumerate(raw_steps, start=1)
+        ]
         return data

@@ -5,12 +5,15 @@ from getworktree.core.step.exceptions import StepNotFoundError, StepValidationEr
 from getworktree.core.step.models import (
     DEFAULT_STEP_TIMEOUT_SECONDS,
     AssertionResult,
+    BlueprintDefaults,
     FailurePolicy,
     FailureSpec,
     LoopStepBlock,
     StepAssert,
     StepDefinition,
     StepType,
+    apply_on_failure_default,
+    extract_defaults_on_failure,
 )
 from getworktree.core.step.runner import StepResult, execute_step
 from getworktree.core.step.services import (
@@ -22,6 +25,7 @@ from getworktree.core.step.services import (
 __all__ = [
     "DEFAULT_STEP_TIMEOUT_SECONDS",
     "AssertionResult",
+    "BlueprintDefaults",
     "FailurePolicy",
     "FailureSpec",
     "LoopStepBlock",
@@ -31,8 +35,10 @@ __all__ = [
     "StepResult",
     "StepType",
     "StepValidationError",
+    "apply_on_failure_default",
     "evaluate_assertions",
     "execute_step",
+    "extract_defaults_on_failure",
     "load_step_by_id",
     "load_step_definition",
     "resolve_step_definition",

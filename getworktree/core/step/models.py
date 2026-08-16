@@ -1,3 +1,4 @@
+import copy
 import re
 from enum import StrEnum
 from typing import Any, Literal
@@ -52,6 +53,60 @@ class FailureSpec(BaseModel):
         if self.on_max_retries not in allowed:
             raise ValueError(f"on_max_retries must be one of {sorted(allowed)}, got {self.on_max_retries!r}.")
         return self
+
+
+def _coerce_on_failure_value(val: Any) -> Any:
+    """Accept bare policy string or full FailureSpec object payload."""
+    if val is None:
+        return None
+    return {"action": val} if isinstance(val, str) else val
+
+
+class BlueprintDefaults(BaseModel):
+    """Optional task/workflow blueprint defaults applied fill-if-omitted to steps."""
+
+    model_config = {"extra": "forbid"}
+
+    on_failure: FailureSpec | None = None
+
+    @field_validator("on_failure", mode="before")
+    @classmethod
+    def coerce_on_failure(cls, val: Any) -> Any:
+        """Match StepDefinition.on_failure string-or-object coercion."""
+        return _coerce_on_failure_value(val)
+
+
+def apply_on_failure_default(
+    step_data: dict[str, Any],
+    on_failure_default: Any | None,
+) -> dict[str, Any]:
+    """Copy blueprint ``on_failure`` onto a step dict when the step omits it.
+
+    Fill-if-omitted only: an explicit step ``on_failure`` is never merged or
+    replaced. Loop blocks are left unchanged (nested ``do`` fill is separate).
+    """
+    if on_failure_default is None or "on_failure" in step_data:
+        return step_data
+    if step_data.get("type") == "loop":
+        return step_data
+
+    filled = dict(step_data)
+    if isinstance(on_failure_default, FailureSpec):
+        filled["on_failure"] = on_failure_default.model_dump(mode="json")
+    else:
+        filled["on_failure"] = copy.deepcopy(on_failure_default)
+    return filled
+
+
+def extract_defaults_on_failure(raw_defaults: Any) -> Any | None:
+    """Return raw ``defaults.on_failure`` from a blueprint payload, if present."""
+    if raw_defaults is None:
+        return None
+    if isinstance(raw_defaults, BlueprintDefaults):
+        return raw_defaults.on_failure
+    if isinstance(raw_defaults, dict):
+        return raw_defaults.get("on_failure")
+    return None
 
 
 class StepType(StrEnum):
@@ -166,7 +221,7 @@ class StepDefinition(BaseModel):
     @classmethod
     def coerce_on_failure(cls, val: Any) -> Any:
         """Accept bare 'abort' string or full {action, max_retries, backoff_ms, on_max_retries} object."""
-        return {"action": val} if isinstance(val, str) else val
+        return _coerce_on_failure_value(val)
 
     @model_validator(mode="after")
     def validate_step_shape(self) -> "StepDefinition":

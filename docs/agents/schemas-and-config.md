@@ -452,12 +452,16 @@ Model: [getworktree/core/task/models.py](../../getworktree/core/task/models.py)
 | `description` | `str` | Default `""` |
 | `summary` | `str` | Default `""` |
 | `use_sandbox` | `bool` | Default `True` |
+| `defaults` | `BlueprintDefaults` | Optional; `defaults.on_failure` only (extra keys forbidden) |
 | `steps` | `list[StepDefinition]` | Default `[]` |
 
 Before validation, `_fill_step_shorthand_defaults` normalizes each raw step dict:
 
 - Missing/empty `id` → slug from `name`, else `step-{idx}` (1-based).
 - Bare `command: ...` with no `run` / `uses` / `type` → mapped to `run`.
+- If the step omits `on_failure` and `defaults.on_failure` is set → copy that
+  `FailureSpec` onto the step (fill-if-omitted only; explicit step values win
+  unchanged with no field merge).
 
 Example:
 
@@ -465,11 +469,14 @@ Example:
 name: lint-fix
 description: Run project linters
 use_sandbox: true
+defaults:
+  on_failure: continue
 steps:
   - command: ruff check .
   - id: tests
     name: unit tests
     run: pytest -q
+    on_failure: abort   # explicit wins
 ```
 
 Exceptions subclass the shared definition bases in
@@ -691,6 +698,25 @@ prompt_user}` (excludes `retry`); any other name returns the full set.
 - `max_retries`: int (default `3`, `>= 1`)
 - `backoff_ms`: int (default `0`, `>= 0`)
 - `on_max_retries`: FailurePolicy (default `abort`; must be in `FailurePolicy.context("terminal")`)
+
+### `BlueprintDefaults` and `defaults.on_failure`
+
+`BlueprintDefaults` (`extra: forbid`) is the optional root-level `defaults` block on
+`TaskDefinition` and `WorkflowDefinition`:
+
+- `on_failure`: `FailureSpec | None` (default `None`)
+- Same string-or-object coercion as `StepDefinition.on_failure`
+
+Resolution order when building concrete steps at load/normalize time (not inside
+`execute_step`):
+
+1. Step already has `on_failure` → keep unchanged (no deep merge)
+2. Else blueprint `defaults.on_failure` is set → **copy** that `FailureSpec` onto the step
+3. Else → step keeps the existing model default (`FailureSpec(action=abort)`)
+
+This is inheritance packaging only — not a second post-step escalation ladder.
+Top-level standard steps are filled for tasks and workflows; nested loop `do[]`
+fill is deferred to the loop engine.
 
 ### StepDefinition Model
 
