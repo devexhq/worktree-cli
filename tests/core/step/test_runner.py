@@ -356,3 +356,19 @@ def test_execute_agent_step_assertions_apply_to_placeholder_stdout(fs: FileSyste
     assert res.exit_code == 0
     assert res.error_message is not None
     assert "failed assertion checks" in res.error_message
+
+
+def test_execute_command_step_interpolates_inputs(fs: FileSystem):
+    step = StepDefinition(
+        id="cmd_inputs",
+        type=StepType.COMMAND,
+        command="echo '${{ inputs.message }}'",
+    )
+
+    res = execute_step(
+        step,
+        sandbox_path=fs.base_path,
+        context={"inputs": {"message": "interpolated-value"}},
+    )
+    assert res.ok is True
+    assert "interpolated-value" in res.stdout

@@ -16,6 +16,7 @@ def run_task(
     keep: bool = False,
     agent: str | None = None,
     observer: RunObserver | None = None,
+    inputs: dict[str, str | int | bool] | None = None,
 ) -> RunOutcome:
     """Adapt ``TaskDefinition`` into ``RunContext`` and delegate to ``run_steps``."""
     context = RunContext(
@@ -25,5 +26,6 @@ def run_task(
         keep=keep,
         agent=agent,
         observer=observer,
+        inputs=inputs,
     )
     return run_steps(context)

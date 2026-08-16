@@ -8,6 +8,7 @@ from rich.table import Table
 
 from getworktree.common.utils import RichOutput, enum_value
 from getworktree.core.db import SandboxRecord, WorkflowRunRecord
+from getworktree.core.inputs import ParameterInput
 
 _DEFAULT_RICH_OUTPUT = RichOutput()
 
@@ -62,3 +63,22 @@ def render_workflow_list(
         output.info("No recorded workflows found.")
     else:
         output.info(build_recorded_workflows_table(workflows, cwd=cwd))
+
+
+def render_workflow_inputs(
+    inputs: dict[str, ParameterInput],
+    *,
+    rich_output: RichOutput | None = None,
+) -> None:
+    """Render declared workflow input parameters."""
+    output = rich_output or _DEFAULT_RICH_OUTPUT
+    if not inputs:
+        return
+
+    output.info("[bold cyan]Inputs:[/]")
+    for name, spec in inputs.items():
+        required = "required" if spec.required else "optional"
+        default = f", default={spec.default!r}" if spec.default is not None else ""
+        aliases = f", aliases={spec.aliases}" if spec.aliases else ""
+        description = f" — {spec.description}" if spec.description else ""
+        output.info(f"  - {name} ({enum_value(spec.type)}, {required}{default}{aliases}){description}")

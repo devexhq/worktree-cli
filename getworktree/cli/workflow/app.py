@@ -30,12 +30,16 @@ def workflow_show(
     workflow_show_command(id)
 
 
-@workflow_app.command("run")
+@workflow_app.command(
+    "run",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+)
 def workflow_run(
+    ctx: typer.Context,
     name: str = typer.Argument(..., help="Logical workflow name to run."),
 ):
     """Run a workflow (validates the definition; execution is not implemented yet)."""
-    workflow_run_command(name)
+    workflow_run_command(name, cli_args=list(ctx.args))
 
 
 @workflow_app.command("resume")

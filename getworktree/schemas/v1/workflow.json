@@ -42,9 +42,25 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["string", "boolean", "integer"],
+            "default": "string"
+          },
           "description": { "type": "string" },
           "required": { "type": "boolean" },
-          "default": {}
+          "default": {
+            "oneOf": [
+              { "type": "string" },
+              { "type": "boolean" },
+              { "type": "integer" },
+              { "type": "null" }
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          }
         }
       }
     },

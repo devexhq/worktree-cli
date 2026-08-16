@@ -153,7 +153,16 @@ def test_task_run_status_transitions_and_persistence(fs: FileSystem, monkeypatch
     from getworktree.core.db import RunStatus
     from getworktree.core.runtime import RunOutcome
 
-    def _cancel_run(definition, cwd, *, use_sandbox=True, keep=False, agent=None, observer=None):
+    def _cancel_run(
+        definition,
+        cwd,
+        *,
+        use_sandbox=True,
+        keep=False,
+        agent=None,
+        observer=None,
+        inputs=None,
+    ):
         return RunOutcome(
             status=RunStatus.CANCELLED,
             step_results=[],

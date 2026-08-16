@@ -10,6 +10,7 @@ from getworktree.common.fs import read_yaml_file
 from getworktree.common.utils import RichOutput
 from getworktree.core.catalog.services.inventory import get_catalog_dir
 from getworktree.core.db import RunStatus, TaskRunRecord, TasksDb
+from getworktree.core.inputs import format_missing_inputs_error, resolve_inputs
 from getworktree.core.runtime import RunOutcome
 from getworktree.core.step import StepDefinition, StepResult
 from getworktree.core.task import (
@@ -29,6 +30,7 @@ from .renderers import (
     render_task_list,
     render_task_run_success,
     render_task_show,
+    render_task_show_inputs,
 )
 
 _DEFAULT_RICH_OUTPUT = RichOutput()
@@ -216,7 +218,10 @@ def task_show_command(
         return TaskShowCommandOutcome(item=item, content=None, errors=[error_message])
 
     content = yaml_file.content
+    definition = resolution.definition if isinstance(resolution.definition, TaskDefinition) else None
     render_task_show(item, content, rich_output=output)
+    if definition is not None and definition.inputs:
+        render_task_show_inputs(definition.inputs, rich_output=output)
     return TaskShowCommandOutcome(item=item, content=content)
 
 
@@ -228,6 +233,7 @@ def task_run_command(
     keep: bool = False,
     agent: str | None = None,
     session_id: str | None = None,
+    cli_args: list[str] | None = None,
     rich_output: RichOutput | None = None,
 ) -> TaskRunCommandOutcome:
     """Resolve a task blueprint, execute it via core runtime, and persist status."""
@@ -240,17 +246,34 @@ def task_run_command(
         output.error_panel("Task Run Failed", error_message)
         return TaskRunCommandOutcome(run_record=None, errors=[error_message])
 
+    definition = resolution.definition
+    input_result = resolve_inputs(definition.inputs, cli_args=cli_args)
+    if not input_result.ok:
+        if input_result.errors:
+            error_message = input_result.errors[0]
+        else:
+            error_message = format_missing_inputs_error(
+                kind="task",
+                name=name,
+                missing=input_result.missing,
+                declarations=definition.inputs,
+            )
+        output.error_panel("Task Run Failed", error_message)
+        return TaskRunCommandOutcome(run_record=None, errors=[error_message])
+
     sid = session_id or f"task_{uuid.uuid4().hex[:8]}"
     run_record, warnings = _insert_running_record(cwd, sid, name)
+    warnings.extend(input_result.warnings)
 
     output.info(f"Running task '{name}'...")
     run_outcome = run_task(
-        definition=resolution.definition,
+        definition=definition,
         cwd=root,
         use_sandbox=not no_sandbox,
         keep=keep,
         agent=agent,
         observer=CliRunObserver(output),
+        inputs=input_result.values,
     )
 
     updated_record, update_warnings = _update_run_status(

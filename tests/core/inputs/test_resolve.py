@@ -1,0 +1,88 @@
+"""Unit tests for CLI input parsing and pre-execution resolution."""
+
+from getworktree.core.inputs import (
+    InputType,
+    ParameterInput,
+    format_missing_inputs_error,
+    resolve_inputs,
+)
+
+
+def _commit_inputs() -> dict[str, ParameterInput]:
+    return {
+        "message": ParameterInput(
+            type=InputType.STRING,
+            required=True,
+            aliases=["-m", "--message"],
+        ),
+        "allow_empty": ParameterInput(
+            type=InputType.BOOLEAN,
+            default=False,
+            aliases=["--allow-empty"],
+        ),
+    }
+
+
+def test_resolve_inputs_alias_and_defaults() -> None:
+    result = resolve_inputs(_commit_inputs(), cli_args=["-m", "ship it"])
+    assert result.ok
+    assert result.values == {"message": "ship it", "allow_empty": False}
+
+
+def test_resolve_inputs_generic_override() -> None:
+    result = resolve_inputs(
+        _commit_inputs(),
+        cli_args=["-i", "message=from-override", "--allow-empty"],
+    )
+    assert result.ok
+    assert result.values["message"] == "from-override"
+    assert result.values["allow_empty"] is True
+
+
+def test_resolve_inputs_missing_required() -> None:
+    result = resolve_inputs(_commit_inputs(), cli_args=[])
+    assert not result.ok
+    assert result.missing == ["message"]
+
+
+def test_resolve_inputs_invalid_override_syntax() -> None:
+    result = resolve_inputs(_commit_inputs(), cli_args=["-i", "not-a-pair"])
+    assert not result.ok
+    assert result.errors
+    assert "Invalid input syntax" in result.errors[0]
+
+
+def test_resolve_inputs_type_coercion_errors() -> None:
+    declarations = {
+        "count": ParameterInput(type=InputType.INTEGER, required=True, aliases=["-n"]),
+        "flag": ParameterInput(type=InputType.BOOLEAN, required=True, aliases=["--flag"]),
+    }
+    bad_int = resolve_inputs(declarations, cli_args=["-n", "abc"])
+    assert not bad_int.ok
+    assert "expects an integer" in bad_int.errors[0]
+
+    bad_bool = resolve_inputs(declarations, cli_args=["-n", "1", "--flag", "maybe"])
+    assert not bad_bool.ok
+    assert "expects a boolean" in bad_bool.errors[0]
+
+
+def test_resolve_inputs_warns_on_unknown_tokens() -> None:
+    result = resolve_inputs(
+        _commit_inputs(),
+        cli_args=["-m", "ok", "--unknown", "positional"],
+    )
+    assert result.ok
+    assert any("unrecognized option" in warning.lower() for warning in result.warnings)
+    assert any("unexpected argument" in warning.lower() for warning in result.warnings)
+
+
+def test_format_missing_inputs_error_includes_usage() -> None:
+    message = format_missing_inputs_error(
+        kind="task",
+        name="commit",
+        missing=["message"],
+        declarations=_commit_inputs(),
+    )
+    assert "Missing required input 'message' for task 'commit'." in message
+    assert "wt task run commit -m <value>" in message
+    assert "wt task run commit -i message=<value>" in message

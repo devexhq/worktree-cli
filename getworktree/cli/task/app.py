@@ -37,8 +37,12 @@ def task_show(
         raise typer.Exit(code=1)
 
 
-@task_app.command("run")
+@task_app.command(
+    "run",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+)
 def task_run(
+    ctx: typer.Context,
     name: str = typer.Argument(..., help="Task blueprint name to run."),
     no_sandbox: bool = typer.Option(
         False,
@@ -62,6 +66,7 @@ def task_run(
         no_sandbox=no_sandbox,
         keep=keep,
         agent=agent,
+        cli_args=list(ctx.args),
     )
     if not outcome.ok:
         raise typer.Exit(code=1)

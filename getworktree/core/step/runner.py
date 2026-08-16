@@ -12,6 +12,7 @@ from typing import Any, cast
 
 from pydantic import BaseModel
 
+from getworktree.core.inputs import interpolate_step_fields
 from getworktree.core.step.assertions import evaluate_assertions
 from getworktree.core.step.models import FailurePolicy, StepDefinition, StepType
 from getworktree.core.step.services.resolver import resolve_step_definition
@@ -244,10 +245,17 @@ def _finalize_failed_step(
     return _step_result(step.id, outcome, duration, status="failed")
 
 
-def _prepare_step_for_execution(step: StepDefinition, sandbox_path: Path) -> tuple[StepDefinition, int]:
-    """Resolve uses/run shorthand and compute the retry attempt budget."""
+def _prepare_step_for_execution(
+    step: StepDefinition,
+    sandbox_path: Path,
+    context: dict[str, Any] | None = None,
+) -> tuple[StepDefinition, int]:
+    """Resolve uses/run shorthand, interpolate inputs, and compute retry budget."""
     if step.uses is not None or step.run is not None:
         step = resolve_step_definition(step, cwd=sandbox_path)
+    inputs = (context or {}).get("inputs")
+    if isinstance(inputs, dict) and inputs:
+        step = interpolate_step_fields(step, inputs)
     max_attempts = step.on_failure.max_retries if step.on_failure.action == FailurePolicy.RETRY else 1
     return step, max_attempts
 
@@ -330,7 +338,7 @@ def execute_step(
             0.0,
         )
 
-    step, max_attempts = _prepare_step_for_execution(step, sandbox_path)
+    step, max_attempts = _prepare_step_for_execution(step, sandbox_path, context)
     start_time = time.monotonic()
     outcome = _run_step_attempts(step, sandbox_path, context, max_attempts)
     duration = time.monotonic() - start_time

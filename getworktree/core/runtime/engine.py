@@ -85,16 +85,26 @@ def _failed_step_message(result: StepResult) -> str:
     return f"Step '{result.step_id}' failed: {detail}"
 
 
+def _build_step_context(context: RunContext) -> dict[str, object] | None:
+    """Build the per-step execution context, including resolved inputs."""
+    step_context: dict[str, object] = {}
+    if context.agent:
+        step_context["agent"] = context.agent
+    if context.inputs:
+        step_context["inputs"] = context.inputs
+    return step_context or None
+
+
 def _run_step_loop(context: RunContext, target_dir: Path) -> tuple[RunStatus, list[StepResult], str | None]:
     """Execute all steps, honoring failure policies and cancellation."""
     step_results: list[StepResult] = []
     total = len(context.steps)
-    agent_context = {"agent": context.agent} if context.agent else None
+    step_context = _build_step_context(context)
 
     try:
         for idx, step in enumerate(context.steps, start=1):
             _notify_step_start(context, idx, total, step)
-            result = execute_step(step, sandbox_path=target_dir, context=agent_context)
+            result = execute_step(step, sandbox_path=target_dir, context=step_context)
             _notify_step_done(context, idx, total, result)
             step_results.append(result)
             if not result.ok:

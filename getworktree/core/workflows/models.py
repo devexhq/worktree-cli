@@ -3,24 +3,18 @@
 from __future__ import annotations
 
 from importlib import resources
-from typing import Any, ClassVar
+from typing import ClassVar
 
 from pydantic import BaseModel, Field, model_validator
 
 from getworktree.common.schema_validation import SchemaValidator
+from getworktree.core.inputs import ParameterInput
 from getworktree.core.step import LoopStepBlock, StepDefinition
 
 WORKFLOW_VALIDATOR: SchemaValidator = SchemaValidator(resources.files("getworktree.schemas.v1") / "workflow.json")
 
-
-class WorkflowInput(BaseModel):
-    """Execution input parameter declaration."""
-
-    model_config = {"extra": "forbid", "strict": True}
-
-    description: str | None = None
-    required: bool = False
-    default: Any = None
+# Back-compat alias: WorkflowInput is the shared ParameterInput model.
+WorkflowInput = ParameterInput
 
 
 class WorkflowDefinition(BaseModel):
@@ -36,7 +30,7 @@ class WorkflowDefinition(BaseModel):
     description: str | None = None
     timeout_seconds: int | None = Field(default=None, ge=1)
     env: dict[str, str] = Field(default_factory=dict)
-    inputs: dict[str, WorkflowInput] = Field(default_factory=dict)
+    inputs: dict[str, ParameterInput] = Field(default_factory=dict)
     steps: list[StepDefinition | LoopStepBlock] | None = None
 
     @model_validator(mode="after")
