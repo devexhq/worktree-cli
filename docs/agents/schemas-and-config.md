@@ -593,6 +593,12 @@ Packaged scaffolds live under
 `wt/` seed trees. Path helper: `get_catalog_templates_dir()` in
 [getworktree/common/fs.py](../../getworktree/common/fs.py).
 
+Curated step seeds ship under `templates/steps/wt/`
+(`git-sync-base`, `ai-planner`, `ai-code-patcher`, `run-tests`, `ai-reviewer`)
+and seed into `.worktree/catalog/steps/wt/`. Workflow seeds under
+`templates/workflows/wt/` may reference them with `uses: wt/<name>` (for example
+`wt/ai-code-patcher`).
+
 Seeding ([getworktree/core/catalog/services/seeder.py](../../getworktree/core/catalog/services/seeder.py)):
 
 - `seed_catalog_templates(item_type, cwd=None, *, force=False) -> SeedResult` —
@@ -600,6 +606,7 @@ Seeding ([getworktree/core/catalog/services/seeder.py](../../getworktree/core/ca
   `.worktree/catalog/<type>s/wt/` (skips existing files unless `force`).
 - `seed_all_catalog_templates(cwd=None, *, force=False) -> SeedResult` —
   seeds `workflow`, `task`, and `step` and aggregates `SeedResult`.
+
 
 CLI template surfaces (no separate `wt template` command group):
 
@@ -725,8 +732,8 @@ referenced step definition as-is.
 ### Step Loader & Resolver
 
 - `load_step_definition(path: Path) -> StepDefinition`: Loads and parses a step YAML file. Raises `StepNotFoundError` if file missing/unreadable, `StepValidationError` on YAML or Pydantic validation error.
-- `load_step_by_id(step_id_or_name: str, cwd: Path | None = None) -> StepDefinition`: Resolves step definition from `.worktree/catalog/steps/` by direct filename or matching `id`/`name`.
-- `resolve_step_definition(step: StepDefinition, *, cwd: Path | None = None) -> StepDefinition`: Normalizes a step with `uses` (loads the referenced step via `load_step_by_id()`) or `run` (synthesizes `type=command`, `command=run`) into a concrete, directly executable `StepDefinition`. Inline `type` steps pass through unchanged.
+- `load_step_by_id(step_id_or_name: str, cwd: Path | None = None) -> StepDefinition`: Resolves from `.worktree/catalog/steps/` only (local catalog after seed; no package-resource bypass at runtime). Direct path first: `wt/<name>` → `.worktree/catalog/steps/wt/<name>.yml` (also `.yaml`); unprefixed `<name>` → `.worktree/catalog/steps/<name>.yml`. If no direct file, scan YAML under the steps tree including `wt/` for matching `id`/`name` (invalid siblings skipped during scan). Missing directory or no match → `StepNotFoundError`.
+- `resolve_step_definition(step: StepDefinition, *, cwd: Path | None = None) -> StepDefinition`: Normalizes a step with `uses` (loads the referenced step via `load_step_by_id()`, including `uses: wt/<name>`) or `run` (synthesizes `type=command`, `command=run`) into a concrete, directly executable `StepDefinition`. Inline `type` steps pass through unchanged.
 
 ### Step Execution Engine
 

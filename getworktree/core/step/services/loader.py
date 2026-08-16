@@ -52,11 +52,14 @@ def _step_matches(step: StepDefinition, step_id_or_name: str) -> bool:
     return step.id == step_id_or_name or step.name == step_id_or_name
 
 
+def _iter_step_yaml_files(steps_dir: Path) -> list[Path]:
+    """Return YAML step files under ``steps_dir``, including the ``wt/`` subtree."""
+    return sorted(path for path in steps_dir.rglob("*") if path.is_file() and path.suffix in (".yaml", ".yml"))
+
+
 def _find_step_by_scan(steps_dir: Path, step_id_or_name: str) -> StepDefinition | None:
     """Scan YAML step files for an id/name match, skipping unrelated invalid files."""
-    for path in sorted(steps_dir.iterdir()):
-        if not (path.is_file() and path.suffix in (".yaml", ".yml")):
-            continue
+    for path in _iter_step_yaml_files(steps_dir):
         try:
             step = load_step_definition(path)
         except StepValidationError:
@@ -68,10 +71,15 @@ def _find_step_by_scan(steps_dir: Path, step_id_or_name: str) -> StepDefinition 
 
 
 def load_step_by_id(step_id_or_name: str, cwd: Path | None = None) -> StepDefinition:
-    """Resolve a StepDefinition from .worktree/templates/steps/ by ID or name.
+    """Resolve a StepDefinition from ``.worktree/catalog/steps/`` by ID or name.
+
+    Direct path resolution joins ``step_id_or_name`` under the steps directory
+    (so ``wt/<name>`` maps to ``.worktree/catalog/steps/wt/<name>.yml``). When no
+    direct file exists, YAML files under the steps tree (including ``wt/``) are
+    scanned for a matching ``id`` or ``name``.
 
     Args:
-        step_id_or_name: Identifier or name slug of the step.
+        step_id_or_name: Identifier, name slug, or ``wt/<name>`` catalog path.
         cwd: Optional working directory root (defaults to Path.cwd()).
 
     Returns:
