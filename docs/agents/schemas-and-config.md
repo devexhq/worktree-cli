@@ -742,9 +742,75 @@ referenced step definition as-is.
 - Resolves `uses`/`run` steps via `resolve_step_definition()` before dispatch.
 - Executes the step primitive inside `sandbox_path` with isolated working directory `cwd=sandbox_path`.
 - Enforces process timeouts via `timeout_seconds`.
+- After a successful primitive dispatch (`status="completed"`), evaluates `step.assert_` via
+  `evaluate_assertions` when an `assert` block is present. Assertion failure rewrites the
+  attempt to `status="failed"` with a multi-line diagnostic in `error_message` before
+  `on_failure` retry/continue logic runs.
 - Handles `on_failure` policies:
   - `action == "retry"`: retries execution up to `max_retries` attempts, sleeping `backoff_ms` milliseconds between attempts. After the final failed attempt, evaluates `on_max_retries`: `continue` returns `status="ignored"` (`ok=True`); `abort`/`prompt_user` return `status="failed"`.
   - `action == "continue"` (no retry): a single failed attempt returns `status="ignored"` (`ok=True`).
   - `action == "abort"` / `"prompt_user"` (no retry): a single failed attempt returns `status="failed"`. There is no interactive `prompt_user` UI yet, so it behaves like `abort`.
 - Returns `StepResult`: `step_id`, `status` (`completed`, `failed`, `ignored`), `exit_code`, `stdout`, `stderr`, `duration_seconds`, `attempts`, `error_message`. `@property def ok` returns `True` for `completed` or `ignored`.
+
+#### Assert Block
+
+Optional YAML key `assert` maps to `StepDefinition.assert_` (`StepAssert` in
+[getworktree/core/step/models.py](../../getworktree/core/step/models.py)). The same model is used for
+catalog steps, task steps, and workflow steps.
+
+Public evaluation entrypoint:
+[getworktree/core/step/assertions/](../../getworktree/core/step/assertions/)
+(`evaluate_assertions` re-exported from `getworktree.core.step`).
+
+When the `assert` block is present, `exit_code` is **always** evaluated. If `exit_code` is omitted,
+expected exit code defaults to `0`. Every other key runs only when set. Process/output checks use
+combined `stdout\nstderr` except `json_match`, which parses **stdout only**.
+
+| Key | Accepted type | Behavior |
+|-----|---------------|----------|
+| `exit_code` | `int` \| `list[int]` \| omit | Actual process exit must be in the expected set; omit → expect `0` |
+| `output_contains` | `str` \| `list[str]` | Each substring must appear in combined output |
+| `output_not_contains` | `str` \| `list[str]` | None of the substrings may appear in combined output |
+| `regex_match` | `str` | Regex must match somewhere in combined output |
+| `json_match` | object with `path`, `operator`, `value` | Parse stdout as JSON; compare dot-path value (`eq`, `neq`, `contains`, numeric ops) |
+| `file_exists` | `str` \| `list[str]` | Relative path(s) under the sandbox must exist as files |
+| `file_not_exists` | `str` \| `list[str]` | Relative path(s) must not exist |
+| `file_not_empty` | `str` \| `list[str]` | Relative path(s) must exist as non-empty files |
+
+File assert paths must be non-empty relative paths without `..` segments (validated on the model).
+
+`evaluate_assertions(...) -> AssertionResult`:
+
+```python
+class AssertionResult(BaseModel):
+    passed: bool
+    failed_conditions: list[str]
+    message: str
+```
+
+`passed` is true only when `failed_conditions` is empty. On failure, `message` is the newline-joined
+condition strings; the runner prefixes them with a step label and `[FAIL]` markers in
+`StepResult.error_message`.
+
+Example catalog step (`.worktree/catalog/steps/*.yml` shape) with a full `assert` block:
+
+```yaml
+id: step_pytest_verify
+name: run-pytest
+type: command
+description: Run the test suite and verify results
+command: pytest --json-report --json-report-file=report.json
+assert:
+  exit_code: [0, 1]
+  output_contains: "0 errors"
+  output_not_contains: ["FATAL", "PANIC"]
+  regex_match: "([0-9]+) passed"
+  json_match:
+    path: "summary.status"
+    operator: "eq"
+    value: "APPROVED"
+  file_exists: "report.json"
+  file_not_exists: "tmp/lock"
+  file_not_empty: "coverage.json"
+```
 

@@ -15,7 +15,11 @@ getworktree/core/                  Business logic, no Typer/CLI concerns
   db/                              SQLite connection, migrations, models, and domain CRUD package
   git_sandbox.py                   Isolated `git worktree` sandbox lifecycle
   inputs/                          Shared blueprint input models + resolve/interpolate services
-  step/                            Step primitive definitions, resolve, and single-step execute
+  step/                            Step primitive definitions, resolve, assert, single-step execute
+    models.py                      StepDefinition, StepAssert, AssertionResult, FailureSpec
+    runner.py                      execute_step / StepResult (runs assert after dispatch)
+    assertions/                    evaluate_assertions + per-key evaluators
+    services/                      load/resolve step definitions from catalog
   runtime/                         Shared multi-step engine + sandbox lifecycle (`run_steps`)
   task/                            Task domain (models, loader, runner adapter, plain-text renderers)
   catalog/                         Blueprint scanning, indexing, and packaged template seeds
@@ -29,6 +33,9 @@ getworktree/common/                Shared, dependency-light helpers
 getworktree/schemas/                Versioned JSON Schemas (config_v1.json, workflow_v1.json)
 ```
 
+Single-step execution lives in `core/step/`; multi-step orchestration lives in
+`core/runtime/`.
+
 ### Domain ownership
 
 - **Task domain** (`core/task/`) owns task models, resolution loader, runner
@@ -38,6 +45,10 @@ getworktree/schemas/                Versioned JSON Schemas (config_v1.json, work
 - **Inputs domain** (`core/inputs/`) owns shared task/workflow parameter
   declarations (`ParameterInput`), CLI resolve (`resolve_inputs`), and
   `${{ inputs.* }}` interpolation used during step execution.
+- **Step domain** (`core/step/`) owns the step primitive model (`StepDefinition`),
+  declarative `assert` block (`StepAssert` / `AssertionResult`), loaders, and
+  `execute_step`. Catalog, task, and workflow YAML steps all share this
+  `StepAssert` model (field alias `assert` → `assert_`).
 - **Runtime domain** (`core/runtime/`) owns the shared multi-step execution
   engine (`run_steps`), `RunContext`, `RunObserver`, and `RunOutcome`.
 - **Workflow domain** (`core/workflows/`) owns workflow models, payloads, patch
