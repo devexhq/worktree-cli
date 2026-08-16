@@ -22,6 +22,7 @@ class RunContext:
     keep: bool = False
     agent: str | None = None
     observer: RunObserver | None = None
+    inputs: dict[str, str | int | bool] | None = None
 
 
 class RunObserver(Protocol):

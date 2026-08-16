@@ -100,3 +100,30 @@ def test_fill_step_shorthand_indexes_multiple_anonymous_steps() -> None:
 
     assert [step.id for step in task.steps] == ["step-1", "step-2"]
     assert [step.run for step in task.steps] == ["echo one", "echo two"]
+
+
+def test_task_definition_parses_inputs() -> None:
+    task = TaskDefinition.model_validate(
+        {
+            "name": "commit",
+            "inputs": {
+                "message": {
+                    "type": "string",
+                    "required": True,
+                    "aliases": ["-m", "--message"],
+                    "description": "Commit message",
+                },
+                "allow_empty": {
+                    "type": "boolean",
+                    "default": False,
+                    "aliases": ["--allow-empty"],
+                },
+            },
+            "steps": [{"id": "c", "type": "command", "command": "git commit -m '${{ inputs.message }}'"}],
+        }
+    )
+
+    assert "message" in task.inputs
+    assert task.inputs["message"].required is True
+    assert task.inputs["message"].aliases == ["-m", "--message"]
+    assert task.inputs["allow_empty"].default is False

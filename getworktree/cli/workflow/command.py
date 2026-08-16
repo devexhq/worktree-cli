@@ -10,10 +10,11 @@ from getworktree.common.utils import RichOutput
 from getworktree.core.catalog.services.inventory import get_catalog_item
 from getworktree.core.config.loader import ConfigLoadStatus, load_config_result
 from getworktree.core.db import CatalogItemType, SandboxesDb, WorkflowsDb
+from getworktree.core.inputs import format_missing_inputs_error, resolve_inputs
 from getworktree.core.workflows.models import WorkflowDefinition
 from getworktree.core.workflows.services.renderer import format_workflow_run_resolve_failure
 
-from .renderers import render_workflow_list
+from .renderers import render_workflow_inputs, render_workflow_list
 
 rich_output = RichOutput()
 
@@ -113,24 +114,8 @@ def workflow_resume_command(session_id: str, *, cwd: Path | None = None) -> None
     raise typer.Exit(code=0)
 
 
-def workflow_run_command(
-    name: str,
-    *,
-    cwd: Path | None = None,
-) -> None:
-    """Resolve and validate a workflow definition, then report execution status.
-
-    The Workflow Spec v1 execution engine (step assertion checks, failure
-    policy, loop control-flow) has not landed yet; see
-    getworktree/getworktree#171, #172, and #173. Until it does, this command
-    validates the workflow definition and exits without executing any steps.
-
-    Args:
-        name: Workflow definition name.
-        cwd: Repository root. Defaults to process CWD.
-    """
-    root = (cwd or Path.cwd()).resolve()
-
+def _require_workflow_config(root: Path) -> None:
+    """Exit with a failure panel when config is missing or invalid."""
     load = load_config_result(cwd=root)
     if load.status == ConfigLoadStatus.NOT_FOUND:
         rich_output.error_panel(
@@ -143,6 +128,50 @@ def workflow_run_command(
         rich_output.error_panel("Workflow Run Failed", detail)
         raise typer.Exit(code=1)
 
+
+def _validate_workflow_inputs(name: str, definition: WorkflowDefinition, cli_args: list[str] | None) -> None:
+    """Validate and display workflow inputs; exit on parse/missing errors."""
+    input_result = resolve_inputs(definition.inputs, cli_args=cli_args)
+    if not input_result.ok:
+        if input_result.errors:
+            error_message = input_result.errors[0]
+        else:
+            error_message = format_missing_inputs_error(
+                kind="workflow",
+                name=name,
+                missing=input_result.missing,
+                declarations=definition.inputs,
+            )
+        rich_output.error_panel("Workflow Run Failed", error_message)
+        raise typer.Exit(code=1)
+    if definition.inputs:
+        render_workflow_inputs(definition.inputs, rich_output=rich_output)
+    for warning in input_result.warnings:
+        rich_output.info(f"Warning: {warning}")
+
+
+def workflow_run_command(
+    name: str,
+    *,
+    cwd: Path | None = None,
+    cli_args: list[str] | None = None,
+) -> None:
+    """Resolve and validate a workflow definition, then report execution status.
+
+    The Workflow Spec v1 execution engine (step assertion checks, failure
+    policy, loop control-flow) has not landed yet; see
+    getworktree/getworktree#171, #172, and #173. Until it does, this command
+    validates the workflow definition and input parameters, then exits without
+    executing any steps.
+
+    Args:
+        name: Workflow definition name.
+        cwd: Repository root. Defaults to process CWD.
+        cli_args: Trailing CLI tokens for declared workflow inputs.
+    """
+    root = (cwd or Path.cwd()).resolve()
+    _require_workflow_config(root)
+
     result = get_catalog_item(name, CatalogItemType.WORKFLOW, definition_cls=WorkflowDefinition, cwd=root)
     if not result.ok:
         rich_output.error_panel(
@@ -150,6 +179,10 @@ def workflow_run_command(
             format_workflow_run_resolve_failure(result),
         )
         raise typer.Exit(code=1)
+
+    definition = result.definition
+    if isinstance(definition, WorkflowDefinition):
+        _validate_workflow_inputs(name, definition, cli_args)
 
     rich_output.error_panel(
         "Workflow Run Not Implemented",

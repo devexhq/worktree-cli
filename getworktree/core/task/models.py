@@ -7,6 +7,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
+from getworktree.core.inputs import ParameterInput
 from getworktree.core.step import StepDefinition
 
 _SLUG_RE = re.compile(r"[^\w-]+")
@@ -58,6 +59,7 @@ class TaskDefinition(BaseModel):
     description: str = ""
     summary: str = ""
     use_sandbox: bool = True
+    inputs: dict[str, ParameterInput] = Field(default_factory=dict)
     steps: list[StepDefinition] = Field(default_factory=list)
 
     @model_validator(mode="before")

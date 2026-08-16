@@ -1,5 +1,6 @@
 """Core task package for task blueprint models and catalog loading."""
 
+from getworktree.core.inputs import ParameterInput
 from getworktree.core.task.exceptions import TaskLoadError, TaskValidationError
 from getworktree.core.task.models import TaskDefinition
 from getworktree.core.task.services import (
@@ -9,8 +10,13 @@ from getworktree.core.task.services import (
     run_task,
 )
 
+# Shared alias used by issue #161 docs/tests.
+TaskInput = ParameterInput
+
 __all__ = [
+    "ParameterInput",
     "TaskDefinition",
+    "TaskInput",
     "TaskLoadError",
     "TaskValidationError",
     "format_task_resolve_failure",

@@ -9,6 +9,7 @@ from rich.table import Table
 
 from getworktree.common.utils import RichOutput, enum_value
 from getworktree.core.db import CatalogRecord, TaskRunRecord
+from getworktree.core.inputs import ParameterInput, format_input_spec
 
 _DEFAULT_RICH_OUTPUT = RichOutput()
 
@@ -72,6 +73,21 @@ def render_task_show(
     output.info("\n[bold cyan]Definition:[/]")
     if content:
         output.info(Syntax(content.strip(), "yaml"))
+
+
+def render_task_show_inputs(
+    inputs: dict[str, ParameterInput],
+    *,
+    rich_output: RichOutput | None = None,
+) -> None:
+    """Render declared task input parameters under the blueprint definition."""
+    output = rich_output or _DEFAULT_RICH_OUTPUT
+    if not inputs:
+        return
+
+    output.info("\n[bold cyan]Inputs:[/]")
+    for name, spec in inputs.items():
+        output.info(format_input_spec(name, spec))
 
 
 def render_task_run_success(

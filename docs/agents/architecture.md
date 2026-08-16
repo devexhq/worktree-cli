@@ -14,6 +14,7 @@ getworktree/core/                  Business logic, no Typer/CLI concerns
                                    Defaults write + load/set + validate + typed models + repo context
   db/                              SQLite connection, migrations, models, and domain CRUD package
   git_sandbox.py                   Isolated `git worktree` sandbox lifecycle
+  inputs/                          Shared blueprint input models + resolve/interpolate services
   step/                            Step primitive definitions, resolve, and single-step execute
   runtime/                         Shared multi-step engine + sandbox lifecycle (`run_steps`)
   task/                            Task domain (models, loader, runner adapter, plain-text renderers)
@@ -34,6 +35,9 @@ getworktree/schemas/                Versioned JSON Schemas (config_v1.json, work
   adapter, and plain-text renderers
   (`models.py`, `exceptions.py`, `services/loader.py`, `services/runner.py`,
   `services/renderer.py`).
+- **Inputs domain** (`core/inputs/`) owns shared task/workflow parameter
+  declarations (`ParameterInput`), CLI resolve (`resolve_inputs`), and
+  `${{ inputs.* }}` interpolation used during step execution.
 - **Runtime domain** (`core/runtime/`) owns the shared multi-step execution
   engine (`run_steps`), `RunContext`, `RunObserver`, and `RunOutcome`.
 - **Workflow domain** (`core/workflows/`) owns workflow models, payloads, patch
@@ -42,7 +46,7 @@ getworktree/schemas/                Versioned JSON Schemas (config_v1.json, work
   synchronization (`CatalogDb`), and packaged template resources
   (`core/catalog/templates/`).
 - **Shared core infra** stays at `core/` top level: `config/`, `git_sandbox.py`,
-  `db/`, `bootstrap.py`, `step/`.
+  `db/`, `bootstrap.py`, `inputs/`, `step/`.
 
 Not every command has all three files (e.g. `status` has only `command.py`) — add
 `models.py`/`renderers.py` when a command's output/result grows non-trivial.
@@ -52,21 +56,25 @@ Not every command has all three files (e.g. `status` has only `command.py`) — 
 Dependencies flow one way; do not import "up" the stack:
 
 ```
-common/  ->  core/{db,catalog}/  ->  core/step/  ->  core/runtime/  ->  {core/task/, core/workflows/}  ->  cli/
+common/  ->  core/{db,catalog,inputs}/  ->  core/step/  ->  core/runtime/  ->  {core/task/, core/workflows/}  ->  cli/
 ```
 
 - `common/` has no dependency on anything under `core/`.
 - `core/catalog/` sits alongside `db/` as shared core infra (blueprint scan,
   index, and packaged templates).
+- `core/inputs/` is shared vocabulary for task and workflow blueprints; it must
+  not import from `core/step/`, `core/runtime/`, `core/task/`, or
+  `core/workflows/`.
 - `core/step/` (step primitive definitions and execution) must not import
   from `core/runtime/`, `core/task/`, or `core/workflows/` — shared vocabulary
   that both need (e.g. failure policies) belongs in `common/` or `core/step/`,
-  not in whichever package happens to define it first.
+  not in whichever package happens to define it first. Step execution may use
+  `core/inputs/` for template interpolation.
 - `core/runtime/` may depend on `core/step/`, `core/db/`, and `git_sandbox.py`,
   but must not import from `core/task/`, `core/workflows/`, or `cli/`.
 - `core/task/` and `core/workflows/` are sibling domain packages depending on
-  `core/runtime/`, `core/step/`, and `core/catalog/`; neither domain imports the
-  other.
+  `core/runtime/`, `core/step/`, `core/inputs/`, and `core/catalog/`; neither
+  domain imports the other.
 - `cli/<name>/` packages may depend on any `core/`/`common/` module, but
   `core/`/`common/` must never import from `cli/`.
 

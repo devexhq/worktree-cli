@@ -81,3 +81,54 @@ class WorkflowRunCliTests:
         _init_with_workflows(git_fs)
         result = runner.invoke(app, ["workflow", "run", "no-such-workflow"])
         assert result.exit_code == 1
+
+
+class WorkflowRunInputTests:
+    """Input validation gate for wt workflow run."""
+
+    def test_missing_required_input_fails_before_not_implemented(
+        self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
+        git_fs.create_workflow_file(
+            "commit-flow",
+            id="commit-flow",
+            inputs={
+                "message": {
+                    "type": "string",
+                    "required": True,
+                    "aliases": ["-m", "--message"],
+                }
+            },
+            steps=[{"id": "step-1", "run": "echo hi"}],
+        )
+        scan_and_index_catalog(cwd=git_fs.base_path)
+
+        result = runner.invoke(app, ["workflow", "run", "commit-flow"])
+        assert result.exit_code == 1
+        assert "Missing required input 'message'" in result.stdout
+        assert "Workflow Run Not Implemented" not in result.stdout
+
+    def test_provided_input_reaches_not_implemented(
+        self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
+        git_fs.create_workflow_file(
+            "commit-flow",
+            id="commit-flow",
+            inputs={
+                "message": {
+                    "type": "string",
+                    "required": True,
+                    "aliases": ["-m", "--message"],
+                }
+            },
+            steps=[{"id": "step-1", "run": "echo hi"}],
+        )
+        scan_and_index_catalog(cwd=git_fs.base_path)
+
+        result = runner.invoke(app, ["workflow", "run", "commit-flow", "-m", "hi"])
+        assert result.exit_code == 1
+        assert "Workflow Run Not Implemented" in result.stdout
