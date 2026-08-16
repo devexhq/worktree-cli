@@ -44,3 +44,27 @@ def test_input_resolve_result_ok_property() -> None:
 
     errored = InputResolveResult(errors=["bad syntax"])
     assert errored.ok is False
+
+
+def test_format_input_spec() -> None:
+    from getworktree.core.inputs import format_input_spec
+
+    line = format_input_spec(
+        "message",
+        ParameterInput(
+            type=InputType.STRING,
+            required=True,
+            aliases=["-m", "--message"],
+            description="Commit message",
+        ),
+    )
+    assert line.startswith("  - message (string, required")
+    assert "aliases=['-m', '--message']" in line
+    assert "Commit message" in line
+
+    optional = format_input_spec(
+        "allow_empty",
+        ParameterInput(type=InputType.BOOLEAN, default=False, aliases=["--allow-empty"]),
+    )
+    assert "optional" in optional
+    assert "default=False" in optional

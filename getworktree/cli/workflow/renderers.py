@@ -8,7 +8,7 @@ from rich.table import Table
 
 from getworktree.common.utils import RichOutput, enum_value
 from getworktree.core.db import SandboxRecord, WorkflowRunRecord
-from getworktree.core.inputs import ParameterInput
+from getworktree.core.inputs import ParameterInput, format_input_spec
 
 _DEFAULT_RICH_OUTPUT = RichOutput()
 
@@ -77,8 +77,4 @@ def render_workflow_inputs(
 
     output.info("[bold cyan]Inputs:[/]")
     for name, spec in inputs.items():
-        required = "required" if spec.required else "optional"
-        default = f", default={spec.default!r}" if spec.default is not None else ""
-        aliases = f", aliases={spec.aliases}" if spec.aliases else ""
-        description = f" — {spec.description}" if spec.description else ""
-        output.info(f"  - {name} ({enum_value(spec.type)}, {required}{default}{aliases}){description}")
+        output.info(format_input_spec(name, spec))

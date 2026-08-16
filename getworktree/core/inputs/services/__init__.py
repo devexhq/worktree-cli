@@ -1,9 +1,10 @@
-"""Input domain services: CLI resolution and template interpolation."""
+"""Input domain services: CLI resolution, interpolation, and rendering."""
 
 from getworktree.core.inputs.services.interpolate import (
     interpolate_step_fields,
     interpolate_string,
 )
+from getworktree.core.inputs.services.renderer import format_input_spec
 from getworktree.core.inputs.services.resolve import (
     coerce_input_value,
     format_missing_inputs_error,
@@ -13,6 +14,7 @@ from getworktree.core.inputs.services.resolve import (
 
 __all__ = [
     "coerce_input_value",
+    "format_input_spec",
     "format_missing_inputs_error",
     "interpolate_step_fields",
     "interpolate_string",

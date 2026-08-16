@@ -3,6 +3,7 @@
 from getworktree.core.inputs.models import InputResolveResult, InputType, ParameterInput
 from getworktree.core.inputs.services import (
     coerce_input_value,
+    format_input_spec,
     format_missing_inputs_error,
     interpolate_step_fields,
     interpolate_string,
@@ -15,6 +16,7 @@ __all__ = [
     "InputType",
     "ParameterInput",
     "coerce_input_value",
+    "format_input_spec",
     "format_missing_inputs_error",
     "interpolate_step_fields",
     "interpolate_string",
