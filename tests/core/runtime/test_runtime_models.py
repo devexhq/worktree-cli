@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from getworktree.core.db import RunStatus
-from getworktree.core.runtime import RunOutcome
+from worktree.core.db import RunStatus
+from worktree.core.runtime import RunOutcome
 
 
 def test_run_outcome_ok_true_for_completed() -> None:

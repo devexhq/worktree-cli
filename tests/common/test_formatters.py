@@ -1,6 +1,6 @@
 """Tests exercising the shared formatters."""
 
-from getworktree.common.formatters import format_warning_bullets
+from worktree.common.formatters import format_warning_bullets
 
 
 class FormatterTests:

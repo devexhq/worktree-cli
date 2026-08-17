@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from getworktree.core.step import FailurePolicy, LoopStepBlock, StepDefinition
-from getworktree.core.workflows.models import WORKFLOW_VALIDATOR, WorkflowDefinition
+from worktree.core.step import FailurePolicy, LoopStepBlock, StepDefinition
+from worktree.core.workflows.models import WORKFLOW_VALIDATOR, WorkflowDefinition
 
 
 def _base_workflow(**overrides: object) -> dict[str, object]:

@@ -8,24 +8,24 @@ from pathlib import Path
 
 import pytest
 
-from getworktree.core.workflows.agents import (
+from tests.helpers import FileSystem
+from worktree.core.workflows.agents import (
     AgentRequest,
     AgentResponseStatus,
     CursorAgentAdapter,
     get_agent_adapter,
 )
-from getworktree.core.workflows.agents.cli_mutation import (
+from worktree.core.workflows.agents.cli_mutation import (
     CliMutationOutcome,
     CliMutationRunRequest,
     build_mutation_prompt,
 )
-from getworktree.core.workflows.agents.cursor import (
+from worktree.core.workflows.agents.cursor import (
     CURSOR_API_KEY_ENV,
     default_cursor_run,
     resolve_cursor_api_key,
 )
-from getworktree.core.workflows.services.payload import AgentFailurePayload
-from tests.helpers import FileSystem
+from worktree.core.workflows.services.payload import AgentFailurePayload
 
 
 def _git(args: list[str], *, cwd: Path) -> None:
@@ -229,4 +229,4 @@ class DefaultCursorRunTests:
         )
         assert outcome.status == "error"
         assert outcome.error_detail is not None
-        assert "getworktree[cursor]" in outcome.error_detail
+        assert "src[cursor]" in outcome.error_detail

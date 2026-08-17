@@ -7,7 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from getworktree.core.db import (
+from tests.helpers import FileSystem
+from worktree.core.db import (
     CatalogDb,
     CatalogItemType,
     CatalogRecord,
@@ -21,7 +22,6 @@ from getworktree.core.db import (
     WorktreeDb,
     init_database,
 )
-from tests.helpers import FileSystem
 
 DB_REL = ".worktree/data.db"
 

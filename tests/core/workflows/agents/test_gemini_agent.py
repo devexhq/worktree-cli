@@ -7,23 +7,23 @@ from pathlib import Path
 
 import pytest
 
-from getworktree.core.workflows.agents import (
+from tests.helpers import FileSystem
+from worktree.core.workflows.agents import (
     AgentRequest,
     AgentResponseStatus,
     GeminiAgentAdapter,
     get_agent_adapter,
 )
-from getworktree.core.workflows.agents.cli_mutation import (
+from worktree.core.workflows.agents.cli_mutation import (
     CliMutationOutcome,
     CliMutationRunRequest,
 )
-from getworktree.core.workflows.agents.gemini import (
+from worktree.core.workflows.agents.gemini import (
     GEMINI_API_KEY_ENV,
     default_gemini_run,
     resolve_gemini_api_key,
 )
-from getworktree.core.workflows.services.payload import AgentFailurePayload
-from tests.helpers import FileSystem
+from worktree.core.workflows.services.payload import AgentFailurePayload
 
 
 def _git(args: list[str], *, cwd: Path) -> None:

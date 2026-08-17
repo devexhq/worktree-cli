@@ -111,10 +111,10 @@ core/agents/                      # new domain, moved out of core/workflows/agen
 Confirmed via grep, these need import paths updated (submodule imports, not just
 `workflows/__init__.py` re-exports):
 i
-- `getworktree/cli/init/{command,models,renderers}.py`, `getworktree/cli/workflow/command.py`,
-  `getworktree/core/bootstrap.py` → `core.workflows.services.*`
-- `getworktree/core/step/__init__.py`, `runner.py` → `core.step.services.schema`
-- `getworktree/core/workflows/__init__.py` → full re-export rewrite
+- `src/worktree/cli/init/{command,models,renderers}.py`, `src/worktree/cli/workflow/command.py`,
+  `src/worktree/core/bootstrap.py` → `core.workflows.services.*`
+- `src/worktree/core/step/__init__.py`, `runner.py` → `core.step.services.schema`
+- `src/worktree/core/workflows/__init__.py` → full re-export rewrite
 - All 6 files in `tests/core/workflows/agents/` + `agents/base.py` → `core.agents.models` /
   `core.agents.services.*`; directory moves to `tests/core/agents/`
 - `tests/core/workflows/test_workflow_{metadata,render,resolve,seeder,validate}.py`,

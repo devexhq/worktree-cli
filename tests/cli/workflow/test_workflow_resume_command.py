@@ -6,10 +6,10 @@ import pytest
 import typer
 from typer.testing import CliRunner
 
-from getworktree.cli import app
-from getworktree.cli.workflow.command import workflow_resume_command
-from getworktree.core.db import SandboxesDb
 from tests.helpers import GitFileSystem
+from worktree.cli import app
+from worktree.cli.workflow.command import workflow_resume_command
+from worktree.core.db import SandboxesDb
 
 runner = CliRunner()
 

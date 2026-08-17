@@ -6,13 +6,13 @@ import sqlite3
 
 import pytest
 
-from getworktree.core.db import (
+from tests.helpers import FileSystem
+from worktree.core.db import (
     CostsDb,
     SandboxesDb,
     SandboxStatus,
     init_database,
 )
-from tests.helpers import FileSystem
 
 DB_REL = ".worktree/data.db"
 

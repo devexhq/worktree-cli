@@ -12,24 +12,24 @@ from rich.console import Console
 from typer.main import get_command
 from typer.testing import CliRunner
 
-from getworktree.cli import app
-from getworktree.cli.sandbox.command import (
+from tests.helpers import GitFileSystem
+from worktree.cli import app
+from worktree.cli.sandbox.command import (
     collect_sandbox_delete,
     sandbox_delete_command,
 )
-from getworktree.cli.sandbox.models import SandboxDeleteStatus
-from getworktree.cli.sandbox.renderers import (
+from worktree.cli.sandbox.models import SandboxDeleteStatus
+from worktree.cli.sandbox.renderers import (
     render_sandbox_already_cleaned,
     render_sandbox_delete_success,
     sandbox_delete_confirm_prompt,
 )
-from getworktree.common.utils import RichOutput
-from getworktree.core.db import (
+from worktree.common.utils import RichOutput
+from worktree.core.db import (
     SandboxesDb,
     SandboxStatus,
 )
-from getworktree.core.git_sandbox import GitSandboxManager
-from tests.helpers import GitFileSystem
+from worktree.core.git_sandbox import GitSandboxManager
 
 runner = CliRunner()
 DB_REL = ".worktree/data.db"
@@ -228,7 +228,7 @@ class SandboxDeleteCommandDirectTests:
 
         with (
             patch.object(GitSandboxManager, "cleanup_sandbox") as cleanup,
-            patch("getworktree.cli.sandbox.command.typer.confirm") as confirm,
+            patch("worktree.cli.sandbox.command.typer.confirm") as confirm,
             pytest.raises(typer.Exit) as exc_info,
         ):
             sandbox_delete_command(created.id, cwd=git_fs.base_path)
@@ -252,7 +252,7 @@ class SandboxDeleteCommandDirectTests:
         with (
             patch.object(GitSandboxManager, "cleanup_sandbox") as cleanup,
             patch(
-                "getworktree.cli.sandbox.command.typer.confirm",
+                "worktree.cli.sandbox.command.typer.confirm",
                 return_value=False,
             ) as confirm,
             pytest.raises(typer.Exit) as exc_info,
@@ -280,7 +280,7 @@ class SandboxDeleteCommandDirectTests:
         with (
             patch.object(GitSandboxManager, "cleanup_sandbox") as cleanup,
             patch(
-                "getworktree.cli.sandbox.command.typer.confirm",
+                "worktree.cli.sandbox.command.typer.confirm",
                 side_effect=typer.Abort(),
             ),
             pytest.raises(typer.Exit) as exc_info,
@@ -305,7 +305,7 @@ class SandboxDeleteCommandDirectTests:
         assert Path(session.sandbox_path).is_dir()
 
         with (
-            patch("getworktree.cli.sandbox.command.typer.confirm") as confirm,
+            patch("worktree.cli.sandbox.command.typer.confirm") as confirm,
             pytest.raises(typer.Exit) as exc_info,
         ):
             sandbox_delete_command(session.session_id, force=True, cwd=git_fs.base_path)
@@ -329,7 +329,7 @@ class SandboxDeleteCommandDirectTests:
 
         with (
             patch(
-                "getworktree.cli.sandbox.command.typer.confirm",
+                "worktree.cli.sandbox.command.typer.confirm",
                 return_value=True,
             ) as confirm,
             pytest.raises(typer.Exit) as exc_info,

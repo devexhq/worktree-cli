@@ -1,4 +1,4 @@
-"""Integration tests for `getworktree.cli.init.command.init_command`."""
+"""Integration tests for `worktree.cli.init.command.init_command`."""
 
 from __future__ import annotations
 
@@ -9,15 +9,15 @@ from pathlib import Path
 import pytest
 import typer
 
-from getworktree.cli.init.command import init_command
-from getworktree.common.schema_validation import SchemaValidator
-from getworktree.core.bootstrap import BootstrapResult
-from getworktree.core.catalog.models import SeedResult
-from getworktree.core.config.generator import ConfigGenerationResult
-from getworktree.core.config.models import PathsConfig
 from tests.helpers import FileSystem, GitFileSystem
+from worktree.cli.init.command import init_command
+from worktree.common.schema_validation import SchemaValidator
+from worktree.core.bootstrap import BootstrapResult
+from worktree.core.catalog.models import SeedResult
+from worktree.core.config.generator import ConfigGenerationResult
+from worktree.core.config.models import PathsConfig
 
-CONFIG_VALIDATOR = SchemaValidator(resources.files("getworktree.schemas.v1") / "config.json")
+CONFIG_VALIDATOR = SchemaValidator(resources.files("worktree.schemas.v1") / "config.json")
 
 
 class InitCommandConfigTests:
@@ -211,7 +211,7 @@ class InitCommandFailureTests:
                 errors=["simulated bootstrap failure"],
             )
 
-        monkeypatch.setattr("getworktree.cli.init.command.bootstrap_worktree", boom)
+        monkeypatch.setattr("worktree.cli.init.command.bootstrap_worktree", boom)
         with pytest.raises(typer.Exit) as exc:
             init_command(tool_version="0.1.1")
         assert exc.value.exit_code == 1
@@ -222,7 +222,7 @@ class InitCommandFailureTests:
         def bad_config(*args, **kwargs):
             return ConfigGenerationResult(errors=["CONFIG_WRITE_FAILED"])
 
-        monkeypatch.setattr("getworktree.cli.init.command.generate_default_config", bad_config)
+        monkeypatch.setattr("worktree.cli.init.command.generate_default_config", bad_config)
         with pytest.raises(typer.Exit) as exc:
             init_command(tool_version="0.1.1")
         assert exc.value.exit_code == 1
@@ -233,7 +233,7 @@ class InitCommandFailureTests:
         def bad_seed(*args, **kwargs):
             return SeedResult(errors=["seed failed"])
 
-        monkeypatch.setattr("getworktree.cli.init.command.seed_all_catalog_templates", bad_seed)
+        monkeypatch.setattr("worktree.cli.init.command.seed_all_catalog_templates", bad_seed)
         with pytest.raises(typer.Exit) as exc:
             init_command(tool_version="0.1.1")
         assert exc.value.exit_code == 1
@@ -252,20 +252,20 @@ class InitCommandFailureTests:
             recorded.append(db_rel_path)
             return Path(cwd or ".") / db_rel_path
 
-        monkeypatch.setattr("getworktree.cli.init.command.init_database", capture_init_database)
+        monkeypatch.setattr("worktree.cli.init.command.init_database", capture_init_database)
         monkeypatch.setattr(
-            "getworktree.cli.init.command.generate_default_config",
+            "worktree.cli.init.command.generate_default_config",
             lambda *a, **k: ConfigGenerationResult(
                 skipped_existing=True,
                 config_path=config_path,
             ),
         )
         monkeypatch.setattr(
-            "getworktree.cli.init.command.seed_all_catalog_templates",
+            "worktree.cli.init.command.seed_all_catalog_templates",
             lambda *a, **k: SeedResult(),
         )
         monkeypatch.setattr(
-            "getworktree.cli.init.command.bootstrap_worktree",
+            "worktree.cli.init.command.bootstrap_worktree",
             lambda root_path, *, tool_version=None: BootstrapResult(root_path=root_path, root_created=False),
         )
 

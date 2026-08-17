@@ -7,8 +7,8 @@ import subprocess
 import pytest
 import typer
 
-from getworktree.cli.status.command import status_command
 from tests.helpers import FileSystem, GitFileSystem
+from worktree.cli.status.command import status_command
 
 
 class StatusCommandTests:

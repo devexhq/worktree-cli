@@ -1,5 +1,5 @@
-site_name: Worktree Documentation
-site_description: Documentation for Worktree (wt) - isolated Git worktrees and AI agent workspaces
+site_name: Worktree CLI Documentation
+site_description: Documentation for Worktree CLI (wt) - isolated Git worktrees and AI agent workspaces
 theme:
   name: material
   palette:

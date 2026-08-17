@@ -1,8 +1,8 @@
 import pytest
 
-from getworktree.core.step import StepAssert, StepDefinition, StepResult, StepType, execute_step
-from getworktree.core.step.runner import StepDispatchOutcome
 from tests.helpers import FileSystem
+from worktree.core.step import StepAssert, StepDefinition, StepResult, StepType, execute_step
+from worktree.core.step.runner import StepDispatchOutcome
 
 
 def test_step_result_ok_property():
@@ -113,7 +113,7 @@ def test_execute_command_step_retry_exhausted_continue_is_ignored(fs: FileSystem
 
 def test_execute_command_step_retry_sleeps_backoff_between_attempts(fs: FileSystem, monkeypatch: pytest.MonkeyPatch):
     sleep_calls: list[float] = []
-    monkeypatch.setattr("getworktree.core.step.runner.time.sleep", lambda secs: sleep_calls.append(secs))
+    monkeypatch.setattr("worktree.core.step.runner.time.sleep", lambda secs: sleep_calls.append(secs))
 
     step = StepDefinition(
         id="cmd_backoff",

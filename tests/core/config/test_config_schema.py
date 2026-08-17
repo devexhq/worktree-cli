@@ -9,19 +9,19 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from getworktree.common.schema_validation import CONFIG_VALIDATOR
-from getworktree.core.config.generator import (
+from tests.helpers import FileSystem
+from worktree.common.schema_validation import CONFIG_VALIDATOR
+from worktree.core.config.generator import (
     CANONICAL_V1_DEFAULTS,
     build_default_config,
     generate_default_config,
 )
-from getworktree.core.config.loader import (
+from worktree.core.config.loader import (
     ConfigLoadStatus,
     load_config_result,
     parse_and_validate_config,
 )
-from getworktree.core.config.models import WorktreeConfig
-from tests.helpers import FileSystem
+from worktree.core.config.models import WorktreeConfig
 
 
 def _valid_config() -> dict[str, Any]:

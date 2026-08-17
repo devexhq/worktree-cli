@@ -9,15 +9,15 @@ from pathlib import Path
 
 import pytest
 
-from getworktree.core.config.generator import (
+from tests.helpers import FileSystem
+from worktree.core.config.generator import (
     build_default_config,
     generate_default_config,
 )
-from getworktree.core.config.validate import (
+from worktree.core.config.validate import (
     ConfigValidationStatus,
     validate_config_result,
 )
-from tests.helpers import FileSystem
 
 
 def _write_config(path: Path, payload: object) -> Path:

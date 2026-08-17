@@ -9,15 +9,15 @@ from pathlib import Path
 
 import pytest
 
-import getworktree.core.git_sandbox as git_sandbox_mod
-from getworktree.core.db import SandboxesDb, SandboxStatus
-from getworktree.core.git_sandbox import (
+import worktree.core.git_sandbox as git_sandbox_mod
+from tests.helpers import FileSystem, GitFileSystem
+from worktree.core.db import SandboxesDb, SandboxStatus
+from worktree.core.git_sandbox import (
     GitPlumbingTimeoutError,
     GitSandboxManager,
     SandboxCreateStatus,
     SandboxSession,
 )
-from tests.helpers import FileSystem, GitFileSystem
 
 
 def _init_git_repo(path: Path, branch: str = "feature") -> None:

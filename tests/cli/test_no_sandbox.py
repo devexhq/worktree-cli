@@ -3,10 +3,10 @@
 import pytest
 from typer.testing import CliRunner
 
-from getworktree.cli import app
-from getworktree.cli.task.command import task_run_command
-from getworktree.core.task import resolve_and_load_task
 from tests.helpers import FileSystem
+from worktree.cli import app
+from worktree.cli.task.command import task_run_command
+from worktree.core.task import resolve_and_load_task
 
 runner = CliRunner()
 

@@ -6,13 +6,14 @@ from unittest.mock import patch
 import pytest
 from pydantic import BaseModel
 
-from getworktree.common.fs import (
+from tests.helpers import FileSystem
+from worktree.common.fs import (
     compute_content_checksum,
     delete_file,
     read_yaml_file,
 )
-from getworktree.common.models import DefinitionResolutionStatus
-from getworktree.core.catalog.services.inventory import (
+from worktree.common.models import DefinitionResolutionStatus
+from worktree.core.catalog.services.inventory import (
     compute_catalog_sha,
     create_catalog_item,
     delete_catalog_item_by_sha_or_name,
@@ -20,11 +21,10 @@ from getworktree.core.catalog.services.inventory import (
     get_catalog_item,
     scan_and_index_catalog,
 )
-from getworktree.core.db import (
+from worktree.core.db import (
     CatalogDb,
     CatalogItemType,
 )
-from tests.helpers import FileSystem
 
 
 def test_ensure_catalog_dirs_creates_structure(fs: FileSystem) -> None:

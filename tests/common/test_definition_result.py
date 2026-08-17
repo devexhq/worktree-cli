@@ -1,11 +1,11 @@
-"""Unit tests for getworktree.common.models module."""
+"""Unit tests for worktree.common.models module."""
 
 from __future__ import annotations
 
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from getworktree.common.models import DefinitionResolutionResult, DefinitionResolutionStatus
+from worktree.common.models import DefinitionResolutionResult, DefinitionResolutionStatus
 
 
 class _Entry(BaseModel):

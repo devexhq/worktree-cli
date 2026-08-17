@@ -17,7 +17,7 @@ def test(context, path="tests/", coverage=False, fast_fail=False, parallel=True)
 
     if coverage:
         # fail_under=80 lives in pyproject.toml [tool.coverage.report]
-        cmd.extend(["--cov=getworktree", "--cov-report=term-missing"])
+        cmd.extend(["--cov=worktree", "--cov-report=term-missing"])
 
     if fast_fail:
         cmd.append("-x")
@@ -40,7 +40,7 @@ def docs(context, serve=True):
 
 @task
 def complexity(
-    context, paths="getworktree", plain=False, max_complexity=10, suggest_refactors=False, local=False, failed=False
+    context, paths="src/worktree", plain=False, max_complexity=10, suggest_refactors=False, local=False, failed=False
 ):
     """Run complexipy, failing if any function exceeds max_complexity.
 

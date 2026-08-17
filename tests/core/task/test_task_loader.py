@@ -1,9 +1,9 @@
 """Unit tests for resolve_and_load_task catalog loader."""
 
-from getworktree.common.models import DefinitionResolutionStatus
-from getworktree.core.catalog.services.inventory import ensure_catalog_dirs, scan_and_index_catalog
-from getworktree.core.task import TaskDefinition, resolve_and_load_task
 from tests.helpers import FileSystem
+from worktree.common.models import DefinitionResolutionStatus
+from worktree.core.catalog.services.inventory import ensure_catalog_dirs, scan_and_index_catalog
+from worktree.core.task import TaskDefinition, resolve_and_load_task
 
 
 def test_resolve_and_load_task_ok(fs: FileSystem) -> None:
@@ -78,7 +78,7 @@ def test_resolve_and_load_task_invalid_model(fs: FileSystem) -> None:
 
 
 def test_resolve_and_load_task_package_exports() -> None:
-    from getworktree.core import task as task_pkg
+    from worktree.core import task as task_pkg
 
     assert task_pkg.TaskDefinition is TaskDefinition
     assert callable(task_pkg.resolve_and_load_task)

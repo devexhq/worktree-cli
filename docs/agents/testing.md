@@ -2,7 +2,7 @@
 
 ## Layout and naming
 
-Tests mirror the source tree under `tests/` (e.g. `getworktree/core/db/` ->
+Tests mirror the source tree under `tests/` (e.g. `src/worktree/core/db/` ->
 `tests/core/test_token_db.py`). Prefer domain-specific basenames
 (`test_init_command.py`, not `test_command.py`) so pytest collection stays unique
 without package `__init__.py` files. Test classes must be named `Test*` or
@@ -77,7 +77,7 @@ Canonical examples:
 from typer.main import get_command
 from typer.testing import CliRunner
 
-from getworktree.cli import app
+from worktree.cli import app
 
 runner = CliRunner()
 
@@ -122,7 +122,7 @@ contents and help option lists are not, unless width is controlled.
 
 ```bash
 inv test                            # invoke task, tasks.py
-inv test --coverage                 # adds --cov=getworktree --cov-report=term-missing
+inv test --coverage                 # adds --cov=worktree --cov-report=term-missing
 inv test --fast-fail                # stop on first failure
 python -m pytest tests/ -q {file}   # equivalent, no invoke dependency
 ```
@@ -147,5 +147,5 @@ The 80% floor is a **regression backstop**, not an optimization target.
 - Treat missing lines in the coverage report as a **review checklist**, not a
   ticket queue.
 
-CI runs `python -m pytest --cov=getworktree --cov-report=term-missing --cov-report=xml tests/ -q`
+CI runs `python -m pytest --cov=worktree --cov-report=term-missing --cov-report=xml tests/ -q`
 — match this locally before pushing.

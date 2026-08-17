@@ -1,6 +1,6 @@
 # Example GitHub issue
 
-Canonical example of structure, depth, and tone for `getworktree` issues.
+Canonical example of structure, depth, and tone for Worktree CLI issues.
 Snapshot aligned with the "Implement config loader" issue shape; edit this file
 when the preferred template evolves—do not send agents to the issue tracker for
 the exemplar.
@@ -127,13 +127,13 @@ The loader must not:
 ## Non-functional requirements
 
 ### NFR-1: Single load module
-All config reads go through `getworktree.core.config.manager` (or one clearly named loader module it owns). Command packages must not call `json.load` on config directly.
+All config reads go through `worktree.core.config.manager` (or one clearly named loader module it owns). Command packages must not call `json.load` on config directly.
 
 ### NFR-2: Stable status and error codes
 `ConfigLoadStatus` values and `CONFIG_*` code strings in Pre-determined data are stable identifiers for tests. Wording of full user sentences may improve later without renaming codes.
 
 ### NFR-3: Shared schema validator
-Use packaged `CONFIG_VALIDATOR` / `getworktree/schemas/config_v1.json`. Do not embed a second schema copy.
+Use packaged `CONFIG_VALIDATOR` / `src/worktree/schemas/v1/config.json`. Do not embed a second schema copy.
 
 ### NFR-4: Testable I/O
 Filesystem access is via `Path` arguments. Process CWD is only a default for `cwd`, never hard-coded inside helpers.
@@ -147,7 +147,7 @@ Replace superseded load helpers and call sites in the same change. Do not keep d
 
 ### Default config path
 - Relative: `.worktree/config.json`
-- Helper: `get_worktree_config_file(cwd: Path) -> Path` in `getworktree.common.fs`
+- Helper: `get_worktree_config_file(cwd: Path) -> Path` in `worktree.common.fs`
 
 ### Status enum
 
@@ -225,12 +225,12 @@ def load_config(
 ```
 
 ### Schema and defaults ownership
-- Schema: `getworktree/schemas/config_v1.json`
-- Canonical defaults (writers only): `CANONICAL_V1_DEFAULTS` in `getworktree.core.config.generator`
+- Schema: `src/worktree/schemas/v1/config.json`
+- Canonical defaults (writers only): `CANONICAL_V1_DEFAULTS` in `worktree.core.config.generator`
 - The loader never writes defaults to disk
 
 ### Implementation locus
-Implement in `getworktree/core/config/manager.py` (refactor existing load helpers to this contract). Delete or rewrite any load path that conflicts with this issue.
+Implement in `src/worktree/core/config/manager.py` (refactor existing load helpers to this contract). Delete or rewrite any load path that conflicts with this issue.
 
 ---
 

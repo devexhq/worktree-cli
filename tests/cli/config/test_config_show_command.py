@@ -9,9 +9,9 @@ import pytest
 import typer
 from typer.testing import CliRunner
 
-from getworktree.cli import app
-from getworktree.cli.config.command import config_show_command
 from tests.helpers import GitFileSystem
+from worktree.cli import app
+from worktree.cli.config.command import config_show_command
 
 runner = CliRunner()
 

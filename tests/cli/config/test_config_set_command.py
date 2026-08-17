@@ -10,9 +10,9 @@ import typer
 from typer.main import get_command
 from typer.testing import CliRunner
 
-from getworktree.cli import app
-from getworktree.cli.config.command import config_set_command
 from tests.helpers import GitFileSystem
+from worktree.cli import app
+from worktree.cli.config.command import config_set_command
 
 runner = CliRunner()
 
@@ -175,7 +175,7 @@ class ConfigSetCliTests:
         def mock_write_json(*args, **kwargs):
             raise OSError("Permission denied")
 
-        monkeypatch.setattr("getworktree.core.config.mutate.atomic_write_json", mock_write_json)
+        monkeypatch.setattr("worktree.core.config.mutate.atomic_write_json", mock_write_json)
 
         result = runner.invoke(app, ["config", "set", "agent.model", "qwen2.5-coder"])
         assert result.exit_code == 1

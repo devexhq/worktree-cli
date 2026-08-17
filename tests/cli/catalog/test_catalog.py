@@ -3,16 +3,16 @@
 import pytest
 from typer.testing import CliRunner
 
-from getworktree.cli import app
-from getworktree.cli.catalog.command import (
+from tests.helpers import FileSystem
+from worktree.cli import app
+from worktree.cli.catalog.command import (
     catalog_create_command,
     catalog_delete_command,
     catalog_list_command,
     catalog_show_command,
 )
-from getworktree.core.catalog.services.inventory import create_catalog_item
-from getworktree.core.db import CatalogItemType
-from tests.helpers import FileSystem
+from worktree.core.catalog.services.inventory import create_catalog_item
+from worktree.core.db import CatalogItemType
 
 runner = CliRunner()
 

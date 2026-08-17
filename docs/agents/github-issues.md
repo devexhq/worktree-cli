@@ -1,6 +1,6 @@
 # GitHub Issue Creation and Updates
 
-Use this guide when opening or revising GitHub issues for `getworktree`.
+Use this guide when opening or revising GitHub issues for Worktree CLI.
 Canonical example of structure, depth, and tone:
 [docs/agents/examples/github-issue.md](examples/github-issue.md).
 

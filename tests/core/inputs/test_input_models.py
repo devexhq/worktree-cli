@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from getworktree.core.inputs import InputResolveResult, InputType, ParameterInput
+from worktree.core.inputs import InputResolveResult, InputType, ParameterInput
 
 
 def test_parameter_input_defaults() -> None:
@@ -47,7 +47,7 @@ def test_input_resolve_result_ok_property() -> None:
 
 
 def test_format_input_spec() -> None:
-    from getworktree.core.inputs import format_input_spec
+    from worktree.core.inputs import format_input_spec
 
     line = format_input_spec(
         "message",

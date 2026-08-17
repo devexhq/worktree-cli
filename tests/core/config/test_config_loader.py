@@ -9,12 +9,13 @@ from pathlib import Path
 
 import pytest
 
-from getworktree.core.config.context import load_context
-from getworktree.core.config.generator import (
+from tests.helpers import FileSystem, GitFileSystem
+from worktree.core.config.context import load_context
+from worktree.core.config.generator import (
     build_default_config,
     generate_default_config,
 )
-from getworktree.core.config.loader import (
+from worktree.core.config.loader import (
     ConfigLoadStatus,
     load_config,
     load_config_result,
@@ -22,7 +23,6 @@ from getworktree.core.config.loader import (
     parse_and_validate_config,
     resolve_config_path,
 )
-from tests.helpers import FileSystem, GitFileSystem
 
 
 def _write_config(path: Path, payload: object) -> Path:

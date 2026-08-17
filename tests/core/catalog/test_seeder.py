@@ -1,13 +1,13 @@
-"""Tests for `getworktree.core.catalog.services.seeder`."""
+"""Tests for `worktree.core.catalog.services.seeder`."""
 
 from __future__ import annotations
 
-from getworktree.core.catalog.services.seeder import (
+from tests.helpers import FileSystem
+from worktree.core.catalog.services.seeder import (
     seed_all_catalog_templates,
     seed_catalog_templates,
 )
-from getworktree.core.db import CatalogItemType
-from tests.helpers import FileSystem
+from worktree.core.db import CatalogItemType
 
 
 class SeedCatalogTemplatesTests:

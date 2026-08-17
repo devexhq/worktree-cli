@@ -1,4 +1,4 @@
-"""Unit tests for getworktree.common.fs module."""
+"""Unit tests for worktree.common.fs module."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ from unittest.mock import patch
 
 import pytest
 
-from getworktree.common.fs import atomic_write_json, scan_yaml_directory
 from tests.helpers import FileSystem
+from worktree.common.fs import atomic_write_json, scan_yaml_directory
 
 
 class ScanYamlDirectoryTests:

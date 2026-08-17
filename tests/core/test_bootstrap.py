@@ -1,4 +1,4 @@
-"""Tests for `getworktree.core.bootstrap`."""
+"""Tests for `worktree.core.bootstrap`."""
 
 import json
 import os
@@ -8,13 +8,13 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from getworktree.core.bootstrap import (
+from tests.helpers import FileSystem
+from worktree.core.bootstrap import (
     BOOTSTRAP_META_REL,
     REQUIRED_SUBDIRS,
     BootstrapResult,
     bootstrap_worktree,
 )
-from tests.helpers import FileSystem
 
 
 @pytest.fixture

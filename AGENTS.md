@@ -1,6 +1,6 @@
 # AGENTS.md
 
-`getworktree` (`wt`) is a Typer-based CLI providing isolated Git worktree
+`Worktree` (`wt`) is a Typer-based CLI providing isolated Git worktree
 developer workflows and AI agent workspaces, backed by a local `.worktree/` state
 directory.
 
@@ -11,7 +11,7 @@ uv sync --all-extras            # install dependencies with uv (or uv pip instal
 inv test                        # run tests (python -m pytest tests/ -q)
 ruff check .                    # lint
 ruff format .                   # format
-basedpyright getworktree         # typecheck package (errors must be 0)
+basedpyright src                # typecheck package (errors must be 0)
 inv complexity --paths <changed-file1>,<changed-file2> --plain   # complexity gate for changed files
 ```
 
@@ -20,7 +20,7 @@ inv complexity --paths <changed-file1>,<changed-file2> --plain   # complexity ga
 Use `pytest -q` during development. Prefer scoping to the test module/function during quick iterations. 
 Before committing, all of these must pass:
 `inv test -c` (coverage, **≥ 80%** via `fail_under` in `pyproject.toml`),
-`ruff format`, `ruff check`, `basedpyright getworktree --level error`,
+`ruff format`, `ruff check`, `basedpyright src --level error`,
 `inv complexity --paths <changed-file1>,<changed-file2> --plain --failed` (no touched
 function may exceed complexity 10). Fix any failure before retrying the commit
 — do not commit while `inv complexity` is failing.

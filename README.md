@@ -1,12 +1,12 @@
-# Worktree (`wt`)
+# Worktree CLI (`wt`)
 
-[![CI](https://github.com/getworktree/getworktree/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/getworktree/getworktree/actions/workflows/ci.yml)
-[![License](https://img.shields.io/github/license/getworktree/getworktree.svg)](https://github.com/getworktree/getworktree/blob/main/LICENSE)
-[![Issues](https://img.shields.io/github/issues/getworktree/getworktree.svg)](https://github.com/getworktree/getworktree/issues)
-[![Last commit](https://img.shields.io/github/last-commit/getworktree/getworktree.svg)](https://github.com/getworktree/getworktree/commits/main)
-[![PyPI version](https://img.shields.io/pypi/v/getworktree.svg)](https://pypi.org/project/getworktree/)
-[![Python versions](https://img.shields.io/pypi/pyversions/getworktree.svg)](https://pypi.org/project/getworktree/)
-[![Stars](https://img.shields.io/github/stars/getworktree/getworktree.svg?style=social)](https://github.com/getworktree/getworktree/stargazers)
+[![CI](https://github.com/devexhq/worktree-cli/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/devexhq/worktree-cli/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/devexhq/worktree-cli.svg)](https://github.com/devexhq/worktree-cli/blob/main/LICENSE)
+[![Issues](https://img.shields.io/github/issues/devexhq/worktree-cli.svg)](https://github.com/devexhq/worktree-cli/issues)
+[![Last commit](https://img.shields.io/github/last-commit/devexhq/worktree-cli.svg)](https://github.com/devexhq/worktree-cli/commits/main)
+[![PyPI version](https://img.shields.io/pypi/v/worktree-cli.svg)](https://pypi.org/project/worktree-cli/)
+[![Python versions](https://img.shields.io/pypi/pyversions/worktree-cli.svg)](https://pypi.org/project/worktree-cli/)
+[![Stars](https://img.shields.io/github/stars/devexhq/worktree-cli.svg?style=social)](https://github.com/devexhq/worktree-cli/stargazers)
 
 Isolated git worktree developer workflows and autonomous AI agent workspaces.
 
@@ -15,13 +15,13 @@ Worktree helps humans and agents build, test, and remediate in parallel without 
 ## Installation
 
 ```bash
-pip install getworktree
+pip install worktree-cli
 ```
 
 Optional provider extras:
 
 ```bash
-pip install "getworktree[cursor]"
+pip install "worktree-cli[cursor]"
 ```
 
 ## Requirements
@@ -29,7 +29,7 @@ pip install "getworktree[cursor]"
 - Python 3.13+
 - Git
 - For provider-specific workflow runs:
-  - Cursor: `CURSOR_API_KEY` (+ `getworktree[cursor]`)
+  - Cursor: `CURSOR_API_KEY` (+ `worktree-cli[cursor]`)
   - Gemini: Gemini CLI on `PATH` + `GEMINI_API_KEY`
   - Copilot: GitHub CLI (`gh`) on `PATH` + `GH_TOKEN` or `GITHUB_TOKEN`
 
@@ -99,14 +99,13 @@ ruff check .
 
 ## Documentation
 
-- CLI plan: [docs/cli-plan.md](docs/cli-plan.md)
 - Schemas and config: [docs/agents/schemas-and-config.md](docs/agents/schemas-and-config.md)
 - Architecture: [docs/agents/architecture.md](docs/agents/architecture.md)
 
 ## Project status
 
 This README reflects the currently implemented surface in `main`.
-Additional commands listed in `docs/cli-plan.md` may still be in progress.
+Additional commands may still be in progress.
 
 ## License
 
@@ -114,5 +113,5 @@ Distributed under the MIT License. See [`LICENSE`](LICENSE) for details.
 
 ## Links
 
-- Website: [getworktree.io](https://getworktree.io)
-- GitHub Organization: [github.com/getworktree](https://github.com/getworktree)
+- Website: [devexhq.github.io/worktree-cli](https://devexhq.github.io/worktree-cli)
+- Repository: [github.com/devexhq/worktree-cli](https://github.com/devexhq/worktree-cli)

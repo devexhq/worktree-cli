@@ -11,13 +11,13 @@ import typer
 from typer.main import get_command
 from typer.testing import CliRunner
 
-from getworktree.cli import app
-from getworktree.cli.config.command import config_validate_command
-from getworktree.core.config.validate import (
+from tests.helpers import GitFileSystem
+from worktree.cli import app
+from worktree.cli.config.command import config_validate_command
+from worktree.core.config.validate import (
     ConfigValidationResult,
     ConfigValidationStatus,
 )
-from tests.helpers import GitFileSystem
 
 runner = CliRunner()
 
@@ -202,7 +202,7 @@ class ConfigValidateCommandTests:
             warnings=[],
         )
         with patch(
-            "getworktree.cli.config.command.validate_config_result",
+            "worktree.cli.config.command.validate_config_result",
             return_value=fake,
         ):
             with pytest.raises(typer.Exit) as exc_info:
@@ -230,7 +230,7 @@ class ConfigValidateCommandTests:
             ],
         )
         with patch(
-            "getworktree.cli.config.command.validate_config_result",
+            "worktree.cli.config.command.validate_config_result",
             return_value=fake,
         ):
             with pytest.raises(typer.Exit) as exc_info:

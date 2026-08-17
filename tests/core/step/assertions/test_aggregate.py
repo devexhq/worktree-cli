@@ -2,9 +2,9 @@
 
 from pathlib import Path
 
-from getworktree.core.step.assertions import evaluate_assertions
-from getworktree.core.step.models import AssertionResult, StepAssert
 from tests.helpers import FileSystem
+from worktree.core.step.assertions import evaluate_assertions
+from worktree.core.step.models import AssertionResult, StepAssert
 
 
 class TestEvaluateAssertions:

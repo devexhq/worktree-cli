@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from getworktree.common.models import DefinitionResolutionResult, DefinitionResolutionStatus
-from getworktree.core.catalog.models import DefinitionValidationOutcome
-from getworktree.core.workflows.services.renderer import (
+from worktree.common.models import DefinitionResolutionResult, DefinitionResolutionStatus
+from worktree.core.catalog.models import DefinitionValidationOutcome
+from worktree.core.workflows.services.renderer import (
     format_workflow_run_resolve_failure,
     format_workflow_run_validate_failure,
 )

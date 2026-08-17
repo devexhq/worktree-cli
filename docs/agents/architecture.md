@@ -3,12 +3,12 @@
 ## Layers
 
 ```
-getworktree/cli.py                 Typer entrypoint, wires flags to commands
-getworktree/cli/<name>/       One package per CLI subcommand
+src/worktree/cli/cli.py                 Typer entrypoint, wires flags to commands
+src/worktree/cli/<name>/       One package per CLI subcommand
   command.py                       Orchestration: calls core/common, handles typer.Exit
   models.py                        Pydantic outcome model(s) for the command
   renderers.py                     Rich console rendering, kept out of command.py
-getworktree/core/                  Business logic, no Typer/CLI concerns
+src/worktree/core/                  Business logic, no Typer/CLI concerns
   bootstrap.py                     Creates/repairs the .worktree/ directory tree
   config/{generator,loader,mutate,models,context,serialize,validate}.py
                                    Defaults write + load/set + validate + typed models + repo context
@@ -28,9 +28,9 @@ getworktree/core/                  Business logic, no Typer/CLI concerns
   workflows/                       Workflow domain (models, payloads, patches, agents)
   workflows/agents/                Agent adapter protocol + providers (owned by workflows)
   workflows/services/              patch.py, payload.py, renderer.py
-getworktree/common/                Shared, dependency-light helpers
+src/worktree/common/                Shared, dependency-light helpers
   constants.py, fs.py, utils.py, schema_validation.py, models.py, exceptions.py
-getworktree/schemas/                Versioned JSON Schemas (config_v1.json, workflow_v1.json)
+src/worktree/schemas/                Versioned JSON Schemas (v1/config.json, v1/workflow.json)
 ```
 
 Single-step execution lives in `core/step/`; multi-step orchestration lives in
@@ -95,11 +95,11 @@ If you find yourself importing a name from a "higher" package to reuse it in a
 
 ## Adding a new command
 
-1. Create `getworktree/cli/<name>/{__init__.py,command.py}` (add `models.py`/
+1. Create `src/worktree/cli/<name>/{__init__.py,command.py}` (add `models.py`/
    `renderers.py` once output grows past a couple of lines).
 2. Implement `<name>_command(...)` in `command.py`, following the
    [Result/Outcome pattern](code-conventions.md) for anything that can partially fail.
-3. Register it in [getworktree/cli.py](../../getworktree/cli.py) with `@app.command(name="...")`.
+3. Register it in [src/worktree/cli/cli.py](../../src/worktree/cli/cli.py) with `@app.command(name="...")`.
 4. Add tests under `tests/cli/<name>/` mirroring [tests/cli/init](../../tests/cli/init).
 
 ## Adding a new catalog-backed domain
@@ -126,7 +126,7 @@ When creating or refactoring a blueprint domain (e.g. `task`, `workflow`, `step`
 
 ## The `.worktree/` directory
 
-`bootstrap_worktree` ([getworktree/core/bootstrap.py](../../getworktree/core/bootstrap.py))
+`bootstrap_worktree` ([src/worktree/core/bootstrap.py](../../src/worktree/core/bootstrap.py))
 creates this layout inside a Git repo, analogous to `.git/`:
 
 ```
@@ -137,7 +137,7 @@ creates this layout inside a Git repo, analogous to `.git/`:
   workflows/             legacy bootstrap dir (workflow blueprints live under catalog/workflows/)
   sessions/              workflow session artifacts: <session_id>/diff.patch
   artifacts/, tmp/, logs/
-  data.db                 SQLite token/cost + sandbox + catalog + run metadata (getworktree/core/db/)
+  data.db                 SQLite token/cost + sandbox + catalog + run metadata (src/worktree/core/db/)
 ```
 
 Bootstrap is idempotent and never deletes user data; it only creates missing
@@ -148,7 +148,7 @@ land under `.worktree/catalog/<type>s/wt/` from `seed_all_catalog_templates`.
 ### Local SQLite (`data.db`)
 
 Single file, migrated by `init_database` in
-[getworktree/core/db/](../../getworktree/core/db/__init__.py). Idempotent: repeated
+[src/worktree/core/db/](../../src/worktree/core/db/__init__.py). Idempotent: repeated
 calls create missing tables only.
 
 | Table | Purpose |
@@ -162,22 +162,22 @@ indexed), `created_at`, `updated_at` (raw SQLite `TIMESTAMP` strings).
 
 Typed DB surface:
 
-- `DbBase` base database class in [getworktree/core/db/base.py](../../getworktree/core/db/base.py) providing lazy database path resolution, lazy migration execution, `@contextmanager cursor()`, and execution shortcuts (`fetch_one`, `fetch_all`, `execute`, `execute_insert`).
+- `DbBase` base database class in [src/worktree/core/db/base.py](../../src/worktree/core/db/base.py) providing lazy database path resolution, lazy migration execution, `@contextmanager cursor()`, and execution shortcuts (`fetch_one`, `fetch_all`, `execute`, `execute_insert`).
 - Class-based repository wrappers: `SandboxesDb`, `TasksDb`, `WorkflowsDb`, `CatalogDb`, and `CostsDb`.
-- Composite facade `WorktreeDb` in [getworktree/core/db/facade.py](../../getworktree/core/db/facade.py) providing properties `.sandboxes`, `.tasks`, `.workflows`, `.catalog`, `.costs`.
+- Composite facade `WorktreeDb` in [src/worktree/core/db/facade.py](../../src/worktree/core/db/facade.py) providing properties `.sandboxes`, `.tasks`, `.workflows`, `.catalog`, `.costs`.
 
 `git_sandbox.py` owns create/cleanup writes via `SandboxesDb` (below). CLI commands use the corresponding class repositories.
 
 ## Sandboxes
 
-`GitSandboxManager` ([getworktree/core/git_sandbox.py](../../getworktree/core/git_sandbox.py))
+`GitSandboxManager` ([src/worktree/core/git_sandbox.py](../../src/worktree/core/git_sandbox.py))
 owns the V1 sandbox lifecycle used by `wt sandbox create/show/delete`.
 
 ### CLI: Sandbox command group
 
-Command package: [getworktree/cli/sandbox/](../../getworktree/cli/sandbox/)
+Command package: [src/worktree/cli/sandbox/](../../src/worktree/cli/sandbox/)
 (`command.py`, `models.py`, `renderers.py`), registered as `sandbox_app` on
-[getworktree/cli.py](../../getworktree/cli.py).
+[src/worktree/cli/cli.py](../../src/worktree/cli/cli.py).
 
 Surface: `wt sandbox create|list|show|delete`. Shared patterns:
 
@@ -280,7 +280,7 @@ Surface: `wt sandbox create|list|show|delete`. Shared patterns:
   session claim on the capacity path
 - Internal git plumbing (`worktree add/remove`, `branch -D`, `status` for WIP)
   uses `GIT_SUBPROCESS_TIMEOUT_SECONDS` (120s) from
-  [getworktree/common/constants.py](../../getworktree/common/constants.py).
+  [src/worktree/common/constants.py](../../src/worktree/common/constants.py).
   Expiry → `git_timeout` / `SANDBOX_GIT_TIMEOUT` (distinct from trigger/agent
   timeouts; session timeout still does not cancel in-flight trigger/agent)
 
@@ -293,7 +293,7 @@ state (missing dir or branch) must not raise. Used directly by
 
 ## Patch validation
 
-`validate_patch_text` ([getworktree/core/workflows/services/patch.py](../../getworktree/core/workflows/services/patch.py))
+`validate_patch_text` ([src/worktree/core/workflows/services/patch.py](../../src/worktree/core/workflows/services/patch.py))
 parses and validates a unified diff against size/count/binary/path limits. It
 does **not** apply the diff (no `git apply` call in this module — callers that
 need to write changes to disk do so themselves, e.g. via
@@ -319,7 +319,7 @@ reject_binary_changes=True) -> PatchApplyResult`
 ## Failure payload models
 
 `AgentFailurePayload`, `PayloadFile`, `PayloadOmission`
-([getworktree/core/workflows/services/payload.py](../../getworktree/core/workflows/services/payload.py))
+([src/worktree/core/workflows/services/payload.py](../../src/worktree/core/workflows/services/payload.py))
 are the shared Pydantic models for structured agent failure context. They are
 consumed by `AgentRequest.payload` in the agent adapter contract below. There is
 currently no builder that assembles a payload from a live trigger run (the
@@ -328,7 +328,7 @@ runner); callers construct `AgentFailurePayload` directly today.
 
 ## Agent adapter
 
-`getworktree/core/workflows/agents/` owns the provider boundary for agent fix
+`src/worktree/core/workflows/agents/` owns the provider boundary for agent fix
 requests. It is used today by `core/step/runner.py`'s `AGENT` step type (`wt
 task run`).
 
@@ -350,7 +350,7 @@ task run`).
   base described below
 
 ### Shared direct-mutation base (`CliDirectMutationAdapter`)
-- Shared module: `getworktree/core/workflows/agents/cli_mutation.py`
+- Shared module: `src/worktree/core/workflows/agents/cli_mutation.py`
 - Shared DTOs: `CliMutationRunRequest`, `CliMutationOutcome`,
   `CliMutationRunFn`
 - Shared prompt builder: `build_mutation_prompt(request)`
@@ -399,7 +399,7 @@ Direct-mutation provider: the Cursor SDK agent edits sandbox files on disk
 instead of returning a diff. "Local runtime" means the agent workflow and
 filesystem access run on this machine (`LocalAgentOptions(cwd=sandbox_path)`);
 the model itself is always Cursor-hosted. Auth via `CURSOR_API_KEY`; the SDK is
-an optional install (`pip install getworktree[cursor]`), imported lazily.
+an optional install (`pip install worktree-cli[cursor]`), imported lazily.
 
 ### Gemini provider (`GeminiAgentAdapter`)
 Direct-mutation provider backed by the `gemini` CLI subprocess. Auth via
@@ -413,15 +413,15 @@ JSONL output that is mapped to the same direct-mutation base flow.
 
 ## Workflow run CLI (not yet executing workflows)
 
-`wt workflow run NAME` ([getworktree/cli/workflow/command.py](../../getworktree/cli/workflow/command.py))
+`wt workflow run NAME` ([src/worktree/cli/workflow/command.py](../../src/worktree/cli/workflow/command.py))
 loads config, resolves the workflow by name, and validates it against
-`workflow_v1.json`. If all of that succeeds it does **not** execute any steps —
+`v1/workflow.json`. If all of that succeeds it does **not** execute any steps —
 it prints an error panel ("Workflow Run Not Implemented") and exits `1`. Step
 execution is being rebuilt incrementally on top of the Workflow Spec v1 model
 (`core/workflows/models.py`); track progress in issues
-[#171](https://github.com/getworktree/getworktree/issues/171),
-[#172](https://github.com/getworktree/getworktree/issues/172), and
-[#173](https://github.com/getworktree/getworktree/issues/173). The previous
+[#171](https://github.com/devexhq/worktree-cli/issues/171),
+[#172](https://github.com/devexhq/worktree-cli/issues/172), and
+[#173](https://github.com/devexhq/worktree-cli/issues/173). The previous
 iteration controller (trigger → agent → patch-apply loop with safety tripwires
 and approval gating) was removed along with its supporting `trigger.py` and
 `safety.py` modules; none of that behavior currently exists.

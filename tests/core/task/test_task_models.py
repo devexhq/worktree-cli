@@ -3,8 +3,8 @@
 import pytest
 from pydantic import ValidationError
 
-from getworktree.core.step import FailurePolicy, StepType
-from getworktree.core.task.models import TaskDefinition
+from worktree.core.step import FailurePolicy, StepType
+from worktree.core.task.models import TaskDefinition
 
 
 def test_task_definition_parses_full_fields() -> None:

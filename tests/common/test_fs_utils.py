@@ -5,15 +5,15 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from getworktree.common.fs import (
+from tests.helpers import FileSystem
+from worktree.common.fs import (
     atomic_write_json,
     atomic_write_text,
     get_session_dir,
     is_git_repository,
     update_gitignore,
 )
-from getworktree.common.utils import display_path, resolve_path_from_config
-from tests.helpers import FileSystem
+from worktree.common.utils import display_path, resolve_path_from_config
 
 
 class SessionDirTests:

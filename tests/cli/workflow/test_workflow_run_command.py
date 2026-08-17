@@ -1,7 +1,7 @@
 """Tests for ``wt workflow run`` UX and exit codes.
 
 Workflow execution is not implemented yet (tracked in
-getworktree/getworktree#171, #172, #173); ``wt workflow run`` validates the
+devexhq/worktree-cli#171, #172, #173); ``wt workflow run`` validates the
 requested workflow definition and reports that step execution is pending.
 """
 
@@ -13,10 +13,10 @@ import pytest
 import typer
 from typer.testing import CliRunner
 
-from getworktree.cli import app
-from getworktree.cli.workflow.command import workflow_run_command
-from getworktree.core.catalog.services.inventory import scan_and_index_catalog
 from tests.helpers import GitFileSystem
+from worktree.cli import app
+from worktree.cli.workflow.command import workflow_run_command
+from worktree.core.catalog.services.inventory import scan_and_index_catalog
 
 runner = CliRunner()
 
