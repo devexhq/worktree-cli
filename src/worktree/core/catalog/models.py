@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,33 @@ from pydantic import BaseModel, Field
 
 from worktree.common.models import DefinitionResolutionStatus
 from worktree.core.db import CatalogRecord
+
+
+class CatalogResolveStatus(StrEnum):
+    """Classified outcomes for Catalog.resolve / resolve_step."""
+
+    OK = "ok"
+    NOT_FOUND = "not_found"
+    LOAD_ERROR = "load_error"
+
+
+class CatalogResolveResult(BaseModel):
+    """Non-raising result of resolving a catalog YAML document."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    status: CatalogResolveStatus
+    name: str
+    raw: dict[str, Any] | None = None
+    record: CatalogRecord | None = None
+    matches: list[CatalogRecord] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        """Return True when a catalog document was loaded as a YAML object."""
+        return self.status == CatalogResolveStatus.OK
 
 
 class SeedResult(BaseModel):
