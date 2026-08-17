@@ -16,20 +16,19 @@ from worktree.core.db import CatalogItemType
 from worktree.core.inputs import ParameterInput
 from worktree.core.step import LoopStepBlock, StepDefinition
 
-_KIND_FROM_ITEM_TYPE: dict[CatalogItemType, BlueprintKind] = {
-    CatalogItemType.TASK: BlueprintKind.TASK,
-    CatalogItemType.WORKFLOW: BlueprintKind.WORKFLOW,
-}
-_KIND_FROM_FOLDER: dict[str, BlueprintKind] = {
-    "tasks": BlueprintKind.TASK,
-    "workflows": BlueprintKind.WORKFLOW,
-}
-
 
 class Blueprint:
     """Load, inspect, and dump a unified task/workflow document."""
 
     spec: ClassVar[type[BlueprintDefinition]] = BlueprintDefinition
+    _KIND_FROM_ITEM_TYPE: ClassVar[dict[CatalogItemType, BlueprintKind]] = {
+        CatalogItemType.TASK: BlueprintKind.TASK,
+        CatalogItemType.WORKFLOW: BlueprintKind.WORKFLOW,
+    }
+    _KIND_FROM_FOLDER: ClassVar[dict[str, BlueprintKind]] = {
+        "tasks": BlueprintKind.TASK,
+        "workflows": BlueprintKind.WORKFLOW,
+    }
 
     def __init__(self, instance: BlueprintDefinition) -> None:
         self._instance = instance
@@ -43,14 +42,14 @@ class Blueprint:
         if result.status == CatalogResolveStatus.LOAD_ERROR or result.raw is None or result.record is None:
             detail = "; ".join(result.errors) if result.errors else "no YAML object"
             raise BlueprintLoadError(f"Failed to load blueprint '{name}' from catalog: {detail}")
-        kind = _kind_from_item_type(result.record.item_type)
+        kind = cls._kind_from_item_type(result.record.item_type)
         return cls(cls.spec.from_document(result.raw, kind=kind))
 
     @classmethod
     def from_path(cls, path: Path) -> Blueprint:
         """Build a handle from a YAML file, inferring kind from a parent folder."""
         resolved = path.resolve()
-        kind = _kind_from_path(resolved)
+        kind = cls._kind_from_path(resolved)
         try:
             raw = Catalog.read_yaml(resolved)
         except (CatalogFileNotFoundError, CatalogYamlError) as exc:
@@ -81,21 +80,21 @@ class Blueprint:
         """Return the in-memory document as a JSON-mode dict, including derived kind."""
         return self._instance.model_dump(mode="json")
 
+    @classmethod
+    def _kind_from_item_type(cls, item_type: CatalogItemType) -> BlueprintKind:
+        """Map a catalog item type to a blueprint kind, or raise."""
+        kind = cls._KIND_FROM_ITEM_TYPE.get(item_type)
+        if kind is None:
+            raise BlueprintValidationError(f"Cannot derive blueprint kind from catalog item type '{item_type}'.")
+        return kind
 
-def _kind_from_item_type(item_type: CatalogItemType) -> BlueprintKind:
-    """Map a catalog item type to a blueprint kind, or raise."""
-    kind = _KIND_FROM_ITEM_TYPE.get(item_type)
-    if kind is None:
-        raise BlueprintValidationError(f"Cannot derive blueprint kind from catalog item type '{item_type}'.")
-    return kind
-
-
-def _kind_from_path(path: Path) -> BlueprintKind:
-    """Infer kind from the nearest ``tasks`` or ``workflows`` ancestor folder."""
-    for parent in path.parents:
-        kind = _KIND_FROM_FOLDER.get(parent.name)
-        if kind is not None:
-            return kind
-    raise BlueprintValidationError(
-        f"Cannot infer blueprint kind from path '{path}'; expected a parent 'tasks/' or 'workflows/' segment."
-    )
+    @classmethod
+    def _kind_from_path(cls, path: Path) -> BlueprintKind:
+        """Infer kind from the nearest ``tasks`` or ``workflows`` ancestor folder."""
+        for parent in path.parents:
+            kind = cls._KIND_FROM_FOLDER.get(parent.name)
+            if kind is not None:
+                return kind
+        raise BlueprintValidationError(
+            f"Cannot infer blueprint kind from path '{path}'; expected a parent 'tasks/' or 'workflows/' segment."
+        )
