@@ -772,11 +772,42 @@ referenced step definition as-is.
   `evaluate_assertions` when an `assert` block is present. Assertion failure rewrites the
   attempt to `status="failed"` with a multi-line diagnostic in `error_message` before
   `on_failure` retry/continue logic runs.
-- Handles `on_failure` policies:
+- Handles step-local `on_failure` recovery only:
   - `action == "retry"`: retries execution up to `max_retries` attempts, sleeping `backoff_ms` milliseconds between attempts. After the final failed attempt, evaluates `on_max_retries`: `continue` returns `status="ignored"` (`ok=True`); `abort`/`prompt_user` return `status="failed"`.
   - `action == "continue"` (no retry): a single failed attempt returns `status="ignored"` (`ok=True`).
-  - `action == "abort"` / `"prompt_user"` (no retry): a single failed attempt returns `status="failed"`. There is no interactive `prompt_user` UI yet, so it behaves like `abort`.
+  - `action == "abort"` / `"prompt_user"` (no retry): a single failed attempt returns `status="failed"`. `execute_step` never opens an interactive prompt; `prompt_user` only classifies the attempt as terminal failure for runtime orchestration.
 - Returns `StepResult`: `step_id`, `status` (`completed`, `failed`, `ignored`), `exit_code`, `stdout`, `stderr`, `duration_seconds`, `attempts`, `error_message`. `@property def ok` returns `True` for `completed` or `ignored`.
+
+### Runtime failure orchestration (`run_steps`)
+
+Multi-step stop/continue/prompt decisions live in `core/runtime/` (`run_steps`,
+`FailurePrompter`), not in `execute_step` and not in a second task/workflow
+policy engine.
+
+When a step returns `status="failed"`, runtime computes the **effective terminal
+policy** from the resolved `StepDefinition.on_failure`:
+
+- if `action == retry` → effective = `on_max_retries`
+- else → effective = `action`
+
+Effective value is always terminal (`abort` / `continue` / `prompt_user`; never
+`retry`). Behavior:
+
+- `abort` → stop the step loop; `RunOutcome.status == FAILED`
+- `continue` on a `failed` result is defensive only (step-local continue already
+  maps to `ignored`); runtime treats it as non-fatal and proceeds
+- `prompt_user` → invoke `RunContext.failure_prompter` when interactive; honor
+  retry (re-enter `execute_step` for the same step), continue (`ignored` +
+  `user continued after prompt_user` marker), or abort (`FAILED`)
+
+Non-interactive degradation (`RunContext.non_interactive`, CLI
+`--non-interactive`, or no TTY / missing prompter): `prompt_user` emits a
+warning and behaves as `abort` without blocking on stdin. Default when
+`failure_prompter is None` is abort (safe for library/CI callers).
+
+There is no run-level retry policy in YAML. The only automatic re-execution of a
+step primitive is inside `execute_step`; user-chosen retry at the prompt is a
+runtime re-entry of `execute_step` (full step-local budget applies again).
 
 #### Assert Block
 

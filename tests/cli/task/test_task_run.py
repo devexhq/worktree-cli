@@ -102,6 +102,7 @@ def test_task_run_keep_retains_sandbox(fs: FileSystem, monkeypatch: pytest.Monke
         agent=None,
         observer=None,
         inputs=None,
+        **kwargs,
     ):
         if observer is not None:
             observer.on_sandbox_ready(kept_path, True)
@@ -150,6 +151,7 @@ def test_task_run_cancelled_status(fs: FileSystem, monkeypatch: pytest.MonkeyPat
         agent=None,
         observer=None,
         inputs=None,
+        **kwargs,
     ):
         return RunOutcome(
             status=RunStatus.CANCELLED,
@@ -338,3 +340,30 @@ def test_task_run_cli_input_override(fs: FileSystem, monkeypatch: pytest.MonkeyP
     )
     assert result.exit_code == 0
     assert "Task Run Completed:" in result.output
+
+
+def test_task_run_non_interactive_flag_forwarded(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(fs.base_path)
+    fs.create_task_file(
+        "ni-task",
+        use_sandbox=False,
+        steps=[{"id": "ok", "run": "echo ok"}],
+    )
+    captured = {}
+
+    def _fake_run_task(definition, cwd, **kwargs):
+        captured.update(kwargs)
+        return RunOutcome(
+            status=RunStatus.COMPLETED,
+            step_results=[],
+            error_message=None,
+            sandbox_kept=False,
+            sandbox_path=cwd,
+        )
+
+    monkeypatch.setattr("worktree.cli.task.command.run_task", _fake_run_task)
+    # Force non-interactive path even if TTY
+    res = task_run_command("ni-task", cwd=fs.base_path, non_interactive=True, session_id="task_ni1")
+    assert res.ok
+    assert captured.get("non_interactive") is True
+    assert captured.get("failure_prompter") is None

@@ -162,6 +162,7 @@ def test_task_run_status_transitions_and_persistence(fs: FileSystem, monkeypatch
         agent=None,
         observer=None,
         inputs=None,
+        **kwargs,
     ):
         return RunOutcome(
             status=RunStatus.CANCELLED,

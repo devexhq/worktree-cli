@@ -36,11 +36,18 @@ a valid definition the command prints an error panel and exits `1`.
 
 ```bash
 wt workflow run <name>
+wt workflow run <name> --non-interactive
 ```
 
 #### Arguments
 
 * `name`: Logical workflow name registered in catalog storage or built-in templates.
+
+#### Options
+
+| Flag | Description |
+| --- | --- |
+| `--non-interactive` | Reserved for execution: disable interactive `prompt_user` prompts and abort instead. Accepted now so scripts can pass the flag once step execution lands. |
 
 ### `wt workflow resume`
 

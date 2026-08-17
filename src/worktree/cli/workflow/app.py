@@ -37,9 +37,14 @@ def workflow_show(
 def workflow_run(
     ctx: typer.Context,
     name: str = typer.Argument(..., help="Logical workflow name to run."),
+    non_interactive: bool = typer.Option(
+        False,
+        "--non-interactive",
+        help="Disable interactive prompts; prompt_user failures abort the run.",
+    ),
 ):
     """Run a workflow (validates the definition; execution is not implemented yet)."""
-    workflow_run_command(name, cli_args=list(ctx.args))
+    workflow_run_command(name, cli_args=list(ctx.args), non_interactive=non_interactive)
 
 
 @workflow_app.command("resume")

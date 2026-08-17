@@ -27,13 +27,45 @@ Executes a bounded task blueprint:
 
 ```bash
 wt task run <name>
+wt task run <name> --non-interactive
 ```
+
+#### Options
+
+| Flag | Description |
+| --- | --- |
+| `--no-sandbox` | Run in-place without a Git sandbox. |
+| `--keep` | Retain the sandbox worktree after completion. |
+| `--agent` | Override the default target agent adapter. |
+| `--non-interactive` | Disable interactive failure prompts. Steps with `on_failure: prompt_user` abort with a warning instead of blocking on stdin. Also applies when stdin is not a TTY. |
+
+When a step fails with effective terminal policy `prompt_user` and the run is
+interactive, the CLI prompts:
+
+```text
+Step 'create-plan' failed (exit code 1).
+<details>
+
+Task paused waiting for user input.
+
+Options:
+  [r] Retry step execution
+  [c] Continue run (ignore failure)
+  [a] Abort run
+
+Select option [r/c/a]:
+```
+
+Choices accept short letters or full words (`retry` / `continue` / `abort`).
+Invalid input re-prompts. This is an in-process prompt gate only — not a durable
+DB `paused` status.
 
 #### Examples
 
 ```bash
 wt task run audit-tokens
 wt task run format-code
+wt task run audit-tokens --non-interactive
 ```
 
 ---

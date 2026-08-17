@@ -11,7 +11,7 @@ from worktree.common.utils import RichOutput
 from worktree.core.catalog.services.inventory import get_catalog_dir
 from worktree.core.db import RunStatus, TaskRunRecord, TasksDb
 from worktree.core.inputs import format_missing_inputs_error, resolve_inputs
-from worktree.core.runtime import RunOutcome
+from worktree.core.runtime import FailurePrompter, RunOutcome
 from worktree.core.step import StepDefinition, StepResult
 from worktree.core.task import (
     TaskDefinition,
@@ -26,6 +26,7 @@ from .models import (
     TaskRunCommandOutcome,
     TaskShowCommandOutcome,
 )
+from .prompter import CliFailurePrompter
 from .renderers import (
     render_task_list,
     render_task_run_success,
@@ -225,6 +226,20 @@ def task_show_command(
     return TaskShowCommandOutcome(item=item, content=content)
 
 
+def _resolve_failure_prompter(
+    output: RichOutput,
+    *,
+    non_interactive: bool,
+) -> tuple[bool, FailurePrompter | None]:
+    """Build the CLI prompter and effective non-interactive flag (TTY-aware)."""
+    if non_interactive:
+        return True, None
+    prompter = CliFailurePrompter(output, kind="task")
+    if not prompter.is_interactive:
+        return True, None
+    return False, prompter
+
+
 def task_run_command(
     name: str,
     cwd: Path | None = None,
@@ -234,6 +249,7 @@ def task_run_command(
     agent: str | None = None,
     session_id: str | None = None,
     cli_args: list[str] | None = None,
+    non_interactive: bool = False,
     rich_output: RichOutput | None = None,
 ) -> TaskRunCommandOutcome:
     """Resolve a task blueprint, execute it via core runtime, and persist status."""
@@ -265,6 +281,11 @@ def task_run_command(
     run_record, warnings = _insert_running_record(cwd, sid, name)
     warnings.extend(input_result.warnings)
 
+    effective_non_interactive, failure_prompter = _resolve_failure_prompter(
+        output,
+        non_interactive=non_interactive,
+    )
+
     output.info(f"Running task '{name}'...")
     run_outcome = run_task(
         definition=definition,
@@ -274,7 +295,12 @@ def task_run_command(
         agent=agent,
         observer=CliRunObserver(output),
         inputs=input_result.values,
+        non_interactive=effective_non_interactive,
+        failure_prompter=failure_prompter,
     )
+    warnings.extend(run_outcome.warnings)
+    for warning in run_outcome.warnings:
+        output.info(warning)
 
     updated_record, update_warnings = _update_run_status(
         cwd,

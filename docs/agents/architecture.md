@@ -50,7 +50,10 @@ Single-step execution lives in `core/step/`; multi-step orchestration lives in
   `execute_step`. Catalog, task, and workflow YAML steps all share this
   `StepAssert` model (field alias `assert` → `assert_`).
 - **Runtime domain** (`core/runtime/`) owns the shared multi-step execution
-  engine (`run_steps`), `RunContext`, `RunObserver`, and `RunOutcome`.
+  engine (`run_steps`), `RunContext`, `RunObserver`, `RunOutcome`, and
+  in-process failure orchestration (`FailurePrompter`, effective terminal
+  policy after a failed `StepResult`). Step-local retry/continue stays in
+  `core/step/`; runtime owns stop / prompt_user / user retry-or-continue.
 - **Workflow domain** (`core/workflows/`) owns workflow models, payloads, patch
   validation helpers, and agent adapters (`core/workflows/agents/`).
 - **Catalog domain** (`core/catalog/`) owns blueprint scanning/indexing, database
