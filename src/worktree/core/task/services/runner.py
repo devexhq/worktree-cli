@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from worktree.core.runtime import RunContext, RunObserver, RunOutcome, run_steps
+from worktree.core.runtime import (
+    FailurePrompter,
+    RunContext,
+    RunObserver,
+    RunOutcome,
+    RunPauseHook,
+    run_steps,
+)
 from worktree.core.task.models import TaskDefinition
 
 
@@ -17,6 +24,9 @@ def run_task(
     agent: str | None = None,
     observer: RunObserver | None = None,
     inputs: dict[str, str | int | bool] | None = None,
+    non_interactive: bool = False,
+    failure_prompter: FailurePrompter | None = None,
+    pause_hook: RunPauseHook | None = None,
 ) -> RunOutcome:
     """Adapt ``TaskDefinition`` into ``RunContext`` and delegate to ``run_steps``."""
     context = RunContext(
@@ -27,5 +37,8 @@ def run_task(
         agent=agent,
         observer=observer,
         inputs=inputs,
+        non_interactive=non_interactive,
+        failure_prompter=failure_prompter,
+        pause_hook=pause_hook,
     )
     return run_steps(context)

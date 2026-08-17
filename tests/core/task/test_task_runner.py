@@ -47,6 +47,8 @@ def test_run_task_delegates_to_run_steps(monkeypatch: pytest.MonkeyPatch, tmp_pa
         agent="copilot",
         observer=observer,
         inputs={"message": "hi"},
+        non_interactive=True,
+        failure_prompter=None,
     )
 
     assert outcome is expected
@@ -58,6 +60,8 @@ def test_run_task_delegates_to_run_steps(monkeypatch: pytest.MonkeyPatch, tmp_pa
     assert context.agent == "copilot"
     assert context.observer is observer
     assert context.inputs == {"message": "hi"}
+    assert context.non_interactive is True
+    assert context.failure_prompter is None
 
 
 @pytest.mark.parametrize(

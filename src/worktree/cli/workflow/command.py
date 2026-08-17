@@ -155,6 +155,7 @@ def workflow_run_command(
     *,
     cwd: Path | None = None,
     cli_args: list[str] | None = None,
+    non_interactive: bool = False,
 ) -> None:
     """Resolve and validate a workflow definition, then report execution status.
 
@@ -168,7 +169,9 @@ def workflow_run_command(
         name: Workflow definition name.
         cwd: Repository root. Defaults to process CWD.
         cli_args: Trailing CLI tokens for declared workflow inputs.
+        non_interactive: When execution lands, degrade ``prompt_user`` to abort.
     """
+    del non_interactive  # Reserved for run_steps wiring once workflow execution lands.
     root = (cwd or Path.cwd()).resolve()
     _require_workflow_config(root)
 

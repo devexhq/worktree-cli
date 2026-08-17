@@ -9,7 +9,7 @@ import pytest
 
 from tests.helpers import FileSystem, GitFileSystem
 from worktree.core.db import RunStatus
-from worktree.core.runtime import RunContext, run_steps
+from worktree.core.runtime import FailurePromptDecision, RunContext, run_steps
 from worktree.core.step import StepDefinition, StepResult, StepType
 
 
@@ -223,3 +223,210 @@ def test_run_steps_sandbox_create_failure(fs: FileSystem) -> None:
     assert outcome.step_results == []
     assert outcome.error_message is not None
     assert "Git sandbox creation failed" in outcome.error_message
+
+
+class _ScriptedPrompter:
+    def __init__(self, decisions: list) -> None:
+        self.decisions = list(decisions)
+        self.calls = 0
+
+    def prompt_step_failure(
+        self,
+        *,
+        step: StepDefinition,
+        result: StepResult,
+        diagnostic: str,
+    ) -> FailurePromptDecision:
+        self.calls += 1
+        if not self.decisions:
+            raise AssertionError("prompter called with no remaining decisions")
+        return self.decisions.pop(0)
+
+
+def _failed_result(step_id: str = "fail") -> StepResult:
+    return StepResult(
+        step_id=step_id,
+        status="failed",
+        exit_code=1,
+        stdout="",
+        stderr="nope",
+        duration_seconds=0.01,
+        error_message="boom",
+    )
+
+
+def _ok_result(step_id: str = "fail") -> StepResult:
+    return StepResult(
+        step_id=step_id,
+        status="completed",
+        exit_code=0,
+        stdout="ok",
+        stderr="",
+        duration_seconds=0.01,
+    )
+
+
+def test_run_steps_prompt_user_abort(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    prompter = _ScriptedPrompter([FailurePromptDecision.ABORT])
+    calls: list[str] = []
+
+    def fake_execute(step, sandbox_path, context=None):
+        calls.append(step.id)
+        return _failed_result(step.id)
+
+    import worktree.core.runtime.engine as engine_mod
+
+    monkeypatch.setattr(engine_mod, "execute_step", fake_execute)
+
+    context = RunContext(
+        steps=[
+            _cmd_step("fail", "exit 1", on_failure="prompt_user"),
+            _cmd_step("later", "echo no"),
+        ],
+        cwd=fs.base_path,
+        use_sandbox=False,
+        failure_prompter=prompter,
+    )
+    outcome = run_steps(context)
+    assert outcome.status == RunStatus.FAILED
+    assert calls == ["fail"]
+    assert prompter.calls == 1
+    assert outcome.error_message == "Step 'fail' failed: boom"
+
+
+def test_run_steps_prompt_user_continue(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    from worktree.core.runtime import USER_CONTINUED_MARKER
+
+    prompter = _ScriptedPrompter([FailurePromptDecision.CONTINUE])
+
+    def fake_execute(step, sandbox_path, context=None):
+        if step.id == "fail":
+            return _failed_result("fail")
+        return _ok_result(step.id)
+
+    import worktree.core.runtime.engine as engine_mod
+
+    monkeypatch.setattr(engine_mod, "execute_step", fake_execute)
+
+    context = RunContext(
+        steps=[
+            _cmd_step("fail", "exit 1", on_failure="prompt_user"),
+            _cmd_step("later", "echo yes"),
+        ],
+        cwd=fs.base_path,
+        use_sandbox=False,
+        failure_prompter=prompter,
+    )
+    outcome = run_steps(context)
+    assert outcome.ok is True
+    assert outcome.step_results[0].status == "ignored"
+    assert USER_CONTINUED_MARKER in (outcome.step_results[0].error_message or "")
+    assert outcome.step_results[1].status == "completed"
+
+
+def test_run_steps_prompt_user_retry_then_success(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    prompter = _ScriptedPrompter([FailurePromptDecision.RETRY])
+    attempts = {"fail": 0}
+
+    def fake_execute(step, sandbox_path, context=None):
+        if step.id != "fail":
+            return _ok_result(step.id)
+        attempts["fail"] += 1
+        if attempts["fail"] == 1:
+            return _failed_result("fail")
+        return _ok_result("fail")
+
+    import worktree.core.runtime.engine as engine_mod
+
+    monkeypatch.setattr(engine_mod, "execute_step", fake_execute)
+
+    context = RunContext(
+        steps=[_cmd_step("fail", "exit 1", on_failure="prompt_user")],
+        cwd=fs.base_path,
+        use_sandbox=False,
+        failure_prompter=prompter,
+    )
+    outcome = run_steps(context)
+    assert outcome.ok is True
+    assert attempts["fail"] == 2
+    assert prompter.calls == 1
+    assert outcome.step_results[0].status == "completed"
+
+
+def test_run_steps_prompt_user_non_interactive_aborts(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    called = {"n": 0}
+
+    class BoomPrompter:
+        def prompt_step_failure(self, **kwargs):
+            called["n"] += 1
+            raise AssertionError("should not prompt")
+
+    def fake_execute(step, sandbox_path, context=None):
+        return _failed_result(step.id)
+
+    import worktree.core.runtime.engine as engine_mod
+
+    monkeypatch.setattr(engine_mod, "execute_step", fake_execute)
+
+    context = RunContext(
+        steps=[_cmd_step("fail", "exit 1", on_failure="prompt_user")],
+        cwd=fs.base_path,
+        use_sandbox=False,
+        non_interactive=True,
+        failure_prompter=BoomPrompter(),
+    )
+    outcome = run_steps(context)
+    assert outcome.status == RunStatus.FAILED
+    assert called["n"] == 0
+    assert any("non-interactive" in w for w in outcome.warnings)
+
+
+def test_run_steps_prompt_user_default_no_prompter_aborts(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_execute(step, sandbox_path, context=None):
+        return _failed_result(step.id)
+
+    import worktree.core.runtime.engine as engine_mod
+
+    monkeypatch.setattr(engine_mod, "execute_step", fake_execute)
+
+    context = RunContext(
+        steps=[_cmd_step("fail", "exit 1", on_failure="prompt_user")],
+        cwd=fs.base_path,
+        use_sandbox=False,
+    )
+    outcome = run_steps(context)
+    assert outcome.status == RunStatus.FAILED
+    assert any("no failure prompter" in w for w in outcome.warnings)
+
+
+def test_run_steps_retry_exhausted_uses_on_max_retries_prompt(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    from worktree.core.step import FailurePolicy, FailureSpec
+
+    prompter = _ScriptedPrompter([FailurePromptDecision.ABORT])
+
+    def fake_execute(step, sandbox_path, context=None):
+        return _failed_result(step.id)
+
+    import worktree.core.runtime.engine as engine_mod
+
+    monkeypatch.setattr(engine_mod, "execute_step", fake_execute)
+
+    step = StepDefinition(
+        id="fail",
+        type=StepType.COMMAND,
+        command="exit 1",
+        on_failure=FailureSpec(
+            action=FailurePolicy.RETRY,
+            max_retries=2,
+            on_max_retries=FailurePolicy.PROMPT_USER,
+        ),
+    )
+    context = RunContext(
+        steps=[step],
+        cwd=fs.base_path,
+        use_sandbox=False,
+        failure_prompter=prompter,
+    )
+    outcome = run_steps(context)
+    assert outcome.status == RunStatus.FAILED
+    assert prompter.calls == 1

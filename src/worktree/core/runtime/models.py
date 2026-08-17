@@ -9,6 +9,7 @@ from typing import Protocol
 from pydantic import BaseModel, Field
 
 from worktree.core.db import RunStatus
+from worktree.core.runtime.failure import FailurePrompter, RunPauseHook
 from worktree.core.step import StepDefinition, StepResult
 
 
@@ -23,6 +24,9 @@ class RunContext:
     agent: str | None = None
     observer: RunObserver | None = None
     inputs: dict[str, str | int | bool] | None = None
+    non_interactive: bool = False
+    failure_prompter: FailurePrompter | None = None
+    pause_hook: RunPauseHook | None = None
 
 
 class RunObserver(Protocol):
@@ -53,6 +57,7 @@ class RunOutcome(BaseModel):
     status: RunStatus
     step_results: list[StepResult] = Field(default_factory=list)
     error_message: str | None = None
+    warnings: list[str] = Field(default_factory=list)
     sandbox_kept: bool = False
     sandbox_path: Path
 

@@ -59,6 +59,11 @@ def task_run(
         "--agent",
         help="Override default target agent adapter.",
     ),
+    non_interactive: bool = typer.Option(
+        False,
+        "--non-interactive",
+        help="Disable interactive prompts; prompt_user failures abort the run.",
+    ),
 ):
     """Run a task blueprint."""
     outcome = task_run_command(
@@ -67,6 +72,7 @@ def task_run(
         keep=keep,
         agent=agent,
         cli_args=list(ctx.args),
+        non_interactive=non_interactive,
     )
     if not outcome.ok:
         raise typer.Exit(code=1)
