@@ -24,7 +24,8 @@ src/worktree/core/                   Business logic (no Typer)
   catalog/                           models.py + services/ + templates/
   step/                              models.py, exceptions.py, runner.py (entrypoint),
                                      assertions/, services/{loader,resolver}.py
-  runtime/                           models.py, engine.py (entrypoint), failure + pause helpers
+  runtime/                           models.py, exceptions.py, engine.py (entrypoint),
+                                     failure + pause helpers
   task/                              models.py, exceptions.py, services/{loader,runner,renderer}.py
   workflows/                         models.py, exceptions.py, services/, agents/
 

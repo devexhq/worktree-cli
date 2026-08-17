@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 from typing import Protocol
@@ -10,6 +10,7 @@ from typing import Protocol
 from pydantic import BaseModel, Field
 
 from worktree.core.db import RunStatus
+from worktree.core.git_sandbox import SandboxSession
 from worktree.core.step import StepDefinition, StepResult
 
 
@@ -77,6 +78,16 @@ def parse_checkpoint(raw: str | None) -> RunCheckpoint | None:
         return RunCheckpoint.model_validate_json(raw)
     except (ValueError, TypeError):
         return None
+
+
+@dataclass
+class StepLoopState:
+    """Mutable per-run bookkeeping threaded through the step loop."""
+
+    target_dir: Path
+    session: SandboxSession | None
+    step_results: list[StepResult] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

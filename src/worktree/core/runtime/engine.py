@@ -2,32 +2,24 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from pathlib import Path
 
 from worktree.core.db import RunStatus
 from worktree.core.git_sandbox import GitSandboxManager, SandboxSession
+from worktree.core.runtime.exceptions import PromptUserInterruptedError
 from worktree.core.runtime.failure import (
     effective_terminal_policy,
     mark_continued_after_prompt,
     step_failure_diagnostic,
 )
-from worktree.core.runtime.models import FailurePromptDecision, RunCheckpoint, RunContext, RunOutcome
+from worktree.core.runtime.models import (
+    FailurePromptDecision,
+    RunCheckpoint,
+    RunContext,
+    RunOutcome,
+    StepLoopState,
+)
 from worktree.core.step import FailurePolicy, StepDefinition, StepResult, execute_step
-
-
-class _RunPaused(Exception):
-    """Interactive prompt was interrupted after a durable checkpoint was saved."""
-
-
-@dataclass
-class _LoopState:
-    """Mutable per-run bookkeeping threaded through the step loop."""
-
-    target_dir: Path
-    session: SandboxSession | None
-    step_results: list[StepResult] = field(default_factory=list)
-    warnings: list[str] = field(default_factory=list)
 
 
 def _notify_sandbox_ready(context: RunContext, path: Path, *, active: bool) -> None:
@@ -150,7 +142,7 @@ def _build_step_context(context: RunContext) -> dict[str, object] | None:
 
 def _build_checkpoint(
     context: RunContext,
-    state: _LoopState,
+    state: StepLoopState,
     *,
     step: StepDefinition,
     result: StepResult,
@@ -198,7 +190,7 @@ def _try_clear_pause(context: RunContext, warnings: list[str]) -> None:
 
 def _prompt_user_decision(
     context: RunContext,
-    state: _LoopState,
+    state: StepLoopState,
     step: StepDefinition,
     result: StepResult,
     step_index: int,
@@ -224,7 +216,7 @@ def _prompt_user_decision(
         )
     except KeyboardInterrupt:
         if persisted:
-            raise _RunPaused(checkpoint.diagnostic) from None
+            raise PromptUserInterruptedError(checkpoint.diagnostic) from None
         raise
     _try_clear_pause(context, state.warnings)
     return decision, None
@@ -249,7 +241,7 @@ def _apply_prompt_decision(
 
 def _handle_failed_step(
     context: RunContext,
-    state: _LoopState,
+    state: StepLoopState,
     step: StepDefinition,
     result: StepResult,
     step_index: int,
@@ -274,7 +266,7 @@ def _handle_failed_step(
 
 def _execute_one_step(
     context: RunContext,
-    state: _LoopState,
+    state: StepLoopState,
     step: StepDefinition,
     *,
     idx: int,
@@ -314,7 +306,7 @@ def _pending_result_for_resume(checkpoint: RunCheckpoint, step: StepDefinition) 
 
 def _resume_pending_gate(
     context: RunContext,
-    state: _LoopState,
+    state: StepLoopState,
     step: StepDefinition,
     checkpoint: RunCheckpoint,
     step_index: int,
@@ -337,7 +329,7 @@ def _resume_pending_gate(
 
 def _dispatch_step(
     context: RunContext,
-    state: _LoopState,
+    state: StepLoopState,
     step: StepDefinition,
     step_index: int,
     step_context: dict[str, object] | None,
@@ -359,7 +351,7 @@ def _dispatch_step(
 
 def _run_remaining_steps(
     context: RunContext,
-    state: _LoopState,
+    state: StepLoopState,
     start: int,
 ) -> tuple[RunStatus, str | None]:
     """Execute remaining steps from ``start`` until completion or abort."""
@@ -377,13 +369,13 @@ def _run_remaining_steps(
 
 def _run_step_loop(
     context: RunContext,
-    state: _LoopState,
+    state: StepLoopState,
 ) -> tuple[RunStatus, list[StepResult], str | None, list[str]]:
     """Execute all steps, honoring failure policies and cancellation."""
     start = context.resume_from.next_step_index if context.resume_from is not None else 0
     try:
         status, error_message = _run_remaining_steps(context, state, start)
-    except _RunPaused as exc:
+    except PromptUserInterruptedError as exc:
         return RunStatus.PAUSED, state.step_results, str(exc) or None, state.warnings
     except KeyboardInterrupt:
         return RunStatus.CANCELLED, state.step_results, "Execution cancelled by user.", state.warnings
@@ -416,7 +408,7 @@ def run_steps(context: RunContext) -> RunOutcome:
     warnings: list[str] = []
     sandbox_kept = False
     prior = list(context.resume_from.step_results) if context.resume_from is not None else []
-    state = _LoopState(target_dir=target_dir, session=session, step_results=prior)
+    state = StepLoopState(target_dir=target_dir, session=session, step_results=prior)
 
     try:
         status, step_results, error_message, warnings = _run_step_loop(context, state)
