@@ -8,14 +8,14 @@ from pathlib import Path
 import pytest
 
 from tests.helpers import FileSystem
-from worktree.core.workflows.agents import AgentRequest, AgentResponseStatus
-from worktree.core.workflows.agents.cli_mutation import (
+from worktree.core.agents import AgentRequest, AgentResponseStatus
+from worktree.core.agents.cli_mutation import (
     CliDirectMutationAdapter,
     CliMutationOutcome,
     CliMutationRunRequest,
     build_mutation_prompt,
 )
-from worktree.core.workflows.services.payload import AgentFailurePayload
+from worktree.core.agents.models import AgentFailurePayload
 
 
 def _git(args: list[str], *, cwd: Path) -> None:

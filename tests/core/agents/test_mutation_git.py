@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from tests.helpers import FileSystem
-from worktree.core.workflows.agents.mutation_git import (
+from worktree.core.agents.mutation_git import (
     MutationGitError,
     capture_diff_since,
     discard_since,
@@ -77,7 +77,7 @@ class ResolvePreAgentBaselineTests:
             resolve_pre_agent_baseline(not_a_repo)
 
     def test_raises_on_git_timeout(self, repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        import worktree.core.workflows.agents.mutation_git as mutation_mod
+        import worktree.core.agents.mutation_git as mutation_mod
 
         def _timeout(*_args: object, **_kwargs: object) -> object:
             raise subprocess.TimeoutExpired(cmd=["git"], timeout=120)

@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from tests.helpers import FileSystem
-from worktree.core.workflows.agents import (
+from worktree.core.agents import (
     AgentRequest,
     AgentResponse,
     AgentResponseStatus,
@@ -18,13 +18,13 @@ from worktree.core.workflows.agents import (
     LocalAgentAdapter,
     get_agent_adapter,
 )
-from worktree.core.workflows.agents.local import (
+from worktree.core.agents.local import (
     DEFAULT_LOCAL_AGENT_CMD,
     LOCAL_AGENT_CMD_ENV,
     LocalAgentStdout,
     resolve_local_agent_argv_for_tests,
 )
-from worktree.core.workflows.services.payload import AgentFailurePayload
+from worktree.core.agents.models import AgentFailurePayload
 
 
 def _payload() -> AgentFailurePayload:

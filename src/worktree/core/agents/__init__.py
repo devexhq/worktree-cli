@@ -1,12 +1,12 @@
 """Agent adapter interfaces and provider implementations."""
 
-from worktree.core.workflows.agents.base import (
+from worktree.core.agents.base import (
     AgentAdapter,
     AgentRequest,
     AgentResponse,
     AgentResponseStatus,
 )
-from worktree.core.workflows.agents.cli_mutation import (
+from worktree.core.agents.cli_mutation import (
     DEFAULT_MAX_FILES,
     DEFAULT_MAX_PATCH_KB,
     DEFAULT_REJECT_BINARY_CHANGES,
@@ -16,18 +16,24 @@ from worktree.core.workflows.agents.cli_mutation import (
     CliMutationRunRequest,
     build_mutation_prompt,
 )
-from worktree.core.workflows.agents.copilot import CopilotAgentAdapter
-from worktree.core.workflows.agents.cursor import CursorAgentAdapter
-from worktree.core.workflows.agents.factory import get_agent_adapter
-from worktree.core.workflows.agents.gemini import GeminiAgentAdapter
-from worktree.core.workflows.agents.local import LocalAgentAdapter, LocalAgentStdout
-from worktree.core.workflows.agents.ollama import OllamaAgentAdapter
+from worktree.core.agents.copilot import CopilotAgentAdapter
+from worktree.core.agents.cursor import CursorAgentAdapter
+from worktree.core.agents.factory import get_agent_adapter
+from worktree.core.agents.gemini import GeminiAgentAdapter
+from worktree.core.agents.local import LocalAgentAdapter, LocalAgentStdout
+from worktree.core.agents.models import (
+    AgentFailurePayload,
+    PayloadFile,
+    PayloadOmission,
+)
+from worktree.core.agents.ollama import OllamaAgentAdapter
 
 __all__ = [
     "DEFAULT_MAX_FILES",
     "DEFAULT_MAX_PATCH_KB",
     "DEFAULT_REJECT_BINARY_CHANGES",
     "AgentAdapter",
+    "AgentFailurePayload",
     "AgentRequest",
     "AgentResponse",
     "AgentResponseStatus",
@@ -41,6 +47,8 @@ __all__ = [
     "LocalAgentAdapter",
     "LocalAgentStdout",
     "OllamaAgentAdapter",
+    "PayloadFile",
+    "PayloadOmission",
     "build_mutation_prompt",
     "get_agent_adapter",
 ]

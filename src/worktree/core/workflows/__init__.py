@@ -12,11 +12,6 @@ from worktree.core.workflows.models import (
     WorkflowResumeResult,
     WorkflowResumeStatus,
 )
-from worktree.core.workflows.services.payload import (
-    AgentFailurePayload,
-    PayloadFile,
-    PayloadOmission,
-)
 from worktree.core.workflows.services.renderer import (
     format_workflow_run_resolve_failure,
     format_workflow_run_validate_failure,
@@ -24,10 +19,7 @@ from worktree.core.workflows.services.renderer import (
 
 __all__ = [
     "WORKFLOW_VALIDATOR",
-    "AgentFailurePayload",
     "LoopStepBlock",
-    "PayloadFile",
-    "PayloadOmission",
     "WorkflowDefinition",
     "WorkflowInput",
     "WorkflowLoadError",

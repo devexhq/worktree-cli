@@ -1,1 +1,1 @@
-"""Workflow support services: patch validation, agent payloads, rendering, seeding."""
+"""Workflow support services: rendering, pause, and resume."""

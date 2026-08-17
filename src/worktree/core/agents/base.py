@@ -8,7 +8,7 @@ from typing import Literal, Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field
 
-from worktree.core.workflows.services.payload import AgentFailurePayload
+from worktree.core.agents.models import AgentFailurePayload
 
 
 class AgentResponseStatus(StrEnum):

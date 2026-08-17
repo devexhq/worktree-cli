@@ -27,7 +27,9 @@ src/worktree/core/                   Business logic (no Typer)
   runtime/                           models.py, exceptions.py, engine.py (entrypoint),
                                      failure + pause helpers
   task/                              models.py, exceptions.py, services/{loader,runner,renderer}.py
-  workflows/                         models.py, exceptions.py, services/, agents/
+  agents/                            models.py + adapters (base, factory, providers)
+  patch/                             models.py, exceptions.py, patch.py (entrypoint)
+  workflows/                         models.py, exceptions.py, services/
 
 src/worktree/common/                 Shared helpers (no core/ imports)
 src/worktree/schemas/v1/             Versioned JSON Schemas
@@ -45,20 +47,23 @@ Single-step execution: `core/step/` (`runner.py`). Multi-step orchestration:
 - **Task** (`core/task/`): `TaskDefinition`, catalog loader, `run_task` adapter,
   plain-text failure renderers.
 - **Inputs** (`core/inputs/`): `ParameterInput`, CLI resolve, `${{ inputs.* }}`
-  interpolation. Must not import step/runtime/task/workflows.
+  interpolation. Must not import step/runtime/task/workflows/agents/patch.
 - **Step** (`core/step/`): `StepDefinition`, `StepAssert` / assertions,
   `execute_step`, failure policy types used by blueprints. Must not import
-  runtime/task/workflows (agent dispatch today reaches `workflows.agents` from
-  the step runner — do not widen that edge casually).
+  runtime/task/workflows.
+- **Agents** (`core/agents/`): adapter protocol, provider implementations,
+  and failure payload models. Must not import step/runtime/task/workflows.
+- **Patch** (`core/patch/`): unified-diff parse/validate (no git apply).
+  Must not import agents/step/runtime/task/workflows.
 - **Runtime** (`core/runtime/`): `run_steps`, `RunContext` / `RunObserver` /
   `RunOutcome`, in-process failure orchestration after a failed step
   (stop / `prompt_user` / retry-or-continue), and durable pause via
   `RunPauseStore` / `RunCheckpoint` hooks. Step-local retry stays in step.
   Runtime must not import task/workflow DB facades or `cli/`.
-- **Workflows** (`core/workflows/`): workflow definition models, patch helpers,
-  agent adapters (`agents/`), and `resume_workflow` (rebuilds `RunContext` from
-  a paused checkpoint and re-enters `run_steps`). Sibling of task — neither
-  imports the other. Domain adapters persist pause checkpoints.
+- **Workflows** (`core/workflows/`): workflow definition models and
+  `resume_workflow` (rebuilds `RunContext` from a paused checkpoint and
+  re-enters `run_steps`). Sibling of task — neither imports the other.
+  Domain adapters persist pause checkpoints.
 - **Catalog** (`core/catalog/`): blueprint scan/index, `CatalogDb` sync hooks,
   packaged seeds under `templates/`.
 - **Shared core infra**: `config/`, `db/`, `bootstrap.py`, `git_sandbox.py`,
@@ -72,15 +77,19 @@ output grows past a couple of lines.
 Dependencies flow one way; do not import "up" the stack:
 
 ```
-common/  ->  core/{db,catalog,inputs}/  ->  core/step/  ->  core/runtime/  ->  {core/task/, core/workflows/}  ->  cli/
+common/  ->  core/{db,catalog,inputs,patch}/  ->  core/agents/  ->  core/step/  ->  core/runtime/  ->  {core/task/, core/workflows/}  ->  cli/
 ```
 
 - `common/` never depends on `core/`.
-- `core/inputs/` must not import `step`, `runtime`, `task`, or `workflows`.
+- `core/inputs/` must not import `step`, `runtime`, `task`, `workflows`,
+  `agents`, or `patch`.
+- `core/patch/` must not import `agents`, `step`, `runtime`, `task`, or
+  `workflows`.
+- `core/agents/` may use `patch/` and `config/`; must not import `step`,
+  `runtime`, `task`, or `workflows`.
 - `core/step/` must not import `runtime`, `task`, or `workflows` for shared
-  vocabulary — put shared types in `common/` or `step/`. (Narrow agent factory
-  use from the step runner is an existing edge, not a license to couple
-  domains.)
+  vocabulary — put shared types in `common/` or `step/`. Agent dispatch uses
+  `core.agents` from the step runner.
 - `core/runtime/` may use `step/`, `db/`, `git_sandbox.py`; must not import
   `task/`, `workflows/`, or `cli/`.
 - `core/task/` and `core/workflows/` depend on runtime/step/inputs/catalog;
@@ -163,9 +172,9 @@ and best-effort `SandboxesDb` writes.
 |---------|--------|
 | Workflow YAML / `wt workflow *` | [docs/cli/workflow.md](../cli/workflow.md), [schemas-and-config.md](schemas-and-config.md) |
 | Task YAML / `wt task *` | [docs/cli/task.md](../cli/task.md), schemas-and-config |
-| Patch validation | `core/workflows/services/patch.py` (`validate_patch_text`) |
-| Agent failure payload DTOs | Prefer `workflows/models.py` for **new** types; existing payload models may still live under `services/payload.py` until moved |
-| Agent adapters | `core/workflows/agents/` — protocol + `local` / `ollama` / `cursor` / `gemini` / `copilot` |
+| Patch validation | `core/patch/` (`validate_patch_text`) |
+| Agent failure payload DTOs | `core/agents/models.py` |
+| Agent adapters | `core/agents/` — protocol + `local` / `ollama` / `cursor` / `gemini` / `copilot` |
 | `wt workflow run` | Validate/load path today; full execution is incremental on the shared runtime — see open issues, not a second engine here |
 
 Provider-specific env vars and stdout contracts belong in code docstrings or

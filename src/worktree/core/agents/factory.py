@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
+from worktree.core.agents.base import AgentAdapter
+from worktree.core.agents.copilot import CopilotAgentAdapter
+from worktree.core.agents.cursor import CursorAgentAdapter
+from worktree.core.agents.gemini import GeminiAgentAdapter
+from worktree.core.agents.local import LocalAgentAdapter
+from worktree.core.agents.ollama import OllamaAgentAdapter
 from worktree.core.config.models import AgentConfig
-from worktree.core.workflows.agents.base import AgentAdapter
-from worktree.core.workflows.agents.copilot import CopilotAgentAdapter
-from worktree.core.workflows.agents.cursor import CursorAgentAdapter
-from worktree.core.workflows.agents.gemini import GeminiAgentAdapter
-from worktree.core.workflows.agents.local import LocalAgentAdapter
-from worktree.core.workflows.agents.ollama import OllamaAgentAdapter
 
 _SUPPORTED_V1 = ("local", "ollama", "cursor", "gemini", "copilot")
 

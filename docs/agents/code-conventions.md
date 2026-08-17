@@ -28,7 +28,7 @@ Do not include test seams in function and class definitions. Production code sho
 ### Core package layout
 
 Default skeleton for a **domain** package under `src/worktree/core/<domain>/`
-(exemplars: `task/`, `inputs/`, `catalog/`, `workflows/`):
+(exemplars: `task/`, `inputs/`, `catalog/`, `workflows/`, `agents/`, `patch/`):
 
 ```text
 core/<domain>/
@@ -37,7 +37,7 @@ core/<domain>/
   exceptions.py     # domain errors (omit if none)
   services/         # imperative operations
     <verb>.py       # load, run, render, resolve, …
-  <subpackage>/     # only for a real sub-boundary (e.g. agents/, assertions/)
+  <subpackage>/     # only for a real sub-boundary (e.g. assertions/)
 ```
 
 **Must:**
@@ -63,7 +63,7 @@ core/<domain>/
 | Location | Rule |
 |----------|------|
 | `core/config/`, `core/db/` | **Legacy flat infra** — modules stay at package root. Do not use as a template for new domains. |
-| `core/step/runner.py`, `core/runtime/engine.py` | **Allowed root entrypoints** for single-step / multi-step execution. New helpers still go in `services/` (or stay private in the entry module). Prefer `models.py` for new result/DTO types even when older types still live next to the runner. |
+| `core/step/runner.py`, `core/runtime/engine.py`, `core/patch/patch.py` | **Allowed root entrypoints** for single-step / multi-step execution and unified-diff validation. New helpers still go in `services/` (or stay private in the entry module). Prefer `models.py` for new result/DTO types even when older types still live next to the runner. |
 | `core/bootstrap.py`, `core/git_sandbox.py` | Top-level core infra modules (not domain packages). |
 | Private helpers (`_ParseState`, module-local exceptions) | May live next to the function that uses them. |
 
