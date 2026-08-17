@@ -34,16 +34,28 @@ Lint/format config lives in `pyproject.toml` under `[tool.ruff]` (no separate
 
 ## Documentation
 
-Update the relevant `docs/agents/*.md` in the same PR when behavior it describes
-changes. Keep docs lean: no doc update is better than an update made just for
-the sake of it, and stale content should be removed rather than left in place.
+Update docs in the same PR only when the change matches one of these gates:
+
+- **Package layout / ownership / import boundaries**: update
+  [docs/agents/architecture.md](docs/agents/architecture.md) *structure*
+  sections only (layers tree, domain ownership, boundaries). Do **not** append
+  feature behavior essays there.
+- **How to write Python in this repo** (models placement, Result/Outcome, DRY,
+  errors): update [docs/agents/code-conventions.md](docs/agents/code-conventions.md).
+- **User-visible CLI behavior**: update [docs/cli/](docs/cli/) (not architecture).
+- **config.json / blueprint YAML fields**: update
+  [docs/agents/schemas-and-config.md](docs/agents/schemas-and-config.md).
+
+Keep docs lean: no update is better than busywork. Prefer **deleting stale
+bullets** over appending a parallel truth. Pure refactors that do not change
+public layout or ownership need no architecture.md diff.
 
 ## Docs
 
 | Doc | When to use |
 |-----|-------------|
-| [docs/agents/architecture.md](docs/agents/architecture.md) | Understanding module layout, the command pattern, or the `.worktree/` directory structure |
-| [docs/agents/code-conventions.md](docs/agents/code-conventions.md) | Writing or reviewing Python code: Pydantic models, the Result/Outcome pattern, file writes, console output |
+| [docs/agents/architecture.md](docs/agents/architecture.md) | Module layout, domain ownership, import boundaries, `.worktree/` layout (structure only) |
+| [docs/agents/code-conventions.md](docs/agents/code-conventions.md) | Python style **and file placement** (`models.py` vs `services/`), Result/Outcome, writes, console output |
 | [docs/agents/testing.md](docs/agents/testing.md) | Adding or running tests |
 | [docs/agents/schemas-and-config.md](docs/agents/schemas-and-config.md) | Changing `config.json` or workflow YAML schemas/defaults |
 | [docs/agents/git-and-pr-conventions.md](docs/agents/git-and-pr-conventions.md) | Committing changes or opening a PR |
