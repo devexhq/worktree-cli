@@ -9,8 +9,13 @@ import pytest
 
 from tests.helpers import FileSystem, GitFileSystem
 from worktree.core.db import RunStatus
-from worktree.core.runtime import FailurePromptDecision, RunContext, run_steps
-from worktree.core.step import StepDefinition, StepResult, StepType
+from worktree.core.runtime import (
+    USER_CONTINUED_MARKER,
+    FailurePromptDecision,
+    RunContext,
+    run_steps,
+)
+from worktree.core.step import FailurePolicy, FailureSpec, StepDefinition, StepResult, StepType
 
 
 def _cmd_step(step_id: str, command: str, *, on_failure: str = "abort") -> StepDefinition:
@@ -295,8 +300,6 @@ def test_run_steps_prompt_user_abort(fs: FileSystem, monkeypatch: pytest.MonkeyP
 
 
 def test_run_steps_prompt_user_continue(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
-    from worktree.core.runtime import USER_CONTINUED_MARKER
-
     prompter = _ScriptedPrompter([FailurePromptDecision.CONTINUE])
 
     def fake_execute(step, sandbox_path, context=None):
@@ -400,8 +403,6 @@ def test_run_steps_prompt_user_default_no_prompter_aborts(fs: FileSystem, monkey
 
 
 def test_run_steps_retry_exhausted_uses_on_max_retries_prompt(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
-    from worktree.core.step import FailurePolicy, FailureSpec
-
     prompter = _ScriptedPrompter([FailurePromptDecision.ABORT])
 
     def fake_execute(step, sandbox_path, context=None):

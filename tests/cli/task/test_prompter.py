@@ -1,5 +1,7 @@
 """Unit tests for the CLI FailurePrompter adapter."""
 
+import pytest
+
 from worktree.cli.task.prompter import CliFailurePrompter
 from worktree.common.utils import RichOutput
 from worktree.core.runtime import FailurePromptDecision
@@ -35,28 +37,34 @@ def _result() -> StepResult:
     )
 
 
-def test_cli_failure_prompter_accepts_short_and_long_choices() -> None:
-    for raw, expected in [
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
         ("r", FailurePromptDecision.RETRY),
         ("retry", FailurePromptDecision.RETRY),
         ("c", FailurePromptDecision.CONTINUE),
         ("continue", FailurePromptDecision.CONTINUE),
         ("a", FailurePromptDecision.ABORT),
         ("abort", FailurePromptDecision.ABORT),
-    ]:
-        console = _FakeConsole()
-        prompter = CliFailurePrompter(
-            RichOutput(console=console),  # type: ignore[arg-type]
-            kind="task",
-            input_fn=lambda _p, value=raw: value,
-            stdin_isatty=True,
-        )
-        decision = prompter.prompt_step_failure(
-            step=_step(),
-            result=_result(),
-            diagnostic="details",
-        )
-        assert decision == expected
+    ],
+)
+def test_cli_failure_prompter_accepts_short_and_long_choices(
+    raw: str,
+    expected: FailurePromptDecision,
+) -> None:
+    console = _FakeConsole()
+    prompter = CliFailurePrompter(
+        RichOutput(console=console),  # type: ignore[arg-type]
+        kind="task",
+        input_fn=lambda _p, value=raw: value,
+        stdin_isatty=True,
+    )
+    decision = prompter.prompt_step_failure(
+        step=_step(),
+        result=_result(),
+        diagnostic="details",
+    )
+    assert decision == expected
 
 
 def test_cli_failure_prompter_reprompts_on_invalid_input() -> None:
