@@ -2,12 +2,12 @@
 
 from pathlib import Path
 
-from getworktree.core.step.assertions import (
+from tests.helpers import FileSystem
+from worktree.core.step.assertions import (
     evaluate_file_exists,
     evaluate_file_not_empty,
     evaluate_file_not_exists,
 )
-from tests.helpers import FileSystem
 
 
 def _write(fs: FileSystem, rel_path: str, content: str = "payload") -> None:

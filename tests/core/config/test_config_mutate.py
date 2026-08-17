@@ -7,13 +7,13 @@ from pathlib import Path
 
 import pytest
 
-from getworktree.core.config.generator import generate_default_config
-from getworktree.core.config.mutate import (
+from tests.helpers import FileSystem
+from worktree.core.config.generator import generate_default_config
+from worktree.core.config.mutate import (
     ConfigSetStatus,
     set_config_value_result,
     set_nested_value,
 )
-from tests.helpers import FileSystem
 
 
 def _write_default_config(repo: Path) -> Path:
@@ -230,7 +230,7 @@ class SetConfigValueResultTests:
         def mock_write_json(*args, **kwargs):
             raise OSError("Permission denied")
 
-        monkeypatch.setattr("getworktree.core.config.mutate.atomic_write_json", mock_write_json)
+        monkeypatch.setattr("worktree.core.config.mutate.atomic_write_json", mock_write_json)
 
         result = set_config_value_result("agent.model", "qwen2.5-coder", cwd=fs.base_path)
         assert not result.ok

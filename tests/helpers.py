@@ -4,7 +4,7 @@ from typing import Any
 
 import yaml
 
-from getworktree.core.config.generator import generate_default_config
+from worktree.core.config.generator import generate_default_config
 
 
 def _deep_merge(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:

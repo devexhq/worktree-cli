@@ -1,6 +1,6 @@
 """Unit tests for CLI input parsing and pre-execution resolution."""
 
-from getworktree.core.inputs import (
+from worktree.core.inputs import (
     InputType,
     ParameterInput,
     format_missing_inputs_error,

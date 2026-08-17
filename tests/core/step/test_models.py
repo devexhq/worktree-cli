@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from getworktree.core.step import (
+from worktree.core.step import (
     BlueprintDefaults,
     FailurePolicy,
     FailureSpec,

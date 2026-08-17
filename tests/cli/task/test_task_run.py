@@ -5,11 +5,11 @@ from unittest.mock import MagicMock
 import pytest
 from typer.testing import CliRunner
 
-from getworktree.cli import app
-from getworktree.cli.task.command import task_run_command
-from getworktree.core.db import RunStatus, TasksDb
-from getworktree.core.runtime import RunOutcome
 from tests.helpers import FileSystem
+from worktree.cli import app
+from worktree.cli.task.command import task_run_command
+from worktree.core.db import RunStatus, TasksDb
+from worktree.core.runtime import RunOutcome
 
 runner = CliRunner()
 
@@ -114,7 +114,7 @@ def test_task_run_keep_retains_sandbox(fs: FileSystem, monkeypatch: pytest.Monke
             sandbox_path=kept_path,
         )
 
-    monkeypatch.setattr("getworktree.cli.task.command.run_task", _fake_run_task)
+    monkeypatch.setattr("worktree.cli.task.command.run_task", _fake_run_task)
 
     result = runner.invoke(app, ["task", "run", "keep-task", "--keep"])
     assert result.exit_code == 0
@@ -159,7 +159,7 @@ def test_task_run_cancelled_status(fs: FileSystem, monkeypatch: pytest.MonkeyPat
             sandbox_path=cwd,
         )
 
-    monkeypatch.setattr("getworktree.cli.task.command.run_task", _fake_run_task)
+    monkeypatch.setattr("worktree.cli.task.command.run_task", _fake_run_task)
 
     res = task_run_command("cancel-task", cwd=fs.base_path, session_id="task_canc1")
     assert not res.ok
@@ -244,7 +244,7 @@ def test_task_run_invalid_assert_aborts_before_steps(fs: FileSystem, monkeypatch
     )
 
     run_task = MagicMock()
-    monkeypatch.setattr("getworktree.cli.task.command.run_task", run_task)
+    monkeypatch.setattr("worktree.cli.task.command.run_task", run_task)
 
     res = task_run_command("bad-assert-task", cwd=fs.base_path, session_id="task_bad_assert")
     assert not res.ok
@@ -276,7 +276,7 @@ def test_task_run_missing_required_input_skips_execution(fs: FileSystem, monkeyp
     )
 
     run_task = MagicMock()
-    monkeypatch.setattr("getworktree.cli.task.command.run_task", run_task)
+    monkeypatch.setattr("worktree.cli.task.command.run_task", run_task)
 
     res = task_run_command("commit", cwd=fs.base_path, session_id="task_missing_input")
     assert not res.ok

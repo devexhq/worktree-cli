@@ -1,4 +1,4 @@
-"""Tests for `getworktree.cli.init.renderers`."""
+"""Tests for `worktree.cli.init.renderers`."""
 
 from __future__ import annotations
 
@@ -6,17 +6,17 @@ from io import StringIO
 
 from rich.console import Console
 
-from getworktree.cli.init.models import InitCommandOutcome
-from getworktree.cli.init.renderers import (
+from tests.helpers import FileSystem
+from worktree.cli.init.models import InitCommandOutcome
+from worktree.cli.init.renderers import (
     render_init_bootstrap_failure,
     render_init_config_failure,
     render_init_outcome,
 )
-from getworktree.common.utils import RichOutput
-from getworktree.core.bootstrap import BootstrapResult
-from getworktree.core.catalog.models import SeedResult
-from getworktree.core.config.generator import ConfigGenerationResult
-from tests.helpers import FileSystem
+from worktree.common.utils import RichOutput
+from worktree.core.bootstrap import BootstrapResult
+from worktree.core.catalog.models import SeedResult
+from worktree.core.config.generator import ConfigGenerationResult
 
 
 def _rich() -> tuple[RichOutput, StringIO]:

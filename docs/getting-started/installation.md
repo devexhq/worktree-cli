@@ -1,6 +1,6 @@
 # Installation
 
-Worktree (`wt`) can be installed using Python package managers or system installers.
+Worktree CLI (`wt`) can be installed using Python package managers or system installers.
 
 ## Recommended Installation
 
@@ -9,19 +9,19 @@ Worktree (`wt`) can be installed using Python package managers or system install
 Install the package directly via `pip`:
 
 ```bash
-pip install getworktree
+pip install worktree-cli
 ```
 
 Using `pipx` (isolated application environments):
 
 ```bash
-pipx install getworktree
+pipx install worktree-cli
 ```
 
 Using `uv`:
 
 ```bash
-uv tool install getworktree
+uv tool install worktree-cli
 ```
 
 ### Local Development / Source Installation
@@ -39,21 +39,6 @@ To install with documentation dependencies:
 ```bash
 uv sync --extra docs
 # Or: uv pip install -e ".[docs]"
-```
-
-## Alternative Install Methods
-
-### Homebrew (macOS / Linux)
-
-```bash
-brew tap getworktree/tap
-brew install wt
-```
-
-### Script / Curl
-
-```bash
-curl -fsSL https://getworktree.io/install.sh | sh
 ```
 
 ## Verification

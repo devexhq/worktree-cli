@@ -2,9 +2,9 @@
 
 import pytest
 
-from getworktree.core.step import FailurePolicy, FailureSpec, StepDefinition, StepType, StepValidationError
-from getworktree.core.step.services.resolver import resolve_step_definition
 from tests.helpers import FileSystem
+from worktree.core.step import FailurePolicy, FailureSpec, StepDefinition, StepType, StepValidationError
+from worktree.core.step.services.resolver import resolve_step_definition
 
 
 def test_resolve_run_step_synthesizes_command_step():

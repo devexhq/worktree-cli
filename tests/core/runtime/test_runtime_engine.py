@@ -7,10 +7,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from getworktree.core.db import RunStatus
-from getworktree.core.runtime import RunContext, run_steps
-from getworktree.core.step import StepDefinition, StepResult, StepType
 from tests.helpers import FileSystem, GitFileSystem
+from worktree.core.db import RunStatus
+from worktree.core.runtime import RunContext, run_steps
+from worktree.core.step import StepDefinition, StepResult, StepType
 
 
 def _cmd_step(step_id: str, command: str, *, on_failure: str = "abort") -> StepDefinition:
@@ -87,7 +87,7 @@ def test_run_steps_abort_on_failure(fs: FileSystem, monkeypatch: pytest.MonkeyPa
             duration_seconds=0.01,
         )
 
-    import getworktree.core.runtime.engine as engine_mod
+    import worktree.core.runtime.engine as engine_mod
 
     monkeypatch.setattr(engine_mod, "execute_step", fake_execute)
 
@@ -173,7 +173,7 @@ def test_run_steps_observer_callbacks(fs: FileSystem) -> None:
 
 
 def test_run_steps_keyboard_interrupt(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
-    import getworktree.core.runtime.engine as engine_mod
+    import worktree.core.runtime.engine as engine_mod
 
     def raise_interrupt(
         step: StepDefinition,

@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 from typer.testing import CliRunner
 
-from getworktree.cli.cli import __version__, app
 from tests.helpers import GitFileSystem
+from worktree.cli.cli import __version__, app
 
 runner = CliRunner()
 

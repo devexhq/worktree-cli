@@ -1,10 +1,10 @@
 [project]
-name = "getworktree"
+name = "worktree-cli"
 dynamic = ["version"]
 authors = [
-    { name = "Worktree Team", email = "hello@getworktree.io" }
+    { name = "DevEx HQ Team", email = "team@devexhq.com" }
 ]
-description = "Isolated git worktree developer workflows and AI agent workspaces."
+description = "Isolated Git worktrees for developer and AI agent automated workflow management.."
 readme = "README.md"
 requires-python = ">=3.13"
 classifiers = [
@@ -23,9 +23,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://getworktree.io"
-Repository = "https://github.com"
-"Bug Tracker" = "https://github.com/issues"
+Homepage = "https://devexhq.github.io/worktree-cli/"
+Repository = "https://github.com/devexhq/worktree-cli"
+"Bug Tracker" = "https://github.com/devexhq/worktree-cli/issues"
 
 [project.optional-dependencies]
 dev = [
@@ -46,15 +46,20 @@ cursor = [
 ]
 
 [project.scripts]
-wt = "getworktree.cli.cli:app"
+wt = "worktree.cli.cli:app"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
-# Hatchling replacement for find_packages(exclude=...) and package_data
+# Installable import package lives at src/worktree (src-layout).
 [tool.hatch.build.targets.wheel]
-packages = ["getworktree"]
+packages = ["src/worktree"]
+# Editable: add src/ to sys.path via .pth only (avoid copying into site-packages).
+dev-mode-dirs = ["src"]
+
+[tool.hatch.build.targets.wheel.sources]
+"src" = ""
 
 # Hatchling replacement for your dynamic GitHub Actions version script
 [tool.hatch.version]
@@ -66,10 +71,13 @@ local_scheme = "no-local-version"
 
 [tool.pytest.ini_options]
 addopts = ""
+# Repo root must be importable so `tests.*` helpers resolve when invoked via the
+# `pytest` console script (sys.path[0] is not cwd in that mode).
+pythonpath = ["."]
 python_classes = ["Test*", "*Tests"]
 
 [tool.coverage.run]
-source = ["getworktree"]
+source = ["worktree"]
 branch = false
 
 [tool.coverage.report]
@@ -105,7 +113,7 @@ dummy-variable-rgx = "^_$"
 
 [tool.ruff.lint.isort]
 combine-as-imports = true
-known-first-party = ["getworktree"]
+known-first-party = ["worktree"]
 split-on-trailing-comma = true
 
 [tool.ruff.lint.pydocstyle]
@@ -131,7 +139,7 @@ dev = [
 [tool.basedpyright]
 # Package-only gate for the ljb/typing rollout. Tests stay untyped until the
 # library surface is clean under recommended mode.
-include = ["getworktree"]
+include = ["src"]
 exclude = [
     "**/__pycache__",
     "build",

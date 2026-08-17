@@ -2,7 +2,7 @@
 
 from enum import StrEnum
 
-from getworktree.common.utils import enum_value
+from worktree.common.utils import enum_value
 
 
 class EnumObject(StrEnum):

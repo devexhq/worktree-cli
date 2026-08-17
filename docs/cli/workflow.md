@@ -7,9 +7,9 @@ The `wt workflow` command discovers, lists, and validates workflow definitions.
 > execution is being rebuilt incrementally on top of the Workflow Spec v1
 > model; see
 > [docs/agents/architecture.md](../agents/architecture.md#workflow-run-cli-not-yet-executing-workflows)
-> and issues [#171](https://github.com/getworktree/getworktree/issues/171),
-> [#172](https://github.com/getworktree/getworktree/issues/172), and
-> [#173](https://github.com/getworktree/getworktree/issues/173).
+> and issues [#171](https://github.com/devexhq/worktree-cli/issues/171),
+> [#172](https://github.com/devexhq/worktree-cli/issues/172), and
+> [#173](https://github.com/devexhq/worktree-cli/issues/173).
 
 ## Subcommands
 
@@ -56,7 +56,7 @@ wt workflow resume <session_id>
 
 Workflow blueprints live in `.worktree/workflows/<name>.yml`. Below
 is an example matching the current Workflow Spec v1 schema
-(`getworktree/schemas/v1/workflow.json`):
+(`src/worktree/schemas/v1/workflow.json`):
 
 ```yaml
 version: "1.0"

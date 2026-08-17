@@ -61,12 +61,12 @@ Reuse this shape for new core operations instead of introducing ad-hoc return ty
 
 Never write a config/state file directly. Write to a `.tmp` sibling, flush,
 `os.fsync`, then `Path.replace` to swap it into place atomically. See
-`atomic_write_json` in [getworktree/common/fs.py](../../getworktree/common/fs.py)
+`atomic_write_json` in [src/worktree/common/fs.py](../../src/worktree/common/fs.py)
 and `atomic_write_text` in the same module for the pattern.
 
 ## Console output
 
-All CLI output goes through `RichOutput` ([getworktree/common/utils.py](../../getworktree/common/utils.py))
+All CLI output goes through `RichOutput` ([src/worktree/common/utils.py](../../src/worktree/common/utils.py))
 or a shared `rich.console.Console` — no bare `print()`. Use `RichOutput.error_panel`
 for failures so error formatting stays consistent across commands.
 
@@ -149,6 +149,6 @@ should be reported, leave a one-line comment at the `except` site saying so.
 - Docstrings follow the Google convention, enforced by ruff's `D` rules
   (`[tool.ruff]` in [pyproject.toml](../../pyproject.toml)). `__init__.py` and
   `tests/*` are exempt.
-- `getworktree` is registered as first-party for isort; keep local imports grouped
+- `worktree` is registered as first-party for isort; keep local imports grouped
   accordingly and let `ruff format`/`ruff check --fix` handle ordering.
 - Use `__all__` in package root `__init__.py` files when re-exporting internal symbols into a public subpackage surface (e.g. `core/db/__init__.py`). Omit `__all__` in leaf modules.

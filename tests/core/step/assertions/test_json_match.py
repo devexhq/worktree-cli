@@ -3,7 +3,7 @@
 import json
 from typing import Any
 
-from getworktree.core.step.assertions import evaluate_json_match
+from worktree.core.step.assertions import evaluate_json_match
 
 
 def _json_stdout(payload: object) -> str:

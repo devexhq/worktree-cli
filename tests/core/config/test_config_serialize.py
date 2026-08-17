@@ -5,13 +5,13 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from getworktree.core.config.generator import (
+from worktree.core.config.generator import (
     CANONICAL_V1_DEFAULTS,
     build_default_config,
 )
-from getworktree.core.config.loader import parse_and_validate_config
-from getworktree.core.config.models import WorktreeConfig
-from getworktree.core.config.serialize import as_json, serialize_config
+from worktree.core.config.loader import parse_and_validate_config
+from worktree.core.config.models import WorktreeConfig
+from worktree.core.config.serialize import as_json, serialize_config
 
 _TOP_LEVEL = (
     "version",

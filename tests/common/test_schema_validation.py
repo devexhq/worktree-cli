@@ -1,12 +1,12 @@
-"""Tests for `getworktree.common.schema_validation`."""
+"""Tests for `worktree.common.schema_validation`."""
 
 from __future__ import annotations
 
 from importlib import resources
 
-from getworktree.common.schema_validation import SchemaValidator
+from worktree.common.schema_validation import SchemaValidator
 
-WORKFLOW_VALIDATOR = SchemaValidator(resources.files("getworktree.schemas.v1") / "workflow.json")
+WORKFLOW_VALIDATOR = SchemaValidator(resources.files("worktree.schemas.v1") / "workflow.json")
 
 
 class ValidateWorkflowV1Tests:

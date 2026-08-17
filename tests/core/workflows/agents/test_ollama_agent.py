@@ -8,14 +8,15 @@ from urllib.error import URLError
 
 import pytest
 
-from getworktree.common.schema_validation import CONFIG_VALIDATOR
-from getworktree.core.workflows.agents import (
+from tests.helpers import FileSystem
+from worktree.common.schema_validation import CONFIG_VALIDATOR
+from worktree.core.workflows.agents import (
     AgentRequest,
     AgentResponseStatus,
     OllamaAgentAdapter,
     get_agent_adapter,
 )
-from getworktree.core.workflows.agents.ollama import (
+from worktree.core.workflows.agents.ollama import (
     DEFAULT_OLLAMA_ENDPOINT,
     MODEL_OUTPUT_UNPARSEABLE,
     OLLAMA_HOST_ENV,
@@ -25,9 +26,8 @@ from getworktree.core.workflows.agents.ollama import (
     resolve_ollama_endpoint,
     validate_ollama_endpoint,
 )
-from getworktree.core.workflows.models import WORKFLOW_VALIDATOR
-from getworktree.core.workflows.services.payload import AgentFailurePayload
-from tests.helpers import FileSystem
+from worktree.core.workflows.models import WORKFLOW_VALIDATOR
+from worktree.core.workflows.services.payload import AgentFailurePayload
 
 
 def _payload() -> AgentFailurePayload:
@@ -230,7 +230,7 @@ class SchemaOllamaTests:
     def test_config_schema_accepts_ollama(self) -> None:
         import copy
 
-        from getworktree.core.config.generator import CANONICAL_V1_DEFAULTS
+        from worktree.core.config.generator import CANONICAL_V1_DEFAULTS
 
         data = copy.deepcopy(CANONICAL_V1_DEFAULTS)
         data["agent"]["provider"] = "ollama"
@@ -240,7 +240,7 @@ class SchemaOllamaTests:
     def test_config_schema_rejects_unsupported_provider(self) -> None:
         import copy
 
-        from getworktree.core.config.generator import CANONICAL_V1_DEFAULTS
+        from worktree.core.config.generator import CANONICAL_V1_DEFAULTS
 
         data = copy.deepcopy(CANONICAL_V1_DEFAULTS)
         data["agent"]["provider"] = "invalid_provider_name"

@@ -28,7 +28,7 @@ jobs:
 
       - name: Run tests with coverage
         # fail_under=80 is configured in pyproject.toml [tool.coverage.report]
-        run: uv run pytest --cov=getworktree --cov-report=term-missing --cov-report=xml tests/ -q
+        run: uv run python -m pytest --cov=worktree --cov-report=term-missing --cov-report=xml tests/ -q
 
   lint:
     name: Lint & Format
@@ -87,9 +87,9 @@ jobs:
             BASE=$(git rev-parse HEAD~1 2>/dev/null || git rev-list --max-parents=0 HEAD)
           fi
 
-          mapfile -t FILES < <(git diff --name-only --diff-filter=ACMR "$BASE" HEAD -- 'getworktree/*.py')
+          mapfile -t FILES < <(git diff --name-only --diff-filter=ACMR "$BASE" HEAD -- 'src/**/*.py')
           if [ ${#FILES[@]} -eq 0 ]; then
-            echo "No changed getworktree/*.py files; skipping complexity check."
+            echo "No changed src/**/*.py files; skipping complexity check."
             exit 0
           fi
 

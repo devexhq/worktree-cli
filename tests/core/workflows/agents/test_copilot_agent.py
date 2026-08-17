@@ -7,22 +7,22 @@ from pathlib import Path
 
 import pytest
 
-from getworktree.core.workflows.agents import (
+from tests.helpers import FileSystem
+from worktree.core.workflows.agents import (
     AgentRequest,
     AgentResponseStatus,
     CopilotAgentAdapter,
     get_agent_adapter,
 )
-from getworktree.core.workflows.agents.cli_mutation import (
+from worktree.core.workflows.agents.cli_mutation import (
     CliMutationOutcome,
     CliMutationRunRequest,
 )
-from getworktree.core.workflows.agents.copilot import (
+from worktree.core.workflows.agents.copilot import (
     default_copilot_run,
     resolve_copilot_token,
 )
-from getworktree.core.workflows.services.payload import AgentFailurePayload
-from tests.helpers import FileSystem
+from worktree.core.workflows.services.payload import AgentFailurePayload
 
 
 def _git(args: list[str], *, cwd: Path) -> None:

@@ -1,4 +1,4 @@
-"""Tests for `getworktree.core.config.generator`."""
+"""Tests for `worktree.core.config.generator`."""
 
 from __future__ import annotations
 
@@ -10,17 +10,17 @@ from pathlib import Path
 
 import pytest
 
-from getworktree.common.fs import atomic_write_json
-from getworktree.common.schema_validation import SchemaValidator
-from getworktree.core.config.generator import (
+from tests.helpers import FileSystem
+from worktree.common.fs import atomic_write_json
+from worktree.common.schema_validation import SchemaValidator
+from worktree.core.config.generator import (
     CANONICAL_V1_DEFAULTS,
     build_default_config,
     generate_default_config,
     merge_missing_keys,
 )
-from tests.helpers import FileSystem
 
-CONFIG_VALIDATOR = SchemaValidator(resources.files("getworktree.schemas.v1") / "config.json")
+CONFIG_VALIDATOR = SchemaValidator(resources.files("worktree.schemas.v1") / "config.json")
 
 
 @pytest.fixture

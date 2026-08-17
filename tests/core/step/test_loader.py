@@ -4,10 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from getworktree.common.fs import get_catalog_templates_dir
-from getworktree.core.catalog.services.seeder import seed_catalog_templates
-from getworktree.core.db import CatalogItemType
-from getworktree.core.step import (
+from tests.helpers import FileSystem
+from worktree.common.fs import get_catalog_templates_dir
+from worktree.core.catalog.services.seeder import seed_catalog_templates
+from worktree.core.db import CatalogItemType
+from worktree.core.step import (
     StepDefinition,
     StepNotFoundError,
     StepType,
@@ -15,8 +16,7 @@ from getworktree.core.step import (
     load_step_by_id,
     load_step_definition,
 )
-from getworktree.core.step.services.resolver import resolve_step_definition
-from tests.helpers import FileSystem
+from worktree.core.step.services.resolver import resolve_step_definition
 
 _PACKAGED_STEP_NAMES = (
     "git-sync-base",

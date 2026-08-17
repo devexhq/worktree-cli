@@ -1,6 +1,6 @@
-# Worktree (`wt`) Documentation
+# Worktree CLI (`wt`) Documentation
 
-Welcome to **Worktree** (`wt`), a CLI tool providing isolated Git worktree developer workflows and AI agent workspaces backed by a local `.worktree/` state directory.
+Welcome to **Worktree CLI** (`wt`), a CLI tool providing isolated Git worktree developer workflows and AI agent workspaces backed by a local `.worktree/` state directory.
 
 ## Overview
 
@@ -19,7 +19,7 @@ Get started in seconds:
 
 ```bash
 # Install Worktree CLI
-pip install getworktree
+pip install worktree-cli
 
 # Initialize local worktree configuration
 wt init

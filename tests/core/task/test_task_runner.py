@@ -7,11 +7,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from getworktree.core.db import RunStatus
-from getworktree.core.runtime import RunContext, RunOutcome
-from getworktree.core.step import StepDefinition, StepType
-from getworktree.core.task import run_task
-from getworktree.core.task.models import TaskDefinition
+from worktree.core.db import RunStatus
+from worktree.core.runtime import RunContext, RunOutcome
+from worktree.core.step import StepDefinition, StepType
+from worktree.core.task import run_task
+from worktree.core.task.models import TaskDefinition
 
 
 def _cmd_step(step_id: str = "s1") -> StepDefinition:
@@ -37,7 +37,7 @@ def test_run_task_delegates_to_run_steps(monkeypatch: pytest.MonkeyPatch, tmp_pa
         captured["context"] = context
         return expected
 
-    monkeypatch.setattr("getworktree.core.task.services.runner.run_steps", fake_run_steps)
+    monkeypatch.setattr("worktree.core.task.services.runner.run_steps", fake_run_steps)
 
     outcome = run_task(
         definition,
@@ -87,7 +87,7 @@ def test_run_task_use_sandbox_logic(
         captured["context"] = context
         return RunOutcome(status=RunStatus.COMPLETED, sandbox_path=tmp_path)
 
-    monkeypatch.setattr("getworktree.core.task.services.runner.run_steps", fake_run_steps)
+    monkeypatch.setattr("worktree.core.task.services.runner.run_steps", fake_run_steps)
 
     run_task(definition, tmp_path, use_sandbox=caller_use_sandbox)
 

@@ -16,12 +16,12 @@ ruff format --check .   # use `ruff format .` to apply
 ## Type checking
 
 Config lives in [pyproject.toml](../../pyproject.toml) under `[tool.basedpyright]`
-(`typeCheckingMode = "recommended"`, package `getworktree/` only). `basedpyright`
+(`typeCheckingMode = "recommended"`, package `src/worktree/` only). `basedpyright`
 is a dev dependency. Run:
 
 ```bash
-basedpyright getworktree
-basedpyright getworktree --level error   # errors only
+basedpyright src
+basedpyright src --level error   # errors only
 ```
 
 First-pass noise from Typer defaults, unused callback params, Pydantic
@@ -38,7 +38,7 @@ function. Run it through the `inv complexity` task in
 
 ```bash
 inv complexity                                          # whole tree, rich output (matches CI)
-inv complexity --paths getworktree/cli/task/command.py  # scope to specific file(s), comma-separated
+inv complexity --paths src/worktree/cli/task/command.py  # scope to specific file(s), comma-separated
 inv complexity --plain                                  # script-friendly output for agents
 inv complexity --plain --failed                         # script-friendly output for agents, list failures only
 ```
@@ -61,7 +61,7 @@ push to `main` and on pull requests:
 - `test`: `uv sync --all-extras` then pytest with coverage
   (`fail_under = 80` in [pyproject.toml](../../pyproject.toml)).
 - `lint`: `uv run ruff check .` then `uv run ruff format --check .`.
-- `complexity`: diffs changed `getworktree/*.py` files against the PR base
+- `complexity`: diffs changed `src/*.py` files against the PR base
   (or previous commit on `main`) and runs `inv complexity` scoped to just
   those files — it does not fail on pre-existing complexity elsewhere in the
   tree.
@@ -72,7 +72,7 @@ before pushing to avoid CI failures.
 
 ## Versioning
 
-Static package versioning lives in [getworktree/__init__.py](../../getworktree/__init__.py) (`__version__ = "0.1.1"`), managed by Hatchling configured in [pyproject.toml](../../pyproject.toml).
+Package versioning is dynamic via Hatchling + `hatch-vcs` in [pyproject.toml](../../pyproject.toml) (git tags). Runtime code reads it with `importlib.metadata.version("worktree-cli")` from [src/worktree/__init__.py](../../src/worktree/__init__.py) and [src/worktree/common/version.py](../../src/worktree/common/version.py).
 
 ## Release process
 

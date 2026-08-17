@@ -1,6 +1,6 @@
 """Unit tests for process/output assertion evaluators."""
 
-from getworktree.core.step.assertions import (
+from worktree.core.step.assertions import (
     evaluate_exit_code,
     evaluate_output_contains,
     evaluate_output_not_contains,

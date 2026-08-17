@@ -14,20 +14,20 @@ from rich.console import Console
 from typer.main import get_command
 from typer.testing import CliRunner
 
-from getworktree.cli import app
-from getworktree.cli.sandbox.command import sandbox_create_command
-from getworktree.cli.sandbox.renderers import (
+from tests.helpers import FileSystem, GitFileSystem
+from worktree.cli import app
+from worktree.cli.sandbox.command import sandbox_create_command
+from worktree.cli.sandbox.renderers import (
     render_sandbox_create_failed,
     render_sandbox_create_success,
 )
-from getworktree.common.utils import RichOutput
-from getworktree.core.db import SandboxesDb, SandboxStatus
-from getworktree.core.git_sandbox import (
+from worktree.common.utils import RichOutput
+from worktree.core.db import SandboxesDb, SandboxStatus
+from worktree.core.git_sandbox import (
     SandboxCreateResult,
     SandboxCreateStatus,
     SandboxSession,
 )
-from tests.helpers import FileSystem, GitFileSystem
 
 runner = CliRunner()
 DB_REL = ".worktree/data.db"
@@ -235,7 +235,7 @@ class SandboxCreateCommandDirectTests:
             errors=errors,
         )
         monkeypatch.setattr(
-            "getworktree.cli.sandbox.command.GitSandboxManager",
+            "worktree.cli.sandbox.command.GitSandboxManager",
             lambda cwd=None: mock_manager,
         )
 
@@ -264,7 +264,7 @@ class SandboxCreateCommandDirectTests:
             warnings=["Failed to persist sandbox metadata to the local database: boom"],
         )
         monkeypatch.setattr(
-            "getworktree.cli.sandbox.command.GitSandboxManager",
+            "worktree.cli.sandbox.command.GitSandboxManager",
             lambda cwd=None: mock_manager,
         )
 

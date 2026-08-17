@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from getworktree.common.models import DefinitionResolutionResult, DefinitionResolutionStatus
-from getworktree.core.db import RunStatus
-from getworktree.core.runtime import RunOutcome
-from getworktree.core.step import StepResult
-from getworktree.core.task import format_task_resolve_failure, format_task_run_failure
+from worktree.common.models import DefinitionResolutionResult, DefinitionResolutionStatus
+from worktree.core.db import RunStatus
+from worktree.core.runtime import RunOutcome
+from worktree.core.step import StepResult
+from worktree.core.task import format_task_resolve_failure, format_task_run_failure
 
 
 class FormatTaskFailureTests:

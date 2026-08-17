@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from getworktree.core.config.parser import parse_config_value
+from worktree.core.config.parser import parse_config_value
 
 
 class TestParseConfigValue:

@@ -1,7 +1,7 @@
 """Unit tests for input template interpolation."""
 
-from getworktree.core.inputs import interpolate_step_fields, interpolate_string
-from getworktree.core.step import StepDefinition, StepType
+from worktree.core.inputs import interpolate_step_fields, interpolate_string
+from worktree.core.step import StepDefinition, StepType
 
 
 def test_interpolate_string_replaces_placeholders() -> None:

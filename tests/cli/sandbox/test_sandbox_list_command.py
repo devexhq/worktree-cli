@@ -11,24 +11,24 @@ from rich.console import Console
 from typer.main import get_command
 from typer.testing import CliRunner
 
-from getworktree.cli import app
-from getworktree.cli.sandbox.command import (
+from tests.helpers import GitFileSystem
+from worktree.cli import app
+from worktree.cli.sandbox.command import (
     collect_sandbox_list,
     sandbox_list_command,
 )
-from getworktree.cli.sandbox.models import SandboxListStatus
-from getworktree.cli.sandbox.renderers import (
+from worktree.cli.sandbox.models import SandboxListStatus
+from worktree.cli.sandbox.renderers import (
     build_sandbox_table,
     render_not_initialized,
     render_sandbox_list,
 )
-from getworktree.common.utils import RichOutput
-from getworktree.core.db import (
+from worktree.common.utils import RichOutput
+from worktree.core.db import (
     SandboxesDb,
     SandboxRecord,
     SandboxStatus,
 )
-from tests.helpers import GitFileSystem
 
 runner = CliRunner()
 DB_REL = ".worktree/data.db"

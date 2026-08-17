@@ -8,7 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from getworktree.core.workflows.agents import (
+from tests.helpers import FileSystem
+from worktree.core.workflows.agents import (
     AgentRequest,
     AgentResponse,
     AgentResponseStatus,
@@ -17,14 +18,13 @@ from getworktree.core.workflows.agents import (
     LocalAgentAdapter,
     get_agent_adapter,
 )
-from getworktree.core.workflows.agents.local import (
+from worktree.core.workflows.agents.local import (
     DEFAULT_LOCAL_AGENT_CMD,
     LOCAL_AGENT_CMD_ENV,
     LocalAgentStdout,
     resolve_local_agent_argv_for_tests,
 )
-from getworktree.core.workflows.services.payload import AgentFailurePayload
-from tests.helpers import FileSystem
+from worktree.core.workflows.services.payload import AgentFailurePayload
 
 
 def _payload() -> AgentFailurePayload:
@@ -92,7 +92,7 @@ class GetAgentAdapterTests:
         assert isinstance(adapter, CopilotAgentAdapter)
 
     def test_config_optional(self) -> None:
-        from getworktree.core.config.models import AgentConfig
+        from worktree.core.config.models import AgentConfig
 
         adapter = get_agent_adapter("local", config=AgentConfig())
         assert isinstance(adapter, LocalAgentAdapter)

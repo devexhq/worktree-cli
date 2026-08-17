@@ -7,15 +7,15 @@ from pathlib import Path
 
 import pytest
 
-from getworktree.core.workflows.agents import AgentRequest, AgentResponseStatus
-from getworktree.core.workflows.agents.cli_mutation import (
+from tests.helpers import FileSystem
+from worktree.core.workflows.agents import AgentRequest, AgentResponseStatus
+from worktree.core.workflows.agents.cli_mutation import (
     CliDirectMutationAdapter,
     CliMutationOutcome,
     CliMutationRunRequest,
     build_mutation_prompt,
 )
-from getworktree.core.workflows.services.payload import AgentFailurePayload
-from tests.helpers import FileSystem
+from worktree.core.workflows.services.payload import AgentFailurePayload
 
 
 def _git(args: list[str], *, cwd: Path) -> None:

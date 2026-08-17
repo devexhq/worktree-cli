@@ -2,9 +2,9 @@
 
 ## Versioned JSON Schemas
 
-`getworktree/schemas/v1/config.json` and `v1/workflow.json` are the source of truth
+`src/worktree/schemas/v1/config.json` and `v1/workflow.json` are the source of truth
 for what a valid `.worktree/config.json` and workflow YAML file look like. Both are
-validated through `SchemaValidator` ([getworktree/common/schema_validation.py](../../getworktree/common/schema_validation.py)),
+validated through `SchemaValidator` ([src/worktree/common/schema_validation.py](../../src/worktree/common/schema_validation.py)),
 a thin wrapper over `jsonschema.Draft202012Validator` that returns a
 `ValidationResult(ok, errors)` instead of raising.
 
@@ -28,7 +28,7 @@ Enums (exact tokens):
   `copilot` | `openai` | `anthropic` | `azure_openai` | `custom` (runtime
   factory supports **`local`**, **`ollama`**, **`cursor`**, **`gemini`**, and
   **`copilot`**; other tokens remain schema-valid for future providers)
-- Workflow `agent.provider` (`workflow_v1.json`): `local` | `ollama` | `cursor` |
+- Workflow `agent.provider` (`v1/workflow.json`): `local` | `ollama` | `cursor` |
   `gemini` | `copilot`
 
 For `wt workflow run`, **workflow** `agent.provider` selects the adapter; **config**
@@ -60,13 +60,13 @@ Not expressed in the JSON Schema (validator-engine / runtime territory):
 - Provider-specific required `model` / `endpoint`
 
 Pydantic models in
-[getworktree/core/config/models.py](../../getworktree/core/config/models.py)
+[src/worktree/core/config/models.py](../../src/worktree/core/config/models.py)
 mirror the same enums, bounds, and `extra: "forbid"`. Defaults live in
 `CANONICAL_V1_DEFAULTS` and must remain schema-valid after generation.
 
 ## Config generation
 
-`CANONICAL_V1_DEFAULTS` in [getworktree/core/config/generator.py](../../getworktree/core/config/generator.py)
+`CANONICAL_V1_DEFAULTS` in [src/worktree/core/config/generator.py](../../src/worktree/core/config/generator.py)
 is the single source of default values. `generate_default_config` has three modes:
 
 - default (file missing): create from defaults.
@@ -80,11 +80,11 @@ and classify.
 ## Config load API
 
 All runtime reads of `.worktree/config.json` go through
-[getworktree/core/config/loader.py](../../getworktree/core/config/loader.py).
+[src/worktree/core/config/loader.py](../../src/worktree/core/config/loader.py).
 Typed config lives in
-[getworktree/core/config/models.py](../../getworktree/core/config/models.py).
+[src/worktree/core/config/models.py](../../src/worktree/core/config/models.py).
 Repo context/warnings live in
-[getworktree/core/config/context.py](../../getworktree/core/config/context.py).
+[src/worktree/core/config/context.py](../../src/worktree/core/config/context.py).
 Command packages must not call `json.load` on config directly.
 
 Default path: `get_worktree_config_file(cwd)` → `<repo>/.worktree/config.json`.
@@ -137,7 +137,7 @@ change; codes should not):
 | `CONFIG_PATH_IS_DIRECTORY` | `path_is_directory` |
 | `CONFIG_UNREADABLE` | `unreadable` |
 
-Schema validation uses packaged `CONFIG_VALIDATOR` / `config_v1.json`. Non-object
+Schema validation uses packaged `CONFIG_VALIDATOR` / `v1/config.json`. Non-object
 roots skip schema validation (`root_not_object`).
 
 ### Raising helpers
@@ -160,10 +160,10 @@ primary branch, high sandbox limits) is separate from load classification.
 ## Config validate API
 
 Validate-oriented reads go through
-[getworktree/core/config/validate.py](../../getworktree/core/config/validate.py).
+[src/worktree/core/config/validate.py](../../src/worktree/core/config/validate.py).
 The engine reuses `load_config_result` for path resolution, IO/parse/schema
 classification, and typed mapping, then applies semantic rules that are not
-expressed in `config_v1.json`. It does not print, call `sys.exit`, or mutate
+expressed in `v1/config.json`. It does not print, call `sys.exit`, or mutate
 files.
 
 ### Primary API
@@ -241,9 +241,9 @@ workflows.
 
 ## `wt config validate` CLI
 
-Command entry: `getworktree.cli.config.command.config_validate_command`.
+Command entry: `worktree.cli.config.command.config_validate_command`.
 Registration: `wt config validate` under `config_app` in
-[getworktree/cli.py](../../getworktree/cli.py).
+[src/worktree/cli/cli.py](../../src/worktree/cli/cli.py).
 
 The command is **read-only**: it never creates, repairs, overwrites, or deletes
 config files. It calls `validate_config_result` only (no second schema/semantic
@@ -304,7 +304,7 @@ Runtime display of configuration uses the full V1 surface after model defaults
 and load normalizations (not a sparse dump of on-disk keys).
 
 Helpers in
-[getworktree/core/config/serialize.py](../../getworktree/core/config/serialize.py):
+[src/worktree/core/config/serialize.py](../../src/worktree/core/config/serialize.py):
 
 - `serialize_config(config: WorktreeConfig) -> dict` — plain dict, no I/O, no
   print/exit; top-level key order is
@@ -338,12 +338,12 @@ On non-ok load it prints `ConfigLoadResult.errors` (error panel) and exits `1`
 with **no** success header and **no** partial JSON. Show never creates or
 mutates config files.
 
-Command entry: `getworktree.cli.config.command.config_show_command`.
+Command entry: `worktree.cli.config.command.config_show_command`.
 
 ## Config set API and `wt config set`
 
 Dot-path mutation lives in
-[getworktree/core/config/mutate.py](../../getworktree/core/config/mutate.py).
+[src/worktree/core/config/mutate.py](../../src/worktree/core/config/mutate.py).
 This layer owns in-memory nested assignment and the persist path for
 `wt config set`. It does **not** print, call `sys.exit`, or implement unset
 (issue `#15`). CLI typed values are parsed by `parse_config_value`, and schema
@@ -411,9 +411,9 @@ schema validation error, or invalid path, the on-disk file is left unchanged.
 
 ### CLI (`wt config set`)
 
-Command entry: `getworktree.cli.config.command.config_set_command`.
+Command entry: `worktree.cli.config.command.config_set_command`.
 Registration: `wt config set <key> <value>` under `config_app` in
-[getworktree/cli.py](../../getworktree/cli.py).
+[src/worktree/cli/cli.py](../../src/worktree/cli/cli.py).
 
 | Condition | Exit | Output |
 |-----------|------|--------|
@@ -425,9 +425,9 @@ Registration: `wt config set <key> <value>` under `config_app` in
 Workflow blueprints are catalog items: discovery, YAML parsing, schema
 validation, and name resolution all flow through the catalog layer's
 `get_catalog_item(name, CatalogItemType.WORKFLOW, definition_cls=WorkflowDefinition, cwd=root)`
-(`getworktree.core.catalog.services.inventory`) — the same surface used by
+(`worktree.core.catalog.services.inventory`) — the same surface used by
 `wt task` and `wt step`. `WorkflowDefinition` (in
-[getworktree/core/workflows/models.py](../../getworktree/core/workflows/models.py))
+[src/worktree/core/workflows/models.py](../../src/worktree/core/workflows/models.py))
 declares a `schema_validator: ClassVar[SchemaValidator]` bound to
 `WORKFLOW_VALIDATOR`, which the catalog's internal `_validate_definition` helper
 detects automatically and runs against the parsed YAML before constructing the
@@ -435,7 +435,7 @@ model. There is no separate workflow discovery/inventory/resolve/validate
 pipeline; a non-ok `DefinitionResolutionResult` carries schema or lookup errors
 in `result.errors`, formatted for CLI panels by
 `format_workflow_run_resolve_failure` in
-[getworktree/core/workflows/services/renderer.py](../../getworktree/core/workflows/services/renderer.py).
+[src/worktree/core/workflows/services/renderer.py](../../src/worktree/core/workflows/services/renderer.py).
 
 ## Task blueprint resolution & execution
 
@@ -444,7 +444,7 @@ same catalog inventory path as workflows.
 
 ### `TaskDefinition`
 
-Model: [getworktree/core/task/models.py](../../getworktree/core/task/models.py)
+Model: [src/worktree/core/task/models.py](../../src/worktree/core/task/models.py)
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -480,14 +480,14 @@ steps:
 ```
 
 Exceptions subclass the shared definition bases in
-[getworktree/common/exceptions.py](../../getworktree/common/exceptions.py):
+[src/worktree/common/exceptions.py](../../src/worktree/common/exceptions.py):
 
 - `TaskLoadError(DefinitionLoadError)`
 - `TaskValidationError(DefinitionValidationError)`
 
 ### Resolve: `resolve_and_load_task`
 
-[getworktree/core/task/services/loader.py](../../getworktree/core/task/services/loader.py)
+[src/worktree/core/task/services/loader.py](../../src/worktree/core/task/services/loader.py)
 
 ```python
 def resolve_and_load_task(
@@ -505,11 +505,11 @@ def resolve_and_load_task(
 Thin catalog wrapper only — no custom YAML scan/parse pipeline. On success,
 `result.definition` is a `TaskDefinition`. Failure bodies for CLI panels come
 from `format_task_resolve_failure` in
-[getworktree/core/task/services/renderer.py](../../getworktree/core/task/services/renderer.py).
+[src/worktree/core/task/services/renderer.py](../../src/worktree/core/task/services/renderer.py).
 
 ### Execute: `run_task`
 
-[getworktree/core/task/services/runner.py](../../getworktree/core/task/services/runner.py)
+[src/worktree/core/task/services/runner.py](../../src/worktree/core/task/services/runner.py)
 
 ```python
 def run_task(
@@ -527,13 +527,13 @@ Builds a `RunContext` (`steps=definition.steps`,
 `use_sandbox=use_sandbox and definition.use_sandbox`, plus `keep` / `agent` /
 `observer`) and delegates to `run_steps`. CLI orchestration
 (`resolve` → insert RUNNING row → `run_task` → update status → render) lives in
-[getworktree/cli/task/command.py](../../getworktree/cli/task/command.py); Rich
+[src/worktree/cli/task/command.py](../../src/worktree/cli/task/command.py); Rich
 output is in `cli/task/renderers.py`, plain failure text in
 `core/task/services/renderer.py` (`format_task_run_failure`).
 
 ## Shared step execution layer (`core/runtime/`)
 
-Package: [getworktree/core/runtime/](../../getworktree/core/runtime/)
+Package: [src/worktree/core/runtime/](../../src/worktree/core/runtime/)
 (`models.py`, `engine.py`). Used by `run_task` today; workflow multi-step
 execution should reuse the same surface when implemented.
 
@@ -577,7 +577,7 @@ Pydantic model (`extra=forbid`, `strict=True`):
 
 ### `run_steps(context) -> RunOutcome`
 
-Flow in [getworktree/core/runtime/engine.py](../../getworktree/core/runtime/engine.py):
+Flow in [src/worktree/core/runtime/engine.py](../../src/worktree/core/runtime/engine.py):
 
 1. **Sandbox setup** (`_setup_sandbox`): if `use_sandbox` is false, execute in
    `cwd` and notify `on_sandbox_ready(..., active=False)`. Otherwise
@@ -595,10 +595,10 @@ Domain packages must not re-implement this loop or sandbox lifecycle.
 ## Catalog templates & seeding
 
 Packaged scaffolds live under
-[getworktree/core/catalog/templates/](../../getworktree/core/catalog/templates/)
+[src/worktree/core/catalog/templates/](../../src/worktree/core/catalog/templates/)
 (`workflows/`, `tasks/`, `steps/`), including `default.yml` per type and curated
 `wt/` seed trees. Path helper: `get_catalog_templates_dir()` in
-[getworktree/common/fs.py](../../getworktree/common/fs.py).
+[src/worktree/common/fs.py](../../src/worktree/common/fs.py).
 
 Curated step seeds ship under `templates/steps/wt/`
 (`git-sync-base`, `ai-planner`, `ai-code-patcher`, `run-tests`, `ai-reviewer`)
@@ -606,7 +606,7 @@ and seed into `.worktree/catalog/steps/wt/`. Workflow seeds under
 `templates/workflows/wt/` may reference them with `uses: wt/<name>` (for example
 `wt/ai-code-patcher`).
 
-Seeding ([getworktree/core/catalog/services/seeder.py](../../getworktree/core/catalog/services/seeder.py)):
+Seeding ([src/worktree/core/catalog/services/seeder.py](../../src/worktree/core/catalog/services/seeder.py)):
 
 - `seed_catalog_templates(item_type, cwd=None, *, force=False) -> SeedResult` —
   copies packaged `wt/` files into
@@ -625,9 +625,9 @@ CLI template surfaces (no separate `wt template` command group):
 
 ## `wt workflow list`
 
-Command entry: `getworktree.cli.workflow.command.workflow_list_command`.
+Command entry: `worktree.cli.workflow.command.workflow_list_command`.
 Registration: `wt workflow list` (and `wt workflow`) under `workflow_app` in
-[getworktree/cli.py](../../getworktree/cli.py).
+[src/worktree/cli/cli.py](../../src/worktree/cli/cli.py).
 
 Read-only: query recorded workflow sessions, print a human-readable
 Rich table `Recorded Workflows` or `No recorded workflows found.` empty state.
@@ -641,9 +641,9 @@ Rich table `Recorded Workflows` or `No recorded workflows found.` empty state.
 
 ## `wt workflow show`
 
-Command entry: `getworktree.cli.workflow.command.workflow_show_command`.
+Command entry: `worktree.cli.workflow.command.workflow_show_command`.
 Registration: `wt workflow show` under `workflow_app` in
-[getworktree/cli.py](../../getworktree/cli.py).
+[src/worktree/cli/cli.py](../../src/worktree/cli/cli.py).
 
 Read-only: query a recorded workflow session by session ID and print details
 (session id, name, branch, status, timestamps, error). Workflow *definition*
@@ -659,7 +659,7 @@ display is handled by `wt catalog show`, not this command.
 ## `wt workflow run` error bodies
 
 Pure formatters (no IO/print/exit) for resolve/validate failure panel bodies live in
-[getworktree/core/workflows/services/renderer.py](../../getworktree/core/workflows/services/renderer.py):
+[src/worktree/core/workflows/services/renderer.py](../../src/worktree/core/workflows/services/renderer.py):
 
 - `format_workflow_run_resolve_failure(result: DefinitionResolutionResult[CatalogRecord]) -> str`
 - `format_workflow_run_validate_failure(result: DefinitionValidationOutcome) -> str`
@@ -669,7 +669,7 @@ Validate body: `"\n\n".join(errors)` or `Workflow definition is invalid.`
 
 ## Changing config or workflow shape
 
-1. Update the relevant JSON Schema (`config_v1.json` or `workflow_v1.json`).
+1. Update the relevant JSON Schema (`v1/config.json` or `v1/workflow.json`).
 2. Update `CANONICAL_V1_DEFAULTS` (config) or the packaged templates under
    `core/catalog/templates/` (workflows/tasks/steps `default.yml` and curated
    `wt/` seeds). See **Catalog templates & seeding** above for list/show fallback.
@@ -684,11 +684,11 @@ changes to a `v1` schema that users may already have on disk.
 
 Step primitives stored in `.worktree/catalog/steps/` represent reusable blueprints shared by
 catalog steps, workflow steps, and task steps. Models and engine live in
-[getworktree/core/step/](../../getworktree/core/step/).
+[src/worktree/core/step/](../../src/worktree/core/step/).
 
 ### `FailurePolicy` and `FailureSpec`
 
-`FailurePolicy` (`getworktree/core/step/models.py`) is a `StrEnum`: `abort`, `continue`,
+`FailurePolicy` (`src/worktree/core/step/models.py`) is a `StrEnum`: `abort`, `continue`,
 `prompt_user`, `retry`. `FailurePolicy.context("terminal")` returns `{abort, continue,
 prompt_user}` (excludes `retry`); any other name returns the full set.
 
@@ -781,12 +781,12 @@ referenced step definition as-is.
 #### Assert Block
 
 Optional YAML key `assert` maps to `StepDefinition.assert_` (`StepAssert` in
-[getworktree/core/step/models.py](../../getworktree/core/step/models.py)). The same model is used for
+[src/worktree/core/step/models.py](../../src/worktree/core/step/models.py)). The same model is used for
 catalog steps, task steps, and workflow steps.
 
 Public evaluation entrypoint:
-[getworktree/core/step/assertions/](../../getworktree/core/step/assertions/)
-(`evaluate_assertions` re-exported from `getworktree.core.step`).
+[src/worktree/core/step/assertions/](../../src/worktree/core/step/assertions/)
+(`evaluate_assertions` re-exported from `worktree.core.step`).
 
 When the `assert` block is present, `exit_code` is **always** evaluated. If `exit_code` is omitted,
 expected exit code defaults to `0`. Every other key runs only when set. Process/output checks use

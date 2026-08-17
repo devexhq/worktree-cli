@@ -3,15 +3,15 @@
 import pytest
 from typer.testing import CliRunner
 
-from getworktree.cli import app
-from getworktree.cli.task.command import (
+from tests.helpers import FileSystem
+from worktree.cli import app
+from worktree.cli.task.command import (
     task_list_command,
     task_run_command,
     task_show_command,
 )
-from getworktree.core.catalog.services.inventory import create_catalog_item
-from getworktree.core.db import TasksDb
-from tests.helpers import FileSystem
+from worktree.core.catalog.services.inventory import create_catalog_item
+from worktree.core.db import TasksDb
 
 runner = CliRunner()
 
@@ -150,8 +150,8 @@ def test_task_run_status_transitions_and_persistence(fs: FileSystem, monkeypatch
     assert "boom" in rec_fail.error_message
 
     # 3. Cancelled task run (runtime returns CANCELLED)
-    from getworktree.core.db import RunStatus
-    from getworktree.core.runtime import RunOutcome
+    from worktree.core.db import RunStatus
+    from worktree.core.runtime import RunOutcome
 
     def _cancel_run(
         definition,
@@ -171,7 +171,7 @@ def test_task_run_status_transitions_and_persistence(fs: FileSystem, monkeypatch
             sandbox_path=cwd,
         )
 
-    monkeypatch.setattr("getworktree.cli.task.command.run_task", _cancel_run)
+    monkeypatch.setattr("worktree.cli.task.command.run_task", _cancel_run)
     res_cancel = task_run_command(
         "passing-task",
         cwd=fs.base_path,
