@@ -6,9 +6,11 @@ import pytest
 from pydantic import ValidationError
 
 from worktree.core.blueprint import (
+    Blueprint,
     BlueprintDefinition,
     BlueprintKind,
     BlueprintLoadError,
+    BlueprintNotFoundError,
     BlueprintValidationError,
 )
 from worktree.core.step import FailurePolicy, LoopStepBlock, StepDefinition, StepType
@@ -28,6 +30,8 @@ def _loop_step(**overrides: object) -> dict[str, object]:
 def test_package_exports_models_and_exceptions() -> None:
     assert BlueprintKind.TASK == "task"
     assert BlueprintKind.WORKFLOW == "workflow"
+    assert Blueprint.spec is BlueprintDefinition
+    assert issubclass(BlueprintNotFoundError, Exception)
     assert issubclass(BlueprintLoadError, Exception)
     assert issubclass(BlueprintValidationError, Exception)
 

@@ -2,7 +2,15 @@
 
 from __future__ import annotations
 
-from worktree.common.exceptions import DefinitionLoadError, DefinitionValidationError
+from worktree.common.exceptions import (
+    DefinitionLoadError,
+    DefinitionNotFoundError,
+    DefinitionValidationError,
+)
+
+
+class BlueprintNotFoundError(DefinitionNotFoundError):
+    """Raised when a blueprint name/SHA is not in the task/workflow catalog."""
 
 
 class BlueprintLoadError(DefinitionLoadError):
