@@ -1,47 +1,10 @@
-"""Runtime failure orchestration helpers and prompter protocol."""
+"""Runtime failure orchestration helpers."""
 
 from __future__ import annotations
 
-from enum import StrEnum
-from typing import Protocol
-
-from worktree.core.step import FailurePolicy, FailureSpec, StepDefinition, StepResult
+from worktree.core.step import FailurePolicy, FailureSpec, StepResult
 
 USER_CONTINUED_MARKER = "user continued after prompt_user"
-
-
-class FailurePromptDecision(StrEnum):
-    """User (or adapter) decision after a terminal ``prompt_user`` step failure."""
-
-    RETRY = "retry"
-    CONTINUE = "continue"
-    ABORT = "abort"
-
-
-class FailurePrompter(Protocol):
-    """Injectable decision entrypoint for interactive step-failure handling."""
-
-    def prompt_step_failure(
-        self,
-        *,
-        step: StepDefinition,
-        result: StepResult,
-        diagnostic: str,
-    ) -> FailurePromptDecision:
-        """Return the caller's decision. Must not block for non-interactive callers."""
-        ...
-
-
-class RunPauseHook(Protocol):
-    """Optional no-op extension point for a later durable pause product."""
-
-    def on_pause(self, *, step: StepDefinition, result: StepResult) -> None:
-        """Called immediately before an interactive failure prompt."""
-        ...
-
-    def on_resume(self, *, step: StepDefinition, decision: FailurePromptDecision) -> None:
-        """Called immediately after an interactive failure prompt returns."""
-        ...
 
 
 def effective_terminal_policy(spec: FailureSpec) -> FailurePolicy:

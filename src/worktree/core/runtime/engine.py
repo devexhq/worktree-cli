@@ -7,12 +7,11 @@ from pathlib import Path
 from worktree.core.db import RunStatus
 from worktree.core.git_sandbox import GitSandboxManager, SandboxSession
 from worktree.core.runtime.failure import (
-    FailurePromptDecision,
     effective_terminal_policy,
     mark_continued_after_prompt,
     step_failure_diagnostic,
 )
-from worktree.core.runtime.models import RunContext, RunOutcome
+from worktree.core.runtime.models import FailurePromptDecision, RunContext, RunOutcome
 from worktree.core.step import FailurePolicy, StepDefinition, StepResult, execute_step
 
 
