@@ -8,21 +8,21 @@ from pathlib import Path
 import pytest
 
 from tests.helpers import FileSystem
-from worktree.core.workflows.agents import (
+from worktree.core.agents import (
     AgentRequest,
     AgentResponseStatus,
     CopilotAgentAdapter,
     get_agent_adapter,
 )
-from worktree.core.workflows.agents.cli_mutation import (
+from worktree.core.agents.cli_mutation import (
     CliMutationOutcome,
     CliMutationRunRequest,
 )
-from worktree.core.workflows.agents.copilot import (
+from worktree.core.agents.copilot import (
     default_copilot_run,
     resolve_copilot_token,
 )
-from worktree.core.workflows.services.payload import AgentFailurePayload
+from worktree.core.agents.models import AgentFailurePayload
 
 
 def _git(args: list[str], *, cwd: Path) -> None:

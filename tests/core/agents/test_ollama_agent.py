@@ -10,13 +10,14 @@ import pytest
 
 from tests.helpers import FileSystem
 from worktree.common.schema_validation import CONFIG_VALIDATOR
-from worktree.core.workflows.agents import (
+from worktree.core.agents import (
     AgentRequest,
     AgentResponseStatus,
     OllamaAgentAdapter,
     get_agent_adapter,
 )
-from worktree.core.workflows.agents.ollama import (
+from worktree.core.agents.models import AgentFailurePayload
+from worktree.core.agents.ollama import (
     DEFAULT_OLLAMA_ENDPOINT,
     MODEL_OUTPUT_UNPARSEABLE,
     OLLAMA_HOST_ENV,
@@ -27,7 +28,6 @@ from worktree.core.workflows.agents.ollama import (
     validate_ollama_endpoint,
 )
 from worktree.core.workflows.models import WORKFLOW_VALIDATOR
-from worktree.core.workflows.services.payload import AgentFailurePayload
 
 
 def _payload() -> AgentFailurePayload:

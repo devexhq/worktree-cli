@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import re
-from enum import StrEnum
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from worktree.core.patch.exceptions import MalformedDiffHeader
+from worktree.core.patch.models import PatchApplyResult, PatchApplyStatus
 
 _DIFF_GIT_RE = re.compile(r"^diff --git a/(.+) b/(.+)$")
 _MINUS_RE = re.compile(r"^--- (?:a/)?(.+)$")
@@ -18,44 +18,6 @@ _COPY_TO_RE = re.compile(r"^copy to (.+)$")
 _BINARY_FILES_RE = re.compile(r"^Binary files (?:a/)?(.+) and (?:b/)?(.+) differ\s*$")
 _GIT_BINARY_PATCH_RE = re.compile(r"^GIT binary patch\s*$")
 _DRIVE_PATH_RE = re.compile(r"^[A-Za-z]:")
-
-
-class PatchApplyStatus(StrEnum):
-    """Classified outcomes for validating or applying a unified diff."""
-
-    APPLIED = "applied"
-    CHECKED_OK = "checked_ok"
-    EMPTY_DIFF = "empty_diff"
-    TOO_LARGE = "too_large"
-    TOO_MANY_FILES = "too_many_files"
-    BINARY_REJECTED = "binary_rejected"
-    UNSAFE_PATH = "unsafe_path"
-    INVALID_DIFF = "invalid_diff"
-    CONFLICT = "conflict"
-    GIT_TIMEOUT = "git_timeout"
-    SANDBOX_MISSING = "sandbox_missing"
-
-
-class PatchApplyResult(BaseModel):
-    """Non-raising result of patch validation / apply."""
-
-    model_config = {"extra": "forbid", "strict": True}
-
-    status: PatchApplyStatus
-    touched_files: list[str] = Field(default_factory=list)
-    errors: list[str] = Field(default_factory=list)
-
-    @property
-    def ok(self) -> bool:
-        """Return True when the patch applied or dry-check succeeded."""
-        return self.status in {
-            PatchApplyStatus.APPLIED,
-            PatchApplyStatus.CHECKED_OK,
-        }
-
-
-class _MalformedDiffHeader(Exception):
-    """Raised when a ``diff --git`` header cannot be parsed."""
 
 
 class GitDiffParser:
@@ -123,7 +85,7 @@ class GitDiffParser:
         parts = rest.split(" ", 1)
 
         if len(parts) != 2:
-            raise _MalformedDiffHeader("malformed diff --git header")
+            raise MalformedDiffHeader("malformed diff --git header")
 
         self.has_file_header = True
         self.section_paths = set()
@@ -200,7 +162,7 @@ class GitDiffParser:
             for line in text.split("\n"):
                 self.line = line
                 self._parse_line()
-        except _MalformedDiffHeader as exc:
+        except MalformedDiffHeader as exc:
             return [], [], str(exc)
 
         if not self.has_file_header:

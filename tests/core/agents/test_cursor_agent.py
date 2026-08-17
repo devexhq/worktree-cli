@@ -9,23 +9,23 @@ from pathlib import Path
 import pytest
 
 from tests.helpers import FileSystem
-from worktree.core.workflows.agents import (
+from worktree.core.agents import (
     AgentRequest,
     AgentResponseStatus,
     CursorAgentAdapter,
     get_agent_adapter,
 )
-from worktree.core.workflows.agents.cli_mutation import (
+from worktree.core.agents.cli_mutation import (
     CliMutationOutcome,
     CliMutationRunRequest,
     build_mutation_prompt,
 )
-from worktree.core.workflows.agents.cursor import (
+from worktree.core.agents.cursor import (
     CURSOR_API_KEY_ENV,
     default_cursor_run,
     resolve_cursor_api_key,
 )
-from worktree.core.workflows.services.payload import AgentFailurePayload
+from worktree.core.agents.models import AgentFailurePayload
 
 
 def _git(args: list[str], *, cwd: Path) -> None:

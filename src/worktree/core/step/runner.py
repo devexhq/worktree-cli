@@ -12,11 +12,11 @@ from typing import Any, cast
 
 from pydantic import BaseModel
 
+from worktree.core.agents.factory import get_agent_adapter
 from worktree.core.inputs import interpolate_step_fields
 from worktree.core.step.assertions import evaluate_assertions
 from worktree.core.step.models import FailurePolicy, StepDefinition, StepType
 from worktree.core.step.services.resolver import resolve_step_definition
-from worktree.core.workflows.agents.factory import get_agent_adapter
 
 
 class StepDispatchOutcome(BaseModel):

@@ -10,18 +10,18 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from worktree.core.workflows.agents.base import (
+from worktree.core.agents.base import (
     AgentRequest,
     AgentResponse,
     AgentResponseStatus,
 )
-from worktree.core.workflows.agents.mutation_git import (
+from worktree.core.agents.mutation_git import (
     MutationGitError,
     capture_diff_since,
     discard_since,
     resolve_pre_agent_baseline,
 )
-from worktree.core.workflows.services.patch import PatchApplyStatus, validate_patch_text
+from worktree.core.patch import PatchApplyStatus, validate_patch_text
 
 CliMutationRunStatus = Literal["finished", "timeout", "error"]
 

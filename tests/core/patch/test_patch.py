@@ -1,8 +1,8 @@
-"""Tests for `worktree.core.workflows.patch.GitDiffParser`."""
+"""Tests for `worktree.core.patch.GitDiffParser`."""
 
 from __future__ import annotations
 
-from worktree.core.workflows.services.patch import GitDiffParser
+from worktree.core.patch import GitDiffParser
 
 
 class GitDiffParserTests:
