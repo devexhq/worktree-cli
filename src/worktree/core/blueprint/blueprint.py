@@ -76,6 +76,11 @@ class Blueprint:
         """Return the live inputs mapping from the wrapped document."""
         return self._instance.inputs
 
+    @property
+    def use_sandbox(self) -> bool:
+        """Return whether the document requests a git sandbox."""
+        return self._instance.use_sandbox
+
     def dump(self) -> dict[str, object]:
         """Return the in-memory document as a JSON-mode dict, including derived kind."""
         return self._instance.model_dump(mode="json")
