@@ -9,7 +9,8 @@ from tests.helpers import FileSystem
 from worktree.cli import app
 from worktree.cli.task.command import task_run_command
 from worktree.core.db import RunStatus, TasksDb
-from worktree.core.runtime import RunOutcome
+from worktree.core.runtime import FailurePromptDecision, RunOutcome
+from worktree.core.step import StepDefinition, StepResult
 
 runner = CliRunner()
 
@@ -80,6 +81,52 @@ def test_task_run_step_failure_aborts(fs: FileSystem, monkeypatch: pytest.Monkey
     assert rec.status.value == "failed"
     assert rec.error_message is not None
     assert "fail-step" in rec.error_message
+
+
+def test_task_run_prompt_user_persists_paused_checkpoint(
+    fs: FileSystem,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(fs.base_path)
+    fs.create_task_file(
+        "pause-task",
+        use_sandbox=False,
+        steps=[{"id": "fail-step", "run": "exit 1", "on_failure": "prompt_user"}],
+    )
+
+    class _InterruptPrompter:
+        def prompt_step_failure(self, **kwargs: object) -> FailurePromptDecision:
+            raise KeyboardInterrupt
+
+        @property
+        def is_interactive(self) -> bool:
+            return True
+
+    monkeypatch.setattr(
+        "worktree.cli.task.command.CliFailurePrompter",
+        lambda *args, **kwargs: _InterruptPrompter(),
+    )
+    monkeypatch.setattr(
+        "worktree.core.runtime.engine.execute_step",
+        lambda step, sandbox_path, context=None: StepResult(
+            step_id=step.id if isinstance(step, StepDefinition) else "fail-step",
+            status="failed",
+            exit_code=1,
+            stdout="",
+            stderr="nope",
+            duration_seconds=0.01,
+            error_message="boom",
+        ),
+    )
+
+    res = task_run_command("pause-task", cwd=fs.base_path, session_id="task_pause_1")
+    assert res.ok
+    rec = TasksDb(fs.base_path).get("task_pause_1")
+    assert rec is not None
+    assert rec.status is RunStatus.PAUSED
+    assert rec.completed_at is None
+    assert rec.checkpoint_json is not None
+    assert "fail-step" in rec.checkpoint_json
 
 
 def test_task_run_keep_retains_sandbox(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:

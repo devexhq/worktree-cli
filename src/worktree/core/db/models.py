@@ -30,6 +30,7 @@ class RunStatus(StrEnum):
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
+    PAUSED = "paused"
 
 
 class SandboxRecord(BaseModel):
@@ -75,6 +76,7 @@ class WorkflowRunRecord(BaseModel):
     started_at: str
     completed_at: str | None = None
     error_message: str | None = None
+    checkpoint_json: str | None = None
 
 
 class TaskRunRecord(BaseModel):
@@ -89,3 +91,4 @@ class TaskRunRecord(BaseModel):
     started_at: str
     completed_at: str | None = None
     error_message: str | None = None
+    checkpoint_json: str | None = None

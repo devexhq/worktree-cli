@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from enum import StrEnum
 from importlib import resources
 from typing import Any, ClassVar
 
@@ -69,3 +70,29 @@ class WorkflowDefinition(BaseModel):
         if self.id is None:
             self.id = self.name
         return self
+
+
+class WorkflowResumeStatus(StrEnum):
+    """Classified outcomes for ``resume_workflow``."""
+
+    OK = "ok"
+    NOT_FOUND = "not_found"
+    WRONG_STATUS = "wrong_status"
+    MISSING_SANDBOX = "missing_sandbox"
+    CORRUPT_CHECKPOINT = "corrupt_checkpoint"
+    FAILED = "failed"
+
+
+class WorkflowResumeResult(BaseModel):
+    """Non-raising result of resuming a paused workflow session."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    status: WorkflowResumeStatus
+    errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        """Return True when resume completed without errors."""
+        return self.status == WorkflowResumeStatus.OK and not self.errors

@@ -55,6 +55,37 @@ class TestDatabaseMigrations:
         assert path1 == path2
         assert path1.is_file()
 
+    def test_init_migrates_legacy_run_tables_to_paused_checkpoint(self, fs: FileSystem) -> None:
+        db_path = fs.base_path / DB_REL
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        with sqlite3.connect(db_path) as conn:
+            conn.executescript(
+                """
+                CREATE TABLE workflows (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT NOT NULL UNIQUE,
+                    workflow_name TEXT NOT NULL,
+                    branch_name TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'running'
+                        CHECK(status IN ('running', 'completed', 'failed', 'cancelled')),
+                    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    completed_at TIMESTAMP,
+                    error_message TEXT
+                );
+                INSERT INTO workflows (session_id, workflow_name, branch_name, status)
+                VALUES ('wf_legacy', 'demo', 'main', 'running');
+                """
+            )
+
+        init_database(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = WorkflowsDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        updated = db.save_pause("wf_legacy", '{"version": 1}', "paused for input")
+        assert updated is not None
+        assert updated.status is RunStatus.PAUSED
+        assert updated.completed_at is None
+        assert updated.checkpoint_json == '{"version": 1}'
+        assert updated.error_message == "paused for input"
+
 
 class TestDbBase:
     """Tests for DbBase core path resolution, cursor management, and helper methods."""
@@ -272,6 +303,17 @@ class TestRunTrackingDb:
         assert updated is not None
         assert updated.status is RunStatus.COMPLETED
         assert updated.completed_at is not None
+
+    def test_save_pause_sets_paused_without_completed_at(self, fs: FileSystem) -> None:
+        db = DummyRunTrackingDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        db.insert("s_pause", task_name="t_pause")
+
+        updated = db.save_pause("s_pause", '{"version": 1}', "step failed")
+        assert updated is not None
+        assert updated.status is RunStatus.PAUSED
+        assert updated.completed_at is None
+        assert updated.checkpoint_json == '{"version": 1}'
+        assert updated.error_message == "step failed"
 
     def test_update_status_missing_returns_none(self, fs: FileSystem) -> None:
         db = DummyRunTrackingDb(cwd=fs.base_path, db_rel_path=DB_REL)

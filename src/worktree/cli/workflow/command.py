@@ -6,6 +6,7 @@ from pathlib import Path
 
 import typer
 
+from worktree.cli.task.prompter import CliFailurePrompter
 from worktree.common.utils import RichOutput
 from worktree.core.catalog.services.inventory import get_catalog_item
 from worktree.core.config.loader import ConfigLoadStatus, load_config_result
@@ -13,6 +14,7 @@ from worktree.core.db import CatalogItemType, SandboxesDb, WorkflowsDb
 from worktree.core.inputs import format_missing_inputs_error, resolve_inputs
 from worktree.core.workflows.models import WorkflowDefinition
 from worktree.core.workflows.services.renderer import format_workflow_run_resolve_failure
+from worktree.core.workflows.services.resume import resume_workflow
 
 from .renderers import render_workflow_inputs, render_workflow_list
 
@@ -87,9 +89,10 @@ def workflow_show_command(session_id: str, *, cwd: Path | None = None) -> None:
 
 
 def workflow_resume_command(session_id: str, *, cwd: Path | None = None) -> None:
-    """Resume an interrupted workflow session by session ID.
+    """Resume a paused workflow session by session ID.
 
-    Exit ``0`` when workflow session is resumed; exit ``1`` on missing session.
+    Exit ``0`` when the session resumes successfully; exit ``1`` on classified
+    resume errors (unknown id, wrong status, missing sandbox, corrupt checkpoint).
 
     Args:
         session_id: Workflow session ID to resume.
@@ -102,15 +105,20 @@ def workflow_resume_command(session_id: str, *, cwd: Path | None = None) -> None
         rich_output.error_panel("Workflow Resume Failed", message)
         raise typer.Exit(code=1)
 
-    row = WorkflowsDb(root).get(session_id) or SandboxesDb(root).get(session_id)
-    if row is None:
-        rich_output.error_panel(
-            "Workflow Resume Failed",
-            f"Workflow session '{session_id}' not found.",
-        )
+    rich_output.info(f"Resuming workflow session '{session_id}'...")
+    prompter = CliFailurePrompter(rich_output, kind="workflow")
+    non_interactive = not prompter.is_interactive
+    result = resume_workflow(
+        session_id,
+        root,
+        failure_prompter=None if non_interactive else prompter,
+        non_interactive=non_interactive,
+    )
+    if not result.ok:
+        message = result.errors[0] if result.errors else f"Cannot resume session '{session_id}'."
+        rich_output.error_panel("Workflow Resume Failed", message)
         raise typer.Exit(code=1)
 
-    rich_output.info(f"Resuming workflow session '{session_id}'...")
     raise typer.Exit(code=0)
 
 

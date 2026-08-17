@@ -20,6 +20,7 @@ from worktree.core.task import (
     resolve_and_load_task,
     run_task,
 )
+from worktree.core.task.services.pause import TaskPauseStore
 
 from .models import (
     TaskListCommandOutcome,
@@ -150,6 +151,11 @@ def _finalize_run_outcome(
 
     if run_outcome.ok:
         render_task_run_success(final_record, rich_output=output)
+        return TaskRunCommandOutcome(run_record=final_record, warnings=warnings)
+
+    if run_outcome.status == RunStatus.PAUSED:
+        message = run_outcome.error_message or "Task paused; checkpoint saved."
+        output.info(message)
         return TaskRunCommandOutcome(run_record=final_record, warnings=warnings)
 
     if run_outcome.status == RunStatus.CANCELLED:
@@ -287,6 +293,7 @@ def task_run_command(
     )
 
     output.info(f"Running task '{name}'...")
+    pause_store = TaskPauseStore(root, sid) if run_record is not None else None
     run_outcome = run_task(
         definition=definition,
         cwd=root,
@@ -297,6 +304,7 @@ def task_run_command(
         inputs=input_result.values,
         non_interactive=effective_non_interactive,
         failure_prompter=failure_prompter,
+        pause_store=pause_store,
     )
     warnings.extend(run_outcome.warnings)
     for warning in run_outcome.warnings:

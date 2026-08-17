@@ -57,8 +57,11 @@ Select option [r/c/a]:
 ```
 
 Choices accept short letters or full words (`retry` / `continue` / `abort`).
-Invalid input re-prompts. This is an in-process prompt gate only — not a durable
-DB `paused` status.
+Invalid input re-prompts. For a tracked task session the runtime persists
+`status=paused` and a checkpoint JSON payload before waiting. There is no
+`wt task resume` command; paused task rows are stored for the same checkpoint
+shape as workflows. Non-interactive runs abort `prompt_user` and never leave
+the task `paused`.
 
 #### Examples
 

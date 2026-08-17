@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 from typing import Protocol
@@ -10,6 +10,7 @@ from typing import Protocol
 from pydantic import BaseModel, Field
 
 from worktree.core.db import RunStatus
+from worktree.core.git_sandbox import SandboxSession
 from worktree.core.step import StepDefinition, StepResult
 
 
@@ -35,16 +36,58 @@ class FailurePrompter(Protocol):
         ...
 
 
-class RunPauseHook(Protocol):
-    """Optional no-op extension point for a later durable pause product."""
+class RunCheckpoint(BaseModel):
+    """JSON-serializable pause payload sufficient to resume a run."""
 
-    def on_pause(self, *, step: StepDefinition, result: StepResult) -> None:
-        """Called immediately before an interactive failure prompt."""
+    model_config = {"extra": "forbid", "strict": True}
+
+    version: int = 1
+    next_step_index: int
+    step_results: list[StepResult] = Field(default_factory=list)
+    sandbox_path: str | None = None
+    sandbox_id: str | None = None
+    sandbox_name: str | None = None
+    sandbox_branch: str | None = None
+    sandbox_base_commit: str | None = None
+    use_sandbox: bool = True
+    keep: bool = False
+    agent: str | None = None
+    inputs: dict[str, str | int | bool] = Field(default_factory=dict)
+    pending_step_id: str
+    diagnostic: str
+    pending_result: StepResult | None = None
+
+
+class RunPauseStore(Protocol):
+    """Domain adapter that persists and clears durable pause checkpoints."""
+
+    def save_checkpoint(self, checkpoint: RunCheckpoint) -> None:
+        """Write checkpoint JSON and set the tracked run to paused."""
         ...
 
-    def on_resume(self, *, step: StepDefinition, decision: FailurePromptDecision) -> None:
-        """Called immediately after an interactive failure prompt returns."""
+    def clear_pause(self) -> None:
+        """Mark the tracked run running again after an in-process prompt returns."""
         ...
+
+
+def parse_checkpoint(raw: str | None) -> RunCheckpoint | None:
+    """Load a checkpoint from JSON, or return None when missing or corrupt."""
+    if raw is None or not raw.strip():
+        return None
+    try:
+        return RunCheckpoint.model_validate_json(raw)
+    except (ValueError, TypeError):
+        return None
+
+
+@dataclass
+class StepLoopState:
+    """Mutable per-run bookkeeping threaded through the step loop."""
+
+    target_dir: Path
+    session: SandboxSession | None
+    step_results: list[StepResult] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -60,7 +103,8 @@ class RunContext:
     inputs: dict[str, str | int | bool] | None = None
     non_interactive: bool = False
     failure_prompter: FailurePrompter | None = None
-    pause_hook: RunPauseHook | None = None
+    pause_store: RunPauseStore | None = None
+    resume_from: RunCheckpoint | None = None
 
 
 class RunObserver(Protocol):
