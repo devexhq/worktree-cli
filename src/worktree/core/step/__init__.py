@@ -21,6 +21,7 @@ from worktree.core.step.services import (
     load_step_definition,
     resolve_step_definition,
 )
+from worktree.core.step.step import Step
 
 __all__ = [
     "DEFAULT_STEP_TIMEOUT_SECONDS",
@@ -29,6 +30,7 @@ __all__ = [
     "FailurePolicy",
     "FailureSpec",
     "LoopStepBlock",
+    "Step",
     "StepAssert",
     "StepDefinition",
     "StepNotFoundError",
