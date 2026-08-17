@@ -25,6 +25,53 @@ Do not create God-functions - opt instead to break down functionality into separ
 
 Do not include test seams in function and class definitions. Production code should exercise production logic only, not test-related logic.
 
+### Core package layout
+
+Default skeleton for a **domain** package under `src/worktree/core/<domain>/`
+(exemplars: `task/`, `inputs/`, `catalog/`, `workflows/`):
+
+```text
+core/<domain>/
+  __init__.py       # re-export public API only
+  models.py         # BaseModel, StrEnum, dataclasses, Protocols for the domain
+  exceptions.py     # domain errors (omit if none)
+  services/         # imperative operations
+    <verb>.py       # load, run, render, resolve, …
+  <subpackage>/     # only for a real sub-boundary (e.g. agents/, assertions/)
+```
+
+**Must:**
+
+- Put new domain types (`BaseModel`, public `StrEnum`, public `Protocol`,
+  frozen dataclass DTOs) in `models.py` (or a clearly named models submodule),
+  not in service/runner/engine modules.
+- Put new operations in `services/<verb>.py`.
+- Follow the catalog-backed recipe in
+  [architecture.md](architecture.md#adding-a-new-catalog-backed-domain) when
+  adding a blueprint domain (`models.py` + `exceptions.py` + `services/loader.py`).
+
+**Must not:**
+
+- Add new logic modules directly under `core/<domain>/*.py` except
+  `__init__.py`, `models.py`, `exceptions.py`, or an explicitly documented
+  execution entrypoint (see exceptions below).
+- Define new **public** models/enums/protocols inside `services/*.py`.
+- Copy the flat `config/` or `db/` layout into a new domain package.
+
+**Documented exceptions (do not generalize):**
+
+| Location | Rule |
+|----------|------|
+| `core/config/`, `core/db/` | **Legacy flat infra** — modules stay at package root. Do not use as a template for new domains. |
+| `core/step/runner.py`, `core/runtime/engine.py` | **Allowed root entrypoints** for single-step / multi-step execution. New helpers still go in `services/` (or stay private in the entry module). Prefer `models.py` for new result/DTO types even when older types still live next to the runner. |
+| `core/bootstrap.py`, `core/git_sandbox.py` | Top-level core infra modules (not domain packages). |
+| Private helpers (`_ParseState`, module-local exceptions) | May live next to the function that uses them. |
+
+CLI packages stay `cli/<name>/{command.py, models.py, renderers.py}` — see
+[architecture.md](architecture.md#adding-a-new-command).
+
+When unsure, copy `core/task/` or `core/inputs/`, not `core/config/`.
+
 ### Keep code DRY
 
 Avoid useless repetition in production code. Before writing a new private helper, grep for an existing one with similar behavior in `common/` and in sibling packages — duplicated formatting/normalization helpers (e.g. two copies of the same warning-bullet formatter in two different modules, or the same `x.value if hasattr(x, "value") else str(x)` enum guard copy-pasted across every CLI renderer) are a recurring smell in this codebase. If two or more modules need the same small piece of logic:
