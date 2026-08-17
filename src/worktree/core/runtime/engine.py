@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from worktree.core.db import RunStatus
@@ -11,8 +12,22 @@ from worktree.core.runtime.failure import (
     mark_continued_after_prompt,
     step_failure_diagnostic,
 )
-from worktree.core.runtime.models import FailurePromptDecision, RunContext, RunOutcome
+from worktree.core.runtime.models import FailurePromptDecision, RunCheckpoint, RunContext, RunOutcome
 from worktree.core.step import FailurePolicy, StepDefinition, StepResult, execute_step
+
+
+class _RunPaused(Exception):
+    """Interactive prompt was interrupted after a durable checkpoint was saved."""
+
+
+@dataclass
+class _LoopState:
+    """Mutable per-run bookkeeping threaded through the step loop."""
+
+    target_dir: Path
+    session: SandboxSession | None
+    step_results: list[StepResult] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
 
 def _notify_sandbox_ready(context: RunContext, path: Path, *, active: bool) -> None:
@@ -35,6 +50,36 @@ def _notify_sandbox_cleanup(context: RunContext, *, kept: bool, path: Path) -> N
         context.observer.on_sandbox_cleanup(kept, path)
 
 
+def _session_from_checkpoint(checkpoint: RunCheckpoint, path: Path) -> SandboxSession:
+    return SandboxSession(
+        session_id=checkpoint.sandbox_id or "resumed",
+        target_branch=checkpoint.sandbox_branch or "worktree/sandbox-resumed",
+        sandbox_path=path,
+        base_commit=checkpoint.sandbox_base_commit or "HEAD",
+        name=checkpoint.sandbox_name,
+        created_at="",
+    )
+
+
+def _setup_resumed_sandbox(
+    context: RunContext,
+    checkpoint: RunCheckpoint,
+) -> tuple[Path, GitSandboxManager | None, SandboxSession | None, str | None]:
+    if not checkpoint.use_sandbox:
+        target_dir = context.cwd.resolve()
+        _notify_sandbox_ready(context, target_dir, active=False)
+        return target_dir, None, None, None
+
+    path = Path(checkpoint.sandbox_path or "")
+    if not path.exists():
+        return context.cwd.resolve(), None, None, f"Git sandbox is missing: {path}"
+
+    session = _session_from_checkpoint(checkpoint, path)
+    manager = GitSandboxManager(cwd=context.cwd.resolve())
+    _notify_sandbox_ready(context, path, active=True)
+    return path, manager, session, None
+
+
 def _setup_sandbox(
     context: RunContext,
 ) -> tuple[Path, GitSandboxManager | None, SandboxSession | None, str | None]:
@@ -44,6 +89,9 @@ def _setup_sandbox(
         Tuple of (target_dir, manager, session, error_message).
         ``error_message`` is set when sandbox setup fails.
     """
+    if context.resume_from is not None:
+        return _setup_resumed_sandbox(context, context.resume_from)
+
     if not context.use_sandbox:
         target_dir = context.cwd.resolve()
         _notify_sandbox_ready(context, target_dir, active=False)
@@ -100,10 +148,60 @@ def _build_step_context(context: RunContext) -> dict[str, object] | None:
     return step_context or None
 
 
-def _prompt_user_decision(
+def _build_checkpoint(
     context: RunContext,
+    state: _LoopState,
+    *,
     step: StepDefinition,
     result: StepResult,
+    step_index: int,
+) -> RunCheckpoint:
+    diagnostic = _failed_step_message(result)
+    session = state.session
+    return RunCheckpoint(
+        next_step_index=step_index,
+        step_results=list(state.step_results),
+        sandbox_path=str(session.sandbox_path if session is not None else state.target_dir),
+        sandbox_id=session.session_id if session is not None else None,
+        sandbox_name=session.name if session is not None else None,
+        sandbox_branch=session.target_branch if session is not None else None,
+        sandbox_base_commit=session.base_commit if session is not None else None,
+        use_sandbox=context.use_sandbox,
+        keep=context.keep,
+        agent=context.agent,
+        inputs=dict(context.inputs or {}),
+        pending_step_id=step.id,
+        diagnostic=diagnostic,
+        pending_result=result,
+    )
+
+
+def _try_save_checkpoint(context: RunContext, checkpoint: RunCheckpoint, warnings: list[str]) -> bool:
+    if context.pause_store is None:
+        return False
+    try:
+        context.pause_store.save_checkpoint(checkpoint)
+    except Exception as exc:
+        warnings.append(f"Failed to persist pause checkpoint: {exc}")
+        return False
+    return True
+
+
+def _try_clear_pause(context: RunContext, warnings: list[str]) -> None:
+    if context.pause_store is None:
+        return
+    try:
+        context.pause_store.clear_pause()
+    except Exception as exc:
+        warnings.append(f"Failed to clear pause checkpoint: {exc}")
+
+
+def _prompt_user_decision(
+    context: RunContext,
+    state: _LoopState,
+    step: StepDefinition,
+    result: StepResult,
+    step_index: int,
 ) -> tuple[FailurePromptDecision, str | None]:
     """Resolve a ``prompt_user`` decision, degrading to abort when non-interactive."""
     diagnostic = step_failure_diagnostic(result)
@@ -116,15 +214,19 @@ def _prompt_user_decision(
             )
         return FailurePromptDecision.ABORT, warning
 
-    if context.pause_hook is not None:
-        context.pause_hook.on_pause(step=step, result=result)
-    decision = context.failure_prompter.prompt_step_failure(
-        step=step,
-        result=result,
-        diagnostic=diagnostic,
-    )
-    if context.pause_hook is not None:
-        context.pause_hook.on_resume(step=step, decision=decision)
+    checkpoint = _build_checkpoint(context, state, step=step, result=result, step_index=step_index)
+    persisted = _try_save_checkpoint(context, checkpoint, state.warnings)
+    try:
+        decision = context.failure_prompter.prompt_step_failure(
+            step=step,
+            result=result,
+            diagnostic=diagnostic,
+        )
+    except KeyboardInterrupt:
+        if persisted:
+            raise _RunPaused(checkpoint.diagnostic) from None
+        raise
+    _try_clear_pause(context, state.warnings)
     return decision, None
 
 
@@ -147,9 +249,10 @@ def _apply_prompt_decision(
 
 def _handle_failed_step(
     context: RunContext,
+    state: _LoopState,
     step: StepDefinition,
     result: StepResult,
-    warnings: list[str],
+    step_index: int,
 ) -> tuple[str, StepResult | None, str | None]:
     """Apply effective terminal policy for a failed step result.
 
@@ -162,22 +265,22 @@ def _handle_failed_step(
         # Defensive: step-local continue already maps to ignored; treat as non-fatal.
         return "continue", mark_continued_after_prompt(result), None
     if policy == FailurePolicy.PROMPT_USER:
-        decision, warning = _prompt_user_decision(context, step, result)
+        decision, warning = _prompt_user_decision(context, state, step, result, step_index)
         if warning is not None:
-            warnings.append(warning)
+            state.warnings.append(warning)
         return _apply_prompt_decision(decision, result)
     return "abort", result, _failed_step_message(result)
 
 
 def _execute_one_step(
     context: RunContext,
+    state: _LoopState,
     step: StepDefinition,
     *,
     idx: int,
     total: int,
-    target_dir: Path,
+    step_index: int,
     step_context: dict[str, object] | None,
-    warnings: list[str],
 ) -> tuple[str, StepResult | None, str | None]:
     """Run a step until success, continue-after-failure, or abort.
 
@@ -185,45 +288,106 @@ def _execute_one_step(
     """
     while True:
         _notify_step_start(context, idx, total, step)
-        result = execute_step(step, sandbox_path=target_dir, context=step_context)
+        result = execute_step(step, sandbox_path=state.target_dir, context=step_context)
         _notify_step_done(context, idx, total, result)
         if result.ok:
             return "continue", result, None
-        action, recorded, error_message = _handle_failed_step(context, step, result, warnings)
+        action, recorded, error_message = _handle_failed_step(context, state, step, result, step_index)
         if action == "retry":
             continue
         return action, recorded, error_message
 
 
+def _pending_result_for_resume(checkpoint: RunCheckpoint, step: StepDefinition) -> StepResult:
+    if checkpoint.pending_result is not None:
+        return checkpoint.pending_result
+    return StepResult(
+        step_id=step.id,
+        status="failed",
+        exit_code=1,
+        stdout="",
+        stderr="",
+        duration_seconds=0.0,
+        error_message=checkpoint.diagnostic,
+    )
+
+
+def _resume_pending_gate(
+    context: RunContext,
+    state: _LoopState,
+    step: StepDefinition,
+    checkpoint: RunCheckpoint,
+    step_index: int,
+) -> tuple[str, StepResult | None, str | None]:
+    """Re-prompt at the paused step without re-executing it first."""
+    result = _pending_result_for_resume(checkpoint, step)
+    action, recorded, error_message = _handle_failed_step(context, state, step, result, step_index)
+    if action != "retry":
+        return action, recorded, error_message
+    return _execute_one_step(
+        context,
+        state,
+        step,
+        idx=step_index + 1,
+        total=len(context.steps),
+        step_index=step_index,
+        step_context=_build_step_context(context),
+    )
+
+
+def _dispatch_step(
+    context: RunContext,
+    state: _LoopState,
+    step: StepDefinition,
+    step_index: int,
+    step_context: dict[str, object] | None,
+) -> tuple[str, StepResult | None, str | None]:
+    """Run or re-prompt a step depending on whether this is the resume gate."""
+    resume = context.resume_from
+    if resume is not None and step_index == resume.next_step_index:
+        return _resume_pending_gate(context, state, step, resume, step_index)
+    return _execute_one_step(
+        context,
+        state,
+        step,
+        idx=step_index + 1,
+        total=len(context.steps),
+        step_index=step_index,
+        step_context=step_context,
+    )
+
+
+def _run_remaining_steps(
+    context: RunContext,
+    state: _LoopState,
+    start: int,
+) -> tuple[RunStatus, str | None]:
+    """Execute remaining steps from ``start`` until completion or abort."""
+    step_context = _build_step_context(context)
+    for step_index, step in enumerate(context.steps):
+        if step_index < start:
+            continue
+        action, result, error_message = _dispatch_step(context, state, step, step_index, step_context)
+        if result is not None:
+            state.step_results.append(result)
+        if action == "abort":
+            return RunStatus.FAILED, error_message
+    return RunStatus.COMPLETED, None
+
+
 def _run_step_loop(
     context: RunContext,
-    target_dir: Path,
+    state: _LoopState,
 ) -> tuple[RunStatus, list[StepResult], str | None, list[str]]:
     """Execute all steps, honoring failure policies and cancellation."""
-    step_results: list[StepResult] = []
-    warnings: list[str] = []
-    total = len(context.steps)
-    step_context = _build_step_context(context)
-
+    start = context.resume_from.next_step_index if context.resume_from is not None else 0
     try:
-        for idx, step in enumerate(context.steps, start=1):
-            action, result, error_message = _execute_one_step(
-                context,
-                step,
-                idx=idx,
-                total=total,
-                target_dir=target_dir,
-                step_context=step_context,
-                warnings=warnings,
-            )
-            if result is not None:
-                step_results.append(result)
-            if action == "abort":
-                return RunStatus.FAILED, step_results, error_message, warnings
+        status, error_message = _run_remaining_steps(context, state, start)
+    except _RunPaused as exc:
+        return RunStatus.PAUSED, state.step_results, str(exc) or None, state.warnings
     except KeyboardInterrupt:
-        return RunStatus.CANCELLED, step_results, "Execution cancelled by user.", warnings
-
-    return RunStatus.COMPLETED, step_results, None, warnings
+        return RunStatus.CANCELLED, state.step_results, "Execution cancelled by user.", state.warnings
+    return status, state.step_results, error_message, state.warnings
 
 
 def run_steps(context: RunContext) -> RunOutcome:
@@ -251,11 +415,18 @@ def run_steps(context: RunContext) -> RunOutcome:
     error_message: str | None = None
     warnings: list[str] = []
     sandbox_kept = False
+    prior = list(context.resume_from.step_results) if context.resume_from is not None else []
+    state = _LoopState(target_dir=target_dir, session=session, step_results=prior)
 
     try:
-        status, step_results, error_message, warnings = _run_step_loop(context, target_dir)
+        status, step_results, error_message, warnings = _run_step_loop(context, state)
     finally:
-        sandbox_kept = _cleanup_sandbox(context, manager, session, target_dir)
+        if status == RunStatus.PAUSED:
+            sandbox_kept = True
+            kept_path = session.sandbox_path if session is not None else target_dir
+            _notify_sandbox_cleanup(context, kept=True, path=kept_path)
+        else:
+            sandbox_kept = _cleanup_sandbox(context, manager, session, target_dir)
 
     return RunOutcome(
         status=status,

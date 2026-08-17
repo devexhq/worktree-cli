@@ -24,7 +24,7 @@ src/worktree/core/                   Business logic (no Typer)
   catalog/                           models.py + services/ + templates/
   step/                              models.py, exceptions.py, runner.py (entrypoint),
                                      assertions/, services/{loader,resolver}.py
-  runtime/                           models.py, engine.py (entrypoint), failure helpers
+  runtime/                           models.py, engine.py (entrypoint), failure + pause helpers
   task/                              models.py, exceptions.py, services/{loader,runner,renderer}.py
   workflows/                         models.py, exceptions.py, services/, agents/
 
@@ -51,9 +51,13 @@ Single-step execution: `core/step/` (`runner.py`). Multi-step orchestration:
   the step runner — do not widen that edge casually).
 - **Runtime** (`core/runtime/`): `run_steps`, `RunContext` / `RunObserver` /
   `RunOutcome`, in-process failure orchestration after a failed step
-  (stop / `prompt_user` / retry-or-continue). Step-local retry stays in step.
+  (stop / `prompt_user` / retry-or-continue), and durable pause via
+  `RunPauseStore` / `RunCheckpoint` hooks. Step-local retry stays in step.
+  Runtime must not import task/workflow DB facades or `cli/`.
 - **Workflows** (`core/workflows/`): workflow definition models, patch helpers,
-  agent adapters (`agents/`). Sibling of task — neither imports the other.
+  agent adapters (`agents/`), and `resume_workflow` (rebuilds `RunContext` from
+  a paused checkpoint and re-enters `run_steps`). Sibling of task — neither
+  imports the other. Domain adapters persist pause checkpoints.
 - **Catalog** (`core/catalog/`): blueprint scan/index, `CatalogDb` sync hooks,
   packaged seeds under `templates/`.
 - **Shared core infra**: `config/`, `db/`, `bootstrap.py`, `git_sandbox.py`,

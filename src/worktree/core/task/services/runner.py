@@ -9,7 +9,7 @@ from worktree.core.runtime import (
     RunContext,
     RunObserver,
     RunOutcome,
-    RunPauseHook,
+    RunPauseStore,
     run_steps,
 )
 from worktree.core.task.models import TaskDefinition
@@ -26,7 +26,7 @@ def run_task(
     inputs: dict[str, str | int | bool] | None = None,
     non_interactive: bool = False,
     failure_prompter: FailurePrompter | None = None,
-    pause_hook: RunPauseHook | None = None,
+    pause_store: RunPauseStore | None = None,
 ) -> RunOutcome:
     """Adapt ``TaskDefinition`` into ``RunContext`` and delegate to ``run_steps``."""
     context = RunContext(
@@ -39,6 +39,6 @@ def run_task(
         inputs=inputs,
         non_interactive=non_interactive,
         failure_prompter=failure_prompter,
-        pause_hook=pause_hook,
+        pause_store=pause_store,
     )
     return run_steps(context)

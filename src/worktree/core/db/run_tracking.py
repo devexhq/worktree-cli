@@ -26,6 +26,7 @@ class RunTrackingDb[T: BaseModel](DbBase):
             "started_at": row["started_at"],
             "completed_at": row["completed_at"],
             "error_message": row["error_message"],
+            "checkpoint_json": row["checkpoint_json"] if "checkpoint_json" in row.keys() else None,
         }
         for col in self.extra_columns:
             kwargs[col] = row[col]
@@ -108,6 +109,32 @@ class RunTrackingDb[T: BaseModel](DbBase):
             except sqlite3.IntegrityError as exc:
                 raise ValueError(f"Invalid status update constraint: {exc}") from exc
 
+            if cursor.rowcount == 0:
+                return None
+            cursor.execute(f"SELECT * FROM {self.table} WHERE session_id = ?;", (session_id,))
+            row = cursor.fetchone()
+            return self._record_from_row(row) if row is not None else None
+
+    def save_pause(
+        self,
+        session_id: str,
+        checkpoint_json: str,
+        error_message: str | None = None,
+    ) -> T | None:
+        """Persist a paused checkpoint without completing the run."""
+        update_sql = f"""
+        UPDATE {self.table}
+        SET status = ?, completed_at = NULL, error_message = ?, checkpoint_json = ?
+        WHERE session_id = ?;
+        """
+        with self.cursor() as cursor:
+            try:
+                cursor.execute(
+                    update_sql,
+                    (RunStatus.PAUSED.value, error_message, checkpoint_json, session_id),
+                )
+            except sqlite3.IntegrityError as exc:
+                raise ValueError(f"Invalid status update constraint: {exc}") from exc
             if cursor.rowcount == 0:
                 return None
             cursor.execute(f"SELECT * FROM {self.table} WHERE session_id = ?;", (session_id,))

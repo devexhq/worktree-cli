@@ -5,20 +5,24 @@ from worktree.core.runtime.failure import USER_CONTINUED_MARKER, effective_termi
 from worktree.core.runtime.models import (
     FailurePromptDecision,
     FailurePrompter,
+    RunCheckpoint,
     RunContext,
     RunObserver,
     RunOutcome,
-    RunPauseHook,
+    RunPauseStore,
+    parse_checkpoint,
 )
 
 __all__ = [
     "USER_CONTINUED_MARKER",
     "FailurePromptDecision",
     "FailurePrompter",
+    "RunCheckpoint",
     "RunContext",
     "RunObserver",
     "RunOutcome",
-    "RunPauseHook",
+    "RunPauseStore",
     "effective_terminal_policy",
+    "parse_checkpoint",
     "run_steps",
 ]

@@ -9,6 +9,8 @@ from worktree.core.workflows.models import (
     LoopStepBlock,
     WorkflowDefinition,
     WorkflowInput,
+    WorkflowResumeResult,
+    WorkflowResumeStatus,
 )
 from worktree.core.workflows.services.payload import (
     AgentFailurePayload,
@@ -29,6 +31,8 @@ __all__ = [
     "WorkflowDefinition",
     "WorkflowInput",
     "WorkflowLoadError",
+    "WorkflowResumeResult",
+    "WorkflowResumeStatus",
     "WorkflowValidationError",
     "format_workflow_run_resolve_failure",
     "format_workflow_run_validate_failure",

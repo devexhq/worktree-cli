@@ -14,6 +14,7 @@ from worktree.core.db import RunStatus
 from worktree.core.runtime import (
     USER_CONTINUED_MARKER,
     FailurePromptDecision,
+    RunCheckpoint,
     RunContext,
     run_steps,
 )
@@ -454,3 +455,132 @@ def test_run_steps_retry_exhausted_uses_on_max_retries_prompt(
 
     assert outcome.status == RunStatus.FAILED
     assert prompter.calls == 1
+
+
+class _MemoryPauseStore:
+    def __init__(self) -> None:
+        self.checkpoints: list[RunCheckpoint] = []
+        self.cleared = 0
+
+    def save_checkpoint(self, checkpoint: RunCheckpoint) -> None:
+        self.checkpoints.append(checkpoint)
+
+    def clear_pause(self) -> None:
+        self.cleared += 1
+
+
+class _AssertPausedPrompter:
+    def __init__(self, store: _MemoryPauseStore) -> None:
+        self.store = store
+        self.calls = 0
+
+    def prompt_step_failure(self, **kwargs: Any) -> FailurePromptDecision:
+        self.calls += 1
+        assert self.store.checkpoints
+        return FailurePromptDecision.ABORT
+
+
+class _InterruptPrompter:
+    def prompt_step_failure(self, **kwargs: Any) -> FailurePromptDecision:
+        raise KeyboardInterrupt
+
+
+def test_run_steps_persists_checkpoint_before_prompt(
+    fs: FileSystem,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _MemoryPauseStore()
+    prompter = _AssertPausedPrompter(store)
+    patch_execute(monkeypatch, _failed_result())
+    outcome = run_steps(
+        make_run_context(
+            fs,
+            steps=[_cmd_step("fail", on_failure="prompt_user")],
+            failure_prompter=prompter,
+            pause_store=store,
+        )
+    )
+
+    assert prompter.calls == 1
+    assert len(store.checkpoints) == 1
+    assert store.checkpoints[0].pending_step_id == "fail"
+    assert store.checkpoints[0].next_step_index == 0
+    assert store.cleared == 1
+    assert outcome.status == RunStatus.FAILED
+
+
+def test_run_steps_non_interactive_never_pauses(
+    fs: FileSystem,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _MemoryPauseStore()
+    patch_execute(monkeypatch, _failed_result())
+    outcome = run_steps(
+        make_run_context(
+            fs,
+            steps=[_cmd_step("fail", on_failure="prompt_user")],
+            non_interactive=True,
+            pause_store=store,
+        )
+    )
+
+    assert outcome.status == RunStatus.FAILED
+    assert store.checkpoints == []
+    assert store.cleared == 0
+
+
+def test_run_steps_keyboard_interrupt_after_pause_keeps_paused(
+    fs: FileSystem,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _MemoryPauseStore()
+    patch_execute(monkeypatch, _failed_result())
+    outcome = run_steps(
+        make_run_context(
+            fs,
+            steps=[_cmd_step("fail", on_failure="prompt_user")],
+            failure_prompter=_InterruptPrompter(),
+            pause_store=store,
+        )
+    )
+
+    assert outcome.status == RunStatus.PAUSED
+    assert store.checkpoints
+    assert store.cleared == 0
+    assert outcome.sandbox_kept is True
+
+
+def test_run_steps_resume_reprompts_and_skips_completed(
+    fs: FileSystem,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prompter = _ScriptedPrompter([FailurePromptDecision.CONTINUE])
+    calls = patch_execute(monkeypatch, {"later": _ok_result()})
+    checkpoint = RunCheckpoint(
+        next_step_index=1,
+        step_results=[_ok_result("ok")],
+        sandbox_path=str(fs.base_path),
+        use_sandbox=False,
+        keep=False,
+        pending_step_id="fail",
+        diagnostic="Step 'fail' failed: boom",
+        pending_result=_failed_result("fail"),
+    )
+    outcome = run_steps(
+        make_run_context(
+            fs,
+            steps=[
+                _cmd_step("ok"),
+                _cmd_step("fail", on_failure="prompt_user"),
+                _cmd_step("later"),
+            ],
+            failure_prompter=prompter,
+            resume_from=checkpoint,
+        )
+    )
+
+    assert outcome.ok is True
+    assert calls == ["later"]
+    assert prompter.calls == 1
+    assert [result.step_id for result in outcome.step_results] == ["ok", "fail", "later"]
+    assert outcome.step_results[1].status == "ignored"
