@@ -20,9 +20,9 @@ from worktree.core.catalog import Catalog
 from worktree.core.config.loader import ConfigLoadStatus, load_config_result
 from worktree.core.db import RunStatus, SandboxesDb, WorkflowsDb
 from worktree.core.engine import Engine, EngineResumeError, EngineRuntimeError
-from worktree.core.inputs import format_missing_inputs_error
+from worktree.core.inputs import format_input_error_message
 
-from .renderers import render_workflow_inputs, render_workflow_list
+from .renderers import render_workflow_list
 
 rich_output = RichOutput()
 _WORKFLOW_RENDERER = BlueprintRenderer(BlueprintKind.WORKFLOW)
@@ -183,27 +183,6 @@ def _load_workflow_blueprint(name: str, root: Path) -> Blueprint:
     return blueprint
 
 
-def _validate_workflow_inputs(name: str, blueprint: Blueprint, cli_args: list[str] | None) -> None:
-    """Validate and display workflow inputs; exit on parse/missing errors."""
-    input_result = blueprint.resolve_inputs(cli_args)
-    if not input_result.ok:
-        if input_result.errors:
-            error_message = input_result.errors[0]
-        else:
-            error_message = format_missing_inputs_error(
-                kind="workflow",
-                name=name,
-                missing=input_result.missing,
-                declarations=blueprint.inputs,
-            )
-        rich_output.error_panel("Workflow Run Failed", error_message)
-        raise typer.Exit(code=1)
-    if blueprint.inputs:
-        render_workflow_inputs(blueprint.inputs, rich_output=rich_output)
-    for warning in input_result.warnings:
-        rich_output.info(f"Warning: {warning}")
-
-
 def workflow_run_command(
     name: str,
     *,
@@ -230,7 +209,21 @@ def workflow_run_command(
     _require_workflow_config(root)
 
     blueprint = _load_workflow_blueprint(name, root)
-    _validate_workflow_inputs(name, blueprint, cli_args)
+    input_result = blueprint.resolve_inputs(cli_args)
+    if not input_result.ok:
+        rich_output.error_panel(
+            "Workflow Run Failed",
+            format_input_error_message(
+                kind="workflow",
+                name=name,
+                result=input_result,
+                declarations=blueprint.inputs,
+            ),
+        )
+        raise typer.Exit(code=1)
+
+    for warning in input_result.warnings:
+        rich_output.info(f"Warning: {warning}")
 
     rich_output.error_panel(
         "Workflow Run Not Implemented",

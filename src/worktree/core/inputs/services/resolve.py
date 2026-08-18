@@ -259,3 +259,21 @@ def format_missing_inputs_error(
             lines.append(f"  wt {kind} run {name} {alias} <value>")
         lines.append(f"  wt {kind} run {name} -i {input_name}=<value>")
     return "\n".join(lines)
+
+
+def format_input_error_message(
+    *,
+    kind: str,
+    name: str,
+    result: InputResolveResult,
+    declarations: dict[str, ParameterInput],
+) -> str:
+    """Return the first parse error, or the structured missing-input body."""
+    if result.errors:
+        return result.errors[0]
+    return format_missing_inputs_error(
+        kind=kind,
+        name=name,
+        missing=result.missing,
+        declarations=declarations,
+    )
