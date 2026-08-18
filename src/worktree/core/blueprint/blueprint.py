@@ -13,7 +13,7 @@ from worktree.core.blueprint.exceptions import (
 from worktree.core.blueprint.models import BlueprintDefinition, BlueprintKind
 from worktree.core.catalog import Catalog, CatalogFileNotFoundError, CatalogResolveStatus, CatalogYamlError
 from worktree.core.db import CatalogItemType
-from worktree.core.inputs import ParameterInput
+from worktree.core.inputs import InputResolveResult, ParameterInput, resolve_inputs
 from worktree.core.step import LoopStepBlock, StepDefinition
 
 
@@ -84,6 +84,15 @@ class Blueprint:
     def dump(self) -> dict[str, object]:
         """Return the in-memory document as a JSON-mode dict, including derived kind."""
         return self._instance.model_dump(mode="json")
+
+    def resolve_inputs(
+        self,
+        cli_args: list[str] | None = None,
+        *,
+        overrides: dict[str, str | int | bool] | None = None,
+    ) -> InputResolveResult:
+        """Parse CLI args against this blueprint's declared inputs."""
+        return resolve_inputs(self.inputs, cli_args=cli_args, overrides=overrides)
 
     @classmethod
     def _kind_from_item_type(cls, item_type: CatalogItemType) -> BlueprintKind:

@@ -20,7 +20,6 @@ from worktree.core.catalog.services.inventory import (
     scan_and_index_catalog,
 )
 from worktree.core.db import CatalogDb, CatalogItemType, CatalogRecord
-from worktree.core.inputs import InputResolveResult, ParameterInput, resolve_inputs
 
 
 class Catalog:
@@ -74,14 +73,6 @@ class Catalog:
         if record is None:
             raise CatalogWriteError(f"Failed to reindex catalog blueprint '{rel_path.as_posix()}'.")
         return record
-
-    def resolve_inputs(
-        self,
-        declarations: dict[str, ParameterInput],
-        cli_args: list[str] | None = None,
-    ) -> InputResolveResult:
-        """Delegate to ``worktree.core.inputs.resolve_inputs``."""
-        return resolve_inputs(declarations, cli_args=cli_args)
 
     @staticmethod
     def read_yaml(path: Path) -> dict[str, Any]:

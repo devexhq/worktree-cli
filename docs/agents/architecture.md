@@ -22,10 +22,12 @@ src/worktree/core/                   Business logic (no Typer)
   db/                                Legacy flat infra (connection, migrations, repos)
   inputs/                            models.py + services/ (resolve, interpolate, renderer)
   catalog/                           models.py + services/ + templates/
+  blueprint/                         models.py, blueprint.py (load/inspect handle)
   step/                              models.py, exceptions.py, runner.py (entrypoint),
                                      assertions/, services/{loader,resolver}.py
   runtime/                           models.py, exceptions.py, engine.py (entrypoint),
                                      failure + pause helpers
+  engine/                            models.py, engine.py (process facade)
   task/                              models.py, exceptions.py, services/{loader,runner,renderer}.py
   agents/                            models.py + adapters (base, factory, providers)
   patch/                             models.py, exceptions.py, patch.py (entrypoint)
@@ -40,7 +42,8 @@ extend the flat `config/` / `db/` pattern to new domains. See
 [code-conventions.md](code-conventions.md#core-package-layout).
 
 Single-step execution: `core/step/` (`runner.py`). Multi-step orchestration:
-`core/runtime/` (`engine.py` → `run_steps`).
+`core/runtime/` (`engine.py` → `run_steps`). Process facade: `core/engine/`
+(`Engine.run` / `Engine.resume`).
 
 ### Domain ownership
 
@@ -55,11 +58,17 @@ Single-step execution: `core/step/` (`runner.py`). Multi-step orchestration:
   and failure payload models. Must not import step/runtime/task/workflows.
 - **Patch** (`core/patch/`): unified-diff parse/validate (no git apply).
   Must not import agents/step/runtime/task/workflows.
+- **Blueprint** (`core/blueprint/`): unified task/workflow document handle,
+  catalog/path load, and `resolve_inputs` against declared parameters.
 - **Runtime** (`core/runtime/`): `run_steps`, `RunContext` / `RunObserver` /
   `RunOutcome`, in-process failure orchestration after a failed step
   (stop / `prompt_user` / retry-or-continue), and durable pause via
   `RunPauseStore` / `RunCheckpoint` hooks. Step-local retry stays in step.
-  Runtime must not import task/workflow DB facades or `cli/`.
+  `RunOutcome.session_id` may be stamped by Engine; `run_steps` does not mint
+  it. Runtime must not import task/workflow DB facades or `cli/`.
+- **Engine** (`core/engine/`): `RunRequest`, persist run row, mint session id,
+  resolve inputs before `run_steps`, stamp `session_id` on `RunOutcome`.
+  Must not import `cli/`.
 - **Workflows** (`core/workflows/`): workflow definition models and
   `resume_workflow` (rebuilds `RunContext` from a paused checkpoint and
   re-enters `run_steps`). Sibling of task — neither imports the other.
@@ -77,7 +86,7 @@ output grows past a couple of lines.
 Dependencies flow one way; do not import "up" the stack:
 
 ```
-common/  ->  core/{db,catalog,inputs,patch}/  ->  core/agents/  ->  core/step/  ->  core/runtime/  ->  {core/task/, core/workflows/}  ->  cli/
+common/  ->  core/{db,catalog,inputs,patch}/  ->  core/agents/  ->  core/step/  ->  {core/runtime/, core/blueprint/}  ->  core/engine/  ->  {core/task/, core/workflows/}  ->  cli/
 ```
 
 - `common/` never depends on `core/`.
@@ -91,6 +100,10 @@ common/  ->  core/{db,catalog,inputs,patch}/  ->  core/agents/  ->  core/step/  
   vocabulary — put shared types in `common/` or `step/`. Agent dispatch uses
   `core.agents` from the step runner.
 - `core/runtime/` may use `step/`, `db/`, `git_sandbox.py`; must not import
+  `blueprint/`, `engine/`, `task/`, `workflows/`, or `cli/`.
+- `core/blueprint/` may use `catalog/`, `inputs/`, `step/`; must not import
+  `runtime/`, `engine/`, `task/`, `workflows/`, or `cli/`.
+- `core/engine/` may use `runtime/`, `blueprint/`, `db/`; must not import
   `task/`, `workflows/`, or `cli/`.
 - `core/task/` and `core/workflows/` depend on runtime/step/inputs/catalog;
   they do not import each other.

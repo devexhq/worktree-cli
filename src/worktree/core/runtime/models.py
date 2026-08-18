@@ -138,6 +138,7 @@ class RunOutcome(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     sandbox_kept: bool = False
     sandbox_path: Path
+    session_id: str | None = None
 
     @property
     def ok(self) -> bool:

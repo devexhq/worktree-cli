@@ -11,7 +11,8 @@ import pytest
 from tests.helpers import FileSystem
 from worktree.core.blueprint import Blueprint, BlueprintDefinition, BlueprintKind
 from worktree.core.db import RunStatus, TasksDb, WorkflowsDb
-from worktree.core.engine import Engine, EngineRuntimeError
+from worktree.core.engine import Engine, EngineInputError, EngineRuntimeError, RunRequest
+from worktree.core.inputs import InputType, ParameterInput
 from worktree.core.runtime import RunContext, RunOutcome
 from worktree.core.step import LoopStepBlock, StepDefinition, StepType
 
@@ -85,17 +86,19 @@ def test_run_delegates_to_run_steps(monkeypatch: pytest.MonkeyPatch, fs: FileSys
 
     outcome = Engine(fs.base_path).run(
         blueprint,
-        use_sandbox=True,
-        keep=True,
-        agent="copilot",
-        session_id="task_demo",
-        observer=observer,
-        inputs={"message": "hi"},
-        non_interactive=True,
-        failure_prompter=None,
+        RunRequest(
+            use_sandbox=True,
+            keep=True,
+            agent="copilot",
+            session_id="task_demo",
+            observer=observer,
+            inputs={"message": "hi"},
+            non_interactive=True,
+            failure_prompter=None,
+        ),
     )
 
-    assert outcome is expected
+    assert outcome == expected.model_copy(update={"session_id": "task_demo"})
     context = captured["context"]
     assert context.steps == steps
     assert context.cwd == fs.base_path.resolve()
@@ -138,8 +141,7 @@ def test_run_use_sandbox_logic(
 
     Engine(fs.base_path).run(
         _task_blueprint(use_sandbox=definition_use_sandbox),
-        use_sandbox=caller_use_sandbox,
-        session_id="task_sandbox",
+        RunRequest(use_sandbox=caller_use_sandbox, session_id="task_sandbox"),
     )
 
     assert captured["context"].use_sandbox is expected
@@ -148,8 +150,7 @@ def test_run_use_sandbox_logic(
 def test_run_persists_completed_task_row(fs: FileSystem) -> None:
     outcome = Engine(fs.base_path).run(
         _task_blueprint(use_sandbox=False),
-        use_sandbox=False,
-        session_id="task_persist",
+        RunRequest(use_sandbox=False, session_id="task_persist"),
     )
 
     assert outcome.ok
@@ -163,8 +164,7 @@ def test_run_persists_completed_task_row(fs: FileSystem) -> None:
 def test_run_persists_workflow_row_with_empty_branch(fs: FileSystem) -> None:
     outcome = Engine(fs.base_path).run(
         _workflow_blueprint(),
-        use_sandbox=False,
-        session_id="workflow_persist",
+        RunRequest(use_sandbox=False, session_id="workflow_persist"),
     )
 
     assert outcome.ok
@@ -177,7 +177,7 @@ def test_run_persists_workflow_row_with_empty_branch(fs: FileSystem) -> None:
 
 def test_run_rejects_loop_steps_before_insert(fs: FileSystem) -> None:
     with pytest.raises(EngineRuntimeError, match=r"Engine\.run does not execute loop steps\."):
-        Engine(fs.base_path).run(_workflow_blueprint(loop=True), session_id="workflow_loop")
+        Engine(fs.base_path).run(_workflow_blueprint(loop=True), RunRequest(session_id="workflow_loop"))
 
     assert WorkflowsDb(fs.base_path).get("workflow_loop") is None
 
@@ -195,7 +195,7 @@ def test_insert_failure_warns_and_still_runs(monkeypatch: pytest.MonkeyPatch, fs
     monkeypatch.setattr("worktree.core.engine.engine.run_steps", fake_run_steps)
     monkeypatch.setattr("worktree.core.engine.engine.TasksDb.insert", boom)
 
-    outcome = Engine(fs.base_path).run(_task_blueprint(), session_id="task_insert_fail")
+    outcome = Engine(fs.base_path).run(_task_blueprint(), RunRequest(session_id="task_insert_fail"))
 
     assert captured["context"].pause_store is None
     assert any(warning.startswith("Failed to record run start in database:") for warning in outcome.warnings)
@@ -214,7 +214,7 @@ def test_update_failure_warns_and_returns_outcome(monkeypatch: pytest.MonkeyPatc
         lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("locked")),
     )
 
-    outcome = Engine(fs.base_path).run(_task_blueprint(), session_id="task_update_fail")
+    outcome = Engine(fs.base_path).run(_task_blueprint(), RunRequest(session_id="task_update_fail"))
 
     assert outcome is not expected
     assert outcome.warnings[0] == "step note"
@@ -230,9 +230,96 @@ def test_omitted_session_id_uses_kind_prefix(monkeypatch: pytest.MonkeyPatch, fs
         lambda _context: RunOutcome(status=RunStatus.COMPLETED, sandbox_path=fs.base_path),
     )
 
-    Engine(fs.base_path).run(_task_blueprint(use_sandbox=False), use_sandbox=False)
+    outcome = Engine(fs.base_path).run(_task_blueprint(use_sandbox=False), RunRequest(use_sandbox=False))
 
     records = TasksDb(fs.base_path).list()
     assert len(records) == 1
     assert records[0].session_id.startswith("task_")
     assert len(records[0].session_id) == len("task_") + 8
+    assert outcome.session_id == records[0].session_id
+
+
+def _input_blueprint() -> Blueprint:
+    return Blueprint(
+        BlueprintDefinition(
+            kind=BlueprintKind.TASK,
+            name="commit",
+            use_sandbox=False,
+            inputs={
+                "message": ParameterInput(type=InputType.STRING, required=True, aliases=["-m"]),
+                "allow_empty": ParameterInput(type=InputType.BOOLEAN, default=False),
+            },
+            steps=[_cmd_step()],
+        )
+    )
+
+
+def test_run_without_request_uses_defaults(monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
+    captured: dict[str, RunContext] = {}
+
+    def fake_run_steps(context: RunContext) -> RunOutcome:
+        captured["context"] = context
+        return RunOutcome(status=RunStatus.COMPLETED, sandbox_path=fs.base_path)
+
+    monkeypatch.setattr("worktree.core.engine.engine.run_steps", fake_run_steps)
+
+    outcome = Engine(fs.base_path).run(_task_blueprint(use_sandbox=False))
+
+    assert captured["context"].inputs == {}
+    assert outcome.session_id is not None
+    assert outcome.session_id.startswith("task_")
+
+
+def test_run_applies_input_defaults(monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
+    captured: dict[str, RunContext] = {}
+
+    def fake_run_steps(context: RunContext) -> RunOutcome:
+        captured["context"] = context
+        return RunOutcome(status=RunStatus.COMPLETED, sandbox_path=fs.base_path)
+
+    monkeypatch.setattr("worktree.core.engine.engine.run_steps", fake_run_steps)
+
+    Engine(fs.base_path).run(_input_blueprint(), RunRequest(inputs={"message": "ship it"}))
+
+    assert captured["context"].inputs == {"message": "ship it", "allow_empty": False}
+
+
+def test_run_parses_cli_args(monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
+    captured: dict[str, RunContext] = {}
+
+    def fake_run_steps(context: RunContext) -> RunOutcome:
+        captured["context"] = context
+        return RunOutcome(status=RunStatus.COMPLETED, sandbox_path=fs.base_path)
+
+    monkeypatch.setattr("worktree.core.engine.engine.run_steps", fake_run_steps)
+
+    Engine(fs.base_path).run(_input_blueprint(), RunRequest(cli_args=["-m", "from argv"]))
+
+    assert captured["context"].inputs == {"message": "from argv", "allow_empty": False}
+
+
+def test_run_missing_required_input_raises_before_insert(fs: FileSystem) -> None:
+    with pytest.raises(EngineInputError, match="Missing required input 'message'") as exc_info:
+        Engine(fs.base_path).run(_input_blueprint())
+
+    assert exc_info.value.result.missing == ["message"]
+    assert TasksDb(fs.base_path).list() == []
+
+
+def test_run_invalid_input_raises_before_insert(fs: FileSystem) -> None:
+    with pytest.raises(EngineInputError, match="expects an integer") as exc_info:
+        Engine(fs.base_path).run(
+            Blueprint(
+                BlueprintDefinition(
+                    kind=BlueprintKind.TASK,
+                    name="count",
+                    use_sandbox=False,
+                    inputs={"n": ParameterInput(type=InputType.INTEGER, required=True)},
+                    steps=[_cmd_step()],
+                )
+            ),
+            RunRequest(cli_args=["-i", "n=nope"]),
+        )
+
+    assert exc_info.value.result.errors
+    assert TasksDb(fs.base_path).list() == []

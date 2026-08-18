@@ -7,8 +7,10 @@ from pathlib import Path
 
 from worktree.core.blueprint import Blueprint, BlueprintKind
 from worktree.core.db import RunStatus, TasksDb, WorkflowsDb
-from worktree.core.engine.exceptions import EngineRuntimeError
+from worktree.core.engine.exceptions import EngineInputError, EngineRuntimeError
+from worktree.core.engine.models import RunRequest
 from worktree.core.engine.resumable import ResumableRun
+from worktree.core.inputs import InputResolveResult
 from worktree.core.runtime import (
     FailurePrompter,
     RunCheckpoint,
@@ -54,37 +56,27 @@ class Engine:
         self._workflows_db = WorkflowsDb(self.cwd)
         self.db: TasksDb | WorkflowsDb = self._tasks_db
 
-    def run(
-        self,
-        blueprint: Blueprint,
-        *,
-        inputs: dict[str, str | int | bool] | None = None,
-        use_sandbox: bool | None = None,
-        keep: bool = False,
-        agent: str | None = None,
-        session_id: str | None = None,
-        observer: RunObserver | None = None,
-        failure_prompter: FailurePrompter | None = None,
-        non_interactive: bool = False,
-    ) -> RunOutcome:
+    def run(self, blueprint: Blueprint, request: RunRequest | None = None) -> RunOutcome:
         """Adapt ``blueprint`` into ``RunContext`` and delegate to ``run_steps``."""
+        req = request or RunRequest()
         steps = self._sequential_steps(blueprint)
-        sid = session_id or f"{blueprint.kind.value}_{uuid.uuid4().hex[:8]}"
-        engine_warnings: list[str] = []
+        resolved = self._resolve_run_inputs(blueprint, req)
+        sid = req.session_id or f"{blueprint.kind.value}_{uuid.uuid4().hex[:8]}"
+        engine_warnings: list[str] = list(resolved.warnings)
         pause_store = self._start_run(blueprint, sid, engine_warnings)
-        caller_sandbox = True if use_sandbox is None else use_sandbox
+        caller_sandbox = True if req.use_sandbox is None else req.use_sandbox
 
         outcome = run_steps(
             RunContext(
                 steps=steps,
                 cwd=self.cwd,
                 use_sandbox=caller_sandbox and blueprint.use_sandbox,
-                keep=keep,
-                agent=agent,
-                observer=observer,
-                inputs=inputs,
-                non_interactive=non_interactive,
-                failure_prompter=failure_prompter,
+                keep=req.keep,
+                agent=req.agent,
+                observer=req.observer,
+                inputs=resolved.values,
+                non_interactive=req.non_interactive,
+                failure_prompter=req.failure_prompter,
                 pause_store=pause_store,
             )
         )
@@ -92,7 +84,7 @@ class Engine:
         if pause_store is not None:
             self._finish_run(pause_store, outcome, engine_warnings)
 
-        return self._with_engine_warnings(outcome, engine_warnings)
+        return self._finalize_outcome(outcome, sid, engine_warnings)
 
     def resume(
         self,
@@ -130,7 +122,7 @@ class Engine:
 
         self._finish_run(pause_store, outcome, engine_warnings)
 
-        return self._with_engine_warnings(outcome, engine_warnings)
+        return self._finalize_outcome(outcome, session_id, engine_warnings)
 
     def _start_run(
         self,
@@ -181,11 +173,19 @@ class Engine:
         """Return the run-tracking repository for ``kind``."""
         return self._tasks_db if kind is BlueprintKind.TASK else self._workflows_db
 
-    def _with_engine_warnings(self, outcome: RunOutcome, engine_warnings: list[str]) -> RunOutcome:
-        """Return ``outcome`` unchanged, or copy it with Engine warnings appended."""
-        if not engine_warnings:
-            return outcome
-        return outcome.model_copy(update={"warnings": [*outcome.warnings, *engine_warnings]})
+    def _resolve_run_inputs(self, blueprint: Blueprint, request: RunRequest) -> InputResolveResult:
+        """Apply defaults and required checks; raise before a run row is inserted."""
+        result = blueprint.resolve_inputs(request.cli_args, overrides=request.inputs)
+        if not result.ok:
+            raise EngineInputError(result)
+        return result
+
+    def _finalize_outcome(self, outcome: RunOutcome, session_id: str, extra_warnings: list[str]) -> RunOutcome:
+        """Stamp the session id and append Engine warnings onto ``outcome``."""
+        update: dict[str, object] = {"session_id": session_id}
+        if extra_warnings:
+            update["warnings"] = [*outcome.warnings, *extra_warnings]
+        return outcome.model_copy(update=update)
 
     def _mark_running(self, pause_store: _DbPauseStore, warnings: list[str]) -> None:
         """Set the paused row back to running, or record a persistence warning."""

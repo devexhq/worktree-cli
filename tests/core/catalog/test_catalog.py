@@ -14,7 +14,6 @@ from worktree.core.catalog import (
     CatalogYamlError,
 )
 from worktree.core.db import CatalogItemType
-from worktree.core.inputs import ParameterInput
 
 
 def test_catalog_cwd_is_resolved(fs: FileSystem) -> None:
@@ -215,14 +214,6 @@ def test_save_os_error_raises_write_error(fs: FileSystem) -> None:
     with patch("worktree.core.catalog.catalog.atomic_write_text", side_effect=OSError("permission denied")):
         with pytest.raises(CatalogWriteError, match="permission denied"):
             catalog.save("lint", {"name": "lint"}, item_type=CatalogItemType.TASK)
-
-
-def test_resolve_inputs_delegates_to_core_inputs(fs: FileSystem) -> None:
-    declarations = {"message": ParameterInput(required=True, aliases=["--message"])}
-    result = Catalog(fs.base_path).resolve_inputs(declarations, cli_args=["--message", "hi"])
-
-    assert result.ok
-    assert result.values == {"message": "hi"}
 
 
 def test_read_yaml_returns_object(fs: FileSystem) -> None:
