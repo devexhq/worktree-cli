@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
 from pathlib import Path
 
 from worktree.core.blueprint import (
@@ -16,7 +15,7 @@ from worktree.core.blueprint import (
 from worktree.core.catalog import Catalog
 from worktree.core.db import RunStatus, TaskRunRecord, TasksDb, WorkflowRunRecord, WorkflowsDb
 from worktree.core.engine.exceptions import EngineResumeError, EngineRuntimeError
-from worktree.core.engine.models import EngineResumeStatus
+from worktree.core.engine.models import EngineResumeStatus, _PreparedResume
 from worktree.core.runtime import (
     FailurePrompter,
     RunCheckpoint,
@@ -51,15 +50,6 @@ class _DbPauseStore:
     def finalize(self, status: RunStatus, error_message: str | None) -> None:
         """Write the terminal (or paused) status after ``run_steps`` returns."""
         self._db.update_status(self._session_id, status, error_message=error_message)
-
-
-@dataclass(frozen=True)
-class _PreparedResume:
-    """Validated resume inputs after classification succeeds."""
-
-    checkpoint: RunCheckpoint
-    steps: list[StepDefinition]
-    db: TasksDb | WorkflowsDb
 
 
 class Engine:
