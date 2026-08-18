@@ -11,7 +11,7 @@ from tests.helpers import FileSystem
 from worktree.core.blueprint import Blueprint, BlueprintDefinition, BlueprintKind
 from worktree.core.catalog.services.inventory import scan_and_index_catalog
 from worktree.core.db import RunStatus, TasksDb, WorkflowsDb
-from worktree.core.engine import Engine, EngineResumeError, EngineResumeStatus, EngineRuntimeError
+from worktree.core.engine import Engine, EngineResumeError, EngineResumeStatus, EngineRuntimeError, ResumableRun
 from worktree.core.runtime import RunCheckpoint, RunContext, RunOutcome
 from worktree.core.step import LoopStepBlock, StepDefinition, StepResult, StepType
 
@@ -311,3 +311,23 @@ def test_resume_finalize_failure_warns(monkeypatch: pytest.MonkeyPatch, fs: File
     record = TasksDb(fs.base_path).get("task_final")
     assert record is not None
     assert record.status is RunStatus.RUNNING
+
+
+def test_resumable_run_load_is_resumable(fs: FileSystem) -> None:
+    checkpoint = _checkpoint()
+    _seed_paused_task(fs, "task_ready", checkpoint)
+
+    handle = ResumableRun.load("task_ready", _task_blueprint(), cwd=fs.base_path)
+
+    assert handle.is_resumable is True
+    assert handle.status is EngineResumeStatus.OK
+    assert handle.checkpoint == checkpoint
+    assert [step.id for step in handle.steps] == ["setup", "publish", "later"]
+
+
+def test_resumable_run_load_not_resumable(fs: FileSystem) -> None:
+    handle = ResumableRun.load("missing", _task_blueprint(), cwd=fs.base_path)
+
+    assert handle.is_resumable is False
+    assert handle.status is EngineResumeStatus.NOT_FOUND
+    assert str(handle) == "Session 'missing' not found."
