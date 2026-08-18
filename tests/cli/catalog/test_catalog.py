@@ -11,10 +11,27 @@ from worktree.cli.catalog.command import (
     catalog_list_command,
     catalog_show_command,
 )
+from worktree.cli.catalog.renderers import build_catalog_table
 from worktree.core.catalog.services.inventory import create_catalog_item
-from worktree.core.db import CatalogItemType
+from worktree.core.db import CatalogItemType, CatalogRecord
 
 runner = CliRunner()
+
+
+def test_build_catalog_table_columns(fs: FileSystem) -> None:
+    item = CatalogRecord(
+        id=1,
+        sha="workflow_1234567",
+        item_type=CatalogItemType.WORKFLOW,
+        name="test-wf",
+        path=fs.base_path / "workflows" / "test-wf.yml",
+        checksum="1234567890abcdef",
+        created_at="2026-08-17T00:00:00Z",
+        updated_at="2026-08-17T00:00:00Z",
+    )
+    table = build_catalog_table([item])
+    columns = [col.header for col in table.columns]
+    assert columns == ["Name", "Type", "Path", "SHA"]
 
 
 def test_catalog_list_command_empty(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -150,6 +167,10 @@ def test_cli_wt_catalog_runner(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) 
     assert res_list.exit_code == 0
     assert "cli-wf" in res_list.output
     assert "Catalog Blueprints:" in res_list.output
+    assert "Name" in res_list.output
+    assert "Type" in res_list.output
+    assert "Path" in res_list.output
+    assert "SHA" in res_list.output
 
     # wt catalog list --type workflow
     res_list_wf = runner.invoke(app, ["catalog", "list", "--type", "workflow"])
