@@ -48,6 +48,9 @@ class Engine:
 
     def __init__(self, cwd: Path | None = None) -> None:
         self.cwd = (cwd or Path.cwd()).resolve()
+        self._tasks_db = TasksDb(self.cwd)
+        self._workflows_db = WorkflowsDb(self.cwd)
+        self.db: TasksDb | WorkflowsDb = self._tasks_db
 
     def run(
         self,
@@ -95,12 +98,13 @@ class Engine:
         warnings: list[str],
     ) -> _DbPauseStore | None:
         """Insert a RUNNING row and return a pause store, or warn and skip persistence."""
+        self.db = self._tasks_db if blueprint.kind is BlueprintKind.TASK else self._workflows_db
         try:
-            db = self._insert_running(blueprint, session_id)
+            self._insert_running(blueprint, session_id)
         except Exception as exc:
             warnings.append(f"Failed to record run start in database: {exc}")
             return None
-        return _DbPauseStore(db, session_id)
+        return _DbPauseStore(self.db, session_id)
 
     def _finish_run(
         self,
@@ -123,12 +127,9 @@ class Engine:
             steps.append(step)
         return steps
 
-    def _insert_running(self, blueprint: Blueprint, session_id: str) -> TasksDb | WorkflowsDb:
-        """Insert a RUNNING row for the blueprint kind and return the repository."""
+    def _insert_running(self, blueprint: Blueprint, session_id: str) -> None:
+        """Insert a RUNNING row for the bound repository."""
         if blueprint.kind is BlueprintKind.TASK:
-            db: TasksDb | WorkflowsDb = TasksDb(self.cwd)
-            db.insert(session_id, task_name=blueprint.name, status=RunStatus.RUNNING)
-            return db
-        db = WorkflowsDb(self.cwd)
-        db.insert(session_id, workflow_name=blueprint.name, branch_name="", status=RunStatus.RUNNING)
-        return db
+            self.db.insert(session_id, task_name=blueprint.name, status=RunStatus.RUNNING)
+            return
+        self.db.insert(session_id, workflow_name=blueprint.name, branch_name="", status=RunStatus.RUNNING)
