@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import uuid
 from pathlib import Path
 
 from worktree.common.fs import read_yaml_file
@@ -19,7 +18,7 @@ from worktree.core.blueprint import (
 from worktree.core.catalog import Catalog
 from worktree.core.catalog.services.inventory import get_catalog_dir
 from worktree.core.db import RunStatus, TaskRunRecord, TasksDb
-from worktree.core.engine import Engine, EngineRuntimeError
+from worktree.core.engine import Engine, EngineInputError, EngineRuntimeError, RunRequest
 from worktree.core.inputs import InputResolveResult, ParameterInput, format_missing_inputs_error
 from worktree.core.runtime import FailurePrompter, RunOutcome
 from worktree.core.step import StepDefinition, StepResult
@@ -276,11 +275,6 @@ def task_run_command(
             f"Blueprint '{name}' is a {blueprint.kind.value}; wt task run requires a task.",
         )
 
-    input_result = blueprint.resolve_inputs(cli_args)
-    if not input_result.ok:
-        return _fail_task_run(output, _input_error_message(name, input_result, blueprint.inputs))
-
-    sid = session_id or f"task_{uuid.uuid4().hex[:8]}"
     effective_non_interactive, failure_prompter = _resolve_failure_prompter(
         output,
         non_interactive=non_interactive,
@@ -290,18 +284,23 @@ def task_run_command(
     try:
         run_outcome = Engine(root).run(
             blueprint,
-            inputs=input_result.values,
-            use_sandbox=not no_sandbox,
-            keep=keep,
-            agent=agent,
-            session_id=sid,
-            observer=CliRunObserver(output),
-            failure_prompter=failure_prompter,
-            non_interactive=effective_non_interactive,
+            RunRequest(
+                cli_args=cli_args,
+                use_sandbox=not no_sandbox,
+                keep=keep,
+                agent=agent,
+                session_id=session_id,
+                observer=CliRunObserver(output),
+                failure_prompter=failure_prompter,
+                non_interactive=effective_non_interactive,
+            ),
         )
+    except EngineInputError as exc:
+        return _fail_task_run(output, _input_error_message(name, exc.result, blueprint.inputs))
     except EngineRuntimeError as exc:
         return _fail_task_run(output, str(exc))
 
+    sid = run_outcome.session_id or ""
     for warning in run_outcome.warnings:
         output.info(warning)
 
@@ -309,7 +308,7 @@ def task_run_command(
         name=name,
         session_id=sid,
         run_outcome=run_outcome,
-        run_record=_load_run_record(root, sid),
-        warnings=[*input_result.warnings, *run_outcome.warnings],
+        run_record=_load_run_record(root, sid) if sid else None,
+        warnings=list(run_outcome.warnings),
         output=output,
     )

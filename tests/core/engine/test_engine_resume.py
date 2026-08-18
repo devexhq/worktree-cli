@@ -127,7 +127,7 @@ def test_resume_rebuilds_context_from_checkpoint(monkeypatch: pytest.MonkeyPatch
         failure_prompter=None,
     )
 
-    assert outcome is expected
+    assert outcome == expected.model_copy(update={"session_id": "task_resume"})
     context = captured["context"]
     assert [step.id for step in context.steps] == ["setup", "publish", "later"]
     assert context.cwd == fs.base_path.resolve()
