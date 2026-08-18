@@ -1,6 +1,6 @@
 import typer
 
-from .command import task_list_command, task_run_command, task_show_command
+from .command import task_list_command, task_run_command
 
 task_app = typer.Typer(
     name="task",
@@ -22,17 +22,6 @@ def task_callback(ctx: typer.Context):
 def task_list(ctx: typer.Context):
     """List recorded task runs."""
     outcome = task_list_command()
-    if not outcome.ok:
-        raise typer.Exit(code=1)
-
-
-@task_app.command("show")
-def task_show(
-    ctx: typer.Context,
-    name: str = typer.Argument(..., help="Task blueprint name or SHA to show."),
-):
-    """Show metadata and definition content of a task blueprint."""
-    outcome = task_show_command(name=name)
     if not outcome.ok:
         raise typer.Exit(code=1)
 

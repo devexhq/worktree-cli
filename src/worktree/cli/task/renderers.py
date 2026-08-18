@@ -2,14 +2,10 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
-from rich.syntax import Syntax
 from rich.table import Table
 
 from worktree.common.utils import RichOutput, enum_value
-from worktree.core.db import CatalogRecord, TaskRunRecord
-from worktree.core.inputs import ParameterInput, format_input_spec
+from worktree.core.db import TaskRunRecord
 
 _DEFAULT_RICH_OUTPUT = RichOutput()
 
@@ -55,39 +51,6 @@ def render_task_list(
         output.info("No recorded task runs found.")
     else:
         output.info(build_task_runs_table(runs))
-
-
-def render_task_show(
-    item: CatalogRecord,
-    content: str,
-    *,
-    rich_output: RichOutput | None = None,
-) -> None:
-    """Render detailed view of a task blueprint including definition content."""
-    output = rich_output or _DEFAULT_RICH_OUTPUT
-
-    rel_path = Path(".worktree") / "catalog" / item.path
-    output.info(f"[bold green]Task Blueprint:[/]   {item.name} ({item.sha})")
-    output.info(f"[bold green]Path:[/]           {rel_path}")
-    output.info(f"[bold green]Checksum:[/]       {item.checksum}")
-    output.info("\n[bold cyan]Definition:[/]")
-    if content:
-        output.info(Syntax(content.strip(), "yaml"))
-
-
-def render_task_show_inputs(
-    inputs: dict[str, ParameterInput],
-    *,
-    rich_output: RichOutput | None = None,
-) -> None:
-    """Render declared task input parameters under the blueprint definition."""
-    output = rich_output or _DEFAULT_RICH_OUTPUT
-    if not inputs:
-        return
-
-    output.info("\n[bold cyan]Inputs:[/]")
-    for name, spec in inputs.items():
-        output.info(format_input_spec(name, spec))
 
 
 def render_task_run_success(
