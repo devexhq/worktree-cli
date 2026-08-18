@@ -49,6 +49,7 @@ class Engine:
 
     def __init__(self, cwd: Path | None = None) -> None:
         self.cwd = (cwd or Path.cwd()).resolve()
+
         self._tasks_db = TasksDb(self.cwd)
         self._workflows_db = WorkflowsDb(self.cwd)
         self.db: TasksDb | WorkflowsDb = self._tasks_db
@@ -72,6 +73,7 @@ class Engine:
         engine_warnings: list[str] = []
         pause_store = self._start_run(blueprint, sid, engine_warnings)
         caller_sandbox = True if use_sandbox is None else use_sandbox
+
         outcome = run_steps(
             RunContext(
                 steps=steps,
@@ -86,8 +88,10 @@ class Engine:
                 pause_store=pause_store,
             )
         )
+
         if pause_store is not None:
             self._finish_run(pause_store, outcome, engine_warnings)
+
         return self._with_engine_warnings(outcome, engine_warnings)
 
     def resume(
@@ -102,10 +106,12 @@ class Engine:
         """Classify a paused session, rebuild ``RunContext``, and re-enter ``run_steps``."""
         loaded, db, checkpoint = self._require_resumable(session_id, blueprint)
         steps = self._sequential_steps(loaded, action="resume")
+
         self.db = db
         pause_store = _DbPauseStore(db, session_id)
         engine_warnings: list[str] = []
         self._mark_running(pause_store, engine_warnings)
+
         outcome = run_steps(
             RunContext(
                 steps=steps,
@@ -121,7 +127,9 @@ class Engine:
                 resume_from=checkpoint,
             )
         )
+
         self._finish_run(pause_store, outcome, engine_warnings)
+
         return self._with_engine_warnings(outcome, engine_warnings)
 
     def _start_run(
@@ -132,11 +140,13 @@ class Engine:
     ) -> _DbPauseStore | None:
         """Insert a RUNNING row and return a pause store, or warn and skip persistence."""
         self.db = self._db_for(blueprint.kind)
+
         try:
             self._insert_running(blueprint, session_id)
         except Exception as exc:
             warnings.append(f"Failed to record run start in database: {exc}")
             return None
+
         return _DbPauseStore(self.db, session_id)
 
     def _finish_run(
@@ -186,9 +196,11 @@ class Engine:
         resumable_run = ResumableRun.load(session_id, blueprint, cwd=self.cwd)
         if not resumable_run.is_resumable:
             raise EngineResumeError(resumable_run.status, str(resumable_run))
+
         assert resumable_run.blueprint is not None
         assert resumable_run.db is not None
         assert resumable_run.checkpoint is not None
+
         return resumable_run.blueprint, resumable_run.db, resumable_run.checkpoint
 
     def _mark_running(self, pause_store: _DbPauseStore, warnings: list[str]) -> None:

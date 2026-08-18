@@ -74,6 +74,7 @@ class ResumableRun:
         found = cls._lookup_row(session_id, blueprint, cwd)
         if found is None:
             return cls._rejected(session_id, cwd, EngineResumeStatus.NOT_FOUND, f"Session '{session_id}' not found.")
+
         row, db = found
         if row.status != RunStatus.PAUSED:
             return cls._rejected(
@@ -82,12 +83,15 @@ class ResumableRun:
                 EngineResumeStatus.WRONG_STATUS,
                 f"Cannot resume session '{session_id}': status is '{row.status.value}' (expected paused).",
             )
+
         checkpoint = cls._parse_checkpoint(session_id, row.checkpoint_json, cwd)
         if isinstance(checkpoint, ResumableRun):
             return checkpoint
+
         loaded = blueprint if blueprint is not None else cls._load_blueprint(session_id, row, cwd)
         if isinstance(loaded, ResumableRun):
             return loaded
+
         steps = [step for step in loaded.steps if isinstance(step, StepDefinition)]
         if checkpoint.pending_step_id not in {step.id for step in steps}:
             return cls._rejected(
@@ -96,6 +100,7 @@ class ResumableRun:
                 EngineResumeStatus.CORRUPT_CHECKPOINT,
                 f"Cannot resume session '{session_id}': checkpoint is missing or corrupt.",
             )
+
         return cls(
             session_id,
             cwd=cwd,
@@ -153,11 +158,14 @@ class ResumableRun:
                 EngineResumeStatus.CORRUPT_CHECKPOINT,
                 f"Cannot resume session '{session_id}': checkpoint is missing or corrupt.",
             )
+
         if not checkpoint.use_sandbox:
             return checkpoint
+
         sandbox_path = checkpoint.sandbox_path or ""
         if sandbox_path and Path(sandbox_path).exists():
             return checkpoint
+
         return cls._rejected(
             session_id,
             cwd,
@@ -174,6 +182,7 @@ class ResumableRun:
     ) -> Blueprint | ResumableRun:
         """Load the catalog blueprint named by the paused row."""
         name = row.task_name if isinstance(row, TaskRunRecord) else row.workflow_name
+
         try:
             return Blueprint.load(name, catalog=Catalog(cwd))
         except (BlueprintNotFoundError, BlueprintLoadError, BlueprintValidationError):
