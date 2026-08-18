@@ -1,0 +1,160 @@
+"""Tests for BlueprintRenderer plain-text failure bodies."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from worktree.common.models import DefinitionResolutionResult, DefinitionResolutionStatus
+from worktree.core.blueprint import BlueprintKind, BlueprintRenderer, Renderer
+from worktree.core.catalog.models import DefinitionValidationOutcome
+from worktree.core.db import RunStatus
+from worktree.core.runtime import RunOutcome
+from worktree.core.step import StepResult
+from worktree.core.task import format_task_resolve_failure, format_task_run_failure
+from worktree.core.workflows import format_workflow_run_resolve_failure, format_workflow_run_validate_failure
+
+
+def _failed_outcome(**overrides: object) -> RunOutcome:
+    payload: dict[str, object] = {
+        "status": RunStatus.FAILED,
+        "sandbox_path": Path("/tmp/run"),
+    }
+    payload.update(overrides)
+    return RunOutcome.model_validate(payload)
+
+
+def _step_result(step_id: str, error_message: str | None) -> StepResult:
+    return StepResult(
+        step_id=step_id,
+        status="failed",
+        exit_code=1,
+        stdout="",
+        stderr="",
+        duration_seconds=0.1,
+        error_message=error_message,
+    )
+
+
+class BlueprintRendererProtocolTests:
+    def test_instance_satisfies_renderer_protocol(self) -> None:
+        renderer = BlueprintRenderer(BlueprintKind.TASK)
+
+        assert isinstance(renderer, Renderer)
+
+
+class BlueprintRendererRenderTests:
+    def test_error_message_wins(self) -> None:
+        outcome = _failed_outcome(error_message="top-level boom")
+
+        assert BlueprintRenderer(BlueprintKind.TASK).render(outcome) == "top-level boom"
+        assert BlueprintRenderer(BlueprintKind.WORKFLOW).render(outcome) == "top-level boom"
+
+    def test_joins_step_errors(self) -> None:
+        outcome = _failed_outcome(
+            step_results=[
+                _step_result("s1", "step one failed"),
+                _step_result("s2", "step two failed"),
+            ]
+        )
+
+        assert BlueprintRenderer(BlueprintKind.TASK).render(outcome) == "step one failed\nstep two failed"
+
+    def test_skips_empty_step_errors(self) -> None:
+        outcome = _failed_outcome(
+            step_results=[
+                _step_result("s1", None),
+                _step_result("s2", "kept"),
+            ]
+        )
+
+        assert BlueprintRenderer(BlueprintKind.TASK).render(outcome) == "kept"
+
+    def test_kind_specific_execution_fallback(self) -> None:
+        outcome = _failed_outcome()
+
+        assert BlueprintRenderer(BlueprintKind.TASK).render(outcome) == "Task execution failed."
+        assert BlueprintRenderer(BlueprintKind.WORKFLOW).render(outcome) == "Workflow execution failed."
+
+
+class BlueprintRendererResolveTests:
+    def test_joins_errors(self) -> None:
+        assert BlueprintRenderer(BlueprintKind.TASK).render_resolve_failure(["err-a", "err-b"]) == "err-a\n\nerr-b"
+
+    def test_kind_specific_fallback(self) -> None:
+        assert BlueprintRenderer(BlueprintKind.TASK).render_resolve_failure([]) == "Failed to resolve task."
+        assert BlueprintRenderer(BlueprintKind.WORKFLOW).render_resolve_failure([]) == "Failed to resolve workflow."
+
+
+class BlueprintRendererValidateTests:
+    def test_joins_errors(self) -> None:
+        assert BlueprintRenderer(BlueprintKind.WORKFLOW).render_validate_failure(["schema bad", "more"]) == (
+            "schema bad\n\nmore"
+        )
+
+    def test_kind_specific_fallback(self) -> None:
+        assert BlueprintRenderer(BlueprintKind.TASK).render_validate_failure([]) == "Task definition is invalid."
+        assert (
+            BlueprintRenderer(BlueprintKind.WORKFLOW).render_validate_failure([]) == "Workflow definition is invalid."
+        )
+
+
+class BlueprintRendererDelegateTests:
+    def test_task_resolve_matches_renderer(self) -> None:
+        result = DefinitionResolutionResult(
+            status=DefinitionResolutionStatus.NOT_FOUND,
+            requested_name="missing",
+            errors=["err-a", "err-b"],
+        )
+        renderer = BlueprintRenderer(BlueprintKind.TASK)
+
+        assert format_task_resolve_failure(result) == renderer.render_resolve_failure(result.errors)
+
+    def test_task_resolve_empty_matches_renderer(self) -> None:
+        result = DefinitionResolutionResult(
+            status=DefinitionResolutionStatus.NOT_FOUND,
+            requested_name="missing",
+            errors=[],
+        )
+        renderer = BlueprintRenderer(BlueprintKind.TASK)
+
+        assert format_task_resolve_failure(result) == renderer.render_resolve_failure(result.errors)
+
+    def test_task_run_matches_renderer(self) -> None:
+        outcome = _failed_outcome(error_message="top-level boom")
+        renderer = BlueprintRenderer(BlueprintKind.TASK)
+
+        assert format_task_run_failure(outcome) == renderer.render(outcome)
+
+    def test_task_run_fallback_matches_renderer(self) -> None:
+        outcome = _failed_outcome()
+        renderer = BlueprintRenderer(BlueprintKind.TASK)
+
+        assert format_task_run_failure(outcome) == renderer.render(outcome)
+
+    def test_workflow_resolve_matches_renderer(self) -> None:
+        result = DefinitionResolutionResult(
+            status=DefinitionResolutionStatus.NOT_FOUND,
+            requested_name="missing",
+            errors=["err-a", "err-b"],
+        )
+        renderer = BlueprintRenderer(BlueprintKind.WORKFLOW)
+
+        assert format_workflow_run_resolve_failure(result) == renderer.render_resolve_failure(result.errors)
+
+    def test_workflow_validate_matches_renderer(self) -> None:
+        result = DefinitionValidationOutcome(
+            status=DefinitionResolutionStatus.LOAD_ERROR,
+            errors=["schema bad", "more"],
+        )
+        renderer = BlueprintRenderer(BlueprintKind.WORKFLOW)
+
+        assert format_workflow_run_validate_failure(result) == renderer.render_validate_failure(result.errors)
+
+    def test_workflow_validate_empty_matches_renderer(self) -> None:
+        result = DefinitionValidationOutcome(
+            status=DefinitionResolutionStatus.LOAD_ERROR,
+            errors=[],
+        )
+        renderer = BlueprintRenderer(BlueprintKind.WORKFLOW)
+
+        assert format_workflow_run_validate_failure(result) == renderer.render_validate_failure(result.errors)
