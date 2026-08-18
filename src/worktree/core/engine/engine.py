@@ -63,7 +63,7 @@ class Engine:
         non_interactive: bool = False,
     ) -> RunOutcome:
         """Adapt ``blueprint`` into ``RunContext`` and delegate to ``run_steps``."""
-        steps = _sequential_steps(blueprint)
+        steps = self._sequential_steps(blueprint)
         sid = session_id or f"{blueprint.kind.value}_{uuid.uuid4().hex[:8]}"
         engine_warnings: list[str] = []
         pause_store = self._start_run(blueprint, sid, engine_warnings)
@@ -96,7 +96,7 @@ class Engine:
     ) -> _DbPauseStore | None:
         """Insert a RUNNING row and return a pause store, or warn and skip persistence."""
         try:
-            db = _insert_running(self.cwd, blueprint, session_id)
+            db = self._insert_running(blueprint, session_id)
         except Exception as exc:
             warnings.append(f"Failed to record run start in database: {exc}")
             return None
@@ -114,23 +114,21 @@ class Engine:
         except Exception as exc:
             warnings.append(f"Failed to update run status in database: {exc}")
 
+    def _sequential_steps(self, blueprint: Blueprint) -> list[StepDefinition]:
+        """Return authored steps, or raise when any entry is a loop block."""
+        steps: list[StepDefinition] = []
+        for step in blueprint.steps:
+            if isinstance(step, LoopStepBlock):
+                raise EngineRuntimeError("Engine.run does not execute loop steps.")
+            steps.append(step)
+        return steps
 
-def _sequential_steps(blueprint: Blueprint) -> list[StepDefinition]:
-    """Return authored steps, or raise when any entry is a loop block."""
-    steps: list[StepDefinition] = []
-    for step in blueprint.steps:
-        if isinstance(step, LoopStepBlock):
-            raise EngineRuntimeError("Engine.run does not execute loop steps.")
-        steps.append(step)
-    return steps
-
-
-def _insert_running(cwd: Path, blueprint: Blueprint, session_id: str) -> TasksDb | WorkflowsDb:
-    """Insert a RUNNING row for the blueprint kind and return the repository."""
-    if blueprint.kind is BlueprintKind.TASK:
-        db: TasksDb | WorkflowsDb = TasksDb(cwd)
-        db.insert(session_id, task_name=blueprint.name, status=RunStatus.RUNNING)
+    def _insert_running(self, blueprint: Blueprint, session_id: str) -> TasksDb | WorkflowsDb:
+        """Insert a RUNNING row for the blueprint kind and return the repository."""
+        if blueprint.kind is BlueprintKind.TASK:
+            db: TasksDb | WorkflowsDb = TasksDb(self.cwd)
+            db.insert(session_id, task_name=blueprint.name, status=RunStatus.RUNNING)
+            return db
+        db = WorkflowsDb(self.cwd)
+        db.insert(session_id, workflow_name=blueprint.name, branch_name="", status=RunStatus.RUNNING)
         return db
-    db = WorkflowsDb(cwd)
-    db.insert(session_id, workflow_name=blueprint.name, branch_name="", status=RunStatus.RUNNING)
-    return db
