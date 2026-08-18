@@ -1,4 +1,4 @@
-"""Live Rich execution observer for task execution."""
+"""Execution observers for task execution (live and stream)."""
 
 from __future__ import annotations
 
@@ -30,6 +30,53 @@ def _resolve_step_duration(item: LiveStepItem, result: StepResult, now: float) -
     if item.start_time is not None:
         return max(0.0, now - item.start_time)
     return result.duration_seconds
+
+
+class CliRunObserver(RunObserver):
+    """Observer adapter forwarding runtime step lifecycle events to RichOutput line-by-line."""
+
+    def __init__(self, output: RichOutput | None = None) -> None:
+        self.output = output or RichOutput()
+
+    def __enter__(self) -> CliRunObserver:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        pass
+
+    def on_sandbox_ready(self, path: Path, active: bool) -> None:
+        """Report sandbox readiness to the CLI."""
+        if active:
+            self.output.info(f"Sandbox: Active ({path})")
+        else:
+            self.output.info("Sandbox: In-place (workspace)")
+
+    def on_step_start(self, idx: int, total: int, step: StepDefinition) -> None:
+        """Report step start progress to the CLI."""
+        step_label = step.name or step.id
+        cmd_info = f" (command: {step.run})" if step.run else ""
+        self.output.info(f"[STEP {idx}/{total}] Executing {step_label}{cmd_info}...")
+
+    def on_step_done(self, idx: int, total: int, result: StepResult) -> None:
+        """Report step completion or failure to the CLI."""
+        step_label = result.step_id
+        if result.ok:
+            self.output.info(f"[bold green][STEP {idx}/{total}] {step_label} COMPLETED[/]")
+            return
+        msg = result.error_message or result.stderr or f"exit code {result.exit_code}"
+        self.output.info(f"[bold red][STEP {idx}/{total}] {step_label} FAILED[/]: {msg}")
+
+    def on_sandbox_cleanup(self, kept: bool, path: Path) -> None:
+        """Report sandbox cleanup or retention to the CLI."""
+        if kept:
+            self.output.info(f"Sandbox: Retained ({path})")
+        else:
+            self.output.info("Sandbox: Cleaned")
 
 
 class LiveRunObserver(RunObserver):
@@ -108,3 +155,14 @@ class LiveRunObserver(RunObserver):
     def _refresh(self) -> None:
         if self._live is not None:
             self._live.update(build_live_step_table(self.steps, sandbox_info=self.sandbox_info))
+
+
+def resolve_run_observer(
+    output: RichOutput,
+    *,
+    non_interactive: bool = False,
+) -> LiveRunObserver | CliRunObserver:
+    """Return LiveRunObserver for interactive TTY terminals, else CliRunObserver."""
+    if non_interactive or not output.console.is_terminal:
+        return CliRunObserver(output)
+    return LiveRunObserver(output)

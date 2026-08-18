@@ -8,6 +8,7 @@ from typer.testing import CliRunner
 from tests.helpers import FileSystem
 from worktree.cli import app
 from worktree.cli.task.command import task_run_command
+from worktree.cli.task.observer import CliRunObserver
 from worktree.core.db import RunStatus, TasksDb
 from worktree.core.runtime import FailurePromptDecision, RunOutcome
 from worktree.core.step import StepDefinition, StepResult
@@ -394,6 +395,7 @@ def test_task_run_non_interactive_flag_forwarded(fs: FileSystem, monkeypatch: py
     assert captured["request"] is not None
     assert captured["request"].non_interactive is True
     assert captured["request"].failure_prompter is None
+    assert isinstance(captured["request"].observer, CliRunObserver)
 
 
 def test_task_run_rejects_workflow_kind(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:

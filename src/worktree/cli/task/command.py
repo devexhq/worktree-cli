@@ -24,7 +24,7 @@ from .models import (
     TaskListCommandOutcome,
     TaskRunCommandOutcome,
 )
-from .observer import LiveRunObserver
+from .observer import resolve_run_observer
 from .prompter import CliFailurePrompter
 from .renderers import (
     render_task_list,
@@ -34,7 +34,6 @@ from .renderers import (
 _DEFAULT_RICH_OUTPUT = RichOutput()
 logger = logging.getLogger(__name__)
 
-CliRunObserver = LiveRunObserver
 _TASK_RENDERER = BlueprintRenderer(BlueprintKind.TASK)
 
 
@@ -203,7 +202,7 @@ def task_run_command(
         non_interactive=non_interactive,
     )
     output.info(f"Running task '{name}'...")
-    observer = LiveRunObserver(output)
+    observer = resolve_run_observer(output, non_interactive=effective_non_interactive)
 
     try:
         with observer:
