@@ -17,6 +17,25 @@ class Renderer(Protocol):
         ...
 
 
+def _collect_primary_error(outcome: RunOutcome) -> str | None:
+    if outcome.error_message:
+        return outcome.error_message
+    failed = [result.error_message for result in outcome.step_results if result.error_message]
+    return "\n".join(failed) if failed else None
+
+
+def _collect_step_output_details(outcome: RunOutcome) -> list[str]:
+    details: list[str] = []
+    primary = outcome.error_message or ""
+    for result in outcome.step_results:
+        if result.ok:
+            continue
+        text = (result.stderr or result.stdout or "").strip()
+        if text and text not in primary:
+            details.append(text)
+    return details
+
+
 class BlueprintRenderer:
     """Kind-aware plain-text formatter for blueprint failure bodies."""
 
@@ -25,13 +44,14 @@ class BlueprintRenderer:
 
     def render(self, outcome: RunOutcome) -> str:
         """Return a plain-text body for a run failure."""
-        if outcome.error_message:
-            return outcome.error_message
+        parts: list[str] = []
+        primary = _collect_primary_error(outcome)
+        if primary:
+            parts.append(primary)
+        parts.extend(_collect_step_output_details(outcome))
 
-        failed_messages = [result.error_message for result in outcome.step_results if result.error_message]
-        if failed_messages:
-            return "\n".join(failed_messages)
-
+        if parts:
+            return "\n\n".join(parts)
         return f"{self.kind.value.capitalize()} execution failed."
 
     def render_resolve_failure(self, errors: list[str]) -> str:
