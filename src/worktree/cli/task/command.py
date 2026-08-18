@@ -19,12 +19,12 @@ from worktree.core.db import RunStatus, TaskRunRecord, TasksDb
 from worktree.core.engine import Engine, EngineInputError, EngineRuntimeError, RunRequest
 from worktree.core.inputs import InputResolveResult, ParameterInput, format_missing_inputs_error
 from worktree.core.runtime import FailurePrompter, RunOutcome
-from worktree.core.step import StepDefinition, StepResult
 
 from .models import (
     TaskListCommandOutcome,
     TaskRunCommandOutcome,
 )
+from .observer import LiveRunObserver
 from .prompter import CliFailurePrompter
 from .renderers import (
     render_task_list,
@@ -34,43 +34,7 @@ from .renderers import (
 _DEFAULT_RICH_OUTPUT = RichOutput()
 logger = logging.getLogger(__name__)
 
-
-class CliRunObserver:
-    """Observer adapter forwarding runtime step lifecycle events to RichOutput."""
-
-    def __init__(self, output: RichOutput) -> None:
-        self.output = output
-
-    def on_sandbox_ready(self, path: Path, active: bool) -> None:
-        """Report sandbox readiness to the CLI."""
-        if active:
-            self.output.info(f"Sandbox: Active ({path})")
-        else:
-            self.output.info("Sandbox: In-place (workspace)")
-
-    def on_step_start(self, idx: int, total: int, step: StepDefinition) -> None:
-        """Report step start progress to the CLI."""
-        step_label = step.name or step.id
-        cmd_info = f" (command: {step.run})" if step.run else ""
-        self.output.info(f"[STEP {idx}/{total}] Executing {step_label}{cmd_info}...")
-
-    def on_step_done(self, idx: int, total: int, result: StepResult) -> None:
-        """Report step completion or failure to the CLI."""
-        step_label = result.step_id
-        if result.ok:
-            self.output.info(f"[bold green][STEP {idx}/{total}] {step_label} COMPLETED[/]")
-            return
-        msg = result.error_message or result.stderr or f"exit code {result.exit_code}"
-        self.output.info(f"[bold red][STEP {idx}/{total}] {step_label} FAILED[/]: {msg}")
-
-    def on_sandbox_cleanup(self, kept: bool, path: Path) -> None:
-        """Report sandbox cleanup or retention to the CLI."""
-        if kept:
-            self.output.info(f"Sandbox: Retained ({path})")
-        else:
-            self.output.info("Sandbox: Cleaned")
-
-
+CliRunObserver = LiveRunObserver
 _TASK_RENDERER = BlueprintRenderer(BlueprintKind.TASK)
 
 
@@ -239,21 +203,23 @@ def task_run_command(
         non_interactive=non_interactive,
     )
     output.info(f"Running task '{name}'...")
+    observer = LiveRunObserver(output)
 
     try:
-        run_outcome = Engine(root).run(
-            blueprint,
-            RunRequest(
-                cli_args=cli_args,
-                use_sandbox=not no_sandbox,
-                keep=keep,
-                agent=agent,
-                session_id=session_id,
-                observer=CliRunObserver(output),
-                failure_prompter=failure_prompter,
-                non_interactive=effective_non_interactive,
-            ),
-        )
+        with observer:
+            run_outcome = Engine(root).run(
+                blueprint,
+                RunRequest(
+                    cli_args=cli_args,
+                    use_sandbox=not no_sandbox,
+                    keep=keep,
+                    agent=agent,
+                    session_id=session_id,
+                    observer=observer,
+                    failure_prompter=failure_prompter,
+                    non_interactive=effective_non_interactive,
+                ),
+            )
     except EngineInputError as exc:
         return _fail_task_run(output, _input_error_message(name, exc.result, blueprint.inputs))
     except EngineRuntimeError as exc:

@@ -69,6 +69,26 @@ class BlueprintRendererRenderTests:
 
         assert BlueprintRenderer(BlueprintKind.TASK).render(outcome) == "kept"
 
+    def test_includes_stderr_detail_when_available(self) -> None:
+        outcome = _failed_outcome(
+            error_message="Step 'run-tests' failed: Command failed with exit code 127.",
+            step_results=[
+                StepResult(
+                    step_id="run-tests",
+                    status="failed",
+                    exit_code=127,
+                    stdout="",
+                    stderr="sh: 1: pytest: not found",
+                    duration_seconds=0.1,
+                    error_message="Command failed with exit code 127.",
+                )
+            ],
+        )
+
+        rendered = BlueprintRenderer(BlueprintKind.TASK).render(outcome)
+        assert "Step 'run-tests' failed: Command failed with exit code 127." in rendered
+        assert "sh: 1: pytest: not found" in rendered
+
     def test_kind_specific_execution_fallback(self) -> None:
         outcome = _failed_outcome()
 
