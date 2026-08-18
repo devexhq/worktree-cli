@@ -140,17 +140,8 @@ def test_task_run_keep_retains_sandbox(fs: FileSystem, monkeypatch: pytest.Monke
     kept_path = fs.base_path / ".worktree" / "sandboxes" / "kept"
     kept_path.mkdir(parents=True, exist_ok=True)
 
-    def _fake_run_task(
-        definition,
-        cwd,
-        *,
-        use_sandbox=True,
-        keep=False,
-        agent=None,
-        observer=None,
-        inputs=None,
-        **kwargs,
-    ):
+    def _fake_engine_run(self, blueprint, **kwargs):
+        observer = kwargs.get("observer")
         if observer is not None:
             observer.on_sandbox_ready(kept_path, True)
             observer.on_sandbox_cleanup(True, kept_path)
@@ -162,7 +153,7 @@ def test_task_run_keep_retains_sandbox(fs: FileSystem, monkeypatch: pytest.Monke
             sandbox_path=kept_path,
         )
 
-    monkeypatch.setattr("worktree.cli.task.command.run_task", _fake_run_task)
+    monkeypatch.setattr("worktree.cli.task.command.Engine.run", _fake_engine_run)
 
     result = runner.invoke(app, ["task", "run", "keep-task", "--keep"])
     assert result.exit_code == 0
@@ -189,26 +180,16 @@ def test_task_run_cancelled_status(fs: FileSystem, monkeypatch: pytest.MonkeyPat
         steps=[{"id": "ok", "run": "echo ok"}],
     )
 
-    def _fake_run_task(
-        definition,
-        cwd,
-        *,
-        use_sandbox=True,
-        keep=False,
-        agent=None,
-        observer=None,
-        inputs=None,
-        **kwargs,
-    ):
+    def _fake_run_steps(context):
         return RunOutcome(
             status=RunStatus.CANCELLED,
             step_results=[],
             error_message="Execution cancelled by user.",
             sandbox_kept=False,
-            sandbox_path=cwd,
+            sandbox_path=context.cwd,
         )
 
-    monkeypatch.setattr("worktree.cli.task.command.run_task", _fake_run_task)
+    monkeypatch.setattr("worktree.core.engine.engine.run_steps", _fake_run_steps)
 
     res = task_run_command("cancel-task", cwd=fs.base_path, session_id="task_canc1")
     assert not res.ok
@@ -292,13 +273,13 @@ def test_task_run_invalid_assert_aborts_before_steps(fs: FileSystem, monkeypatch
         ],
     )
 
-    run_task = MagicMock()
-    monkeypatch.setattr("worktree.cli.task.command.run_task", run_task)
+    engine_run = MagicMock()
+    monkeypatch.setattr("worktree.cli.task.command.Engine.run", engine_run)
 
     res = task_run_command("bad-assert-task", cwd=fs.base_path, session_id="task_bad_assert")
     assert not res.ok
     assert res.run_record is None
-    run_task.assert_not_called()
+    engine_run.assert_not_called()
     assert any("assert" in err.lower() or "validation" in err.lower() for err in res.errors)
     assert TasksDb(fs.base_path).get("task_bad_assert") is None
 
@@ -324,13 +305,13 @@ def test_task_run_missing_required_input_skips_execution(fs: FileSystem, monkeyp
         ],
     )
 
-    run_task = MagicMock()
-    monkeypatch.setattr("worktree.cli.task.command.run_task", run_task)
+    engine_run = MagicMock()
+    monkeypatch.setattr("worktree.cli.task.command.Engine.run", engine_run)
 
     res = task_run_command("commit", cwd=fs.base_path, session_id="task_missing_input")
     assert not res.ok
     assert res.run_record is None
-    run_task.assert_not_called()
+    engine_run.assert_not_called()
     assert any("Missing required input 'message'" in err for err in res.errors)
     assert TasksDb(fs.base_path).get("task_missing_input") is None
 
@@ -398,19 +379,34 @@ def test_task_run_non_interactive_flag_forwarded(fs: FileSystem, monkeypatch: py
     )
     captured = {}
 
-    def _fake_run_task(definition, cwd, **kwargs):
+    def _fake_engine_run(self, blueprint, **kwargs):
         captured.update(kwargs)
         return RunOutcome(
             status=RunStatus.COMPLETED,
             step_results=[],
             error_message=None,
             sandbox_kept=False,
-            sandbox_path=cwd,
+            sandbox_path=self.cwd,
         )
 
-    monkeypatch.setattr("worktree.cli.task.command.run_task", _fake_run_task)
+    monkeypatch.setattr("worktree.cli.task.command.Engine.run", _fake_engine_run)
     # Force non-interactive path even if TTY
     res = task_run_command("ni-task", cwd=fs.base_path, non_interactive=True, session_id="task_ni1")
     assert res.ok
     assert captured.get("non_interactive") is True
     assert captured.get("failure_prompter") is None
+
+
+def test_task_run_rejects_workflow_kind(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(fs.base_path)
+    fs.create_workflow_file("wf-only", use_sandbox=False)
+
+    engine_run = MagicMock()
+    monkeypatch.setattr("worktree.cli.task.command.Engine.run", engine_run)
+
+    res = task_run_command("wf-only", cwd=fs.base_path, session_id="task_wf")
+    assert not res.ok
+    assert res.run_record is None
+    engine_run.assert_not_called()
+    assert res.errors == ["Blueprint 'wf-only' is a workflow; wt task run requires a task."]
+    assert TasksDb(fs.base_path).get("task_wf") is None

@@ -8,19 +8,26 @@ from pathlib import Path
 
 from worktree.common.fs import read_yaml_file
 from worktree.common.utils import RichOutput
+from worktree.core.blueprint import (
+    Blueprint,
+    BlueprintKind,
+    BlueprintLoadError,
+    BlueprintNotFoundError,
+    BlueprintRenderer,
+    BlueprintValidationError,
+)
+from worktree.core.catalog import Catalog
 from worktree.core.catalog.services.inventory import get_catalog_dir
 from worktree.core.db import RunStatus, TaskRunRecord, TasksDb
-from worktree.core.inputs import format_missing_inputs_error, resolve_inputs
+from worktree.core.engine import Engine, EngineRuntimeError
+from worktree.core.inputs import InputResolveResult, ParameterInput, format_missing_inputs_error
 from worktree.core.runtime import FailurePrompter, RunOutcome
 from worktree.core.step import StepDefinition, StepResult
 from worktree.core.task import (
     TaskDefinition,
     format_task_resolve_failure,
-    format_task_run_failure,
     resolve_and_load_task,
-    run_task,
 )
-from worktree.core.task.services.pause import TaskPauseStore
 
 from .models import (
     TaskListCommandOutcome,
@@ -75,39 +82,37 @@ class CliRunObserver:
             self.output.info("Sandbox: Cleaned")
 
 
-def _insert_running_record(
-    cwd: Path | None,
-    session_id: str,
-    task_name: str,
-) -> tuple[TaskRunRecord | None, list[str]]:
-    """Insert a RUNNING task row; DB faults become warnings."""
-    try:
-        return TasksDb(cwd).insert(
-            session_id=session_id,
-            task_name=task_name,
-            status=RunStatus.RUNNING,
-        ), []
-    except Exception as exc:
-        logger.warning("Failed to record task run start in database: %s", exc)
-        return None, [f"Failed to record task run start in database: {exc}"]
+_TASK_RENDERER = BlueprintRenderer(BlueprintKind.TASK)
 
 
-def _update_run_status(
-    cwd: Path | None,
-    session_id: str,
-    status: RunStatus,
-    error_message: str | None,
-) -> tuple[TaskRunRecord | None, list[str]]:
-    """Update task run status; DB faults become warnings."""
+def _fail_task_run(output: RichOutput, message: str) -> TaskRunCommandOutcome:
+    """Render a Task Run Failed panel and return a record-less outcome."""
+    output.error_panel("Task Run Failed", message)
+    return TaskRunCommandOutcome(run_record=None, errors=[message])
+
+
+def _input_error_message(
+    name: str,
+    result: InputResolveResult,
+    declarations: dict[str, ParameterInput],
+) -> str:
+    """Return the first parse error, or the structured missing-input body."""
+    if result.errors:
+        return result.errors[0]
+    return format_missing_inputs_error(
+        kind="task",
+        name=name,
+        missing=result.missing,
+        declarations=declarations,
+    )
+
+
+def _load_run_record(cwd: Path, session_id: str) -> TaskRunRecord | None:
+    """Return the persisted task row, or None when lookup fails."""
     try:
-        return TasksDb(cwd).update_status(
-            session_id=session_id,
-            status=status,
-            error_message=error_message,
-        ), []
-    except Exception as exc:
-        logger.warning("Failed to update task run status in database: %s", exc)
-        return None, [f"Failed to update task run status in database: {exc}"]
+        return TasksDb(cwd).get(session_id)
+    except Exception:
+        return None
 
 
 def _fallback_run_record(
@@ -133,20 +138,15 @@ def _finalize_run_outcome(
     session_id: str,
     run_outcome: RunOutcome,
     run_record: TaskRunRecord | None,
-    updated_record: TaskRunRecord | None,
     warnings: list[str],
     output: RichOutput,
 ) -> TaskRunCommandOutcome:
     """Render run result and build the CLI outcome."""
-    final_record = (
-        updated_record
-        or run_record
-        or _fallback_run_record(
-            session_id,
-            name,
-            run_outcome.status,
-            run_outcome.error_message,
-        )
+    final_record = run_record or _fallback_run_record(
+        session_id,
+        name,
+        run_outcome.status,
+        run_outcome.error_message,
     )
 
     if run_outcome.ok:
@@ -167,7 +167,7 @@ def _finalize_run_outcome(
             warnings=warnings,
         )
 
-    message = format_task_run_failure(run_outcome)
+    message = _TASK_RENDERER.render(run_outcome)
     output.error_panel("Task Run Failed", message)
     return TaskRunCommandOutcome(
         run_record=final_record,
@@ -258,72 +258,58 @@ def task_run_command(
     non_interactive: bool = False,
     rich_output: RichOutput | None = None,
 ) -> TaskRunCommandOutcome:
-    """Resolve a task blueprint, execute it via core runtime, and persist status."""
+    """Resolve a task blueprint, execute it via Engine, and return the CLI outcome."""
     output = rich_output or _DEFAULT_RICH_OUTPUT
     root = (cwd or Path.cwd()).resolve()
+    catalog = Catalog(root)
 
-    resolution = resolve_and_load_task(name, cwd=root)
-    if not resolution.ok or not isinstance(resolution.definition, TaskDefinition):
-        error_message = format_task_resolve_failure(resolution)
-        output.error_panel("Task Run Failed", error_message)
-        return TaskRunCommandOutcome(run_record=None, errors=[error_message])
+    try:
+        blueprint = Blueprint.load(name, catalog=catalog)
+    except (BlueprintNotFoundError, BlueprintLoadError) as exc:
+        return _fail_task_run(output, _TASK_RENDERER.render_resolve_failure([str(exc)]))
+    except BlueprintValidationError as exc:
+        return _fail_task_run(output, _TASK_RENDERER.render_validate_failure([str(exc)]))
 
-    definition = resolution.definition
-    input_result = resolve_inputs(definition.inputs, cli_args=cli_args)
+    if blueprint.kind is not BlueprintKind.TASK:
+        return _fail_task_run(
+            output,
+            f"Blueprint '{name}' is a {blueprint.kind.value}; wt task run requires a task.",
+        )
+
+    input_result = catalog.resolve_inputs(blueprint.inputs, cli_args=cli_args)
     if not input_result.ok:
-        if input_result.errors:
-            error_message = input_result.errors[0]
-        else:
-            error_message = format_missing_inputs_error(
-                kind="task",
-                name=name,
-                missing=input_result.missing,
-                declarations=definition.inputs,
-            )
-        output.error_panel("Task Run Failed", error_message)
-        return TaskRunCommandOutcome(run_record=None, errors=[error_message])
+        return _fail_task_run(output, _input_error_message(name, input_result, blueprint.inputs))
 
     sid = session_id or f"task_{uuid.uuid4().hex[:8]}"
-    run_record, warnings = _insert_running_record(cwd, sid, name)
-    warnings.extend(input_result.warnings)
-
     effective_non_interactive, failure_prompter = _resolve_failure_prompter(
         output,
         non_interactive=non_interactive,
     )
-
     output.info(f"Running task '{name}'...")
-    pause_store = TaskPauseStore(root, sid) if run_record is not None else None
-    run_outcome = run_task(
-        definition=definition,
-        cwd=root,
-        use_sandbox=not no_sandbox,
-        keep=keep,
-        agent=agent,
-        observer=CliRunObserver(output),
-        inputs=input_result.values,
-        non_interactive=effective_non_interactive,
-        failure_prompter=failure_prompter,
-        pause_store=pause_store,
-    )
-    warnings.extend(run_outcome.warnings)
+
+    try:
+        run_outcome = Engine(root).run(
+            blueprint,
+            inputs=input_result.values,
+            use_sandbox=not no_sandbox,
+            keep=keep,
+            agent=agent,
+            session_id=sid,
+            observer=CliRunObserver(output),
+            failure_prompter=failure_prompter,
+            non_interactive=effective_non_interactive,
+        )
+    except EngineRuntimeError as exc:
+        return _fail_task_run(output, str(exc))
+
     for warning in run_outcome.warnings:
         output.info(warning)
-
-    updated_record, update_warnings = _update_run_status(
-        cwd,
-        sid,
-        run_outcome.status,
-        run_outcome.error_message,
-    )
-    warnings.extend(update_warnings)
 
     return _finalize_run_outcome(
         name=name,
         session_id=sid,
         run_outcome=run_outcome,
-        run_record=run_record,
-        updated_record=updated_record,
-        warnings=warnings,
+        run_record=_load_run_record(root, sid),
+        warnings=[*input_result.warnings, *run_outcome.warnings],
         output=output,
     )
