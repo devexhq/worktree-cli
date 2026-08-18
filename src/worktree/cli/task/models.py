@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from worktree.core.db import CatalogRecord, TaskRunRecord
+from worktree.core.db import TaskRunRecord
 
 
 class TaskListCommandOutcome(BaseModel):
@@ -20,21 +20,6 @@ class TaskListCommandOutcome(BaseModel):
     def ok(self) -> bool:
         """Return True if no errors were encountered."""
         return len(self.errors) == 0
-
-
-class TaskShowCommandOutcome(BaseModel):
-    """Outcome for ``wt task show``."""
-
-    model_config = {"extra": "forbid", "strict": True}
-
-    item: CatalogRecord | None = None
-    content: str | None = None
-    errors: list[str] = Field(default_factory=list)
-
-    @property
-    def ok(self) -> bool:
-        """Return True if item exists and no errors occurred."""
-        return self.item is not None and len(self.errors) == 0
 
 
 class TaskRunCommandOutcome(BaseModel):

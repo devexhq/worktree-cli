@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from worktree.common.fs import read_yaml_file
 from worktree.common.utils import RichOutput
 from worktree.core.blueprint import (
     Blueprint,
@@ -16,29 +15,20 @@ from worktree.core.blueprint import (
     BlueprintValidationError,
 )
 from worktree.core.catalog import Catalog
-from worktree.core.catalog.services.inventory import get_catalog_dir
 from worktree.core.db import RunStatus, TaskRunRecord, TasksDb
 from worktree.core.engine import Engine, EngineInputError, EngineRuntimeError, RunRequest
 from worktree.core.inputs import InputResolveResult, ParameterInput, format_missing_inputs_error
 from worktree.core.runtime import FailurePrompter, RunOutcome
 from worktree.core.step import StepDefinition, StepResult
-from worktree.core.task import (
-    TaskDefinition,
-    format_task_resolve_failure,
-    resolve_and_load_task,
-)
 
 from .models import (
     TaskListCommandOutcome,
     TaskRunCommandOutcome,
-    TaskShowCommandOutcome,
 )
 from .prompter import CliFailurePrompter
 from .renderers import (
     render_task_list,
     render_task_run_success,
-    render_task_show,
-    render_task_show_inputs,
 )
 
 _DEFAULT_RICH_OUTPUT = RichOutput()
@@ -198,37 +188,6 @@ def task_list_command(
         errors=errors,
         warnings=warnings,
     )
-
-
-def task_show_command(
-    name: str,
-    cwd: Path | None = None,
-    *,
-    rich_output: RichOutput | None = None,
-) -> TaskShowCommandOutcome:
-    """Show details and definition content of a task blueprint."""
-    output = rich_output or _DEFAULT_RICH_OUTPUT
-
-    resolution = resolve_and_load_task(name, cwd=cwd)
-    item = resolution.resolved
-    if not resolution.ok or item is None:
-        error_message = format_task_resolve_failure(resolution)
-        output.error_panel("Task Show Failed", error_message)
-        return TaskShowCommandOutcome(item=None, content=None, errors=[error_message])
-
-    file_path = get_catalog_dir(cwd) / item.path
-    yaml_file = read_yaml_file(file_path)
-    if yaml_file.error or yaml_file.content is None:
-        error_message = yaml_file.error or f"Failed to read file for task blueprint '{name}'."
-        output.error_panel("Task Show Failed", error_message)
-        return TaskShowCommandOutcome(item=item, content=None, errors=[error_message])
-
-    content = yaml_file.content
-    definition = resolution.definition if isinstance(resolution.definition, TaskDefinition) else None
-    render_task_show(item, content, rich_output=output)
-    if definition is not None and definition.inputs:
-        render_task_show_inputs(definition.inputs, rich_output=output)
-    return TaskShowCommandOutcome(item=item, content=content)
 
 
 def _resolve_failure_prompter(

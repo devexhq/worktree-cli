@@ -13,13 +13,6 @@ Lists recorded task run history. Task blueprints themselves are managed via
 wt task
 ```
 
-### `wt task show`
-
-Inspects a specific task blueprint definition and metadata:
-
-```bash
-wt task show <name>
-```
 
 ### `wt task run`
 

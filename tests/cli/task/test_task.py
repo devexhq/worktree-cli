@@ -8,7 +8,6 @@ from worktree.cli import app
 from worktree.cli.task.command import (
     task_list_command,
     task_run_command,
-    task_show_command,
 )
 from worktree.core.catalog.services.inventory import create_catalog_item
 from worktree.core.db import TasksDb
@@ -32,7 +31,7 @@ def test_task_list_command_empty(fs: FileSystem, monkeypatch: pytest.MonkeyPatch
     assert "run-lints" not in res_cli.output
 
 
-def test_task_show_and_run_commands(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_task_run_command(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(fs.base_path)
 
     create_catalog_item("task", "sample-task", cwd=fs.base_path)
@@ -40,18 +39,6 @@ def test_task_show_and_run_commands(fs: FileSystem, monkeypatch: pytest.MonkeyPa
         ".worktree/catalog/tasks/sample-task.yml",
         "name: sample-task\ndescription: Custom task blueprint\nuse_sandbox: false\nsteps: []\n",
     )
-
-    # Show valid task
-    show_res = task_show_command("sample-task", cwd=fs.base_path)
-    assert show_res.ok
-    assert show_res.item is not None
-    assert show_res.item.name == "sample-task"
-    assert show_res.content is not None
-
-    # Show missing task
-    show_missing = task_show_command("non-existent-task", cwd=fs.base_path)
-    assert not show_missing.ok
-    assert "not found" in show_missing.errors[0].lower()
 
     # Run valid task
     run_res = task_run_command("sample-task", cwd=fs.base_path)
@@ -85,11 +72,6 @@ def test_cli_wt_task_default_and_subcommands(fs: FileSystem, monkeypatch: pytest
     res_list = runner.invoke(app, ["task", "list"])
     assert res_list.exit_code == 0
     assert res_default.output == res_list.output
-
-    # wt task show run-lints
-    res_show = runner.invoke(app, ["task", "show", "run-lints"])
-    assert res_show.exit_code == 0
-    assert "Task Blueprint:" in res_show.output
 
     # wt task run run-lints
     res_run = runner.invoke(app, ["task", "run", "run-lints"])
