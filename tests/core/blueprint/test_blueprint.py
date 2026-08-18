@@ -55,6 +55,12 @@ def test_construct_from_definition_does_not_copy() -> None:
     assert Blueprint.spec is BlueprintDefinition
 
 
+def test_use_sandbox_property_reads_document() -> None:
+    blueprint = Blueprint(BlueprintDefinition(kind=BlueprintKind.TASK, name="lint", use_sandbox=False))
+
+    assert blueprint.use_sandbox is False
+
+
 def test_load_task_from_catalog_name(fs: FileSystem) -> None:
     fs.write_file(".worktree/catalog/tasks/lint.yml", _task_payload())
     blueprint = Blueprint.load("lint", catalog=Catalog(fs.base_path))
