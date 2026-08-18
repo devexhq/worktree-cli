@@ -8,6 +8,7 @@ from pathlib import Path
 from worktree.core.blueprint import Blueprint, BlueprintKind
 from worktree.core.db import RunStatus, TasksDb, WorkflowsDb
 from worktree.core.engine.exceptions import EngineRuntimeError
+from worktree.core.engine.resumable import ResumableRun
 from worktree.core.runtime import (
     FailurePrompter,
     RunCheckpoint,
@@ -48,6 +49,7 @@ class Engine:
 
     def __init__(self, cwd: Path | None = None) -> None:
         self.cwd = (cwd or Path.cwd()).resolve()
+
         self._tasks_db = TasksDb(self.cwd)
         self._workflows_db = WorkflowsDb(self.cwd)
         self.db: TasksDb | WorkflowsDb = self._tasks_db
@@ -71,6 +73,7 @@ class Engine:
         engine_warnings: list[str] = []
         pause_store = self._start_run(blueprint, sid, engine_warnings)
         caller_sandbox = True if use_sandbox is None else use_sandbox
+
         outcome = run_steps(
             RunContext(
                 steps=steps,
@@ -85,11 +88,49 @@ class Engine:
                 pause_store=pause_store,
             )
         )
+
         if pause_store is not None:
             self._finish_run(pause_store, outcome, engine_warnings)
-        if not engine_warnings:
-            return outcome
-        return outcome.model_copy(update={"warnings": [*outcome.warnings, *engine_warnings]})
+
+        return self._with_engine_warnings(outcome, engine_warnings)
+
+    def resume(
+        self,
+        session_id: str,
+        *,
+        blueprint: Blueprint | None = None,
+        observer: RunObserver | None = None,
+        failure_prompter: FailurePrompter | None = None,
+        non_interactive: bool = False,
+    ) -> RunOutcome:
+        """Classify a paused session, rebuild ``RunContext``, and re-enter ``run_steps``."""
+        loaded, db, checkpoint = ResumableRun.load(session_id, blueprint, cwd=self.cwd).ready()
+        steps = self._sequential_steps(loaded, action="resume")
+
+        self.db = db
+        pause_store = _DbPauseStore(db, session_id)
+        engine_warnings: list[str] = []
+        self._mark_running(pause_store, engine_warnings)
+
+        outcome = run_steps(
+            RunContext(
+                steps=steps,
+                cwd=self.cwd,
+                use_sandbox=checkpoint.use_sandbox,
+                keep=checkpoint.keep,
+                agent=checkpoint.agent,
+                observer=observer,
+                inputs=checkpoint.inputs or None,
+                non_interactive=non_interactive,
+                failure_prompter=failure_prompter,
+                pause_store=pause_store,
+                resume_from=checkpoint,
+            )
+        )
+
+        self._finish_run(pause_store, outcome, engine_warnings)
+
+        return self._with_engine_warnings(outcome, engine_warnings)
 
     def _start_run(
         self,
@@ -98,12 +139,14 @@ class Engine:
         warnings: list[str],
     ) -> _DbPauseStore | None:
         """Insert a RUNNING row and return a pause store, or warn and skip persistence."""
-        self.db = self._tasks_db if blueprint.kind is BlueprintKind.TASK else self._workflows_db
+        self.db = self._db_for(blueprint.kind)
+
         try:
             self._insert_running(blueprint, session_id)
         except Exception as exc:
             warnings.append(f"Failed to record run start in database: {exc}")
             return None
+
         return _DbPauseStore(self.db, session_id)
 
     def _finish_run(
@@ -118,12 +161,12 @@ class Engine:
         except Exception as exc:
             warnings.append(f"Failed to update run status in database: {exc}")
 
-    def _sequential_steps(self, blueprint: Blueprint) -> list[StepDefinition]:
+    def _sequential_steps(self, blueprint: Blueprint, *, action: str = "run") -> list[StepDefinition]:
         """Return authored steps, or raise when any entry is a loop block."""
         steps: list[StepDefinition] = []
         for step in blueprint.steps:
             if isinstance(step, LoopStepBlock):
-                raise EngineRuntimeError("Engine.run does not execute loop steps.")
+                raise EngineRuntimeError(f"Engine.{action} does not execute loop steps.")
             steps.append(step)
         return steps
 
@@ -133,3 +176,20 @@ class Engine:
             self.db.insert(session_id, task_name=blueprint.name, status=RunStatus.RUNNING)
             return
         self.db.insert(session_id, workflow_name=blueprint.name, branch_name="", status=RunStatus.RUNNING)
+
+    def _db_for(self, kind: BlueprintKind) -> TasksDb | WorkflowsDb:
+        """Return the run-tracking repository for ``kind``."""
+        return self._tasks_db if kind is BlueprintKind.TASK else self._workflows_db
+
+    def _with_engine_warnings(self, outcome: RunOutcome, engine_warnings: list[str]) -> RunOutcome:
+        """Return ``outcome`` unchanged, or copy it with Engine warnings appended."""
+        if not engine_warnings:
+            return outcome
+        return outcome.model_copy(update={"warnings": [*outcome.warnings, *engine_warnings]})
+
+    def _mark_running(self, pause_store: _DbPauseStore, warnings: list[str]) -> None:
+        """Set the paused row back to running, or record a persistence warning."""
+        try:
+            pause_store.clear_pause()
+        except Exception as exc:
+            warnings.append(f"Failed to update run status in database: {exc}")
