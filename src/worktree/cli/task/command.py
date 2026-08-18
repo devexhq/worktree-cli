@@ -17,7 +17,7 @@ from worktree.core.blueprint import (
 from worktree.core.catalog import Catalog
 from worktree.core.db import RunStatus, TaskRunRecord, TasksDb
 from worktree.core.engine import Engine, EngineInputError, EngineRuntimeError, RunRequest
-from worktree.core.inputs import InputResolveResult, ParameterInput, format_missing_inputs_error
+from worktree.core.inputs import format_input_error_message
 from worktree.core.runtime import FailurePrompter, RunOutcome
 
 from .models import (
@@ -41,22 +41,6 @@ def _fail_task_run(output: RichOutput, message: str) -> TaskRunCommandOutcome:
     """Render a Task Run Failed panel and return a record-less outcome."""
     output.error_panel("Task Run Failed", message)
     return TaskRunCommandOutcome(run_record=None, errors=[message])
-
-
-def _input_error_message(
-    name: str,
-    result: InputResolveResult,
-    declarations: dict[str, ParameterInput],
-) -> str:
-    """Return the first parse error, or the structured missing-input body."""
-    if result.errors:
-        return result.errors[0]
-    return format_missing_inputs_error(
-        kind="task",
-        name=name,
-        missing=result.missing,
-        declarations=declarations,
-    )
 
 
 def _load_run_record(cwd: Path, session_id: str) -> TaskRunRecord | None:
@@ -220,7 +204,15 @@ def task_run_command(
                 ),
             )
     except EngineInputError as exc:
-        return _fail_task_run(output, _input_error_message(name, exc.result, blueprint.inputs))
+        return _fail_task_run(
+            output,
+            format_input_error_message(
+                kind="task",
+                name=name,
+                result=exc.result,
+                declarations=blueprint.inputs,
+            ),
+        )
     except EngineRuntimeError as exc:
         return _fail_task_run(output, str(exc))
 

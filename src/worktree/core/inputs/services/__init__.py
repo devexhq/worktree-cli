@@ -7,6 +7,7 @@ from worktree.core.inputs.services.interpolate import (
 from worktree.core.inputs.services.renderer import format_input_spec
 from worktree.core.inputs.services.resolve import (
     coerce_input_value,
+    format_input_error_message,
     format_missing_inputs_error,
     parse_cli_input_args,
     resolve_inputs,
@@ -14,6 +15,7 @@ from worktree.core.inputs.services.resolve import (
 
 __all__ = [
     "coerce_input_value",
+    "format_input_error_message",
     "format_input_spec",
     "format_missing_inputs_error",
     "interpolate_step_fields",
