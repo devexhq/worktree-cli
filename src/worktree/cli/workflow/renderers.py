@@ -62,3 +62,16 @@ def render_workflow_list(
         output.info("No recorded workflows found.")
     else:
         output.info(build_recorded_workflows_table(workflows, cwd=cwd))
+
+
+def render_workflow_run_success(
+    run_record: WorkflowRunRecord,
+    *,
+    rich_output: RichOutput | None = None,
+) -> None:
+    """Render workflow run execution summary."""
+    output = rich_output or _DEFAULT_RICH_OUTPUT
+    output.info(
+        f"[bold green]Workflow Run Completed:[/] {run_record.workflow_name} "
+        f"(session: {run_record.session_id}, status: {run_record.status.value})"
+    )

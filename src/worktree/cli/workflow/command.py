@@ -6,6 +6,7 @@ from pathlib import Path
 
 import typer
 
+from worktree.cli.task.observer import resolve_run_observer
 from worktree.cli.task.prompter import CliFailurePrompter
 from worktree.common.utils import RichOutput
 from worktree.core.blueprint import (
@@ -18,11 +19,12 @@ from worktree.core.blueprint import (
 )
 from worktree.core.catalog import Catalog
 from worktree.core.config.loader import ConfigLoadStatus, load_config_result
-from worktree.core.db import RunStatus, SandboxesDb, WorkflowsDb
-from worktree.core.engine import Engine, EngineResumeError, EngineRuntimeError
+from worktree.core.db import RunStatus, SandboxesDb, WorkflowRunRecord, WorkflowsDb
+from worktree.core.engine import Engine, EngineInputError, EngineResumeError, EngineRuntimeError, RunRequest
 from worktree.core.inputs import format_input_error_message
+from worktree.core.runtime import FailurePrompter, RunOutcome
 
-from .renderers import render_workflow_list
+from .renderers import render_workflow_list, render_workflow_run_success
 
 rich_output = RichOutput()
 _WORKFLOW_RENDERER = BlueprintRenderer(BlueprintKind.WORKFLOW)
@@ -183,52 +185,154 @@ def _load_workflow_blueprint(name: str, root: Path) -> Blueprint:
     return blueprint
 
 
+def _resolve_failure_prompter(
+    output: RichOutput,
+    *,
+    non_interactive: bool,
+) -> tuple[bool, FailurePrompter | None]:
+    """Build the CLI prompter and effective non-interactive flag (TTY-aware)."""
+    if non_interactive:
+        return True, None
+    prompter = CliFailurePrompter(output, kind="workflow")
+    if not prompter.is_interactive:
+        return True, None
+    return False, prompter
+
+
+def _load_run_record(cwd: Path, session_id: str) -> WorkflowRunRecord | None:
+    """Return the persisted workflow row, or None when lookup fails."""
+    try:
+        return WorkflowsDb(cwd).get(session_id)
+    except Exception:
+        return None
+
+
+def _fallback_run_record(
+    session_id: str,
+    workflow_name: str,
+    status: RunStatus,
+    error_message: str | None,
+) -> WorkflowRunRecord:
+    return WorkflowRunRecord(
+        id=-1,
+        session_id=session_id,
+        workflow_name=workflow_name,
+        branch_name="",
+        status=status,
+        started_at="",
+        completed_at=None,
+        error_message=error_message,
+    )
+
+
+def _finalize_run_outcome(
+    *,
+    name: str,
+    session_id: str,
+    run_outcome: RunOutcome,
+    run_record: WorkflowRunRecord | None,
+    output: RichOutput,
+) -> None:
+    """Render run result and exit with appropriate exit code."""
+    final_record = run_record or _fallback_run_record(
+        session_id,
+        name,
+        run_outcome.status,
+        run_outcome.error_message,
+    )
+
+    if run_outcome.ok:
+        render_workflow_run_success(final_record, rich_output=output)
+        raise typer.Exit(code=0)
+
+    if run_outcome.status == RunStatus.PAUSED:
+        message = run_outcome.error_message or "Workflow paused; checkpoint saved."
+        output.info(message)
+        raise typer.Exit(code=0)
+
+    if run_outcome.status == RunStatus.CANCELLED:
+        message = run_outcome.error_message or "Cancelled by user."
+        output.error_panel("Workflow Run Cancelled", message)
+        raise typer.Exit(code=1)
+
+    message = _WORKFLOW_RENDERER.render(run_outcome)
+    output.error_panel("Workflow Run Failed", message)
+    raise typer.Exit(code=1)
+
+
 def workflow_run_command(
     name: str,
     *,
     cwd: Path | None = None,
+    no_sandbox: bool = False,
+    keep: bool = False,
+    agent: str | None = None,
+    session_id: str | None = None,
     cli_args: list[str] | None = None,
     non_interactive: bool = False,
 ) -> None:
-    """Resolve and validate a workflow definition, then report execution status.
-
-    The Workflow Spec v1 execution engine (step assertion checks, failure
-    policy, loop control-flow) has not landed yet; see
-    devexhq/worktree-cli#171, #172, and #173. Until it does, this command
-    validates the workflow definition and input parameters, then exits without
-    executing any steps.
+    """Resolve and validate a workflow definition, then execute via Engine.
 
     Args:
         name: Workflow definition name.
         cwd: Repository root. Defaults to process CWD.
+        no_sandbox: Run execution in-place without creating a sandbox.
+        keep: Retain sandbox worktree after completion.
+        agent: Override default target agent adapter.
+        session_id: Explicit session identifier.
         cli_args: Trailing CLI tokens for declared workflow inputs.
-        non_interactive: When execution lands, degrade ``prompt_user`` to abort.
+        non_interactive: Disable interactive prompts; prompt_user failures abort.
     """
-    del non_interactive  # Reserved for run_steps wiring once workflow execution lands.
     root = (cwd or Path.cwd()).resolve()
     _require_workflow_config(root)
 
     blueprint = _load_workflow_blueprint(name, root)
-    input_result = blueprint.resolve_inputs(cli_args)
-    if not input_result.ok:
+
+    effective_non_interactive, failure_prompter = _resolve_failure_prompter(
+        rich_output,
+        non_interactive=non_interactive,
+    )
+    rich_output.info(f"Running workflow '{name}'...")
+    observer = resolve_run_observer(rich_output, non_interactive=effective_non_interactive)
+
+    try:
+        with observer:
+            run_outcome = Engine(root).run(
+                blueprint,
+                RunRequest(
+                    cli_args=cli_args,
+                    use_sandbox=not no_sandbox,
+                    keep=keep,
+                    agent=agent,
+                    session_id=session_id,
+                    observer=observer,
+                    failure_prompter=failure_prompter,
+                    non_interactive=effective_non_interactive,
+                ),
+            )
+    except EngineInputError as exc:
         rich_output.error_panel(
             "Workflow Run Failed",
             format_input_error_message(
                 kind="workflow",
                 name=name,
-                result=input_result,
+                result=exc.result,
                 declarations=blueprint.inputs,
             ),
         )
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
+    except EngineRuntimeError as exc:
+        rich_output.error_panel("Workflow Run Failed", str(exc))
+        raise typer.Exit(code=1) from None
 
-    for warning in input_result.warnings:
-        rich_output.info(f"Warning: {warning}")
+    sid = run_outcome.session_id or ""
+    for warning in run_outcome.warnings:
+        rich_output.info(warning)
 
-    rich_output.error_panel(
-        "Workflow Run Not Implemented",
-        f"'{name}' is a valid workflow definition, but step execution is not "
-        "implemented yet.\n"
-        "Tracked in devexhq/worktree-cli#171, #172, and #173.",
+    _finalize_run_outcome(
+        name=name,
+        session_id=sid,
+        run_outcome=run_outcome,
+        run_record=_load_run_record(root, sid) if sid else None,
+        output=rich_output,
     )
-    raise typer.Exit(code=1)
