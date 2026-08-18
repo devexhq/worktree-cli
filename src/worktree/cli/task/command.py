@@ -276,7 +276,7 @@ def task_run_command(
             f"Blueprint '{name}' is a {blueprint.kind.value}; wt task run requires a task.",
         )
 
-    input_result = catalog.resolve_inputs(blueprint.inputs, cli_args=cli_args)
+    input_result = blueprint.resolve_inputs(cli_args)
     if not input_result.ok:
         return _fail_task_run(output, _input_error_message(name, input_result, blueprint.inputs))
 

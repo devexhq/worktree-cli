@@ -14,6 +14,7 @@ from worktree.core.blueprint import (
     BlueprintValidationError,
 )
 from worktree.core.catalog import Catalog
+from worktree.core.inputs import InputType, ParameterInput
 from worktree.core.step import LoopStepBlock, StepDefinition
 
 
@@ -190,6 +191,31 @@ def test_from_path_malformed_yaml_raises_load_error(fs: FileSystem) -> None:
     path = fs.write_file(".worktree/catalog/tasks/bad.yml", "invalid: yaml: [")
     with pytest.raises(BlueprintLoadError, match="Failed to load blueprint from"):
         Blueprint.from_path(path)
+
+
+def test_resolve_inputs_uses_blueprint_declarations() -> None:
+    blueprint = Blueprint(
+        BlueprintDefinition(
+            kind=BlueprintKind.TASK,
+            name="commit",
+            inputs={
+                "message": ParameterInput(
+                    type=InputType.STRING,
+                    required=True,
+                    aliases=["-m"],
+                ),
+                "allow_empty": ParameterInput(
+                    type=InputType.BOOLEAN,
+                    default=False,
+                ),
+            },
+        )
+    )
+
+    result = blueprint.resolve_inputs(["-m", "ship it"])
+
+    assert result.ok
+    assert result.values == {"message": "ship it", "allow_empty": False}
 
 
 def test_inspect_properties_are_live() -> None:
