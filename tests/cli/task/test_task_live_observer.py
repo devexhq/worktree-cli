@@ -1,10 +1,11 @@
-"""Unit tests for LiveRunObserver and live task execution renderers."""
+"""Unit tests for task execution observers and live renderers."""
 
 from pathlib import Path
+from unittest.mock import PropertyMock, patch
 
 from rich.console import Console
 
-from worktree.cli.task.observer import LiveRunObserver
+from worktree.cli.task.observer import CliRunObserver, LiveRunObserver, resolve_run_observer
 from worktree.cli.task.renderers import (
     LiveStepItem,
     _format_step_elapsed,
@@ -151,3 +152,74 @@ def test_live_run_observer_formats_stderr_details() -> None:
     assert observer.steps[0].error_message is not None
     assert "Command failed with exit code 127." in observer.steps[0].error_message
     assert "sh: 1: pytest: not found" in observer.steps[0].error_message
+
+
+def test_cli_run_observer_lifecycle() -> None:
+    console = Console(record=True, width=120)
+    output = RichOutput(console=console)
+    observer = CliRunObserver(output)
+
+    with observer:
+        observer.on_sandbox_ready(Path("/tmp/sandbox_1"), active=True)
+        step1 = StepDefinition(id="step-1", name="lint", run="ruff check .")
+        observer.on_step_start(1, 2, step1)
+        result1 = StepResult(
+            step_id="step-1",
+            status="completed",
+            exit_code=0,
+            stdout="all good",
+            stderr="",
+            duration_seconds=0.15,
+        )
+        observer.on_step_done(1, 2, result1)
+
+        step2 = StepDefinition(id="step-2", name="test", run="pytest")
+        observer.on_step_start(2, 2, step2)
+        result2 = StepResult(
+            step_id="step-2",
+            status="failed",
+            exit_code=1,
+            stdout="",
+            stderr="test failed",
+            error_message="1 test failed",
+            duration_seconds=0.45,
+        )
+        observer.on_step_done(2, 2, result2)
+        observer.on_sandbox_cleanup(kept=True, path=Path("/tmp/sandbox_1"))
+
+    text = console.export_text()
+    assert "Sandbox: Active (/tmp/sandbox_1)" in text
+    assert "[STEP 1/2] Executing lint (command: ruff check .)..." in text
+    assert "[STEP 1/2] step-1 COMPLETED" in text
+    assert "[STEP 2/2] Executing test (command: pytest)..." in text
+    assert "[STEP 2/2] step-2 FAILED: 1 test failed" in text
+    assert "Sandbox: Retained (/tmp/sandbox_1)" in text
+
+
+def test_cli_run_observer_inplace_and_cleaned() -> None:
+    console = Console(record=True, width=120)
+    output = RichOutput(console=console)
+    observer = CliRunObserver(output)
+
+    observer.on_sandbox_ready(Path("/tmp/repo"), active=False)
+    observer.on_sandbox_cleanup(kept=False, path=Path("/tmp/repo"))
+
+    text = console.export_text()
+    assert "Sandbox: In-place (workspace)" in text
+    assert "Sandbox: Cleaned" in text
+
+
+def test_resolve_run_observer_interactive_vs_non_interactive() -> None:
+    console = Console()
+    output = RichOutput(console=console)
+
+    with patch.object(Console, "is_terminal", new_callable=PropertyMock, return_value=True):
+        obs_interactive = resolve_run_observer(output, non_interactive=False)
+        assert isinstance(obs_interactive, LiveRunObserver)
+
+        obs_forced_non_interactive = resolve_run_observer(output, non_interactive=True)
+        assert isinstance(obs_forced_non_interactive, CliRunObserver)
+
+    with patch.object(Console, "is_terminal", new_callable=PropertyMock, return_value=False):
+        obs_non_terminal = resolve_run_observer(output, non_interactive=False)
+        assert isinstance(obs_non_terminal, CliRunObserver)
