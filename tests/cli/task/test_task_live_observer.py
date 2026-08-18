@@ -1,8 +1,8 @@
 """Unit tests for task execution observers and live renderers."""
 
 from pathlib import Path
-from unittest.mock import PropertyMock, patch
 
+import pytest
 from rich.console import Console
 
 from worktree.cli.task.observer import CliRunObserver, LiveRunObserver, resolve_run_observer
@@ -209,17 +209,16 @@ def test_cli_run_observer_inplace_and_cleaned() -> None:
     assert "Sandbox: Cleaned" in text
 
 
-def test_resolve_run_observer_interactive_vs_non_interactive() -> None:
-    console = Console()
-    output = RichOutput(console=console)
+def test_resolve_run_observer_interactive_vs_non_interactive(monkeypatch: pytest.MonkeyPatch) -> None:
+    output = RichOutput(console=Console())
 
-    with patch.object(Console, "is_terminal", new_callable=PropertyMock, return_value=True):
-        obs_interactive = resolve_run_observer(output, non_interactive=False)
-        assert isinstance(obs_interactive, LiveRunObserver)
+    monkeypatch.setattr(Console, "is_terminal", property(lambda _: True))
+    obs_interactive = resolve_run_observer(output, non_interactive=False)
+    assert isinstance(obs_interactive, LiveRunObserver)
 
-        obs_forced_non_interactive = resolve_run_observer(output, non_interactive=True)
-        assert isinstance(obs_forced_non_interactive, CliRunObserver)
+    obs_forced_non_interactive = resolve_run_observer(output, non_interactive=True)
+    assert isinstance(obs_forced_non_interactive, CliRunObserver)
 
-    with patch.object(Console, "is_terminal", new_callable=PropertyMock, return_value=False):
-        obs_non_terminal = resolve_run_observer(output, non_interactive=False)
-        assert isinstance(obs_non_terminal, CliRunObserver)
+    monkeypatch.setattr(Console, "is_terminal", property(lambda _: False))
+    obs_non_terminal = resolve_run_observer(output, non_interactive=False)
+    assert isinstance(obs_non_terminal, CliRunObserver)
