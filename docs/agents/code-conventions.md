@@ -25,6 +25,13 @@ Do not create God-functions - opt instead to break down functionality into separ
 
 Do not include test seams in function and class definitions. Production code should exercise production logic only, not test-related logic.
 
+### Blank lines in function bodies
+
+Separate logical sections inside a function with a blank line (for example
+setup vs validate vs persist vs return). Do not pack unrelated phases into
+one unbroken block. Adjacent lines that are one thought — a few related
+assignments, or a single `try`/`except` — stay together.
+
 ### Core package layout
 
 Default skeleton for a **domain** package under `src/worktree/core/<domain>/`
