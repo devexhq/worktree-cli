@@ -331,3 +331,8 @@ def test_resumable_run_load_not_resumable(fs: FileSystem) -> None:
     assert handle.is_resumable is False
     assert handle.status is EngineResumeStatus.NOT_FOUND
     assert str(handle) == "Session 'missing' not found."
+
+    with pytest.raises(EngineResumeError, match=r"Session 'missing' not found\.") as exc_info:
+        handle.ready()
+
+    assert exc_info.value.status is EngineResumeStatus.NOT_FOUND

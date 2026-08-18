@@ -7,7 +7,7 @@ from pathlib import Path
 
 from worktree.core.blueprint import Blueprint, BlueprintKind
 from worktree.core.db import RunStatus, TasksDb, WorkflowsDb
-from worktree.core.engine.exceptions import EngineResumeError, EngineRuntimeError
+from worktree.core.engine.exceptions import EngineRuntimeError
 from worktree.core.engine.resumable import ResumableRun
 from worktree.core.runtime import (
     FailurePrompter,
@@ -104,7 +104,7 @@ class Engine:
         non_interactive: bool = False,
     ) -> RunOutcome:
         """Classify a paused session, rebuild ``RunContext``, and re-enter ``run_steps``."""
-        loaded, db, checkpoint = self._require_resumable(session_id, blueprint)
+        loaded, db, checkpoint = ResumableRun.load(session_id, blueprint, cwd=self.cwd).ready()
         steps = self._sequential_steps(loaded, action="resume")
 
         self.db = db
@@ -186,22 +186,6 @@ class Engine:
         if not engine_warnings:
             return outcome
         return outcome.model_copy(update={"warnings": [*outcome.warnings, *engine_warnings]})
-
-    def _require_resumable(
-        self,
-        session_id: str,
-        blueprint: Blueprint | None,
-    ) -> tuple[Blueprint, TasksDb | WorkflowsDb, RunCheckpoint]:
-        """Load a paused session or raise the classified resume error."""
-        resumable_run = ResumableRun.load(session_id, blueprint, cwd=self.cwd)
-        if not resumable_run.is_resumable:
-            raise EngineResumeError(resumable_run.status, str(resumable_run))
-
-        assert resumable_run.blueprint is not None
-        assert resumable_run.db is not None
-        assert resumable_run.checkpoint is not None
-
-        return resumable_run.blueprint, resumable_run.db, resumable_run.checkpoint
 
     def _mark_running(self, pause_store: _DbPauseStore, warnings: list[str]) -> None:
         """Set the paused row back to running, or record a persistence warning."""

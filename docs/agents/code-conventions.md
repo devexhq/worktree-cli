@@ -32,6 +32,12 @@ setup vs validate vs persist vs return). Do not pack unrelated phases into
 one unbroken block. Adjacent lines that are one thought — a few related
 assignments, or a single `try`/`except` — stay together.
 
+### Assertions
+
+Use `assert` only in tests. Production code in `src/` must raise a domain
+exception, return a Result/Outcome error, or branch explicitly. `assert` is
+stripped under `python -O` and is not a control-flow or type-narrowing tool.
+
 ### Core package layout
 
 Default skeleton for a **domain** package under `src/worktree/core/<domain>/`

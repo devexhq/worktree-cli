@@ -13,6 +13,7 @@ from worktree.core.blueprint import (
 )
 from worktree.core.catalog import Catalog
 from worktree.core.db import RunStatus, TaskRunRecord, TasksDb, WorkflowRunRecord, WorkflowsDb
+from worktree.core.engine.exceptions import EngineResumeError
 from worktree.core.engine.models import EngineResumeStatus
 from worktree.core.runtime import RunCheckpoint, parse_checkpoint
 from worktree.core.step import StepDefinition
@@ -55,6 +56,16 @@ class ResumableRun:
             and self.checkpoint is not None
             and self.blueprint is not None
         )
+
+    def ready(self) -> tuple[Blueprint, TasksDb | WorkflowsDb, RunCheckpoint]:
+        """Return blueprint, db, and checkpoint, or raise ``EngineResumeError``."""
+        blueprint = self.blueprint
+        db = self.db
+        checkpoint = self.checkpoint
+        if not self.is_resumable or blueprint is None or db is None or checkpoint is None:
+            raise EngineResumeError(self.status, str(self))
+
+        return blueprint, db, checkpoint
 
     @classmethod
     def load(
