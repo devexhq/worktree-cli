@@ -20,22 +20,21 @@ def build_catalog_table(items: list[CatalogRecord]) -> Table:
         items: List of CatalogRecord instances.
 
     Returns:
-        A Rich Table with SHA, TYPE, NAME / PATH, CHECKSUM columns.
+        A Rich Table with Name, Type, Path, SHA columns.
     """
     table = Table(title="Catalog Blueprints:", title_justify="left", show_header=True)
+    table.add_column("Name")
+    table.add_column("Type", no_wrap=True)
+    table.add_column("Path")
     table.add_column("SHA", no_wrap=True)
-    table.add_column("TYPE", no_wrap=True)
-    table.add_column("NAME / PATH")
-    table.add_column("CHECKSUM", no_wrap=True)
 
     for item in items:
         t_type = enum_value(item.item_type)
-        checksum_disp = f"{item.checksum[:7]}..." if len(item.checksum) > 7 else item.checksum
         table.add_row(
-            item.sha,
+            item.name,
             t_type,
             str(item.path),
-            checksum_disp,
+            item.sha,
         )
 
     return table
