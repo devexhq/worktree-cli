@@ -225,7 +225,11 @@ def load_raw_config(config_path: Path) -> dict[str, Any]:
     """
     result = load_config_result(config_path=config_path)
     if result.status == ConfigLoadStatus.OK:
-        assert result.raw is not None
+        if result.raw is None:
+            raise ValueError(
+                f"Configuration loaded from '{result.config_path}' but the raw payload is missing "
+                f"(CONFIG_INTERNAL_INVARIANT)."
+            )
         return result.raw
     if result.status == ConfigLoadStatus.NOT_FOUND:
         raise FileNotFoundError(result.errors[0] if result.errors else str(result.status))
@@ -296,7 +300,11 @@ def load_config(
     """
     result = load_config_result(cwd=cwd, config_path=config_path)
     if result.status == ConfigLoadStatus.OK:
-        assert result.config is not None
+        if result.config is None:
+            raise ValueError(
+                f"Configuration loaded from '{result.config_path}' but the parsed config is missing "
+                f"(CONFIG_INTERNAL_INVARIANT)."
+            )
         return result.config
     if result.status == ConfigLoadStatus.NOT_FOUND:
         raise FileNotFoundError(result.errors[0] if result.errors else str(result.status))

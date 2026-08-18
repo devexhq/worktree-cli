@@ -72,38 +72,17 @@ def set_nested_value(config_dict: dict[str, Any], dot_path: str, value: Any) -> 
     for i, key in enumerate(keys[:-1]):
         if key not in current:
             current[key] = {}
-        elif not isinstance(current[key], dict):
+        node = current[key]
+        if not isinstance(node, dict):
             conflict_path = ".".join(keys[: i + 1])
             raise ValueError(f"Cannot set '{dot_path}'. '{conflict_path}' is already defined as a scalar value.")
-        node = current[key]
-        assert isinstance(node, dict)
         current = node
 
     current[keys[-1]] = value
 
 
-def set_config_value_result(
-    key: str,
-    value: Any,
-    *,
-    cwd: Path | None = None,
-    config_path: Path | None = None,
-) -> ConfigSetResult:
-    """Load config JSON, set a dot-path value, and persist on success.
-
-    Does not print or call ``sys.exit``. Enforces schema key allow-lists and V1 schema validation.
-
-    Args:
-        key: Dot-path key to set.
-        value: Native Python value (or string) to assign.
-        cwd: Repository root used when ``config_path`` is omitted.
-        config_path: Explicit config path override.
-
-    Returns:
-        Classified ``ConfigSetResult`` with absolute ``config_path``.
-    """
-    path = resolve_config_path(cwd=cwd, config_path=config_path)
-
+def _read_config_object(path: Path, key: str) -> dict[str, Any] | ConfigSetResult:
+    """Load ``config.json`` as an object, or return a classified failure."""
     if path.exists() and path.is_dir():
         return ConfigSetResult(
             status=ConfigSetStatus.PATH_IS_DIRECTORY,
@@ -175,23 +154,15 @@ def set_config_value_result(
             ],
         )
 
-    updated = copy.deepcopy(data)
-    try:
-        set_nested_value(updated, key, value)
-    except ValueError as exc:
-        message = str(exc)
-        status = (
-            ConfigSetStatus.TYPE_COLLISION
-            if "already defined as a scalar value" in message
-            else ConfigSetStatus.INVALID_PATH
-        )
-        return ConfigSetResult(
-            status=status,
-            config_path=path,
-            key=key,
-            errors=[message],
-        )
+    return data
 
+
+def _validate_mutated_config(
+    updated: dict[str, Any],
+    path: Path,
+    key: str,
+) -> ConfigSetResult | None:
+    """Return a schema-invalid result, or ``None`` when mapping succeeds."""
     validation = CONFIG_VALIDATOR.validate(updated)
     if not validation.ok:
         return ConfigSetResult(
@@ -230,6 +201,55 @@ def set_config_value_result(
                 )
             ],
         )
+
+    return None
+
+
+def set_config_value_result(
+    key: str,
+    value: Any,
+    *,
+    cwd: Path | None = None,
+    config_path: Path | None = None,
+) -> ConfigSetResult:
+    """Load config JSON, set a dot-path value, and persist on success.
+
+    Does not print or call ``sys.exit``. Enforces schema key allow-lists and V1 schema validation.
+
+    Args:
+        key: Dot-path key to set.
+        value: Native Python value (or string) to assign.
+        cwd: Repository root used when ``config_path`` is omitted.
+        config_path: Explicit config path override.
+
+    Returns:
+        Classified ``ConfigSetResult`` with absolute ``config_path``.
+    """
+    path = resolve_config_path(cwd=cwd, config_path=config_path)
+    loaded = _read_config_object(path, key)
+    if isinstance(loaded, ConfigSetResult):
+        return loaded
+
+    updated = copy.deepcopy(loaded)
+    try:
+        set_nested_value(updated, key, value)
+    except ValueError as exc:
+        message = str(exc)
+        status = (
+            ConfigSetStatus.TYPE_COLLISION
+            if "already defined as a scalar value" in message
+            else ConfigSetStatus.INVALID_PATH
+        )
+        return ConfigSetResult(
+            status=status,
+            config_path=path,
+            key=key,
+            errors=[message],
+        )
+
+    schema_error = _validate_mutated_config(updated, path, key)
+    if schema_error is not None:
+        return schema_error
 
     try:
         atomic_write_json(path, updated)

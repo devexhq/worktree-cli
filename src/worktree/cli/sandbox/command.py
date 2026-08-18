@@ -204,11 +204,10 @@ def sandbox_show_command(
     if result.status is SandboxShowStatus.NOT_INITIALIZED:
         render_not_initialized(result.errors)
         raise typer.Exit(code=1)
-    if result.status is SandboxShowStatus.NOT_FOUND:
+    if result.status is SandboxShowStatus.NOT_FOUND or result.sandbox is None:
         render_sandbox_not_found(sandbox_id)
         raise typer.Exit(code=1)
 
-    assert result.sandbox is not None
     render_sandbox_show(
         result.sandbox,
         disk_present=result.disk_present,
@@ -284,8 +283,10 @@ def sandbox_delete_command(
     if result.status is SandboxDeleteStatus.ALREADY_CLEANED:
         render_sandbox_already_cleaned(sandbox_id, rich_output=output)
         raise typer.Exit(code=0)
+    if result.sandbox is None:
+        render_sandbox_not_found(sandbox_id, rich_output=output)
+        raise typer.Exit(code=1)
 
-    assert result.sandbox is not None
     row = result.sandbox
 
     if not force:
