@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from unittest.mock import patch
-
 import pytest
 import typer
 from typer.testing import CliRunner
@@ -291,16 +289,19 @@ class WorkflowResumeCommandDirectTests:
         git_fs.init_repo()
         _insert_workflow(git_fs, "wf-pause", checkpoint=_checkpoint())
 
-        with patch("worktree.cli.workflow.command.Engine.resume") as mock_resume:
-            mock_resume.return_value = RunOutcome(
-                status=RunStatus.PAUSED,
-                session_id="wf-pause",
-                step_results=[],
-                sandbox_path=git_fs.base_path,
-            )
-            with pytest.raises(typer.Exit) as exc_info:
-                workflow_resume_command("wf-pause", cwd=git_fs.base_path)
-            assert exc_info.value.exit_code == 0
+        paused_outcome = RunOutcome(
+            status=RunStatus.PAUSED,
+            session_id="wf-pause",
+            step_results=[],
+            sandbox_path=git_fs.base_path,
+        )
+        monkeypatch.setattr(
+            "worktree.cli.workflow.command.Engine.resume",
+            lambda *args, **kwargs: paused_outcome,
+        )
+        with pytest.raises(typer.Exit) as exc_info:
+            workflow_resume_command("wf-pause", cwd=git_fs.base_path)
+        assert exc_info.value.exit_code == 0
 
 
 class WorkflowResumeCliTests:
