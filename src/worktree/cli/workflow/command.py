@@ -8,17 +8,24 @@ import typer
 
 from worktree.cli.task.prompter import CliFailurePrompter
 from worktree.common.utils import RichOutput
-from worktree.core.catalog.services.inventory import get_catalog_item
+from worktree.core.blueprint import (
+    Blueprint,
+    BlueprintKind,
+    BlueprintLoadError,
+    BlueprintNotFoundError,
+    BlueprintRenderer,
+    BlueprintValidationError,
+)
+from worktree.core.catalog import Catalog
 from worktree.core.config.loader import ConfigLoadStatus, load_config_result
-from worktree.core.db import CatalogItemType, SandboxesDb, WorkflowsDb
-from worktree.core.inputs import format_missing_inputs_error, resolve_inputs
-from worktree.core.workflows.models import WorkflowDefinition
-from worktree.core.workflows.services.renderer import format_workflow_run_resolve_failure
-from worktree.core.workflows.services.resume import resume_workflow
+from worktree.core.db import RunStatus, SandboxesDb, WorkflowsDb
+from worktree.core.engine import Engine, EngineResumeError, EngineRuntimeError
+from worktree.core.inputs import format_missing_inputs_error
 
 from .renderers import render_workflow_inputs, render_workflow_list
 
 rich_output = RichOutput()
+_WORKFLOW_RENDERER = BlueprintRenderer(BlueprintKind.WORKFLOW)
 
 
 def workflow_list_command(*, cwd: Path | None = None) -> None:
@@ -105,21 +112,32 @@ def workflow_resume_command(session_id: str, *, cwd: Path | None = None) -> None
         rich_output.error_panel("Workflow Resume Failed", message)
         raise typer.Exit(code=1)
 
+    if WorkflowsDb(root).get(session_id) is None:
+        rich_output.error_panel(
+            "Workflow Resume Failed",
+            f"Workflow session '{session_id}' not found.",
+        )
+        raise typer.Exit(code=1)
+
     rich_output.info(f"Resuming workflow session '{session_id}'...")
     prompter = CliFailurePrompter(rich_output, kind="workflow")
     non_interactive = not prompter.is_interactive
-    result = resume_workflow(
-        session_id,
-        root,
-        failure_prompter=None if non_interactive else prompter,
-        non_interactive=non_interactive,
-    )
-    if not result.ok:
-        message = result.errors[0] if result.errors else f"Cannot resume session '{session_id}'."
-        rich_output.error_panel("Workflow Resume Failed", message)
-        raise typer.Exit(code=1)
+    try:
+        outcome = Engine(root).resume(
+            session_id,
+            failure_prompter=None if non_interactive else prompter,
+            non_interactive=non_interactive,
+        )
+    except (EngineResumeError, EngineRuntimeError) as exc:
+        rich_output.error_panel("Workflow Resume Failed", str(exc))
+        raise typer.Exit(code=1) from None
 
-    raise typer.Exit(code=0)
+    if outcome.ok or outcome.status == RunStatus.PAUSED:
+        raise typer.Exit(code=0)
+
+    message = outcome.error_message or f"Cannot resume session '{session_id}'."
+    rich_output.error_panel("Workflow Resume Failed", message)
+    raise typer.Exit(code=1)
 
 
 def _require_workflow_config(root: Path) -> None:
@@ -137,9 +155,37 @@ def _require_workflow_config(root: Path) -> None:
         raise typer.Exit(code=1)
 
 
-def _validate_workflow_inputs(name: str, definition: WorkflowDefinition, cli_args: list[str] | None) -> None:
+def _load_workflow_blueprint(name: str, root: Path) -> Blueprint:
+    """Load a workflow blueprint from catalog; exit on failure or kind mismatch."""
+    catalog = Catalog(root)
+    try:
+        blueprint = Blueprint.load(name, catalog=catalog)
+    except (BlueprintNotFoundError, BlueprintLoadError) as exc:
+        rich_output.error_panel(
+            "Workflow Run Failed",
+            _WORKFLOW_RENDERER.render_resolve_failure([str(exc)]),
+        )
+        raise typer.Exit(code=1) from None
+    except BlueprintValidationError as exc:
+        rich_output.error_panel(
+            "Workflow Run Failed",
+            _WORKFLOW_RENDERER.render_validate_failure([str(exc)]),
+        )
+        raise typer.Exit(code=1) from None
+
+    if blueprint.kind is not BlueprintKind.WORKFLOW:
+        rich_output.error_panel(
+            "Workflow Run Failed",
+            f"Blueprint '{name}' is a {blueprint.kind.value}; wt workflow run requires a workflow.",
+        )
+        raise typer.Exit(code=1)
+
+    return blueprint
+
+
+def _validate_workflow_inputs(name: str, blueprint: Blueprint, cli_args: list[str] | None) -> None:
     """Validate and display workflow inputs; exit on parse/missing errors."""
-    input_result = resolve_inputs(definition.inputs, cli_args=cli_args)
+    input_result = blueprint.resolve_inputs(cli_args)
     if not input_result.ok:
         if input_result.errors:
             error_message = input_result.errors[0]
@@ -148,12 +194,12 @@ def _validate_workflow_inputs(name: str, definition: WorkflowDefinition, cli_arg
                 kind="workflow",
                 name=name,
                 missing=input_result.missing,
-                declarations=definition.inputs,
+                declarations=blueprint.inputs,
             )
         rich_output.error_panel("Workflow Run Failed", error_message)
         raise typer.Exit(code=1)
-    if definition.inputs:
-        render_workflow_inputs(definition.inputs, rich_output=rich_output)
+    if blueprint.inputs:
+        render_workflow_inputs(blueprint.inputs, rich_output=rich_output)
     for warning in input_result.warnings:
         rich_output.info(f"Warning: {warning}")
 
@@ -183,17 +229,8 @@ def workflow_run_command(
     root = (cwd or Path.cwd()).resolve()
     _require_workflow_config(root)
 
-    result = get_catalog_item(name, CatalogItemType.WORKFLOW, definition_cls=WorkflowDefinition, cwd=root)
-    if not result.ok:
-        rich_output.error_panel(
-            "Workflow Run Failed",
-            format_workflow_run_resolve_failure(result),
-        )
-        raise typer.Exit(code=1)
-
-    definition = result.definition
-    if isinstance(definition, WorkflowDefinition):
-        _validate_workflow_inputs(name, definition, cli_args)
+    blueprint = _load_workflow_blueprint(name, root)
+    _validate_workflow_inputs(name, blueprint, cli_args)
 
     rich_output.error_panel(
         "Workflow Run Not Implemented",
