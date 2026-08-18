@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 from worktree.common.models import DefinitionResolutionResult
+from worktree.core.blueprint import BlueprintKind, BlueprintRenderer
 from worktree.core.catalog.models import DefinitionValidationOutcome
 from worktree.core.db import CatalogRecord
+
+_WORKFLOW_RENDERER = BlueprintRenderer(BlueprintKind.WORKFLOW)
 
 
 def format_workflow_run_resolve_failure(result: DefinitionResolutionResult[CatalogRecord]) -> str:
@@ -16,9 +19,7 @@ def format_workflow_run_resolve_failure(result: DefinitionResolutionResult[Catal
     Returns:
         Joined resolve errors, or a defensive fallback string.
     """
-    if result.errors:
-        return "\n\n".join(result.errors)
-    return "Failed to resolve workflow."
+    return _WORKFLOW_RENDERER.render_resolve_failure(result.errors)
 
 
 def format_workflow_run_validate_failure(result: DefinitionValidationOutcome) -> str:
@@ -30,6 +31,4 @@ def format_workflow_run_validate_failure(result: DefinitionValidationOutcome) ->
     Returns:
         Joined validation errors, or a defensive fallback string.
     """
-    if result.errors:
-        return "\n\n".join(result.errors)
-    return "Workflow definition is invalid."
+    return _WORKFLOW_RENDERER.render_validate_failure(result.errors)
