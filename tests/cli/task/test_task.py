@@ -153,26 +153,16 @@ def test_task_run_status_transitions_and_persistence(fs: FileSystem, monkeypatch
     from worktree.core.db import RunStatus
     from worktree.core.runtime import RunOutcome
 
-    def _cancel_run(
-        definition,
-        cwd,
-        *,
-        use_sandbox=True,
-        keep=False,
-        agent=None,
-        observer=None,
-        inputs=None,
-        **kwargs,
-    ):
+    def _cancel_run(context):
         return RunOutcome(
             status=RunStatus.CANCELLED,
             step_results=[],
             error_message="Execution cancelled by user.",
             sandbox_kept=False,
-            sandbox_path=cwd,
+            sandbox_path=context.cwd,
         )
 
-    monkeypatch.setattr("worktree.cli.task.command.run_task", _cancel_run)
+    monkeypatch.setattr("worktree.core.engine.engine.run_steps", _cancel_run)
     res_cancel = task_run_command(
         "passing-task",
         cwd=fs.base_path,
@@ -205,7 +195,7 @@ def test_task_run_db_fault_tolerance(fs: FileSystem, monkeypatch: pytest.MonkeyP
 
     res = task_run_command("sample-task", cwd=fs.base_path)
     assert res.ok
-    assert any("Failed to record task run start" in w for w in res.warnings)
+    assert any("Failed to record run start in database" in w for w in res.warnings)
 
 
 def test_task_list_displays_recorded_runs(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
