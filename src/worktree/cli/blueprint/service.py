@@ -26,12 +26,12 @@ from worktree.core.inputs import format_input_error_message
 from worktree.core.runtime import FailurePrompter, RunOutcome
 
 
-@dataclass(slots=True)
+@dataclass
 class BlueprintRunService:
     """Service encapsulating the blueprint execution lifecycle."""
 
     name: str
-    kind: BlueprintKind
+    kind: BlueprintKind | None = None
     cwd: Path | None = None
     no_sandbox: bool = False
     keep: bool = False
@@ -46,16 +46,24 @@ class BlueprintRunService:
 
     def __post_init__(self) -> None:
         self.root = (self.cwd or Path.cwd()).resolve()
-        self.renderer = BlueprintRenderer(self.kind)
+        self.renderer = BlueprintRenderer(self.kind or BlueprintKind.TASK)
+
+    @property
+    def _kind_label(self) -> str:
+        return self.kind.value if self.kind is not None else "blueprint"
 
     def execute(self) -> BlueprintRunCommandOutcome:
         """Run the full execution pipeline and return the outcome."""
         blueprint, fail_outcome = self._load_blueprint()
         if fail_outcome is not None or blueprint is None:
-            return fail_outcome or self._fail(f"Failed to load {self.kind.value} '{self.name}'.")
+            return fail_outcome or self._fail(f"Failed to load {self._kind_label} '{self.name}'.")
+
+        if self.kind is None:
+            self.kind = blueprint.kind
+            self.renderer = BlueprintRenderer(self.kind)
 
         effective_non_interactive, prompter = self._resolve_prompter()
-        self.output.info(f"Running {self.kind.value} '{self.name}'...")
+        self.output.info(f"Running {self._kind_label} '{self.name}'...")
         observer = resolve_run_observer(self.output, non_interactive=effective_non_interactive)
 
         try:
@@ -76,7 +84,7 @@ class BlueprintRunService:
         except EngineInputError as exc:
             return self._fail(
                 format_input_error_message(
-                    kind=self.kind.value,
+                    kind=self._kind_label,
                     name=self.name,
                     result=exc.result,
                     declarations=blueprint.inputs,
@@ -91,7 +99,7 @@ class BlueprintRunService:
         return self._finalize(run_outcome)
 
     def _fail(self, message: str) -> BlueprintRunCommandOutcome:
-        panel_title = f"{self.kind.value.capitalize()} Run Failed"
+        panel_title = f"{self._kind_label.capitalize()} Run Failed"
         self.output.error_panel(panel_title, message)
         return BlueprintRunCommandOutcome(run_record=None, errors=[message])
 
@@ -104,7 +112,7 @@ class BlueprintRunService:
         except BlueprintValidationError as exc:
             return None, self._fail(self.renderer.render_validate_failure([str(exc)]))
 
-        if blueprint.kind is not self.kind:
+        if self.kind is not None and blueprint.kind is not self.kind:
             msg = (
                 f"Blueprint '{self.name}' is a {blueprint.kind.value}; "
                 f"wt {self.kind.value} run requires a {self.kind.value}."
@@ -116,7 +124,8 @@ class BlueprintRunService:
     def _resolve_prompter(self) -> tuple[bool, FailurePrompter | None]:
         if self.non_interactive:
             return True, None
-        prompter = CliFailurePrompter(self.output, kind=self.kind.value)
+        prompter_kind = "workflow" if self.kind == BlueprintKind.WORKFLOW else "task"
+        prompter = CliFailurePrompter(self.output, kind=prompter_kind)
         if not prompter.is_interactive:
             return True, None
         return False, prompter
@@ -137,7 +146,7 @@ class BlueprintRunService:
             id=-1,
             session_id=session_id,
             blueprint_name=self.name,
-            kind=self.kind,
+            kind=self.kind or BlueprintKind.TASK,
             branch_name="",
             status=status,
             started_at="",
@@ -166,13 +175,13 @@ class BlueprintRunService:
             return BlueprintRunCommandOutcome(run_record=final_record, warnings=warnings)
 
         if run_outcome.status == RunStatus.PAUSED:
-            msg = run_outcome.error_message or f"{self.kind.value.capitalize()} paused; checkpoint saved."
+            msg = run_outcome.error_message or f"{self._kind_label.capitalize()} paused; checkpoint saved."
             self.output.info(msg)
             return BlueprintRunCommandOutcome(run_record=final_record, warnings=warnings)
 
         if run_outcome.status == RunStatus.CANCELLED:
             msg = run_outcome.error_message or "Cancelled by user."
-            self.output.error_panel(f"{self.kind.value.capitalize()} Run Cancelled", msg)
+            self.output.error_panel(f"{self._kind_label.capitalize()} Run Cancelled", msg)
             return BlueprintRunCommandOutcome(
                 run_record=final_record,
                 errors=[msg],
@@ -180,7 +189,7 @@ class BlueprintRunService:
             )
 
         msg = self.renderer.render(run_outcome)
-        self.output.error_panel(f"{self.kind.value.capitalize()} Run Failed", msg)
+        self.output.error_panel(f"{self._kind_label.capitalize()} Run Failed", msg)
         return BlueprintRunCommandOutcome(
             run_record=final_record,
             errors=[msg],
