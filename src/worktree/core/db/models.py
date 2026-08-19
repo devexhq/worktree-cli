@@ -63,30 +63,23 @@ class CatalogRecord(BaseModel):
     updated_at: str
 
 
-class WorkflowRunRecord(BaseModel):
-    """Row shape for the local `workflows` table."""
+class BlueprintKind(StrEnum):
+    """Derived catalog kind for a blueprint document."""
+
+    TASK = "task"
+    WORKFLOW = "workflow"
+
+
+class RunRecord(BaseModel):
+    """Row shape for the local `runs` table."""
 
     model_config = {"extra": "forbid", "strict": True}
 
     id: int
     session_id: str
-    workflow_name: str
-    branch_name: str
-    status: RunStatus
-    started_at: str
-    completed_at: str | None = None
-    error_message: str | None = None
-    checkpoint_json: str | None = None
-
-
-class TaskRunRecord(BaseModel):
-    """Row shape for the local `tasks` table."""
-
-    model_config = {"extra": "forbid", "strict": True}
-
-    id: int
-    session_id: str
-    task_name: str
+    blueprint_name: str
+    kind: BlueprintKind
+    branch_name: str = ""
     status: RunStatus
     started_at: str
     completed_at: str | None = None

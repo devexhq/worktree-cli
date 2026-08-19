@@ -9,7 +9,7 @@ from typer.testing import CliRunner
 from tests.helpers import GitFileSystem
 from worktree.cli import app
 from worktree.cli.workflow.command import workflow_list_command
-from worktree.core.db import WorkflowsDb
+from worktree.core.db import BlueprintKind, RunsDb
 
 runner = CliRunner()
 
@@ -26,9 +26,10 @@ class WorkflowListCommandDirectTests:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
 
-        WorkflowsDb(git_fs.base_path).insert(
+        RunsDb(git_fs.base_path).create(
             session_id="wf-20260805-01",
-            workflow_name="refactor-pipeline",
+            blueprint_name="refactor-pipeline",
+            kind=BlueprintKind.WORKFLOW,
             branch_name="wt/refactor-pipe",
         )
 
@@ -85,9 +86,10 @@ class WorkflowListCliTests:
     def test_cli_success(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
-        WorkflowsDb(git_fs.base_path).insert(
+        RunsDb(git_fs.base_path).create(
             session_id="wf-20260805-01",
-            workflow_name="refactor-pipeline",
+            blueprint_name="refactor-pipeline",
+            kind=BlueprintKind.WORKFLOW,
             branch_name="wt/refactor-pipe",
         )
 
@@ -99,9 +101,10 @@ class WorkflowListCliTests:
     def test_cli_default_invocation_matches_list(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
-        WorkflowsDb(git_fs.base_path).insert(
+        RunsDb(git_fs.base_path).create(
             session_id="wf-20260805-02",
-            workflow_name="run-tests",
+            blueprint_name="run-tests",
+            kind=BlueprintKind.WORKFLOW,
             branch_name="wt/run-tests",
         )
 

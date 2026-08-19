@@ -6,13 +6,12 @@ from pathlib import Path
 
 from worktree.core.blueprint import (
     Blueprint,
-    BlueprintKind,
     BlueprintLoadError,
     BlueprintNotFoundError,
     BlueprintValidationError,
 )
 from worktree.core.catalog import Catalog
-from worktree.core.db import RunStatus, TaskRunRecord, TasksDb, WorkflowRunRecord, WorkflowsDb
+from worktree.core.db import RunRecord, RunsDb, RunStatus
 from worktree.core.engine.exceptions import EngineResumeError
 from worktree.core.engine.models import EngineResumeStatus
 from worktree.core.runtime import RunCheckpoint, parse_checkpoint
@@ -31,7 +30,7 @@ class ResumableRun:
         message: str = "",
         checkpoint: RunCheckpoint | None = None,
         steps: list[StepDefinition] | None = None,
-        db: TasksDb | WorkflowsDb | None = None,
+        db: RunsDb | None = None,
         blueprint: Blueprint | None = None,
     ) -> None:
         self.session_id = session_id
@@ -57,7 +56,7 @@ class ResumableRun:
             and self.blueprint is not None
         )
 
-    def ready(self) -> tuple[Blueprint, TasksDb | WorkflowsDb, RunCheckpoint]:
+    def ready(self) -> tuple[Blueprint, RunsDb, RunCheckpoint]:
         """Return blueprint, db, and checkpoint, or raise ``EngineResumeError``."""
         blueprint = self.blueprint
         db = self.db
@@ -139,24 +138,15 @@ class ResumableRun:
         session_id: str,
         blueprint: Blueprint | None,
         cwd: Path,
-    ) -> tuple[TaskRunRecord | WorkflowRunRecord, TasksDb | WorkflowsDb] | None:
+    ) -> tuple[RunRecord, RunsDb] | None:
         """Return the run row and repository, or None when the session is missing."""
-        if blueprint is not None:
-            db: TasksDb | WorkflowsDb = TasksDb(cwd) if blueprint.kind is BlueprintKind.TASK else WorkflowsDb(cwd)
-            row = db.get(session_id)
-            return (row, db) if row is not None else None
-
-        task_db = TasksDb(cwd)
-        task_row = task_db.get(session_id)
-        if task_row is not None:
-            return task_row, task_db
-
-        workflow_db = WorkflowsDb(cwd)
-        workflow_row = workflow_db.get(session_id)
-        if workflow_row is not None:
-            return workflow_row, workflow_db
-
-        return None
+        db = RunsDb(cwd)
+        row = db.get(session_id)
+        if row is None:
+            return None
+        if blueprint is not None and row.kind != blueprint.kind:
+            return None
+        return row, db
 
     @classmethod
     def _parse_checkpoint(cls, session_id: str, raw: str | None, cwd: Path) -> RunCheckpoint | ResumableRun:
@@ -188,11 +178,11 @@ class ResumableRun:
     def _load_blueprint(
         cls,
         session_id: str,
-        row: TaskRunRecord | WorkflowRunRecord,
+        row: RunRecord,
         cwd: Path,
     ) -> Blueprint | ResumableRun:
         """Load the catalog blueprint named by the paused row."""
-        name = row.task_name if isinstance(row, TaskRunRecord) else row.workflow_name
+        name = row.blueprint_name
 
         try:
             return Blueprint.load(name, catalog=Catalog(cwd))

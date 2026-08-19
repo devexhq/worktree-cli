@@ -8,7 +8,7 @@ from tests.helpers import GitFileSystem
 from worktree.cli import app
 from worktree.cli.workflow.command import workflow_resume_command
 from worktree.core.catalog.services.inventory import scan_and_index_catalog
-from worktree.core.db import RunStatus, TasksDb, WorkflowsDb
+from worktree.core.db import BlueprintKind, RunsDb, RunStatus
 from worktree.core.runtime import FailurePromptDecision, RunCheckpoint, RunOutcome
 from worktree.core.step import StepResult
 
@@ -50,10 +50,11 @@ def _insert_workflow(
     checkpoint: RunCheckpoint | None = None,
     workflow_name: str = "resume-demo",
 ) -> None:
-    db = WorkflowsDb(git_fs.base_path)
-    db.insert(
+    db = RunsDb(git_fs.base_path)
+    db.create(
         session_id=session_id,
-        workflow_name=workflow_name,
+        blueprint_name=workflow_name,
+        kind=BlueprintKind.WORKFLOW,
         branch_name="wt/resume",
         status=RunStatus.RUNNING,
     )
@@ -92,9 +93,11 @@ class WorkflowResumeCommandDirectTests:
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
-        tasks_db = TasksDb(git_fs.base_path)
-        tasks_db.insert(session_id="task-session-1", task_name="sample-task", status=RunStatus.RUNNING)
-        tasks_db.save_pause("task-session-1", _checkpoint().model_dump_json(), "paused")
+        runs_db = RunsDb(git_fs.base_path)
+        runs_db.create(
+            session_id="task-session-1", blueprint_name="sample-task", kind=BlueprintKind.TASK, status=RunStatus.RUNNING
+        )
+        runs_db.save_pause("task-session-1", _checkpoint().model_dump_json(), "paused")
 
         with pytest.raises(typer.Exit) as exc_info:
             workflow_resume_command("task-session-1", cwd=git_fs.base_path)
@@ -153,8 +156,10 @@ class WorkflowResumeCommandDirectTests:
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
-        db = WorkflowsDb(git_fs.base_path)
-        db.insert(session_id="wf-bad", workflow_name="resume-demo", branch_name="wt/resume")
+        db = RunsDb(git_fs.base_path)
+        db.create(
+            session_id="wf-bad", blueprint_name="resume-demo", kind=BlueprintKind.WORKFLOW, branch_name="wt/resume"
+        )
         db.save_pause("wf-bad", "{not-json", "paused")
 
         with pytest.raises(typer.Exit) as exc_info:
@@ -323,9 +328,11 @@ class WorkflowResumeCliTests:
     def test_task_session_id_refused_cli(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
-        tasks_db = TasksDb(git_fs.base_path)
-        tasks_db.insert(session_id="task-session-2", task_name="sample-task", status=RunStatus.RUNNING)
-        tasks_db.save_pause("task-session-2", _checkpoint().model_dump_json(), "paused")
+        runs_db = RunsDb(git_fs.base_path)
+        runs_db.create(
+            session_id="task-session-2", blueprint_name="sample-task", kind=BlueprintKind.TASK, status=RunStatus.RUNNING
+        )
+        runs_db.save_pause("task-session-2", _checkpoint().model_dump_json(), "paused")
 
         result = runner.invoke(app, ["workflow", "resume", "task-session-2"])
         assert result.exit_code == 1

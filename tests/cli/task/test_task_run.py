@@ -9,7 +9,7 @@ from tests.helpers import FileSystem
 from worktree.cli import app
 from worktree.cli.task.command import task_run_command
 from worktree.cli.task.observer import CliRunObserver
-from worktree.core.db import RunStatus, TasksDb
+from worktree.core.db import RunsDb, RunStatus
 from worktree.core.runtime import FailurePromptDecision, RunOutcome
 from worktree.core.step import StepDefinition, StepResult
 
@@ -34,7 +34,7 @@ def test_task_run_command_steps_execution(fs: FileSystem, monkeypatch: pytest.Mo
     assert res.run_record is not None
     assert res.run_record.status.value == "completed"
 
-    rec = TasksDb(fs.base_path).get("task_build_1")
+    rec = RunsDb(fs.base_path).get("task_build_1")
     assert rec is not None
     assert rec.status.value == "completed"
 
@@ -77,7 +77,7 @@ def test_task_run_step_failure_aborts(fs: FileSystem, monkeypatch: pytest.Monkey
     assert res.run_record is not None
     assert res.run_record.status.value == "failed"
 
-    rec = TasksDb(fs.base_path).get("task_fail_1")
+    rec = RunsDb(fs.base_path).get("task_fail_1")
     assert rec is not None
     assert rec.status.value == "failed"
     assert rec.error_message is not None
@@ -122,7 +122,7 @@ def test_task_run_prompt_user_persists_paused_checkpoint(
 
     res = task_run_command("pause-task", cwd=fs.base_path, session_id="task_pause_1")
     assert res.ok
-    rec = TasksDb(fs.base_path).get("task_pause_1")
+    rec = RunsDb(fs.base_path).get("task_pause_1")
     assert rec is not None
     assert rec.status is RunStatus.PAUSED
     assert rec.completed_at is None
@@ -164,14 +164,14 @@ def test_task_run_keep_retains_sandbox(fs: FileSystem, monkeypatch: pytest.Monke
 
 def test_task_run_missing_task_skips_db_insert(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(fs.base_path)
-    insert = MagicMock()
-    monkeypatch.setattr(TasksDb, "insert", insert)
+    create = MagicMock()
+    monkeypatch.setattr(RunsDb, "create", create)
 
     res = task_run_command("missing-task", cwd=fs.base_path, session_id="task_missing")
     assert not res.ok
     assert res.run_record is None
-    insert.assert_not_called()
-    assert TasksDb(fs.base_path).get("task_missing") is None
+    create.assert_not_called()
+    assert RunsDb(fs.base_path).get("task_missing") is None
 
 
 def test_task_run_cancelled_status(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -198,7 +198,7 @@ def test_task_run_cancelled_status(fs: FileSystem, monkeypatch: pytest.MonkeyPat
     assert res.run_record is not None
     assert res.run_record.status.value == "cancelled"
 
-    rec = TasksDb(fs.base_path).get("task_canc1")
+    rec = RunsDb(fs.base_path).get("task_canc1")
     assert rec is not None
     assert rec.status.value == "cancelled"
     assert "cancelled" in (rec.error_message or "").lower()
@@ -227,7 +227,7 @@ def test_task_run_uses_step_with_override(fs: FileSystem, monkeypatch: pytest.Mo
     assert res.run_record is not None
     assert res.run_record.status.value == "completed"
 
-    rec = TasksDb(fs.base_path).get("task_uses_1")
+    rec = RunsDb(fs.base_path).get("task_uses_1")
     assert rec is not None
     assert rec.status.value == "completed"
 
@@ -283,7 +283,7 @@ def test_task_run_invalid_assert_aborts_before_steps(fs: FileSystem, monkeypatch
     assert res.run_record is None
     engine_run.assert_not_called()
     assert any("assert" in err.lower() or "validation" in err.lower() for err in res.errors)
-    assert TasksDb(fs.base_path).get("task_bad_assert") is None
+    assert RunsDb(fs.base_path).get("task_bad_assert") is None
 
 
 def test_task_run_missing_required_input_skips_execution(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -311,7 +311,7 @@ def test_task_run_missing_required_input_skips_execution(fs: FileSystem, monkeyp
     assert not res.ok
     assert res.run_record is None
     assert any("Missing required input 'message'" in err for err in res.errors)
-    assert TasksDb(fs.base_path).get("task_missing_input") is None
+    assert RunsDb(fs.base_path).get("task_missing_input") is None
 
 
 def test_task_run_cli_alias_interpolates_input(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -410,4 +410,4 @@ def test_task_run_rejects_workflow_kind(fs: FileSystem, monkeypatch: pytest.Monk
     assert res.run_record is None
     engine_run.assert_not_called()
     assert res.errors == ["Blueprint 'wf-only' is a workflow; wt task run requires a task."]
-    assert TasksDb(fs.base_path).get("task_wf") is None
+    assert RunsDb(fs.base_path).get("task_wf") is None

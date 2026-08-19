@@ -5,8 +5,8 @@ from __future__ import annotations
 import uuid
 from pathlib import Path
 
-from worktree.core.blueprint import Blueprint, BlueprintKind
-from worktree.core.db import RunStatus, TasksDb, WorkflowsDb
+from worktree.core.blueprint import Blueprint
+from worktree.core.db import RunsDb, RunStatus
 from worktree.core.engine.exceptions import EngineInputError, EngineRuntimeError
 from worktree.core.engine.models import RunRequest
 from worktree.core.engine.resumable import ResumableRun
@@ -23,9 +23,9 @@ from worktree.core.step import LoopStepBlock, StepDefinition
 
 
 class _DbPauseStore:
-    """``RunPauseStore`` adapter backed by a task or workflow run repository."""
+    """``RunPauseStore`` adapter backed by RunsDb repository."""
 
-    def __init__(self, db: TasksDb | WorkflowsDb, session_id: str) -> None:
+    def __init__(self, db: RunsDb, session_id: str) -> None:
         self._db = db
         self._session_id = session_id
 
@@ -51,10 +51,7 @@ class Engine:
 
     def __init__(self, cwd: Path | None = None) -> None:
         self.cwd = (cwd or Path.cwd()).resolve()
-
-        self._tasks_db = TasksDb(self.cwd)
-        self._workflows_db = WorkflowsDb(self.cwd)
-        self.db: TasksDb | WorkflowsDb = self._tasks_db
+        self.db = RunsDb(self.cwd)
 
     def run(self, blueprint: Blueprint, request: RunRequest | None = None) -> RunOutcome:
         """Adapt ``blueprint`` into ``RunContext`` and delegate to ``run_steps``."""
@@ -131,8 +128,6 @@ class Engine:
         warnings: list[str],
     ) -> _DbPauseStore | None:
         """Insert a RUNNING row and return a pause store, or warn and skip persistence."""
-        self.db = self._db_for(blueprint.kind)
-
         try:
             self._insert_running(blueprint, session_id)
         except Exception as exc:
@@ -164,14 +159,13 @@ class Engine:
 
     def _insert_running(self, blueprint: Blueprint, session_id: str) -> None:
         """Insert a RUNNING row for the bound repository."""
-        if blueprint.kind is BlueprintKind.TASK:
-            self.db.insert(session_id, task_name=blueprint.name, status=RunStatus.RUNNING)
-            return
-        self.db.insert(session_id, workflow_name=blueprint.name, branch_name="", status=RunStatus.RUNNING)
-
-    def _db_for(self, kind: BlueprintKind) -> TasksDb | WorkflowsDb:
-        """Return the run-tracking repository for ``kind``."""
-        return self._tasks_db if kind is BlueprintKind.TASK else self._workflows_db
+        self.db.create(
+            session_id=session_id,
+            blueprint_name=blueprint.name,
+            kind=blueprint.kind,
+            branch_name="",
+            status=RunStatus.RUNNING,
+        )
 
     def _resolve_run_inputs(self, blueprint: Blueprint, request: RunRequest) -> InputResolveResult:
         """Apply defaults and required checks; raise before a run row is inserted."""

@@ -6,7 +6,7 @@ import pytest
 
 from tests.helpers import GitFileSystem
 from worktree.core.catalog.services.inventory import scan_and_index_catalog
-from worktree.core.db import RunStatus, WorkflowsDb
+from worktree.core.db import BlueprintKind, RunsDb, RunStatus
 from worktree.core.runtime import FailurePromptDecision, RunCheckpoint
 from worktree.core.step import StepDefinition, StepResult
 from worktree.core.workflows.models import WorkflowResumeStatus
@@ -73,8 +73,8 @@ def _seed_paused_workflow(git_fs: GitFileSystem, session_id: str, checkpoint: Ru
         ],
     )
     scan_and_index_catalog(cwd=git_fs.base_path)
-    db = WorkflowsDb(git_fs.base_path)
-    db.insert(session_id=session_id, workflow_name="resume-demo", branch_name="wt/resume")
+    db = RunsDb(git_fs.base_path)
+    db.create(session_id=session_id, blueprint_name="resume-demo", kind=BlueprintKind.WORKFLOW, branch_name="wt/resume")
     db.save_pause(session_id, checkpoint.model_dump_json(), checkpoint.diagnostic)
 
 
@@ -102,16 +102,17 @@ def test_resume_workflow_happy_path_skips_completed(
     assert result.ok is True
     assert prompter.calls == 1
     assert executed == ["later"]
-    row = WorkflowsDb(git_fs.base_path).get("wf-ok")
+    row = RunsDb(git_fs.base_path).get("wf-ok")
     assert row is not None
     assert row.status is RunStatus.COMPLETED
 
 
 def test_resume_workflow_wrong_status(git_fs: GitFileSystem) -> None:
     git_fs.init_repo()
-    WorkflowsDb(git_fs.base_path).insert(
+    RunsDb(git_fs.base_path).create(
         session_id="wf-done",
-        workflow_name="resume-demo",
+        blueprint_name="resume-demo",
+        kind=BlueprintKind.WORKFLOW,
         branch_name="wt/resume",
         status=RunStatus.COMPLETED,
     )
@@ -142,8 +143,8 @@ def test_resume_workflow_missing_sandbox(git_fs: GitFileSystem) -> None:
 
 def test_resume_workflow_corrupt_checkpoint(git_fs: GitFileSystem) -> None:
     git_fs.init_repo()
-    db = WorkflowsDb(git_fs.base_path)
-    db.insert(session_id="wf-bad", workflow_name="resume-demo", branch_name="wt/resume")
+    db = RunsDb(git_fs.base_path)
+    db.create(session_id="wf-bad", blueprint_name="resume-demo", kind=BlueprintKind.WORKFLOW, branch_name="wt/resume")
     db.save_pause("wf-bad", "{nope", "paused")
     result = resume_workflow("wf-bad", git_fs.base_path)
     assert result.status is WorkflowResumeStatus.CORRUPT_CHECKPOINT

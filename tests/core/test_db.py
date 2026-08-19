@@ -9,16 +9,14 @@ import pytest
 
 from tests.helpers import FileSystem
 from worktree.core.db import (
+    BlueprintKind,
     CatalogDb,
     CatalogItemType,
     CatalogRecord,
     DbBase,
+    RunRecord,
+    RunsDb,
     RunStatus,
-    RunTrackingDb,
-    TaskRunRecord,
-    TasksDb,
-    WorkflowRunRecord,
-    WorkflowsDb,
     WorktreeDb,
     init_database,
 )
@@ -38,16 +36,16 @@ class TestDatabaseMigrations:
             indexes = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'index'")}
 
         assert "catalog" in tables
-        assert "workflows" in tables
-        assert "tasks" in tables
+        assert "sandboxes" in tables
+        assert "workflow_costs" in tables
+        assert "runs" in tables
 
         assert "idx_catalog_sha" in indexes
         assert "idx_catalog_type" in indexes
         assert "idx_catalog_path" in indexes
-        assert "idx_workflows_session" in indexes
-        assert "idx_workflows_status" in indexes
-        assert "idx_tasks_session" in indexes
-        assert "idx_tasks_status" in indexes
+        assert "idx_runs_session" in indexes
+        assert "idx_runs_status" in indexes
+        assert "idx_runs_started" in indexes
 
     def test_init_is_idempotent(self, fs: FileSystem) -> None:
         path1 = init_database(cwd=fs.base_path, db_rel_path=DB_REL)
@@ -55,7 +53,7 @@ class TestDatabaseMigrations:
         assert path1 == path2
         assert path1.is_file()
 
-    def test_init_migrates_legacy_run_tables_to_paused_checkpoint(self, fs: FileSystem) -> None:
+    def test_init_migrates_legacy_run_tables_to_runs(self, fs: FileSystem) -> None:
         db_path = fs.base_path / DB_REL
         db_path.parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(db_path) as conn:
@@ -66,25 +64,45 @@ class TestDatabaseMigrations:
                     session_id TEXT NOT NULL UNIQUE,
                     workflow_name TEXT NOT NULL,
                     branch_name TEXT NOT NULL,
-                    status TEXT NOT NULL DEFAULT 'running'
-                        CHECK(status IN ('running', 'completed', 'failed', 'cancelled')),
+                    status TEXT NOT NULL DEFAULT 'running',
                     started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     completed_at TIMESTAMP,
-                    error_message TEXT
+                    error_message TEXT,
+                    checkpoint_json TEXT
                 );
-                INSERT INTO workflows (session_id, workflow_name, branch_name, status)
-                VALUES ('wf_legacy', 'demo', 'main', 'running');
+                CREATE TABLE tasks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT NOT NULL UNIQUE,
+                    task_name TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'running',
+                    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    completed_at TIMESTAMP,
+                    error_message TEXT,
+                    checkpoint_json TEXT
+                );
+                INSERT INTO workflows (session_id, workflow_name, branch_name, status, checkpoint_json)
+                VALUES ('wf_legacy', 'demo-wf', 'feat/w', 'paused', '{"v": 1}');
+                INSERT INTO tasks (session_id, task_name, status)
+                VALUES ('task_legacy', 'demo-task', 'completed');
                 """
             )
 
         init_database(cwd=fs.base_path, db_rel_path=DB_REL)
-        db = WorkflowsDb(cwd=fs.base_path, db_rel_path=DB_REL)
-        updated = db.save_pause("wf_legacy", '{"version": 1}', "paused for input")
-        assert updated is not None
-        assert updated.status is RunStatus.PAUSED
-        assert updated.completed_at is None
-        assert updated.checkpoint_json == '{"version": 1}'
-        assert updated.error_message == "paused for input"
+        db = RunsDb(cwd=fs.base_path, db_rel_path=DB_REL)
+
+        wf = db.get("wf_legacy")
+        assert wf is not None
+        assert wf.blueprint_name == "demo-wf"
+        assert wf.kind == BlueprintKind.WORKFLOW
+        assert wf.branch_name == "feat/w"
+        assert wf.status == RunStatus.PAUSED
+        assert wf.checkpoint_json == '{"v": 1}'
+
+        tk = db.get("task_legacy")
+        assert tk is not None
+        assert tk.blueprint_name == "demo-task"
+        assert tk.kind == BlueprintKind.TASK
+        assert tk.status == RunStatus.COMPLETED
 
 
 class TestDbBase:
@@ -100,13 +118,19 @@ class TestDbBase:
 
     def test_cursor_and_transaction(self, fs: FileSystem) -> None:
         db_base = DbBase(cwd=fs.base_path, db_rel_path=DB_REL)
-        assert db_base.execute_insert("INSERT INTO tasks (session_id, task_name) VALUES (?, ?);", ("s1", "t1")) == 1
+        assert (
+            db_base.execute_insert(
+                "INSERT INTO runs (session_id, blueprint_name, kind) VALUES (?, ?, ?);",
+                ("s1", "t1", "task"),
+            )
+            == 1
+        )
 
-        row = db_base.fetch_one("SELECT * FROM tasks WHERE session_id = ?;", ("s1",))
+        row = db_base.fetch_one("SELECT * FROM runs WHERE session_id = ?;", ("s1",))
         assert row is not None
-        assert row["task_name"] == "t1"
+        assert row["blueprint_name"] == "t1"
 
-        all_rows = db_base.fetch_all("SELECT * FROM tasks;")
+        all_rows = db_base.fetch_all("SELECT * FROM runs;")
         assert len(all_rows) == 1
 
     def test_transaction_rollback_on_exception(self, fs: FileSystem) -> None:
@@ -115,10 +139,14 @@ class TestDbBase:
 
         with pytest.raises(sqlite3.IntegrityError):
             with db_base.cursor() as cursor:
-                cursor.execute("INSERT INTO tasks (session_id, task_name) VALUES (?, ?);", ("s_dup", "t1"))
-                cursor.execute("INSERT INTO tasks (session_id, task_name) VALUES (?, ?);", ("s_dup", "t2"))
+                cursor.execute(
+                    "INSERT INTO runs (session_id, blueprint_name, kind) VALUES (?, ?, ?);", ("s_dup", "t1", "task")
+                )
+                cursor.execute(
+                    "INSERT INTO runs (session_id, blueprint_name, kind) VALUES (?, ?, ?);", ("s_dup", "t2", "task")
+                )
 
-        assert db_base.fetch_one("SELECT * FROM tasks WHERE session_id = ?;", ("s_dup",)) is None
+        assert db_base.fetch_one("SELECT * FROM runs WHERE session_id = ?;", ("s_dup",)) is None
 
 
 class TestCatalogDb:
@@ -256,273 +284,6 @@ class TestCatalogDb:
         assert db.delete("to_delete") is False
 
 
-class DummyRunTrackingDb(RunTrackingDb[TaskRunRecord]):
-    """Concrete subclass for testing generic RunTrackingDb behavior."""
-
-    table = "tasks"
-    record_cls = TaskRunRecord
-    extra_columns = ("task_name",)
-
-
-class TestRunTrackingDb:
-    """Tests for RunTrackingDb generic base repository operations."""
-
-    def test_insert_and_get(self, fs: FileSystem) -> None:
-        db = DummyRunTrackingDb(cwd=fs.base_path, db_rel_path=DB_REL)
-        rec = db.insert("s1", status=RunStatus.RUNNING, task_name="dummy_task")
-
-        assert isinstance(rec, TaskRunRecord)
-        assert rec.session_id == "s1"
-        assert rec.task_name == "dummy_task"
-        assert rec.status is RunStatus.RUNNING
-
-        fetched = db.get("s1")
-        assert fetched == rec
-
-    def test_insert_duplicate_session_id_raises_value_error(self, fs: FileSystem) -> None:
-        db = DummyRunTrackingDb(cwd=fs.base_path, db_rel_path=DB_REL)
-        db.insert("s_dup", task_name="t1")
-
-        with pytest.raises(ValueError, match="already exists"):
-            db.insert("s_dup", task_name="t2")
-
-    def test_insert_invalid_extra_columns_raises_value_error(self, fs: FileSystem) -> None:
-        db = DummyRunTrackingDb(cwd=fs.base_path, db_rel_path=DB_REL)
-        with pytest.raises(ValueError, match="mismatched keys"):
-            db.insert("s_bad", wrong_arg="val")  # type: ignore[call-arg]
-
-    def test_get_missing_returns_none(self, fs: FileSystem) -> None:
-        db = DummyRunTrackingDb(cwd=fs.base_path, db_rel_path=DB_REL)
-        assert db.get("non_existent") is None
-
-    def test_update_status(self, fs: FileSystem) -> None:
-        db = DummyRunTrackingDb(cwd=fs.base_path, db_rel_path=DB_REL)
-        db.insert("s_upd", task_name="t_upd")
-
-        updated = db.update_status("s_upd", status=RunStatus.COMPLETED, error_message=None)
-        assert updated is not None
-        assert updated.status is RunStatus.COMPLETED
-        assert updated.completed_at is not None
-
-    def test_save_pause_sets_paused_without_completed_at(self, fs: FileSystem) -> None:
-        db = DummyRunTrackingDb(cwd=fs.base_path, db_rel_path=DB_REL)
-        db.insert("s_pause", task_name="t_pause")
-
-        updated = db.save_pause("s_pause", '{"version": 1}', "step failed")
-        assert updated is not None
-        assert updated.status is RunStatus.PAUSED
-        assert updated.completed_at is None
-        assert updated.checkpoint_json == '{"version": 1}'
-        assert updated.error_message == "step failed"
-
-    def test_update_status_missing_returns_none(self, fs: FileSystem) -> None:
-        db = DummyRunTrackingDb(cwd=fs.base_path, db_rel_path=DB_REL)
-        assert db.update_status("missing", status=RunStatus.COMPLETED) is None
-
-    def test_update_status_invalid_raises_value_error(self, fs: FileSystem) -> None:
-        db = DummyRunTrackingDb(cwd=fs.base_path, db_rel_path=DB_REL)
-        db.insert("s_inv", task_name="t")
-
-        with pytest.raises(ValueError, match="constraint"):
-            db.update_status("s_inv", status="invalid_status")  # type: ignore[arg-type]
-
-    def test_list(self, fs: FileSystem) -> None:
-        db = DummyRunTrackingDb(cwd=fs.base_path, db_rel_path=DB_REL)
-        db.insert("s_list1", task_name="t1")
-        db.insert("s_list2", task_name="t2")
-
-        runs = db.list()
-        assert len(runs) == 2
-        assert {r.session_id for r in runs} == {"s_list1", "s_list2"}
-
-
-class TestWorkflowsDb:
-    """Tests for WorkflowsDb repository methods."""
-
-    def test_insert_and_get_workflow_run(self, fs: FileSystem) -> None:
-        db = WorkflowsDb(cwd=fs.base_path, db_rel_path=DB_REL)
-        rec = db.insert(
-            session_id="wf_session_1",
-            workflow_name="dev-workflow",
-            branch_name="feature/workflow",
-        )
-
-        assert isinstance(rec, WorkflowRunRecord)
-        assert rec.id == 1
-        assert rec.session_id == "wf_session_1"
-        assert rec.workflow_name == "dev-workflow"
-        assert rec.branch_name == "feature/workflow"
-        assert rec.status is RunStatus.RUNNING
-        assert rec.started_at
-        assert rec.completed_at is None
-        assert rec.error_message is None
-
-        fetched = db.get("wf_session_1")
-        assert fetched == rec
-
-    def test_insert_duplicate_session_id_raises_value_error(self, fs: FileSystem) -> None:
-        db = WorkflowsDb(cwd=fs.base_path, db_rel_path=DB_REL)
-        db.insert(
-            session_id="dup_wf",
-            workflow_name="wf",
-            branch_name="b",
-        )
-
-        with pytest.raises(ValueError, match="already exists"):
-            db.insert(
-                session_id="dup_wf",
-                workflow_name="wf",
-                branch_name="b",
-            )
-
-    def test_get_missing_workflow_run_returns_none(self, fs: FileSystem) -> None:
-        db = WorkflowsDb(cwd=fs.base_path, db_rel_path=DB_REL)
-        assert db.get("non_existent") is None
-
-    def test_update_workflow_run_status(self, fs: FileSystem) -> None:
-        db = WorkflowsDb(cwd=fs.base_path, db_rel_path=DB_REL)
-        db.insert(
-            session_id="wf_to_update",
-            workflow_name="wf",
-            branch_name="b",
-        )
-
-        updated = db.update_status(
-            session_id="wf_to_update",
-            status=RunStatus.FAILED,
-            error_message="Execution timeout",
-        )
-
-        assert updated is not None
-        assert updated.status is RunStatus.FAILED
-        assert updated.completed_at is not None
-        assert updated.error_message == "Execution timeout"
-
-    def test_update_missing_workflow_run_returns_none(self, fs: FileSystem) -> None:
-        db = WorkflowsDb(cwd=fs.base_path, db_rel_path=DB_REL)
-        assert db.update_status(session_id="missing", status=RunStatus.COMPLETED) is None
-
-    def test_invalid_workflow_status_raises_value_error(self, fs: FileSystem) -> None:
-        db = WorkflowsDb(cwd=fs.base_path, db_rel_path=DB_REL)
-        db.insert(
-            session_id="wf_invalid_status",
-            workflow_name="wf",
-            branch_name="b",
-        )
-
-        with pytest.raises(ValueError, match="constraint"):
-            db.update_status(
-                session_id="wf_invalid_status",
-                status="invalid_status",  # type: ignore[arg-type]
-            )
-
-    def test_list_workflow_runs(self, fs: FileSystem) -> None:
-        db = WorkflowsDb(cwd=fs.base_path, db_rel_path=DB_REL)
-        db.insert(
-            session_id="wf_1",
-            workflow_name="wf1",
-            branch_name="b1",
-        )
-        db.insert(
-            session_id="wf_2",
-            workflow_name="wf2",
-            branch_name="b2",
-        )
-
-        runs = db.list()
-        assert len(runs) == 2
-        assert {r.session_id for r in runs} == {"wf_1", "wf_2"}
-
-
-class TestTasksDb:
-    """Tests for TasksDb repository methods."""
-
-    def test_insert_and_get_task_run(self, fs: FileSystem) -> None:
-        db = TasksDb(cwd=fs.base_path, db_rel_path=DB_REL)
-        rec = db.insert(
-            session_id="task_session_1",
-            task_name="lint-fix",
-        )
-
-        assert isinstance(rec, TaskRunRecord)
-        assert rec.id == 1
-        assert rec.session_id == "task_session_1"
-        assert rec.task_name == "lint-fix"
-        assert rec.status is RunStatus.RUNNING
-        assert rec.started_at
-        assert rec.completed_at is None
-        assert rec.error_message is None
-
-        fetched = db.get("task_session_1")
-        assert fetched == rec
-
-    def test_insert_duplicate_task_session_id_raises_value_error(self, fs: FileSystem) -> None:
-        db = TasksDb(cwd=fs.base_path, db_rel_path=DB_REL)
-        db.insert(
-            session_id="dup_task",
-            task_name="task",
-        )
-
-        with pytest.raises(ValueError, match="already exists"):
-            db.insert(
-                session_id="dup_task",
-                task_name="task",
-            )
-
-    def test_get_missing_task_run_returns_none(self, fs: FileSystem) -> None:
-        db = TasksDb(cwd=fs.base_path, db_rel_path=DB_REL)
-        assert db.get("non_existent") is None
-
-    def test_update_task_run_status(self, fs: FileSystem) -> None:
-        db = TasksDb(cwd=fs.base_path, db_rel_path=DB_REL)
-        db.insert(
-            session_id="task_to_update",
-            task_name="task",
-        )
-
-        updated = db.update_status(
-            session_id="task_to_update",
-            status=RunStatus.COMPLETED,
-        )
-
-        assert updated is not None
-        assert updated.status is RunStatus.COMPLETED
-        assert updated.completed_at is not None
-        assert updated.error_message is None
-
-    def test_update_missing_task_run_returns_none(self, fs: FileSystem) -> None:
-        db = TasksDb(cwd=fs.base_path, db_rel_path=DB_REL)
-        assert db.update_status(session_id="missing", status=RunStatus.COMPLETED) is None
-
-    def test_invalid_task_status_raises_value_error(self, fs: FileSystem) -> None:
-        db = TasksDb(cwd=fs.base_path, db_rel_path=DB_REL)
-        db.insert(
-            session_id="task_invalid_status",
-            task_name="task",
-        )
-
-        with pytest.raises(ValueError, match="constraint"):
-            db.update_status(
-                session_id="task_invalid_status",
-                status="invalid_status",  # type: ignore[arg-type]
-            )
-
-    def test_list_task_runs(self, fs: FileSystem) -> None:
-        db = TasksDb(cwd=fs.base_path, db_rel_path=DB_REL)
-        db.insert(
-            session_id="t_1",
-            task_name="t1",
-        )
-        db.insert(
-            session_id="t_2",
-            task_name="t2",
-        )
-
-        runs = db.list()
-        assert len(runs) == 2
-        assert {r.session_id for r in runs} == {"t_1", "t_2"}
-
-
 class TestWorktreeDbFacade:
     """Tests for WorktreeDb unified facade."""
 
@@ -538,18 +299,14 @@ class TestWorktreeDbFacade:
         )
         assert db.sandboxes.get("sb_facade") == sb
 
-        wf = db.workflows.insert(
-            session_id="wf_facade",
-            workflow_name="wf",
+        run = db.runs.create(
+            session_id="run_facade",
+            blueprint_name="demo",
+            kind=BlueprintKind.WORKFLOW,
             branch_name="b",
         )
-        assert db.workflows.get("wf_facade") == wf
-
-        tk = db.tasks.insert(
-            session_id="tk_facade",
-            task_name="tk",
-        )
-        assert db.tasks.get("tk_facade") == tk
+        assert isinstance(run, RunRecord)
+        assert db.runs.get("run_facade") == run
 
         cat = db.catalog.upsert(
             sha="c_facade",
@@ -561,7 +318,7 @@ class TestWorktreeDbFacade:
         assert db.catalog.get_by_sha("c_facade") == cat
 
         cost_id = db.costs.record_token_usage(
-            session_id="wf_facade",
+            session_id="run_facade",
             branch_name="b",
             model_id="gpt-4o",
             prompt_tokens=10,
@@ -569,5 +326,5 @@ class TestWorktreeDbFacade:
             estimated_usd_cost=0.005,
         )
         assert cost_id is not None
-        totals = db.costs.get_session_total_cost("wf_facade")
+        totals = db.costs.get_session_total_cost("run_facade")
         assert totals["total_tokens"] == 30
