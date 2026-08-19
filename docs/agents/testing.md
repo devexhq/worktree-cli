@@ -68,10 +68,10 @@ rendered text flake even when the command is correct.
 
 Canonical examples:
 
-- [tests/cli/workflow/test_workflow_run_command.py](../../tests/cli/workflow/test_workflow_run_command.py)
-  (`WorkflowRunCliTests.test_help_text`)
 - [tests/cli/sandbox/test_sandbox_list_command.py](../../tests/cli/sandbox/test_sandbox_list_command.py)
   (`SandboxListCliTests`)
+- [tests/cli/history/test_history.py](../../tests/cli/history/test_history.py)
+  (`test_history_help_shows_subcommands`)
 
 ```python
 from typer.main import get_command

@@ -13,8 +13,6 @@ from worktree.cli.resume.app import register_resume_command
 from worktree.cli.run.app import register_run_command
 from worktree.cli.sandbox.app import sandbox_app
 from worktree.cli.status.app import status_app
-from worktree.cli.task.app import task_app
-from worktree.cli.workflow.app import workflow_app
 from worktree.common.version import get_version
 
 # Initialize a central styling console for high-utility layout parsing
@@ -39,8 +37,6 @@ register_resume_command(app)
 register_run_command(app)
 app.add_typer(sandbox_app, name="sandbox")
 app.add_typer(status_app, name="status")
-app.add_typer(task_app, name="task")
-app.add_typer(workflow_app, name="workflow")
 
 
 def print_welcome_banner():

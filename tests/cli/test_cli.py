@@ -32,3 +32,12 @@ class CliSmokeTests:
         assert result.exit_code == 0
         assert (git_fs.base_path / ".worktree" / "config.json").is_file()
         assert (git_fs.base_path / ".worktree" / "data.db").is_file()
+
+    def test_legacy_task_and_workflow_commands_unrecognized(self) -> None:
+        result_task = runner.invoke(app, ["task"])
+        assert result_task.exit_code == 2
+        assert "No such command 'task'" in result_task.output
+
+        result_workflow = runner.invoke(app, ["workflow"])
+        assert result_workflow.exit_code == 2
+        assert "No such command 'workflow'" in result_workflow.output

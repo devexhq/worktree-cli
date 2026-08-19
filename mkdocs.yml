@@ -33,8 +33,9 @@ nav:
       - Workspace Init: cli/init.md
       - Status: cli/status.md
       - Config: cli/config.md
-      - Workflow: cli/workflow.md
-      - Task: cli/task.md
+      - Run: cli/run.md
+      - Resume: cli/resume.md
+      - History: cli/history.md
       - Sandbox: cli/sandbox.md
       - Catalog: cli/catalog.md
 exclude_docs: |
