@@ -7,13 +7,13 @@ from pathlib import Path
 from rich.table import Table
 
 from worktree.common.utils import RichOutput, enum_value
-from worktree.core.db import SandboxRecord, WorkflowRunRecord
+from worktree.core.db import RunRecord, SandboxRecord
 
 _DEFAULT_RICH_OUTPUT = RichOutput()
 
 
 def build_recorded_workflows_table(
-    workflows: list[WorkflowRunRecord] | list[SandboxRecord],
+    workflows: list[RunRecord] | list[SandboxRecord],
     *,
     cwd: Path | None = None,
 ) -> Table:
@@ -35,7 +35,7 @@ def build_recorded_workflows_table(
 
     for row in workflows:
         sid = getattr(row, "session_id", getattr(row, "id", "-"))
-        name = getattr(row, "workflow_name", getattr(row, "name", "-")) or "-"
+        name = getattr(row, "blueprint_name", getattr(row, "workflow_name", getattr(row, "name", "-"))) or "-"
         branch = getattr(row, "branch_name", "-")
         status = enum_value(row.status)
         started = getattr(row, "started_at", getattr(row, "created_at", "-"))
@@ -50,7 +50,7 @@ def build_recorded_workflows_table(
 
 
 def render_workflow_list(
-    workflows: list[WorkflowRunRecord] | list[SandboxRecord],
+    workflows: list[RunRecord] | list[SandboxRecord],
     *,
     cwd: Path | None = None,
     rich_output: RichOutput | None = None,
@@ -65,13 +65,13 @@ def render_workflow_list(
 
 
 def render_workflow_run_success(
-    run_record: WorkflowRunRecord,
+    run_record: RunRecord,
     *,
     rich_output: RichOutput | None = None,
 ) -> None:
     """Render workflow run execution summary."""
     output = rich_output or _DEFAULT_RICH_OUTPUT
     output.info(
-        f"[bold green]Workflow Run Completed:[/] {run_record.workflow_name} "
+        f"[bold green]Workflow Run Completed:[/] {run_record.blueprint_name} "
         f"(session: {run_record.session_id}, status: {run_record.status.value})"
     )

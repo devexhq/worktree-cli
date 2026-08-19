@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import re
-from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
 from worktree.core.blueprint.exceptions import BlueprintValidationError
-from worktree.core.db import TaskRunRecord, WorkflowRunRecord
+from worktree.core.db import BlueprintKind, RunRecord
 from worktree.core.inputs import ParameterInput
 from worktree.core.step import (
     BlueprintDefaults,
@@ -20,13 +19,6 @@ from worktree.core.step import (
 )
 
 _SLUG_RE = re.compile(r"[^\w-]+")
-
-
-class BlueprintKind(StrEnum):
-    """Derived catalog kind for a blueprint document."""
-
-    TASK = "task"
-    WORKFLOW = "workflow"
 
 
 def _slugify_step_id(name: str, idx: int) -> str:
@@ -136,7 +128,7 @@ class BlueprintRunCommandOutcome(BaseModel):
 
     model_config = {"extra": "forbid", "strict": True}
 
-    run_record: TaskRunRecord | WorkflowRunRecord | None = None
+    run_record: RunRecord | None = None
     errors: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 

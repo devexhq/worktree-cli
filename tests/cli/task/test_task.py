@@ -10,7 +10,7 @@ from worktree.cli.task.command import (
     task_run_command,
 )
 from worktree.core.catalog.services.inventory import create_catalog_item
-from worktree.core.db import TasksDb
+from worktree.core.db import RunsDb
 
 runner = CliRunner()
 
@@ -44,7 +44,7 @@ def test_task_run_command(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> No
     run_res = task_run_command("sample-task", cwd=fs.base_path)
     assert run_res.ok
     assert run_res.run_record is not None
-    assert run_res.run_record.task_name == "sample-task"
+    assert run_res.run_record.blueprint_name == "sample-task"
 
     # Run missing task
     run_missing = task_run_command("non-existent-task", cwd=fs.base_path)
@@ -111,7 +111,7 @@ def test_task_run_status_transitions_and_persistence(fs: FileSystem, monkeypatch
     assert res_success.run_record is not None
     assert res_success.run_record.status.value == "completed"
 
-    rec_succ = TasksDb(fs.base_path).get("task_succ1")
+    rec_succ = RunsDb(fs.base_path).get("task_succ1")
     assert rec_succ is not None
     assert rec_succ.status.value == "completed"
     assert rec_succ.completed_at is not None
@@ -124,7 +124,7 @@ def test_task_run_status_transitions_and_persistence(fs: FileSystem, monkeypatch
     assert res_failed.run_record.status.value == "failed"
     assert res_failed.errors
 
-    rec_fail = TasksDb(fs.base_path).get("task_fail1")
+    rec_fail = RunsDb(fs.base_path).get("task_fail1")
     assert rec_fail is not None
     assert rec_fail.status.value == "failed"
     assert rec_fail.completed_at is not None
@@ -154,7 +154,7 @@ def test_task_run_status_transitions_and_persistence(fs: FileSystem, monkeypatch
     assert res_cancel.run_record is not None
     assert res_cancel.run_record.status.value == "cancelled"
 
-    rec_canc = TasksDb(fs.base_path).get("task_canc1")
+    rec_canc = RunsDb(fs.base_path).get("task_canc1")
     assert rec_canc is not None
     assert rec_canc.status.value == "cancelled"
     assert rec_canc.completed_at is not None
@@ -169,11 +169,11 @@ def test_task_run_db_fault_tolerance(fs: FileSystem, monkeypatch: pytest.MonkeyP
         steps=[],
     )
 
-    # Monkeypatch TasksDb.insert to raise DB exception
-    def _faulty_insert(*args, **kwargs):
+    # Monkeypatch RunsDb.create to raise DB exception
+    def _faulty_create(*args, **kwargs):
         raise RuntimeError("Database locked")
 
-    monkeypatch.setattr(TasksDb, "insert", _faulty_insert)
+    monkeypatch.setattr(RunsDb, "create", _faulty_create)
 
     res = task_run_command("sample-task", cwd=fs.base_path)
     assert res.ok

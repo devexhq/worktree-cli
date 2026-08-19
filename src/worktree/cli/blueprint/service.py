@@ -20,7 +20,7 @@ from worktree.core.blueprint import (
     BlueprintValidationError,
 )
 from worktree.core.catalog import Catalog
-from worktree.core.db import RunStatus, TaskRunRecord, TasksDb, WorkflowRunRecord, WorkflowsDb
+from worktree.core.db import RunRecord, RunsDb, RunStatus
 from worktree.core.engine import Engine, EngineInputError, EngineRuntimeError, RunRequest
 from worktree.core.inputs import format_input_error_message
 from worktree.core.runtime import FailurePrompter, RunOutcome
@@ -121,11 +121,9 @@ class BlueprintRunService:
             return True, None
         return False, prompter
 
-    def _load_record(self, session_id: str) -> TaskRunRecord | WorkflowRunRecord | None:
+    def _load_record(self, session_id: str) -> RunRecord | None:
         try:
-            if self.kind == BlueprintKind.TASK:
-                return TasksDb(self.root).get(session_id)
-            return WorkflowsDb(self.root).get(session_id)
+            return RunsDb(self.root).get(session_id)
         except Exception:
             return None
 
@@ -134,21 +132,12 @@ class BlueprintRunService:
         session_id: str,
         status: RunStatus,
         error: str | None,
-    ) -> TaskRunRecord | WorkflowRunRecord:
-        if self.kind == BlueprintKind.TASK:
-            return TaskRunRecord(
-                id=-1,
-                session_id=session_id,
-                task_name=self.name,
-                status=status,
-                started_at="",
-                completed_at=None,
-                error_message=error,
-            )
-        return WorkflowRunRecord(
+    ) -> RunRecord:
+        return RunRecord(
             id=-1,
             session_id=session_id,
-            workflow_name=self.name,
+            blueprint_name=self.name,
+            kind=self.kind,
             branch_name="",
             status=status,
             started_at="",
@@ -156,10 +145,10 @@ class BlueprintRunService:
             error_message=error,
         )
 
-    def _render_success(self, final_record: TaskRunRecord | WorkflowRunRecord) -> None:
-        if isinstance(final_record, TaskRunRecord):
+    def _render_success(self, final_record: RunRecord) -> None:
+        if self.kind == BlueprintKind.TASK:
             render_task_run_success(final_record, rich_output=self.output)
-        elif isinstance(final_record, WorkflowRunRecord):
+        elif self.kind == BlueprintKind.WORKFLOW:
             render_workflow_run_success(final_record, rich_output=self.output)
 
     def _finalize(self, run_outcome: RunOutcome) -> BlueprintRunCommandOutcome:

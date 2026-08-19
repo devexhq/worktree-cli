@@ -12,7 +12,7 @@ from tests.helpers import GitFileSystem
 from worktree.cli import app
 from worktree.cli.workflow.command import workflow_run_command
 from worktree.core.catalog.services.inventory import scan_and_index_catalog
-from worktree.core.db import RunStatus, WorkflowsDb
+from worktree.core.db import RunsDb, RunStatus
 from worktree.core.runtime import RunOutcome
 
 runner = CliRunner()
@@ -70,10 +70,10 @@ class WorkflowRunCommandDirectTests:
         assert "fix-tests" in out
         assert "wf_test_123" in out
 
-        row = WorkflowsDb(git_fs.base_path).get("wf_test_123")
+        row = RunsDb(git_fs.base_path).get("wf_test_123")
         assert row is not None
         assert row.status == RunStatus.COMPLETED
-        assert row.workflow_name == "fix-tests"
+        assert row.blueprint_name == "fix-tests"
 
     def test_task_blueprint_name_refused(
         self,
@@ -163,7 +163,7 @@ class WorkflowRunCommandDirectTests:
         out = capsys.readouterr().out
         assert "Workflow Run Failed" in out
 
-        row = WorkflowsDb(git_fs.base_path).get("wf_fail_1")
+        row = RunsDb(git_fs.base_path).get("wf_fail_1")
         assert row is not None
         assert row.status == RunStatus.FAILED
         assert row.error_message is not None
@@ -304,7 +304,7 @@ class WorkflowRunCliTests:
         assert result.exit_code == 0
         assert "Workflow Run Completed:" in result.stdout
 
-        row = WorkflowsDb(git_fs.base_path).get("wf_custom_session")
+        row = RunsDb(git_fs.base_path).get("wf_custom_session")
         assert row is not None
         assert row.status == RunStatus.COMPLETED
 

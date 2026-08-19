@@ -11,7 +11,7 @@ from worktree.cli.task.prompter import CliFailurePrompter
 from worktree.common.utils import RichOutput
 from worktree.core.blueprint import BlueprintKind, BlueprintRunCommandOutcome
 from worktree.core.config.loader import load_config_result
-from worktree.core.db import RunStatus, SandboxesDb, WorkflowsDb
+from worktree.core.db import RunsDb, RunStatus, SandboxesDb
 from worktree.core.engine import Engine, EngineResumeError, EngineRuntimeError
 
 from .renderers import render_workflow_list
@@ -36,7 +36,7 @@ def workflow_list_command(*, cwd: Path | None = None) -> None:
         rich_output.error_panel("Workflow List Failed", message)
         raise typer.Exit(code=1)
 
-    workflows = WorkflowsDb(root).list()
+    workflows = RunsDb(root).list(kind=BlueprintKind.WORKFLOW)
     render_workflow_list(workflows, cwd=root, rich_output=rich_output)
     raise typer.Exit(code=0)
 
@@ -58,7 +58,7 @@ def workflow_show_command(session_id: str, *, cwd: Path | None = None) -> None:
         rich_output.error_panel("Workflow Show Failed", message)
         raise typer.Exit(code=1)
 
-    row = WorkflowsDb(root).get(session_id) or SandboxesDb(root).get(session_id)
+    row = RunsDb(root).get(session_id) or SandboxesDb(root).get(session_id)
     if row is None:
         rich_output.error_panel(
             "Workflow Show Failed",
@@ -67,7 +67,7 @@ def workflow_show_command(session_id: str, *, cwd: Path | None = None) -> None:
         raise typer.Exit(code=1)
 
     sid = getattr(row, "session_id", getattr(row, "id", session_id))
-    name = getattr(row, "workflow_name", getattr(row, "name", None)) or "-"
+    name = getattr(row, "blueprint_name", getattr(row, "workflow_name", getattr(row, "name", None))) or "-"
     branch = getattr(row, "branch_name", "-")
     status = row.status.value if hasattr(row.status, "value") else str(row.status)
     started = getattr(row, "started_at", getattr(row, "created_at", "-"))
@@ -103,7 +103,8 @@ def workflow_resume_command(session_id: str, *, cwd: Path | None = None) -> None
         rich_output.error_panel("Workflow Resume Failed", message)
         raise typer.Exit(code=1)
 
-    if WorkflowsDb(root).get(session_id) is None:
+    run_row = RunsDb(root).get(session_id)
+    if run_row is None or run_row.kind != BlueprintKind.WORKFLOW:
         rich_output.error_panel(
             "Workflow Resume Failed",
             f"Workflow session '{session_id}' not found.",

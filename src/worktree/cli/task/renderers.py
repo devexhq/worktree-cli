@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from rich.table import Table
 
 from worktree.common.utils import RichOutput, enum_value
-from worktree.core.db import TaskRunRecord
+from worktree.core.db import RunRecord
 
 _DEFAULT_RICH_OUTPUT = RichOutput()
 
@@ -79,11 +79,11 @@ def build_live_step_table(
     return table
 
 
-def build_task_runs_table(runs: list[TaskRunRecord]) -> Table:
+def build_task_runs_table(runs: list[RunRecord]) -> Table:
     """Build the Rich table displaying recorded task execution history.
 
     Args:
-        runs: List of TaskRunRecord instances.
+        runs: List of RunRecord instances.
 
     Returns:
         A Rich Table titled "Recorded Task Runs:" with SESSION ID, TASK NAME, STATUS, STARTED AT, COMPLETED AT.
@@ -99,7 +99,7 @@ def build_task_runs_table(runs: list[TaskRunRecord]) -> Table:
         status_val = enum_value(run.status)
         table.add_row(
             run.session_id,
-            run.task_name,
+            run.blueprint_name,
             status_val,
             run.started_at or "-",
             run.completed_at or "-",
@@ -109,7 +109,7 @@ def build_task_runs_table(runs: list[TaskRunRecord]) -> Table:
 
 
 def render_task_list(
-    runs: list[TaskRunRecord] | None = None,
+    runs: list[RunRecord] | None = None,
     *,
     rich_output: RichOutput | None = None,
 ) -> None:
@@ -123,12 +123,12 @@ def render_task_list(
 
 
 def render_task_run_success(
-    run_record: TaskRunRecord,
+    run_record: RunRecord,
     *,
     rich_output: RichOutput | None = None,
 ) -> None:
     """Render task run execution summary."""
     output = rich_output or _DEFAULT_RICH_OUTPUT
     output.info(
-        f"[bold green]Task Run Completed:[/] {run_record.task_name} (session: {run_record.session_id}, status: {run_record.status.value})"
+        f"[bold green]Task Run Completed:[/] {run_record.blueprint_name} (session: {run_record.session_id}, status: {run_record.status.value})"
     )

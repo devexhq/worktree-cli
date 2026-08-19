@@ -8,7 +8,7 @@ from pathlib import Path
 from worktree.cli.blueprint import BlueprintRunService
 from worktree.common.utils import RichOutput
 from worktree.core.blueprint import BlueprintKind, BlueprintRunCommandOutcome
-from worktree.core.db import TaskRunRecord, TasksDb
+from worktree.core.db import RunRecord, RunsDb
 
 from .models import TaskListCommandOutcome
 from .renderers import render_task_list
@@ -27,9 +27,9 @@ def task_list_command(
     warnings: list[str] = []
     errors: list[str] = []
 
-    runs: list[TaskRunRecord] = []
+    runs: list[RunRecord] = []
     try:
-        runs = TasksDb(cwd).list()
+        runs = RunsDb(cwd).list(kind=BlueprintKind.TASK)
     except Exception as exc:
         warnings.append(f"Failed to query task run history from database: {exc}")
         logger.warning("Failed to query task run history from database: %s", exc)

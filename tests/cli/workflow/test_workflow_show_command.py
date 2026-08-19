@@ -9,7 +9,7 @@ from typer.testing import CliRunner
 from tests.helpers import GitFileSystem
 from worktree.cli import app
 from worktree.cli.workflow.command import workflow_show_command
-from worktree.core.db import WorkflowsDb
+from worktree.core.db import BlueprintKind, RunsDb
 
 runner = CliRunner()
 
@@ -26,9 +26,10 @@ class WorkflowShowCommandDirectTests:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
 
-        WorkflowsDb(git_fs.base_path).insert(
+        RunsDb(git_fs.base_path).create(
             session_id="wf-12345",
-            workflow_name="fix-tests",
+            blueprint_name="fix-tests",
+            kind=BlueprintKind.WORKFLOW,
             branch_name="wt/fix-tests",
         )
 
@@ -85,9 +86,10 @@ class WorkflowShowCliTests:
     def test_cli_show_success(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
-        WorkflowsDb(git_fs.base_path).insert(
+        RunsDb(git_fs.base_path).create(
             session_id="wf-55555",
-            workflow_name="test-workflow",
+            blueprint_name="test-workflow",
+            kind=BlueprintKind.WORKFLOW,
             branch_name="wt/test-workflow",
         )
 

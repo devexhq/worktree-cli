@@ -10,7 +10,7 @@ import pytest
 
 from tests.helpers import FileSystem
 from worktree.core.blueprint import Blueprint, BlueprintDefinition, BlueprintKind
-from worktree.core.db import RunStatus, TasksDb, WorkflowsDb
+from worktree.core.db import RunsDb, RunStatus
 from worktree.core.engine import Engine, EngineInputError, EngineRuntimeError, RunRequest
 from worktree.core.inputs import InputType, ParameterInput
 from worktree.core.runtime import RunContext, RunOutcome
@@ -154,9 +154,10 @@ def test_run_persists_completed_task_row(fs: FileSystem) -> None:
     )
 
     assert outcome.ok
-    record = TasksDb(fs.base_path).get("task_persist")
+    record = RunsDb(fs.base_path).get("task_persist")
     assert record is not None
-    assert record.task_name == "lint"
+    assert record.blueprint_name == "lint"
+    assert record.kind == BlueprintKind.TASK
     assert record.status is RunStatus.COMPLETED
     assert record.completed_at is not None
 
@@ -168,9 +169,10 @@ def test_run_persists_workflow_row_with_empty_branch(fs: FileSystem) -> None:
     )
 
     assert outcome.ok
-    record = WorkflowsDb(fs.base_path).get("workflow_persist")
+    record = RunsDb(fs.base_path).get("workflow_persist")
     assert record is not None
-    assert record.workflow_name == "ship"
+    assert record.blueprint_name == "ship"
+    assert record.kind == BlueprintKind.WORKFLOW
     assert record.branch_name == ""
     assert record.status is RunStatus.COMPLETED
 
@@ -179,7 +181,7 @@ def test_run_rejects_loop_steps_before_insert(fs: FileSystem) -> None:
     with pytest.raises(EngineRuntimeError, match=r"Engine\.run does not execute loop steps\."):
         Engine(fs.base_path).run(_workflow_blueprint(loop=True), RunRequest(session_id="workflow_loop"))
 
-    assert WorkflowsDb(fs.base_path).get("workflow_loop") is None
+    assert RunsDb(fs.base_path).get("workflow_loop") is None
 
 
 def test_insert_failure_warns_and_still_runs(monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
@@ -193,13 +195,13 @@ def test_insert_failure_warns_and_still_runs(monkeypatch: pytest.MonkeyPatch, fs
         raise RuntimeError("disk full")
 
     monkeypatch.setattr("worktree.core.engine.engine.run_steps", fake_run_steps)
-    monkeypatch.setattr("worktree.core.engine.engine.TasksDb.insert", boom)
+    monkeypatch.setattr("worktree.core.engine.engine.RunsDb.create", boom)
 
     outcome = Engine(fs.base_path).run(_task_blueprint(), RunRequest(session_id="task_insert_fail"))
 
     assert captured["context"].pause_store is None
     assert any(warning.startswith("Failed to record run start in database:") for warning in outcome.warnings)
-    assert TasksDb(fs.base_path).get("task_insert_fail") is None
+    assert RunsDb(fs.base_path).get("task_insert_fail") is None
 
 
 def test_update_failure_warns_and_returns_outcome(monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
@@ -219,7 +221,7 @@ def test_update_failure_warns_and_returns_outcome(monkeypatch: pytest.MonkeyPatc
     assert outcome is not expected
     assert outcome.warnings[0] == "step note"
     assert any(warning.startswith("Failed to update run status in database:") for warning in outcome.warnings)
-    record = TasksDb(fs.base_path).get("task_update_fail")
+    record = RunsDb(fs.base_path).get("task_update_fail")
     assert record is not None
     assert record.status is RunStatus.RUNNING
 
@@ -232,7 +234,7 @@ def test_omitted_session_id_uses_kind_prefix(monkeypatch: pytest.MonkeyPatch, fs
 
     outcome = Engine(fs.base_path).run(_task_blueprint(use_sandbox=False), RunRequest(use_sandbox=False))
 
-    records = TasksDb(fs.base_path).list()
+    records = RunsDb(fs.base_path).list()
     assert len(records) == 1
     assert records[0].session_id.startswith("task_")
     assert len(records[0].session_id) == len("task_") + 8
@@ -303,7 +305,7 @@ def test_run_missing_required_input_raises_before_insert(fs: FileSystem) -> None
         Engine(fs.base_path).run(_input_blueprint())
 
     assert exc_info.value.result.missing == ["message"]
-    assert TasksDb(fs.base_path).list() == []
+    assert RunsDb(fs.base_path).list() == []
 
 
 def test_run_invalid_input_raises_before_insert(fs: FileSystem) -> None:
@@ -322,4 +324,4 @@ def test_run_invalid_input_raises_before_insert(fs: FileSystem) -> None:
         )
 
     assert exc_info.value.result.errors
-    assert TasksDb(fs.base_path).list() == []
+    assert RunsDb(fs.base_path).list() == []

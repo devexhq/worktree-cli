@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from worktree.core.db import TaskRunRecord
+from worktree.core.db import RunRecord
 
 
 class TaskListCommandOutcome(BaseModel):
@@ -12,7 +12,7 @@ class TaskListCommandOutcome(BaseModel):
 
     model_config = {"extra": "forbid", "strict": True}
 
-    runs: list[TaskRunRecord] = Field(default_factory=list)
+    runs: list[RunRecord] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 
