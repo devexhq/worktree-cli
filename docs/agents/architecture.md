@@ -11,7 +11,8 @@ detail lives in [schemas-and-config.md](schemas-and-config.md).
 ```
 src/worktree/cli/cli.py              Typer entrypoint
 src/worktree/cli/<name>/             One package per CLI subcommand
-  command.py                         Orchestration + typer.Exit
+  app.py                             Typer app / command registration
+  commands/                          Command handlers (e.g. root.py, list.py)
   models.py                          Pydantic outcome model(s) when non-trivial
   renderers.py                       Rich console output
 
@@ -114,11 +115,9 @@ instead of adding an upward import.
 
 ## Adding a new command
 
-1. Create `src/worktree/cli/<name>/{__init__.py,command.py}` (add `models.py` /
-   `renderers.py` when output is non-trivial).
-2. Implement `<name>_command(...)` with the
-   [Result/Outcome pattern](code-conventions.md#resultoutcome-pattern) when
-   partial failure is possible.
+1. Create `src/worktree/cli/<name>/` with `app.py` and `commands/<subcommand>.py` (or
+   `commands/root.py` for root commands; add `models.py` / `renderers.py` when output is non-trivial).
+2. Wire command logic directly to underlying domain services (e.g. `BlueprintRunService`).
 3. Register in [src/worktree/cli/cli.py](../../src/worktree/cli/cli.py).
 4. Tests under `tests/cli/<name>/`.
 
