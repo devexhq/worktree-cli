@@ -16,7 +16,12 @@ from worktree.cli.history.renderers import (
     format_run_duration,
     format_run_status,
 )
-from worktree.cli.history.services import collect_history_list, collect_history_show
+from worktree.cli.history.services import (
+    HistoryListService,
+    HistoryShowService,
+    collect_history_list,
+    collect_history_show,
+)
 from worktree.core.blueprint import BlueprintKind
 from worktree.core.config.generator import generate_default_config
 from worktree.core.db import RunRecord, RunsDb, RunStatus
@@ -179,6 +184,35 @@ def test_collect_history_show_not_initialized(fs: FileSystem) -> None:
     result = collect_history_show("session-1", cwd=fs.base_path / "nonexistent")
     assert not result.ok
     assert result.status is HistoryShowStatus.NOT_INITIALIZED
+
+
+def test_history_services_execute(fs: FileSystem) -> None:
+    """Verify HistoryListService and HistoryShowService execute methods."""
+    _seed_run(fs.base_path, "svc-run-1", "svc-task", BlueprintKind.TASK, RunStatus.COMPLETED)
+
+    list_outcome = HistoryListService(cwd=fs.base_path).execute()
+    assert list_outcome.ok
+    assert len(list_outcome.runs) == 1
+
+    show_outcome = HistoryShowService(session_id="svc-run-1", cwd=fs.base_path).execute()
+    assert show_outcome.ok
+    assert show_outcome.run is not None
+    assert show_outcome.run.session_id == "svc-run-1"
+
+    # Show not found
+    show_missing = HistoryShowService(session_id="missing", cwd=fs.base_path).execute()
+    assert not show_missing.ok
+    assert show_missing.status is HistoryShowStatus.NOT_FOUND
+
+    # Show uninitialized
+    show_uninit = HistoryShowService(session_id="svc-run-1", cwd=fs.base_path / "nonexistent").execute()
+    assert not show_uninit.ok
+    assert show_uninit.status is HistoryShowStatus.NOT_INITIALIZED
+
+    # List uninitialized
+    list_uninit = HistoryListService(cwd=fs.base_path / "nonexistent").execute()
+    assert not list_uninit.ok
+    assert list_uninit.status is HistoryListStatus.NOT_INITIALIZED
 
 
 # ---------------------------------------------------------------------------

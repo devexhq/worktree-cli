@@ -1,15 +1,11 @@
-"""Typer CLI application definition for ``wt history``."""
+"""Typer application registration for ``wt history``."""
 
 from __future__ import annotations
 
-from typing import Annotated
-
 import typer
 
-from worktree.core.db import BlueprintKind, RunStatus
-
-from .commands.root import history_root_command
-from .commands.show import history_show_command
+from .commands.root import history_root
+from .commands.show import history_show
 
 history_app = typer.Typer(
     name="history",
@@ -17,47 +13,8 @@ history_app = typer.Typer(
     invoke_without_command=True,
 )
 
-
-@history_app.callback(invoke_without_command=True)
-def history_root(
-    ctx: typer.Context,
-    limit: int = typer.Option(
-        20,
-        "--limit",
-        "-l",
-        help="Maximum number of execution runs to display (defaults to 20).",
-    ),
-    status: Annotated[
-        RunStatus | None,
-        typer.Option(
-            "--status",
-            "-s",
-            help="Filter by run status (running, completed, failed, cancelled, paused).",
-            case_sensitive=False,
-        ),
-    ] = None,
-    kind: Annotated[
-        BlueprintKind | None,
-        typer.Option(
-            "--kind",
-            "-k",
-            help="Filter by blueprint kind (task, workflow).",
-            case_sensitive=False,
-        ),
-    ] = None,
-) -> None:
-    """Inspect past blueprint execution sessions, step details, and checkpoints."""
-    if ctx.invoked_subcommand is None:
-        history_root_command(
-            limit=limit,
-            status=status.value if status is not None else None,
-            kind=kind.value if kind is not None else None,
-        )
-
-
-@history_app.command("show")
-def history_show(
-    session_id: str = typer.Argument(..., help="Session ID to inspect."),
-) -> None:
-    """Show detailed metadata, error messages, and checkpoint state for a session."""
-    history_show_command(session_id)
+history_app.callback(invoke_without_command=True)(history_root)
+history_app.command(
+    name="show",
+    help="Show detailed metadata, error messages, and checkpoint state for a session.",
+)(history_show)

@@ -1,9 +1,11 @@
-"""Query and collection services for history CLI commands."""
+"""Class-based execution services for history CLI commands."""
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from pathlib import Path
 
+from worktree.common.utils import RichOutput
 from worktree.core.config.loader import load_config_result
 from worktree.core.db import BlueprintKind, RunsDb, RunStatus
 
@@ -13,6 +15,101 @@ from .models import (
     HistoryShowResult,
     HistoryShowStatus,
 )
+from .renderers import (
+    render_history_list,
+    render_history_not_found,
+    render_history_show,
+    render_not_initialized,
+)
+
+
+@dataclass
+class HistoryListService:
+    """Service encapsulating execution history retrieval and rendering."""
+
+    limit: int | None = 20
+    status: str | None = None
+    kind: str | None = None
+    cwd: Path | None = None
+    output: RichOutput = field(default_factory=RichOutput)
+
+    def collect(self) -> HistoryListResult:
+        """Load configuration and retrieve filtered execution runs from database."""
+        root = (self.cwd or Path.cwd()).resolve()
+        load = load_config_result(cwd=root)
+        if not load.ok:
+            return HistoryListResult(
+                status=HistoryListStatus.NOT_INITIALIZED,
+                errors=list(load.errors),
+            )
+
+        status_filter: RunStatus | str | None = None
+        if self.status is not None:
+            try:
+                status_filter = RunStatus(self.status.lower())
+            except ValueError:
+                status_filter = self.status
+
+        kind_filter: BlueprintKind | str | None = None
+        if self.kind is not None:
+            try:
+                kind_filter = BlueprintKind(self.kind.lower())
+            except ValueError:
+                kind_filter = self.kind
+
+        db = RunsDb(root)
+        runs = db.list(limit=self.limit, status=status_filter, kind=kind_filter)
+        return HistoryListResult(status=HistoryListStatus.OK, runs=runs)
+
+    def execute(self) -> HistoryListResult:
+        """Execute history list query and render results to console."""
+        result = self.collect()
+        if result.status is HistoryListStatus.NOT_INITIALIZED:
+            render_not_initialized(result.errors, rich_output=self.output)
+            return result
+
+        render_history_list(result.runs, rich_output=self.output)
+        return result
+
+
+@dataclass
+class HistoryShowService:
+    """Service encapsulating history session inspection and rendering."""
+
+    session_id: str
+    cwd: Path | None = None
+    output: RichOutput = field(default_factory=RichOutput)
+
+    def collect(self) -> HistoryShowResult:
+        """Look up execution session metadata, errors, and checkpoint contents."""
+        root = (self.cwd or Path.cwd()).resolve()
+        load = load_config_result(cwd=root)
+        if not load.ok:
+            return HistoryShowResult(
+                status=HistoryShowStatus.NOT_INITIALIZED,
+                errors=list(load.errors),
+            )
+
+        db = RunsDb(root)
+        row = db.get(self.session_id)
+        if row is None:
+            return HistoryShowResult(status=HistoryShowStatus.NOT_FOUND)
+
+        return HistoryShowResult(status=HistoryShowStatus.OK, run=row)
+
+    def execute(self) -> HistoryShowResult:
+        """Execute session show query and render results to console."""
+        result = self.collect()
+        if result.status is HistoryShowStatus.NOT_INITIALIZED:
+            render_not_initialized(result.errors, rich_output=self.output)
+            return result
+
+        if result.status is HistoryShowStatus.NOT_FOUND or result.run is None:
+            render_history_not_found(self.session_id, rich_output=self.output)
+            return result
+
+        render_history_show(result.run, rich_output=self.output)
+        return result
 
 
 def collect_history_list(
@@ -22,42 +119,8 @@ def collect_history_list(
     *,
     cwd: Path | None = None,
 ) -> HistoryListResult:
-    """Load configuration and retrieve filtered execution runs from database.
-
-    Args:
-        limit: Maximum number of runs to return (defaults to 20).
-        status: Optional lifecycle status filter (e.g. 'completed', 'failed').
-        kind: Optional blueprint kind filter ('task', 'workflow').
-        cwd: Repository root. Defaults to process CWD.
-
-    Returns:
-        Structured list result containing execution records or initialization error.
-    """
-    root = (cwd or Path.cwd()).resolve()
-    load = load_config_result(cwd=root)
-    if not load.ok:
-        return HistoryListResult(
-            status=HistoryListStatus.NOT_INITIALIZED,
-            errors=list(load.errors),
-        )
-
-    status_filter: RunStatus | str | None = None
-    if status is not None:
-        try:
-            status_filter = RunStatus(status.lower())
-        except ValueError:
-            status_filter = status
-
-    kind_filter: BlueprintKind | str | None = None
-    if kind is not None:
-        try:
-            kind_filter = BlueprintKind(kind.lower())
-        except ValueError:
-            kind_filter = kind
-
-    db = RunsDb(root)
-    runs = db.list(limit=limit, status=status_filter, kind=kind_filter)
-    return HistoryListResult(status=HistoryListStatus.OK, runs=runs)
+    """Collect filtered execution history records without rendering."""
+    return HistoryListService(limit=limit, status=status, kind=kind, cwd=cwd).collect()
 
 
 def collect_history_show(
@@ -65,26 +128,5 @@ def collect_history_show(
     *,
     cwd: Path | None = None,
 ) -> HistoryShowResult:
-    """Look up execution session metadata, errors, and checkpoint contents from database.
-
-    Args:
-        session_id: Session identifier to inspect.
-        cwd: Repository root. Defaults to process CWD.
-
-    Returns:
-        Structured show result containing execution record or classified error.
-    """
-    root = (cwd or Path.cwd()).resolve()
-    load = load_config_result(cwd=root)
-    if not load.ok:
-        return HistoryShowResult(
-            status=HistoryShowStatus.NOT_INITIALIZED,
-            errors=list(load.errors),
-        )
-
-    db = RunsDb(root)
-    row = db.get(session_id)
-    if row is None:
-        return HistoryShowResult(status=HistoryShowStatus.NOT_FOUND)
-
-    return HistoryShowResult(status=HistoryShowStatus.OK, run=row)
+    """Collect session details without rendering."""
+    return HistoryShowService(session_id=session_id, cwd=cwd).collect()

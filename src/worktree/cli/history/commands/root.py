@@ -1,39 +1,51 @@
-"""Root command handler for ``wt history`` (listing past executions)."""
+"""Root command execution logic for ``wt history``."""
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import Annotated
 
 import typer
 
-from worktree.common.utils import RichOutput
+from worktree.core.db import BlueprintKind, RunStatus
 
-from ..models import HistoryListStatus
-from ..renderers import render_history_list, render_not_initialized
-from ..services import collect_history_list
+from ..services import HistoryListService
 
 
-def history_root_command(
-    limit: int = 20,
-    status: str | None = None,
-    kind: str | None = None,
-    *,
-    cwd: Path | None = None,
-    rich_output: RichOutput | None = None,
+def history_root(
+    ctx: typer.Context,
+    limit: int = typer.Option(
+        20,
+        "--limit",
+        "-l",
+        help="Maximum number of execution runs to display (defaults to 20).",
+    ),
+    status: Annotated[
+        RunStatus | None,
+        typer.Option(
+            "--status",
+            "-s",
+            help="Filter by run status (running, completed, failed, cancelled, paused).",
+            case_sensitive=False,
+        ),
+    ] = None,
+    kind: Annotated[
+        BlueprintKind | None,
+        typer.Option(
+            "--kind",
+            "-k",
+            help="Filter by blueprint kind (task, workflow).",
+            case_sensitive=False,
+        ),
+    ] = None,
 ) -> None:
-    """List blueprint execution history with optional filtering.
+    """Inspect past blueprint execution sessions, step details, and checkpoints."""
+    if ctx.invoked_subcommand is not None:
+        return
 
-    Args:
-        limit: Maximum number of rows to display (default: 20).
-        status: Filter by run status (running, completed, failed, cancelled, paused).
-        kind: Filter by blueprint kind (task, workflow).
-        cwd: Repository root. Defaults to process CWD.
-        rich_output: Optional injected console helper for testing.
-    """
-    result = collect_history_list(limit=limit, status=status, kind=kind, cwd=cwd)
-    if result.status is HistoryListStatus.NOT_INITIALIZED:
-        render_not_initialized(result.errors, rich_output=rich_output)
+    outcome = HistoryListService(
+        limit=limit,
+        status=status.value if status is not None else None,
+        kind=kind.value if kind is not None else None,
+    ).execute()
+    if not outcome.ok:
         raise typer.Exit(code=1)
-
-    render_history_list(result.runs, rich_output=rich_output)
-    raise typer.Exit(code=0)
