@@ -29,6 +29,7 @@ from worktree.core.db.models import (
     RunStatus,
     SandboxRecord,
     SandboxStatus,
+    WorkflowCostRecord,
 )
 from worktree.core.db.runs import RunsDb
 from worktree.core.db.sandboxes import SandboxesDb
@@ -52,6 +53,7 @@ __all__ = [
     "SandboxRecord",
     "SandboxStatus",
     "SandboxesDb",
+    "WorkflowCostRecord",
     "WorktreeDb",
     "get_db_connection",
     "init_database",
