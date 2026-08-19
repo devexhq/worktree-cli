@@ -22,8 +22,6 @@ from worktree.core.history.renderers import (
 from worktree.core.history.services import (
     HistoryListService,
     HistoryShowService,
-    collect_history_list,
-    collect_history_show,
 )
 from worktree.core.runtime import RunCheckpoint
 from worktree.core.step import StepResult
@@ -129,59 +127,59 @@ def test_format_run_duration() -> None:
 
 
 def test_collect_history_list_not_initialized(fs: FileSystem) -> None:
-    """Verify collect_history_list returns NOT_INITIALIZED when config is missing."""
-    result = collect_history_list(cwd=fs.base_path / "nonexistent")
+    """Verify HistoryListService returns NOT_INITIALIZED when config is missing."""
+    result = HistoryListService(cwd=fs.base_path / "nonexistent").collect()
     assert not result.ok
     assert result.status is HistoryListStatus.NOT_INITIALIZED
 
 
 def test_collect_history_list_filters(fs: FileSystem) -> None:
-    """Verify collect_history_list filters by status, kind, and limit."""
+    """Verify HistoryListService filters by status, kind, and limit."""
     _seed_run(fs.base_path, "run-1", "task-a", BlueprintKind.TASK, RunStatus.COMPLETED)
     _seed_run(fs.base_path, "run-2", "wf-b", BlueprintKind.WORKFLOW, RunStatus.FAILED)
     _seed_run(fs.base_path, "run-3", "task-c", BlueprintKind.TASK, RunStatus.PAUSED)
 
     # All runs
-    all_res = collect_history_list(cwd=fs.base_path)
+    all_res = HistoryListService(cwd=fs.base_path).collect()
     assert all_res.ok
     assert len(all_res.runs) == 3
 
     # Filter status
-    failed_res = collect_history_list(status="failed", cwd=fs.base_path)
+    failed_res = HistoryListService(status="failed", cwd=fs.base_path).collect()
     assert failed_res.ok
     assert len(failed_res.runs) == 1
     assert failed_res.runs[0].session_id == "run-2"
 
     # Filter kind
-    wf_res = collect_history_list(kind="workflow", cwd=fs.base_path)
+    wf_res = HistoryListService(kind="workflow", cwd=fs.base_path).collect()
     assert wf_res.ok
     assert len(wf_res.runs) == 1
     assert wf_res.runs[0].session_id == "run-2"
 
     # Limit
-    limit_res = collect_history_list(limit=2, cwd=fs.base_path)
+    limit_res = HistoryListService(limit=2, cwd=fs.base_path).collect()
     assert limit_res.ok
     assert len(limit_res.runs) == 2
 
 
 def test_collect_history_show(fs: FileSystem) -> None:
-    """Verify collect_history_show returns record or classified NOT_FOUND."""
+    """Verify HistoryShowService returns record or classified NOT_FOUND."""
     _seed_run(fs.base_path, "run-show-1", "my-task", BlueprintKind.TASK, RunStatus.COMPLETED)
 
-    found = collect_history_show("run-show-1", cwd=fs.base_path)
+    found = HistoryShowService(session_id="run-show-1", cwd=fs.base_path).collect()
     assert found.ok
     assert found.status is HistoryShowStatus.OK
     assert found.run is not None
     assert found.run.session_id == "run-show-1"
 
-    missing = collect_history_show("non-existent-session", cwd=fs.base_path)
+    missing = HistoryShowService(session_id="non-existent-session", cwd=fs.base_path).collect()
     assert not missing.ok
     assert missing.status is HistoryShowStatus.NOT_FOUND
 
 
 def test_collect_history_show_not_initialized(fs: FileSystem) -> None:
-    """Verify collect_history_show returns NOT_INITIALIZED when uninitialized."""
-    result = collect_history_show("session-1", cwd=fs.base_path / "nonexistent")
+    """Verify HistoryShowService returns NOT_INITIALIZED when uninitialized."""
+    result = HistoryShowService(session_id="session-1", cwd=fs.base_path / "nonexistent").collect()
     assert not result.ok
     assert result.status is HistoryShowStatus.NOT_INITIALIZED
 

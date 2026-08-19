@@ -19,8 +19,6 @@ from .renderers import (
 from .services import (
     HistoryListService,
     HistoryShowService,
-    collect_history_list,
-    collect_history_show,
 )
 
 __all__ = [
@@ -31,8 +29,6 @@ __all__ = [
     "HistoryShowService",
     "HistoryShowStatus",
     "build_history_table",
-    "collect_history_list",
-    "collect_history_show",
     "format_run_duration",
     "format_run_status",
     "render_empty_history",

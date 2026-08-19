@@ -110,23 +110,3 @@ class HistoryShowService:
 
         render_history_show(result.run, rich_output=self.output)
         return result
-
-
-def collect_history_list(
-    limit: int | None = 20,
-    status: str | None = None,
-    kind: str | None = None,
-    *,
-    cwd: Path | None = None,
-) -> HistoryListResult:
-    """Collect filtered execution history records without rendering."""
-    return HistoryListService(limit=limit, status=status, kind=kind, cwd=cwd).collect()
-
-
-def collect_history_show(
-    session_id: str,
-    *,
-    cwd: Path | None = None,
-) -> HistoryShowResult:
-    """Collect session details without rendering."""
-    return HistoryShowService(session_id=session_id, cwd=cwd).collect()
