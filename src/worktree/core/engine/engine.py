@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from pathlib import Path
 
-from worktree.core.blueprint import Blueprint
+from worktree.core.blueprint.services.blueprint import Blueprint
 from worktree.core.db import RunsDb, RunStatus
 from worktree.core.engine.exceptions import EngineInputError, EngineRuntimeError
 from worktree.core.engine.models import RunRequest

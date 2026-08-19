@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from worktree.core.blueprint import (
-    Blueprint,
+from worktree.core.blueprint.exceptions import (
     BlueprintLoadError,
     BlueprintNotFoundError,
     BlueprintValidationError,
 )
+from worktree.core.blueprint.services.blueprint import Blueprint
 from worktree.core.catalog import Catalog
 from worktree.core.db import RunRecord, RunsDb, RunStatus
 from worktree.core.engine.exceptions import EngineResumeError

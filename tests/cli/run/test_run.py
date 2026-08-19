@@ -7,8 +7,7 @@ from typer.testing import CliRunner
 
 from tests.helpers import FileSystem, GitFileSystem
 from worktree.cli import app
-from worktree.cli.blueprint import BlueprintRunService
-from worktree.core.blueprint import BlueprintKind
+from worktree.core.blueprint import BlueprintKind, BlueprintRunService
 from worktree.core.catalog.services.inventory import scan_and_index_catalog
 from worktree.core.db import RunsDb, RunStatus
 
@@ -206,7 +205,7 @@ def test_run_cli_paused_status_exits_0(
             raise KeyboardInterrupt
 
     monkeypatch.setattr(
-        "worktree.cli.blueprint.service.CliFailurePrompter",
+        "worktree.core.blueprint.services.run.CliFailurePrompter",
         lambda *args, **kwargs: _InterruptPrompter(),
     )
 

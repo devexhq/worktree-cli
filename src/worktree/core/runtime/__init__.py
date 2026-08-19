@@ -14,11 +14,23 @@ from worktree.core.runtime.models import (
     StepLoopState,
     parse_checkpoint,
 )
+from worktree.core.runtime.observer import (
+    CliRunObserver,
+    LiveRunObserver,
+    LiveStepItem,
+    build_live_step_table,
+    resolve_run_observer,
+)
+from worktree.core.runtime.prompter import CliFailurePrompter
 
 __all__ = [
     "USER_CONTINUED_MARKER",
+    "CliFailurePrompter",
+    "CliRunObserver",
     "FailurePromptDecision",
     "FailurePrompter",
+    "LiveRunObserver",
+    "LiveStepItem",
     "PromptUserInterruptedError",
     "RunCheckpoint",
     "RunContext",
@@ -26,7 +38,9 @@ __all__ = [
     "RunOutcome",
     "RunPauseStore",
     "StepLoopState",
+    "build_live_step_table",
     "effective_terminal_policy",
     "parse_checkpoint",
+    "resolve_run_observer",
     "run_steps",
 ]

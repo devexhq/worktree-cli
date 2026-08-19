@@ -5,9 +5,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from worktree.cli.blueprint import BlueprintRunService
 from worktree.common.utils import RichOutput
-from worktree.core.blueprint import BlueprintKind, BlueprintRunCommandOutcome
+from worktree.core.blueprint import BlueprintKind, BlueprintRunCommandOutcome, BlueprintRunService
 from worktree.core.db import RunRecord, RunsDb
 
 from .models import TaskListCommandOutcome

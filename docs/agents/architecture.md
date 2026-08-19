@@ -21,7 +21,8 @@ src/worktree/core/                   Business logic (no Typer)
   db/                                Legacy flat infra (connection, migrations, repos)
   inputs/                            models.py + services/ (resolve, interpolate, renderer)
   catalog/                           models.py + services/ + templates/
-  blueprint/                         models.py, blueprint.py (load/inspect handle)
+  blueprint/                         models.py, exceptions.py, renderers.py,
+                                     services/{blueprint,run,resume}.py
   history/                           models.py, renderers.py, services.py
   step/                              models.py, exceptions.py, runner.py (entrypoint),
                                      assertions/, services/{loader,resolver}.py
@@ -59,7 +60,7 @@ Single-step execution: `core/step/` (`runner.py`). Multi-step orchestration:
 - **Patch** (`core/patch/`): unified-diff parse/validate (no git apply).
   Must not import agents/step/runtime/task/workflows.
 - **Blueprint** (`core/blueprint/`): unified task/workflow document handle,
-  catalog/path load, and `resolve_inputs` against declared parameters.
+  catalog/path load, execution/resume services, and `resolve_inputs` against declared parameters.
 - **Runtime** (`core/runtime/`): `run_steps`, `RunContext` / `RunObserver` /
   `RunOutcome`, in-process failure orchestration after a failed step
   (stop / `prompt_user` / retry-or-continue), and durable pause via

@@ -6,10 +6,13 @@ from pathlib import Path
 
 import typer
 
-from worktree.cli.blueprint import BlueprintRunService
 from worktree.cli.task.prompter import CliFailurePrompter
 from worktree.common.utils import RichOutput
-from worktree.core.blueprint import BlueprintKind, BlueprintRunCommandOutcome
+from worktree.core.blueprint import (
+    BlueprintKind,
+    BlueprintRunCommandOutcome,
+    BlueprintRunService,
+)
 from worktree.core.config.loader import load_config_result
 from worktree.core.db import RunsDb, RunStatus, SandboxesDb
 from worktree.core.engine import Engine, EngineResumeError, EngineRuntimeError
