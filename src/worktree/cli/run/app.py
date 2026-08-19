@@ -5,7 +5,7 @@ import typer
 from .commands.root import root_command
 
 
-def run_command(
+def run_root(
     ctx: typer.Context,
     name: str = typer.Argument(..., help="Blueprint name to run (task or workflow)."),
     no_sandbox: bool = typer.Option(
@@ -54,4 +54,4 @@ def register_run_command(app: typer.Typer) -> None:
         name="run",
         help="Execute any blueprint by name (task or workflow).",
         context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
-    )(run_command)
+    )(run_root)
