@@ -80,7 +80,7 @@ core/<domain>/
 | `core/bootstrap.py`, `core/git_sandbox.py` | Top-level core infra modules (not domain packages). |
 | Private helpers (`_ParseState`, module-local exceptions) | May live next to the function that uses them. |
 
-CLI packages stay `cli/<name>/{command.py, models.py, renderers.py}` — see
+CLI packages stay `cli/<name>/{app.py, commands/, models.py, renderers.py}` — see
 [architecture.md](architecture.md#adding-a-new-command).
 
 When unsure, copy `core/task/` or `core/inputs/`, not `core/config/`.
