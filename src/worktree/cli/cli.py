@@ -8,6 +8,7 @@ from rich.text import Text
 from worktree.cli.catalog.app import catalog_app
 from worktree.cli.config.app import config_app
 from worktree.cli.init.app import init_app
+from worktree.cli.resume.app import register_resume_command
 from worktree.cli.run.app import register_run_command
 from worktree.cli.sandbox.app import sandbox_app
 from worktree.cli.status.app import status_app
@@ -32,6 +33,7 @@ app = typer.Typer(
 app.add_typer(catalog_app, name="catalog")
 app.add_typer(config_app, name="config")
 app.add_typer(init_app, name="init")
+register_resume_command(app)
 register_run_command(app)
 app.add_typer(sandbox_app, name="sandbox")
 app.add_typer(status_app, name="status")
