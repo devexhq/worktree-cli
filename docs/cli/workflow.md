@@ -1,13 +1,6 @@
 # `wt workflow`
 
-The `wt workflow` command discovers, lists, and validates workflow definitions.
-
-> **Status:** `wt workflow run` currently only loads and validates a workflow
-> definition — it does not execute steps yet. `wt workflow resume` resumes a
-> **paused** tracked session from its durable checkpoint and re-enters the
-> shared runtime. Step execution for a fresh `run` is being rebuilt
-> incrementally on top of the Workflow Spec v1 model; see
-> [docs/agents/architecture.md](../agents/architecture.md).
+The `wt workflow` command discovers, lists, executes, and resumes workflow definitions.
 
 ## Subcommands
 
@@ -29,23 +22,27 @@ wt workflow show <session_id>
 
 ### `wt workflow run`
 
-Validates a workflow definition by name. Execution is not implemented yet: on
-a valid definition the command prints an error panel and exits `1`.
+Executes a workflow blueprint end-to-end via the shared execution engine:
 
 ```bash
-wt workflow run <name>
-wt workflow run <name> --non-interactive
+wt workflow run <name> [OPTIONS] [INPUTS...]
 ```
 
 #### Arguments
 
 * `name`: Logical workflow name registered in catalog storage or built-in templates.
+* `INPUTS`: Trailing arguments forwarded as declared workflow input parameters.
 
 #### Options
 
 | Flag | Description |
 | --- | --- |
-| `--non-interactive` | Reserved for execution: disable interactive `prompt_user` prompts and abort instead. Accepted now so scripts can pass the flag once step execution lands. |
+| `--no-sandbox` | Run in-place without creating a Git sandbox. |
+| `--keep` | Retain the sandbox worktree after workflow completion. |
+| `--agent` | Override the default target agent adapter. |
+| `--session-id` | Specify an explicit session identifier. |
+| `--non-interactive` | Disable interactive failure prompts. Steps with `on_failure: prompt_user` abort instead of blocking on stdin. |
+
 
 ### `wt workflow resume`
 

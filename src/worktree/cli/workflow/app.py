@@ -37,14 +37,42 @@ def workflow_show(
 def workflow_run(
     ctx: typer.Context,
     name: str = typer.Argument(..., help="Logical workflow name to run."),
+    no_sandbox: bool = typer.Option(
+        False,
+        "--no-sandbox",
+        help="Run execution in-place in the working tree without creating a Git sandbox.",
+    ),
+    keep: bool = typer.Option(
+        False,
+        "--keep",
+        help="Retain sandbox worktree after workflow completion.",
+    ),
+    agent: str | None = typer.Option(
+        None,
+        "--agent",
+        help="Override default target agent adapter.",
+    ),
+    session_id: str | None = typer.Option(
+        None,
+        "--session-id",
+        help="Explicit session identifier.",
+    ),
     non_interactive: bool = typer.Option(
         False,
         "--non-interactive",
         help="Disable interactive prompts; prompt_user failures abort the run.",
     ),
 ):
-    """Run a workflow (validates the definition; execution is not implemented yet)."""
-    workflow_run_command(name, cli_args=list(ctx.args), non_interactive=non_interactive)
+    """Run a workflow blueprint."""
+    workflow_run_command(
+        name,
+        no_sandbox=no_sandbox,
+        keep=keep,
+        agent=agent,
+        session_id=session_id,
+        cli_args=list(ctx.args),
+        non_interactive=non_interactive,
+    )
 
 
 @workflow_app.command("resume")
