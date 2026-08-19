@@ -1,9 +1,6 @@
 """The ``wt run`` CLI command package."""
 
 from worktree.cli.run.app import register_run_command
-from worktree.cli.run.commands.root import root_command
+from worktree.cli.run.commands.root import run_root
 
-# Backward-compatible alias matching other command packages
-run_command = root_command
-
-__all__ = ["register_run_command", "root_command", "run_command"]
+__all__ = ["register_run_command", "run_root"]

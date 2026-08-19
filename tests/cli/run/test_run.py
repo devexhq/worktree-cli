@@ -7,7 +7,7 @@ from typer.testing import CliRunner
 
 from tests.helpers import FileSystem, GitFileSystem
 from worktree.cli import app
-from worktree.cli.run.commands.root import root_command
+from worktree.cli.blueprint import BlueprintRunService
 from worktree.core.blueprint import BlueprintKind
 from worktree.core.catalog.services.inventory import scan_and_index_catalog
 from worktree.core.db import RunsDb, RunStatus
@@ -15,8 +15,8 @@ from worktree.core.db import RunsDb, RunStatus
 runner = CliRunner()
 
 
-def test_run_command_executes_task(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verify root_command successfully executes a task blueprint."""
+def test_blueprint_run_service_executes_task(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify BlueprintRunService successfully executes a task blueprint when kind=None."""
     monkeypatch.chdir(fs.base_path)
     fs.create_task_file(
         "build-task",
@@ -29,7 +29,7 @@ def test_run_command_executes_task(fs: FileSystem, monkeypatch: pytest.MonkeyPat
         ],
     )
 
-    res = root_command("build-task", cwd=fs.base_path, session_id="test_run_task_1")
+    res = BlueprintRunService(name="build-task", cwd=fs.base_path, session_id="test_run_task_1").execute()
     assert res.ok
     assert res.run_record is not None
     assert res.run_record.status == RunStatus.COMPLETED
@@ -41,8 +41,8 @@ def test_run_command_executes_task(fs: FileSystem, monkeypatch: pytest.MonkeyPat
     assert record.kind == BlueprintKind.TASK
 
 
-def test_run_command_executes_workflow(git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verify root_command successfully executes a workflow blueprint."""
+def test_blueprint_run_service_executes_workflow(git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify BlueprintRunService successfully executes a workflow blueprint when kind=None."""
     git_fs.init_repo()
     monkeypatch.chdir(git_fs.base_path)
     git_fs.create_workflow_file(
@@ -51,7 +51,12 @@ def test_run_command_executes_workflow(git_fs: GitFileSystem, monkeypatch: pytes
     )
     scan_and_index_catalog(cwd=git_fs.base_path)
 
-    res = root_command("deploy-flow", cwd=git_fs.base_path, no_sandbox=True, session_id="test_run_wf_1")
+    res = BlueprintRunService(
+        name="deploy-flow",
+        cwd=git_fs.base_path,
+        no_sandbox=True,
+        session_id="test_run_wf_1",
+    ).execute()
     assert res.ok
     assert res.run_record is not None
     assert res.run_record.status == RunStatus.COMPLETED
@@ -205,6 +210,6 @@ def test_run_cli_paused_status_exits_0(
         lambda *args, **kwargs: _InterruptPrompter(),
     )
 
-    outcome = root_command("pause-task", cwd=fs.base_path, session_id="paused_session_1")
+    outcome = BlueprintRunService(name="pause-task", cwd=fs.base_path, session_id="paused_session_1").execute()
     assert outcome.run_record is not None
     assert outcome.run_record.status == RunStatus.PAUSED
