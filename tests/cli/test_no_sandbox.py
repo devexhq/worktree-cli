@@ -5,7 +5,7 @@ from typer.testing import CliRunner
 
 from tests.helpers import FileSystem
 from worktree.cli import app
-from worktree.cli.task.command import task_run_command
+from worktree.core.blueprint import BlueprintRunService
 from worktree.core.task import resolve_and_load_task
 
 runner = CliRunner()
@@ -29,7 +29,7 @@ def test_task_blueprint_use_sandbox_parsing(fs: FileSystem) -> None:
     assert result.definition.use_sandbox is False
 
 
-def test_task_run_command_no_sandbox_flag(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_run_command_no_sandbox_flag(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(fs.base_path)
     fs.write_file(
         ".worktree/catalog/tasks/sample-task.yml",
@@ -42,11 +42,11 @@ def test_task_run_command_no_sandbox_flag(fs: FileSystem, monkeypatch: pytest.Mo
         },
     )
 
-    # Run with --no-sandbox
-    res = task_run_command("sample-task", cwd=fs.base_path, no_sandbox=True)
+    # Run with BlueprintRunService --no-sandbox
+    res = BlueprintRunService(name="sample-task", cwd=fs.base_path, no_sandbox=True).execute()
     assert res.ok
 
     # CLI test
-    result = runner.invoke(app, ["task", "run", "sample-task", "--no-sandbox"])
+    result = runner.invoke(app, ["run", "sample-task", "--no-sandbox"])
     assert result.exit_code == 0
     assert "Sandbox: In-place (workspace)" in result.output

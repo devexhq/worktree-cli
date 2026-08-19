@@ -9,8 +9,9 @@ Welcome to **Worktree CLI** (`wt`), a CLI tool providing isolated Git worktree d
 Key capabilities include:
 
 - **Isolated Sandboxes**: Safely iterate on feature code without dirtying your main working tree using `wt sandbox`.
-- **Automated Workflows**: Define and execute bounded agent workflow loops (Plan → Execute → Verify) via `wt workflow`.
-- **Reusable Tasks**: Trigger cataloged task blueprints via `wt task`.
+- **Unified Blueprint Execution**: Execute cataloged task and workflow blueprints via `wt run`.
+- **Durable Resumption**: Seamlessly resume paused sessions from saved checkpoints via `wt resume`.
+- **Execution History**: Inspect and audit recorded blueprint run sessions via `wt history`.
 - **Catalog System**: Discover and manage project task and workflow blueprints with `wt catalog`.
 
 ## Quickstart
@@ -40,7 +41,8 @@ wt sandbox create my-feature
   - [Workspace Init (`wt init`)](cli/init.md): Provision local workspace and configuration defaults.
   - [Status (`wt status`)](cli/status.md): Inspect active sandboxes, workflow sessions, and database state.
   - [Config (`wt config`)](cli/config.md): Display, modify, and validate project configuration.
-  - [Workflow (`wt workflow`)](cli/workflow.md): Plan, execute, and verify agent loops.
-  - [Task (`wt task`)](cli/task.md): Single-shot bounded actions.
+  - [Run (`wt run`)](cli/run.md): Execute task and workflow blueprints.
+  - [Resume (`wt resume`)](cli/resume.md): Resume paused blueprint sessions from checkpoint.
+  - [History (`wt history`)](cli/history.md): List and inspect recorded blueprint runs.
   - [Sandbox (`wt sandbox`)](cli/sandbox.md): Git worktree isolation.
   - [Catalog (`wt catalog`)](cli/catalog.md): Blueprint templates and catalog items.

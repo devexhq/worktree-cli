@@ -38,7 +38,7 @@ function. Run it through the `inv complexity` task in
 
 ```bash
 inv complexity                                          # whole tree, rich output (matches CI)
-inv complexity --paths src/worktree/cli/task/command.py  # scope to specific file(s), comma-separated
+inv complexity --paths src/worktree/cli/run/app.py       # scope to specific file(s), comma-separated
 inv complexity --plain                                  # script-friendly output for agents
 inv complexity --plain --failed                         # script-friendly output for agents, list failures only
 ```

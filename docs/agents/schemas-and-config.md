@@ -31,15 +31,13 @@ Enums (exact tokens):
 - Workflow `agent.provider` (`v1/workflow.json`): `local` | `ollama` | `cursor` |
   `gemini` | `copilot`
 
-For `wt workflow run`, **workflow** `agent.provider` selects the adapter; **config**
+For blueprint execution (`wt run`), **workflow** `agent.provider` selects the adapter; **config**
 `agent.model` / `endpoint` / `temperature` / `max_tokens` fill the request.
 Ollama uses `config.agent.model` + `config.agent.endpoint` (or `OLLAMA_HOST`).
 Cursor uses `config.agent.model` and `CURSOR_API_KEY`. Gemini uses
 `GEMINI_API_KEY`. Copilot uses `GH_TOKEN` or `GITHUB_TOKEN`. Cursor, Gemini,
 and Copilot mutate the sandbox directly through the shared base in
 `core/agents/cli_mutation.py`; local and Ollama still return diffs.
-Note: `wt workflow run` currently validates the workflow definition only —
-step execution is not implemented yet (tracked in issues #171-#173).
 
 Notable bounds / string rules:
 
@@ -525,17 +523,13 @@ def run_task(
 
 Builds a `RunContext` (`steps=definition.steps`,
 `use_sandbox=use_sandbox and definition.use_sandbox`, plus `keep` / `agent` /
-`observer`) and delegates to `run_steps`. CLI orchestration
-(`resolve` → insert RUNNING row → `run_task` → update status → render) lives in
-[src/worktree/cli/task/command.py](../../src/worktree/cli/task/command.py); Rich
-output is in `cli/task/renderers.py`, plain failure text in
+`observer`) and delegates to `run_steps`. Plain failure text formatting lives in
 `core/task/services/renderer.py` (`format_task_run_failure`).
 
 ## Shared step execution layer (`core/runtime/`)
 
 Package: [src/worktree/core/runtime/](../../src/worktree/core/runtime/)
-(`models.py`, `engine.py`). Used by `run_task` today; workflow multi-step
-execution should reuse the same surface when implemented.
+(`models.py`, `engine.py`). Used by `run_task` and blueprint execution services.
 
 ### `RunContext`
 
@@ -559,7 +553,7 @@ Optional protocol hooks (no-ops when `observer is None`):
 - `on_step_done(idx: int, total: int, result: StepResult)`
 - `on_sandbox_cleanup(kept: bool, path: Path)`
 
-`cli/task/command.py` implements `CliRunObserver` against `RichOutput`.
+`core.runtime.observer` implements `LiveObserver` against Rich output.
 
 ### `RunOutcome`
 
@@ -623,40 +617,7 @@ CLI template surfaces (no separate `wt template` command group):
   templates matching the name and prints raw YAML via
   `render_template_show_content`.
 
-## `wt workflow list`
-
-Command entry: `worktree.cli.workflow.command.workflow_list_command`.
-Registration: `wt workflow list` (and `wt workflow`) under `workflow_app` in
-[src/worktree/cli/cli.py](../../src/worktree/cli/cli.py).
-
-Read-only: query recorded workflow sessions, print a human-readable
-Rich table `Recorded Workflows` or `No recorded workflows found.` empty state.
-
-### Exit codes
-
-| Condition | Exit |
-|-----------|------|
-| list ok (empty or recorded sessions) | `0` |
-| uninitialized worktree or config load error | `1` |
-
-## `wt workflow show`
-
-Command entry: `worktree.cli.workflow.command.workflow_show_command`.
-Registration: `wt workflow show` under `workflow_app` in
-[src/worktree/cli/cli.py](../../src/worktree/cli/cli.py).
-
-Read-only: query a recorded workflow session by session ID and print details
-(session id, name, branch, status, timestamps, error). Workflow *definition*
-display is handled by `wt catalog show`, not this command.
-
-### Exit codes
-
-| Condition | Exit |
-|-----------|------|
-| session found | `0` |
-| uninitialized worktree, config load error, or session not found | `1` |
-
-## `wt workflow run` error bodies
+## Workflow formatters
 
 Pure formatters (no IO/print/exit) for resolve/validate failure panel bodies live in
 [src/worktree/core/workflows/services/renderer.py](../../src/worktree/core/workflows/services/renderer.py):

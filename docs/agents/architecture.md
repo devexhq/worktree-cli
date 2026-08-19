@@ -186,12 +186,12 @@ and best-effort `SandboxesDb` writes.
 
 | Concern | Where |
 |---------|--------|
-| Workflow YAML / `wt workflow *` | [docs/cli/workflow.md](../cli/workflow.md), [schemas-and-config.md](schemas-and-config.md) |
-| Task YAML / `wt task *` | [docs/cli/task.md](../cli/task.md), schemas-and-config |
+| Workflow YAML | `schemas/v1/workflow.json`, [schemas-and-config.md](schemas-and-config.md) |
+| Task YAML | `core/task/models.py`, schemas-and-config |
+| Blueprint execution (`wt run`) | [docs/cli/run.md](../cli/run.md), `core/blueprint/` |
 | Patch validation | `core/patch/` (`validate_patch_text`) |
 | Agent failure payload DTOs | `core/agents/models.py` |
 | Agent adapters | `core/agents/` — protocol + `local` / `ollama` / `cursor` / `gemini` / `copilot` |
-| `wt workflow run` | Validate/load path today; full execution is incremental on the shared runtime — see open issues, not a second engine here |
 
 Provider-specific env vars and stdout contracts belong in code docstrings or
 CLI docs when user-visible — not as growing appendices in this file.
