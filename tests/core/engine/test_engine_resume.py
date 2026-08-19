@@ -10,7 +10,7 @@ import pytest
 from tests.helpers import FileSystem
 from worktree.core.blueprint import Blueprint, BlueprintDefinition, BlueprintKind
 from worktree.core.catalog.services.inventory import scan_and_index_catalog
-from worktree.core.db import RunsDb, RunStatus
+from worktree.core.db import RunsRepository, RunStatus
 from worktree.core.engine import Engine, EngineResumeError, EngineResumeStatus, EngineRuntimeError, ResumableRun
 from worktree.core.runtime import RunCheckpoint, RunContext, RunOutcome
 from worktree.core.step import LoopStepBlock, StepDefinition, StepResult, StepType
@@ -95,13 +95,13 @@ def _workflow_blueprint(*, name: str = "ship") -> Blueprint:
 
 
 def _seed_paused_task(fs: FileSystem, session_id: str, checkpoint: RunCheckpoint, *, name: str = "lint") -> None:
-    db = RunsDb(fs.base_path)
+    db = RunsRepository(fs.base_path)
     db.create(session_id, blueprint_name=name, kind=BlueprintKind.TASK, status=RunStatus.RUNNING)
     db.save_pause(session_id, checkpoint.model_dump_json(), checkpoint.diagnostic)
 
 
 def _seed_paused_workflow(fs: FileSystem, session_id: str, checkpoint: RunCheckpoint, *, name: str = "ship") -> None:
-    db = RunsDb(fs.base_path)
+    db = RunsRepository(fs.base_path)
     db.create(session_id, blueprint_name=name, kind=BlueprintKind.WORKFLOW, branch_name="", status=RunStatus.RUNNING)
     db.save_pause(session_id, checkpoint.model_dump_json(), checkpoint.diagnostic)
 
@@ -152,7 +152,7 @@ def test_resume_finalizes_task_row(monkeypatch: pytest.MonkeyPatch, fs: FileSyst
     outcome = Engine(fs.base_path).resume("task_done", blueprint=_task_blueprint())
 
     assert outcome.ok
-    record = RunsDb(fs.base_path).get("task_done")
+    record = RunsRepository(fs.base_path).get("task_done")
     assert record is not None
     assert record.status is RunStatus.COMPLETED
     assert record.completed_at is not None
@@ -168,7 +168,7 @@ def test_resume_finalizes_workflow_row(monkeypatch: pytest.MonkeyPatch, fs: File
     outcome = Engine(fs.base_path).resume("workflow_done", blueprint=_workflow_blueprint())
 
     assert outcome.ok
-    record = RunsDb(fs.base_path).get("workflow_done")
+    record = RunsRepository(fs.base_path).get("workflow_done")
     assert record is not None
     assert record.blueprint_name == "ship"
     assert record.status is RunStatus.COMPLETED
@@ -190,7 +190,7 @@ def test_resume_omitted_blueprint_not_found(fs: FileSystem) -> None:
 
 @pytest.mark.parametrize("status", [RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.RUNNING, RunStatus.CANCELLED])
 def test_resume_wrong_status(fs: FileSystem, status: RunStatus) -> None:
-    RunsDb(fs.base_path).create("task_wrong", blueprint_name="lint", kind=BlueprintKind.TASK, status=status)
+    RunsRepository(fs.base_path).create("task_wrong", blueprint_name="lint", kind=BlueprintKind.TASK, status=status)
 
     with pytest.raises(EngineResumeError) as exc_info:
         Engine(fs.base_path).resume("task_wrong", blueprint=_task_blueprint())
@@ -200,7 +200,7 @@ def test_resume_wrong_status(fs: FileSystem, status: RunStatus) -> None:
 
 
 def test_resume_corrupt_checkpoint(fs: FileSystem) -> None:
-    db = RunsDb(fs.base_path)
+    db = RunsRepository(fs.base_path)
     db.create("task_bad", blueprint_name="lint", kind=BlueprintKind.TASK, status=RunStatus.RUNNING)
     db.save_pause("task_bad", "{nope", "paused")
 
@@ -228,7 +228,7 @@ def test_resume_pending_step_mismatch_is_corrupt(fs: FileSystem) -> None:
         Engine(fs.base_path).resume("task_pending", blueprint=_task_blueprint())
 
     assert exc_info.value.status is EngineResumeStatus.CORRUPT_CHECKPOINT
-    record = RunsDb(fs.base_path).get("task_pending")
+    record = RunsRepository(fs.base_path).get("task_pending")
     assert record is not None
     assert record.status is RunStatus.PAUSED
 
@@ -239,7 +239,7 @@ def test_resume_rejects_loop_steps_after_classification(fs: FileSystem) -> None:
     with pytest.raises(EngineRuntimeError, match=r"Engine\.resume does not execute loop steps\."):
         Engine(fs.base_path).resume("workflow_loop", blueprint=_task_blueprint(loop=True, name="ship"))
 
-    record = RunsDb(fs.base_path).get("workflow_loop")
+    record = RunsRepository(fs.base_path).get("workflow_loop")
     assert record is not None
     assert record.status is RunStatus.PAUSED
 
@@ -308,7 +308,7 @@ def test_resume_finalize_failure_warns(monkeypatch: pytest.MonkeyPatch, fs: File
     outcome = Engine(fs.base_path).resume("task_final", blueprint=_task_blueprint())
 
     assert any(warning.startswith("Failed to update run status in database:") for warning in outcome.warnings)
-    record = RunsDb(fs.base_path).get("task_final")
+    record = RunsRepository(fs.base_path).get("task_final")
     assert record is not None
     assert record.status is RunStatus.RUNNING
 

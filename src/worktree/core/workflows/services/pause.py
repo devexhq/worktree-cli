@@ -4,15 +4,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from worktree.core.db import RunsDb, RunStatus
+from worktree.core.db import RunsRepository, RunStatus
 from worktree.core.runtime import RunCheckpoint
 
 
 class WorkflowPauseStore:
-    """``RunPauseStore`` implementation backed by ``RunsDb``."""
+    """``RunPauseStore`` implementation backed by ``RunsRepository``."""
 
     def __init__(self, cwd: Path, session_id: str) -> None:
-        self._db = RunsDb(cwd)
+        self._db = RunsRepository(cwd)
         self._session_id = session_id
 
     def save_checkpoint(self, checkpoint: RunCheckpoint) -> None:

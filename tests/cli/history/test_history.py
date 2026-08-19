@@ -12,7 +12,7 @@ from tests.helpers import FileSystem
 from worktree.cli import app
 from worktree.core.blueprint import BlueprintKind
 from worktree.core.config.generator import generate_default_config
-from worktree.core.db import RunRecord, RunsDb, RunStatus
+from worktree.core.db import RunRecord, RunsRepository, RunStatus
 from worktree.core.history.models import HistoryListStatus, HistoryShowStatus
 from worktree.core.history.renderers import (
     _parse_timestamp,
@@ -49,9 +49,9 @@ def _seed_run(
     error_message: str | None = None,
     checkpoint_json: str | None = None,
 ) -> RunRecord:
-    """Helper to insert a run row directly into RunsDb."""
+    """Helper to insert a run row directly into RunsRepository."""
     _init_workspace(root)
-    db = RunsDb(root)
+    db = RunsRepository(root)
     db.create(
         session_id=session_id,
         blueprint_name=blueprint_name,
@@ -60,15 +60,18 @@ def _seed_run(
         status=RunStatus.RUNNING,
     )
     # Direct update for full field control in test fixtures
-    with db.cursor() as cursor:
-        cursor.execute(
-            """
-            UPDATE runs
-            SET status = ?, started_at = ?, completed_at = ?, error_message = ?, checkpoint_json = ?
-            WHERE session_id = ?;
-            """,
-            (status.value, started_at, completed_at, error_message, checkpoint_json, session_id),
-        )
+    with db.session() as session:
+        from sqlmodel import select
+
+        item = session.exec(select(RunRecord).where(RunRecord.session_id == session_id)).first()
+        if item is not None:
+            item.status = status
+            item.started_at = started_at
+            item.completed_at = completed_at
+            item.error_message = error_message
+            item.checkpoint_json = checkpoint_json
+            session.add(item)
+            session.commit()
     return db.get(session_id)  # type: ignore[return-value]
 
 

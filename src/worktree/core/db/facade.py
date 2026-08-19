@@ -6,7 +6,7 @@ from worktree.core.db.base import DbBase
 from worktree.core.db.catalog import CatalogDb
 from worktree.core.db.connection import DEFAULT_DB_REL_PATH
 from worktree.core.db.costs import CostsDb
-from worktree.core.db.runs import RunsDb
+from worktree.core.db.repositories.runs import RunsRepository
 from worktree.core.db.sandboxes import SandboxesDb
 
 
@@ -16,7 +16,7 @@ class WorktreeDb(DbBase):
     def __init__(self, cwd: Path | None = None, db_rel_path: str = DEFAULT_DB_REL_PATH) -> None:
         super().__init__(cwd, db_rel_path)
         self.sandboxes = SandboxesDb(cwd, db_rel_path, auto_init=False)
-        self.runs = RunsDb(cwd, db_rel_path, auto_init=False)
+        self.runs = RunsRepository(cwd, db_rel_path, auto_init=False)
         self.catalog = CatalogDb(cwd, db_rel_path, auto_init=False)
         self.costs = CostsDb(cwd, db_rel_path, auto_init=False)
 

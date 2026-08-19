@@ -15,7 +15,7 @@ from worktree.core.db import (
     CatalogRecord,
     DbBase,
     RunRecord,
-    RunsDb,
+    RunsRepository,
     RunStatus,
     WorktreeDb,
     init_database,
@@ -88,7 +88,7 @@ class TestDatabaseMigrations:
             )
 
         init_database(cwd=fs.base_path, db_rel_path=DB_REL)
-        db = RunsDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = RunsRepository(cwd=fs.base_path, db_rel_path=DB_REL)
 
         wf = db.get("wf_legacy")
         assert wf is not None

@@ -9,7 +9,7 @@ from tests.helpers import FileSystem, GitFileSystem
 from worktree.cli import app
 from worktree.core.blueprint import BlueprintKind, BlueprintRunService
 from worktree.core.catalog.services.inventory import scan_and_index_catalog
-from worktree.core.db import RunsDb, RunStatus
+from worktree.core.db import RunsRepository, RunStatus
 
 runner = CliRunner()
 
@@ -34,7 +34,7 @@ def test_blueprint_run_service_executes_task(fs: FileSystem, monkeypatch: pytest
     assert res.run_record.status == RunStatus.COMPLETED
     assert res.run_record.kind == BlueprintKind.TASK
 
-    record = RunsDb(fs.base_path).get("test_run_task_1")
+    record = RunsRepository(fs.base_path).get("test_run_task_1")
     assert record is not None
     assert record.status == RunStatus.COMPLETED
     assert record.kind == BlueprintKind.TASK
@@ -61,7 +61,7 @@ def test_blueprint_run_service_executes_workflow(git_fs: GitFileSystem, monkeypa
     assert res.run_record.status == RunStatus.COMPLETED
     assert res.run_record.kind == BlueprintKind.WORKFLOW
 
-    record = RunsDb(git_fs.base_path).get("test_run_wf_1")
+    record = RunsRepository(git_fs.base_path).get("test_run_wf_1")
     assert record is not None
     assert record.status == RunStatus.COMPLETED
     assert record.kind == BlueprintKind.WORKFLOW
@@ -139,7 +139,7 @@ def test_run_cli_keep_flag(git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatc
         ["run", "sandbox-flow", "--keep", "--session-id", "keep_session_1"],
     )
     assert result.exit_code == 0
-    record = RunsDb(git_fs.base_path).get("keep_session_1")
+    record = RunsRepository(git_fs.base_path).get("keep_session_1")
     assert record is not None
     assert record.status == RunStatus.COMPLETED
 

@@ -165,7 +165,7 @@ Catalog dirs/seeds: `core/catalog` (`ensure_catalog_dirs`,
 ### Local SQLite (`data.db`)
 
 Migrated by `init_database` in [core/db](../../src/worktree/core/db/__init__.py).
-Typed surface: `DbBase`, repos (`SandboxesDb`, `RunsDb`,
+Typed surface: `DbBase`, `BaseRepository`, repos (`SandboxesDb`, `RunsRepository`,
 `CatalogDb`, `CostsDb`), facade `WorktreeDb` (`.sandboxes`, `.runs`, …).
 
 Primary tables include sandbox metadata, catalog index rows, run tracking, and

@@ -24,7 +24,8 @@ wt resume [session_id] [OPTIONS]
 
 1. **Session Resolution**:
    - If `session_id` is provided, resumes that specific session.
-   - If `session_id` is omitted, queries `RunsDb.get_latest_paused()` and picks up the most recent paused run. If no paused session is found, renders a formatted error panel and exits with code `1`.
+   - If `session_id` is omitted, queries `RunsRepository.get_latest_paused()` and picks up the most recent paused run. If no paused session is found, renders a formatted error panel and exits with code `1`.
+
 2. **Readiness Classification**: Validates that the session exists, is in `paused` status, and has an intact checkpoint and accessible sandbox (if sandboxed).
 3. **Execution**: Re-enters step execution via `Engine.resume`.
 4. **Exit Codes**:

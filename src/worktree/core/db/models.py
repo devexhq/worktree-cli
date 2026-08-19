@@ -116,6 +116,44 @@ class CatalogRecord(SQLModel, table=True):
         super().__init__(**data)
 
 
+class BlueprintKindType(TypeDecorator[BlueprintKind]):
+    """SQLAlchemy type for coercing BlueprintKind enums to strings and back."""
+
+    impl = String
+    cache_ok = True
+
+    def process_bind_param(self, value: BlueprintKind | str | None, dialect: Any) -> str | None:
+        """Coerce incoming BlueprintKind or str to string for SQLite storage."""
+        if value is None:
+            return None
+        return value.value if isinstance(value, BlueprintKind) else str(value)
+
+    def process_result_value(self, value: str | None, dialect: Any) -> BlueprintKind | None:
+        """Coerce retrieved database string value back into a BlueprintKind instance."""
+        if value is None:
+            return None
+        return BlueprintKind(value)
+
+
+class RunStatusType(TypeDecorator[RunStatus]):
+    """SQLAlchemy type for coercing RunStatus enums to strings and back."""
+
+    impl = String
+    cache_ok = True
+
+    def process_bind_param(self, value: RunStatus | str | None, dialect: Any) -> str | None:
+        """Coerce incoming RunStatus or str to string for SQLite storage."""
+        if value is None:
+            return None
+        return value.value if isinstance(value, RunStatus) else str(value)
+
+    def process_result_value(self, value: str | None, dialect: Any) -> RunStatus | None:
+        """Coerce retrieved database string value back into a RunStatus instance."""
+        if value is None:
+            return None
+        return RunStatus(value)
+
+
 class RunRecord(SQLModel, table=True):
     """Row shape for the local `runs` table."""
 
@@ -125,13 +163,21 @@ class RunRecord(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     session_id: str = Field(unique=True, index=True)
     blueprint_name: str
-    kind: BlueprintKind = Field(sa_type=String)
+    kind: BlueprintKind = Field(sa_type=BlueprintKindType)
     branch_name: str = Field(default="")
-    status: RunStatus = Field(default=RunStatus.RUNNING, sa_type=String, index=True)
+    status: RunStatus = Field(default=RunStatus.RUNNING, sa_type=RunStatusType, index=True)
     started_at: str = Field(default_factory=_now_utc_str, index=True)
     completed_at: str | None = Field(default=None)
     error_message: str | None = Field(default=None)
     checkpoint_json: str | None = Field(default=None)
+
+    def __init__(self, **data: Any) -> None:
+        """Initialize RunRecord, coercing string enums to Enum instances."""
+        if "kind" in data and isinstance(data["kind"], str):
+            data["kind"] = BlueprintKind(data["kind"])
+        if "status" in data and isinstance(data["status"], str):
+            data["status"] = RunStatus(data["status"])
+        super().__init__(**data)
 
 
 class WorkflowCostRecord(SQLModel, table=True):

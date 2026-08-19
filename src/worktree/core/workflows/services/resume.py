@@ -10,7 +10,7 @@ from worktree.core.db import (
     BlueprintKind,
     CatalogItemType,
     RunRecord,
-    RunsDb,
+    RunsRepository,
     RunStatus,
 )
 from worktree.core.runtime import (
@@ -103,7 +103,7 @@ class _PreparedResume:
     steps: list[StepDefinition]
 
 
-def _prepare_resume(session_id: str, cwd: Path, db: RunsDb) -> _PreparedResume | WorkflowResumeResult:
+def _prepare_resume(session_id: str, cwd: Path, db: RunsRepository) -> _PreparedResume | WorkflowResumeResult:
     row = db.get(session_id)
     row_error = _validate_resume_row(session_id, row)
     if row_error is not None or row is None:
@@ -145,7 +145,8 @@ def resume_workflow(
     observer: RunObserver | None = None,
 ) -> WorkflowResumeResult:
     """Load a paused workflow row, rebuild ``RunContext``, and re-enter ``run_steps``."""
-    db = RunsDb(cwd)
+    db = RunsRepository(cwd)
+
     prepared = _prepare_resume(session_id, cwd, db)
     if isinstance(prepared, WorkflowResumeResult):
         return prepared

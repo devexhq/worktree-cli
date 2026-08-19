@@ -7,7 +7,7 @@ from pathlib import Path
 
 from worktree.common.utils import RichOutput
 from worktree.core.config.loader import load_config_result
-from worktree.core.db import BlueprintKind, RunsDb, RunStatus
+from worktree.core.db import BlueprintKind, RunsRepository, RunStatus
 
 from .models import (
     HistoryListResult,
@@ -57,7 +57,7 @@ class HistoryListService:
             except ValueError:
                 kind_filter = self.kind
 
-        db = RunsDb(root)
+        db = RunsRepository(root)
         runs = db.list(limit=self.limit, status=status_filter, kind=kind_filter)
         return HistoryListResult(status=HistoryListStatus.OK, runs=runs)
 
@@ -90,8 +90,9 @@ class HistoryShowService:
                 errors=list(load.errors),
             )
 
-        db = RunsDb(root)
+        db = RunsRepository(root)
         row = db.get(self.session_id)
+
         if row is None:
             return HistoryShowResult(status=HistoryShowStatus.NOT_FOUND)
 

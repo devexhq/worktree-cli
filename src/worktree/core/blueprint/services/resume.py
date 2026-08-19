@@ -11,7 +11,7 @@ from worktree.core.blueprint.models import (
     BlueprintRunCommandOutcome,
 )
 from worktree.core.blueprint.renderers import render_blueprint_run_success
-from worktree.core.db import RunRecord, RunsDb, RunStatus
+from worktree.core.db import RunRecord, RunsRepository, RunStatus
 from worktree.core.engine import Engine, EngineResumeError, EngineRuntimeError
 from worktree.core.runtime import (
     CliFailurePrompter,
@@ -62,7 +62,7 @@ class BlueprintResumeService:
 
     def _resolve_target_session(self) -> tuple[str, BlueprintKind | None, str | None]:
         if not self.session_id:
-            record = RunsDb(self.root).get_latest_paused()
+            record = RunsRepository(self.root).get_latest_paused()
             if record is None:
                 return "", None, "No paused session found to resume."
             self.output.info(f"Resuming latest paused session '{record.session_id}' ({record.blueprint_name})...")
@@ -88,7 +88,7 @@ class BlueprintResumeService:
 
     def _load_record(self, session_id: str) -> RunRecord | None:
         try:
-            return RunsDb(self.root).get(session_id)
+            return RunsRepository(self.root).get(session_id)
         except Exception:
             return None
 

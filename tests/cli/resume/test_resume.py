@@ -9,7 +9,7 @@ from tests.helpers import FileSystem, GitFileSystem
 from worktree.cli import app
 from worktree.core.blueprint import BlueprintKind, BlueprintResumeService
 from worktree.core.catalog.services.inventory import scan_and_index_catalog
-from worktree.core.db import RunsDb, RunStatus
+from worktree.core.db import RunsRepository, RunStatus
 from worktree.core.runtime import FailurePromptDecision, RunCheckpoint
 from worktree.core.step import StepResult
 
@@ -63,7 +63,7 @@ def _seed_paused_run(
     *,
     status: RunStatus = RunStatus.PAUSED,
 ) -> None:
-    db = RunsDb(fs_path)
+    db = RunsRepository(fs_path)
     db.create(
         session_id=session_id,
         blueprint_name=blueprint_name,
@@ -114,7 +114,7 @@ def test_blueprint_resume_service_resumes_task(
     assert outcome.run_record.status == RunStatus.COMPLETED
     assert outcome.run_record.kind == BlueprintKind.TASK
 
-    record = RunsDb(fs.base_path).get("task-res-1")
+    record = RunsRepository(fs.base_path).get("task-res-1")
     assert record is not None
     assert record.status == RunStatus.COMPLETED
 
@@ -143,7 +143,7 @@ def test_blueprint_resume_service_resumes_workflow(
     assert outcome.run_record.status == RunStatus.COMPLETED
     assert outcome.run_record.kind == BlueprintKind.WORKFLOW
 
-    record = RunsDb(git_fs.base_path).get("wf-res-1")
+    record = RunsRepository(git_fs.base_path).get("wf-res-1")
     assert record is not None
     assert record.status == RunStatus.COMPLETED
 
@@ -306,7 +306,7 @@ def test_resume_cli_corrupt_checkpoint_exits_1(fs: FileSystem, monkeypatch: pyte
         use_sandbox=False,
         steps=[{"id": "step-1", "run": "echo 1"}, {"id": "step-2", "run": "echo 2"}],
     )
-    db = RunsDb(fs.base_path)
+    db = RunsRepository(fs.base_path)
     db.create(
         session_id="task-corrupt", blueprint_name="corrupt-task", kind=BlueprintKind.TASK, status=RunStatus.RUNNING
     )
