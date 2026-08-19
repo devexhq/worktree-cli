@@ -9,6 +9,7 @@ from typing import Any
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
 from worktree.core.blueprint.exceptions import BlueprintValidationError
+from worktree.core.db import TaskRunRecord, WorkflowRunRecord
 from worktree.core.inputs import ParameterInput
 from worktree.core.step import (
     BlueprintDefaults,
@@ -128,3 +129,18 @@ class BlueprintDefinition(BaseModel):
         if self.kind == BlueprintKind.TASK and any(isinstance(step, LoopStepBlock) for step in self.steps):
             raise ValueError("kind=task cannot contain loop steps")
         return self
+
+
+class BlueprintRunCommandOutcome(BaseModel):
+    """Unified outcome for task and workflow execution."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    run_record: TaskRunRecord | WorkflowRunRecord | None = None
+    errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        """Return True if run completed without fatal errors."""
+        return self.run_record is not None and len(self.errors) == 0

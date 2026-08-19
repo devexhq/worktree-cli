@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-import typer
 from typer.main import get_command
 from typer.testing import CliRunner
 
@@ -36,16 +35,16 @@ class WorkflowRunCommandDirectTests:
 
     def test_uninitialized_worktree_exits_1(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_fs.base_path)
-        with pytest.raises(typer.Exit) as exc_info:
-            workflow_run_command("fix-tests", cwd=git_fs.base_path)
-        assert exc_info.value.exit_code == 1
+        outcome = workflow_run_command("fix-tests", cwd=git_fs.base_path)
+        assert not outcome.ok
+        assert len(outcome.errors) > 0
 
     def test_nonexistent_workflow_exits_1(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_fs.base_path)
         _init_with_workflows(git_fs)
-        with pytest.raises(typer.Exit) as exc_info:
-            workflow_run_command("no-such-workflow", cwd=git_fs.base_path)
-        assert exc_info.value.exit_code == 1
+        outcome = workflow_run_command("no-such-workflow", cwd=git_fs.base_path)
+        assert not outcome.ok
+        assert len(outcome.errors) > 0
 
     def test_valid_workflow_executes_successfully(
         self,
@@ -55,14 +54,15 @@ class WorkflowRunCommandDirectTests:
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
         _init_with_workflows(git_fs)
-        with pytest.raises(typer.Exit) as exc_info:
-            workflow_run_command(
-                "fix-tests",
-                cwd=git_fs.base_path,
-                no_sandbox=True,
-                session_id="wf_test_123",
-            )
-        assert exc_info.value.exit_code == 0
+        outcome = workflow_run_command(
+            "fix-tests",
+            cwd=git_fs.base_path,
+            no_sandbox=True,
+            session_id="wf_test_123",
+        )
+        assert outcome.ok
+        assert outcome.run_record is not None
+        assert outcome.run_record.session_id == "wf_test_123"
 
         out = capsys.readouterr().out
         assert "Running workflow 'fix-tests'..." in out
@@ -86,9 +86,8 @@ class WorkflowRunCommandDirectTests:
         git_fs.create_task_file("sample-task", steps=[{"id": "step-1", "run": "echo hi"}])
         scan_and_index_catalog(cwd=git_fs.base_path)
 
-        with pytest.raises(typer.Exit) as exc_info:
-            workflow_run_command("sample-task", cwd=git_fs.base_path)
-        assert exc_info.value.exit_code == 1
+        outcome = workflow_run_command("sample-task", cwd=git_fs.base_path)
+        assert not outcome.ok
 
         out = capsys.readouterr().out
         assert "Workflow Run Failed" in out
@@ -108,9 +107,8 @@ class WorkflowRunCommandDirectTests:
         )
         scan_and_index_catalog(cwd=git_fs.base_path)
 
-        with pytest.raises(typer.Exit) as exc_info:
-            workflow_run_command("invalid-wf", cwd=git_fs.base_path)
-        assert exc_info.value.exit_code == 1
+        outcome = workflow_run_command("invalid-wf", cwd=git_fs.base_path)
+        assert not outcome.ok
 
         out = capsys.readouterr().out
         assert "Workflow Run Failed" in out
@@ -130,9 +128,8 @@ class WorkflowRunCommandDirectTests:
         )
         scan_and_index_catalog(cwd=git_fs.base_path)
 
-        with pytest.raises(typer.Exit) as exc_info:
-            workflow_run_command("corrupt-wf", cwd=git_fs.base_path)
-        assert exc_info.value.exit_code == 1
+        outcome = workflow_run_command("corrupt-wf", cwd=git_fs.base_path)
+        assert not outcome.ok
 
         out = capsys.readouterr().out
         assert "Workflow Run Failed" in out
@@ -155,14 +152,13 @@ class WorkflowRunCommandDirectTests:
         )
         scan_and_index_catalog(cwd=git_fs.base_path)
 
-        with pytest.raises(typer.Exit) as exc_info:
-            workflow_run_command(
-                "failing-wf",
-                cwd=git_fs.base_path,
-                no_sandbox=True,
-                session_id="wf_fail_1",
-            )
-        assert exc_info.value.exit_code == 1
+        outcome = workflow_run_command(
+            "failing-wf",
+            cwd=git_fs.base_path,
+            no_sandbox=True,
+            session_id="wf_fail_1",
+        )
+        assert not outcome.ok
 
         out = capsys.readouterr().out
         assert "Workflow Run Failed" in out
@@ -195,9 +191,8 @@ class WorkflowRunCommandDirectTests:
         )
         scan_and_index_catalog(cwd=git_fs.base_path)
 
-        with pytest.raises(typer.Exit) as exc_info:
-            workflow_run_command("loop-wf", cwd=git_fs.base_path, no_sandbox=True)
-        assert exc_info.value.exit_code == 1
+        outcome = workflow_run_command("loop-wf", cwd=git_fs.base_path, no_sandbox=True)
+        assert not outcome.ok
 
         out = capsys.readouterr().out
         assert "Workflow Run Failed" in out
@@ -224,9 +219,8 @@ class WorkflowRunCommandDirectTests:
 
         monkeypatch.setattr(Engine, "run", _mock_run)
 
-        with pytest.raises(typer.Exit) as exc_info:
-            workflow_run_command("fix-tests", cwd=git_fs.base_path, no_sandbox=True)
-        assert exc_info.value.exit_code == 1
+        outcome = workflow_run_command("fix-tests", cwd=git_fs.base_path, no_sandbox=True)
+        assert not outcome.ok
 
         out = capsys.readouterr().out
         assert "Workflow Run Cancelled" in out
@@ -253,9 +247,8 @@ class WorkflowRunCommandDirectTests:
 
         monkeypatch.setattr(Engine, "run", _mock_run)
 
-        with pytest.raises(typer.Exit) as exc_info:
-            workflow_run_command("fix-tests", cwd=git_fs.base_path, no_sandbox=True)
-        assert exc_info.value.exit_code == 0
+        outcome = workflow_run_command("fix-tests", cwd=git_fs.base_path, no_sandbox=True)
+        assert outcome.ok
 
         out = capsys.readouterr().out
         assert "Workflow paused; checkpoint saved." in out

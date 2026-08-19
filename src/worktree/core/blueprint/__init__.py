@@ -6,7 +6,11 @@ from worktree.core.blueprint.exceptions import (
     BlueprintNotFoundError,
     BlueprintValidationError,
 )
-from worktree.core.blueprint.models import BlueprintDefinition, BlueprintKind
+from worktree.core.blueprint.models import (
+    BlueprintDefinition,
+    BlueprintKind,
+    BlueprintRunCommandOutcome,
+)
 from worktree.core.blueprint.renderers import BlueprintRenderer, Renderer
 
 __all__ = [
@@ -16,6 +20,7 @@ __all__ = [
     "BlueprintLoadError",
     "BlueprintNotFoundError",
     "BlueprintRenderer",
+    "BlueprintRunCommandOutcome",
     "BlueprintValidationError",
     "Renderer",
 ]
