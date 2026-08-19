@@ -7,45 +7,14 @@ from pathlib import Path
 import typer
 
 from worktree.common.utils import RichOutput
-from worktree.core.config.loader import load_config_result
-from worktree.core.db import RunsDb
 
-from ..models import HistoryShowResult, HistoryShowStatus
+from ..models import HistoryShowStatus
 from ..renderers import (
     render_history_not_found,
     render_history_show,
     render_not_initialized,
 )
-
-
-def collect_history_show(
-    session_id: str,
-    *,
-    cwd: Path | None = None,
-) -> HistoryShowResult:
-    """Look up execution session metadata, errors, and checkpoint contents from database.
-
-    Args:
-        session_id: Session identifier to inspect.
-        cwd: Repository root. Defaults to process CWD.
-
-    Returns:
-        Structured show result containing execution record or classified error.
-    """
-    root = (cwd or Path.cwd()).resolve()
-    load = load_config_result(cwd=root)
-    if not load.ok:
-        return HistoryShowResult(
-            status=HistoryShowStatus.NOT_INITIALIZED,
-            errors=list(load.errors),
-        )
-
-    db = RunsDb(root)
-    row = db.get(session_id)
-    if row is None:
-        return HistoryShowResult(status=HistoryShowStatus.NOT_FOUND)
-
-    return HistoryShowResult(status=HistoryShowStatus.OK, run=row)
+from ..services import collect_history_show
 
 
 def history_show_command(
