@@ -29,10 +29,24 @@ def upgrade() -> None:
         sa.Column("base_commit", AutoString(), nullable=False),
         sa.Column("sandbox_path", AutoString(), nullable=False),
         sa.Column("status", AutoString(), nullable=False, server_default="active"),
-        sa.Column("created_at", AutoString(), nullable=False),
-        sa.Column("updated_at", AutoString(), nullable=False),
+        sa.Column(
+            "created_at",
+            AutoString(),
+            nullable=False,
+            server_default=sa.text("CURRENT_TIMESTAMP"),
+        ),
+        sa.Column(
+            "updated_at",
+            AutoString(),
+            nullable=False,
+            server_default=sa.text("CURRENT_TIMESTAMP"),
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("sandbox_path"),
+        sa.CheckConstraint(
+            "status IN ('active', 'merged', 'cleaned', 'conflict')",
+            name="ck_sandboxes_status",
+        ),
     )
     op.create_index("idx_sandboxes_status", "sandboxes", ["status"], unique=False)
 
@@ -44,11 +58,25 @@ def upgrade() -> None:
         sa.Column("name", AutoString(), nullable=False),
         sa.Column("path", AutoString(), nullable=False),
         sa.Column("checksum", AutoString(), nullable=False),
-        sa.Column("created_at", AutoString(), nullable=False),
-        sa.Column("updated_at", AutoString(), nullable=False),
+        sa.Column(
+            "created_at",
+            AutoString(),
+            nullable=False,
+            server_default=sa.text("CURRENT_TIMESTAMP"),
+        ),
+        sa.Column(
+            "updated_at",
+            AutoString(),
+            nullable=False,
+            server_default=sa.text("CURRENT_TIMESTAMP"),
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("path"),
         sa.UniqueConstraint("sha"),
+        sa.CheckConstraint(
+            "item_type IN ('workflow', 'task', 'step')",
+            name="ck_catalog_item_type",
+        ),
     )
     op.create_index("idx_catalog_sha", "catalog", ["sha"], unique=True)
     op.create_index("idx_catalog_type", "catalog", ["item_type"], unique=False)
@@ -62,12 +90,25 @@ def upgrade() -> None:
         sa.Column("kind", AutoString(), nullable=False),
         sa.Column("branch_name", AutoString(), nullable=False, server_default=""),
         sa.Column("status", AutoString(), nullable=False, server_default="running"),
-        sa.Column("started_at", AutoString(), nullable=False),
+        sa.Column(
+            "started_at",
+            AutoString(),
+            nullable=False,
+            server_default=sa.text("CURRENT_TIMESTAMP"),
+        ),
         sa.Column("completed_at", AutoString(), nullable=True),
         sa.Column("error_message", AutoString(), nullable=True),
         sa.Column("checkpoint_json", AutoString(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("session_id"),
+        sa.CheckConstraint(
+            "kind IN ('task', 'workflow')",
+            name="ck_runs_kind",
+        ),
+        sa.CheckConstraint(
+            "status IN ('running', 'completed', 'failed', 'cancelled', 'paused')",
+            name="ck_runs_status",
+        ),
     )
     op.create_index("idx_runs_session", "runs", ["session_id"], unique=True)
     op.create_index("idx_runs_status", "runs", ["status"], unique=False)
@@ -83,7 +124,12 @@ def upgrade() -> None:
         sa.Column("completion_tokens", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("total_tokens", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("estimated_usd_cost", sa.Float(), nullable=False, server_default="0.0"),
-        sa.Column("created_at", AutoString(), nullable=False),
+        sa.Column(
+            "created_at",
+            AutoString(),
+            nullable=False,
+            server_default=sa.text("CURRENT_TIMESTAMP"),
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("idx_workflow_costs_session", "workflow_costs", ["session_id"], unique=False)

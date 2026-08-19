@@ -18,7 +18,7 @@ src/worktree/core/                   Business logic (no Typer)
   bootstrap.py                       .worktree/ create/repair
   git_sandbox.py                     git worktree sandbox lifecycle
   config/                            Legacy flat infra (loader/mutate/validate/…)
-  db/                                Legacy flat infra (connection, migrations, repos)
+  db/                                models.py, connection.py, migrations.py, repositories/, alembic/
   inputs/                            models.py + services/ (resolve, interpolate, renderer)
   catalog/                           models.py + services/ + templates/
   blueprint/                         models.py, exceptions.py, renderers.py,
