@@ -1,4 +1,4 @@
-"""Database migration DDL statements and database initialization logic."""
+"""Database migration execution and database initialization logic."""
 
 import sqlite3
 from pathlib import Path
@@ -11,81 +11,6 @@ from worktree.core.db.connection import (
     get_db_connection,
     resolve_db_path,
 )
-
-# Schema migration DDL for tracking AI model token costs (retained for backward compatibility)
-CREATE_WORKFLOW_COSTS_TABLE_SQL = """
-CREATE TABLE IF NOT EXISTS workflow_costs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    session_id TEXT NOT NULL,
-    branch_name TEXT NOT NULL,
-    model_id TEXT NOT NULL,
-    prompt_tokens INTEGER NOT NULL DEFAULT 0,
-    completion_tokens INTEGER NOT NULL DEFAULT 0,
-    total_tokens INTEGER NOT NULL DEFAULT 0,
-    estimated_usd_cost REAL NOT NULL DEFAULT 0.0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_workflow_costs_session ON workflow_costs(session_id);
-CREATE INDEX IF NOT EXISTS idx_workflow_costs_created ON workflow_costs(created_at);
-"""
-
-# Schema migration DDL for durable sandbox metadata (retained for backward compatibility)
-CREATE_SANDBOXES_TABLE_SQL = """
-CREATE TABLE IF NOT EXISTS sandboxes (
-    id TEXT PRIMARY KEY,
-    name TEXT,
-    branch_name TEXT NOT NULL,
-    base_commit TEXT NOT NULL,
-    sandbox_path TEXT NOT NULL UNIQUE,
-    status TEXT NOT NULL DEFAULT 'active'
-        CHECK(status IN ('active', 'merged', 'cleaned', 'conflict')),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_sandboxes_status ON sandboxes(status);
-"""
-
-# Schema migration DDL for catalog indexing (retained for backward compatibility)
-CREATE_CATALOG_TABLE_SQL = """
-CREATE TABLE IF NOT EXISTS catalog (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    sha TEXT UNIQUE NOT NULL,
-    item_type TEXT NOT NULL CHECK(item_type IN ('workflow', 'task', 'step')),
-    name TEXT NOT NULL,
-    path TEXT NOT NULL UNIQUE,
-    checksum TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_catalog_sha ON catalog(sha);
-CREATE INDEX IF NOT EXISTS idx_catalog_type ON catalog(item_type);
-CREATE INDEX IF NOT EXISTS idx_catalog_path ON catalog(path);
-"""
-
-_RUN_STATUS_CHECK = "('running', 'completed', 'failed', 'cancelled', 'paused')"
-_RUN_KIND_CHECK = "('task', 'workflow')"
-
-# Schema migration DDL for unified run execution tracking (retained for backward compatibility)
-CREATE_RUNS_TABLE_SQL = f"""
-CREATE TABLE IF NOT EXISTS runs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    session_id TEXT NOT NULL UNIQUE,
-    blueprint_name TEXT NOT NULL,
-    kind TEXT NOT NULL CHECK(kind IN {_RUN_KIND_CHECK}),
-    branch_name TEXT NOT NULL DEFAULT '',
-    status TEXT NOT NULL DEFAULT 'running' CHECK(status IN {_RUN_STATUS_CHECK}),
-    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    completed_at TIMESTAMP,
-    error_message TEXT,
-    checkpoint_json TEXT
-);
-"""
-
-CREATE_RUNS_INDEXES_SQL = """
-CREATE INDEX IF NOT EXISTS idx_runs_session ON runs(session_id);
-CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status);
-CREATE INDEX IF NOT EXISTS idx_runs_started ON runs(started_at DESC);
-"""
 
 
 def _table_ddl(conn: sqlite3.Connection, table: str) -> str | None:

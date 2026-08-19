@@ -15,14 +15,7 @@ from worktree.core.db.connection import (
 )
 from worktree.core.db.costs import CostsDb
 from worktree.core.db.facade import WorktreeDb
-from worktree.core.db.migrations import (
-    CREATE_CATALOG_TABLE_SQL,
-    CREATE_RUNS_INDEXES_SQL,
-    CREATE_RUNS_TABLE_SQL,
-    CREATE_SANDBOXES_TABLE_SQL,
-    CREATE_WORKFLOW_COSTS_TABLE_SQL,
-    init_database,
-)
+from worktree.core.db.migrations import init_database
 from worktree.core.db.models import (
     BlueprintKind,
     CatalogItemType,
@@ -38,11 +31,6 @@ from worktree.core.db.runs import RunsDb
 from worktree.core.db.sandboxes import SandboxesDb
 
 __all__ = [
-    "CREATE_CATALOG_TABLE_SQL",
-    "CREATE_RUNS_INDEXES_SQL",
-    "CREATE_RUNS_TABLE_SQL",
-    "CREATE_SANDBOXES_TABLE_SQL",
-    "CREATE_WORKFLOW_COSTS_TABLE_SQL",
     "DEFAULT_DB_REL_PATH",
     "BaseRepository",
     "BlueprintKind",
