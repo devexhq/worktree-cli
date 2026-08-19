@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
+from worktree.common.utils import RichOutput
 from worktree.core.blueprint.models import BlueprintKind
+from worktree.core.db import RunRecord
 from worktree.core.runtime import RunOutcome
 
 
@@ -65,3 +67,19 @@ class BlueprintRenderer:
         if errors:
             return "\n\n".join(errors)
         return f"{self.kind.value.capitalize()} definition is invalid."
+
+
+def render_blueprint_run_success(
+    run_record: RunRecord,
+    kind: BlueprintKind | None = None,
+    *,
+    rich_output: RichOutput | None = None,
+) -> None:
+    """Render blueprint run execution summary."""
+    output = rich_output or RichOutput()
+    effective_kind = kind or run_record.kind
+    label = effective_kind.value.capitalize() if effective_kind is not None else "Blueprint"
+    output.info(
+        f"[bold green]{label} Run Completed:[/] {run_record.blueprint_name} "
+        f"(session: {run_record.session_id}, status: {run_record.status.value})"
+    )

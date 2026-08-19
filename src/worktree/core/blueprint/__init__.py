@@ -1,6 +1,5 @@
-"""Unified blueprint document models and load/inspect handle."""
+"""Unified blueprint document models, load/inspect handle, and execution services."""
 
-from worktree.core.blueprint.blueprint import Blueprint
 from worktree.core.blueprint.exceptions import (
     BlueprintLoadError,
     BlueprintNotFoundError,
@@ -12,6 +11,11 @@ from worktree.core.blueprint.models import (
     BlueprintRunCommandOutcome,
 )
 from worktree.core.blueprint.renderers import BlueprintRenderer, Renderer
+from worktree.core.blueprint.services import (
+    Blueprint,
+    BlueprintResumeService,
+    BlueprintRunService,
+)
 
 __all__ = [
     "Blueprint",
@@ -20,7 +24,9 @@ __all__ = [
     "BlueprintLoadError",
     "BlueprintNotFoundError",
     "BlueprintRenderer",
+    "BlueprintResumeService",
     "BlueprintRunCommandOutcome",
+    "BlueprintRunService",
     "BlueprintValidationError",
     "Renderer",
 ]

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import typer
 
-from worktree.cli.blueprint import BlueprintRunService
+from worktree.core.blueprint import BlueprintRunService
 
 
 def run_root(
