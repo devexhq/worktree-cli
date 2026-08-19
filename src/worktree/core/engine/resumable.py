@@ -11,7 +11,7 @@ from worktree.core.blueprint.exceptions import (
 )
 from worktree.core.blueprint.services.blueprint import Blueprint
 from worktree.core.catalog import Catalog
-from worktree.core.db import RunRecord, RunsDb, RunStatus
+from worktree.core.db import RunRecord, RunsRepository, RunStatus
 from worktree.core.engine.exceptions import EngineResumeError
 from worktree.core.engine.models import EngineResumeStatus
 from worktree.core.runtime import RunCheckpoint, parse_checkpoint
@@ -30,7 +30,7 @@ class ResumableRun:
         message: str = "",
         checkpoint: RunCheckpoint | None = None,
         steps: list[StepDefinition] | None = None,
-        db: RunsDb | None = None,
+        db: RunsRepository | None = None,
         blueprint: Blueprint | None = None,
     ) -> None:
         self.session_id = session_id
@@ -56,7 +56,7 @@ class ResumableRun:
             and self.blueprint is not None
         )
 
-    def ready(self) -> tuple[Blueprint, RunsDb, RunCheckpoint]:
+    def ready(self) -> tuple[Blueprint, RunsRepository, RunCheckpoint]:
         """Return blueprint, db, and checkpoint, or raise ``EngineResumeError``."""
         blueprint = self.blueprint
         db = self.db
@@ -138,9 +138,9 @@ class ResumableRun:
         session_id: str,
         blueprint: Blueprint | None,
         cwd: Path,
-    ) -> tuple[RunRecord, RunsDb] | None:
+    ) -> tuple[RunRecord, RunsRepository] | None:
         """Return the run row and repository, or None when the session is missing."""
-        db = RunsDb(cwd)
+        db = RunsRepository(cwd)
         row = db.get(session_id)
         if row is None:
             return None

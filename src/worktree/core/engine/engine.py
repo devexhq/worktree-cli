@@ -6,7 +6,7 @@ import uuid
 from pathlib import Path
 
 from worktree.core.blueprint.services.blueprint import Blueprint
-from worktree.core.db import RunsDb, RunStatus
+from worktree.core.db import RunsRepository, RunStatus
 from worktree.core.engine.exceptions import EngineInputError, EngineRuntimeError
 from worktree.core.engine.models import RunRequest
 from worktree.core.engine.resumable import ResumableRun
@@ -23,9 +23,9 @@ from worktree.core.step import LoopStepBlock, StepDefinition
 
 
 class _DbPauseStore:
-    """``RunPauseStore`` adapter backed by RunsDb repository."""
+    """``RunPauseStore`` adapter backed by RunsRepository."""
 
-    def __init__(self, db: RunsDb, session_id: str) -> None:
+    def __init__(self, db: RunsRepository, session_id: str) -> None:
         self._db = db
         self._session_id = session_id
 
@@ -51,7 +51,7 @@ class Engine:
 
     def __init__(self, cwd: Path | None = None) -> None:
         self.cwd = (cwd or Path.cwd()).resolve()
-        self.db = RunsDb(self.cwd)
+        self.db = RunsRepository(self.cwd)
 
     def run(self, blueprint: Blueprint, request: RunRequest | None = None) -> RunOutcome:
         """Adapt ``blueprint`` into ``RunContext`` and delegate to ``run_steps``."""
