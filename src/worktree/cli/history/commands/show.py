@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import typer
 
-from worktree.cli.history.services import HistoryShowService
+from worktree.core.history import HistoryShowService
 
 
 def history_show(

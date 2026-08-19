@@ -1,4 +1,4 @@
-"""Class-based execution services for history CLI commands."""
+"""Class-based execution services for history operations."""
 
 from __future__ import annotations
 

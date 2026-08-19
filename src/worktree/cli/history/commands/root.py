@@ -6,8 +6,8 @@ from typing import Annotated
 
 import typer
 
-from worktree.cli.history.services import HistoryListService
 from worktree.core.db import BlueprintKind, RunStatus
+from worktree.core.history import HistoryListService
 
 
 def history_root(

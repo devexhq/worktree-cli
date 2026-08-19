@@ -1,4 +1,4 @@
-"""Outcome models for history CLI commands."""
+"""Outcome models for history operations."""
 
 from __future__ import annotations
 

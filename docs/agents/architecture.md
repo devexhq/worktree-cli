@@ -10,11 +10,9 @@ detail lives in [schemas-and-config.md](schemas-and-config.md).
 
 ```
 src/worktree/cli/cli.py              Typer entrypoint
-src/worktree/cli/<name>/             One package per CLI subcommand
+src/worktree/cli/<name>/             One package per CLI subcommand (thin wrappers over domain)
   app.py                             Typer app / command registration
-  commands/                          Command handlers (e.g. root.py, list.py)
-  models.py                          Pydantic outcome model(s) when non-trivial
-  renderers.py                       Rich console output
+  commands/                          Command handlers (e.g. root.py, show.py)
 
 src/worktree/core/                   Business logic (no Typer)
   bootstrap.py                       .worktree/ create/repair
@@ -24,6 +22,7 @@ src/worktree/core/                   Business logic (no Typer)
   inputs/                            models.py + services/ (resolve, interpolate, renderer)
   catalog/                           models.py + services/ + templates/
   blueprint/                         models.py, blueprint.py (load/inspect handle)
+  history/                           models.py, renderers.py, services.py
   step/                              models.py, exceptions.py, runner.py (entrypoint),
                                      assertions/, services/{loader,resolver}.py
   runtime/                           models.py, exceptions.py, engine.py (entrypoint),
@@ -76,18 +75,20 @@ Single-step execution: `core/step/` (`runner.py`). Multi-step orchestration:
   Domain adapters persist pause checkpoints.
 - **Catalog** (`core/catalog/`): blueprint scan/index, `CatalogDb` sync hooks,
   packaged seeds under `templates/`.
+- **History** (`core/history/`): `HistoryListService`, `HistoryShowService`,
+  result models, and table/panel renderers.
 - **Shared core infra**: `config/`, `db/`, `bootstrap.py`, `git_sandbox.py`,
   plus foundational domains above.
 
-CLI: not every command needs `models.py` / `renderers.py` — add them when
-output grows past a couple of lines.
+CLI: packages are thin wrappers over core domain services and contain no
+business logic, database queries, or execution algorithms.
 
 ### Package boundaries (import direction)
 
 Dependencies flow one way; do not import "up" the stack:
 
 ```
-common/  ->  core/{db,catalog,inputs,patch}/  ->  core/agents/  ->  core/step/  ->  {core/runtime/, core/blueprint/}  ->  core/engine/  ->  {core/task/, core/workflows/}  ->  cli/
+common/  ->  core/{db,catalog,inputs,patch,history}/  ->  core/agents/  ->  core/step/  ->  {core/runtime/, core/blueprint/}  ->  core/engine/  ->  {core/task/, core/workflows/}  ->  cli/
 ```
 
 - `common/` never depends on `core/`.
@@ -115,9 +116,11 @@ instead of adding an upward import.
 
 ## Adding a new command
 
-1. Create `src/worktree/cli/<name>/` with `app.py` and `commands/<subcommand>.py` (or
-   `commands/root.py` for root commands; add `models.py` / `renderers.py` when output is non-trivial).
-2. Wire command logic directly to underlying domain services (e.g. `BlueprintRunService`).
+1. Create `src/worktree/cli/<name>/` with lean `app.py` and `commands/<subcommand>.py` (or
+   `commands/root.py` for root commands).
+2. Wire command logic directly to underlying domain services (e.g. `BlueprintRunService`,
+   `HistoryListService`). The CLI package should not contain actual logic — it is
+   simply a wrapper around the domain being executed.
 3. Register in [src/worktree/cli/cli.py](../../src/worktree/cli/cli.py).
 4. Tests under `tests/cli/<name>/`.
 

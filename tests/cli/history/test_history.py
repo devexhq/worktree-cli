@@ -10,21 +10,21 @@ from typer.testing import CliRunner
 
 from tests.helpers import FileSystem
 from worktree.cli import app
-from worktree.cli.history.models import HistoryListStatus, HistoryShowStatus
-from worktree.cli.history.renderers import (
+from worktree.core.blueprint import BlueprintKind
+from worktree.core.config.generator import generate_default_config
+from worktree.core.db import RunRecord, RunsDb, RunStatus
+from worktree.core.history.models import HistoryListStatus, HistoryShowStatus
+from worktree.core.history.renderers import (
     _parse_timestamp,
     format_run_duration,
     format_run_status,
 )
-from worktree.cli.history.services import (
+from worktree.core.history.services import (
     HistoryListService,
     HistoryShowService,
     collect_history_list,
     collect_history_show,
 )
-from worktree.core.blueprint import BlueprintKind
-from worktree.core.config.generator import generate_default_config
-from worktree.core.db import RunRecord, RunsDb, RunStatus
 from worktree.core.runtime import RunCheckpoint
 from worktree.core.step import StepResult
 

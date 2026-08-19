@@ -1,4 +1,4 @@
-"""Rich console renderers for ``wt history`` commands."""
+"""Rich console renderers for execution history."""
 
 from __future__ import annotations
 
@@ -131,7 +131,7 @@ def render_not_initialized(errors: list[str], *, rich_output: RichOutput | None 
 
 
 def render_history_not_found(session_id: str, *, rich_output: RichOutput | None = None) -> None:
-    """Render the not-found error panel for ``wt history show``."""
+    """Render the not-found error panel for history show."""
     output = rich_output or _DEFAULT_RICH_OUTPUT
     message = f"Session '{session_id}' not found.\nFix:\n- run `wt history` to view past sessions"
     output.error_panel("Session Not Found", message)
