@@ -211,4 +211,7 @@ should be reported, leave a one-line comment at the `except` site saying so.
   `tests/*` are exempt.
 - `worktree` is registered as first-party for isort; keep local imports grouped
   accordingly and let `ruff format`/`ruff check --fix` handle ordering.
+- Use absolute imports (`worktree.*`) across packages or subpackages. Relative
+  imports are only allowed within the same directory/package (using single `.`),
+  never parent-relative traversal (no `..`).
 - Use `__all__` in package root `__init__.py` files when re-exporting internal symbols into a public subpackage surface (e.g. `core/db/__init__.py`). Omit `__all__` in leaf modules.
