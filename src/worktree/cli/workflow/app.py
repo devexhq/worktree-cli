@@ -64,7 +64,7 @@ def workflow_run(
     ),
 ):
     """Run a workflow blueprint."""
-    workflow_run_command(
+    outcome = workflow_run_command(
         name,
         no_sandbox=no_sandbox,
         keep=keep,
@@ -73,6 +73,8 @@ def workflow_run(
         cli_args=list(ctx.args),
         non_interactive=non_interactive,
     )
+    if not outcome.ok:
+        raise typer.Exit(code=1)
 
 
 @workflow_app.command("resume")

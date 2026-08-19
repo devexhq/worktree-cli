@@ -104,7 +104,7 @@ def test_task_run_prompt_user_persists_paused_checkpoint(
             return True
 
     monkeypatch.setattr(
-        "worktree.cli.task.command.CliFailurePrompter",
+        "worktree.cli.blueprint.service.CliFailurePrompter",
         lambda *args, **kwargs: _InterruptPrompter(),
     )
     monkeypatch.setattr(
@@ -155,7 +155,7 @@ def test_task_run_keep_retains_sandbox(fs: FileSystem, monkeypatch: pytest.Monke
             session_id=request.session_id if request is not None else "task_keep",
         )
 
-    monkeypatch.setattr("worktree.cli.task.command.Engine.run", _fake_engine_run)
+    monkeypatch.setattr("worktree.cli.blueprint.service.Engine.run", _fake_engine_run)
 
     result = runner.invoke(app, ["task", "run", "keep-task", "--keep"])
     assert result.exit_code == 0
@@ -276,7 +276,7 @@ def test_task_run_invalid_assert_aborts_before_steps(fs: FileSystem, monkeypatch
     )
 
     engine_run = MagicMock()
-    monkeypatch.setattr("worktree.cli.task.command.Engine.run", engine_run)
+    monkeypatch.setattr("worktree.cli.blueprint.service.Engine.run", engine_run)
 
     res = task_run_command("bad-assert-task", cwd=fs.base_path, session_id="task_bad_assert")
     assert not res.ok
@@ -388,7 +388,7 @@ def test_task_run_non_interactive_flag_forwarded(fs: FileSystem, monkeypatch: py
             session_id=request.session_id if request is not None else None,
         )
 
-    monkeypatch.setattr("worktree.cli.task.command.Engine.run", _fake_engine_run)
+    monkeypatch.setattr("worktree.cli.blueprint.service.Engine.run", _fake_engine_run)
     # Force non-interactive path even if TTY
     res = task_run_command("ni-task", cwd=fs.base_path, non_interactive=True, session_id="task_ni1")
     assert res.ok
@@ -403,7 +403,7 @@ def test_task_run_rejects_workflow_kind(fs: FileSystem, monkeypatch: pytest.Monk
     fs.create_workflow_file("wf-only", use_sandbox=False)
 
     engine_run = MagicMock()
-    monkeypatch.setattr("worktree.cli.task.command.Engine.run", engine_run)
+    monkeypatch.setattr("worktree.cli.blueprint.service.Engine.run", engine_run)
 
     res = task_run_command("wf-only", cwd=fs.base_path, session_id="task_wf")
     assert not res.ok
