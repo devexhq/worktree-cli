@@ -5,6 +5,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy import String, TypeDecorator
 from sqlmodel import Field, SQLModel
 
 
@@ -47,6 +48,25 @@ def _now_utc_str() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
 
 
+class PathType(TypeDecorator[Path]):
+    """SQLAlchemy type for coercing Path objects to strings and back."""
+
+    impl = String
+    cache_ok = True
+
+    def process_bind_param(self, value: Path | str | None, dialect: Any) -> str | None:
+        """Coerce incoming Path or str object to string for SQLite storage."""
+        if value is None:
+            return None
+        return str(value)
+
+    def process_result_value(self, value: str | None, dialect: Any) -> Path | None:
+        """Coerce retrieved database string value back into a Path instance."""
+        if value is None:
+            return None
+        return Path(value)
+
+
 class SandboxRecord(SQLModel, table=True):
     """Row shape for the local `sandboxes` table."""
 
@@ -57,8 +77,8 @@ class SandboxRecord(SQLModel, table=True):
     name: str | None = Field(default=None)
     branch_name: str
     base_commit: str
-    sandbox_path: Path = Field(unique=True)
-    status: SandboxStatus = Field(default=SandboxStatus.ACTIVE, index=True)
+    sandbox_path: Path = Field(sa_type=PathType, unique=True)
+    status: SandboxStatus = Field(default=SandboxStatus.ACTIVE, sa_type=String, index=True)
     created_at: str = Field(default_factory=_now_utc_str)
     updated_at: str = Field(default_factory=_now_utc_str)
 
@@ -82,9 +102,9 @@ class CatalogRecord(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     sha: str = Field(unique=True, index=True)
-    item_type: CatalogItemType = Field(index=True)
+    item_type: CatalogItemType = Field(sa_type=String, index=True)
     name: str
-    path: Path = Field(unique=True, index=True)
+    path: Path = Field(sa_type=PathType, unique=True, index=True)
     checksum: str
     created_at: str = Field(default_factory=_now_utc_str)
     updated_at: str = Field(default_factory=_now_utc_str)
@@ -105,9 +125,9 @@ class RunRecord(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     session_id: str = Field(unique=True, index=True)
     blueprint_name: str
-    kind: BlueprintKind
+    kind: BlueprintKind = Field(sa_type=String)
     branch_name: str = Field(default="")
-    status: RunStatus = Field(default=RunStatus.RUNNING, index=True)
+    status: RunStatus = Field(default=RunStatus.RUNNING, sa_type=String, index=True)
     started_at: str = Field(default_factory=_now_utc_str, index=True)
     completed_at: str | None = Field(default=None)
     error_message: str | None = Field(default=None)

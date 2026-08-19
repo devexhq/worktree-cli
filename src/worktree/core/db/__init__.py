@@ -1,6 +1,6 @@
 """src/worktree/core/db package.
 
-Handles offline SQLite connection management, database migrations, financial token
+Handles SQLite connection management, database migrations, financial token
 usage tracking, catalog indexing, and unified run execution tracking.
 """
 
@@ -9,6 +9,8 @@ from worktree.core.db.catalog import CatalogDb
 from worktree.core.db.connection import (
     DEFAULT_DB_REL_PATH,
     get_db_connection,
+    get_engine,
+    get_session,
     resolve_db_path,
 )
 from worktree.core.db.costs import CostsDb
@@ -31,6 +33,7 @@ from worktree.core.db.models import (
     SandboxStatus,
     WorkflowCostRecord,
 )
+from worktree.core.db.repositories import BaseRepository
 from worktree.core.db.runs import RunsDb
 from worktree.core.db.sandboxes import SandboxesDb
 
@@ -41,6 +44,7 @@ __all__ = [
     "CREATE_SANDBOXES_TABLE_SQL",
     "CREATE_WORKFLOW_COSTS_TABLE_SQL",
     "DEFAULT_DB_REL_PATH",
+    "BaseRepository",
     "BlueprintKind",
     "CatalogDb",
     "CatalogItemType",
@@ -56,6 +60,8 @@ __all__ = [
     "WorkflowCostRecord",
     "WorktreeDb",
     "get_db_connection",
+    "get_engine",
+    "get_session",
     "init_database",
     "resolve_db_path",
 ]
