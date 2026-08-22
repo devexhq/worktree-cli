@@ -39,9 +39,9 @@ pip install "worktree-cli[cursor]"
 wt init
 wt status
 wt config validate
-wt workflow list
-wt workflow show wf-12345
-wt workflow run fix-tests
+wt catalog list
+wt run fix-tests
+wt history
 ```
 
 ## Current command surface
@@ -50,18 +50,29 @@ wt workflow run fix-tests
 
 - `wt init`
 - `wt status`
+- `wt run <blueprint>` — execute a task or workflow blueprint
+- `wt resume <session-id>` — resume a paused run
+- `wt history [show <session-id>]` — list or inspect past runs
 
 ### Config
 
 - `wt config show`
+- `wt config set <key> <value>`
 - `wt config validate`
 
-### Workflow
+### Catalog
 
-- `wt workflow list` (or `wt workflow`)
-- `wt workflow show <id>`
-- `wt workflow run <name>`
-- `wt workflow resume <id>`
+- `wt catalog list` — list catalog blueprints/templates
+- `wt catalog create` — create a new catalog blueprint
+- `wt catalog show <sha-or-name>`
+- `wt catalog delete <sha-or-name>`
+
+### Sandbox
+
+- `wt sandbox create`
+- `wt sandbox list`
+- `wt sandbox show <sandbox-id>`
+- `wt sandbox delete <sandbox-id>`
 
 ## Agent providers for workflow runs
 
