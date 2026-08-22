@@ -106,25 +106,44 @@ def _list_wip_paths(repo_root: Path) -> list[str]:
     return sorted(paths)
 
 
+def _remove_dst(dst: Path) -> None:
+    """Remove *dst* regardless of whether it is a file, symlink, or directory."""
+    if dst.exists() or dst.is_symlink():
+        if dst.is_dir() and not dst.is_symlink():
+            shutil.rmtree(dst)
+        else:
+            dst.unlink()
+
+
 def _copy_wip_file(source_root: Path, dest_root: Path, rel: str) -> None:
+    """Mirror a single working-tree path from *source_root* into *dest_root*.
+
+    Behaviour by case:
+
+    - **Source deleted**: remove the corresponding destination path (file,
+      symlink, or directory tree) so the sandbox stays in sync.
+    - **Source is a plain directory**: skip — directory entries are created
+      implicitly when their children are copied.
+    - **Source is a symlink**: recreate the symlink at the destination,
+      replacing whatever was there before.
+    - **Source is a regular file**: copy the file (preserving metadata via
+      :func:`shutil.copy2`), creating any missing parent directories.
+
+    Args:
+        source_root: Absolute path to the primary repository checkout.
+        dest_root: Absolute path to the sandbox worktree.
+        rel: Repo-relative path of the entry to mirror.
+    """
     src = source_root / rel
     dst = dest_root / rel
     if not src.exists():
-        if dst.exists() or dst.is_symlink():
-            if dst.is_dir() and not dst.is_symlink():
-                shutil.rmtree(dst)
-            else:
-                dst.unlink()
+        _remove_dst(dst)
         return
     if src.is_dir() and not src.is_symlink():
         return
     dst.parent.mkdir(parents=True, exist_ok=True)
     if src.is_symlink():
-        if dst.exists() or dst.is_symlink():
-            if dst.is_dir() and not dst.is_symlink():
-                shutil.rmtree(dst)
-            else:
-                dst.unlink()
+        _remove_dst(dst)
         dst.symlink_to(src.readlink())
         return
     shutil.copy2(src, dst)
