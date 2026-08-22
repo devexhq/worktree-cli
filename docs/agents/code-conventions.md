@@ -9,7 +9,28 @@ model_config = {"extra": "forbid", "strict": True}
 ```
 
 This catches typos in constructed payloads and unexpected extra keys early.
-Follow this for any new `BaseModel` you add.
+Follow this for any new `BaseModel` you add — including models that parse
+third-party/LLM-provided JSON (e.g. agent stdout payloads). `extra: "ignore"`
+is not an acceptable default there either: a provider that renames or
+misspells a field should surface as a validation error, not silently drop the
+value and fall through to a default. If a specific payload genuinely needs
+leniency, say so with a one-line comment at the `model_config`, don't leave
+the deviation unexplained.
+
+Current, scoped deviations from this default (each should carry that one-line
+comment; not all do yet):
+
+- `OllamaModelStdout` (`core/agents/ollama.py`) — parses LLM-generated JSON;
+  see the file for why leniency was chosen there despite the guidance above.
+- `TaskDefinition`, `WorkflowDefinition`, `BlueprintDefinition`,
+  `BlueprintDefaults`, and `LoopStepBlock` (`core/task/`, `core/workflows/`,
+  `core/blueprint/`, `core/step/models.py`) all use `extra: "ignore"` — see
+  [schemas-and-config.md](schemas-and-config.md#blueprint-models-and-extra-ignore)
+  for the likely (hand-authored-YAML) rationale and why it should be made
+  explicit rather than inferred.
+
+Both are exceptions to be justified at the model, not a precedent for adding a
+third without one.
 
 ## Variable naming
 
@@ -41,7 +62,7 @@ stripped under `python -O` and is not a control-flow or type-narrowing tool.
 ### Core package layout
 
 Default skeleton for a **domain** package under `src/worktree/core/<domain>/`
-(exemplars: `task/`, `inputs/`, `catalog/`, `workflows/`, `agents/`, `patch/`):
+(exemplars: `task/`, `inputs/`, `catalog/`, `workflows/`, `patch/`):
 
 ```text
 core/<domain>/
@@ -76,7 +97,8 @@ core/<domain>/
 | Location | Rule |
 |----------|------|
 | `core/config/`, `core/db/` | **Legacy flat infra** — modules stay at package root. Do not use as a template for new domains. |
-| `core/step/runner.py`, `core/runtime/engine.py`, `core/patch/patch.py` | **Allowed root entrypoints** for single-step / multi-step execution and unified-diff validation. New helpers still go in `services/` (or stay private in the entry module). Prefer `models.py` for new result/DTO types even when older types still live next to the runner. |
+| `core/step/runner.py`, `core/runtime/engine.py`, `core/engine/engine.py`, `core/patch/patch.py` | **Allowed root entrypoints** for single-step execution, multi-step orchestration, the DB-persisted run/resume process facade, and unified-diff validation, respectively. New helpers still go in `services/` (or stay private in the entry module). Prefer `models.py` for new result/DTO types even when older types still live next to the runner. |
+| `core/agents/` | **Adapter-pattern domain** — `base.py`, `factory.py`, and one module per provider (`local.py`, `ollama.py`, `cursor.py`, `gemini.py`, `copilot.py`) are peers at the package root, not under `services/`. Each provider module is a cohesive adapter implementation, not a generic `services/<verb>.py` operation. This is a deliberate exception, not license to add unrelated logic modules to the package root: shared cross-provider helpers (subprocess invocation, env-secret lookup, elapsed-time calc, stdout-mapping) belong in `base.py` or `models.py`, not copy-pasted per provider — see [Keep code DRY](#keep-code-dry). |
 | `core/bootstrap.py`, `core/git_sandbox.py` | Top-level core infra modules (not domain packages). |
 | Private helpers (`_ParseState`, module-local exceptions) | May live next to the function that uses them. |
 
@@ -85,6 +107,36 @@ CLI packages stay `cli/<name>/{app.py, commands/, models.py, renderers.py}` — 
 
 When unsure, copy `core/task/` or `core/inputs/`, not `core/config/`.
 
+### Database repositories (`core/db/`)
+
+`core/db/` is legacy flat infra (see the exceptions table above), but its
+internal consistency still matters:
+
+- **One verb for "create a row."** Repositories currently disagree
+  (`.insert()`, `.upsert()`, `.create()`, `.record_token_usage()`) — new
+  repository methods should use `.create()` unless the operation is a genuine
+  upsert (insert-or-update), which earns its own name.
+- **Share the commit/rollback/refresh dance.** Every repository's "insert a
+  row, commit, translate `IntegrityError` to a domain-appropriate error,
+  refresh, return" block should call a shared `BaseRepository` helper (e.g.
+  `_commit(session, record, conflict_message)`) instead of re-implementing the
+  same `try`/`except IntegrityError`/`rollback`/`raise ValueError` sequence
+  per repository.
+- **Use `enum_value()` from `common/utils.py`**, not a hand-rolled
+  `x.value if isinstance(x, EnumType) else str(x)` guard, anywhere an enum
+  needs to become a plain string (bind params, renderers, comparisons). If
+  the same guard needs to run for several `TypeDecorator` classes, factor one
+  generic decorator parametrized by the enum type instead of repeating the
+  class body per enum.
+- **Pick one behavior for an invalid enum-like filter value** (raise, or
+  return empty) and apply it to every query method on the same repository —
+  don't raise in `upsert()` while silently returning `[]` for the same bad
+  input in `list()`/`get_by_name()`.
+- Package resources referenced by `core/db/` (e.g. the Alembic script
+  directory) load via `importlib.resources`, the same as every other packaged
+  resource — see [Packaged resources](architecture.md#packaged-resources).
+  Not the running-from-a-checkout-relative `Path(__file__).parent` pattern.
+
 ### Keep code DRY
 
 Avoid useless repetition in production code. Before writing a new private helper, grep for an existing one with similar behavior in `common/` and in sibling packages — duplicated formatting/normalization helpers (e.g. two copies of the same warning-bullet formatter in two different modules, or the same `x.value if hasattr(x, "value") else str(x)` enum guard copy-pasted across every CLI renderer) are a recurring smell in this codebase. If two or more modules need the same small piece of logic:
@@ -92,6 +144,24 @@ Avoid useless repetition in production code. Before writing a new private helper
 - Put it in `common/` when it has no dependency on a specific domain package.
 - Put it in the more foundational domain package (see the import-direction rule
   in [architecture.md](architecture.md#package-boundaries-import-direction)) and import it from there, rather than copying it forward.
+
+This applies at the module level too, not just to individual helper functions.
+`core/agents/`'s five provider adapters share a near-identical
+subprocess-invocation/timeout/error-mapping block, a byte-for-byte identical
+`elapsed_ms` computation, and (in two cases) a byte-for-byte identical
+stdout-mapper function next to two divergent models of the same "agent
+stdout" concept — none of that was one big copy, it accumulated adapter by
+adapter. When adding a new provider, adapter, or catalog-domain loader, grep
+sibling implementations first (`local.py`/`ollama.py`/`copilot.py`/`gemini.py`
+for agents; `task/models.py`/`workflows/models.py`/`blueprint/models.py` for
+blueprint-shaped domains) — if you're about to write the third copy of the
+same normalization/dispatch/error-mapping logic, factor it into the shared
+base (`agents/base.py`, `common/`, or the more foundational package) instead.
+
+Prefer a registry (`dict[str, Callable[[], T]]`) over a hand-synced list +
+`if/elif` chain when dispatching on a fixed set of string keys (e.g. agent
+provider name → adapter class) — a list and a chain are two places to update
+when a provider is added or removed, and they can drift silently.
 
 ### One model per concept
 
@@ -102,6 +172,18 @@ with mismatched required fields or different enum vocabularies for the same
 idea — are worse than one model imported across a package boundary. Prefer
 sharing the existing model, or explicitly replacing it in the same change,
 over adding a second one.
+
+This extends past the model to its surrounding machinery: if a second
+`<X>Definition` also comes with its own duplicated step-normalization helpers,
+its own `<X>PauseStore`, and its own resume implementation that reimplements
+`ResumableRun`/`Engine`, that's not three separate findings, it's one
+divergent-model problem with three symptoms. When you notice a domain
+package's model/loader/pause-resume trio duplicates another package's almost
+line-for-line, that is a strong signal the newer package should delegate to
+the existing one (or replace it outright) rather than keep both alive — see
+the `task/`/`workflows/` note in
+[architecture.md](architecture.md#layers) for a concrete example already in
+this codebase.
 
 ## Result/Outcome pattern
 
@@ -139,7 +221,7 @@ helpers whose only job is to format a single message template
 (e.g. `_invalid_diff_error(detail) -> str`).
 
 This scales up, too: a function whose only job is assembling a large text
-report by branching on input shape (e.g. building a multi-line `wt workflow
+report by branching on input shape (e.g. building a multi-line `wt history
 show` summary via a long chain of `if isinstance(...)` blocks appending to a
 `list[str]`) is still a message-formatting function, just a bigger one — and
 it will show up as a God-function in `complexipy`. Decompose it into one small

@@ -37,6 +37,30 @@ def make_dummy_session(git_fs: GitFileSystem, **kwargs) -> SandboxSession:
 session = make_dummy_session(git_fs, session_id="wf-fail-202")
 ```
 
+**The "never modify production signatures for test seams" rule includes
+constructor keyword arguments**, not just standalone functions — an
+`__init__(self, *, run_fn: SomeFn | None = None)` param that exists only so
+tests can inject a fake is the same violation as an `execute_fn=...` free
+function param. If the module already exposes a default implementation as a
+free function (e.g. `default_cursor_run`, `default_http_post`), monkeypatch
+that directly instead of adding/using a constructor override:
+
+```python
+# Avoid: constructor seam that only exists for tests
+adapter = CursorAgentAdapter(run_fn=fake_run)
+
+# Prefer: patch the real collaborator at its module boundary
+monkeypatch.setattr(cursor_mod, "default_cursor_run", fake_run)
+adapter = CursorAgentAdapter()
+```
+
+Likewise, prefer patching a **public** collaborator method
+(`RunsRepository.update_status`, `RunsRepository.save_pause`) over a
+module-private class or attribute (`_DbPauseStore`, `_run_git_cmd`,
+`_initialized`) when simulating a failure — if the file already has a public
+patch point for a similar case, use the same one rather than reaching for a
+private name.
+
 ## Fixture style
 
 Prefer real integration over mocking: use the `fs` (`FileSystem`) and `git_fs`
@@ -55,6 +79,17 @@ for example usage.
 CI runners often use a **narrow `COLUMNS`**. Rich help and tables wrap or
 truncate option names, headers, and cell values there, so substring asserts on
 rendered text flake even when the command is correct.
+
+**The session-wide `COLUMNS=160` autouse fixture in `conftest.py` does not
+reliably reach renderer output.** Renderers built on a module-level singleton
+(`_DEFAULT_RICH_OUTPUT = RichOutput()` wrapping a bare `Console()`) do not
+consistently honor the `COLUMNS` env var when Typer's `CliRunner` captures
+output through a non-tty stream — the table/panel can still render at an
+unrelated width regardless of the env var. Do not rely on the global
+`COLUMNS` fixture as your protection for a full-content Rich assertion; use
+one of the two documented mitigations below (structured results, or an
+explicitly injected fixed-width console) every time you assert on rendered
+table/panel text, not just when a test happens to fail.
 
 ### Typer / Click registration and `--help`
 
@@ -117,6 +152,13 @@ simple substring check.
 Stable empty-state / panel titles (`No sandboxes found.`,
 `Worktree Not Initialized`) are fine to assert on stdout; full table cell
 contents and help option lists are not, unless width is controlled.
+
+At least one test per renderer should exercise a genuinely narrow terminal
+(e.g. an explicit `RichOutput(Console(width=80, ...))`, not the global
+`COLUMNS` fixture) to catch truncation/wrapping bugs — the autouse
+`COLUMNS=160` fixture forecloses ever exercising the narrow case by default,
+so without an explicit narrow-width test the wrap/truncate path goes
+completely untested.
 
 ## Running tests
 
