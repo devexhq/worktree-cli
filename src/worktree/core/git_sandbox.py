@@ -67,6 +67,13 @@ class SandboxCreateResult(BaseModel):
         return self.status == SandboxCreateStatus.OK and not self.errors
 
 
+def _clean_opt_str(val: str | None) -> str | None:
+    if val is None:
+        return None
+    s = val.strip()
+    return s if s else None
+
+
 def _normalize_repo_rel(path: str) -> str:
     return path.strip().replace("\\", "/")
 
@@ -507,6 +514,45 @@ class GitSandboxManager:
             wip_paths=wip_paths,
         )
 
+    def _prepare_sandbox_session(
+        self,
+        *,
+        sid: str,
+        sandbox_path: Path,
+        temp_branch: str,
+        resolved_base_ref: str,
+        resolved_name: str | None,
+        include_wip: bool,
+    ) -> tuple[SandboxCreateResult | None, SandboxSession | None]:
+        add_err = self._run_git_worktree_add(sandbox_path, temp_branch, resolved_base_ref)
+        if add_err is not None:
+            return add_err, None
+
+        base_commit, commit_err = self._get_base_commit(sandbox_path, temp_branch)
+        if commit_err is not None or base_commit is None:
+            return commit_err or SandboxCreateResult(
+                status=SandboxCreateStatus.GIT_FAILED,
+                errors=["Failed to determine base commit"],
+            ), None
+
+        wip_paths, wip_err = self._collect_wip_paths(include_wip, sandbox_path, temp_branch)
+        if wip_err is not None or wip_paths is None:
+            return wip_err or SandboxCreateResult(
+                status=SandboxCreateStatus.GIT_FAILED,
+                errors=["Failed to collect WIP paths"],
+            ), None
+
+        session = self._build_session(
+            sid=sid,
+            temp_branch=temp_branch,
+            sandbox_path=sandbox_path,
+            base_commit=base_commit,
+            resolved_name=resolved_name,
+            include_wip=include_wip,
+            wip_paths=wip_paths,
+        )
+        return None, session
+
     def create_sandbox_result(
         self,
         session_id: str | None = None,
@@ -518,29 +564,29 @@ class GitSandboxManager:
         """Create a sandbox without raising for classified failures.
 
         Orchestrates config loading, capacity checks, worktree creation, and
-        optional WIP overlay.  Each phase is delegated to a private helper so
+        optional WIP overlay. Each phase is delegated to a private helper so
         that errors are returned as structured :class:`SandboxCreateResult`
         values rather than exceptions.
 
         Args:
             session_id: Optional fixed session id; otherwise ``sbx_`` + 8 hex.
-            include_wip: When True, overlay uncommitted working-tree changes
-                from the primary checkout into the new sandbox.
+            include_wip: When True, overlay uncommitted working-tree changes.
             name: Optional human-readable sandbox name. Whitespace-only values
                 are stored as ``None``.
-            base_ref: Optional git ref for ``git worktree add``. When provided
-                and non-empty after strip, used verbatim; otherwise falls back
-                to the current branch or ``config.sandbox.base_ref``.
+            base_ref: Optional git ref for ``git worktree add``.
 
         Returns:
             Structured create result with session on success.
         """
-        resolved_name = name.strip() or None if name is not None else None
-        override_base_ref = base_ref.strip() or None if base_ref is not None else None
+        resolved_name = _clean_opt_str(name)
+        override_base_ref = _clean_opt_str(base_ref)
 
         config_err, config = self._load_and_validate_config()
-        if config_err is not None:
-            return config_err
+        if config_err is not None or config is None:
+            return config_err or SandboxCreateResult(
+                status=SandboxCreateStatus.NOT_INITIALIZED,
+                errors=["Configuration not loaded"],
+            )
 
         self._ensure_sandbox_dir()
         capacity_err = self._check_capacity(config)
@@ -552,27 +598,20 @@ class GitSandboxManager:
         temp_branch = f"worktree/sandbox-{sid}"
         resolved_base_ref = self._resolve_base_ref(override_base_ref, config)
 
-        add_err = self._run_git_worktree_add(sandbox_path, temp_branch, resolved_base_ref)
-        if add_err is not None:
-            return add_err
-
-        base_commit, commit_err = self._get_base_commit(sandbox_path, temp_branch)
-        if commit_err is not None:
-            return commit_err
-
-        wip_paths, wip_err = self._collect_wip_paths(include_wip, sandbox_path, temp_branch)
-        if wip_err is not None:
-            return wip_err
-
-        session = self._build_session(
+        err, session = self._prepare_sandbox_session(
             sid=sid,
-            temp_branch=temp_branch,
             sandbox_path=sandbox_path,
-            base_commit=base_commit,  # type: ignore[arg-type]
+            temp_branch=temp_branch,
+            resolved_base_ref=resolved_base_ref,
             resolved_name=resolved_name,
             include_wip=include_wip,
-            wip_paths=wip_paths,  # type: ignore[arg-type]
         )
+        if err is not None or session is None:
+            return err or SandboxCreateResult(
+                status=SandboxCreateStatus.GIT_FAILED,
+                errors=["Failed to prepare sandbox session"],
+            )
+
         warnings = self._persist_sandbox_session(session)
         return SandboxCreateResult(
             status=SandboxCreateStatus.OK,

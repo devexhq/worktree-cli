@@ -4,24 +4,21 @@ from __future__ import annotations
 
 import json
 import subprocess
-from io import StringIO
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 import typer
-from rich.console import Console
 from typer.main import get_command
 from typer.testing import CliRunner
 
-from tests.helpers import FileSystem, GitFileSystem
+from tests.helpers import FileSystem, GitFileSystem, make_rich_output
 from worktree.cli import app
 from worktree.cli.sandbox.command import sandbox_create_command
 from worktree.cli.sandbox.renderers import (
     render_sandbox_create_failed,
     render_sandbox_create_success,
 )
-from worktree.common.utils import RichOutput
 from worktree.core.db import SandboxesRepository, SandboxStatus
 from worktree.core.git_sandbox import (
     SandboxCreateResult,
@@ -31,17 +28,6 @@ from worktree.core.git_sandbox import (
 
 runner = CliRunner()
 DB_REL = ".worktree/data.db"
-
-
-def _rich(*, width: int = 120) -> tuple[RichOutput, StringIO]:
-    buffer = StringIO()
-    console = Console(
-        file=buffer,
-        force_terminal=False,
-        color_system=None,
-        width=width,
-    )
-    return RichOutput(console=console), buffer
 
 
 def _session(
@@ -63,7 +49,7 @@ class SandboxCreateRenderTests:
 
     def test_success_block(self, fs: FileSystem) -> None:
         session = _session(sandbox_path=fs.base_path / ".worktree" / "sandboxes" / "sbx_a1b2c3d4")
-        rich_output, buffer = _rich()
+        rich_output, buffer = make_rich_output()
         render_sandbox_create_success(session, cwd=fs.base_path, rich_output=rich_output)
         out = buffer.getvalue()
         assert "Sandbox created: sbx_a1b2c3d4" in out
@@ -75,7 +61,7 @@ class SandboxCreateRenderTests:
             session_id="sbx_warn",
             sandbox_path=fs.base_path / ".worktree" / "sandboxes" / "sbx_warn",
         )
-        rich_output, buffer = _rich()
+        rich_output, buffer = make_rich_output()
         render_sandbox_create_success(
             session,
             warnings=["db write failed"],
@@ -88,7 +74,7 @@ class SandboxCreateRenderTests:
         assert "•" in out
 
     def test_failed_panel(self) -> None:
-        rich_output, buffer = _rich()
+        rich_output, buffer = make_rich_output()
         render_sandbox_create_failed(
             ["capacity exceeded detail"],
             rich_output=rich_output,
@@ -98,7 +84,7 @@ class SandboxCreateRenderTests:
         assert "capacity exceeded detail" in out
 
     def test_failed_panel_empty_errors_fallback(self) -> None:
-        rich_output, buffer = _rich()
+        rich_output, buffer = make_rich_output()
         render_sandbox_create_failed([], rich_output=rich_output)
         out = buffer.getvalue()
         assert "Sandbox Create Failed" in out

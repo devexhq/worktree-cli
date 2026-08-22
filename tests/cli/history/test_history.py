@@ -8,16 +8,18 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from tests.helpers import FileSystem
+from tests.helpers import FileSystem, make_rich_output, make_run
 from worktree.cli import app
 from worktree.core.blueprint import BlueprintKind
 from worktree.core.config.generator import generate_default_config
-from worktree.core.db import RunRecord, RunsRepository, RunStatus
+from worktree.core.db import RunStatus
 from worktree.core.history.models import HistoryListStatus, HistoryShowStatus
 from worktree.core.history.renderers import (
     _parse_timestamp,
     format_run_duration,
     format_run_status,
+    render_history_list,
+    render_history_show,
 )
 from worktree.core.history.services import (
     HistoryListService,
@@ -34,45 +36,6 @@ def _init_workspace(root: Path) -> None:
     config_file = root / ".worktree" / "config.json"
     config_file.parent.mkdir(parents=True, exist_ok=True)
     generate_default_config(config_file, project_name="test")
-
-
-def _seed_run(
-    root: Path,
-    session_id: str,
-    blueprint_name: str,
-    kind: BlueprintKind,
-    status: RunStatus = RunStatus.COMPLETED,
-    *,
-    branch_name: str = "main",
-    started_at: str = "2026-08-19 01:00:00",
-    completed_at: str | None = "2026-08-19 01:00:15",
-    error_message: str | None = None,
-    checkpoint_json: str | None = None,
-) -> RunRecord:
-    """Helper to insert a run row directly into RunsRepository."""
-    _init_workspace(root)
-    db = RunsRepository(root)
-    db.create(
-        session_id=session_id,
-        blueprint_name=blueprint_name,
-        kind=kind,
-        branch_name=branch_name,
-        status=RunStatus.RUNNING,
-    )
-    # Direct update for full field control in test fixtures
-    with db.session() as session:
-        from sqlmodel import select
-
-        item = session.exec(select(RunRecord).where(RunRecord.session_id == session_id)).first()
-        if item is not None:
-            item.status = status
-            item.started_at = started_at
-            item.completed_at = completed_at
-            item.error_message = error_message
-            item.checkpoint_json = checkpoint_json
-            session.add(item)
-            session.commit()
-    return db.get(session_id)  # type: ignore[return-value]
 
 
 # ---------------------------------------------------------------------------
@@ -124,6 +87,44 @@ def test_format_run_duration() -> None:
     assert duration_long == "2m 30.0s"
 
 
+def test_render_history_list_fixed_width(fs: FileSystem) -> None:
+    """Verify render_history_list produces expected columns under a fixed-width console."""
+    rich_output, buffer = make_rich_output(width=160)
+    run = make_run(
+        root=fs.base_path,
+        session_id="sess-12345678",
+        blueprint_name="sample-task",
+        kind=BlueprintKind.TASK,
+        status=RunStatus.COMPLETED,
+        started_at="2026-08-19 01:00:00",
+        completed_at="2026-08-19 01:00:10",
+    )
+    render_history_list([run], rich_output=rich_output)
+    output = buffer.getvalue()
+    assert "Execution History" in output
+    assert "sess-12345678" in output
+    assert "sample-task" in output
+    assert "10.00s" in output
+
+
+def test_render_history_show_fixed_width(fs: FileSystem) -> None:
+    """Verify render_history_show renders session details under a fixed-width console."""
+    rich_output, buffer = make_rich_output(width=160)
+    run = make_run(
+        root=fs.base_path,
+        session_id="sess-show-123",
+        blueprint_name="show-task",
+        kind=BlueprintKind.TASK,
+        status=RunStatus.COMPLETED,
+        started_at="2026-08-19 01:00:00",
+        completed_at="2026-08-19 01:00:10",
+    )
+    render_history_show(run, rich_output=rich_output)
+    output = buffer.getvalue()
+    assert "Session Metadata: sess-show-123" in output
+    assert "show-task" in output
+
+
 # ---------------------------------------------------------------------------
 # Unit tests: Collect and Command Handlers
 # ---------------------------------------------------------------------------
@@ -138,9 +139,23 @@ def test_collect_history_list_not_initialized(fs: FileSystem) -> None:
 
 def test_collect_history_list_filters(fs: FileSystem) -> None:
     """Verify HistoryListService filters by status, kind, and limit."""
-    _seed_run(fs.base_path, "run-1", "task-a", BlueprintKind.TASK, RunStatus.COMPLETED)
-    _seed_run(fs.base_path, "run-2", "wf-b", BlueprintKind.WORKFLOW, RunStatus.FAILED)
-    _seed_run(fs.base_path, "run-3", "task-c", BlueprintKind.TASK, RunStatus.PAUSED)
+    make_run(
+        root=fs.base_path,
+        session_id="run-1",
+        blueprint_name="task-a",
+        kind=BlueprintKind.TASK,
+        status=RunStatus.COMPLETED,
+    )
+    make_run(
+        root=fs.base_path,
+        session_id="run-2",
+        blueprint_name="wf-b",
+        kind=BlueprintKind.WORKFLOW,
+        status=RunStatus.FAILED,
+    )
+    make_run(
+        root=fs.base_path, session_id="run-3", blueprint_name="task-c", kind=BlueprintKind.TASK, status=RunStatus.PAUSED
+    )
 
     # All runs
     all_res = HistoryListService(cwd=fs.base_path).collect()
@@ -167,7 +182,13 @@ def test_collect_history_list_filters(fs: FileSystem) -> None:
 
 def test_collect_history_show(fs: FileSystem) -> None:
     """Verify HistoryShowService returns record or classified NOT_FOUND."""
-    _seed_run(fs.base_path, "run-show-1", "my-task", BlueprintKind.TASK, RunStatus.COMPLETED)
+    make_run(
+        root=fs.base_path,
+        session_id="run-show-1",
+        blueprint_name="my-task",
+        kind=BlueprintKind.TASK,
+        status=RunStatus.COMPLETED,
+    )
 
     found = HistoryShowService(session_id="run-show-1", cwd=fs.base_path).collect()
     assert found.ok
@@ -189,7 +210,13 @@ def test_collect_history_show_not_initialized(fs: FileSystem) -> None:
 
 def test_history_services_execute(fs: FileSystem) -> None:
     """Verify HistoryListService and HistoryShowService execute methods."""
-    _seed_run(fs.base_path, "svc-run-1", "svc-task", BlueprintKind.TASK, RunStatus.COMPLETED)
+    make_run(
+        root=fs.base_path,
+        session_id="svc-run-1",
+        blueprint_name="svc-task",
+        kind=BlueprintKind.TASK,
+        status=RunStatus.COMPLETED,
+    )
 
     list_outcome = HistoryListService(cwd=fs.base_path).execute()
     assert list_outcome.ok
@@ -233,12 +260,12 @@ def test_cli_history_empty(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> N
 def test_cli_history_table_output(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify 'wt history' renders formatted table with columns and runs."""
     monkeypatch.chdir(fs.base_path)
-    _seed_run(
-        fs.base_path,
-        "sess-12345678",
-        "sample-task",
-        BlueprintKind.TASK,
-        RunStatus.COMPLETED,
+    make_run(
+        root=fs.base_path,
+        session_id="sess-12345678",
+        blueprint_name="sample-task",
+        kind=BlueprintKind.TASK,
+        status=RunStatus.COMPLETED,
         started_at="2026-08-19 01:00:00",
         completed_at="2026-08-19 01:00:10",
     )
@@ -256,9 +283,27 @@ def test_cli_history_table_output(fs: FileSystem, monkeypatch: pytest.MonkeyPatc
 def test_cli_history_filtering_options(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify 'wt history' options --status, --kind, and --limit."""
     monkeypatch.chdir(fs.base_path)
-    _seed_run(fs.base_path, "sess-task-ok", "task-1", BlueprintKind.TASK, RunStatus.COMPLETED)
-    _seed_run(fs.base_path, "sess-task-fail", "task-2", BlueprintKind.TASK, RunStatus.FAILED)
-    _seed_run(fs.base_path, "sess-wf-ok", "wf-1", BlueprintKind.WORKFLOW, RunStatus.COMPLETED)
+    make_run(
+        root=fs.base_path,
+        session_id="sess-task-ok",
+        blueprint_name="task-1",
+        kind=BlueprintKind.TASK,
+        status=RunStatus.COMPLETED,
+    )
+    make_run(
+        root=fs.base_path,
+        session_id="sess-task-fail",
+        blueprint_name="task-2",
+        kind=BlueprintKind.TASK,
+        status=RunStatus.FAILED,
+    )
+    make_run(
+        root=fs.base_path,
+        session_id="sess-wf-ok",
+        blueprint_name="wf-1",
+        kind=BlueprintKind.WORKFLOW,
+        status=RunStatus.COMPLETED,
+    )
 
     # Filter status: failed
     res_status = runner.invoke(app, ["history", "--status", "failed"])
@@ -310,12 +355,12 @@ def test_cli_history_uninitialized_exits_1(tmp_path: Path, monkeypatch: pytest.M
 def test_cli_history_show_success(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify 'wt history show <session_id>' displays session metadata panel."""
     monkeypatch.chdir(fs.base_path)
-    _seed_run(
-        fs.base_path,
-        "show-session-1",
-        "deploy-production",
-        BlueprintKind.WORKFLOW,
-        RunStatus.COMPLETED,
+    make_run(
+        root=fs.base_path,
+        session_id="show-session-1",
+        blueprint_name="deploy-production",
+        kind=BlueprintKind.WORKFLOW,
+        status=RunStatus.COMPLETED,
         branch_name="feature/deploy",
         started_at="2026-08-19 01:00:00",
         completed_at="2026-08-19 01:01:15",
@@ -334,12 +379,12 @@ def test_cli_history_show_success(fs: FileSystem, monkeypatch: pytest.MonkeyPatc
 def test_cli_history_show_with_error(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify 'wt history show' renders Error Details panel when error_message is present."""
     monkeypatch.chdir(fs.base_path)
-    _seed_run(
-        fs.base_path,
-        "show-error-1",
-        "faulty-task",
-        BlueprintKind.TASK,
-        RunStatus.FAILED,
+    make_run(
+        root=fs.base_path,
+        session_id="show-error-1",
+        blueprint_name="faulty-task",
+        kind=BlueprintKind.TASK,
+        status=RunStatus.FAILED,
         error_message="Step 'test-step' failed with exit code 127.",
     )
 
@@ -367,12 +412,12 @@ def test_cli_history_show_with_checkpoint(fs: FileSystem, monkeypatch: pytest.Mo
         diagnostic="Step 2 prompted user for retry",
         step_results=[step_res],
     )
-    _seed_run(
-        fs.base_path,
-        "show-checkpoint-1",
-        "paused-task",
-        BlueprintKind.TASK,
-        RunStatus.PAUSED,
+    make_run(
+        root=fs.base_path,
+        session_id="show-checkpoint-1",
+        blueprint_name="paused-task",
+        kind=BlueprintKind.TASK,
+        status=RunStatus.PAUSED,
         checkpoint_json=checkpoint.model_dump_json(),
     )
 
@@ -390,12 +435,12 @@ def test_cli_history_show_raw_checkpoint_json_fallback(fs: FileSystem, monkeypat
     """Verify 'wt history show' falls back to pretty JSON panel if checkpoint is non-standard."""
     monkeypatch.chdir(fs.base_path)
     raw_payload = json.dumps({"custom_field": "val123", "step": "arbitrary"})
-    _seed_run(
-        fs.base_path,
-        "show-raw-chk-1",
-        "raw-task",
-        BlueprintKind.TASK,
-        RunStatus.PAUSED,
+    make_run(
+        root=fs.base_path,
+        session_id="show-raw-chk-1",
+        blueprint_name="raw-task",
+        kind=BlueprintKind.TASK,
+        status=RunStatus.PAUSED,
         checkpoint_json=raw_payload,
     )
 

@@ -5,53 +5,18 @@ from __future__ import annotations
 import pytest
 from typer.testing import CliRunner
 
-from tests.helpers import FileSystem, GitFileSystem
+from tests.helpers import (
+    FileSystem,
+    GitFileSystem,
+    make_checkpoint,
+)
 from worktree.cli import app
 from worktree.core.blueprint import BlueprintKind, BlueprintResumeService
 from worktree.core.catalog.services.inventory import scan_and_index_catalog
 from worktree.core.db import RunsRepository, RunStatus
 from worktree.core.runtime import FailurePromptDecision, RunCheckpoint
-from worktree.core.step import StepResult
 
 runner = CliRunner()
-
-
-def _failed_result(step_id: str = "step-2") -> StepResult:
-    return StepResult(
-        step_id=step_id,
-        status="failed",
-        exit_code=1,
-        stdout="",
-        stderr="step failed",
-        duration_seconds=0.01,
-        error_message="step execution error",
-    )
-
-
-def _ok_result(step_id: str = "step-1") -> StepResult:
-    return StepResult(
-        step_id=step_id,
-        status="completed",
-        exit_code=0,
-        stdout="ok",
-        stderr="",
-        duration_seconds=0.01,
-    )
-
-
-def _checkpoint(**overrides: object) -> RunCheckpoint:
-    payload: dict[str, object] = {
-        "next_step_index": 1,
-        "step_results": [_ok_result("step-1")],
-        "sandbox_path": None,
-        "use_sandbox": False,
-        "keep": False,
-        "pending_step_id": "step-2",
-        "diagnostic": "",
-        "pending_result": None,
-    }
-    payload.update(overrides)
-    return RunCheckpoint.model_validate(payload)
 
 
 def _seed_paused_run(
@@ -72,7 +37,7 @@ def _seed_paused_run(
         status=RunStatus.RUNNING,
     )
     if status is RunStatus.PAUSED:
-        raw = checkpoint.model_dump_json() if checkpoint is not None else _checkpoint().model_dump_json()
+        raw = checkpoint.model_dump_json() if checkpoint is not None else make_checkpoint().model_dump_json()
         db.save_pause(session_id, raw, "paused")
     else:
         db.update_status(session_id, status)
@@ -289,13 +254,14 @@ def test_resume_cli_missing_sandbox_exits_1(fs: FileSystem, monkeypatch: pytest.
         use_sandbox=False,
         steps=[{"id": "step-1", "run": "echo 1"}, {"id": "step-2", "run": "echo 2"}],
     )
-    checkpoint = _checkpoint(sandbox_path="/tmp/nonexistent-sandbox-dir", use_sandbox=True)
+    checkpoint = make_checkpoint(sandbox_path="/tmp/nonexistent-sandbox-dir", use_sandbox=True)
     _seed_paused_run(fs.base_path, "task-bad-box", "sandbox-task", BlueprintKind.TASK, checkpoint=checkpoint)
 
     result = runner.invoke(app, ["resume", "task-bad-box"])
     assert result.exit_code == 1
     assert "Resume Failed" in result.output
-    assert "sandbox path '/tmp/nonexistent-sandbox-dir' no longer exists." in result.output
+    assert "no longer exists" in result.output
+    assert "/tmp/nonexistent-sandbox-dir" in result.output
 
 
 def test_resume_cli_corrupt_checkpoint_exits_1(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:

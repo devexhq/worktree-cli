@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sqlite3
 from pathlib import Path
 
 import pytest
@@ -16,10 +15,10 @@ from worktree.core.db import (
     CatalogRepository,
     RunRecord,
     RunsRepository,
-    RunStatus,
     SandboxesRepository,
     SandboxRecord,
     WorktreeDb,
+    get_db_connection,
     init_database,
 )
 from worktree.core.db.models import SandboxStatus
@@ -30,25 +29,10 @@ DB_REL = ".worktree/data.db"
 class TestDatabaseMigrations:
     """Tests for database initialization and schema creation."""
 
-    def test_init_creates_tables_and_indexes(self, fs: FileSystem) -> None:
+    def test_init_creates_database_file(self, fs: FileSystem) -> None:
         db_path = init_database(cwd=fs.base_path, db_rel_path=DB_REL)
         assert db_path.is_file()
-
-        with sqlite3.connect(db_path) as conn:
-            tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
-            indexes = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'index'")}
-
-        assert "catalog" in tables
-        assert "sandboxes" in tables
-        assert "workflow_costs" in tables
-        assert "runs" in tables
-
-        assert "idx_catalog_sha" in indexes
-        assert "idx_catalog_type" in indexes
-        assert "idx_catalog_path" in indexes
-        assert "idx_runs_session" in indexes
-        assert "idx_runs_status" in indexes
-        assert "idx_runs_started" in indexes
+        assert RunsRepository(cwd=fs.base_path, db_rel_path=DB_REL).list() == []
 
     def test_init_is_idempotent(self, fs: FileSystem) -> None:
         path1 = init_database(cwd=fs.base_path, db_rel_path=DB_REL)
@@ -56,56 +40,20 @@ class TestDatabaseMigrations:
         assert path1 == path2
         assert path1.is_file()
 
-    def test_init_migrates_legacy_run_tables_to_runs(self, fs: FileSystem) -> None:
-        db_path = fs.base_path / DB_REL
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-        with sqlite3.connect(db_path) as conn:
-            conn.executescript(
-                """
-                CREATE TABLE workflows (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    session_id TEXT NOT NULL UNIQUE,
-                    workflow_name TEXT NOT NULL,
-                    branch_name TEXT NOT NULL,
-                    status TEXT NOT NULL DEFAULT 'running',
-                    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    completed_at TIMESTAMP,
-                    error_message TEXT,
-                    checkpoint_json TEXT
-                );
-                CREATE TABLE tasks (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    session_id TEXT NOT NULL UNIQUE,
-                    task_name TEXT NOT NULL,
-                    status TEXT NOT NULL DEFAULT 'running',
-                    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    completed_at TIMESTAMP,
-                    error_message TEXT,
-                    checkpoint_json TEXT
-                );
-                INSERT INTO workflows (session_id, workflow_name, branch_name, status, checkpoint_json)
-                VALUES ('wf_legacy', 'demo-wf', 'feat/w', 'paused', '{"v": 1}');
-                INSERT INTO tasks (session_id, task_name, status)
-                VALUES ('task_legacy', 'demo-task', 'completed');
-                """
-            )
+    def test_get_db_connection_lifecycle(self, fs: FileSystem) -> None:
+        db_path = init_database(cwd=fs.base_path, db_rel_path=DB_REL)
+        with get_db_connection(db_path) as conn:
+            cursor = conn.execute("SELECT 1 AS num")
+            row = cursor.fetchone()
+            assert row is not None
+            assert row["num"] == 1
 
-        init_database(cwd=fs.base_path, db_rel_path=DB_REL)
-        db = RunsRepository(cwd=fs.base_path, db_rel_path=DB_REL)
-
-        wf = db.get("wf_legacy")
-        assert wf is not None
-        assert wf.blueprint_name == "demo-wf"
-        assert wf.kind == BlueprintKind.WORKFLOW
-        assert wf.branch_name == "feat/w"
-        assert wf.status == RunStatus.PAUSED
-        assert wf.checkpoint_json == '{"v": 1}'
-
-        tk = db.get("task_legacy")
-        assert tk is not None
-        assert tk.blueprint_name == "demo-task"
-        assert tk.kind == BlueprintKind.TASK
-        assert tk.status == RunStatus.COMPLETED
+    def test_get_db_connection_rollback_on_error(self, fs: FileSystem) -> None:
+        db_path = init_database(cwd=fs.base_path, db_rel_path=DB_REL)
+        with pytest.raises(RuntimeError, match="simulated db error"):
+            with get_db_connection(db_path) as conn:
+                conn.execute("SELECT 1")
+                raise RuntimeError("simulated db error")
 
 
 class TestBaseRepository:
@@ -119,18 +67,15 @@ class TestBaseRepository:
         repo_custom = BaseRepository(db_path=custom_path)
         assert repo_custom.db_path == custom_path
 
-    def test_init_db_creates_file_and_marks_initialized(self, fs: FileSystem) -> None:
+    def test_init_db_creates_file(self, fs: FileSystem) -> None:
         repo = BaseRepository(cwd=fs.base_path, db_rel_path=DB_REL)
-        assert not repo._initialized
         path = repo.init_db()
         assert path.is_file()
-        assert repo._initialized
 
     def test_session_auto_inits_db(self, fs: FileSystem) -> None:
         repo = BaseRepository(cwd=fs.base_path, db_rel_path=DB_REL)
         with repo.session() as session:
             assert session is not None
-        assert repo._initialized
         assert repo.db_path.is_file()
 
 

@@ -10,7 +10,6 @@ from worktree.core.agents.base import AgentRequest
 from worktree.core.agents.cli_mutation import (
     CliDirectMutationAdapter,
     CliMutationOutcome,
-    CliMutationRunFn,
     CliMutationRunRequest,
 )
 
@@ -157,9 +156,6 @@ def default_copilot_run(request: CliMutationRunRequest) -> CliMutationOutcome:
 
 class CopilotAgentAdapter(CliDirectMutationAdapter):
     """Run GitHub Copilot through the shared direct-mutation base."""
-
-    def __init__(self, *, run_fn: CliMutationRunFn | None = None) -> None:
-        super().__init__(run_fn=run_fn)
 
     def _preflight(self, request: AgentRequest) -> str | None:
         if resolve_copilot_token() is None:

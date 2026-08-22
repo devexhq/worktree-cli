@@ -10,7 +10,6 @@ from worktree.core.agents.base import AgentRequest
 from worktree.core.agents.cli_mutation import (
     CliDirectMutationAdapter,
     CliMutationOutcome,
-    CliMutationRunFn,
     CliMutationRunRequest,
 )
 
@@ -137,9 +136,6 @@ def default_cursor_run(request: CliMutationRunRequest) -> CliMutationOutcome:
 
 class CursorAgentAdapter(CliDirectMutationAdapter):
     """Run the Cursor SDK coding agent directly against a sandbox checkout."""
-
-    def __init__(self, *, run_fn: CliMutationRunFn | None = None) -> None:
-        super().__init__(run_fn=run_fn)
 
     def _preflight(self, request: AgentRequest) -> str | None:
         model = request.model.strip() if request.model else ""

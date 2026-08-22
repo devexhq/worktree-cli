@@ -2,16 +2,14 @@
 
 from __future__ import annotations
 
-from io import StringIO
 from pathlib import Path
 
 import pytest
 import typer
-from rich.console import Console
 from typer.main import get_command
 from typer.testing import CliRunner
 
-from tests.helpers import GitFileSystem
+from tests.helpers import GitFileSystem, make_rich_output, seed_sandbox
 from worktree.cli import app
 from worktree.cli.sandbox.command import (
     collect_sandbox_show,
@@ -23,7 +21,6 @@ from worktree.cli.sandbox.renderers import (
     render_sandbox_not_found,
     render_sandbox_show,
 )
-from worktree.common.utils import RichOutput
 from worktree.core.db import (
     SandboxesRepository,
     SandboxRecord,
@@ -32,39 +29,6 @@ from worktree.core.db import (
 
 runner = CliRunner()
 DB_REL = ".worktree/data.db"
-
-
-def _insert(
-    repo: Path,
-    *,
-    sandbox_id: str,
-    name: str | None = None,
-    path_suffix: str = "s",
-    create_dir: bool = True,
-    base_commit: str = "4f2c9a1e8b3d6f0a2c5e7b1d9a3f6c8e0b2d4f6a",
-):
-    sandbox_path = repo / ".worktree" / "sandboxes" / path_suffix
-    if create_dir:
-        sandbox_path.mkdir(parents=True, exist_ok=True)
-    return SandboxesRepository(repo, DB_REL).insert(
-        id=sandbox_id,
-        branch_name=f"worktree/sandbox-{sandbox_id}",
-        base_commit=base_commit,
-        sandbox_path=sandbox_path,
-        name=name,
-    )
-
-
-def _rich(*, width: int = 120) -> tuple[RichOutput, StringIO]:
-    """Fixed-width console so Rich layout does not depend on CI COLUMNS."""
-    buffer = StringIO()
-    console = Console(
-        file=buffer,
-        force_terminal=False,
-        color_system=None,
-        width=width,
-    )
-    return RichOutput(console=console), buffer
 
 
 class SandboxShowCollectTests:
@@ -112,7 +76,7 @@ class SandboxShowCollectTests:
         create_dir: bool,
     ) -> None:
         git_fs.init_repo()
-        created = _insert(
+        created = seed_sandbox(
             git_fs.base_path,
             sandbox_id=f"sbx_{status.value}",
             name="detail" if status is SandboxStatus.ACTIVE else None,
@@ -138,7 +102,7 @@ class SandboxShowCollectTests:
 
     def test_reconciles_stale_active_missing_directory(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        stale = _insert(
+        stale = seed_sandbox(
             git_fs.base_path,
             sandbox_id="sbx_stale",
             path_suffix="gone",
@@ -159,7 +123,7 @@ class SandboxShowCollectTests:
 
     def test_non_active_missing_dir_does_not_reconcile(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        created = _insert(
+        created = seed_sandbox(
             git_fs.base_path,
             sandbox_id="sbx_merged_gone",
             path_suffix="merged-gone",
@@ -192,7 +156,7 @@ class SandboxShowRenderTests:
             created_at="2026-08-03 10:00:00",
             updated_at="2026-08-03 10:00:00",
         )
-        rich_output, buffer = _rich(width=120)
+        rich_output, buffer = make_rich_output(width=120)
         render_sandbox_show(sandbox, disk_present=True, rich_output=rich_output)
         out = buffer.getvalue()
         assert "sbx_a1b2c3d4" in out
@@ -233,7 +197,7 @@ class SandboxShowRenderTests:
             created_at="2026-08-03 10:00:00",
             updated_at="2026-08-03 11:00:00",
         )
-        rich_output, buffer = _rich()
+        rich_output, buffer = make_rich_output()
         render_sandbox_show(
             sandbox,
             disk_present=False,
@@ -246,7 +210,7 @@ class SandboxShowRenderTests:
         assert "Note: sandbox directory is missing; status updated to 'cleaned'." in out
 
     def test_not_found_panel(self) -> None:
-        rich_output, buffer = _rich()
+        rich_output, buffer = make_rich_output()
         render_sandbox_not_found("sbx_missing", rich_output=rich_output)
         out = buffer.getvalue()
         assert "Sandbox Not Found" in out
@@ -296,7 +260,7 @@ class SandboxShowCommandDirectTests:
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
-        created = _insert(git_fs.base_path, sandbox_id="sbx_one", path_suffix="1")
+        created = seed_sandbox(git_fs.base_path, sandbox_id="sbx_one", path_suffix="1")
 
         with pytest.raises(typer.Exit) as exc_info:
             sandbox_show_command(created.id, cwd=git_fs.base_path)
@@ -314,7 +278,7 @@ class SandboxShowCommandDirectTests:
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
-        stale = _insert(
+        stale = seed_sandbox(
             git_fs.base_path,
             sandbox_id="sbx_stale_cmd",
             path_suffix="gone-cmd",
@@ -352,7 +316,7 @@ class SandboxShowCliTests:
     def test_show_via_cli(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
-        created = _insert(
+        created = seed_sandbox(
             git_fs.base_path,
             sandbox_id="sbx_cli",
             name="cli-name",

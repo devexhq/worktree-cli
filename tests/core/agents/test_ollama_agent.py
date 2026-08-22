@@ -122,7 +122,7 @@ class ParseHelpersTests:
 
 
 class OllamaAdapterTests:
-    def test_proposed_patch(self, sandbox: Path) -> None:
+    def test_proposed_patch(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         content = json.dumps({"unified_diff": "diff --git a/x b/x\n", "summary": "fixed"})
 
         def http_post(url: str, body: bytes, timeout: float) -> tuple[int, str]:
@@ -135,14 +135,15 @@ class OllamaAdapterTests:
             assert len(payload["messages"]) == 2
             return 200, _chat_body(content)
 
-        resp = OllamaAgentAdapter(http_post=http_post).propose_fix(_request(sandbox))
+        monkeypatch.setattr("worktree.core.agents.ollama.default_http_post", http_post)
+        resp = OllamaAgentAdapter().propose_fix(_request(sandbox))
         assert resp.status == AgentResponseStatus.PROPOSED_PATCH
         assert resp.ok
         assert resp.unified_diff == "diff --git a/x b/x\n"
         assert resp.summary == "fixed"
         assert resp.errors == []
 
-    def test_unfixable(self, sandbox: Path) -> None:
+    def test_unfixable(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         content = json.dumps(
             {
                 "unfixable": True,
@@ -154,73 +155,80 @@ class OllamaAdapterTests:
         def http_post(url: str, body: bytes, timeout: float) -> tuple[int, str]:
             return 200, _chat_body(content)
 
-        resp = OllamaAgentAdapter(http_post=http_post).propose_fix(_request(sandbox))
+        monkeypatch.setattr("worktree.core.agents.ollama.default_http_post", http_post)
+        resp = OllamaAgentAdapter().propose_fix(_request(sandbox))
         assert resp.status == AgentResponseStatus.UNFIXABLE
         assert resp.unfixable_reason == "needs redesign"
 
-    def test_no_op(self, sandbox: Path) -> None:
+    def test_no_op(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         content = json.dumps({"unified_diff": "", "summary": "nothing"})
 
         def http_post(url: str, body: bytes, timeout: float) -> tuple[int, str]:
             return 200, _chat_body(content)
 
-        resp = OllamaAgentAdapter(http_post=http_post).propose_fix(_request(sandbox))
+        monkeypatch.setattr("worktree.core.agents.ollama.default_http_post", http_post)
+        resp = OllamaAgentAdapter().propose_fix(_request(sandbox))
         assert resp.status == AgentResponseStatus.NO_OP
 
-    def test_fenced_json(self, sandbox: Path) -> None:
+    def test_fenced_json(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         content = '```json\n{"unified_diff": "d\\n", "summary": "x"}\n```'
 
         def http_post(url: str, body: bytes, timeout: float) -> tuple[int, str]:
             return 200, _chat_body(content)
 
-        resp = OllamaAgentAdapter(http_post=http_post).propose_fix(_request(sandbox))
+        monkeypatch.setattr("worktree.core.agents.ollama.default_http_post", http_post)
+        resp = OllamaAgentAdapter().propose_fix(_request(sandbox))
         assert resp.status == AgentResponseStatus.PROPOSED_PATCH
         assert resp.unified_diff == "d\n"
 
-    def test_garbage_model_text(self, sandbox: Path) -> None:
+    def test_garbage_model_text(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         def http_post(url: str, body: bytes, timeout: float) -> tuple[int, str]:
             return 200, _chat_body("sorry I cannot produce JSON today")
 
-        resp = OllamaAgentAdapter(http_post=http_post).propose_fix(_request(sandbox))
+        monkeypatch.setattr("worktree.core.agents.ollama.default_http_post", http_post)
+        resp = OllamaAgentAdapter().propose_fix(_request(sandbox))
         assert resp.status == AgentResponseStatus.UNFIXABLE
         assert resp.unfixable_reason == MODEL_OUTPUT_UNPARSEABLE
         assert resp.errors == []
 
-    def test_missing_model(self, sandbox: Path) -> None:
-        resp = OllamaAgentAdapter(http_post=lambda *a, **k: (200, "{}")).propose_fix(_request(sandbox, model=None))
+    def test_missing_model(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("worktree.core.agents.ollama.default_http_post", lambda *a, **k: (200, "{}"))
+        resp = OllamaAgentAdapter().propose_fix(_request(sandbox, model=None))
         assert resp.status == AgentResponseStatus.PROVIDER_ERROR
         assert any("model" in e.lower() for e in resp.errors)
         assert any("agent.model" in e for e in resp.errors)
 
-    def test_invalid_endpoint_scheme(self, sandbox: Path) -> None:
-        resp = OllamaAgentAdapter(http_post=lambda *a, **k: (200, "{}")).propose_fix(
-            _request(sandbox, endpoint="127.0.0.1:11434")
-        )
+    def test_invalid_endpoint_scheme(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("worktree.core.agents.ollama.default_http_post", lambda *a, **k: (200, "{}"))
+        resp = OllamaAgentAdapter().propose_fix(_request(sandbox, endpoint="127.0.0.1:11434"))
         assert resp.status == AgentResponseStatus.PROVIDER_ERROR
         assert any("http://" in e for e in resp.errors)
 
-    def test_connection_error(self, sandbox: Path) -> None:
+    def test_connection_error(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         def http_post(url: str, body: bytes, timeout: float) -> tuple[int, str]:
             raise URLError("connection refused")
 
-        resp = OllamaAgentAdapter(http_post=http_post).propose_fix(_request(sandbox))
+        monkeypatch.setattr("worktree.core.agents.ollama.default_http_post", http_post)
+        resp = OllamaAgentAdapter().propose_fix(_request(sandbox))
         assert resp.status == AgentResponseStatus.PROVIDER_ERROR
         assert any("connection refused" in e for e in resp.errors)
 
-    def test_http_500(self, sandbox: Path) -> None:
+    def test_http_500(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         def http_post(url: str, body: bytes, timeout: float) -> tuple[int, str]:
             return 500, "internal boom"
 
-        resp = OllamaAgentAdapter(http_post=http_post).propose_fix(_request(sandbox))
+        monkeypatch.setattr("worktree.core.agents.ollama.default_http_post", http_post)
+        resp = OllamaAgentAdapter().propose_fix(_request(sandbox))
         assert resp.status == AgentResponseStatus.PROVIDER_ERROR
         assert any("500" in e for e in resp.errors)
         assert any("internal boom" in e for e in resp.errors)
 
-    def test_timeout(self, sandbox: Path) -> None:
+    def test_timeout(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         def http_post(url: str, body: bytes, timeout: float) -> tuple[int, str]:
             raise TimeoutError("timed out")
 
-        resp = OllamaAgentAdapter(http_post=http_post).propose_fix(_request(sandbox))
+        monkeypatch.setattr("worktree.core.agents.ollama.default_http_post", http_post)
+        resp = OllamaAgentAdapter().propose_fix(_request(sandbox))
         assert resp.status == AgentResponseStatus.TIMEOUT
         assert any("timed out" in e.lower() for e in resp.errors)
         assert any("ollama" in e.lower() for e in resp.errors)

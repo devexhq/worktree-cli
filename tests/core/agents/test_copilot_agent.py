@@ -82,7 +82,7 @@ class CopilotAuthTests:
     def test_preflight_requires_token(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("GH_TOKEN", raising=False)
         monkeypatch.delenv("GITHUB_TOKEN", raising=False)
-        adapter = CopilotAgentAdapter(run_fn=lambda req: CliMutationOutcome(status="finished"))
+        adapter = CopilotAgentAdapter()
         resp = adapter.propose_fix(_request(sandbox))
         assert resp.status == AgentResponseStatus.PROVIDER_ERROR
         assert any("GH_TOKEN" in err for err in resp.errors)
@@ -142,7 +142,7 @@ class CopilotRunTests:
 
 
 class CopilotAdapterTests:
-    def test_no_op(self, sandbox: Path) -> None:
+    def test_no_op(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         _git(["init"], cwd=sandbox)
         _git(["config", "user.email", "test@example.com"], cwd=sandbox)
         _git(["config", "user.name", "Test"], cwd=sandbox)
@@ -150,10 +150,12 @@ class CopilotAdapterTests:
         _git(["add", "-A"], cwd=sandbox)
         _git(["commit", "-m", "init"], cwd=sandbox)
 
-        def run_fn(request: CliMutationRunRequest) -> CliMutationOutcome:
-            return CliMutationOutcome(status="finished", result_text="done")
+        monkeypatch.setattr(
+            "worktree.core.agents.copilot.default_copilot_run",
+            lambda _req: CliMutationOutcome(status="finished", result_text="done"),
+        )
 
-        adapter = CopilotAgentAdapter(run_fn=run_fn)
+        adapter = CopilotAgentAdapter()
         resp = adapter.propose_fix(_request(sandbox))
         assert resp.status == AgentResponseStatus.NO_OP
         assert resp.mutation_baseline_ref is not None

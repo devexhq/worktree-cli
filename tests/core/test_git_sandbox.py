@@ -13,7 +13,6 @@ import worktree.core.git_sandbox as git_sandbox_mod
 from tests.helpers import FileSystem, GitFileSystem
 from worktree.core.db import SandboxesRepository, SandboxStatus
 from worktree.core.git_sandbox import (
-    GitPlumbingTimeoutError,
     GitSandboxManager,
     SandboxCreateStatus,
     SandboxSession,
@@ -151,10 +150,10 @@ class GitSandboxManagerTests:
         git_fs.init_repo()
         manager = GitSandboxManager(cwd=git_fs.base_path)
 
-        def _timeout(args: list[str], cwd: Path | None = None) -> str:
-            raise GitPlumbingTimeoutError(f"Git timed out after 120s ('git {' '.join(args)}') (GIT_TIMEOUT)")
+        def _timeout(*_args: object, **_kwargs: object) -> object:
+            raise subprocess.TimeoutExpired(cmd=["git", "worktree", "add"], timeout=120)
 
-        monkeypatch.setattr(manager, "_run_git_cmd", _timeout)
+        monkeypatch.setattr(git_sandbox_mod.subprocess, "run", _timeout)
         result = manager.create_sandbox_result(session_id="sbx_to")
         assert result.status == SandboxCreateStatus.GIT_TIMEOUT
         assert result.session is None
@@ -405,14 +404,14 @@ class GitSandboxManagerTests:
     def test_rev_parse_failure_is_git_failed(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         git_fs.init_repo()
         manager = GitSandboxManager(cwd=git_fs.base_path)
-        real_run = manager._run_git_cmd
+        real_run = subprocess.run
 
-        def _run(args: list[str], cwd: Path | None = None) -> str:
-            if args[:2] == ["rev-parse", "HEAD"]:
-                raise RuntimeError("rev-parse exploded")
-            return real_run(args, cwd=cwd)
+        def _run(cmd: list[str], *args: object, **kwargs: object) -> object:
+            if isinstance(cmd, list) and len(cmd) >= 3 and cmd[1:3] == ["rev-parse", "HEAD"]:
+                raise subprocess.CalledProcessError(1, cmd, stderr="rev-parse exploded")
+            return real_run(cmd, *args, **kwargs)
 
-        monkeypatch.setattr(manager, "_run_git_cmd", _run)
+        monkeypatch.setattr(git_sandbox_mod.subprocess, "run", _run)
         result = manager.create_sandbox_result(session_id="sbx_rp")
         assert result.status == SandboxCreateStatus.GIT_FAILED
         assert result.session is None

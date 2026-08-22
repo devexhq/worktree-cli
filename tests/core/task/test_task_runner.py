@@ -7,23 +7,15 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from tests.helpers import make_cmd_step
 from worktree.core.db import RunStatus
 from worktree.core.runtime import RunContext, RunOutcome
-from worktree.core.step import StepDefinition, StepType
 from worktree.core.task import run_task
 from worktree.core.task.models import TaskDefinition
 
 
-def _cmd_step(step_id: str = "s1") -> StepDefinition:
-    return StepDefinition(
-        id=step_id,
-        type=StepType.COMMAND,
-        command="echo ok",
-    )
-
-
 def test_run_task_delegates_to_run_steps(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    steps = [_cmd_step("one"), _cmd_step("two")]
+    steps = [make_cmd_step(step_id="one"), make_cmd_step(step_id="two")]
     definition = TaskDefinition(name="demo", steps=steps, use_sandbox=True)
     observer = MagicMock()
     expected = RunOutcome(
@@ -82,7 +74,7 @@ def test_run_task_use_sandbox_logic(
 ) -> None:
     definition = TaskDefinition(
         name="demo",
-        steps=[_cmd_step()],
+        steps=[make_cmd_step()],
         use_sandbox=definition_use_sandbox,
     )
     captured: dict[str, RunContext] = {}

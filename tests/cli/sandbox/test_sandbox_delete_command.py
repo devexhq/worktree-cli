@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
-from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 import typer
-from rich.console import Console
 from typer.main import get_command
 from typer.testing import CliRunner
 
-from tests.helpers import GitFileSystem
+from tests.helpers import GitFileSystem, make_rich_output, seed_sandbox
 from worktree.cli import app
 from worktree.cli.sandbox.command import (
     collect_sandbox_delete,
@@ -24,7 +22,6 @@ from worktree.cli.sandbox.renderers import (
     render_sandbox_delete_success,
     sandbox_delete_confirm_prompt,
 )
-from worktree.common.utils import RichOutput
 from worktree.core.db import (
     SandboxesRepository,
     SandboxStatus,
@@ -33,41 +30,6 @@ from worktree.core.git_sandbox import GitSandboxManager
 
 runner = CliRunner()
 DB_REL = ".worktree/data.db"
-
-
-def _seed_sandbox(
-    repo: Path,
-    sandbox_id: str,
-    name: str | None = None,
-    path_suffix: str | None = None,
-    create_dir: bool = True,
-    base_commit: str = "4f2c9a1e8b3d6f0a2c5e7b1d9a3f6c8e0b2d4f6a",
-):
-    suffix = path_suffix if path_suffix is not None else sandbox_id
-    sandbox_path = repo / ".worktree" / "sandboxes" / suffix
-    if create_dir:
-        sandbox_path.mkdir(parents=True, exist_ok=True)
-    return SandboxesRepository(repo, DB_REL).insert(
-        id=sandbox_id,
-        branch_name=f"worktree/sandbox-{sandbox_id}",
-        base_commit=base_commit,
-        sandbox_path=sandbox_path,
-        name=name,
-    )
-
-
-_insert = _seed_sandbox
-
-
-def _rich(*, width: int = 120) -> tuple[RichOutput, StringIO]:
-    buffer = StringIO()
-    console = Console(
-        file=buffer,
-        force_terminal=False,
-        color_system=None,
-        width=width,
-    )
-    return RichOutput(console=console), buffer
 
 
 class SandboxDeleteCollectTests:
@@ -101,7 +63,7 @@ class SandboxDeleteCollectTests:
 
     def test_already_cleaned(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        created = _insert(
+        created = seed_sandbox(
             git_fs.base_path,
             sandbox_id="sbx_clean",
             create_dir=False,
@@ -132,7 +94,7 @@ class SandboxDeleteCollectTests:
         status: SandboxStatus,
     ) -> None:
         git_fs.init_repo()
-        created = _insert(
+        created = seed_sandbox(
             git_fs.base_path,
             sandbox_id=f"sbx_{status.value}",
             path_suffix=status.value,
@@ -156,20 +118,20 @@ class SandboxDeleteRenderTests:
     """Renderer unit tests with a fixed console width."""
 
     def test_already_cleaned_message(self) -> None:
-        rich_output, buffer = _rich()
+        rich_output, buffer = make_rich_output()
         render_sandbox_already_cleaned("sbx_done", rich_output=rich_output)
         out = buffer.getvalue()
         assert "Sandbox 'sbx_done' is already cleaned; nothing to remove." in out
 
     def test_delete_success(self) -> None:
-        rich_output, buffer = _rich()
+        rich_output, buffer = make_rich_output()
         render_sandbox_delete_success("sbx_gone", rich_output=rich_output)
         out = buffer.getvalue()
         assert "Sandbox deleted: sbx_gone" in out
 
     def test_confirm_prompt_text(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        row = _insert(git_fs.base_path, sandbox_id="sbx_prompt", name="demo")
+        row = seed_sandbox(git_fs.base_path, sandbox_id="sbx_prompt", name="demo")
         prompt = sandbox_delete_confirm_prompt(row)
         assert "Delete sandbox 'sbx_prompt'" in prompt
         assert f"branch {row.branch_name}" in prompt
@@ -220,7 +182,7 @@ class SandboxDeleteCommandDirectTests:
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
-        created = _insert(git_fs.base_path, sandbox_id="sbx_clean_cmd", create_dir=False)
+        created = seed_sandbox(git_fs.base_path, sandbox_id="sbx_clean_cmd", create_dir=False)
         SandboxesRepository(git_fs.base_path, DB_REL).update_status(
             created.id,
             SandboxStatus.CLEANED,
@@ -246,7 +208,7 @@ class SandboxDeleteCommandDirectTests:
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
-        created = _insert(git_fs.base_path, sandbox_id="sbx_decline")
+        created = seed_sandbox(git_fs.base_path, sandbox_id="sbx_decline")
         sandbox_path = Path(created.sandbox_path)
 
         with (
@@ -275,7 +237,7 @@ class SandboxDeleteCommandDirectTests:
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
-        created = _insert(git_fs.base_path, sandbox_id="sbx_eof")
+        created = seed_sandbox(git_fs.base_path, sandbox_id="sbx_eof")
 
         with (
             patch.object(GitSandboxManager, "cleanup_sandbox") as cleanup,
@@ -351,7 +313,7 @@ class SandboxDeleteCommandDirectTests:
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
-        created = _insert(
+        created = seed_sandbox(
             git_fs.base_path,
             sandbox_id="sbx_missing_dir",
             create_dir=False,
@@ -373,7 +335,7 @@ class SandboxDeleteCommandDirectTests:
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
-        created = _insert(
+        created = seed_sandbox(
             git_fs.base_path,
             sandbox_id="sbx_session",
             name="named",
@@ -448,7 +410,7 @@ class SandboxDeleteCliTests:
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
-        created = _insert(git_fs.base_path, sandbox_id="sbx_cli_no")
+        created = seed_sandbox(git_fs.base_path, sandbox_id="sbx_cli_no")
 
         result = runner.invoke(
             app,

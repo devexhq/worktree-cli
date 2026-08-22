@@ -7,61 +7,31 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from tests.helpers import FileSystem
+from tests.helpers import (
+    FileSystem,
+    make_checkpoint,
+    make_cmd_step,
+)
 from worktree.core.blueprint import Blueprint, BlueprintDefinition, BlueprintKind
 from worktree.core.catalog.services.inventory import scan_and_index_catalog
 from worktree.core.db import RunsRepository, RunStatus
 from worktree.core.engine import Engine, EngineResumeError, EngineResumeStatus, EngineRuntimeError, ResumableRun
 from worktree.core.runtime import RunCheckpoint, RunContext, RunOutcome
-from worktree.core.step import LoopStepBlock, StepDefinition, StepResult, StepType
-
-
-def _cmd_step(step_id: str, command: str = "echo ok") -> StepDefinition:
-    return StepDefinition(id=step_id, type=StepType.COMMAND, command=command)
-
-
-def _ok_result(step_id: str) -> StepResult:
-    return StepResult(
-        step_id=step_id,
-        status="completed",
-        exit_code=0,
-        stdout="ok",
-        stderr="",
-        duration_seconds=0.01,
-    )
-
-
-def _failed_result(step_id: str = "publish") -> StepResult:
-    return StepResult(
-        step_id=step_id,
-        status="failed",
-        exit_code=1,
-        stdout="",
-        stderr="nope",
-        duration_seconds=0.01,
-        error_message="boom",
-    )
+from worktree.core.step import LoopStepBlock
 
 
 def _checkpoint(**overrides: object) -> RunCheckpoint:
-    payload: dict[str, object] = {
-        "next_step_index": 1,
-        "step_results": [_ok_result("setup")],
-        "sandbox_path": None,
-        "use_sandbox": False,
-        "keep": True,
-        "agent": "copilot",
-        "inputs": {"name": "demo"},
-        "pending_step_id": "publish",
-        "diagnostic": "Step 'publish' failed: boom",
-        "pending_result": _failed_result(),
-    }
+    payload: dict[str, object] = {"step_id": "setup", "pending_step_id": "publish"}
     payload.update(overrides)
-    return RunCheckpoint.model_validate(payload)
+    return make_checkpoint(**payload)
 
 
 def _task_blueprint(*, name: str = "lint", loop: bool = False) -> Blueprint:
-    steps: list[Any] = [_cmd_step("setup"), _cmd_step("publish", "exit 1"), _cmd_step("later")]
+    steps: list[Any] = [
+        make_cmd_step(step_id="setup"),
+        make_cmd_step(step_id="publish", command="exit 1"),
+        make_cmd_step(step_id="later"),
+    ]
     if loop:
         steps.append(
             LoopStepBlock.model_validate(
@@ -89,7 +59,11 @@ def _workflow_blueprint(*, name: str = "ship") -> Blueprint:
             kind=BlueprintKind.WORKFLOW,
             name=name,
             use_sandbox=False,
-            steps=[_cmd_step("setup"), _cmd_step("publish", "exit 1"), _cmd_step("later")],
+            steps=[
+                make_cmd_step(step_id="setup"),
+                make_cmd_step(step_id="publish", command="exit 1"),
+                make_cmd_step(step_id="later"),
+            ],
         )
     )
 
@@ -107,7 +81,7 @@ def _seed_paused_workflow(fs: FileSystem, session_id: str, checkpoint: RunCheckp
 
 
 def test_resume_rebuilds_context_from_checkpoint(monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
-    checkpoint = _checkpoint()
+    checkpoint = _checkpoint(keep=True, agent="copilot", inputs={"name": "demo"})
     _seed_paused_task(fs, "task_resume", checkpoint)
     observer = MagicMock()
     expected = RunOutcome(status=RunStatus.COMPLETED, step_results=[], sandbox_path=fs.base_path)
@@ -285,7 +259,7 @@ def test_resume_mark_running_failure_warns(monkeypatch: pytest.MonkeyPatch, fs: 
     expected = RunOutcome(status=RunStatus.COMPLETED, sandbox_path=fs.base_path, warnings=["step note"])
     monkeypatch.setattr("worktree.core.engine.engine.run_steps", lambda _context: expected)
     monkeypatch.setattr(
-        "worktree.core.engine.engine._DbPauseStore.clear_pause",
+        "worktree.core.engine.engine.RunsRepository.update_status",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("locked")),
     )
 
@@ -300,9 +274,17 @@ def test_resume_finalize_failure_warns(monkeypatch: pytest.MonkeyPatch, fs: File
     _seed_paused_task(fs, "task_final", _checkpoint())
     expected = RunOutcome(status=RunStatus.COMPLETED, sandbox_path=fs.base_path)
     monkeypatch.setattr("worktree.core.engine.engine.run_steps", lambda _context: expected)
+
+    real_update = RunsRepository.update_status
+
+    def _fail_finalize(self: RunsRepository, session_id: str, status: RunStatus, **kwargs: object) -> None:
+        if status != RunStatus.RUNNING:
+            raise RuntimeError("locked")
+        real_update(self, session_id, status, **kwargs)
+
     monkeypatch.setattr(
-        "worktree.core.engine.engine._DbPauseStore.finalize",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("locked")),
+        "worktree.core.engine.engine.RunsRepository.update_status",
+        _fail_finalize,
     )
 
     outcome = Engine(fs.base_path).resume("task_final", blueprint=_task_blueprint())

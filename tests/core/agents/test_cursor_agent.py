@@ -129,8 +129,9 @@ class BuildPromptTests:
 
 
 class CursorAdapterTests:
-    def test_proposed_patch(self, sandbox: Path) -> None:
-        adapter = CursorAgentAdapter(run_fn=_fake_run(edits={"a.txt": "fixed\n"}))
+    def test_proposed_patch(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("worktree.core.agents.cursor.default_cursor_run", _fake_run(edits={"a.txt": "fixed\n"}))
+        adapter = CursorAgentAdapter()
 
         resp = adapter.propose_fix(_request(sandbox))
 
@@ -141,16 +142,18 @@ class CursorAdapterTests:
         assert resp.mutation_baseline_ref is not None
         assert (sandbox / "a.txt").read_text(encoding="utf-8") == "fixed\n"
 
-    def test_no_op_when_no_edits(self, sandbox: Path) -> None:
-        adapter = CursorAgentAdapter(run_fn=_fake_run())
+    def test_no_op_when_no_edits(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("worktree.core.agents.cursor.default_cursor_run", _fake_run())
+        adapter = CursorAgentAdapter()
 
         resp = adapter.propose_fix(_request(sandbox))
 
         assert resp.status == AgentResponseStatus.NO_OP
         assert resp.mutation_baseline_ref is not None
 
-    def test_missing_model(self, sandbox: Path) -> None:
-        adapter = CursorAgentAdapter(run_fn=_fake_run())
+    def test_missing_model(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("worktree.core.agents.cursor.default_cursor_run", _fake_run())
+        adapter = CursorAgentAdapter()
 
         resp = adapter.propose_fix(_request(sandbox, model=None))
 
@@ -160,7 +163,8 @@ class CursorAdapterTests:
 
     def test_missing_api_key(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv(CURSOR_API_KEY_ENV, raising=False)
-        adapter = CursorAgentAdapter(run_fn=_fake_run())
+        monkeypatch.setattr("worktree.core.agents.cursor.default_cursor_run", _fake_run())
+        adapter = CursorAgentAdapter()
 
         resp = adapter.propose_fix(_request(sandbox))
 
@@ -168,8 +172,11 @@ class CursorAdapterTests:
         assert any(CURSOR_API_KEY_ENV in e for e in resp.errors)
         assert resp.mutation_baseline_ref is None
 
-    def test_sdk_error_status(self, sandbox: Path) -> None:
-        adapter = CursorAgentAdapter(run_fn=_fake_run(status="error", error_detail="auth failed"))
+    def test_sdk_error_status(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "worktree.core.agents.cursor.default_cursor_run", _fake_run(status="error", error_detail="auth failed")
+        )
+        adapter = CursorAgentAdapter()
 
         resp = adapter.propose_fix(_request(sandbox))
 
@@ -177,8 +184,9 @@ class CursorAdapterTests:
         assert any("auth failed" in e for e in resp.errors)
         assert resp.mutation_baseline_ref is not None
 
-    def test_timeout(self, sandbox: Path) -> None:
-        adapter = CursorAgentAdapter(run_fn=_fake_run(status="timeout"))
+    def test_timeout(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("worktree.core.agents.cursor.default_cursor_run", _fake_run(status="timeout"))
+        adapter = CursorAgentAdapter()
 
         resp = adapter.propose_fix(_request(sandbox))
 
@@ -186,15 +194,20 @@ class CursorAdapterTests:
         assert any("timed out" in e.lower() for e in resp.errors)
         assert resp.mutation_baseline_ref is not None
 
-    def test_cancelled_maps_to_timeout(self, sandbox: Path) -> None:
-        adapter = CursorAgentAdapter(run_fn=_fake_run(status="timeout"))
+    def test_cancelled_maps_to_timeout(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("worktree.core.agents.cursor.default_cursor_run", _fake_run(status="timeout"))
+        adapter = CursorAgentAdapter()
 
         resp = adapter.propose_fix(_request(sandbox))
 
         assert resp.status == AgentResponseStatus.TIMEOUT
 
-    def test_gate_violation_discards_edits(self, sandbox: Path) -> None:
-        adapter = CursorAgentAdapter(run_fn=_fake_run(edits={"a.txt": "edit one\n", "b.txt": "edit two\n"}))
+    def test_gate_violation_discards_edits(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "worktree.core.agents.cursor.default_cursor_run",
+            _fake_run(edits={"a.txt": "edit one\n", "b.txt": "edit two\n"}),
+        )
+        adapter = CursorAgentAdapter()
 
         resp = adapter.propose_fix(_request(sandbox, max_files=1))
 
@@ -204,9 +217,13 @@ class CursorAdapterTests:
         assert (sandbox / "a.txt").read_text(encoding="utf-8") == "original\n"
         assert not (sandbox / "b.txt").exists()
 
-    def test_gate_violation_preserves_wip(self, sandbox: Path) -> None:
+    def test_gate_violation_preserves_wip(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         (sandbox / "a.txt").write_text("wip content\n", encoding="utf-8")
-        adapter = CursorAgentAdapter(run_fn=_fake_run(edits={"a.txt": "edit one\n", "b.txt": "edit two\n"}))
+        monkeypatch.setattr(
+            "worktree.core.agents.cursor.default_cursor_run",
+            _fake_run(edits={"a.txt": "edit one\n", "b.txt": "edit two\n"}),
+        )
+        adapter = CursorAgentAdapter()
 
         resp = adapter.propose_fix(_request(sandbox, max_files=1))
 

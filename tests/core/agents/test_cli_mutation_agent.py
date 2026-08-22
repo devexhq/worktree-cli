@@ -12,6 +12,7 @@ from worktree.core.agents import AgentRequest, AgentResponseStatus
 from worktree.core.agents.cli_mutation import (
     CliDirectMutationAdapter,
     CliMutationOutcome,
+    CliMutationRunFn,
     CliMutationRunRequest,
     build_mutation_prompt,
 )
@@ -82,11 +83,14 @@ def sandbox(fs: FileSystem) -> Path:
 
 
 class UnitTestAdapter(CliDirectMutationAdapter):
+    def __init__(self, run_fn: CliMutationRunFn) -> None:
+        self._run_fn = run_fn
+
     def _provider_name(self) -> str:
         return "unit-test"
 
     def _default_run(self, request: CliMutationRunRequest) -> CliMutationOutcome:
-        raise AssertionError("default run should not be used")
+        return self._run_fn(request)
 
 
 class PreflightAdapter(UnitTestAdapter):

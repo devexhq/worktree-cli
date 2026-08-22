@@ -328,19 +328,16 @@ class ConfigValidateCliTests:
         assert "CONFIG_SEMANTIC_PATH_INVALID" in combined
 
     def test_help_lists_config_validate(self) -> None:
-        root = runner.invoke(app, ["--help"])
-        assert root.exit_code == 0
-        assert "config" in root.stdout
-
-        cfg = runner.invoke(app, ["config", "--help"])
-        assert cfg.exit_code == 0
-
         root_cmd = get_command(app)
+        assert "config" in root_cmd.list_commands(None)
+
         config_cmd = root_cmd.get_command(None, "config")
+        assert config_cmd is not None
         assert config_cmd.help == "Inspect, update, and validate Worktree CLI configuration."
         assert "show" in config_cmd.list_commands(None)
         assert "set" in config_cmd.list_commands(None)
         assert "validate" in config_cmd.list_commands(None)
 
         validate_cmd = config_cmd.get_command(None, "validate")
+        assert validate_cmd is not None
         assert validate_cmd.help == "Validate .worktree/config.json against the V1 schema and semantic rules."
