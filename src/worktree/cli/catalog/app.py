@@ -1,10 +1,6 @@
 import typer
-from rich.console import Console
 
 from .command import catalog_create_command, catalog_delete_command, catalog_list_command, catalog_show_command
-
-console = Console()
-
 
 catalog_app = typer.Typer(
     name="catalog",
@@ -78,12 +74,6 @@ def catalog_delete(
     ),
 ):
     """Delete a catalog blueprint file and its database index record."""
-    if not force:
-        confirm = typer.confirm(f"Are you sure you want to delete catalog blueprint '{name}'?")
-        if not confirm:
-            console.print("Deletion cancelled.")
-            raise typer.Exit()
-
-    outcome = catalog_delete_command(sha_or_name=name)
+    outcome = catalog_delete_command(sha_or_name=name, force=force)
     if not outcome.ok:
         raise typer.Exit(code=1)
