@@ -8,7 +8,7 @@ import pytest
 
 from tests.helpers import FileSystem
 from worktree.core.db import (
-    CostsDb,
+    CostsRepository,
     SandboxesRepository,
     SandboxStatus,
     init_database,
@@ -36,7 +36,7 @@ class DatabaseTests:
         assert first.is_file()
 
     def test_record_and_aggregate(self, fs: FileSystem) -> None:
-        db = CostsDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = CostsRepository(cwd=fs.base_path, db_rel_path=DB_REL)
         row_id = db.record_token_usage(
             session_id="s1",
             branch_name="feature",
@@ -54,7 +54,7 @@ class DatabaseTests:
         assert totals["total_usd_cost"] == pytest.approx(0.01)
 
     def test_empty_session_totals(self, fs: FileSystem) -> None:
-        db = CostsDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = CostsRepository(cwd=fs.base_path, db_rel_path=DB_REL)
         db.init_db()
         totals = db.get_session_total_cost("missing")
         assert totals["total_tokens"] == 0

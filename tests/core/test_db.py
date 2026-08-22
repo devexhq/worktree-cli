@@ -1,4 +1,4 @@
-"""Tests for SQLite database tables, DbBase, repository classes, and WorktreeDb facade."""
+"""Tests for SQLite database tables, BaseRepository, repository classes, and WorktreeDb facade."""
 
 from __future__ import annotations
 
@@ -9,11 +9,11 @@ import pytest
 
 from tests.helpers import FileSystem
 from worktree.core.db import (
+    BaseRepository,
     BlueprintKind,
     CatalogItemType,
     CatalogRecord,
     CatalogRepository,
-    DbBase,
     RunRecord,
     RunsRepository,
     RunStatus,
@@ -108,48 +108,30 @@ class TestDatabaseMigrations:
         assert tk.status == RunStatus.COMPLETED
 
 
-class TestDbBase:
-    """Tests for DbBase core path resolution, cursor management, and helper methods."""
+class TestBaseRepository:
+    """Tests for BaseRepository core path resolution, init_db, and session lifecycle."""
 
     def test_db_path_resolution(self, fs: FileSystem) -> None:
-        db_base = DbBase(cwd=fs.base_path, db_rel_path=DB_REL)
-        assert db_base.db_path == fs.base_path / DB_REL
+        repo = BaseRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        assert repo.db_path == fs.base_path / DB_REL
 
         custom_path = fs.base_path / "custom.db"
-        db_base_custom = DbBase(db_path=custom_path)
-        assert db_base_custom.db_path == custom_path
+        repo_custom = BaseRepository(db_path=custom_path)
+        assert repo_custom.db_path == custom_path
 
-    def test_cursor_and_transaction(self, fs: FileSystem) -> None:
-        db_base = DbBase(cwd=fs.base_path, db_rel_path=DB_REL)
-        assert (
-            db_base.execute_insert(
-                "INSERT INTO runs (session_id, blueprint_name, kind) VALUES (?, ?, ?);",
-                ("s1", "t1", "task"),
-            )
-            == 1
-        )
+    def test_init_db_creates_file_and_marks_initialized(self, fs: FileSystem) -> None:
+        repo = BaseRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        assert not repo._initialized
+        path = repo.init_db()
+        assert path.is_file()
+        assert repo._initialized
 
-        row = db_base.fetch_one("SELECT * FROM runs WHERE session_id = ?;", ("s1",))
-        assert row is not None
-        assert row["blueprint_name"] == "t1"
-
-        all_rows = db_base.fetch_all("SELECT * FROM runs;")
-        assert len(all_rows) == 1
-
-    def test_transaction_rollback_on_exception(self, fs: FileSystem) -> None:
-        db_base = DbBase(cwd=fs.base_path, db_rel_path=DB_REL)
-        db_base.init_db()
-
-        with pytest.raises(sqlite3.IntegrityError):
-            with db_base.cursor() as cursor:
-                cursor.execute(
-                    "INSERT INTO runs (session_id, blueprint_name, kind) VALUES (?, ?, ?);", ("s_dup", "t1", "task")
-                )
-                cursor.execute(
-                    "INSERT INTO runs (session_id, blueprint_name, kind) VALUES (?, ?, ?);", ("s_dup", "t2", "task")
-                )
-
-        assert db_base.fetch_one("SELECT * FROM runs WHERE session_id = ?;", ("s_dup",)) is None
+    def test_session_auto_inits_db(self, fs: FileSystem) -> None:
+        repo = BaseRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        with repo.session() as session:
+            assert session is not None
+        assert repo._initialized
+        assert repo.db_path.is_file()
 
 
 class TestSandboxesRepository:
