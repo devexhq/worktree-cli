@@ -1,6 +1,6 @@
-"""Catalog command re-exports."""
+"""Catalog commands package."""
 
-from .commands.root import (
+from .root import (
     catalog_create_command,
     catalog_delete_command,
     catalog_list_command,

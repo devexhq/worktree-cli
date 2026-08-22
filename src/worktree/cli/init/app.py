@@ -2,7 +2,7 @@ import typer
 
 from worktree.common.version import get_version
 
-from .command import init_command
+from .commands.root import init_command
 
 init_app = typer.Typer(name="init", help="Initialize Worktree CLI in the current directory.")
 

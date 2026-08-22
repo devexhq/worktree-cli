@@ -5,7 +5,7 @@ from typer.testing import CliRunner
 
 from tests.helpers import FileSystem
 from worktree.cli import app
-from worktree.cli.catalog.command import (
+from worktree.cli.catalog.commands.root import (
     catalog_create_command,
     catalog_delete_command,
     catalog_list_command,
