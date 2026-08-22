@@ -345,3 +345,30 @@ def delete_catalog_item_by_sha_or_name(
 
     CatalogRepository(cwd).delete(item.sha)
     return item
+
+
+def list_packaged_template_defaults() -> list[tuple[str, str]]:
+    """Return (type, relative_path) pairs for the three packaged `default.yml` templates."""
+    root = get_catalog_templates_dir()
+    rows: list[tuple[str, str]] = []
+    for item_type in (CatalogItemType.WORKFLOW, CatalogItemType.TASK, CatalogItemType.STEP):
+        rel_path = f"{item_type.value}s/default.yml"
+        if (root / rel_path).is_file():
+            rows.append((item_type.value, rel_path))
+    return rows
+
+
+def find_packaged_templates(sha_or_name: str) -> list[tuple[str, str]]:
+    """Return (relative_path, content) pairs for packaged templates matching `sha_or_name`."""
+    root = get_catalog_templates_dir()
+    found: list[tuple[str, str]] = []
+    for type_dir in ("workflows", "tasks", "steps"):
+        candidate = (
+            (root / type_dir / "default.yml")
+            if sha_or_name == "default"
+            else (root / type_dir / "wt" / f"{sha_or_name}.yml")
+        )
+        if candidate.is_file():
+            rel_path = f"{type_dir}/default.yml" if sha_or_name == "default" else f"{type_dir}/wt/{sha_or_name}.yml"
+            found.append((rel_path, candidate.read_text(encoding="utf-8")))
+    return found
