@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import typer
+
 from worktree.common.utils import RichOutput
 from worktree.core.catalog.services.inventory import (
     create_catalog_item,
