@@ -266,6 +266,247 @@ class GitSandboxManager:
         except RuntimeError:
             pass
 
+    # ------------------------------------------------------------------
+    # create_sandbox_result helpers
+    # ------------------------------------------------------------------
+
+    def _load_and_validate_config(
+        self,
+    ) -> tuple[SandboxCreateResult, None] | tuple[None, WorktreeConfig]:
+        """Load and validate worktree config.
+
+        Returns:
+            ``(error_result, None)`` when config is missing or unreadable,
+            ``(None, config)`` on success.
+        """
+        load = load_config_result(cwd=self.cwd)
+        if load.status == ConfigLoadStatus.NOT_FOUND:
+            return (
+                SandboxCreateResult(
+                    status=SandboxCreateStatus.NOT_INITIALIZED,
+                    errors=[
+                        f"Worktree is not initialized; config missing at "
+                        f"'{load.config_path}' (SANDBOX_NOT_INITIALIZED).\n"
+                        "Fix:\n"
+                        "- run `wt init` to create `.worktree/config.json`"
+                    ],
+                ),
+                None,
+            )
+        if not load.ok or load.config is None:
+            detail = load.errors[0] if load.errors else str(load.status)
+            return (
+                SandboxCreateResult(
+                    status=SandboxCreateStatus.UNREADABLE_CONFIG,
+                    errors=[
+                        f"Unable to load Worktree config for sandbox create "
+                        f"(SANDBOX_CONFIG_UNREADABLE): {detail}\n"
+                        "Fix:\n"
+                        "- repair `.worktree/config.json` or run `wt init --repair`"
+                    ],
+                ),
+                None,
+            )
+        self._config = load.config
+        return None, load.config
+
+    def _check_capacity(self, config: WorktreeConfig) -> SandboxCreateResult | None:
+        """Return an error result when the active-sandbox cap has been reached."""
+        active = self.get_active_sandboxes()
+        max_allowed = config.sandbox.max_active_sandboxes
+        if len(active) >= max_allowed:
+            return SandboxCreateResult(
+                status=SandboxCreateStatus.CAPACITY_EXCEEDED,
+                errors=[
+                    f"Maximum active sandboxes reached "
+                    f"({len(active)}/{max_allowed}).\n"
+                    "Fix:\n"
+                    "- run `wt prune` to remove stale sandboxes, or\n"
+                    "- raise sandbox.max_active_sandboxes in .worktree/config.json"
+                ],
+            )
+        return None
+
+    def _resolve_base_ref(self, override_base_ref: str | None, config: WorktreeConfig) -> str:
+        """Return the git ref to branch the sandbox from.
+
+        Uses *override_base_ref* when provided; otherwise falls back to the
+        current branch or the configured ``sandbox.base_ref``.
+        """
+        if override_base_ref is not None:
+            return override_base_ref
+        source_branch = get_current_git_branch(self.cwd)
+        if source_branch not in ("unknown", "HEAD (detached)"):
+            return source_branch
+        return config.sandbox.base_ref
+
+    def _run_git_worktree_add(
+        self,
+        sandbox_path: Path,
+        temp_branch: str,
+        resolved_base_ref: str,
+    ) -> SandboxCreateResult | None:
+        """Run ``git worktree add`` and return an error result on failure."""
+        try:
+            self._run_git_cmd(["worktree", "add", "-b", temp_branch, str(sandbox_path), resolved_base_ref])
+            return None
+        except GitPlumbingTimeoutError as exc:
+            self._discard_partial_sandbox(sandbox_path, temp_branch)
+            return SandboxCreateResult(
+                status=SandboxCreateStatus.GIT_TIMEOUT,
+                errors=[
+                    f"Git worktree operation timed out "
+                    f"(SANDBOX_GIT_TIMEOUT): {exc}\n"
+                    "Fix:\n"
+                    "- check for git lock files, credential prompts, or a "
+                    "stuck git process, then retry"
+                ],
+            )
+        except RuntimeError as exc:
+            self._discard_partial_sandbox(sandbox_path, temp_branch)
+            return SandboxCreateResult(
+                status=SandboxCreateStatus.GIT_FAILED,
+                errors=[
+                    f"Git worktree operation failed (SANDBOX_GIT_FAILED): {exc}\n"
+                    "Fix:\n"
+                    "- ensure this directory is a Git repository with a valid "
+                    "base ref"
+                ],
+            )
+
+    def _get_base_commit(
+        self,
+        sandbox_path: Path,
+        temp_branch: str,
+    ) -> tuple[str, None] | tuple[None, SandboxCreateResult]:
+        """Resolve HEAD of the new worktree.
+
+        Returns:
+            ``(commit_sha, None)`` on success,
+            ``(None, error_result)`` on git failure.
+        """
+        try:
+            commit = self._run_git_cmd(["rev-parse", "HEAD"], cwd=sandbox_path)
+            return commit, None
+        except GitPlumbingTimeoutError as exc:
+            self._discard_partial_sandbox(sandbox_path, temp_branch)
+            return None, SandboxCreateResult(
+                status=SandboxCreateStatus.GIT_TIMEOUT,
+                errors=[
+                    f"Git worktree operation timed out "
+                    f"(SANDBOX_GIT_TIMEOUT): {exc}\n"
+                    "Fix:\n"
+                    "- check for git lock files, credential prompts, or a "
+                    "stuck git process, then retry"
+                ],
+            )
+        except RuntimeError as exc:
+            self._discard_partial_sandbox(sandbox_path, temp_branch)
+            return None, SandboxCreateResult(
+                status=SandboxCreateStatus.GIT_FAILED,
+                errors=[
+                    f"Git worktree operation failed (SANDBOX_GIT_FAILED): {exc}\n"
+                    "Fix:\n"
+                    "- ensure this directory is a Git repository with a valid "
+                    "base ref"
+                ],
+            )
+
+    def _apply_wip_overlay(
+        self,
+        sandbox_path: Path,
+        temp_branch: str,
+    ) -> tuple[list[str], None] | tuple[None, SandboxCreateResult]:
+        """Overlay uncommitted working-tree changes into *sandbox_path*.
+
+        Returns:
+            ``(wip_paths, None)`` on success,
+            ``(None, error_result)`` on failure.
+        """
+        try:
+            paths = apply_wip_to_sandbox(source_root=self.cwd, sandbox_path=sandbox_path)
+            return paths, None
+        except GitPlumbingTimeoutError as exc:
+            self._discard_partial_sandbox(sandbox_path, temp_branch)
+            return None, SandboxCreateResult(
+                status=SandboxCreateStatus.GIT_TIMEOUT,
+                errors=[
+                    f"Git timed out while overlaying uncommitted WIP "
+                    f"(SANDBOX_GIT_TIMEOUT): {exc}\n"
+                    "Fix:\n"
+                    "- check for git lock files or a stuck git process, "
+                    "then retry, or\n"
+                    "- omit --wip and commit changes first"
+                ],
+            )
+        except RuntimeError as exc:
+            self._discard_partial_sandbox(sandbox_path, temp_branch)
+            return None, SandboxCreateResult(
+                status=SandboxCreateStatus.WIP_FAILED,
+                errors=[
+                    f"Failed to overlay uncommitted WIP into sandbox "
+                    f"(SANDBOX_WIP_FAILED): {exc}\n"
+                    "Fix:\n"
+                    "- resolve local conflicts / binary issues and retry, or\n"
+                    "- omit --wip and commit changes first"
+                ],
+            )
+
+    def _persist_sandbox_session(self, session: SandboxSession) -> list[str]:
+        """Insert *session* into the local DB; return any warning messages."""
+        try:
+            SandboxesRepository(self.cwd).insert(
+                id=session.session_id,
+                name=session.name,
+                branch_name=session.target_branch,
+                base_commit=session.base_commit,
+                sandbox_path=session.sandbox_path,
+            )
+            return []
+        except Exception as exc:
+            return [f"Failed to persist sandbox metadata to the local database: {exc}"]
+
+    def _collect_wip_paths(
+        self,
+        include_wip: bool,
+        sandbox_path: Path,
+        temp_branch: str,
+    ) -> tuple[list[str], None] | tuple[None, SandboxCreateResult]:
+        """Return WIP paths to overlay, or an error result.
+
+        When *include_wip* is ``False`` returns an empty list immediately.
+        Otherwise delegates to :meth:`_apply_wip_overlay`.
+
+        Returns:
+            ``(paths, None)`` on success, ``(None, error_result)`` on failure.
+        """
+        if not include_wip:
+            return [], None
+        return self._apply_wip_overlay(sandbox_path, temp_branch)
+
+    def _build_session(
+        self,
+        *,
+        sid: str,
+        temp_branch: str,
+        sandbox_path: Path,
+        base_commit: str,
+        resolved_name: str | None,
+        include_wip: bool,
+        wip_paths: list[str],
+    ) -> SandboxSession:
+        """Construct and return a :class:`SandboxSession` from resolved fields."""
+        return SandboxSession(
+            session_id=sid,
+            target_branch=temp_branch,
+            sandbox_path=sandbox_path,
+            base_commit=base_commit,
+            name=resolved_name,
+            created_at=datetime.now(UTC).isoformat(),
+            wip_applied=bool(include_wip),
+            wip_paths=wip_paths,
+        )
+
     def create_sandbox_result(
         self,
         session_id: str | None = None,
@@ -275,6 +516,11 @@ class GitSandboxManager:
         base_ref: str | None = None,
     ) -> SandboxCreateResult:
         """Create a sandbox without raising for classified failures.
+
+        Orchestrates config loading, capacity checks, worktree creation, and
+        optional WIP overlay.  Each phase is delegated to a private helper so
+        that errors are returned as structured :class:`SandboxCreateResult`
+        values rather than exceptions.
 
         Args:
             session_id: Optional fixed session id; otherwise ``sbx_`` + 8 hex.
@@ -289,182 +535,45 @@ class GitSandboxManager:
         Returns:
             Structured create result with session on success.
         """
-        resolved_name = name.strip() if name is not None else None
-        if resolved_name == "":
-            resolved_name = None
+        resolved_name = name.strip() or None if name is not None else None
+        override_base_ref = base_ref.strip() or None if base_ref is not None else None
 
-        override_base_ref = base_ref.strip() if base_ref is not None else None
-        if override_base_ref == "":
-            override_base_ref = None
-
-        load = load_config_result(cwd=self.cwd)
-        if load.status == ConfigLoadStatus.NOT_FOUND:
-            return SandboxCreateResult(
-                status=SandboxCreateStatus.NOT_INITIALIZED,
-                errors=[
-                    f"Worktree is not initialized; config missing at "
-                    f"'{load.config_path}' (SANDBOX_NOT_INITIALIZED).\n"
-                    "Fix:\n"
-                    "- run `wt init` to create `.worktree/config.json`"
-                ],
-            )
-        if not load.ok or load.config is None:
-            detail = load.errors[0] if load.errors else str(load.status)
-            return SandboxCreateResult(
-                status=SandboxCreateStatus.UNREADABLE_CONFIG,
-                errors=[
-                    f"Unable to load Worktree config for sandbox create "
-                    f"(SANDBOX_CONFIG_UNREADABLE): {detail}\n"
-                    "Fix:\n"
-                    "- repair `.worktree/config.json` or run `wt init --repair`"
-                ],
-            )
-
-        config = load.config
-        self._config = config
+        config_err, config = self._load_and_validate_config()
+        if config_err is not None:
+            return config_err
 
         self._ensure_sandbox_dir()
-        active_sandboxes = self.get_active_sandboxes()
-        max_allowed = config.sandbox.max_active_sandboxes
-        if len(active_sandboxes) >= max_allowed:
-            return SandboxCreateResult(
-                status=SandboxCreateStatus.CAPACITY_EXCEEDED,
-                errors=[
-                    f"Maximum active sandboxes reached "
-                    f"({len(active_sandboxes)}/{max_allowed}).\n"
-                    "Fix:\n"
-                    "- run `wt prune` to remove stale sandboxes, or\n"
-                    "- raise sandbox.max_active_sandboxes in .worktree/config.json"
-                ],
-            )
+        capacity_err = self._check_capacity(config)
+        if capacity_err is not None:
+            return capacity_err
 
         sid = session_id or f"sbx_{uuid.uuid4().hex[:8]}"
         sandbox_path = (self.sandbox_base_dir / sid).resolve()
         temp_branch = f"worktree/sandbox-{sid}"
+        resolved_base_ref = self._resolve_base_ref(override_base_ref, config)
 
-        if override_base_ref is not None:
-            resolved_base_ref = override_base_ref
-        else:
-            source_branch = get_current_git_branch(self.cwd)
-            resolved_base_ref = (
-                source_branch if source_branch not in ("unknown", "HEAD (detached)") else config.sandbox.base_ref
-            )
+        add_err = self._run_git_worktree_add(sandbox_path, temp_branch, resolved_base_ref)
+        if add_err is not None:
+            return add_err
 
-        try:
-            self._run_git_cmd(
-                [
-                    "worktree",
-                    "add",
-                    "-b",
-                    temp_branch,
-                    str(sandbox_path),
-                    resolved_base_ref,
-                ]
-            )
-        except GitPlumbingTimeoutError as exc:
-            self._discard_partial_sandbox(sandbox_path, temp_branch)
-            return SandboxCreateResult(
-                status=SandboxCreateStatus.GIT_TIMEOUT,
-                errors=[
-                    f"Git worktree operation timed out "
-                    f"(SANDBOX_GIT_TIMEOUT): {exc}\n"
-                    "Fix:\n"
-                    "- check for git lock files, credential prompts, or a "
-                    "stuck git process, then retry"
-                ],
-            )
-        except RuntimeError as exc:
-            self._discard_partial_sandbox(sandbox_path, temp_branch)
-            return SandboxCreateResult(
-                status=SandboxCreateStatus.GIT_FAILED,
-                errors=[
-                    f"Git worktree operation failed (SANDBOX_GIT_FAILED): {exc}\n"
-                    "Fix:\n"
-                    "- ensure this directory is a Git repository with a valid "
-                    "base ref"
-                ],
-            )
+        base_commit, commit_err = self._get_base_commit(sandbox_path, temp_branch)
+        if commit_err is not None:
+            return commit_err
 
-        try:
-            base_commit = self._run_git_cmd(["rev-parse", "HEAD"], cwd=sandbox_path)
-        except GitPlumbingTimeoutError as exc:
-            self._discard_partial_sandbox(sandbox_path, temp_branch)
-            return SandboxCreateResult(
-                status=SandboxCreateStatus.GIT_TIMEOUT,
-                errors=[
-                    f"Git worktree operation timed out "
-                    f"(SANDBOX_GIT_TIMEOUT): {exc}\n"
-                    "Fix:\n"
-                    "- check for git lock files, credential prompts, or a "
-                    "stuck git process, then retry"
-                ],
-            )
-        except RuntimeError as exc:
-            self._discard_partial_sandbox(sandbox_path, temp_branch)
-            return SandboxCreateResult(
-                status=SandboxCreateStatus.GIT_FAILED,
-                errors=[
-                    f"Git worktree operation failed (SANDBOX_GIT_FAILED): {exc}\n"
-                    "Fix:\n"
-                    "- ensure this directory is a Git repository with a valid "
-                    "base ref"
-                ],
-            )
+        wip_paths, wip_err = self._collect_wip_paths(include_wip, sandbox_path, temp_branch)
+        if wip_err is not None:
+            return wip_err
 
-        wip_paths: list[str] = []
-        if include_wip:
-            try:
-                wip_paths = apply_wip_to_sandbox(
-                    source_root=self.cwd,
-                    sandbox_path=sandbox_path,
-                )
-            except GitPlumbingTimeoutError as exc:
-                self._discard_partial_sandbox(sandbox_path, temp_branch)
-                return SandboxCreateResult(
-                    status=SandboxCreateStatus.GIT_TIMEOUT,
-                    errors=[
-                        f"Git timed out while overlaying uncommitted WIP "
-                        f"(SANDBOX_GIT_TIMEOUT): {exc}\n"
-                        "Fix:\n"
-                        "- check for git lock files or a stuck git process, "
-                        "then retry, or\n"
-                        "- omit --wip and commit changes first"
-                    ],
-                )
-            except RuntimeError as exc:
-                self._discard_partial_sandbox(sandbox_path, temp_branch)
-                return SandboxCreateResult(
-                    status=SandboxCreateStatus.WIP_FAILED,
-                    errors=[
-                        f"Failed to overlay uncommitted WIP into sandbox "
-                        f"(SANDBOX_WIP_FAILED): {exc}\n"
-                        "Fix:\n"
-                        "- resolve local conflicts / binary issues and retry, or\n"
-                        "- omit --wip and commit changes first"
-                    ],
-                )
-
-        session = SandboxSession(
-            session_id=sid,
-            target_branch=temp_branch,
+        session = self._build_session(
+            sid=sid,
+            temp_branch=temp_branch,
             sandbox_path=sandbox_path,
-            base_commit=base_commit,
-            name=resolved_name,
-            created_at=datetime.now(UTC).isoformat(),
-            wip_applied=bool(include_wip),
-            wip_paths=wip_paths,
+            base_commit=base_commit,  # type: ignore[arg-type]
+            resolved_name=resolved_name,
+            include_wip=include_wip,
+            wip_paths=wip_paths,  # type: ignore[arg-type]
         )
-        warnings: list[str] = []
-        try:
-            SandboxesRepository(self.cwd).insert(
-                id=session.session_id,
-                name=session.name,
-                branch_name=session.target_branch,
-                base_commit=session.base_commit,
-                sandbox_path=session.sandbox_path,
-            )
-        except Exception as exc:
-            warnings.append(f"Failed to persist sandbox metadata to the local database: {exc}")
+        warnings = self._persist_sandbox_session(session)
         return SandboxCreateResult(
             status=SandboxCreateStatus.OK,
             session=session,
