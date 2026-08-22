@@ -1,5 +1,7 @@
 import typer
 
+from worktree.core.db import WorktreeDb
+
 from .commands.catalog_create import catalog_create_command
 from .commands.catalog_delete import catalog_delete_command
 from .commands.catalog_list import catalog_list_command
@@ -23,7 +25,8 @@ def catalog_callback(
 ):
     """Inspect and manage executable blueprints in .worktree/catalog/."""
     if ctx.invoked_subcommand is None:
-        outcome = catalog_list_command(type_filter=type)
+        db = WorktreeDb()
+        outcome = catalog_list_command(type_filter=type, db=db)
         if not outcome.ok:
             raise typer.Exit(code=1)
 
@@ -38,7 +41,8 @@ def catalog_list(
     ),
 ):
     """List catalog blueprints."""
-    outcome = catalog_list_command(type_filter=type)
+    db = WorktreeDb()
+    outcome = catalog_list_command(type_filter=type, db=db)
     if not outcome.ok:
         raise typer.Exit(code=1)
 
@@ -50,7 +54,8 @@ def catalog_create(
     name: str = typer.Option(..., "--name", help="Name for the catalog blueprint file."),
 ):
     """Create a new catalog blueprint under .worktree/catalog/<type>s/<name>.yml."""
-    outcome = catalog_create_command(item_type=type, name=name)
+    db = WorktreeDb()
+    outcome = catalog_create_command(item_type=type, name=name, db=db)
     if not outcome.ok:
         raise typer.Exit(code=1)
 
@@ -61,7 +66,8 @@ def catalog_show(
     name: str = typer.Argument(..., help="Catalog blueprint SHA or name to show."),
 ):
     """Show metadata and definition content of a catalog blueprint."""
-    outcome = catalog_show_command(sha_or_name=name)
+    db = WorktreeDb()
+    outcome = catalog_show_command(sha_or_name=name, db=db)
     if not outcome.ok:
         raise typer.Exit(code=1)
 
@@ -77,6 +83,7 @@ def catalog_delete(
     ),
 ):
     """Delete a catalog blueprint file and its database index record."""
-    outcome = catalog_delete_command(sha_or_name=name, force=force)
+    db = WorktreeDb()
+    outcome = catalog_delete_command(sha_or_name=name, force=force, db=db)
     if not outcome.ok:
         raise typer.Exit(code=1)

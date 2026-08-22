@@ -9,8 +9,8 @@ import typer
 from worktree.core.config.loader import load_config_result
 from worktree.core.db import (
     SandboxStatus,
+    WorktreeDb,
 )
-from worktree.core.db.repositories.sandboxes import SandboxesRepository
 
 from ..models import (
     SandboxShowResult,
@@ -27,12 +27,14 @@ def collect_sandbox_show(
     sandbox_id: str,
     *,
     cwd: Path | None = None,
+    db: WorktreeDb | None = None,
 ) -> SandboxShowResult:
     """Load config, look up one sandbox, and reconcile a stale active row.
 
     Args:
         sandbox_id: Sandbox primary key to show.
         cwd: Repository root. Defaults to process CWD.
+        db: Optional WorktreeDb instance.
 
     Returns:
         Structured show result. Does not print or exit.
@@ -45,14 +47,14 @@ def collect_sandbox_show(
             errors=list(load.errors),
         )
 
-    db = SandboxesRepository(root)
-    row = db.get(sandbox_id)
+    db = db or WorktreeDb(root)
+    row = db.sandboxes.get(sandbox_id)
     if row is None:
         return SandboxShowResult(status=SandboxShowStatus.NOT_FOUND)
 
     reconciled = False
     if row.status is SandboxStatus.ACTIVE and not Path(row.sandbox_path).is_dir():
-        updated = db.update_status(row.id, SandboxStatus.CLEANED)
+        updated = db.sandboxes.update_status(row.id, SandboxStatus.CLEANED)
         if updated is not None:
             row = updated
         else:
@@ -72,6 +74,7 @@ def sandbox_show_command(
     sandbox_id: str,
     *,
     cwd: Path | None = None,
+    db: WorktreeDb | None = None,
 ) -> None:
     """Show detail for one tracked sandbox.
 
@@ -82,8 +85,10 @@ def sandbox_show_command(
     Args:
         sandbox_id: Sandbox primary key to show.
         cwd: Repository root. Defaults to process CWD.
+        db: Optional WorktreeDb instance.
     """
-    result = collect_sandbox_show(sandbox_id, cwd=cwd)
+    db = db or WorktreeDb(cwd)
+    result = collect_sandbox_show(sandbox_id, cwd=cwd, db=db)
     if result.status is SandboxShowStatus.NOT_INITIALIZED:
         render_not_initialized(result.errors)
         raise typer.Exit(code=1)

@@ -11,7 +11,7 @@ import pytest
 
 import worktree.core.git_sandbox as git_sandbox_mod
 from tests.helpers import FileSystem, GitFileSystem
-from worktree.core.db import SandboxesRepository, SandboxStatus
+from worktree.core.db import SandboxesRepository, SandboxStatus, WorktreeDb
 from worktree.core.git_sandbox import (
     GitSandboxManager,
     SandboxCreateStatus,
@@ -379,14 +379,14 @@ class GitSandboxManagerTests:
         def _boom(*_args: object, **_kwargs: object) -> object:
             raise RuntimeError("db locked")
 
-        monkeypatch.setattr(git_sandbox_mod.SandboxesRepository, "insert", _boom)
+        monkeypatch.setattr("worktree.core.db.repositories.sandboxes.SandboxesRepository.insert", _boom)
         manager = GitSandboxManager(cwd=git_fs.base_path)
         result = manager.create_sandbox_result(session_id="sbx_warn")
         assert result.ok and result.session is not None
         assert result.session.sandbox_path.is_dir()
         assert len(result.warnings) == 1
         assert "db locked" in result.warnings[0]
-        assert SandboxesRepository(git_fs.base_path).get("sbx_warn") is None
+        assert WorktreeDb(git_fs.base_path).sandboxes.get("sbx_warn") is None
         manager.cleanup_sandbox(result.session)
 
     def test_cleanup_without_db_row_does_not_raise(self, git_fs: GitFileSystem) -> None:
