@@ -19,7 +19,8 @@ from worktree.core.catalog.services.inventory import (
     get_catalog_dir,
     scan_and_index_catalog,
 )
-from worktree.core.db import CatalogDb, CatalogItemType, CatalogRecord
+from worktree.core.db import CatalogItemType, CatalogRecord
+from worktree.core.db.repositories.catalog import CatalogRepository
 
 
 class Catalog:
@@ -45,8 +46,8 @@ class Catalog:
         """Return indexed catalog records, optionally filtered by item type."""
         scan_and_index_catalog(self.cwd)
         if kind is None:
-            return CatalogDb(self.cwd).list()
-        return CatalogDb(self.cwd).list(item_type=self._coerce_item_type(kind))
+            return CatalogRepository(self.cwd).list()
+        return CatalogRepository(self.cwd).list(item_type=self._coerce_item_type(kind))
 
     def save(
         self,
@@ -138,7 +139,7 @@ class Catalog:
 
     def _find_typed_matches(self, name: str, allowed_types: frozenset[CatalogItemType]) -> list[CatalogRecord]:
         """Return SHA or name matches restricted to ``allowed_types``, path-ascending."""
-        db = CatalogDb(self.cwd)
+        db = CatalogRepository(self.cwd)
         by_sha = db.get_by_sha(name)
         if by_sha is not None:
             if by_sha.item_type in allowed_types:
@@ -169,7 +170,7 @@ class Catalog:
     def _record_for_rel_path(self, rel_path: Path) -> CatalogRecord | None:
         """Return the indexed record whose path equals ``rel_path``."""
         expected = rel_path.as_posix()
-        for record in CatalogDb(self.cwd).list():
+        for record in CatalogRepository(self.cwd).list():
             if record.path.as_posix() == expected:
                 return record
         return None

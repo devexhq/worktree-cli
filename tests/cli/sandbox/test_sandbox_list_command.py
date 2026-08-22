@@ -25,7 +25,7 @@ from worktree.cli.sandbox.renderers import (
 )
 from worktree.common.utils import RichOutput
 from worktree.core.db import (
-    SandboxesDb,
+    SandboxesRepository,
     SandboxRecord,
     SandboxStatus,
 )
@@ -45,7 +45,7 @@ def _insert(
     sandbox_path = repo / ".worktree" / "sandboxes" / path_suffix
     if create_dir:
         sandbox_path.mkdir(parents=True, exist_ok=True)
-    return SandboxesDb(repo, DB_REL).insert(
+    return SandboxesRepository(repo, DB_REL).insert(
         id=sandbox_id,
         branch_name=f"worktree/sandbox-{sandbox_id}",
         base_commit="abc123",
@@ -87,9 +87,13 @@ class SandboxListCollectTests:
         git_fs.init_repo()
         first = _insert(git_fs.base_path, sandbox_id="sbx_first", name=None, path_suffix="1")
         second = _insert(git_fs.base_path, sandbox_id="sbx_second", name="beta", path_suffix="2")
-        db = SandboxesDb(cwd=git_fs.base_path)
-        db.execute("UPDATE sandboxes SET created_at = '2026-01-01 00:00:00' WHERE id = ?", (first.id,))
-        db.execute("UPDATE sandboxes SET created_at = '2026-01-01 00:00:01' WHERE id = ?", (second.id,))
+        db = SandboxesRepository(cwd=git_fs.base_path)
+        import sqlite3
+
+        with sqlite3.connect(db.db_path) as conn:
+            conn.execute("UPDATE sandboxes SET created_at = '2026-01-01 00:00:00' WHERE id = ?", (first.id,))
+            conn.execute("UPDATE sandboxes SET created_at = '2026-01-01 00:00:01' WHERE id = ?", (second.id,))
+            conn.commit()
         first = db.get(first.id)
         second = db.get(second.id)
 
@@ -105,7 +109,7 @@ class SandboxListCollectTests:
         git_fs.init_repo()
         active = _insert(git_fs.base_path, sandbox_id="sbx_active", path_suffix="a")
         cleaned = _insert(git_fs.base_path, sandbox_id="sbx_cleaned", path_suffix="c")
-        SandboxesDb(git_fs.base_path, DB_REL).update_status(
+        SandboxesRepository(git_fs.base_path, DB_REL).update_status(
             cleaned.id,
             SandboxStatus.CLEANED,
         )
@@ -130,7 +134,7 @@ class SandboxListCollectTests:
         assert len(result.sandboxes) == 1
         assert result.sandboxes[0].id == stale.id
         assert result.sandboxes[0].status is SandboxStatus.CLEANED
-        loaded = SandboxesDb(git_fs.base_path, DB_REL).get(stale.id)
+        loaded = SandboxesRepository(git_fs.base_path, DB_REL).get(stale.id)
         assert loaded is not None
         assert loaded.status is SandboxStatus.CLEANED
 
@@ -146,7 +150,7 @@ class SandboxListCollectTests:
         result = collect_sandbox_list(status="active", cwd=git_fs.base_path)
         assert result.ok
         assert result.sandboxes == []
-        loaded = SandboxesDb(git_fs.base_path, DB_REL).get(stale.id)
+        loaded = SandboxesRepository(git_fs.base_path, DB_REL).get(stale.id)
         assert loaded is not None
         assert loaded.status is SandboxStatus.CLEANED
 

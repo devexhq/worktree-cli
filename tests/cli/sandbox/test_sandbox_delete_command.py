@@ -26,7 +26,7 @@ from worktree.cli.sandbox.renderers import (
 )
 from worktree.common.utils import RichOutput
 from worktree.core.db import (
-    SandboxesDb,
+    SandboxesRepository,
     SandboxStatus,
 )
 from worktree.core.git_sandbox import GitSandboxManager
@@ -47,7 +47,7 @@ def _seed_sandbox(
     sandbox_path = repo / ".worktree" / "sandboxes" / suffix
     if create_dir:
         sandbox_path.mkdir(parents=True, exist_ok=True)
-    return SandboxesDb(repo, DB_REL).insert(
+    return SandboxesRepository(repo, DB_REL).insert(
         id=sandbox_id,
         branch_name=f"worktree/sandbox-{sandbox_id}",
         base_commit=base_commit,
@@ -106,7 +106,7 @@ class SandboxDeleteCollectTests:
             sandbox_id="sbx_clean",
             create_dir=False,
         )
-        updated = SandboxesDb(git_fs.base_path, DB_REL).update_status(
+        updated = SandboxesRepository(git_fs.base_path, DB_REL).update_status(
             created.id,
             SandboxStatus.CLEANED,
         )
@@ -138,7 +138,7 @@ class SandboxDeleteCollectTests:
             path_suffix=status.value,
         )
         if status is not SandboxStatus.ACTIVE:
-            updated = SandboxesDb(git_fs.base_path, DB_REL).update_status(
+            updated = SandboxesRepository(git_fs.base_path, DB_REL).update_status(
                 created.id,
                 status,
             )
@@ -221,7 +221,7 @@ class SandboxDeleteCommandDirectTests:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
         created = _insert(git_fs.base_path, sandbox_id="sbx_clean_cmd", create_dir=False)
-        SandboxesDb(git_fs.base_path, DB_REL).update_status(
+        SandboxesRepository(git_fs.base_path, DB_REL).update_status(
             created.id,
             SandboxStatus.CLEANED,
         )
@@ -262,7 +262,7 @@ class SandboxDeleteCommandDirectTests:
         confirm.assert_called_once()
         cleanup.assert_not_called()
         assert sandbox_path.is_dir()
-        loaded = SandboxesDb(git_fs.base_path, DB_REL).get(created.id)
+        loaded = SandboxesRepository(git_fs.base_path, DB_REL).get(created.id)
         assert loaded is not None
         assert loaded.status is SandboxStatus.ACTIVE
         assert "Aborted." in capsys.readouterr().out
@@ -288,7 +288,7 @@ class SandboxDeleteCommandDirectTests:
             sandbox_delete_command(created.id, cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 1
         cleanup.assert_not_called()
-        loaded = SandboxesDb(git_fs.base_path, DB_REL).get(created.id)
+        loaded = SandboxesRepository(git_fs.base_path, DB_REL).get(created.id)
         assert loaded is not None
         assert loaded.status is SandboxStatus.ACTIVE
         assert "Aborted." in capsys.readouterr().out
@@ -312,7 +312,7 @@ class SandboxDeleteCommandDirectTests:
         assert exc_info.value.exit_code == 0
         confirm.assert_not_called()
         assert not Path(session.sandbox_path).exists()
-        loaded = SandboxesDb(git_fs.base_path, DB_REL).get(session.session_id)
+        loaded = SandboxesRepository(git_fs.base_path, DB_REL).get(session.session_id)
         assert loaded is not None
         assert loaded.status is SandboxStatus.CLEANED
         assert f"Sandbox deleted: {session.session_id}" in capsys.readouterr().out
@@ -338,7 +338,7 @@ class SandboxDeleteCommandDirectTests:
         assert exc_info.value.exit_code == 0
         confirm.assert_called_once()
         assert not Path(session.sandbox_path).exists()
-        loaded = SandboxesDb(git_fs.base_path, DB_REL).get(session.session_id)
+        loaded = SandboxesRepository(git_fs.base_path, DB_REL).get(session.session_id)
         assert loaded is not None
         assert loaded.status is SandboxStatus.CLEANED
         assert f"Sandbox deleted: {session.session_id}" in capsys.readouterr().out
@@ -361,7 +361,7 @@ class SandboxDeleteCommandDirectTests:
         with pytest.raises(typer.Exit) as exc_info:
             sandbox_delete_command(created.id, force=True, cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 0
-        loaded = SandboxesDb(git_fs.base_path, DB_REL).get(created.id)
+        loaded = SandboxesRepository(git_fs.base_path, DB_REL).get(created.id)
         assert loaded is not None
         assert loaded.status is SandboxStatus.CLEANED
         assert f"Sandbox deleted: {created.id}" in capsys.readouterr().out
@@ -437,7 +437,7 @@ class SandboxDeleteCliTests:
         )
         assert result.exit_code == 0
         assert f"Sandbox deleted: {session.session_id}" in result.stdout
-        loaded = SandboxesDb(git_fs.base_path, DB_REL).get(session.session_id)
+        loaded = SandboxesRepository(git_fs.base_path, DB_REL).get(session.session_id)
         assert loaded is not None
         assert loaded.status is SandboxStatus.CLEANED
 
@@ -457,6 +457,6 @@ class SandboxDeleteCliTests:
         )
         assert result.exit_code == 1
         assert "Aborted." in result.stdout
-        loaded = SandboxesDb(git_fs.base_path, DB_REL).get(created.id)
+        loaded = SandboxesRepository(git_fs.base_path, DB_REL).get(created.id)
         assert loaded is not None
         assert loaded.status is SandboxStatus.ACTIVE

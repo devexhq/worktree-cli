@@ -22,8 +22,8 @@ from worktree.core.catalog.services.inventory import (
     scan_and_index_catalog,
 )
 from worktree.core.db import (
-    CatalogDb,
     CatalogItemType,
+    CatalogRepository,
 )
 
 
@@ -75,7 +75,7 @@ def test_scan_and_index_catalog(fs: FileSystem) -> None:
     assert len(result.items) == 3
 
     # Check indexed DB items
-    db_items = CatalogDb(fs.base_path).list()
+    db_items = CatalogRepository(fs.base_path).list()
     assert len(db_items) == 3
     sha_hashes = {item.sha for item in db_items}
     assert any(sha.startswith("workflow_") for sha in sha_hashes)
@@ -87,7 +87,7 @@ def test_scan_and_index_catalog(fs: FileSystem) -> None:
     second_result = scan_and_index_catalog(fs.base_path)
     assert second_result.ok
     assert len(second_result.items) == 2
-    second_db_items = CatalogDb(fs.base_path).list()
+    second_db_items = CatalogRepository(fs.base_path).list()
     assert len(second_db_items) == 2
 
 
@@ -130,7 +130,7 @@ def test_create_catalog_item_default(fs: FileSystem) -> None:
     assert (fs.base_path / ".worktree" / "catalog" / "workflows" / "my-pipeline.yml").exists()
 
     # DB verify
-    fetched = CatalogDb(fs.base_path).get_by_sha(record.sha)
+    fetched = CatalogRepository(fs.base_path).get_by_sha(record.sha)
     assert fetched is not None
     assert fetched.name == "my-pipeline"
 
@@ -180,7 +180,7 @@ def test_catalog_db_list_by_name(fs: FileSystem) -> None:
     fs.write_file(".worktree/catalog/tasks/dup.yml", "name: dup\n")
     scan_and_index_catalog(fs.base_path)
 
-    db = CatalogDb(fs.base_path)
+    db = CatalogRepository(fs.base_path)
     all_duplicates = db.list_by_name("dup")
     assert len(all_duplicates) == 2
     assert [d.path.as_posix() for d in all_duplicates] == ["tasks/dup.yml", "workflows/dup.yml"]

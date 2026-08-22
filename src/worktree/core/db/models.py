@@ -67,53 +67,42 @@ class PathType(TypeDecorator[Path]):
         return Path(value)
 
 
-class SandboxRecord(SQLModel, table=True):
-    """Row shape for the local `sandboxes` table."""
+class SandboxStatusType(TypeDecorator[SandboxStatus]):
+    """SQLAlchemy type for coercing SandboxStatus enums to strings and back."""
 
-    __tablename__: Any = "sandboxes"
-    model_config = {"extra": "forbid"}
+    impl = String
+    cache_ok = True
 
-    id: str = Field(primary_key=True)
-    name: str | None = Field(default=None)
-    branch_name: str
-    base_commit: str
-    sandbox_path: Path = Field(sa_type=PathType, unique=True)
-    status: SandboxStatus = Field(default=SandboxStatus.ACTIVE, sa_type=String, index=True)
-    created_at: str = Field(default_factory=_now_utc_str)
-    updated_at: str = Field(default_factory=_now_utc_str)
+    def process_bind_param(self, value: SandboxStatus | str | None, dialect: Any) -> str | None:
+        """Coerce incoming SandboxStatus or str to string for SQLite storage."""
+        if value is None:
+            return None
+        return value.value if isinstance(value, SandboxStatus) else str(value)
 
-    def __init__(self, **data: Any) -> None:
-        """Initialize SandboxRecord, coercing string paths to Path instances."""
-        if "sandbox_path" in data and isinstance(data["sandbox_path"], str):
-            data["sandbox_path"] = Path(data["sandbox_path"])
-        super().__init__(**data)
-
-    @property
-    def path(self) -> Path:
-        """Convenience property accessing sandbox_path as a Path."""
-        return self.sandbox_path
+    def process_result_value(self, value: str | None, dialect: Any) -> SandboxStatus | None:
+        """Coerce retrieved database string value back into a SandboxStatus instance."""
+        if value is None:
+            return None
+        return SandboxStatus(value)
 
 
-class CatalogRecord(SQLModel, table=True):
-    """Row shape for the local `catalog` table."""
+class CatalogItemTypeType(TypeDecorator[CatalogItemType]):
+    """SQLAlchemy type for coercing CatalogItemType enums to strings and back."""
 
-    __tablename__: Any = "catalog"
-    model_config = {"extra": "forbid"}
+    impl = String
+    cache_ok = True
 
-    id: int | None = Field(default=None, primary_key=True)
-    sha: str = Field(unique=True, index=True)
-    item_type: CatalogItemType = Field(sa_type=String, index=True)
-    name: str
-    path: Path = Field(sa_type=PathType, unique=True, index=True)
-    checksum: str
-    created_at: str = Field(default_factory=_now_utc_str)
-    updated_at: str = Field(default_factory=_now_utc_str)
+    def process_bind_param(self, value: CatalogItemType | str | None, dialect: Any) -> str | None:
+        """Coerce incoming CatalogItemType or str to string for SQLite storage."""
+        if value is None:
+            return None
+        return value.value if isinstance(value, CatalogItemType) else str(value)
 
-    def __init__(self, **data: Any) -> None:
-        """Initialize CatalogRecord, coercing string paths to Path instances."""
-        if "path" in data and isinstance(data["path"], str):
-            data["path"] = Path(data["path"])
-        super().__init__(**data)
+    def process_result_value(self, value: str | None, dialect: Any) -> CatalogItemType | None:
+        """Coerce retrieved database string value back into a CatalogItemType instance."""
+        if value is None:
+            return None
+        return CatalogItemType(value)
 
 
 class BlueprintKindType(TypeDecorator[BlueprintKind]):
@@ -152,6 +141,55 @@ class RunStatusType(TypeDecorator[RunStatus]):
         if value is None:
             return None
         return RunStatus(value)
+
+
+class SandboxRecord(SQLModel, table=True):
+    """Row shape for the local `sandboxes` table."""
+
+    __tablename__: Any = "sandboxes"
+    model_config = {"extra": "forbid"}
+
+    id: str = Field(primary_key=True)
+    name: str | None = Field(default=None)
+    branch_name: str
+    base_commit: str
+    sandbox_path: Path = Field(sa_type=PathType, unique=True)
+    status: SandboxStatus = Field(default=SandboxStatus.ACTIVE, sa_type=SandboxStatusType, index=True)
+    created_at: str = Field(default_factory=_now_utc_str)
+    updated_at: str = Field(default_factory=_now_utc_str)
+
+    def __init__(self, **data: Any) -> None:
+        """Initialize SandboxRecord, coercing string paths to Path instances."""
+        if "sandbox_path" in data and isinstance(data["sandbox_path"], str):
+            data["sandbox_path"] = Path(data["sandbox_path"])
+        super().__init__(**data)
+
+    @property
+    def path(self) -> Path:
+        """Convenience property accessing sandbox_path as a Path."""
+        return self.sandbox_path
+
+
+class CatalogRecord(SQLModel, table=True):
+    """Row shape for the local `catalog` table."""
+
+    __tablename__: Any = "catalog"
+    model_config = {"extra": "forbid"}
+
+    id: int | None = Field(default=None, primary_key=True)
+    sha: str = Field(unique=True, index=True)
+    item_type: CatalogItemType = Field(sa_type=CatalogItemTypeType, index=True)
+    name: str
+    path: Path = Field(sa_type=PathType, unique=True, index=True)
+    checksum: str
+    created_at: str = Field(default_factory=_now_utc_str)
+    updated_at: str = Field(default_factory=_now_utc_str)
+
+    def __init__(self, **data: Any) -> None:
+        """Initialize CatalogRecord, coercing string paths to Path instances."""
+        if "path" in data and isinstance(data["path"], str):
+            data["path"] = Path(data["path"])
+        super().__init__(**data)
 
 
 class RunRecord(SQLModel, table=True):
