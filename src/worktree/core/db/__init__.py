@@ -5,7 +5,6 @@ usage tracking, catalog indexing, and unified run execution tracking.
 """
 
 from worktree.core.db.base import DbBase
-from worktree.core.db.catalog import CatalogDb
 from worktree.core.db.connection import (
     DEFAULT_DB_REL_PATH,
     get_db_connection,
@@ -26,16 +25,20 @@ from worktree.core.db.models import (
     SandboxStatus,
     WorkflowCostRecord,
 )
-from worktree.core.db.repositories import BaseRepository, RunsRepository
-from worktree.core.db.sandboxes import SandboxesDb
+from worktree.core.db.repositories import (
+    BaseRepository,
+    CatalogRepository,
+    RunsRepository,
+    SandboxesRepository,
+)
 
 __all__ = [
     "DEFAULT_DB_REL_PATH",
     "BaseRepository",
     "BlueprintKind",
-    "CatalogDb",
     "CatalogItemType",
     "CatalogRecord",
+    "CatalogRepository",
     "CostsDb",
     "DbBase",
     "RunRecord",
@@ -43,7 +46,7 @@ __all__ = [
     "RunsRepository",
     "SandboxRecord",
     "SandboxStatus",
-    "SandboxesDb",
+    "SandboxesRepository",
     "WorkflowCostRecord",
     "WorktreeDb",
     "get_db_connection",

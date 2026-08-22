@@ -22,7 +22,7 @@ from worktree.cli.sandbox.renderers import (
     render_sandbox_create_success,
 )
 from worktree.common.utils import RichOutput
-from worktree.core.db import SandboxesDb, SandboxStatus
+from worktree.core.db import SandboxesRepository, SandboxStatus
 from worktree.core.git_sandbox import (
     SandboxCreateResult,
     SandboxCreateStatus,
@@ -125,7 +125,7 @@ class SandboxCreateCommandDirectTests:
         assert "Branch: worktree/sandbox-" in out
         assert "Path: .worktree/sandboxes/" in out
 
-        rows = SandboxesDb(git_fs.base_path).list()
+        rows = SandboxesRepository(git_fs.base_path).list()
         assert len(rows) == 1
         assert rows[0].status is SandboxStatus.ACTIVE
 
@@ -141,7 +141,7 @@ class SandboxCreateCommandDirectTests:
         with pytest.raises(typer.Exit) as exc_info:
             sandbox_create_command(name="  demo  ", cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 0
-        rows = SandboxesDb(git_fs.base_path).list()
+        rows = SandboxesRepository(git_fs.base_path).list()
         assert len(rows) == 1
         assert rows[0].name == "demo"
         assert "Sandbox created:" in capsys.readouterr().out
@@ -186,7 +186,7 @@ class SandboxCreateCommandDirectTests:
         with pytest.raises(typer.Exit) as exc_info:
             sandbox_create_command(base_ref="feature", cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 0
-        rows = SandboxesDb(git_fs.base_path).list()
+        rows = SandboxesRepository(git_fs.base_path).list()
         assert len(rows) == 1
         assert rows[0].base_commit == feature_tip
 
@@ -203,7 +203,7 @@ class SandboxCreateCommandDirectTests:
         with pytest.raises(typer.Exit) as exc_info:
             sandbox_create_command(wip=True, cwd=git_fs.base_path)
         assert exc_info.value.exit_code == 0
-        rows = SandboxesDb(git_fs.base_path).list()
+        rows = SandboxesRepository(git_fs.base_path).list()
         assert len(rows) == 1
         sandbox_path = Path(rows[0].sandbox_path)
         assert (sandbox_path / "f.txt").read_text(encoding="utf-8") == "dirty\n"
@@ -315,11 +315,11 @@ class SandboxCreateCliTests:
         assert created.exit_code == 0
         assert "Sandbox created:" in created.stdout
 
-        rows = SandboxesDb(git_fs.base_path).list()
+        rows = SandboxesRepository(git_fs.base_path).list()
         assert len(rows) == 1
         sandbox_id = rows[0].id
         assert rows[0].name == "integration"
-        assert SandboxesDb(git_fs.base_path).get(sandbox_id) is not None
+        assert SandboxesRepository(git_fs.base_path).get(sandbox_id) is not None
 
         listed = runner.invoke(app, ["sandbox", "list"])
         assert listed.exit_code == 0

@@ -26,10 +26,10 @@ from worktree.core.catalog.models import (
     YamlParseOutcome,
 )
 from worktree.core.db import (
-    CatalogDb,
     CatalogItemType,
     CatalogRecord,
 )
+from worktree.core.db.repositories.catalog import CatalogRepository
 
 
 class _PydanticModel(Protocol):
@@ -75,7 +75,7 @@ def _index_catalog_entry(
     rel_path = file_entry.path.relative_to(catalog_dir)
 
     try:
-        record = CatalogDb(cwd).upsert(
+        record = CatalogRepository(cwd).upsert(
             sha=sha,
             item_type=item_type,
             name=file_entry.name,
@@ -145,12 +145,12 @@ def scan_and_index_catalog(cwd: Path | None = None) -> CatalogScanResult:
 
     # Remove stale DB records for files no longer on disk
     try:
-        db_items = CatalogDb(cwd).list()
+        db_items = CatalogRepository(cwd).list()
         for record in db_items:
             if record.sha not in scan_result.scanned_shas:
                 disk_file = catalog_dir / record.path
                 if not disk_file.exists():
-                    CatalogDb(cwd).delete(record.sha)
+                    CatalogRepository(cwd).delete(record.sha)
     except Exception as exc:
         errors.append(f"Error purging stale catalog DB records: {exc}")
 
@@ -198,7 +198,7 @@ def create_catalog_item(
     sha, checksum = compute_catalog_sha(type_enum, content)
     rel_path = target_path.relative_to(catalog_dir)
 
-    return CatalogDb(cwd).upsert(
+    return CatalogRepository(cwd).upsert(
         sha=sha,
         item_type=type_enum,
         name=stem,
@@ -218,12 +218,12 @@ def _find_catalog_matches(
         else (str(type_filter).lower() if type_filter is not None else None)
     )
 
-    item_by_sha = CatalogDb(cwd).get_by_sha(sha_or_name)
+    item_by_sha = CatalogRepository(cwd).get_by_sha(sha_or_name)
     if item_by_sha is not None:
         if type_filter_string is None or item_by_sha.item_type.value == type_filter_string:
             return [item_by_sha]
         return []
-    return CatalogDb(cwd).list_by_name(sha_or_name, item_type=type_filter)
+    return CatalogRepository(cwd).list_by_name(sha_or_name, item_type=type_filter)
 
 
 def _read_and_parse_yaml(file_path: Path, rel_path: Path) -> YamlParseOutcome:
@@ -343,5 +343,5 @@ def delete_catalog_item_by_sha_or_name(
     file_path = catalog_dir / item.path
     delete_file(file_path)
 
-    CatalogDb(cwd).delete(item.sha)
+    CatalogRepository(cwd).delete(item.sha)
     return item

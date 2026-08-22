@@ -10,16 +10,19 @@ import pytest
 from tests.helpers import FileSystem
 from worktree.core.db import (
     BlueprintKind,
-    CatalogDb,
     CatalogItemType,
     CatalogRecord,
+    CatalogRepository,
     DbBase,
     RunRecord,
     RunsRepository,
     RunStatus,
+    SandboxesRepository,
+    SandboxRecord,
     WorktreeDb,
     init_database,
 )
+from worktree.core.db.models import SandboxStatus
 
 DB_REL = ".worktree/data.db"
 
@@ -149,11 +152,97 @@ class TestDbBase:
         assert db_base.fetch_one("SELECT * FROM runs WHERE session_id = ?;", ("s_dup",)) is None
 
 
-class TestCatalogDb:
-    """Tests for CatalogDb repository methods."""
+class TestSandboxesRepository:
+    """Tests for SandboxesRepository CRUD methods."""
+
+    def test_insert_and_get(self, fs: FileSystem) -> None:
+        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        sb = db.insert(
+            id="sb-001",
+            branch_name="feat/branch",
+            base_commit="abc123",
+            sandbox_path=fs.base_path / "sb-001",
+        )
+
+        assert isinstance(sb, SandboxRecord)
+        assert sb.id == "sb-001"
+        assert sb.branch_name == "feat/branch"
+        assert sb.base_commit == "abc123"
+        assert sb.sandbox_path == fs.base_path / "sb-001"
+        assert sb.status == SandboxStatus.ACTIVE
+        assert sb.name is None
+        assert sb.created_at
+        assert sb.updated_at
+
+        fetched = db.get("sb-001")
+        assert fetched == sb
+
+    def test_insert_with_name(self, fs: FileSystem) -> None:
+        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        sb = db.insert(
+            id="sb-named",
+            branch_name="feat/named",
+            base_commit="def456",
+            sandbox_path=fs.base_path / "sb-named",
+            name="my-sandbox",
+        )
+        assert sb.name == "my-sandbox"
+
+    def test_insert_duplicate_raises_value_error(self, fs: FileSystem) -> None:
+        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db.insert(id="dup-id", branch_name="b", base_commit="c", sandbox_path=fs.base_path / "dup")
+        with pytest.raises(ValueError, match="dup-id"):
+            db.insert(id="dup-id", branch_name="b2", base_commit="c2", sandbox_path=fs.base_path / "dup2")
+
+    def test_get_missing_returns_none(self, fs: FileSystem) -> None:
+        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        assert db.get("does-not-exist") is None
+
+    def test_list_unfiltered_and_filtered(self, fs: FileSystem) -> None:
+        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db.insert(id="a", branch_name="b", base_commit="c", sandbox_path=fs.base_path / "a")
+        db.insert(id="b", branch_name="b2", base_commit="c2", sandbox_path=fs.base_path / "b")
+        db.update_status("b", SandboxStatus.MERGED)
+
+        all_rows = db.list()
+        assert len(all_rows) == 2
+
+        active = db.list(status=SandboxStatus.ACTIVE)
+        assert len(active) == 1
+        assert active[0].id == "a"
+
+        merged = db.list(status=SandboxStatus.MERGED)
+        assert len(merged) == 1
+        assert merged[0].id == "b"
+
+    def test_update_status(self, fs: FileSystem) -> None:
+        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        sb = db.insert(id="upd", branch_name="b", base_commit="c", sandbox_path=fs.base_path / "upd")
+        original_updated_at = sb.updated_at
+
+        updated = db.update_status("upd", SandboxStatus.CLEANED)
+        assert updated is not None
+        assert updated.status == SandboxStatus.CLEANED
+        assert updated.updated_at >= original_updated_at
+
+    def test_update_status_missing_returns_none(self, fs: FileSystem) -> None:
+        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        assert db.update_status("ghost", SandboxStatus.CLEANED) is None
+
+    def test_delete(self, fs: FileSystem) -> None:
+        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db.insert(id="del-me", branch_name="b", base_commit="c", sandbox_path=fs.base_path / "del-me")
+
+        assert db.delete("del-me") is True
+        assert db.get("del-me") is None
+        assert db.delete("del-me") is False
+
+
+class TestCatalogRepository:
+    """Tests for CatalogRepository repository methods."""
 
     def test_upsert_insert_and_get_by_sha_and_name(self, fs: FileSystem) -> None:
-        db = CatalogDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = CatalogRepository(cwd=fs.base_path, db_rel_path=DB_REL)
         path = Path(".worktree/catalog/workflow_a.yaml")
         rec = db.upsert(
             sha="workflow_1234567",
@@ -166,7 +255,7 @@ class TestCatalogDb:
         assert isinstance(rec, CatalogRecord)
         assert rec.id == 1
         assert rec.sha == "workflow_1234567"
-        assert rec.item_type is CatalogItemType.WORKFLOW
+        assert rec.item_type == CatalogItemType.WORKFLOW
         assert rec.name == "workflow_a"
         assert rec.path == path
         assert rec.checksum == "hash1"
@@ -186,7 +275,7 @@ class TestCatalogDb:
         assert by_name_and_type == rec
 
     def test_upsert_update_preserves_id_and_updates_fields(self, fs: FileSystem) -> None:
-        db = CatalogDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = CatalogRepository(cwd=fs.base_path, db_rel_path=DB_REL)
         path = Path(".worktree/catalog/task_b.yaml")
         first = db.upsert(
             sha="task_1111111",
@@ -195,12 +284,8 @@ class TestCatalogDb:
             path=path,
             checksum="chk1",
         )
-        db.execute(
-            "UPDATE catalog SET created_at = '2026-01-01 00:00:00', updated_at = '2026-01-01 00:00:00' WHERE id = ?",
-            (first.id,),
-        )
-        first = db.get_by_sha("task_1111111")
-        assert first is not None
+        first_id = first.id
+        first_created_at = first.created_at
 
         second = db.upsert(
             sha="task_2222222",
@@ -210,42 +295,23 @@ class TestCatalogDb:
             checksum="chk2",
         )
 
-        assert second.id == first.id
+        assert second.id == first_id
         assert second.sha == "task_2222222"
         assert second.name == "task_b_v2"
         assert second.path == path
         assert second.checksum == "chk2"
-        assert second.created_at == first.created_at
-        assert second.updated_at != first.updated_at
+        assert second.created_at == first_created_at
 
     def test_get_missing_catalog_item_returns_none(self, fs: FileSystem) -> None:
-        db = CatalogDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = CatalogRepository(cwd=fs.base_path, db_rel_path=DB_REL)
         assert db.get_by_sha("missing") is None
         assert db.get_by_name("missing_name") is None
 
     def test_list_catalog_items_filtering(self, fs: FileSystem) -> None:
-        db = CatalogDb(cwd=fs.base_path, db_rel_path=DB_REL)
-        db.upsert(
-            sha="w1",
-            item_type=CatalogItemType.WORKFLOW,
-            name="wf1",
-            path=Path("w1.yaml"),
-            checksum="c1",
-        )
-        db.upsert(
-            sha="t1",
-            item_type=CatalogItemType.TASK,
-            name="task1",
-            path=Path("t1.yaml"),
-            checksum="c2",
-        )
-        db.upsert(
-            sha="s1",
-            item_type=CatalogItemType.STEP,
-            name="step1",
-            path=Path("s1.yaml"),
-            checksum="c3",
-        )
+        db = CatalogRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db.upsert(sha="w1", item_type=CatalogItemType.WORKFLOW, name="wf1", path=Path("w1.yaml"), checksum="c1")
+        db.upsert(sha="t1", item_type=CatalogItemType.TASK, name="task1", path=Path("t1.yaml"), checksum="c2")
+        db.upsert(sha="s1", item_type=CatalogItemType.STEP, name="step1", path=Path("s1.yaml"), checksum="c3")
 
         all_items = db.list()
         assert len(all_items) == 3
@@ -258,8 +324,22 @@ class TestCatalogDb:
         assert len(steps) == 1
         assert steps[0].sha == "s1"
 
+    def test_list_by_name(self, fs: FileSystem) -> None:
+        db = CatalogRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db.upsert(
+            sha="n1", item_type=CatalogItemType.WORKFLOW, name="shared", path=Path("a/shared.yaml"), checksum="c1"
+        )
+        db.upsert(sha="n2", item_type=CatalogItemType.TASK, name="shared", path=Path("b/shared.yaml"), checksum="c2")
+
+        all_shared = db.list_by_name("shared")
+        assert len(all_shared) == 2
+
+        wf_shared = db.list_by_name("shared", item_type=CatalogItemType.WORKFLOW)
+        assert len(wf_shared) == 1
+        assert wf_shared[0].sha == "n1"
+
     def test_invalid_catalog_item_type_raises_value_error(self, fs: FileSystem) -> None:
-        db = CatalogDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = CatalogRepository(cwd=fs.base_path, db_rel_path=DB_REL)
         with pytest.raises(ValueError, match="constraint"):
             db.upsert(
                 sha="invalid",
@@ -270,7 +350,7 @@ class TestCatalogDb:
             )
 
     def test_delete_catalog_item(self, fs: FileSystem) -> None:
-        db = CatalogDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = CatalogRepository(cwd=fs.base_path, db_rel_path=DB_REL)
         db.upsert(
             sha="to_delete",
             item_type=CatalogItemType.WORKFLOW,

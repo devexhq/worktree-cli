@@ -11,7 +11,7 @@ import pytest
 
 import worktree.core.git_sandbox as git_sandbox_mod
 from tests.helpers import FileSystem, GitFileSystem
-from worktree.core.db import SandboxesDb, SandboxStatus
+from worktree.core.db import SandboxesRepository, SandboxStatus
 from worktree.core.git_sandbox import (
     GitPlumbingTimeoutError,
     GitSandboxManager,
@@ -355,7 +355,7 @@ class GitSandboxManagerTests:
         result = manager.create_sandbox_result(session_id="sbx_db1", name="persist-me")
         assert result.ok and result.session is not None
         assert result.warnings == []
-        row = SandboxesDb(git_fs.base_path).get("sbx_db1")
+        row = SandboxesRepository(git_fs.base_path).get("sbx_db1")
         assert row is not None
         assert row.status == SandboxStatus.ACTIVE
         assert row.name == "persist-me"
@@ -368,9 +368,9 @@ class GitSandboxManagerTests:
         git_fs.init_repo()
         manager = GitSandboxManager(cwd=git_fs.base_path)
         session = manager.create_sandbox(session_id="sbx_db2")
-        assert SandboxesDb(git_fs.base_path).get("sbx_db2") is not None
+        assert SandboxesRepository(git_fs.base_path).get("sbx_db2") is not None
         manager.cleanup_sandbox(session)
-        row = SandboxesDb(git_fs.base_path).get("sbx_db2")
+        row = SandboxesRepository(git_fs.base_path).get("sbx_db2")
         assert row is not None
         assert row.status == SandboxStatus.CLEANED
 
@@ -380,14 +380,14 @@ class GitSandboxManagerTests:
         def _boom(*_args: object, **_kwargs: object) -> object:
             raise RuntimeError("db locked")
 
-        monkeypatch.setattr(git_sandbox_mod.SandboxesDb, "insert", _boom)
+        monkeypatch.setattr(git_sandbox_mod.SandboxesRepository, "insert", _boom)
         manager = GitSandboxManager(cwd=git_fs.base_path)
         result = manager.create_sandbox_result(session_id="sbx_warn")
         assert result.ok and result.session is not None
         assert result.session.sandbox_path.is_dir()
         assert len(result.warnings) == 1
         assert "db locked" in result.warnings[0]
-        assert SandboxesDb(git_fs.base_path).get("sbx_warn") is None
+        assert SandboxesRepository(git_fs.base_path).get("sbx_warn") is None
         manager.cleanup_sandbox(result.session)
 
     def test_cleanup_without_db_row_does_not_raise(self, git_fs: GitFileSystem) -> None:

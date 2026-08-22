@@ -9,7 +9,7 @@ import pytest
 from tests.helpers import FileSystem
 from worktree.core.db import (
     CostsDb,
-    SandboxesDb,
+    SandboxesRepository,
     SandboxStatus,
     init_database,
 )
@@ -72,7 +72,7 @@ class SandboxDatabaseTests:
         name: str | None = "alpha",
         path_suffix: str = "a",
     ):
-        return SandboxesDb(cwd=fs.base_path, db_rel_path=DB_REL).insert(
+        return SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL).insert(
             id=sandbox_id,
             branch_name=f"worktree/sandbox-{sandbox_id}",
             base_commit="abc123",
@@ -81,7 +81,7 @@ class SandboxDatabaseTests:
         )
 
     def test_insert_and_get_sandbox(self, fs: FileSystem) -> None:
-        db = SandboxesDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
         created = self._insert(fs)
         assert created.id == "sbx_a1b2c3d4"
         assert created.name == "alpha"
@@ -97,7 +97,7 @@ class SandboxDatabaseTests:
         assert loaded == created
 
     def test_insert_name_none_stores_null(self, fs: FileSystem) -> None:
-        db = SandboxesDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
         created = self._insert(fs, name=None)
         assert created.name is None
         loaded = db.get(created.id)
@@ -105,7 +105,7 @@ class SandboxDatabaseTests:
         assert loaded.name is None
 
     def test_insert_duplicate_id_raises(self, fs: FileSystem) -> None:
-        db = SandboxesDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
         self._insert(fs, sandbox_id="dup", path_suffix="one")
         with pytest.raises(ValueError, match="dup"):
             self._insert(fs, sandbox_id="dup", path_suffix="two")
@@ -115,15 +115,19 @@ class SandboxDatabaseTests:
         assert len(listed) == 1
 
     def test_get_sandbox_missing_returns_none(self, fs: FileSystem) -> None:
-        db = SandboxesDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
         assert db.get("missing") is None
 
     def test_list_sandboxes_order_and_filter(self, fs: FileSystem) -> None:
-        db = SandboxesDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
         first = self._insert(fs, sandbox_id="sbx_first", path_suffix="1")
         second = self._insert(fs, sandbox_id="sbx_second", path_suffix="2", name="beta")
-        db.execute("UPDATE sandboxes SET created_at = '2026-01-01 00:00:00' WHERE id = ?", (first.id,))
-        db.execute("UPDATE sandboxes SET created_at = '2026-01-01 00:00:01' WHERE id = ?", (second.id,))
+        import sqlite3
+
+        with sqlite3.connect(db.db_path) as conn:
+            conn.execute("UPDATE sandboxes SET created_at = '2026-01-01 00:00:00' WHERE id = ?", (first.id,))
+            conn.execute("UPDATE sandboxes SET created_at = '2026-01-01 00:00:01' WHERE id = ?", (second.id,))
+            conn.commit()
         db.update_status(second.id, SandboxStatus.CLEANED)
 
         all_rows = db.list()
@@ -139,39 +143,43 @@ class SandboxDatabaseTests:
         assert empty == []
 
     def test_list_sandboxes_empty(self, fs: FileSystem) -> None:
-        db = SandboxesDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
         assert db.list() == []
 
     def test_update_sandbox_status(self, fs: FileSystem) -> None:
-        db = SandboxesDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
         created = self._insert(fs)
         original_updated = created.updated_at
-        db.execute("UPDATE sandboxes SET updated_at = '2026-01-01 00:00:00' WHERE id = ?", (created.id,))
+        import sqlite3
+
+        with sqlite3.connect(db.db_path) as conn:
+            conn.execute("UPDATE sandboxes SET updated_at = '2026-01-01 00:00:00' WHERE id = ?", (created.id,))
+            conn.commit()
         original_updated = "2026-01-01 00:00:00"
 
         updated = db.update_status(created.id, SandboxStatus.MERGED)
         assert updated is not None
-        assert updated.status is SandboxStatus.MERGED
+        assert updated.status == SandboxStatus.MERGED
         assert updated.updated_at != original_updated
         assert updated.created_at == created.created_at
 
         loaded = db.get(created.id)
         assert loaded is not None
-        assert loaded.status is SandboxStatus.MERGED
+        assert loaded.status == SandboxStatus.MERGED
 
     def test_update_sandbox_status_missing(self, fs: FileSystem) -> None:
-        db = SandboxesDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
         assert db.update_status("missing", SandboxStatus.CLEANED) is None
 
     def test_delete_sandbox_row(self, fs: FileSystem) -> None:
-        db = SandboxesDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
         created = self._insert(fs)
         assert db.delete(created.id)
         assert db.get(created.id) is None
         assert not db.delete(created.id)
 
     def test_helpers_auto_init_database(self, fs: FileSystem) -> None:
-        db = SandboxesDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
         created = db.insert(
             id="sbx_auto",
             branch_name="worktree/sandbox-sbx_auto",

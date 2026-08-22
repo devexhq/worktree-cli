@@ -9,9 +9,9 @@ import typer
 from worktree.common.utils import RichOutput
 from worktree.core.config.loader import load_config_result
 from worktree.core.db import (
-    SandboxesDb,
     SandboxStatus,
 )
+from worktree.core.db.repositories.sandboxes import SandboxesRepository
 from worktree.core.git_sandbox import GitSandboxManager, SandboxSession
 
 from .models import (
@@ -37,7 +37,7 @@ from .renderers import (
 
 def _reconcile_stale_active_sandboxes(*, cwd: Path) -> None:
     """Mark active rows whose sandbox directory is gone as cleaned."""
-    db = SandboxesDb(cwd)
+    db = SandboxesRepository(cwd)
     for row in db.list():
         if row.status is not SandboxStatus.ACTIVE:
             continue
@@ -112,7 +112,7 @@ def collect_sandbox_list(
     if status is not None:
         status_filter = SandboxStatus(status)
 
-    rows = SandboxesDb(root).list(status=status_filter)
+    rows = SandboxesRepository(root).list(status=status_filter)
     return SandboxListResult(status=SandboxListStatus.OK, sandboxes=rows)
 
 
@@ -162,7 +162,7 @@ def collect_sandbox_show(
             errors=list(load.errors),
         )
 
-    db = SandboxesDb(root)
+    db = SandboxesRepository(root)
     row = db.get(sandbox_id)
     if row is None:
         return SandboxShowResult(status=SandboxShowStatus.NOT_FOUND)
@@ -238,7 +238,7 @@ def collect_sandbox_delete(
             errors=list(load.errors),
         )
 
-    row = SandboxesDb(root).get(sandbox_id)
+    row = SandboxesRepository(root).get(sandbox_id)
     if row is None:
         return SandboxDeleteResult(status=SandboxDeleteStatus.NOT_FOUND)
 

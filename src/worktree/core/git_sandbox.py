@@ -15,7 +15,8 @@ from worktree.common.constants import GIT_SUBPROCESS_TIMEOUT_SECONDS
 from worktree.core.config.context import get_current_git_branch
 from worktree.core.config.loader import ConfigLoadStatus, load_config_result
 from worktree.core.config.models import WorktreeConfig
-from worktree.core.db import SandboxesDb, SandboxStatus
+from worktree.core.db import SandboxStatus
+from worktree.core.db.repositories.sandboxes import SandboxesRepository
 
 
 class GitPlumbingTimeoutError(RuntimeError):
@@ -436,7 +437,7 @@ class GitSandboxManager:
         )
         warnings: list[str] = []
         try:
-            SandboxesDb(self.cwd).insert(
+            SandboxesRepository(self.cwd).insert(
                 id=session.session_id,
                 name=session.name,
                 branch_name=session.target_branch,
@@ -501,7 +502,7 @@ class GitSandboxManager:
                 shutil.rmtree(session.sandbox_path, ignore_errors=True)
 
         try:
-            SandboxesDb(self.cwd).update_status(
+            SandboxesRepository(self.cwd).update_status(
                 session.session_id,
                 SandboxStatus.CLEANED,
             )

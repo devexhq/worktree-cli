@@ -25,7 +25,7 @@ from worktree.cli.sandbox.renderers import (
 )
 from worktree.common.utils import RichOutput
 from worktree.core.db import (
-    SandboxesDb,
+    SandboxesRepository,
     SandboxRecord,
     SandboxStatus,
 )
@@ -46,7 +46,7 @@ def _insert(
     sandbox_path = repo / ".worktree" / "sandboxes" / path_suffix
     if create_dir:
         sandbox_path.mkdir(parents=True, exist_ok=True)
-    return SandboxesDb(repo, DB_REL).insert(
+    return SandboxesRepository(repo, DB_REL).insert(
         id=sandbox_id,
         branch_name=f"worktree/sandbox-{sandbox_id}",
         base_commit=base_commit,
@@ -120,7 +120,7 @@ class SandboxShowCollectTests:
             create_dir=create_dir,
         )
         if status is not SandboxStatus.ACTIVE:
-            updated = SandboxesDb(git_fs.base_path, DB_REL).update_status(
+            updated = SandboxesRepository(git_fs.base_path, DB_REL).update_status(
                 created.id,
                 status,
             )
@@ -153,7 +153,7 @@ class SandboxShowCollectTests:
         assert result.sandbox.status is SandboxStatus.CLEANED
         assert result.reconciled is True
         assert result.disk_present is False
-        loaded = SandboxesDb(git_fs.base_path, DB_REL).get(stale.id)
+        loaded = SandboxesRepository(git_fs.base_path, DB_REL).get(stale.id)
         assert loaded is not None
         assert loaded.status is SandboxStatus.CLEANED
 
@@ -165,7 +165,7 @@ class SandboxShowCollectTests:
             path_suffix="merged-gone",
             create_dir=False,
         )
-        SandboxesDb(git_fs.base_path, DB_REL).update_status(
+        SandboxesRepository(git_fs.base_path, DB_REL).update_status(
             created.id,
             SandboxStatus.MERGED,
         )
