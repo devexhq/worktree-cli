@@ -6,6 +6,7 @@ from pathlib import Path
 
 import typer
 
+from worktree.core.db import WorktreeDb
 from worktree.core.git_sandbox import GitSandboxManager
 
 from ..renderers import (
@@ -20,6 +21,7 @@ def sandbox_create_command(
     wip: bool = False,
     *,
     cwd: Path | None = None,
+    db: WorktreeDb | None = None,
 ) -> None:
     """Create an isolated git worktree sandbox.
 
@@ -32,9 +34,11 @@ def sandbox_create_command(
         base_ref: Optional git ref override for worktree creation.
         wip: When True, overlay uncommitted working-tree changes.
         cwd: Repository root. Defaults to process CWD.
+        db: Optional WorktreeDb instance.
     """
     root = (cwd or Path.cwd()).resolve()
-    result = GitSandboxManager(cwd=root).create_sandbox_result(
+    db = db or WorktreeDb(root)
+    result = GitSandboxManager(cwd=root, db=db).create_sandbox_result(
         name=name,
         base_ref=base_ref,
         include_wip=wip,

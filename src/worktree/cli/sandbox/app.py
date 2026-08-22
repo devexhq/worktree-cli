@@ -2,7 +2,7 @@ from typing import Annotated
 
 import typer
 
-from worktree.core.db import SandboxStatus
+from worktree.core.db import SandboxStatus, WorktreeDb
 
 from .commands.sandbox_create import sandbox_create_command
 from .commands.sandbox_delete import sandbox_delete_command
@@ -34,7 +34,8 @@ def sandbox_create(
     ),
 ):
     """Create an isolated git worktree sandbox."""
-    sandbox_create_command(name=name, base_ref=base_ref, wip=wip)
+    db = WorktreeDb()
+    sandbox_create_command(name=name, base_ref=base_ref, wip=wip, db=db)
 
 
 @sandbox_app.command("list")
@@ -49,7 +50,8 @@ def sandbox_list(
     ] = None,
 ):
     """List tracked sandboxes and their lifecycle status."""
-    sandbox_list_command(status=status.value if status is not None else None)
+    db = WorktreeDb()
+    sandbox_list_command(status=status.value if status is not None else None, db=db)
 
 
 @sandbox_app.command("show")
@@ -57,7 +59,8 @@ def sandbox_show(
     sandbox_id: str = typer.Argument(..., help="Sandbox id to show."),
 ):
     """Show full detail for one tracked sandbox."""
-    sandbox_show_command(sandbox_id)
+    db = WorktreeDb()
+    sandbox_show_command(sandbox_id, db=db)
 
 
 @sandbox_app.command("delete")
@@ -70,4 +73,5 @@ def sandbox_delete(
     ),
 ):
     """Delete a sandbox worktree and branch after confirmation."""
-    sandbox_delete_command(sandbox_id, force=force)
+    db = WorktreeDb()
+    sandbox_delete_command(sandbox_id, force=force, db=db)

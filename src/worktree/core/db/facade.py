@@ -28,10 +28,10 @@ class WorktreeDb:
         self.cwd = cwd
         self.db_rel_path = db_rel_path
         self.db_engine = db_engine if db_engine is not None else get_engine(resolve_db_path(cwd, db_rel_path))
-        self.sandboxes = SandboxesRepository(cwd, db_rel_path=db_rel_path, auto_init=False, db_engine=self.db_engine)
-        self.runs = RunsRepository(cwd, db_rel_path=db_rel_path, auto_init=False, db_engine=self.db_engine)
-        self.catalog = CatalogRepository(cwd, db_rel_path=db_rel_path, auto_init=False, db_engine=self.db_engine)
-        self.costs = CostsRepository(cwd, db_rel_path=db_rel_path, auto_init=False, db_engine=self.db_engine)
+        self.sandboxes = SandboxesRepository(cwd, db_rel_path=db_rel_path, auto_init=True, db_engine=self.db_engine)
+        self.runs = RunsRepository(cwd, db_rel_path=db_rel_path, auto_init=True, db_engine=self.db_engine)
+        self.catalog = CatalogRepository(cwd, db_rel_path=db_rel_path, auto_init=True, db_engine=self.db_engine)
+        self.costs = CostsRepository(cwd, db_rel_path=db_rel_path, auto_init=True, db_engine=self.db_engine)
 
     @property
     def engine(self) -> Engine:

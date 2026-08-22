@@ -6,7 +6,7 @@ import uuid
 from pathlib import Path
 
 from worktree.core.blueprint.services.blueprint import Blueprint
-from worktree.core.db import RunsRepository, RunStatus
+from worktree.core.db import RunStatus, WorktreeDb
 from worktree.core.engine.exceptions import EngineInputError, EngineRuntimeError
 from worktree.core.engine.models import RunRequest
 from worktree.core.engine.resumable import ResumableRun
@@ -23,15 +23,15 @@ from worktree.core.step import LoopStepBlock, StepDefinition
 
 
 class _DbPauseStore:
-    """``RunPauseStore`` adapter backed by RunsRepository."""
+    """``RunPauseStore`` adapter backed by WorktreeDb."""
 
-    def __init__(self, db: RunsRepository, session_id: str) -> None:
+    def __init__(self, db: WorktreeDb, session_id: str) -> None:
         self._db = db
         self._session_id = session_id
 
     def save_checkpoint(self, checkpoint: RunCheckpoint) -> None:
         """Write checkpoint JSON and set the tracked run to paused."""
-        self._db.save_pause(
+        self._db.runs.save_pause(
             self._session_id,
             checkpoint.model_dump_json(),
             checkpoint.diagnostic,
@@ -39,19 +39,19 @@ class _DbPauseStore:
 
     def clear_pause(self) -> None:
         """Mark the tracked run running again after an in-process prompt returns."""
-        self._db.update_status(self._session_id, RunStatus.RUNNING)
+        self._db.runs.update_status(self._session_id, RunStatus.RUNNING)
 
     def finalize(self, status: RunStatus, error_message: str | None) -> None:
         """Write the terminal (or paused) status after ``run_steps`` returns."""
-        self._db.update_status(self._session_id, status, error_message=error_message)
+        self._db.runs.update_status(self._session_id, status, error_message=error_message)
 
 
 class Engine:
     """Process: sandbox, DB row, pause store, sequential step loop."""
 
-    def __init__(self, cwd: Path | None = None) -> None:
+    def __init__(self, cwd: Path | None = None, db: WorktreeDb | None = None) -> None:
         self.cwd = (cwd or Path.cwd()).resolve()
-        self.db = RunsRepository(self.cwd)
+        self.db = db or WorktreeDb(self.cwd)
 
     def run(self, blueprint: Blueprint, request: RunRequest | None = None) -> RunOutcome:
         """Adapt ``blueprint`` into ``RunContext`` and delegate to ``run_steps``."""
@@ -159,7 +159,7 @@ class Engine:
 
     def _insert_running(self, blueprint: Blueprint, session_id: str) -> None:
         """Insert a RUNNING row for the bound repository."""
-        self.db.create(
+        self.db.runs.create(
             session_id=session_id,
             blueprint_name=blueprint.name,
             kind=blueprint.kind,

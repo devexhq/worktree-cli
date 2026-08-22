@@ -7,7 +7,7 @@ from pathlib import Path
 
 from worktree.common.utils import RichOutput
 from worktree.core.config.loader import load_config_result
-from worktree.core.db import BlueprintKind, RunsRepository, RunStatus
+from worktree.core.db import BlueprintKind, RunStatus, WorktreeDb
 
 from .models import (
     HistoryListResult,
@@ -31,6 +31,7 @@ class HistoryListService:
     status: str | None = None
     kind: str | None = None
     cwd: Path | None = None
+    db: WorktreeDb | None = None
     output: RichOutput = field(default_factory=RichOutput)
 
     def collect(self) -> HistoryListResult:
@@ -57,8 +58,8 @@ class HistoryListService:
             except ValueError:
                 kind_filter = self.kind
 
-        db = RunsRepository(root)
-        runs = db.list(limit=self.limit, status=status_filter, kind=kind_filter)
+        db = self.db or WorktreeDb(root)
+        runs = db.runs.list(limit=self.limit, status=status_filter, kind=kind_filter)
         return HistoryListResult(status=HistoryListStatus.OK, runs=runs)
 
     def execute(self) -> HistoryListResult:
@@ -78,6 +79,7 @@ class HistoryShowService:
 
     session_id: str
     cwd: Path | None = None
+    db: WorktreeDb | None = None
     output: RichOutput = field(default_factory=RichOutput)
 
     def collect(self) -> HistoryShowResult:
@@ -90,8 +92,8 @@ class HistoryShowService:
                 errors=list(load.errors),
             )
 
-        db = RunsRepository(root)
-        row = db.get(self.session_id)
+        db = self.db or WorktreeDb(root)
+        row = db.runs.get(self.session_id)
 
         if row is None:
             return HistoryShowResult(status=HistoryShowStatus.NOT_FOUND)

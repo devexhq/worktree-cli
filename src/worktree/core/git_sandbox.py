@@ -15,8 +15,7 @@ from worktree.common.constants import GIT_SUBPROCESS_TIMEOUT_SECONDS
 from worktree.core.config.context import get_current_git_branch
 from worktree.core.config.loader import ConfigLoadStatus, load_config_result
 from worktree.core.config.models import WorktreeConfig
-from worktree.core.db import SandboxStatus
-from worktree.core.db.repositories.sandboxes import SandboxesRepository
+from worktree.core.db import SandboxStatus, WorktreeDb
 
 
 class GitPlumbingTimeoutError(RuntimeError):
@@ -192,17 +191,17 @@ class GitSandboxManager:
     def __init__(
         self,
         cwd: Path | None = None,
-        sandboxes_db: SandboxesRepository | None = None,
+        db: WorktreeDb | None = None,
     ) -> None:
         """Bind to an absolute repository root.
 
         Args:
             cwd: Repository root. Defaults to the process current directory.
-            sandboxes_db: Optional SandboxesRepository instance.
+            db: Optional WorktreeDb instance.
         """
         self.cwd = (cwd or Path.cwd()).expanduser().resolve()
         self.sandbox_base_dir = self.cwd / ".worktree" / "sandboxes"
-        self.sandboxes_db = sandboxes_db or SandboxesRepository(self.cwd)
+        self.db = db or WorktreeDb(self.cwd)
         self._config: WorktreeConfig | None = None
 
     @property
@@ -468,7 +467,7 @@ class GitSandboxManager:
     def _persist_sandbox_session(self, session: SandboxSession) -> list[str]:
         """Insert *session* into the local DB; return any warning messages."""
         try:
-            self.sandboxes_db.insert(
+            self.db.sandboxes.insert(
                 id=session.session_id,
                 name=session.name,
                 branch_name=session.target_branch,
@@ -675,7 +674,7 @@ class GitSandboxManager:
                 shutil.rmtree(session.sandbox_path, ignore_errors=True)
 
         try:
-            self.sandboxes_db.update_status(
+            self.db.sandboxes.update_status(
                 session.session_id,
                 SandboxStatus.CLEANED,
             )

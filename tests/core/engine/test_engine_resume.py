@@ -259,7 +259,7 @@ def test_resume_mark_running_failure_warns(monkeypatch: pytest.MonkeyPatch, fs: 
     expected = RunOutcome(status=RunStatus.COMPLETED, sandbox_path=fs.base_path, warnings=["step note"])
     monkeypatch.setattr("worktree.core.engine.engine.run_steps", lambda _context: expected)
     monkeypatch.setattr(
-        "worktree.core.engine.engine.RunsRepository.update_status",
+        "worktree.core.db.repositories.runs.RunsRepository.update_status",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("locked")),
     )
 
@@ -283,7 +283,7 @@ def test_resume_finalize_failure_warns(monkeypatch: pytest.MonkeyPatch, fs: File
         real_update(self, session_id, status, **kwargs)
 
     monkeypatch.setattr(
-        "worktree.core.engine.engine.RunsRepository.update_status",
+        "worktree.core.db.repositories.runs.RunsRepository.update_status",
         _fail_finalize,
     )
 

@@ -7,7 +7,7 @@ from pathlib import Path
 from worktree.common.fs import get_catalog_templates_dir
 from worktree.common.utils import RichOutput
 from worktree.core.catalog.services.inventory import scan_and_index_catalog
-from worktree.core.db import CatalogItemType
+from worktree.core.db import CatalogItemType, WorktreeDb
 
 from ..models import CatalogListCommandOutcome
 from ..renderers import (
@@ -54,6 +54,7 @@ def catalog_list_command(
     cwd: Path | None = None,
     *,
     rich_output: RichOutput | None = None,
+    db: WorktreeDb | None = None,
 ) -> CatalogListCommandOutcome:
     """List catalog blueprints with optional type filtering.
 
@@ -61,6 +62,7 @@ def catalog_list_command(
         type_filter: Optional type filter (workflow, task, step).
         cwd: Optional CWD path.
         rich_output: Optional RichOutput presenter.
+        db: Optional WorktreeDb instance.
 
     Returns:
         CatalogListCommandOutcome containing listed records and errors.
@@ -76,7 +78,8 @@ def catalog_list_command(
         output.error_panel("Catalog Filter Error", type_error)
         return CatalogListCommandOutcome(items=[], type_filter=None, errors=[type_error])
 
-    scan_result = scan_and_index_catalog(cwd=cwd)
+    db = db or WorktreeDb(cwd)
+    scan_result = scan_and_index_catalog(cwd=cwd, db=db)
     if not scan_result.ok:
         _render_scan_warnings(scan_result.errors, rich_output=output)
 

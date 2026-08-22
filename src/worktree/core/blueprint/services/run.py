@@ -18,7 +18,7 @@ from worktree.core.blueprint.models import (
 from worktree.core.blueprint.renderers import BlueprintRenderer, render_blueprint_run_success
 from worktree.core.blueprint.services.blueprint import Blueprint
 from worktree.core.catalog import Catalog
-from worktree.core.db import RunRecord, RunsRepository, RunStatus
+from worktree.core.db import RunRecord, RunStatus, WorktreeDb
 from worktree.core.engine import Engine, EngineInputError, EngineRuntimeError, RunRequest
 from worktree.core.inputs import format_input_error_message
 from worktree.core.runtime import (
@@ -45,12 +45,12 @@ class BlueprintRunService:
     output: RichOutput = field(default_factory=RichOutput)
 
     root: Path = field(init=False)
-    db: RunsRepository = field(init=False)
+    db: WorktreeDb = field(init=False)
     renderer: BlueprintRenderer = field(init=False)
 
     def __post_init__(self) -> None:
         self.root = (self.cwd or Path.cwd()).resolve()
-        self.db = RunsRepository(self.root)
+        self.db = WorktreeDb(self.root)
         self.renderer = BlueprintRenderer(self.kind or BlueprintKind.TASK)
 
     @property
@@ -137,7 +137,7 @@ class BlueprintRunService:
 
     def _load_record(self, session_id: str) -> RunRecord | None:
         try:
-            return self.db.get(session_id)
+            return self.db.runs.get(session_id)
         except Exception:
             return None
 

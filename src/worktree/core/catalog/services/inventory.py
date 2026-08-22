@@ -28,8 +28,8 @@ from worktree.core.catalog.models import (
 from worktree.core.db import (
     CatalogItemType,
     CatalogRecord,
+    WorktreeDb,
 )
-from worktree.core.db.repositories.catalog import CatalogRepository
 
 
 class _PydanticModel(Protocol):
@@ -46,10 +46,11 @@ def get_catalog_dir(cwd: Path | None = None) -> Path:
 
 
 def ensure_catalog_dirs(cwd: Path | None = None) -> Path:
-    """Ensure directory structure under `.worktree/catalog/` exists."""
+    """Ensure standard `.worktree/catalog/{workflows,tasks,steps}` subdirectories exist and return catalog root."""
     catalog_dir = get_catalog_dir(cwd)
-    for sub in ("workflows", "tasks", "steps"):
-        (catalog_dir / sub).mkdir(parents=True, exist_ok=True)
+    (catalog_dir / "workflows").mkdir(parents=True, exist_ok=True)
+    (catalog_dir / "tasks").mkdir(parents=True, exist_ok=True)
+    (catalog_dir / "steps").mkdir(parents=True, exist_ok=True)
     return catalog_dir
 
 
@@ -62,20 +63,19 @@ def compute_catalog_sha(item_type: CatalogItemType | str, content: str) -> tuple
 
 
 def _index_catalog_entry(
-    repo: CatalogRepository,
+    db: WorktreeDb,
     item_type: CatalogItemType,
     catalog_dir: Path,
     file_entry: YamlFile,
 ) -> tuple[CatalogRecord | None, str | None]:
-    """Upsert a single scanned YAML file into the catalog DB, or return an error message."""
+    """Index one catalog YAML file into the SQLite database."""
     if file_entry.error:
         return None, file_entry.error
-
     sha, checksum = compute_catalog_sha(item_type, str(file_entry.content))
     rel_path = file_entry.path.relative_to(catalog_dir)
 
     try:
-        record = repo.upsert(
+        record = db.catalog.upsert(
             sha=sha,
             item_type=item_type,
             name=file_entry.name,
@@ -88,13 +88,13 @@ def _index_catalog_entry(
 
 
 def _index_scanned_entry(
-    repo: CatalogRepository,
+    db: WorktreeDb,
     item_type: CatalogItemType,
     catalog_dir: Path,
     file_entry: YamlFile,
 ) -> tuple[CatalogRecord | None, str | None]:
     """Index one catalog YAML entry and normalize the optional error payload."""
-    record, error = _index_catalog_entry(repo, item_type, catalog_dir, file_entry)
+    record, error = _index_catalog_entry(db, item_type, catalog_dir, file_entry)
     if error is not None:
         return None, error
     return record, None
@@ -117,7 +117,7 @@ def _append_scan_result(
 
 
 def _scan_catalog_subdirectories(
-    *, repo: CatalogRepository, catalog_dir: Path, subdirs: list[tuple[CatalogItemType, Path]]
+    *, db: WorktreeDb, catalog_dir: Path, subdirs: list[tuple[CatalogItemType, Path]]
 ) -> CatalogSubdirectoryScanResult:
     result = CatalogSubdirectoryScanResult(scanned_records=[], errors=[], scanned_shas=set())
 
@@ -125,7 +125,7 @@ def _scan_catalog_subdirectories(
         if not sub_dir.exists():
             continue
         for file_entry in scan_yaml_directory(sub_dir):
-            record, error = _index_scanned_entry(repo, item_type, catalog_dir, file_entry)
+            record, error = _index_scanned_entry(db, item_type, catalog_dir, file_entry)
             _append_scan_result(result, record=record, error=error)
 
     return result
@@ -133,28 +133,28 @@ def _scan_catalog_subdirectories(
 
 def scan_and_index_catalog(
     cwd: Path | None = None,
-    repo: CatalogRepository | None = None,
+    db: WorktreeDb | None = None,
 ) -> CatalogScanResult:
     """Scan `.worktree/catalog/` subdirectories, compute SHA checksums, and sync SQLite database."""
     catalog_dir = ensure_catalog_dirs(cwd)
-    catalog_repo = repo or CatalogRepository(cwd)
+    database = db or WorktreeDb(cwd)
 
     subdirs: list[tuple[CatalogItemType, Path]] = [
         (CatalogItemType.WORKFLOW, catalog_dir / "workflows"),
         (CatalogItemType.TASK, catalog_dir / "tasks"),
         (CatalogItemType.STEP, catalog_dir / "steps"),
     ]
-    scan_result = _scan_catalog_subdirectories(repo=catalog_repo, catalog_dir=catalog_dir, subdirs=subdirs)
+    scan_result = _scan_catalog_subdirectories(db=database, catalog_dir=catalog_dir, subdirs=subdirs)
     errors = scan_result.errors
 
     # Remove stale DB records for files no longer on disk
     try:
-        db_items = catalog_repo.list()
+        db_items = database.catalog.list()
         for record in db_items:
             if record.sha not in scan_result.scanned_shas:
                 disk_file = catalog_dir / record.path
                 if not disk_file.exists():
-                    catalog_repo.delete(record.sha)
+                    database.catalog.delete(record.sha)
     except Exception as exc:
         errors.append(f"Error purging stale catalog DB records: {exc}")
 
@@ -179,7 +179,7 @@ def create_catalog_item(
     item_type: CatalogItemType | str,
     name: str,
     cwd: Path | None = None,
-    repo: CatalogRepository | None = None,
+    db: WorktreeDb | None = None,
 ) -> CatalogRecord:
     """Create a new catalog blueprint under `.worktree/catalog/<type>s/<name>.yml` and sync database."""
     try:
@@ -203,8 +203,8 @@ def create_catalog_item(
     sha, checksum = compute_catalog_sha(type_enum, content)
     rel_path = target_path.relative_to(catalog_dir)
 
-    catalog_repo = repo or CatalogRepository(cwd)
-    return catalog_repo.upsert(
+    database = db or WorktreeDb(cwd)
+    return database.catalog.upsert(
         sha=sha,
         item_type=type_enum,
         name=stem,
@@ -217,7 +217,7 @@ def _find_catalog_matches(
     cwd: Path | None,
     sha_or_name: str,
     type_filter: CatalogItemType | str | None,
-    repo: CatalogRepository | None = None,
+    db: WorktreeDb | None = None,
 ) -> list[CatalogRecord]:
     type_filter_string = (
         type_filter.value
@@ -225,13 +225,13 @@ def _find_catalog_matches(
         else (str(type_filter).lower() if type_filter is not None else None)
     )
 
-    catalog_repo = repo or CatalogRepository(cwd)
-    item_by_sha = catalog_repo.get_by_sha(sha_or_name)
+    database = db or WorktreeDb(cwd)
+    item_by_sha = database.catalog.get_by_sha(sha_or_name)
     if item_by_sha is not None:
         if type_filter_string is None or item_by_sha.item_type.value == type_filter_string:
             return [item_by_sha]
         return []
-    return catalog_repo.list_by_name(sha_or_name, item_type=type_filter)
+    return database.catalog.list_by_name(sha_or_name, item_type=type_filter)
 
 
 def _read_and_parse_yaml(file_path: Path, rel_path: Path) -> YamlParseOutcome:
@@ -294,12 +294,12 @@ def get_catalog_item[T](
     *,
     definition_cls: type[T] | None = None,
     cwd: Path | None = None,
-    repo: CatalogRepository | None = None,
+    db: WorktreeDb | None = None,
 ) -> DefinitionResolutionResult[CatalogRecord]:
     """Retrieve catalog blueprint record by SHA or name, optionally validating its content into ``definition_cls``."""
-    catalog_repo = repo or CatalogRepository(cwd)
-    scan_and_index_catalog(cwd, repo=catalog_repo)
-    matches = _find_catalog_matches(cwd, sha_or_name, type_filter, repo=catalog_repo)
+    database = db or WorktreeDb(cwd)
+    scan_and_index_catalog(cwd, db=database)
+    matches = _find_catalog_matches(cwd, sha_or_name, type_filter, db=database)
 
     if not matches:
         return DefinitionResolutionResult(
@@ -342,11 +342,11 @@ def get_catalog_item[T](
 def delete_catalog_item_by_sha_or_name(
     sha_or_name: str,
     cwd: Path | None = None,
-    repo: CatalogRepository | None = None,
+    db: WorktreeDb | None = None,
 ) -> CatalogRecord | None:
     """Delete a catalog blueprint file and its database record."""
-    catalog_repo = repo or CatalogRepository(cwd)
-    result = get_catalog_item(sha_or_name, cwd=cwd, repo=catalog_repo)
+    database = db or WorktreeDb(cwd)
+    result = get_catalog_item(sha_or_name, cwd=cwd, db=database)
     item = result.resolved
     if item is None:
         return None
@@ -355,7 +355,7 @@ def delete_catalog_item_by_sha_or_name(
     file_path = catalog_dir / item.path
     delete_file(file_path)
 
-    catalog_repo.delete(item.sha)
+    database.catalog.delete(item.sha)
     return item
 
 

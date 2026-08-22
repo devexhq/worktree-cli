@@ -10,7 +10,7 @@ import pytest
 
 from tests.helpers import FileSystem, make_cmd_step
 from worktree.core.blueprint import Blueprint, BlueprintDefinition, BlueprintKind
-from worktree.core.db import RunsRepository, RunStatus
+from worktree.core.db import RunStatus, WorktreeDb
 from worktree.core.engine import Engine, EngineInputError, EngineRuntimeError, RunRequest
 from worktree.core.inputs import InputType, ParameterInput
 from worktree.core.runtime import RunContext, RunOutcome
@@ -146,7 +146,7 @@ def test_run_persists_completed_task_row(fs: FileSystem) -> None:
     )
 
     assert outcome.ok
-    record = RunsRepository(fs.base_path).get("task_persist")
+    record = WorktreeDb(fs.base_path).runs.get("task_persist")
     assert record is not None
     assert record.blueprint_name == "lint"
     assert record.kind == BlueprintKind.TASK
@@ -161,7 +161,7 @@ def test_run_persists_workflow_row_with_empty_branch(fs: FileSystem) -> None:
     )
 
     assert outcome.ok
-    record = RunsRepository(fs.base_path).get("workflow_persist")
+    record = WorktreeDb(fs.base_path).runs.get("workflow_persist")
     assert record is not None
     assert record.blueprint_name == "ship"
     assert record.kind == BlueprintKind.WORKFLOW
@@ -173,7 +173,7 @@ def test_run_rejects_loop_steps_before_insert(fs: FileSystem) -> None:
     with pytest.raises(EngineRuntimeError, match=r"Engine\.run does not execute loop steps\."):
         Engine(fs.base_path).run(_workflow_blueprint(loop=True), RunRequest(session_id="workflow_loop"))
 
-    assert RunsRepository(fs.base_path).get("workflow_loop") is None
+    assert WorktreeDb(fs.base_path).runs.get("workflow_loop") is None
 
 
 def test_insert_failure_warns_and_still_runs(monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
@@ -187,13 +187,13 @@ def test_insert_failure_warns_and_still_runs(monkeypatch: pytest.MonkeyPatch, fs
         raise RuntimeError("disk full")
 
     monkeypatch.setattr("worktree.core.engine.engine.run_steps", fake_run_steps)
-    monkeypatch.setattr("worktree.core.engine.engine.RunsRepository.create", boom)
+    monkeypatch.setattr("worktree.core.db.repositories.runs.RunsRepository.create", boom)
 
     outcome = Engine(fs.base_path).run(_task_blueprint(), RunRequest(session_id="task_insert_fail"))
 
     assert captured["context"].pause_store is None
     assert any(warning.startswith("Failed to record run start in database:") for warning in outcome.warnings)
-    assert RunsRepository(fs.base_path).get("task_insert_fail") is None
+    assert WorktreeDb(fs.base_path).runs.get("task_insert_fail") is None
 
 
 def test_update_failure_warns_and_returns_outcome(monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
@@ -204,7 +204,7 @@ def test_update_failure_warns_and_returns_outcome(monkeypatch: pytest.MonkeyPatc
         lambda _context: expected,
     )
     monkeypatch.setattr(
-        "worktree.core.engine.engine.RunsRepository.update_status",
+        "worktree.core.db.repositories.runs.RunsRepository.update_status",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("locked")),
     )
 
@@ -213,7 +213,7 @@ def test_update_failure_warns_and_returns_outcome(monkeypatch: pytest.MonkeyPatc
     assert outcome is not expected
     assert outcome.warnings[0] == "step note"
     assert any(warning.startswith("Failed to update run status in database:") for warning in outcome.warnings)
-    record = RunsRepository(fs.base_path).get("task_update_fail")
+    record = WorktreeDb(fs.base_path).runs.get("task_update_fail")
     assert record is not None
     assert record.status is RunStatus.RUNNING
 
@@ -226,7 +226,7 @@ def test_omitted_session_id_uses_kind_prefix(monkeypatch: pytest.MonkeyPatch, fs
 
     outcome = Engine(fs.base_path).run(_task_blueprint(use_sandbox=False), RunRequest(use_sandbox=False))
 
-    records = RunsRepository(fs.base_path).list()
+    records = WorktreeDb(fs.base_path).runs.list()
     assert len(records) == 1
     assert records[0].session_id.startswith("task_")
     assert len(records[0].session_id) == len("task_") + 8
@@ -297,7 +297,7 @@ def test_run_missing_required_input_raises_before_insert(fs: FileSystem) -> None
         Engine(fs.base_path).run(_input_blueprint())
 
     assert exc_info.value.result.missing == ["message"]
-    assert RunsRepository(fs.base_path).list() == []
+    assert WorktreeDb(fs.base_path).runs.list() == []
 
 
 def test_run_invalid_input_raises_before_insert(fs: FileSystem) -> None:
@@ -316,4 +316,4 @@ def test_run_invalid_input_raises_before_insert(fs: FileSystem) -> None:
         )
 
     assert exc_info.value.result.errors
-    assert RunsRepository(fs.base_path).list() == []
+    assert WorktreeDb(fs.base_path).runs.list() == []

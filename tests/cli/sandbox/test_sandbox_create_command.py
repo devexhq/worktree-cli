@@ -222,7 +222,7 @@ class SandboxCreateCommandDirectTests:
         )
         monkeypatch.setattr(
             "worktree.cli.sandbox.commands.sandbox_create.GitSandboxManager",
-            lambda cwd=None: mock_manager,
+            lambda cwd=None, **_kwargs: mock_manager,
         )
 
         with pytest.raises(typer.Exit) as exc_info:
@@ -251,7 +251,7 @@ class SandboxCreateCommandDirectTests:
         )
         monkeypatch.setattr(
             "worktree.cli.sandbox.commands.sandbox_create.GitSandboxManager",
-            lambda cwd=None: mock_manager,
+            lambda cwd=None, **_kwargs: mock_manager,
         )
 
         with pytest.raises(typer.Exit) as exc_info:

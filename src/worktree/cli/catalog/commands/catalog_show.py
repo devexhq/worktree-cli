@@ -10,6 +10,7 @@ from worktree.core.catalog.services.inventory import (
     get_catalog_dir,
     get_catalog_item,
 )
+from worktree.core.db import WorktreeDb
 
 from ..models import CatalogShowCommandOutcome
 from ..renderers import (
@@ -41,6 +42,7 @@ def catalog_show_command(
     cwd: Path | None = None,
     *,
     rich_output: RichOutput | None = None,
+    db: WorktreeDb | None = None,
 ) -> CatalogShowCommandOutcome:
     """Show details and definition content of a catalog blueprint.
 
@@ -48,13 +50,14 @@ def catalog_show_command(
         sha_or_name: SHA identifier or name of the blueprint.
         cwd: Optional CWD path.
         rich_output: Optional RichOutput presenter.
+        db: Optional WorktreeDb instance.
 
     Returns:
         CatalogShowCommandOutcome containing record and content or errors.
     """
     output = rich_output or _DEFAULT_RICH_OUTPUT
 
-    resolution_result = get_catalog_item(sha_or_name, cwd=cwd)
+    resolution_result = get_catalog_item(sha_or_name, cwd=cwd, db=db)
     item = resolution_result.resolved
     if not resolution_result.ok or item is None:
         found = _find_packaged_templates(sha_or_name)

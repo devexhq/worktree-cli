@@ -1,13 +1,31 @@
-"""Root command execution logic for ``wt history``."""
-
-from __future__ import annotations
-
+from pathlib import Path
 from typing import Annotated
 
 import typer
 
-from worktree.core.db import BlueprintKind, RunStatus
-from worktree.core.history import HistoryListService
+from worktree.common.utils import RichOutput
+from worktree.core.db import BlueprintKind, RunStatus, WorktreeDb
+from worktree.core.history import HistoryListResult, HistoryListService
+
+
+def history_root_command(
+    *,
+    db: WorktreeDb,
+    limit: int = 20,
+    status: str | None = None,
+    kind: str | None = None,
+    cwd: Path | None = None,
+    output: RichOutput | None = None,
+) -> HistoryListResult:
+    """Execute history list query and render results to console."""
+    return HistoryListService(
+        limit=limit,
+        status=status,
+        kind=kind,
+        cwd=cwd,
+        db=db,
+        output=output or RichOutput(),
+    ).execute()
 
 
 def history_root(
@@ -41,10 +59,12 @@ def history_root(
     if ctx.invoked_subcommand is not None:
         return
 
-    outcome = HistoryListService(
+    db = WorktreeDb()
+    outcome = history_root_command(
         limit=limit,
         status=status.value if status is not None else None,
         kind=kind.value if kind is not None else None,
-    ).execute()
+        db=db,
+    )
     if not outcome.ok:
         raise typer.Exit(code=1)
