@@ -4,15 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import typer
-
-from worktree.common.fs import get_catalog_templates_dir
 from worktree.common.utils import RichOutput
 from worktree.core.catalog.services.inventory import (
     create_catalog_item,
     delete_catalog_item_by_sha_or_name,
+    find_packaged_templates,
     get_catalog_dir,
     get_catalog_item,
+    list_packaged_template_defaults,
     scan_and_index_catalog,
 )
 from worktree.core.db import CatalogItemType
@@ -33,33 +32,6 @@ from .renderers import (
 )
 
 _DEFAULT_RICH_OUTPUT = RichOutput()
-
-
-def _packaged_template_defaults() -> list[tuple[str, str]]:
-    """Return (type, relative_path) pairs for the three packaged `default.yml` templates."""
-    root = get_catalog_templates_dir()
-    rows: list[tuple[str, str]] = []
-    for item_type in (CatalogItemType.WORKFLOW, CatalogItemType.TASK, CatalogItemType.STEP):
-        rel_path = f"{item_type.value}s/default.yml"
-        if (root / rel_path).is_file():
-            rows.append((item_type.value, rel_path))
-    return rows
-
-
-def _find_packaged_templates(sha_or_name: str) -> list[tuple[str, str]]:
-    """Return (relative_path, content) pairs for packaged templates matching `sha_or_name`."""
-    root = get_catalog_templates_dir()
-    found: list[tuple[str, str]] = []
-    for type_dir in ("workflows", "tasks", "steps"):
-        candidate = (
-            (root / type_dir / "default.yml")
-            if sha_or_name == "default"
-            else (root / type_dir / "wt" / f"{sha_or_name}.yml")
-        )
-        if candidate.is_file():
-            rel_path = f"{type_dir}/default.yml" if sha_or_name == "default" else f"{type_dir}/wt/{sha_or_name}.yml"
-            found.append((rel_path, candidate.read_text(encoding="utf-8")))
-    return found
 
 
 def _parse_catalog_type_filter(
@@ -101,7 +73,7 @@ def catalog_list_command(
     output = rich_output or _DEFAULT_RICH_OUTPUT
 
     if type_filter is not None and str(type_filter).lower() == "template":
-        render_catalog_template_list(_packaged_template_defaults(), rich_output=output)
+        render_catalog_template_list(list_packaged_template_defaults(), rich_output=output)
         return CatalogListCommandOutcome(items=[], type_filter=None, errors=[])
 
     parsed_type, type_error = _parse_catalog_type_filter(type_filter)
@@ -174,7 +146,7 @@ def catalog_show_command(
     resolution_result = get_catalog_item(sha_or_name, cwd=cwd)
     item = resolution_result.resolved
     if not resolution_result.ok or item is None:
-        found = _find_packaged_templates(sha_or_name)
+        found = find_packaged_templates(sha_or_name)
         if found:
             for rel_path, content in found:
                 render_template_show_content(rel_path, content, rich_output=output)

@@ -246,3 +246,32 @@ def test_catalog_module_does_not_import_higher_domains() -> None:
     ):
         assert f"import {forbidden}" not in source
         assert f"from {forbidden}" not in source
+
+
+def test_list_packaged_template_defaults() -> None:
+    from worktree.core.catalog.services.inventory import list_packaged_template_defaults
+
+    defaults = list_packaged_template_defaults()
+    assert len(defaults) == 3
+    types = [t for t, _ in defaults]
+    assert "workflow" in types
+    assert "task" in types
+    assert "step" in types
+
+
+def test_find_packaged_templates_default() -> None:
+    from worktree.core.catalog.services.inventory import find_packaged_templates
+
+    found = find_packaged_templates("default")
+    assert len(found) == 3
+    paths = [p for p, _ in found]
+    assert "workflows/default.yml" in paths
+    assert "tasks/default.yml" in paths
+    assert "steps/default.yml" in paths
+
+
+def test_find_packaged_templates_missing() -> None:
+    from worktree.core.catalog.services.inventory import find_packaged_templates
+
+    found = find_packaged_templates("nonexistent_template_xyz")
+    assert found == []
