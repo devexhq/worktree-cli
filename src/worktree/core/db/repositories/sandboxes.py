@@ -99,3 +99,32 @@ class SandboxesRepository(BaseRepository):
             session.delete(record)
             session.commit()
             return True
+
+    def _reconcile_single_record(self, record: SandboxRecord | None) -> SandboxRecord | None:
+        """Mark a single record as CLEANED if active and missing on disk."""
+        if record is None or record.status is not SandboxStatus.ACTIVE:
+            return None
+        if Path(record.sandbox_path).is_dir():
+            return None
+        return self.update_status(record.id, SandboxStatus.CLEANED)
+
+    def reconcile_stale_active(self, id: str | None = None) -> list[SandboxRecord]:
+        """Mark active rows whose sandbox directory is missing on disk as cleaned.
+
+        Args:
+            id: Optional sandbox ID to restrict reconciliation to. If None, reconciles all active rows.
+
+        Returns:
+            List of SandboxRecord rows that were reconciled to CLEANED status.
+        """
+        if id is not None:
+            updated = self._reconcile_single_record(self.get(id))
+            return [updated] if updated is not None else []
+
+        reconciled: list[SandboxRecord] = []
+        for record in self.list(status=SandboxStatus.ACTIVE):
+            updated = self._reconcile_single_record(record)
+            if updated is not None:
+                reconciled.append(updated)
+        return reconciled
+

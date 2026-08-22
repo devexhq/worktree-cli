@@ -35,17 +35,6 @@ from .renderers import (
 )
 
 
-def _reconcile_stale_active_sandboxes(*, cwd: Path) -> None:
-    """Mark active rows whose sandbox directory is gone as cleaned."""
-    db = SandboxesRepository(cwd)
-    for row in db.list():
-        if row.status is not SandboxStatus.ACTIVE:
-            continue
-        if Path(row.sandbox_path).is_dir():
-            continue
-        db.update_status(row.id, SandboxStatus.CLEANED)
-
-
 def sandbox_create_command(
     name: str | None = None,
     base_ref: str | None = None,
@@ -106,13 +95,14 @@ def collect_sandbox_list(
             errors=list(load.errors),
         )
 
-    _reconcile_stale_active_sandboxes(cwd=root)
+    db = SandboxesRepository(root)
+    db.reconcile_stale_active()
 
     status_filter: SandboxStatus | None = None
     if status is not None:
         status_filter = SandboxStatus(status)
 
-    rows = SandboxesRepository(root).list(status=status_filter)
+    rows = db.list(status=status_filter)
     return SandboxListResult(status=SandboxListStatus.OK, sandboxes=rows)
 
 
@@ -167,14 +157,10 @@ def collect_sandbox_show(
     if row is None:
         return SandboxShowResult(status=SandboxShowStatus.NOT_FOUND)
 
-    reconciled = False
-    if row.status is SandboxStatus.ACTIVE and not Path(row.sandbox_path).is_dir():
-        updated = db.update_status(row.id, SandboxStatus.CLEANED)
-        if updated is not None:
-            row = updated
-        else:
-            row = row.model_copy(update={"status": SandboxStatus.CLEANED})
-        reconciled = True
+    reconciled_rows = db.reconcile_stale_active(sandbox_id)
+    reconciled = bool(reconciled_rows)
+    if reconciled:
+        row = reconciled_rows[0]
 
     disk_present = Path(row.sandbox_path).exists()
     return SandboxShowResult(
