@@ -77,9 +77,6 @@ def build_mutation_prompt(request: AgentRequest) -> str:
 class CliDirectMutationAdapter:
     """Shared safety flow for providers that mutate the sandbox directly."""
 
-    def __init__(self, *, run_fn: CliMutationRunFn | None = None) -> None:
-        self._run_fn = run_fn or self._default_run
-
     def _default_run(self, request: CliMutationRunRequest) -> CliMutationOutcome:
         raise NotImplementedError
 
@@ -111,7 +108,7 @@ class CliDirectMutationAdapter:
             )
 
         prompt = build_mutation_prompt(request)
-        outcome = self._run_fn(
+        outcome = self._default_run(
             CliMutationRunRequest(
                 sandbox_path=request.sandbox_path,
                 prompt=prompt,

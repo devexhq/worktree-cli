@@ -8,7 +8,6 @@ import re
 import time
 import urllib.error
 import urllib.request
-from collections.abc import Callable
 from typing import Any
 from urllib.parse import urlparse
 
@@ -20,7 +19,7 @@ from worktree.core.agents.base import (
     AgentResponseStatus,
 )
 
-DEFAULT_OLLAMA_ENDPOINT = "http://127.0.0.1:11434"
+DEFAULT_OLLAMA_ENDPOINT = "http://localhost:11434"
 OLLAMA_HOST_ENV = "OLLAMA_HOST"
 DEFAULT_TEMPERATURE = 0.2
 DEFAULT_MAX_TOKENS = 4096
@@ -30,8 +29,6 @@ _FENCE_RE = re.compile(
     r"```(?:json)?\s*([\s\S]*?)\s*```",
     re.IGNORECASE,
 )
-
-HttpPostFn = Callable[[str, bytes, float], tuple[int, str]]
 
 
 class OllamaModelStdout(BaseModel):
@@ -231,15 +228,6 @@ def _chat_content_from_response(data: dict[str, Any]) -> str | None:
 class OllamaAgentAdapter:
     """Call a local Ollama server and map chat output to AgentResponse."""
 
-    def __init__(self, *, http_post: HttpPostFn | None = None) -> None:
-        """Create an adapter.
-
-        Args:
-            http_post: Optional injectable POST ``(url, body, timeout) ->
-                (status, text)`` for tests.
-        """
-        self._http_post = http_post or default_http_post
-
     def propose_fix(self, request: AgentRequest) -> AgentResponse:
         """Request a fix from Ollama; never raises for classified outcomes."""
         started = time.monotonic()
@@ -283,7 +271,7 @@ class OllamaAgentAdapter:
         body = json.dumps(body_obj, separators=(",", ":")).encode("utf-8")
 
         try:
-            status, text = self._http_post(url, body, timeout_seconds)
+            status, text = default_http_post(url, body, timeout_seconds)
         except TimeoutError:
             duration_ms = int((time.monotonic() - started) * 1000)
             return AgentResponse(

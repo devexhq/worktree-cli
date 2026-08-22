@@ -2,16 +2,14 @@
 
 from __future__ import annotations
 
-from io import StringIO
 from pathlib import Path
 
 import pytest
 import typer
-from rich.console import Console
 from typer.main import get_command
 from typer.testing import CliRunner
 
-from tests.helpers import GitFileSystem
+from tests.helpers import GitFileSystem, make_rich_output, seed_sandbox
 from worktree.cli import app
 from worktree.cli.sandbox.command import (
     collect_sandbox_list,
@@ -23,7 +21,6 @@ from worktree.cli.sandbox.renderers import (
     render_not_initialized,
     render_sandbox_list,
 )
-from worktree.common.utils import RichOutput
 from worktree.core.db import (
     SandboxesRepository,
     SandboxRecord,
@@ -33,37 +30,8 @@ from worktree.core.db import (
 runner = CliRunner()
 DB_REL = ".worktree/data.db"
 
-
-def _insert(
-    repo: Path,
-    *,
-    sandbox_id: str,
-    name: str | None = None,
-    path_suffix: str = "s",
-    create_dir: bool = True,
-):
-    sandbox_path = repo / ".worktree" / "sandboxes" / path_suffix
-    if create_dir:
-        sandbox_path.mkdir(parents=True, exist_ok=True)
-    return SandboxesRepository(repo, DB_REL).insert(
-        id=sandbox_id,
-        branch_name=f"worktree/sandbox-{sandbox_id}",
-        base_commit="abc123",
-        sandbox_path=sandbox_path,
-        name=name,
-    )
-
-
-def _rich(*, width: int = 120) -> tuple[RichOutput, StringIO]:
-    """Fixed-width console so Rich tables do not truncate under narrow CI COLUMNS."""
-    buffer = StringIO()
-    console = Console(
-        file=buffer,
-        force_terminal=False,
-        color_system=None,
-        width=width,
-    )
-    return RichOutput(console=console), buffer
+_insert = seed_sandbox
+_rich = make_rich_output
 
 
 class SandboxListCollectTests:

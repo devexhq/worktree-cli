@@ -82,7 +82,7 @@ class GeminiAuthTests:
 
     def test_preflight_requires_key(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv(GEMINI_API_KEY_ENV, raising=False)
-        adapter = GeminiAgentAdapter(run_fn=lambda req: CliMutationOutcome(status="finished"))
+        adapter = GeminiAgentAdapter()
         resp = adapter.propose_fix(_request(sandbox))
         assert resp.status == AgentResponseStatus.PROVIDER_ERROR
         assert any(GEMINI_API_KEY_ENV in err for err in resp.errors)
@@ -148,7 +148,7 @@ class GeminiRunTests:
 
 
 class GeminiAdapterTests:
-    def test_proposed_patch(self, sandbox: Path) -> None:
+    def test_proposed_patch(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         _git(["init"], cwd=sandbox)
         _git(["config", "user.email", "test@example.com"], cwd=sandbox)
         _git(["config", "user.name", "Test"], cwd=sandbox)
@@ -156,11 +156,12 @@ class GeminiAdapterTests:
         _git(["add", "-A"], cwd=sandbox)
         _git(["commit", "-m", "init"], cwd=sandbox)
 
-        def run_fn(request: CliMutationRunRequest) -> CliMutationOutcome:
+        def fake_gemini_run(request: CliMutationRunRequest) -> CliMutationOutcome:
             (request.sandbox_path / "a.txt").write_text("fixed\n", encoding="utf-8")
             return CliMutationOutcome(status="finished", result_text="done")
 
-        adapter = GeminiAgentAdapter(run_fn=run_fn)
+        monkeypatch.setattr("worktree.core.agents.gemini.default_gemini_run", fake_gemini_run)
+        adapter = GeminiAgentAdapter()
         resp = adapter.propose_fix(_request(sandbox))
         assert resp.status == AgentResponseStatus.PROPOSED_PATCH
         assert resp.ok

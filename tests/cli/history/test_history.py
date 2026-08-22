@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from tests.helpers import FileSystem
+from tests.helpers import FileSystem, make_rich_output
 from worktree.cli import app
 from worktree.core.blueprint import BlueprintKind
 from worktree.core.config.generator import generate_default_config
@@ -18,6 +18,8 @@ from worktree.core.history.renderers import (
     _parse_timestamp,
     format_run_duration,
     format_run_status,
+    render_history_list,
+    render_history_show,
 )
 from worktree.core.history.services import (
     HistoryListService,
@@ -27,6 +29,7 @@ from worktree.core.runtime import RunCheckpoint
 from worktree.core.step import StepResult
 
 runner = CliRunner()
+_rich = make_rich_output
 
 
 def _init_workspace(root: Path) -> None:
@@ -122,6 +125,44 @@ def test_format_run_duration() -> None:
     # Multi-minute duration
     duration_long = format_run_duration("2026-08-19 01:00:00", "2026-08-19 01:02:30")
     assert duration_long == "2m 30.0s"
+
+
+def test_render_history_list_fixed_width(fs: FileSystem) -> None:
+    """Verify render_history_list produces expected columns under a fixed-width console."""
+    rich_output, buffer = _rich(width=160)
+    run = _seed_run(
+        fs.base_path,
+        "sess-12345678",
+        "sample-task",
+        BlueprintKind.TASK,
+        RunStatus.COMPLETED,
+        started_at="2026-08-19 01:00:00",
+        completed_at="2026-08-19 01:00:10",
+    )
+    render_history_list([run], rich_output=rich_output)
+    output = buffer.getvalue()
+    assert "Execution History" in output
+    assert "sess-12345678" in output
+    assert "sample-task" in output
+    assert "10.00s" in output
+
+
+def test_render_history_show_fixed_width(fs: FileSystem) -> None:
+    """Verify render_history_show renders session details under a fixed-width console."""
+    rich_output, buffer = _rich(width=160)
+    run = _seed_run(
+        fs.base_path,
+        "sess-show-123",
+        "show-task",
+        BlueprintKind.TASK,
+        RunStatus.COMPLETED,
+        started_at="2026-08-19 01:00:00",
+        completed_at="2026-08-19 01:00:10",
+    )
+    render_history_show(run, rich_output=rich_output)
+    output = buffer.getvalue()
+    assert "Session Metadata: sess-show-123" in output
+    assert "show-task" in output
 
 
 # ---------------------------------------------------------------------------

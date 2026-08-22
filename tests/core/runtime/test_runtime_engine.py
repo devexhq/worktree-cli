@@ -9,7 +9,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from tests.helpers import FileSystem, GitFileSystem
+from tests.helpers import (
+    FileSystem,
+    GitFileSystem,
+    make_cmd_step,
+    make_failed_result,
+    make_ok_result,
+)
 from worktree.core.db import RunStatus
 from worktree.core.runtime import (
     USER_CONTINUED_MARKER,
@@ -18,47 +24,11 @@ from worktree.core.runtime import (
     RunContext,
     run_steps,
 )
-from worktree.core.step import FailurePolicy, FailureSpec, StepDefinition, StepResult, StepType
+from worktree.core.step import FailurePolicy, FailureSpec, StepDefinition, StepResult
 
-
-def _cmd_step(
-    step_id: str,
-    command: str = "echo hi",
-    *,
-    on_failure: str | FailureSpec = "abort",
-) -> StepDefinition:
-    # model_validate keeps string on_failure coercion without fighting the field type.
-    return StepDefinition.model_validate(
-        {
-            "id": step_id,
-            "type": StepType.COMMAND,
-            "command": command,
-            "on_failure": on_failure,
-        }
-    )
-
-
-def _failed_result(step_id: str = "fail") -> StepResult:
-    return StepResult(
-        step_id=step_id,
-        status="failed",
-        exit_code=1,
-        stdout="",
-        stderr="nope",
-        duration_seconds=0.01,
-        error_message="boom",
-    )
-
-
-def _ok_result(step_id: str = "ok") -> StepResult:
-    return StepResult(
-        step_id=step_id,
-        status="completed",
-        exit_code=0,
-        stdout="ok",
-        stderr="",
-        duration_seconds=0.01,
-    )
+_cmd_step = make_cmd_step
+_failed_result = make_failed_result
+_ok_result = make_ok_result
 
 
 def make_run_context(

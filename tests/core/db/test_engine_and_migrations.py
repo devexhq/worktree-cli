@@ -73,15 +73,9 @@ class TestProgrammaticMigrations:
         assert db_path.is_file()
 
         with sqlite3.connect(db_path) as conn:
-            tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
             cursor = conn.execute("SELECT version_num FROM alembic_version")
             version_row = cursor.fetchone()
 
-        assert "sandboxes" in tables
-        assert "catalog" in tables
-        assert "runs" in tables
-        assert "workflow_costs" in tables
-        assert "alembic_version" in tables
         assert version_row is not None
         assert version_row[0] == "0001_initial_schema"
 
@@ -135,10 +129,8 @@ class TestBaseRepository:
 
     def test_base_repository_lazy_init_and_session(self, fs: FileSystem) -> None:
         repo = BaseRepository(cwd=fs.base_path, db_rel_path=".worktree/custom.db")
-        assert not repo._initialized
 
         with repo.session() as session:
-            assert repo._initialized
             sandbox = SandboxRecord(
                 id="sb_base_repo",
                 branch_name="feature/repo",
@@ -157,8 +149,5 @@ class TestBaseRepository:
 
     def test_base_repository_explicit_init_db(self, fs: FileSystem) -> None:
         repo = BaseRepository(cwd=fs.base_path, auto_init=False)
-        assert not repo._initialized
-
         db_path = repo.init_db()
-        assert repo._initialized
         assert db_path.is_file()

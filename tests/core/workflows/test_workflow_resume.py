@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from tests.helpers import GitFileSystem
+from tests.helpers import (
+    GitFileSystem,
+    make_checkpoint,
+    make_failed_result,
+    make_ok_result,
+)
 from worktree.core.catalog.services.inventory import scan_and_index_catalog
 from worktree.core.db import BlueprintKind, RunsRepository, RunStatus
 from worktree.core.runtime import FailurePromptDecision, RunCheckpoint
@@ -23,43 +28,14 @@ class _ScriptedPrompter:
         return self.decisions.pop(0)
 
 
-def _failed_result(step_id: str = "publish") -> StepResult:
-    return StepResult(
-        step_id=step_id,
-        status="failed",
-        exit_code=1,
-        stdout="",
-        stderr="nope",
-        duration_seconds=0.01,
-        error_message="boom",
-    )
-
-
-def _ok_result(step_id: str) -> StepResult:
-    return StepResult(
-        step_id=step_id,
-        status="completed",
-        exit_code=0,
-        stdout="ok",
-        stderr="",
-        duration_seconds=0.01,
-    )
+_failed_result = make_failed_result
+_ok_result = make_ok_result
 
 
 def _checkpoint(**overrides: object) -> RunCheckpoint:
-    payload: dict[str, object] = {
-        "next_step_index": 1,
-        "step_results": [_ok_result("setup")],
-        "sandbox_path": None,
-        "use_sandbox": False,
-        "keep": False,
-        "inputs": {"name": "demo"},
-        "pending_step_id": "publish",
-        "diagnostic": "Step 'publish' failed: boom",
-        "pending_result": _failed_result(),
-    }
+    payload: dict[str, object] = {"step_id": "setup", "pending_step_id": "publish"}
     payload.update(overrides)
-    return RunCheckpoint.model_validate(payload)
+    return make_checkpoint(**payload)
 
 
 def _seed_paused_workflow(git_fs: GitFileSystem, session_id: str, checkpoint: RunCheckpoint) -> None:

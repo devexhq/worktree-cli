@@ -1,10 +1,18 @@
+from __future__ import annotations
+
 import json
+from io import StringIO
 from pathlib import Path
 from typing import Any
 
 import yaml
+from rich.console import Console
 
+from worktree.common.utils import RichOutput
 from worktree.core.config.generator import generate_default_config
+from worktree.core.db import SandboxesRepository, SandboxRecord
+from worktree.core.runtime import RunCheckpoint
+from worktree.core.step import StepDefinition, StepResult
 
 
 def _deep_merge(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
@@ -111,3 +119,118 @@ class GitFileSystem(FileSystem):
         config_path.parent.mkdir(parents=True, exist_ok=True)
         generate_default_config(config_path, project_name=self.base_path.name)
         return config_path
+
+
+def make_step_result(
+    step_id: str = "step-1",
+    *,
+    status: str = "completed",
+    exit_code: int = 0,
+    stdout: str = "ok",
+    stderr: str = "",
+    duration_seconds: float = 0.01,
+    **overrides: Any,
+) -> StepResult:
+    """Generate a valid StepResult with defaults for test assertions."""
+    defaults: dict[str, Any] = {
+        "step_id": step_id,
+        "status": status,
+        "exit_code": exit_code,
+        "stdout": stdout,
+        "stderr": stderr,
+        "duration_seconds": duration_seconds,
+    }
+    defaults.update(overrides)
+    return StepResult(**defaults)
+
+
+def make_ok_result(step_id: str = "step-1", **overrides: Any) -> StepResult:
+    """Convenience helper for a successful completed StepResult."""
+    return make_step_result(step_id, status="completed", exit_code=0, stdout="ok", stderr="", **overrides)
+
+
+def make_failed_result(step_id: str = "step-1", **overrides: Any) -> StepResult:
+    """Convenience helper for a failed StepResult."""
+    defaults: dict[str, Any] = {
+        "status": "failed",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "boom",
+    }
+    defaults.update(overrides)
+    return make_step_result(step_id, **defaults)
+
+
+def make_cmd_step(
+    step_id: str = "s1",
+    command: str = "echo ok",
+    *,
+    name: str | None = None,
+    **overrides: Any,
+) -> StepDefinition:
+    """Generate a valid command StepDefinition."""
+    defaults: dict[str, Any] = {
+        "id": step_id,
+        "name": name or f"Step {step_id}",
+        "type": "command",
+        "command": command,
+    }
+    defaults.update(overrides)
+    return StepDefinition.model_validate(defaults)
+
+
+def make_checkpoint(**overrides: Any) -> RunCheckpoint:
+    """Generate a valid RunCheckpoint instance with test defaults."""
+    step_id = overrides.pop("step_id", "step-1")
+    defaults: dict[str, Any] = {
+        "version": 1,
+        "next_step_index": 1,
+        "step_results": [make_ok_result(step_id)],
+        "sandbox_path": None,
+        "use_sandbox": False,
+        "keep": False,
+        "pending_step_id": "step-2",
+        "diagnostic": "",
+        "pending_result": None,
+    }
+    defaults.update(overrides)
+    return RunCheckpoint.model_validate(defaults)
+
+
+def seed_sandbox(
+    repo: Path,
+    sandbox_id: str = "sbx_1",
+    *,
+    name: str | None = None,
+    path_suffix: str | None = None,
+    create_dir: bool = True,
+    base_commit: str = "4f2c9a1e8b3d6f0a2c5e7b1d9a3f6c8e0b2d4f6a",
+    db_rel_path: str = ".worktree/data.db",
+) -> SandboxRecord:
+    """Helper to insert a sandbox record into SandboxesRepository for tests."""
+    suffix = path_suffix if path_suffix is not None else sandbox_id
+    sandbox_path = repo / ".worktree" / "sandboxes" / suffix
+    if create_dir:
+        sandbox_path.mkdir(parents=True, exist_ok=True)
+    return SandboxesRepository(repo, db_rel_path).insert(
+        id=sandbox_id,
+        branch_name=f"worktree/sandbox-{sandbox_id}",
+        base_commit=base_commit,
+        sandbox_path=sandbox_path,
+        name=name,
+    )
+
+
+def make_rich_output(*, width: int = 120) -> tuple[RichOutput, StringIO]:
+    """Fixed-width console so Rich tables/panels do not truncate under narrow CI COLUMNS."""
+    buffer = StringIO()
+    console = Console(
+        file=buffer,
+        force_terminal=False,
+        color_system=None,
+        width=width,
+    )
+    return RichOutput(console=console), buffer
+
+
+_rich = make_rich_output

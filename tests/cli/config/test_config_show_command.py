@@ -131,10 +131,8 @@ class ConfigShowCliTests:
             json.loads(result.stdout)
 
     def test_help_lists_config_show(self) -> None:
-        root = runner.invoke(app, ["--help"])
-        assert root.exit_code == 0
-        assert "config" in root.stdout
-
-        cfg = runner.invoke(app, ["config", "--help"])
-        assert cfg.exit_code == 0
-        assert "show" in cfg.stdout
+        root_cmd = typer.main.get_command(app)
+        assert "config" in root_cmd.list_commands(None)
+        config_cmd = root_cmd.get_command(None, "config")
+        assert config_cmd is not None
+        assert "show" in config_cmd.list_commands(None)

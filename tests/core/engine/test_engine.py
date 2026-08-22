@@ -8,21 +8,15 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from tests.helpers import FileSystem
+from tests.helpers import FileSystem, make_cmd_step
 from worktree.core.blueprint import Blueprint, BlueprintDefinition, BlueprintKind
 from worktree.core.db import RunsRepository, RunStatus
 from worktree.core.engine import Engine, EngineInputError, EngineRuntimeError, RunRequest
 from worktree.core.inputs import InputType, ParameterInput
 from worktree.core.runtime import RunContext, RunOutcome
-from worktree.core.step import LoopStepBlock, StepDefinition, StepType
+from worktree.core.step import LoopStepBlock, StepDefinition
 
-
-def _cmd_step(step_id: str = "s1") -> StepDefinition:
-    return StepDefinition(
-        id=step_id,
-        type=StepType.COMMAND,
-        command="echo ok",
-    )
+_cmd_step = make_cmd_step
 
 
 def _task_blueprint(
@@ -212,7 +206,7 @@ def test_update_failure_warns_and_returns_outcome(monkeypatch: pytest.MonkeyPatc
         lambda _context: expected,
     )
     monkeypatch.setattr(
-        "worktree.core.engine.engine._DbPauseStore.finalize",
+        "worktree.core.engine.engine.RunsRepository.update_status",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("locked")),
     )
 

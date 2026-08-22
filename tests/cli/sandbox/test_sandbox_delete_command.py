@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
-from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 import typer
-from rich.console import Console
 from typer.main import get_command
 from typer.testing import CliRunner
 
-from tests.helpers import GitFileSystem
+from tests.helpers import GitFileSystem, make_rich_output, seed_sandbox
 from worktree.cli import app
 from worktree.cli.sandbox.command import (
     collect_sandbox_delete,
@@ -24,7 +22,6 @@ from worktree.cli.sandbox.renderers import (
     render_sandbox_delete_success,
     sandbox_delete_confirm_prompt,
 )
-from worktree.common.utils import RichOutput
 from worktree.core.db import (
     SandboxesRepository,
     SandboxStatus,
@@ -34,40 +31,9 @@ from worktree.core.git_sandbox import GitSandboxManager
 runner = CliRunner()
 DB_REL = ".worktree/data.db"
 
-
-def _seed_sandbox(
-    repo: Path,
-    sandbox_id: str,
-    name: str | None = None,
-    path_suffix: str | None = None,
-    create_dir: bool = True,
-    base_commit: str = "4f2c9a1e8b3d6f0a2c5e7b1d9a3f6c8e0b2d4f6a",
-):
-    suffix = path_suffix if path_suffix is not None else sandbox_id
-    sandbox_path = repo / ".worktree" / "sandboxes" / suffix
-    if create_dir:
-        sandbox_path.mkdir(parents=True, exist_ok=True)
-    return SandboxesRepository(repo, DB_REL).insert(
-        id=sandbox_id,
-        branch_name=f"worktree/sandbox-{sandbox_id}",
-        base_commit=base_commit,
-        sandbox_path=sandbox_path,
-        name=name,
-    )
-
-
+_seed_sandbox = seed_sandbox
 _insert = _seed_sandbox
-
-
-def _rich(*, width: int = 120) -> tuple[RichOutput, StringIO]:
-    buffer = StringIO()
-    console = Console(
-        file=buffer,
-        force_terminal=False,
-        color_system=None,
-        width=width,
-    )
-    return RichOutput(console=console), buffer
+_rich = make_rich_output
 
 
 class SandboxDeleteCollectTests:

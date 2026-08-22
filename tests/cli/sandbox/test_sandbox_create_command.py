@@ -4,24 +4,21 @@ from __future__ import annotations
 
 import json
 import subprocess
-from io import StringIO
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 import typer
-from rich.console import Console
 from typer.main import get_command
 from typer.testing import CliRunner
 
-from tests.helpers import FileSystem, GitFileSystem
+from tests.helpers import FileSystem, GitFileSystem, make_rich_output
 from worktree.cli import app
 from worktree.cli.sandbox.command import sandbox_create_command
 from worktree.cli.sandbox.renderers import (
     render_sandbox_create_failed,
     render_sandbox_create_success,
 )
-from worktree.common.utils import RichOutput
 from worktree.core.db import SandboxesRepository, SandboxStatus
 from worktree.core.git_sandbox import (
     SandboxCreateResult,
@@ -32,16 +29,7 @@ from worktree.core.git_sandbox import (
 runner = CliRunner()
 DB_REL = ".worktree/data.db"
 
-
-def _rich(*, width: int = 120) -> tuple[RichOutput, StringIO]:
-    buffer = StringIO()
-    console = Console(
-        file=buffer,
-        force_terminal=False,
-        color_system=None,
-        width=width,
-    )
-    return RichOutput(console=console), buffer
+_rich = make_rich_output
 
 
 def _session(
