@@ -7,7 +7,6 @@ import pytest
 from tests.helpers import (
     GitFileSystem,
     make_checkpoint,
-    make_failed_result,
     make_ok_result,
 )
 from worktree.core.catalog.services.inventory import scan_and_index_catalog
@@ -26,10 +25,6 @@ class _ScriptedPrompter:
     def prompt_step_failure(self, **kwargs: object) -> FailurePromptDecision:
         self.calls += 1
         return self.decisions.pop(0)
-
-
-_failed_result = make_failed_result
-_ok_result = make_ok_result
 
 
 def _checkpoint(**overrides: object) -> RunCheckpoint:
@@ -65,7 +60,7 @@ def test_resume_workflow_happy_path_skips_completed(
 
     def fake_execute(step: StepDefinition, sandbox_path: object, context: object = None) -> StepResult:
         executed.append(step.id)
-        return _ok_result(step.id)
+        return make_ok_result(step_id=step.id)
 
     monkeypatch.setattr("worktree.core.runtime.engine.execute_step", fake_execute)
 
@@ -133,7 +128,7 @@ def test_resume_workflow_reprompts_pending_step(git_fs: GitFileSystem, monkeypat
     prompter = _ScriptedPrompter([FailurePromptDecision.RETRY])
     monkeypatch.setattr(
         "worktree.core.runtime.engine.execute_step",
-        lambda step, sandbox_path, context=None: _ok_result(step.id),
+        lambda step, sandbox_path, context=None: make_ok_result(step_id=step.id),
     )
     result = resume_workflow("wf-retry", git_fs.base_path, failure_prompter=prompter)
     assert result.ok is True

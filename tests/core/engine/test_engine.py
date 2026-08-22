@@ -16,8 +16,6 @@ from worktree.core.inputs import InputType, ParameterInput
 from worktree.core.runtime import RunContext, RunOutcome
 from worktree.core.step import LoopStepBlock, StepDefinition
 
-_cmd_step = make_cmd_step
-
 
 def _task_blueprint(
     *,
@@ -30,13 +28,13 @@ def _task_blueprint(
             kind=BlueprintKind.TASK,
             name=name,
             use_sandbox=use_sandbox,
-            steps=list(steps) if steps is not None else [_cmd_step()],
+            steps=list(steps) if steps is not None else [make_cmd_step()],
         )
     )
 
 
 def _workflow_blueprint(*, name: str = "ship", loop: bool = False) -> Blueprint:
-    steps: list[Any] = [_cmd_step("ruff")]
+    steps: list[Any] = [make_cmd_step(step_id="ruff")]
     if loop:
         steps.append(
             LoopStepBlock.model_validate(
@@ -66,7 +64,7 @@ def test_construct_resolves_cwd(tmp_path: Path) -> None:
 
 
 def test_run_delegates_to_run_steps(monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
-    steps = [_cmd_step("one"), _cmd_step("two")]
+    steps = [make_cmd_step(step_id="one"), make_cmd_step(step_id="two")]
     blueprint = _task_blueprint(steps=steps, use_sandbox=True)
     observer = MagicMock()
     expected = RunOutcome(status=RunStatus.COMPLETED, step_results=[], sandbox_path=fs.base_path)
@@ -245,7 +243,7 @@ def _input_blueprint() -> Blueprint:
                 "message": ParameterInput(type=InputType.STRING, required=True, aliases=["-m"]),
                 "allow_empty": ParameterInput(type=InputType.BOOLEAN, default=False),
             },
-            steps=[_cmd_step()],
+            steps=[make_cmd_step()],
         )
     )
 
@@ -311,7 +309,7 @@ def test_run_invalid_input_raises_before_insert(fs: FileSystem) -> None:
                     name="count",
                     use_sandbox=False,
                     inputs={"n": ParameterInput(type=InputType.INTEGER, required=True)},
-                    steps=[_cmd_step()],
+                    steps=[make_cmd_step()],
                 )
             ),
             RunRequest(cli_args=["-i", "n=nope"]),

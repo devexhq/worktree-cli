@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from tests.helpers import FileSystem, make_rich_output
+from tests.helpers import FileSystem, make_rich_output, make_run
 from worktree.core.blueprint import BlueprintKind
 from worktree.core.config.generator import generate_default_config
-from worktree.core.db import RunRecord, RunsRepository, RunStatus
+from worktree.core.db import RunStatus
 from worktree.core.history.models import (
     HistoryListStatus,
     HistoryShowStatus,
@@ -24,41 +24,6 @@ def _init_workspace(root: Path) -> None:
     generate_default_config(config_file, project_name="test")
 
 
-def _seed_run(
-    root: Path,
-    session_id: str,
-    blueprint_name: str,
-    kind: BlueprintKind,
-    status: RunStatus = RunStatus.COMPLETED,
-    *,
-    branch_name: str = "main",
-    started_at: str = "2026-08-19 01:00:00",
-    completed_at: str | None = "2026-08-19 01:00:15",
-) -> RunRecord:
-    _init_workspace(root)
-    db = RunsRepository(root)
-    db.create(
-        session_id=session_id,
-        blueprint_name=blueprint_name,
-        kind=kind,
-        branch_name=branch_name,
-        status=status,
-    )
-    with db.session() as session:
-        from sqlmodel import select
-
-        item = session.exec(select(RunRecord).where(RunRecord.session_id == session_id)).first()
-        if item is not None:
-            item.status = status
-            item.started_at = started_at
-            item.completed_at = completed_at
-            session.add(item)
-            session.commit()
-    record = db.get(session_id)
-    assert record is not None
-    return record
-
-
 class HistoryListServiceTests:
     """Direct unit tests for HistoryListService data collection and execution."""
 
@@ -70,8 +35,20 @@ class HistoryListServiceTests:
         assert len(result.errors) > 0
 
     def test_collect_all_runs(self, fs: FileSystem) -> None:
-        _seed_run(fs.base_path, "run-1", "task-1", BlueprintKind.TASK, RunStatus.COMPLETED)
-        _seed_run(fs.base_path, "run-2", "wf-1", BlueprintKind.WORKFLOW, RunStatus.FAILED)
+        make_run(
+            root=fs.base_path,
+            session_id="run-1",
+            blueprint_name="task-1",
+            kind=BlueprintKind.TASK,
+            status=RunStatus.COMPLETED,
+        )
+        make_run(
+            root=fs.base_path,
+            session_id="run-2",
+            blueprint_name="wf-1",
+            kind=BlueprintKind.WORKFLOW,
+            status=RunStatus.FAILED,
+        )
 
         service = HistoryListService(cwd=fs.base_path)
         result = service.collect()
@@ -80,8 +57,20 @@ class HistoryListServiceTests:
         assert len(result.runs) == 2
 
     def test_collect_filter_by_status(self, fs: FileSystem) -> None:
-        _seed_run(fs.base_path, "run-ok", "task-1", BlueprintKind.TASK, RunStatus.COMPLETED)
-        _seed_run(fs.base_path, "run-fail", "task-2", BlueprintKind.TASK, RunStatus.FAILED)
+        make_run(
+            root=fs.base_path,
+            session_id="run-ok",
+            blueprint_name="task-1",
+            kind=BlueprintKind.TASK,
+            status=RunStatus.COMPLETED,
+        )
+        make_run(
+            root=fs.base_path,
+            session_id="run-fail",
+            blueprint_name="task-2",
+            kind=BlueprintKind.TASK,
+            status=RunStatus.FAILED,
+        )
 
         # Status matching enum
         service = HistoryListService(status="failed", cwd=fs.base_path)
@@ -97,8 +86,20 @@ class HistoryListServiceTests:
         assert len(result_invalid.runs) == 0
 
     def test_collect_filter_by_kind(self, fs: FileSystem) -> None:
-        _seed_run(fs.base_path, "run-task", "task-1", BlueprintKind.TASK, RunStatus.COMPLETED)
-        _seed_run(fs.base_path, "run-wf", "wf-1", BlueprintKind.WORKFLOW, RunStatus.COMPLETED)
+        make_run(
+            root=fs.base_path,
+            session_id="run-task",
+            blueprint_name="task-1",
+            kind=BlueprintKind.TASK,
+            status=RunStatus.COMPLETED,
+        )
+        make_run(
+            root=fs.base_path,
+            session_id="run-wf",
+            blueprint_name="wf-1",
+            kind=BlueprintKind.WORKFLOW,
+            status=RunStatus.COMPLETED,
+        )
 
         # Kind matching enum
         service = HistoryListService(kind="workflow", cwd=fs.base_path)
@@ -115,7 +116,13 @@ class HistoryListServiceTests:
 
     def test_collect_limit(self, fs: FileSystem) -> None:
         for i in range(5):
-            _seed_run(fs.base_path, f"run-{i}", f"task-{i}", BlueprintKind.TASK, RunStatus.COMPLETED)
+            make_run(
+                root=fs.base_path,
+                session_id=f"run-{i}",
+                blueprint_name=f"task-{i}",
+                kind=BlueprintKind.TASK,
+                status=RunStatus.COMPLETED,
+            )
 
         service = HistoryListService(limit=3, cwd=fs.base_path)
         result = service.collect()
@@ -123,7 +130,13 @@ class HistoryListServiceTests:
         assert len(result.runs) == 3
 
     def test_execute_renders_output(self, fs: FileSystem) -> None:
-        _seed_run(fs.base_path, "run-exec", "sample-task", BlueprintKind.TASK, RunStatus.COMPLETED)
+        make_run(
+            root=fs.base_path,
+            session_id="run-exec",
+            blueprint_name="sample-task",
+            kind=BlueprintKind.TASK,
+            status=RunStatus.COMPLETED,
+        )
         rich_output, buffer = make_rich_output(width=160)
 
         service = HistoryListService(cwd=fs.base_path, output=rich_output)
@@ -152,7 +165,13 @@ class HistoryShowServiceTests:
         assert len(result.errors) > 0
 
     def test_collect_found(self, fs: FileSystem) -> None:
-        _seed_run(fs.base_path, "run-show", "show-task", BlueprintKind.TASK, RunStatus.COMPLETED)
+        make_run(
+            root=fs.base_path,
+            session_id="run-show",
+            blueprint_name="show-task",
+            kind=BlueprintKind.TASK,
+            status=RunStatus.COMPLETED,
+        )
 
         service = HistoryShowService(session_id="run-show", cwd=fs.base_path)
         result = service.collect()
@@ -170,7 +189,13 @@ class HistoryShowServiceTests:
         assert result.run is None
 
     def test_execute_found_renders_metadata(self, fs: FileSystem) -> None:
-        _seed_run(fs.base_path, "run-show-exec", "show-task", BlueprintKind.TASK, RunStatus.COMPLETED)
+        make_run(
+            root=fs.base_path,
+            session_id="run-show-exec",
+            blueprint_name="show-task",
+            kind=BlueprintKind.TASK,
+            status=RunStatus.COMPLETED,
+        )
         rich_output, buffer = make_rich_output(width=160)
 
         service = HistoryShowService(session_id="run-show-exec", cwd=fs.base_path, output=rich_output)

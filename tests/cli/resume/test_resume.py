@@ -9,8 +9,6 @@ from tests.helpers import (
     FileSystem,
     GitFileSystem,
     make_checkpoint,
-    make_failed_result,
-    make_ok_result,
 )
 from worktree.cli import app
 from worktree.core.blueprint import BlueprintKind, BlueprintResumeService
@@ -19,10 +17,6 @@ from worktree.core.db import RunsRepository, RunStatus
 from worktree.core.runtime import FailurePromptDecision, RunCheckpoint
 
 runner = CliRunner()
-
-_failed_result = make_failed_result
-_ok_result = make_ok_result
-_checkpoint = make_checkpoint
 
 
 def _seed_paused_run(
@@ -43,7 +37,7 @@ def _seed_paused_run(
         status=RunStatus.RUNNING,
     )
     if status is RunStatus.PAUSED:
-        raw = checkpoint.model_dump_json() if checkpoint is not None else _checkpoint().model_dump_json()
+        raw = checkpoint.model_dump_json() if checkpoint is not None else make_checkpoint().model_dump_json()
         db.save_pause(session_id, raw, "paused")
     else:
         db.update_status(session_id, status)
@@ -260,7 +254,7 @@ def test_resume_cli_missing_sandbox_exits_1(fs: FileSystem, monkeypatch: pytest.
         use_sandbox=False,
         steps=[{"id": "step-1", "run": "echo 1"}, {"id": "step-2", "run": "echo 2"}],
     )
-    checkpoint = _checkpoint(sandbox_path="/tmp/nonexistent-sandbox-dir", use_sandbox=True)
+    checkpoint = make_checkpoint(sandbox_path="/tmp/nonexistent-sandbox-dir", use_sandbox=True)
     _seed_paused_run(fs.base_path, "task-bad-box", "sandbox-task", BlueprintKind.TASK, checkpoint=checkpoint)
 
     result = runner.invoke(app, ["resume", "task-bad-box"])

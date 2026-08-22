@@ -29,8 +29,6 @@ from worktree.core.git_sandbox import (
 runner = CliRunner()
 DB_REL = ".worktree/data.db"
 
-_rich = make_rich_output
-
 
 def _session(
     *,
@@ -51,7 +49,7 @@ class SandboxCreateRenderTests:
 
     def test_success_block(self, fs: FileSystem) -> None:
         session = _session(sandbox_path=fs.base_path / ".worktree" / "sandboxes" / "sbx_a1b2c3d4")
-        rich_output, buffer = _rich()
+        rich_output, buffer = make_rich_output()
         render_sandbox_create_success(session, cwd=fs.base_path, rich_output=rich_output)
         out = buffer.getvalue()
         assert "Sandbox created: sbx_a1b2c3d4" in out
@@ -63,7 +61,7 @@ class SandboxCreateRenderTests:
             session_id="sbx_warn",
             sandbox_path=fs.base_path / ".worktree" / "sandboxes" / "sbx_warn",
         )
-        rich_output, buffer = _rich()
+        rich_output, buffer = make_rich_output()
         render_sandbox_create_success(
             session,
             warnings=["db write failed"],
@@ -76,7 +74,7 @@ class SandboxCreateRenderTests:
         assert "•" in out
 
     def test_failed_panel(self) -> None:
-        rich_output, buffer = _rich()
+        rich_output, buffer = make_rich_output()
         render_sandbox_create_failed(
             ["capacity exceeded detail"],
             rich_output=rich_output,
@@ -86,7 +84,7 @@ class SandboxCreateRenderTests:
         assert "capacity exceeded detail" in out
 
     def test_failed_panel_empty_errors_fallback(self) -> None:
-        rich_output, buffer = _rich()
+        rich_output, buffer = make_rich_output()
         render_sandbox_create_failed([], rich_output=rich_output)
         out = buffer.getvalue()
         assert "Sandbox Create Failed" in out

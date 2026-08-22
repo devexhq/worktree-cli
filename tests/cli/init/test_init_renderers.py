@@ -13,14 +13,12 @@ from worktree.core.bootstrap import BootstrapResult
 from worktree.core.catalog.models import SeedResult
 from worktree.core.config.generator import ConfigGenerationResult
 
-_rich = make_rich_output
-
 
 class RenderInitFailureTests:
     """Tests for failure renderers."""
 
     def test_bootstrap_failure_panel(self, fs: FileSystem) -> None:
-        rich_output, output = _rich()
+        rich_output, output = make_rich_output()
         render_init_bootstrap_failure(fs.base_path, ["path conflict"], rich_output=rich_output)
         text = output.getvalue()
         assert "Failed to initialize Worktree" in text
@@ -31,7 +29,7 @@ class RenderInitFailureTests:
         render_init_bootstrap_failure(fs.base_path, ["err"])
 
     def test_config_failure_panel(self) -> None:
-        rich_output, output = _rich()
+        rich_output, output = make_rich_output()
         render_init_config_failure(["bad config"], rich_output=rich_output)
         text = output.getvalue()
         assert "Failed to generate config" in text
@@ -45,7 +43,7 @@ class RenderInitOutcomeTests:
     """Tests for `render_init_outcome`."""
 
     def test_render_init_outcome_renders_summary(self, fs: FileSystem) -> None:
-        rich_output, output = _rich()
+        rich_output, output = make_rich_output()
         outcome = InitCommandOutcome(
             bootstrap_result=BootstrapResult(root_path=fs.base_path / ".worktree"),
             config_result=ConfigGenerationResult(
@@ -61,7 +59,7 @@ class RenderInitOutcomeTests:
         assert "Seeded starter workflows" in rendered
 
     def test_render_repaired_bootstrap_and_config(self, fs: FileSystem) -> None:
-        rich_output, output = _rich()
+        rich_output, output = make_rich_output()
         root = fs.base_path / ".worktree"
         outcome = InitCommandOutcome(
             bootstrap_result=BootstrapResult(
@@ -85,7 +83,7 @@ class RenderInitOutcomeTests:
         assert "Skipped existing" in rendered
 
     def test_render_created_bootstrap_and_overwritten_config(self, fs: FileSystem) -> None:
-        rich_output, output = _rich()
+        rich_output, output = make_rich_output()
         root = fs.base_path / ".worktree"
         outcome = InitCommandOutcome(
             bootstrap_result=BootstrapResult(
@@ -106,7 +104,7 @@ class RenderInitOutcomeTests:
         assert "Refreshed starter workflows" in rendered
 
     def test_render_generated_config_and_workflow_errors(self, fs: FileSystem) -> None:
-        rich_output, output = _rich()
+        rich_output, output = make_rich_output()
         root = fs.base_path / ".worktree"
         outcome = InitCommandOutcome(
             bootstrap_result=BootstrapResult(root_path=root),
@@ -123,7 +121,7 @@ class RenderInitOutcomeTests:
         assert "could not seed" in rendered
 
     def test_render_skips_config_without_path(self, fs: FileSystem) -> None:
-        rich_output, output = _rich()
+        rich_output, output = make_rich_output()
         outcome = InitCommandOutcome(
             bootstrap_result=BootstrapResult(root_path=fs.base_path / ".worktree"),
             config_result=ConfigGenerationResult(config_path=None),

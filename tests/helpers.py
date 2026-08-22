@@ -10,7 +10,14 @@ from rich.console import Console
 
 from worktree.common.utils import RichOutput
 from worktree.core.config.generator import generate_default_config
-from worktree.core.db import SandboxesRepository, SandboxRecord
+from worktree.core.db import (
+    BlueprintKind,
+    RunRecord,
+    RunsRepository,
+    RunStatus,
+    SandboxesRepository,
+    SandboxRecord,
+)
 from worktree.core.runtime import RunCheckpoint
 from worktree.core.step import StepDefinition, StepResult
 
@@ -122,8 +129,8 @@ class GitFileSystem(FileSystem):
 
 
 def make_step_result(
-    step_id: str = "step-1",
     *,
+    step_id: str = "step-1",
     status: str = "completed",
     exit_code: int = 0,
     stdout: str = "ok",
@@ -144,12 +151,12 @@ def make_step_result(
     return StepResult(**defaults)
 
 
-def make_ok_result(step_id: str = "step-1", **overrides: Any) -> StepResult:
+def make_ok_result(*, step_id: str = "step-1", **overrides: Any) -> StepResult:
     """Convenience helper for a successful completed StepResult."""
-    return make_step_result(step_id, status="completed", exit_code=0, stdout="ok", stderr="", **overrides)
+    return make_step_result(step_id=step_id, status="completed", exit_code=0, stdout="ok", stderr="", **overrides)
 
 
-def make_failed_result(step_id: str = "step-1", **overrides: Any) -> StepResult:
+def make_failed_result(*, step_id: str = "step-1", **overrides: Any) -> StepResult:
     """Convenience helper for a failed StepResult."""
     defaults: dict[str, Any] = {
         "status": "failed",
@@ -158,13 +165,13 @@ def make_failed_result(step_id: str = "step-1", **overrides: Any) -> StepResult:
         "stderr": "boom",
     }
     defaults.update(overrides)
-    return make_step_result(step_id, **defaults)
+    return make_step_result(step_id=step_id, **defaults)
 
 
 def make_cmd_step(
+    *,
     step_id: str = "s1",
     command: str = "echo ok",
-    *,
     name: str | None = None,
     **overrides: Any,
 ) -> StepDefinition:
@@ -179,13 +186,12 @@ def make_cmd_step(
     return StepDefinition.model_validate(defaults)
 
 
-def make_checkpoint(**overrides: Any) -> RunCheckpoint:
+def make_checkpoint(*, step_id: str = "step-1", **overrides: Any) -> RunCheckpoint:
     """Generate a valid RunCheckpoint instance with test defaults."""
-    step_id = overrides.pop("step_id", "step-1")
     defaults: dict[str, Any] = {
         "version": 1,
         "next_step_index": 1,
-        "step_results": [make_ok_result(step_id)],
+        "step_results": [make_ok_result(step_id=step_id)],
         "sandbox_path": None,
         "use_sandbox": False,
         "keep": False,
@@ -195,6 +201,50 @@ def make_checkpoint(**overrides: Any) -> RunCheckpoint:
     }
     defaults.update(overrides)
     return RunCheckpoint.model_validate(defaults)
+
+
+def make_run(
+    *,
+    root: Path,
+    session_id: str = "run-1",
+    blueprint_name: str = "task-1",
+    kind: BlueprintKind = BlueprintKind.TASK,
+    status: RunStatus = RunStatus.COMPLETED,
+    branch_name: str = "main",
+    started_at: str = "2026-08-19 01:00:00",
+    completed_at: str | None = "2026-08-19 01:00:15",
+    error_message: str | None = None,
+    checkpoint_json: str | None = None,
+    db_rel_path: str = ".worktree/data.db",
+) -> RunRecord:
+    """Helper to insert a run row directly into RunsRepository with test defaults."""
+    config_file = root / ".worktree" / "config.json"
+    if not config_file.exists():
+        config_file.parent.mkdir(parents=True, exist_ok=True)
+        generate_default_config(config_file, project_name="test")
+    db = RunsRepository(root, db_rel_path=db_rel_path)
+    db.create(
+        session_id=session_id,
+        blueprint_name=blueprint_name,
+        kind=kind,
+        branch_name=branch_name,
+        status=RunStatus.RUNNING,
+    )
+    with db.session() as session:
+        from sqlmodel import select
+
+        item = session.exec(select(RunRecord).where(RunRecord.session_id == session_id)).first()
+        if item is not None:
+            item.status = status
+            item.started_at = started_at
+            item.completed_at = completed_at
+            item.error_message = error_message
+            item.checkpoint_json = checkpoint_json
+            session.add(item)
+            session.commit()
+    record = db.get(session_id)
+    assert record is not None
+    return record
 
 
 def seed_sandbox(
@@ -231,6 +281,3 @@ def make_rich_output(*, width: int = 120) -> tuple[RichOutput, StringIO]:
         width=width,
     )
     return RichOutput(console=console), buffer
-
-
-_rich = make_rich_output

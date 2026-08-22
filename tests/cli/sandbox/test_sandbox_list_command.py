@@ -30,9 +30,6 @@ from worktree.core.db import (
 runner = CliRunner()
 DB_REL = ".worktree/data.db"
 
-_insert = seed_sandbox
-_rich = make_rich_output
-
 
 class SandboxListCollectTests:
     """Tests for collect_sandbox_list (data path, no Rich width coupling)."""
@@ -53,8 +50,8 @@ class SandboxListCollectTests:
 
     def test_multiple_rows_sorted_by_created_at_desc(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        first = _insert(git_fs.base_path, sandbox_id="sbx_first", name=None, path_suffix="1")
-        second = _insert(git_fs.base_path, sandbox_id="sbx_second", name="beta", path_suffix="2")
+        first = seed_sandbox(git_fs.base_path, sandbox_id="sbx_first", name=None, path_suffix="1")
+        second = seed_sandbox(git_fs.base_path, sandbox_id="sbx_second", name="beta", path_suffix="2")
         db = SandboxesRepository(cwd=git_fs.base_path)
         import sqlite3
 
@@ -75,8 +72,8 @@ class SandboxListCollectTests:
 
     def test_status_filter(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        active = _insert(git_fs.base_path, sandbox_id="sbx_active", path_suffix="a")
-        cleaned = _insert(git_fs.base_path, sandbox_id="sbx_cleaned", path_suffix="c")
+        active = seed_sandbox(git_fs.base_path, sandbox_id="sbx_active", path_suffix="a")
+        cleaned = seed_sandbox(git_fs.base_path, sandbox_id="sbx_cleaned", path_suffix="c")
         SandboxesRepository(git_fs.base_path, DB_REL).update_status(
             cleaned.id,
             SandboxStatus.CLEANED,
@@ -89,7 +86,7 @@ class SandboxListCollectTests:
 
     def test_reconciles_stale_active_missing_directory(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        stale = _insert(
+        stale = seed_sandbox(
             git_fs.base_path,
             sandbox_id="sbx_stale",
             path_suffix="gone",
@@ -108,7 +105,7 @@ class SandboxListCollectTests:
 
     def test_status_filter_after_reconciliation(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        stale = _insert(
+        stale = seed_sandbox(
             git_fs.base_path,
             sandbox_id="sbx_stale_filter",
             path_suffix="missing",
@@ -160,7 +157,7 @@ class SandboxListRenderTests:
                 updated_at="2026-01-01 00:00:00",
             ),
         ]
-        rich_output, buffer = _rich(width=120)
+        rich_output, buffer = make_rich_output(width=120)
         render_sandbox_list(sandboxes, rich_output=rich_output)
         out = buffer.getvalue()
         assert "Worktree Sandboxes" in out
@@ -182,12 +179,12 @@ class SandboxListRenderTests:
         ]
 
     def test_empty_list_message(self) -> None:
-        rich_output, buffer = _rich()
+        rich_output, buffer = make_rich_output()
         render_sandbox_list([], rich_output=rich_output)
         assert buffer.getvalue() == "No sandboxes found.\n"
 
     def test_not_initialized_panel(self) -> None:
-        rich_output, buffer = _rich()
+        rich_output, buffer = make_rich_output()
         render_not_initialized(
             ["Configuration file not found at '/x' (CONFIG_NOT_FOUND)."],
             rich_output=rich_output,
@@ -238,7 +235,7 @@ class SandboxListCommandDirectTests:
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
-        _insert(git_fs.base_path, sandbox_id="sbx_one", path_suffix="1")
+        seed_sandbox(git_fs.base_path, sandbox_id="sbx_one", path_suffix="1")
 
         with pytest.raises(typer.Exit) as exc_info:
             sandbox_list_command(cwd=git_fs.base_path)

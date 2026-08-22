@@ -11,8 +11,6 @@ from tests.helpers import (
     FileSystem,
     make_checkpoint,
     make_cmd_step,
-    make_failed_result,
-    make_ok_result,
 )
 from worktree.core.blueprint import Blueprint, BlueprintDefinition, BlueprintKind
 from worktree.core.catalog.services.inventory import scan_and_index_catalog
@@ -20,10 +18,6 @@ from worktree.core.db import RunsRepository, RunStatus
 from worktree.core.engine import Engine, EngineResumeError, EngineResumeStatus, EngineRuntimeError, ResumableRun
 from worktree.core.runtime import RunCheckpoint, RunContext, RunOutcome
 from worktree.core.step import LoopStepBlock
-
-_cmd_step = make_cmd_step
-_ok_result = make_ok_result
-_failed_result = make_failed_result
 
 
 def _checkpoint(**overrides: object) -> RunCheckpoint:
@@ -33,7 +27,11 @@ def _checkpoint(**overrides: object) -> RunCheckpoint:
 
 
 def _task_blueprint(*, name: str = "lint", loop: bool = False) -> Blueprint:
-    steps: list[Any] = [_cmd_step("setup"), _cmd_step("publish", "exit 1"), _cmd_step("later")]
+    steps: list[Any] = [
+        make_cmd_step(step_id="setup"),
+        make_cmd_step(step_id="publish", command="exit 1"),
+        make_cmd_step(step_id="later"),
+    ]
     if loop:
         steps.append(
             LoopStepBlock.model_validate(
@@ -61,7 +59,11 @@ def _workflow_blueprint(*, name: str = "ship") -> Blueprint:
             kind=BlueprintKind.WORKFLOW,
             name=name,
             use_sandbox=False,
-            steps=[_cmd_step("setup"), _cmd_step("publish", "exit 1"), _cmd_step("later")],
+            steps=[
+                make_cmd_step(step_id="setup"),
+                make_cmd_step(step_id="publish", command="exit 1"),
+                make_cmd_step(step_id="later"),
+            ],
         )
     )
 

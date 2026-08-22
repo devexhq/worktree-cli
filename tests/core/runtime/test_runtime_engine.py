@@ -26,20 +26,16 @@ from worktree.core.runtime import (
 )
 from worktree.core.step import FailurePolicy, FailureSpec, StepDefinition, StepResult
 
-_cmd_step = make_cmd_step
-_failed_result = make_failed_result
-_ok_result = make_ok_result
-
 
 def make_run_context(
-    fs: FileSystem,
     *,
+    fs: FileSystem,
     steps: list[StepDefinition] | None = None,
     **kwargs: Any,
 ) -> RunContext:
     """Build a RunContext with test-friendly defaults; override via kwargs."""
     defaults: dict[str, Any] = {
-        "steps": steps if steps is not None else [_cmd_step("s1")],
+        "steps": steps if steps is not None else [make_cmd_step(step_id="s1")],
         "cwd": fs.base_path,
         "use_sandbox": False,
     }
@@ -59,7 +55,7 @@ def patch_execute(
     - a callable(step) -> StepResult | BaseException
     - a dict keyed by step id: result, sequence of results (consumed in order),
       or callable(step)
-    - None: succeed with ``_ok_result(step.id)``
+    - None: succeed with ``make_ok_result(step_id=step.id)``
     """
     calls: list[str] = []
     queues: dict[str, list[StepResult]] = {}
@@ -96,7 +92,7 @@ def _resolve_execute_behavior(
     queues: dict[str, list[StepResult]],
 ) -> StepResult | BaseException | type[BaseException]:
     if behavior is None:
-        return _ok_result(step.id)
+        return make_ok_result(step_id=step.id)
     if isinstance(behavior, StepResult):
         return behavior.model_copy(update={"step_id": step.id})
     if isinstance(behavior, type) and issubclass(behavior, BaseException):
@@ -113,7 +109,7 @@ def _resolve_execute_behavior(
     if not isinstance(behavior, dict):
         raise AssertionError(f"unsupported execute behavior: {behavior!r}")
     if step.id not in behavior:
-        return _ok_result(step.id)
+        return make_ok_result(step_id=step.id)
     value = behavior[step.id]
     if step.id in queues:
         queue = queues[step.id]
@@ -162,8 +158,8 @@ class _BoomPrompter:
 def test_run_steps_success_no_sandbox(fs: FileSystem) -> None:
     outcome = run_steps(
         make_run_context(
-            fs,
-            steps=[_cmd_step("s1", "echo one"), _cmd_step("s2", "echo two")],
+            fs=fs,
+            steps=[make_cmd_step(step_id="s1", command="echo one"), make_cmd_step(step_id="s2", command="echo two")],
         )
     )
 
@@ -178,8 +174,8 @@ def test_run_steps_success_with_sandbox(git_fs: GitFileSystem) -> None:
     git_fs.init_repo()
     outcome = run_steps(
         make_run_context(
-            git_fs,
-            steps=[_cmd_step("s1", "echo sandboxed")],
+            fs=git_fs,
+            steps=[make_cmd_step(step_id="s1", command="echo sandboxed")],
             use_sandbox=True,
             keep=False,
         )
@@ -195,16 +191,16 @@ def test_run_steps_abort_on_failure(fs: FileSystem, monkeypatch: pytest.MonkeyPa
     calls = patch_execute(
         monkeypatch,
         {
-            "fail": _failed_result(),
-            "later": _ok_result(),
+            "fail": make_failed_result(),
+            "later": make_ok_result(),
         },
     )
     outcome = run_steps(
         make_run_context(
-            fs,
+            fs=fs,
             steps=[
-                _cmd_step("fail", "exit 1", on_failure="abort"),
-                _cmd_step("later", "echo should-not-run"),
+                make_cmd_step(step_id="fail", command="exit 1", on_failure="abort"),
+                make_cmd_step(step_id="later", command="echo should-not-run"),
             ],
         )
     )
@@ -218,10 +214,10 @@ def test_run_steps_abort_on_failure(fs: FileSystem, monkeypatch: pytest.MonkeyPa
 def test_run_steps_continue_on_failure(fs: FileSystem) -> None:
     outcome = run_steps(
         make_run_context(
-            fs,
+            fs=fs,
             steps=[
-                _cmd_step("fail", "exit 1", on_failure="continue"),
-                _cmd_step("ok", "echo recovered"),
+                make_cmd_step(step_id="fail", command="exit 1", on_failure="continue"),
+                make_cmd_step(step_id="ok", command="echo recovered"),
             ],
         )
     )
@@ -234,8 +230,8 @@ def test_run_steps_keep_sandbox(git_fs: GitFileSystem) -> None:
     git_fs.init_repo()
     outcome = run_steps(
         make_run_context(
-            git_fs,
-            steps=[_cmd_step("s1", "echo keep-me")],
+            fs=git_fs,
+            steps=[make_cmd_step(step_id="s1", command="echo keep-me")],
             use_sandbox=True,
             keep=True,
         )
@@ -248,7 +244,7 @@ def test_run_steps_keep_sandbox(git_fs: GitFileSystem) -> None:
 
 def test_run_steps_observer_callbacks(fs: FileSystem) -> None:
     observer = MagicMock()
-    outcome = run_steps(make_run_context(fs, observer=observer))
+    outcome = run_steps(make_run_context(fs=fs, observer=observer))
 
     assert outcome.ok is True
     path = fs.base_path.resolve()
@@ -266,7 +262,7 @@ def test_run_steps_observer_callbacks(fs: FileSystem) -> None:
 
 def test_run_steps_keyboard_interrupt(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
     patch_execute(monkeypatch, KeyboardInterrupt)
-    outcome = run_steps(make_run_context(fs))
+    outcome = run_steps(make_run_context(fs=fs))
 
     assert outcome.status == RunStatus.CANCELLED
     assert outcome.error_message == "Execution cancelled by user."
@@ -274,7 +270,7 @@ def test_run_steps_keyboard_interrupt(fs: FileSystem, monkeypatch: pytest.Monkey
 
 
 def test_run_steps_empty_steps(fs: FileSystem) -> None:
-    outcome = run_steps(make_run_context(fs, steps=[]))
+    outcome = run_steps(make_run_context(fs=fs, steps=[]))
 
     assert outcome.ok is True
     assert outcome.step_results == []
@@ -282,7 +278,7 @@ def test_run_steps_empty_steps(fs: FileSystem) -> None:
 
 def test_run_steps_sandbox_create_failure(fs: FileSystem) -> None:
     # No worktree init / config → sandbox create fails classified.
-    outcome = run_steps(make_run_context(fs, use_sandbox=True))
+    outcome = run_steps(make_run_context(fs=fs, use_sandbox=True))
 
     assert outcome.status == RunStatus.FAILED
     assert outcome.step_results == []
@@ -292,13 +288,13 @@ def test_run_steps_sandbox_create_failure(fs: FileSystem) -> None:
 
 def test_run_steps_prompt_user_abort(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
     prompter = _ScriptedPrompter([FailurePromptDecision.ABORT])
-    calls = patch_execute(monkeypatch, _failed_result())
+    calls = patch_execute(monkeypatch, make_failed_result())
     outcome = run_steps(
         make_run_context(
-            fs,
+            fs=fs,
             steps=[
-                _cmd_step("fail", on_failure="prompt_user"),
-                _cmd_step("later"),
+                make_cmd_step(step_id="fail", on_failure="prompt_user"),
+                make_cmd_step(step_id="later"),
             ],
             failure_prompter=prompter,
         )
@@ -315,16 +311,16 @@ def test_run_steps_prompt_user_continue(fs: FileSystem, monkeypatch: pytest.Monk
     patch_execute(
         monkeypatch,
         {
-            "fail": _failed_result(),
-            "later": _ok_result(),
+            "fail": make_failed_result(),
+            "later": make_ok_result(),
         },
     )
     outcome = run_steps(
         make_run_context(
-            fs,
+            fs=fs,
             steps=[
-                _cmd_step("fail", on_failure="prompt_user"),
-                _cmd_step("later"),
+                make_cmd_step(step_id="fail", on_failure="prompt_user"),
+                make_cmd_step(step_id="later"),
             ],
             failure_prompter=prompter,
         )
@@ -343,12 +339,12 @@ def test_run_steps_prompt_user_retry_then_success(
     prompter = _ScriptedPrompter([FailurePromptDecision.RETRY])
     calls = patch_execute(
         monkeypatch,
-        {"fail": [_failed_result(), _ok_result()]},
+        {"fail": [make_failed_result(), make_ok_result()]},
     )
     outcome = run_steps(
         make_run_context(
-            fs,
-            steps=[_cmd_step("fail", on_failure="prompt_user")],
+            fs=fs,
+            steps=[make_cmd_step(step_id="fail", on_failure="prompt_user")],
             failure_prompter=prompter,
         )
     )
@@ -383,11 +379,11 @@ def test_run_steps_prompt_user_skips_prompt_and_aborts(
     prompter: _BoomPrompter | None,
     warning_substr: str,
 ) -> None:
-    patch_execute(monkeypatch, _failed_result())
+    patch_execute(monkeypatch, make_failed_result())
     outcome = run_steps(
         make_run_context(
-            fs,
-            steps=[_cmd_step("fail", on_failure="prompt_user")],
+            fs=fs,
+            steps=[make_cmd_step(step_id="fail", on_failure="prompt_user")],
             failure_prompter=prompter,
             **ctx_kwargs,
         )
@@ -404,14 +400,14 @@ def test_run_steps_retry_exhausted_uses_on_max_retries_prompt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     prompter = _ScriptedPrompter([FailurePromptDecision.ABORT])
-    patch_execute(monkeypatch, _failed_result())
+    patch_execute(monkeypatch, make_failed_result())
     outcome = run_steps(
         make_run_context(
-            fs,
+            fs=fs,
             steps=[
-                _cmd_step(
-                    "fail",
-                    "exit 1",
+                make_cmd_step(
+                    step_id="fail",
+                    command="exit 1",
                     on_failure=FailureSpec(
                         action=FailurePolicy.RETRY,
                         max_retries=2,
@@ -461,11 +457,11 @@ def test_run_steps_persists_checkpoint_before_prompt(
 ) -> None:
     store = _MemoryPauseStore()
     prompter = _AssertPausedPrompter(store)
-    patch_execute(monkeypatch, _failed_result())
+    patch_execute(monkeypatch, make_failed_result())
     outcome = run_steps(
         make_run_context(
-            fs,
-            steps=[_cmd_step("fail", on_failure="prompt_user")],
+            fs=fs,
+            steps=[make_cmd_step(step_id="fail", on_failure="prompt_user")],
             failure_prompter=prompter,
             pause_store=store,
         )
@@ -484,11 +480,11 @@ def test_run_steps_non_interactive_never_pauses(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     store = _MemoryPauseStore()
-    patch_execute(monkeypatch, _failed_result())
+    patch_execute(monkeypatch, make_failed_result())
     outcome = run_steps(
         make_run_context(
-            fs,
-            steps=[_cmd_step("fail", on_failure="prompt_user")],
+            fs=fs,
+            steps=[make_cmd_step(step_id="fail", on_failure="prompt_user")],
             non_interactive=True,
             pause_store=store,
         )
@@ -504,11 +500,11 @@ def test_run_steps_keyboard_interrupt_after_pause_keeps_paused(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     store = _MemoryPauseStore()
-    patch_execute(monkeypatch, _failed_result())
+    patch_execute(monkeypatch, make_failed_result())
     outcome = run_steps(
         make_run_context(
-            fs,
-            steps=[_cmd_step("fail", on_failure="prompt_user")],
+            fs=fs,
+            steps=[make_cmd_step(step_id="fail", on_failure="prompt_user")],
             failure_prompter=_InterruptPrompter(),
             pause_store=store,
         )
@@ -525,24 +521,24 @@ def test_run_steps_resume_reprompts_and_skips_completed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     prompter = _ScriptedPrompter([FailurePromptDecision.CONTINUE])
-    calls = patch_execute(monkeypatch, {"later": _ok_result()})
+    calls = patch_execute(monkeypatch, {"later": make_ok_result()})
     checkpoint = RunCheckpoint(
         next_step_index=1,
-        step_results=[_ok_result("ok")],
+        step_results=[make_ok_result(step_id="ok")],
         sandbox_path=str(fs.base_path),
         use_sandbox=False,
         keep=False,
         pending_step_id="fail",
         diagnostic="Step 'fail' failed: boom",
-        pending_result=_failed_result("fail"),
+        pending_result=make_failed_result(step_id="fail"),
     )
     outcome = run_steps(
         make_run_context(
-            fs,
+            fs=fs,
             steps=[
-                _cmd_step("ok"),
-                _cmd_step("fail", on_failure="prompt_user"),
-                _cmd_step("later"),
+                make_cmd_step(step_id="ok"),
+                make_cmd_step(step_id="fail", on_failure="prompt_user"),
+                make_cmd_step(step_id="later"),
             ],
             failure_prompter=prompter,
             resume_from=checkpoint,
