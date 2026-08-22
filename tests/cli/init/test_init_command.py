@@ -10,7 +10,7 @@ import pytest
 import typer
 
 from tests.helpers import FileSystem, GitFileSystem
-from worktree.cli.init.command import init_command
+from worktree.cli.init.commands.root import init_command
 from worktree.common.schema_validation import SchemaValidator
 from worktree.core.bootstrap import BootstrapResult
 from worktree.core.catalog.models import SeedResult
@@ -211,7 +211,7 @@ class InitCommandFailureTests:
                 errors=["simulated bootstrap failure"],
             )
 
-        monkeypatch.setattr("worktree.cli.init.command.bootstrap_worktree", boom)
+        monkeypatch.setattr("worktree.cli.init.commands.root.bootstrap_worktree", boom)
         with pytest.raises(typer.Exit) as exc:
             init_command(tool_version="0.1.1")
         assert exc.value.exit_code == 1
@@ -222,7 +222,7 @@ class InitCommandFailureTests:
         def bad_config(*args, **kwargs):
             return ConfigGenerationResult(errors=["CONFIG_WRITE_FAILED"])
 
-        monkeypatch.setattr("worktree.cli.init.command.generate_default_config", bad_config)
+        monkeypatch.setattr("worktree.cli.init.commands.root.generate_default_config", bad_config)
         with pytest.raises(typer.Exit) as exc:
             init_command(tool_version="0.1.1")
         assert exc.value.exit_code == 1
@@ -233,7 +233,7 @@ class InitCommandFailureTests:
         def bad_seed(*args, **kwargs):
             return SeedResult(errors=["seed failed"])
 
-        monkeypatch.setattr("worktree.cli.init.command.seed_all_catalog_templates", bad_seed)
+        monkeypatch.setattr("worktree.cli.init.commands.root.seed_all_catalog_templates", bad_seed)
         with pytest.raises(typer.Exit) as exc:
             init_command(tool_version="0.1.1")
         assert exc.value.exit_code == 1
@@ -252,20 +252,20 @@ class InitCommandFailureTests:
             recorded.append(db_rel_path)
             return Path(cwd or ".") / db_rel_path
 
-        monkeypatch.setattr("worktree.cli.init.command.init_database", capture_init_database)
+        monkeypatch.setattr("worktree.cli.init.commands.root.init_database", capture_init_database)
         monkeypatch.setattr(
-            "worktree.cli.init.command.generate_default_config",
+            "worktree.cli.init.commands.root.generate_default_config",
             lambda *a, **k: ConfigGenerationResult(
                 skipped_existing=True,
                 config_path=config_path,
             ),
         )
         monkeypatch.setattr(
-            "worktree.cli.init.command.seed_all_catalog_templates",
+            "worktree.cli.init.commands.root.seed_all_catalog_templates",
             lambda *a, **k: SeedResult(),
         )
         monkeypatch.setattr(
-            "worktree.cli.init.command.bootstrap_worktree",
+            "worktree.cli.init.commands.root.bootstrap_worktree",
             lambda root_path, *, tool_version=None: BootstrapResult(root_path=root_path, root_created=False),
         )
 

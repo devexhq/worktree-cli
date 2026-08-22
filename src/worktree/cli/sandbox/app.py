@@ -4,7 +4,12 @@ import typer
 
 from worktree.core.db import SandboxStatus
 
-from .command import sandbox_create_command, sandbox_delete_command, sandbox_list_command, sandbox_show_command
+from .commands.root import (
+    sandbox_create_command,
+    sandbox_delete_command,
+    sandbox_list_command,
+    sandbox_show_command,
+)
 
 sandbox_app = typer.Typer(
     name="sandbox",

@@ -1,6 +1,6 @@
 import typer
 
-from .command import status_command
+from .commands.root import status_command
 
 status_app = typer.Typer(
     name="status",

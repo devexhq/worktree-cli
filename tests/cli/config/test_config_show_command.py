@@ -11,7 +11,7 @@ from typer.testing import CliRunner
 
 from tests.helpers import GitFileSystem
 from worktree.cli import app
-from worktree.cli.config.command import config_show_command
+from worktree.cli.config.commands.root import config_show_command
 
 runner = CliRunner()
 

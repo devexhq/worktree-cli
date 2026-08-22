@@ -1,6 +1,6 @@
-"""Sandbox command re-exports."""
+"""Sandbox commands package."""
 
-from .commands.root import (
+from .root import (
     collect_sandbox_delete,
     collect_sandbox_list,
     collect_sandbox_show,

@@ -1,7 +1,7 @@
 import typer
 from rich.console import Console
 
-from .command import catalog_create_command, catalog_delete_command, catalog_list_command, catalog_show_command
+from .commands.root import catalog_create_command, catalog_delete_command, catalog_list_command, catalog_show_command
 
 console = Console()
 

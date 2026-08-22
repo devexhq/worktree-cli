@@ -12,7 +12,7 @@ from typer.testing import CliRunner
 
 from tests.helpers import GitFileSystem
 from worktree.cli import app
-from worktree.cli.config.command import config_set_command
+from worktree.cli.config.commands.root import config_set_command
 
 runner = CliRunner()
 

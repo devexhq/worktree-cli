@@ -12,7 +12,7 @@ from typer.testing import CliRunner
 
 from tests.helpers import GitFileSystem, make_rich_output, seed_sandbox
 from worktree.cli import app
-from worktree.cli.sandbox.command import (
+from worktree.cli.sandbox.commands.root import (
     collect_sandbox_delete,
     sandbox_delete_command,
 )
@@ -190,7 +190,7 @@ class SandboxDeleteCommandDirectTests:
 
         with (
             patch.object(GitSandboxManager, "cleanup_sandbox") as cleanup,
-            patch("worktree.cli.sandbox.command.typer.confirm") as confirm,
+            patch("worktree.cli.sandbox.commands.root.typer.confirm") as confirm,
             pytest.raises(typer.Exit) as exc_info,
         ):
             sandbox_delete_command(created.id, cwd=git_fs.base_path)
@@ -214,7 +214,7 @@ class SandboxDeleteCommandDirectTests:
         with (
             patch.object(GitSandboxManager, "cleanup_sandbox") as cleanup,
             patch(
-                "worktree.cli.sandbox.command.typer.confirm",
+                "worktree.cli.sandbox.commands.root.typer.confirm",
                 return_value=False,
             ) as confirm,
             pytest.raises(typer.Exit) as exc_info,
@@ -242,7 +242,7 @@ class SandboxDeleteCommandDirectTests:
         with (
             patch.object(GitSandboxManager, "cleanup_sandbox") as cleanup,
             patch(
-                "worktree.cli.sandbox.command.typer.confirm",
+                "worktree.cli.sandbox.commands.root.typer.confirm",
                 side_effect=typer.Abort(),
             ),
             pytest.raises(typer.Exit) as exc_info,
@@ -267,7 +267,7 @@ class SandboxDeleteCommandDirectTests:
         assert Path(session.sandbox_path).is_dir()
 
         with (
-            patch("worktree.cli.sandbox.command.typer.confirm") as confirm,
+            patch("worktree.cli.sandbox.commands.root.typer.confirm") as confirm,
             pytest.raises(typer.Exit) as exc_info,
         ):
             sandbox_delete_command(session.session_id, force=True, cwd=git_fs.base_path)
@@ -291,12 +291,13 @@ class SandboxDeleteCommandDirectTests:
 
         with (
             patch(
-                "worktree.cli.sandbox.command.typer.confirm",
+                "worktree.cli.sandbox.commands.root.typer.confirm",
                 return_value=True,
             ) as confirm,
             pytest.raises(typer.Exit) as exc_info,
         ):
             sandbox_delete_command(session.session_id, cwd=git_fs.base_path)
+
         assert exc_info.value.exit_code == 0
         confirm.assert_called_once()
         assert not Path(session.sandbox_path).exists()
