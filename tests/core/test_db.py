@@ -164,6 +164,50 @@ class TestSandboxesRepository:
         assert db.get("del-me") is None
         assert db.delete("del-me") is False
 
+    def test_reconcile_stale_active_all(self, fs: FileSystem) -> None:
+        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        active_existing_dir = fs.base_path / "existing-dir"
+        active_existing_dir.mkdir(parents=True, exist_ok=True)
+        active_missing_dir1 = fs.base_path / "missing-dir-1"
+        active_missing_dir2 = fs.base_path / "missing-dir-2"
+
+        db.insert(id="sb-alive", branch_name="b1", base_commit="c1", sandbox_path=active_existing_dir)
+        db.insert(id="sb-stale", branch_name="b2", base_commit="c2", sandbox_path=active_missing_dir1)
+        db.insert(id="sb-cleaned", branch_name="b3", base_commit="c3", sandbox_path=active_missing_dir2)
+        db.update_status("sb-cleaned", SandboxStatus.CLEANED)
+
+        reconciled = db.reconcile_stale_active()
+        assert len(reconciled) == 1
+        assert reconciled[0].id == "sb-stale"
+        assert reconciled[0].status == SandboxStatus.CLEANED
+
+        alive = db.get("sb-alive")
+        assert alive is not None
+        assert alive.status == SandboxStatus.ACTIVE
+
+        stale = db.get("sb-stale")
+        assert stale is not None
+        assert stale.status == SandboxStatus.CLEANED
+
+    def test_reconcile_stale_active_by_id(self, fs: FileSystem) -> None:
+        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        active_missing_dir1 = fs.base_path / "missing-dir-1"
+        active_missing_dir2 = fs.base_path / "missing-dir-2"
+        db.insert(id="sb-target", branch_name="b1", base_commit="c1", sandbox_path=active_missing_dir1)
+        db.insert(id="sb-other", branch_name="b2", base_commit="c2", sandbox_path=active_missing_dir2)
+
+        reconciled = db.reconcile_stale_active(id="sb-target")
+        assert len(reconciled) == 1
+        assert reconciled[0].id == "sb-target"
+
+        target = db.get("sb-target")
+        assert target is not None
+        assert target.status == SandboxStatus.CLEANED
+
+        other = db.get("sb-other")
+        assert other is not None
+        assert other.status == SandboxStatus.ACTIVE
+
 
 class TestCatalogRepository:
     """Tests for CatalogRepository repository methods."""
