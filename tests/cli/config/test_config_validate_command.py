@@ -13,7 +13,7 @@ from typer.testing import CliRunner
 
 from tests.helpers import GitFileSystem
 from worktree.cli import app
-from worktree.cli.config.commands.root import config_validate_command
+from worktree.cli.config.commands.config_validate import config_validate_command
 from worktree.core.config.validate import (
     ConfigValidationResult,
     ConfigValidationStatus,
@@ -202,7 +202,7 @@ class ConfigValidateCommandTests:
             warnings=[],
         )
         with patch(
-            "worktree.cli.config.commands.root.validate_config_result",
+            "worktree.cli.config.commands.config_validate.validate_config_result",
             return_value=fake,
         ):
             with pytest.raises(typer.Exit) as exc_info:
@@ -230,7 +230,7 @@ class ConfigValidateCommandTests:
             ],
         )
         with patch(
-            "worktree.cli.config.commands.root.validate_config_result",
+            "worktree.cli.config.commands.config_validate.validate_config_result",
             return_value=fake,
         ):
             with pytest.raises(typer.Exit) as exc_info:

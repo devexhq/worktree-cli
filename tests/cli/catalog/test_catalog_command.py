@@ -5,12 +5,10 @@ from typer.testing import CliRunner
 
 from tests.helpers import FileSystem
 from worktree.cli import app
-from worktree.cli.catalog.commands.root import (
-    catalog_create_command,
-    catalog_delete_command,
-    catalog_list_command,
-    catalog_show_command,
-)
+from worktree.cli.catalog.commands.catalog_create import catalog_create_command
+from worktree.cli.catalog.commands.catalog_delete import catalog_delete_command
+from worktree.cli.catalog.commands.catalog_list import catalog_list_command
+from worktree.cli.catalog.commands.catalog_show import catalog_show_command
 from worktree.cli.catalog.renderers import build_catalog_table
 from worktree.core.catalog.services.inventory import create_catalog_item
 from worktree.core.db import CatalogItemType, CatalogRecord

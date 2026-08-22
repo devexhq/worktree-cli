@@ -11,7 +11,7 @@ from typer.testing import CliRunner
 
 from tests.helpers import GitFileSystem, make_rich_output, seed_sandbox
 from worktree.cli import app
-from worktree.cli.sandbox.commands.root import (
+from worktree.cli.sandbox.commands.sandbox_list import (
     collect_sandbox_list,
     sandbox_list_command,
 )

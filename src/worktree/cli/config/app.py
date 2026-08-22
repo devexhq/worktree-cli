@@ -1,6 +1,8 @@
 import typer
 
-from .commands.root import config_set_command, config_show_command, config_validate_command
+from .commands.config_set import config_set_command
+from .commands.config_show import config_show_command
+from .commands.config_validate import config_validate_command
 
 config_app = typer.Typer(
     name="config",
