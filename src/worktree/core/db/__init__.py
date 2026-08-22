@@ -4,7 +4,6 @@ Handles SQLite connection management, database migrations, financial token
 usage tracking, catalog indexing, and unified run execution tracking.
 """
 
-from worktree.core.db.base import DbBase
 from worktree.core.db.connection import (
     DEFAULT_DB_REL_PATH,
     get_db_connection,
@@ -12,7 +11,6 @@ from worktree.core.db.connection import (
     get_session,
     resolve_db_path,
 )
-from worktree.core.db.costs import CostsDb
 from worktree.core.db.facade import WorktreeDb
 from worktree.core.db.migrations import init_database
 from worktree.core.db.models import (
@@ -28,6 +26,7 @@ from worktree.core.db.models import (
 from worktree.core.db.repositories import (
     BaseRepository,
     CatalogRepository,
+    CostsRepository,
     RunsRepository,
     SandboxesRepository,
 )
@@ -39,8 +38,7 @@ __all__ = [
     "CatalogItemType",
     "CatalogRecord",
     "CatalogRepository",
-    "CostsDb",
-    "DbBase",
+    "CostsRepository",
     "RunRecord",
     "RunStatus",
     "RunsRepository",
