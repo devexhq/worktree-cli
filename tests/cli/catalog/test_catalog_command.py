@@ -145,13 +145,38 @@ def test_cli_catalog_show_template_fallback(fs: FileSystem, monkeypatch: pytest.
 def test_catalog_delete_command(fs: FileSystem) -> None:
     item = create_catalog_item("task", "del-task", cwd=fs.base_path)
 
-    del_res = catalog_delete_command(item.sha, cwd=fs.base_path)
+    del_res = catalog_delete_command(item.sha, force=True, cwd=fs.base_path)
     assert del_res.ok
     assert del_res.deleted
 
-    del_missing = catalog_delete_command(item.sha, cwd=fs.base_path)
+    del_missing = catalog_delete_command(item.sha, force=True, cwd=fs.base_path)
     assert not del_missing.ok
     assert not del_missing.deleted
+
+
+def test_catalog_delete_command_confirmation(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    item1 = create_catalog_item("task", "del-task-1", cwd=fs.base_path)
+    monkeypatch.setattr("typer.confirm", lambda *args, **kwargs: True)
+    res_confirmed = catalog_delete_command(item1.sha, force=False, cwd=fs.base_path)
+    assert res_confirmed.ok
+    assert res_confirmed.deleted
+
+    item2 = create_catalog_item("task", "del-task-2", cwd=fs.base_path)
+    monkeypatch.setattr("typer.confirm", lambda *args, **kwargs: False)
+    res_cancelled = catalog_delete_command(item2.sha, force=False, cwd=fs.base_path)
+    assert not res_cancelled.ok
+    assert not res_cancelled.deleted
+    assert "cancelled" in res_cancelled.errors[0]
+
+    def _raise_abort(*args: object, **kwargs: object) -> bool:
+        import typer
+
+        raise typer.Abort()
+
+    monkeypatch.setattr("typer.confirm", _raise_abort)
+    res_abort = catalog_delete_command(item2.sha, force=False, cwd=fs.base_path)
+    assert not res_abort.ok
+    assert not res_abort.deleted
 
 
 def test_cli_wt_catalog_runner(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -181,6 +206,11 @@ def test_cli_wt_catalog_runner(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) 
     res_show = runner.invoke(app, ["catalog", "show", "cli-wf"])
     assert res_show.exit_code == 0
     assert "Blueprint:" in res_show.output
+
+    # wt catalog delete cli-wf without force (interactive decline)
+    res_del_decline = runner.invoke(app, ["catalog", "delete", "cli-wf"], input="n\n")
+    assert res_del_decline.exit_code == 1
+    assert "Deletion cancelled" in res_del_decline.output
 
     # wt catalog delete cli-wf --force
     res_del = runner.invoke(app, ["catalog", "delete", "cli-wf", "--force"])

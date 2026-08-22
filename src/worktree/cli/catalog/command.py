@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import typer
+
 from worktree.common.fs import get_catalog_templates_dir
 from worktree.common.utils import RichOutput
 from worktree.core.catalog.services.inventory import (
@@ -198,6 +200,7 @@ def catalog_show_command(
 
 def catalog_delete_command(
     sha_or_name: str,
+    force: bool = False,
     cwd: Path | None = None,
     *,
     rich_output: RichOutput | None = None,
@@ -206,6 +209,7 @@ def catalog_delete_command(
 
     Args:
         sha_or_name: SHA identifier or name of the blueprint to delete.
+        force: When True, skip the confirmation prompt.
         cwd: Optional CWD path.
         rich_output: Optional RichOutput presenter.
 
@@ -213,6 +217,18 @@ def catalog_delete_command(
         CatalogDeleteCommandOutcome indicating deletion status.
     """
     output = rich_output or _DEFAULT_RICH_OUTPUT
+
+    if not force:
+        try:
+            confirmed = typer.confirm(
+                f"Are you sure you want to delete catalog blueprint '{sha_or_name}'?",
+                default=False,
+            )
+        except typer.Abort:
+            confirmed = False
+        if not confirmed:
+            output.info("Deletion cancelled.")
+            return CatalogDeleteCommandOutcome(item=None, deleted=False, errors=["Deletion cancelled."])
 
     deleted_item = delete_catalog_item_by_sha_or_name(sha_or_name, cwd=cwd)
     if deleted_item is None:
