@@ -61,10 +61,13 @@ class SandboxListCollectTests:
         db = self.db.sandboxes
         import sqlite3
 
-        with sqlite3.connect(db.db_path) as conn:
+        conn = sqlite3.connect(db.db_path)
+        try:
             conn.execute("UPDATE sandboxes SET created_at = '2026-01-01 00:00:00' WHERE id = ?", (first.id,))
             conn.execute("UPDATE sandboxes SET created_at = '2026-01-01 00:00:01' WHERE id = ?", (second.id,))
             conn.commit()
+        finally:
+            conn.close()
         first = db.get(first.id)
         second = db.get(second.id)
 

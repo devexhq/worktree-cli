@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from sqlalchemy import Engine, event
+from sqlalchemy.pool import NullPool
 from sqlmodel import Session, create_engine
 
 DEFAULT_DB_REL_PATH = ".worktree/data.db"
@@ -36,6 +37,7 @@ def get_engine(db_path: Path) -> Engine:
     engine = create_engine(
         f"sqlite:///{db_path}",
         connect_args={"check_same_thread": False},
+        poolclass=NullPool,
     )
     event.listen(engine, "connect", _set_sqlite_pragmas)
     return engine

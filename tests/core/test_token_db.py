@@ -29,8 +29,11 @@ class DatabaseTests:
         db_path = init_database(path=fs.base_path, db_rel_path=DB_REL)
         assert db_path.is_file()
 
-        with sqlite3.connect(db_path) as conn:
+        conn = sqlite3.connect(db_path)
+        try:
             tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+        finally:
+            conn.close()
         assert "workflow_costs" in tables
         assert "sandboxes" in tables
 
@@ -128,10 +131,13 @@ class SandboxDatabaseTests:
         second = self._insert(fs, sandbox_id="sbx_second", path_suffix="2", name="beta")
         import sqlite3
 
-        with sqlite3.connect(self.db.sandboxes.db_path) as conn:
+        conn = sqlite3.connect(self.db.sandboxes.db_path)
+        try:
             conn.execute("UPDATE sandboxes SET created_at = '2026-01-01 00:00:00' WHERE id = ?", (first.id,))
             conn.execute("UPDATE sandboxes SET created_at = '2026-01-01 00:00:01' WHERE id = ?", (second.id,))
             conn.commit()
+        finally:
+            conn.close()
         self.db.sandboxes.update_status(second.id, SandboxStatus.CLEANED)
 
         all_rows = self.db.sandboxes.list()
@@ -154,9 +160,12 @@ class SandboxDatabaseTests:
         original_updated = created.updated_at
         import sqlite3
 
-        with sqlite3.connect(self.db.sandboxes.db_path) as conn:
+        conn = sqlite3.connect(self.db.sandboxes.db_path)
+        try:
             conn.execute("UPDATE sandboxes SET updated_at = '2026-01-01 00:00:00' WHERE id = ?", (created.id,))
             conn.commit()
+        finally:
+            conn.close()
         original_updated = "2026-01-01 00:00:00"
 
         updated = self.db.sandboxes.update_status(created.id, SandboxStatus.MERGED)
