@@ -6,21 +6,20 @@ import typer
 
 from worktree.cli.context import Context
 from worktree.cli.status.context import load_context
-from worktree.common.utils import RichOutput
 
 from ..renderers import render_status_table
 
-_DEFAULT_RICH_OUTPUT = RichOutput()
 
-
-def status_command(*, context: Context, rich_output: RichOutput | None = None) -> None:
+def status_command(*, context: Context) -> None:
     """Inspect active worktree configuration and repository context."""
-    output = rich_output or _DEFAULT_RICH_OUTPUT
+    output = context.output
 
     try:
         ctx = load_context(context.cwd)
     except Exception as exc:
         output.error_panel("Context Error", str(exc))
+        output.print()
         raise typer.Exit(code=1) from exc
 
-    render_status_table(ctx, rich_output=output)
+    render_status_table(ctx, output=output)
+    output.print()

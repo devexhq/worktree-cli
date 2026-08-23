@@ -25,8 +25,10 @@ def resume_root(
         path=context.cwd,
         db=context.db.runs,
         catalog_db=context.db.catalog,
+        output=context.output,
         session_id=session_id,
         non_interactive=non_interactive,
     ).execute()
+    context.output.print()
     if not outcome.ok:
         raise typer.Exit(code=1)

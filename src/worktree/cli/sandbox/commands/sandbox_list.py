@@ -82,8 +82,10 @@ def sandbox_list_command(
     """
     result = collect_sandbox_list(status, context=context)
     if result.status is SandboxListStatus.NOT_INITIALIZED:
-        render_not_initialized(result.errors)
+        render_not_initialized(result.errors, output=context.output)
+        context.output.print()
         raise typer.Exit(code=1)
 
-    render_sandbox_list(result.sandboxes)
+    render_sandbox_list(result.sandboxes, output=context.output)
+    context.output.print()
     raise typer.Exit(code=0)

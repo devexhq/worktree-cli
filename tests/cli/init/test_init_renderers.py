@@ -19,24 +19,27 @@ class RenderInitFailureTests:
 
     def test_bootstrap_failure_panel(self, fs: FileSystem) -> None:
         rich_output, output = make_rich_output()
-        render_init_bootstrap_failure(fs.base_path, ["path conflict"], rich_output=rich_output)
+        render_init_bootstrap_failure(fs.base_path, ["path conflict"], output=rich_output)
+        rich_output.print()
         text = output.getvalue()
         assert "Failed to initialize Worktree" in text
         assert "path conflict" in text
 
-    def test_bootstrap_failure_default_rich_output(self, fs: FileSystem) -> None:
-        # Exercises rich_output=None branch
-        render_init_bootstrap_failure(fs.base_path, ["err"])
+    def test_bootstrap_failure_output(self, fs: FileSystem) -> None:
+        rich_output, _ = make_rich_output()
+        render_init_bootstrap_failure(fs.base_path, ["err"], output=rich_output)
 
     def test_config_failure_panel(self) -> None:
         rich_output, output = make_rich_output()
-        render_init_config_failure(["bad config"], rich_output=rich_output)
+        render_init_config_failure(["bad config"], output=rich_output)
+        rich_output.print()
         text = output.getvalue()
         assert "Failed to generate config" in text
         assert "bad config" in text
 
-    def test_config_failure_default_rich_output(self) -> None:
-        render_init_config_failure(["bad"])
+    def test_config_failure_output(self) -> None:
+        rich_output, _ = make_rich_output()
+        render_init_config_failure(["bad"], output=rich_output)
 
 
 class RenderInitOutcomeTests:
@@ -52,7 +55,8 @@ class RenderInitOutcomeTests:
             ),
             seed_result=SeedResult(created_files=[fs.base_path / ".worktree" / "workflows" / "fix-tests.yml"]),
         )
-        render_init_outcome(fs.base_path, outcome, rich_output=rich_output)
+        render_init_outcome(fs.base_path, outcome, output=rich_output)
+        rich_output.print()
         rendered = output.getvalue()
         assert "Worktree already initialized" in rendered
         assert "Config exists" in rendered
@@ -76,7 +80,8 @@ class RenderInitOutcomeTests:
                 skipped_existing_files=[root / "workflows" / "fix-tests.yml"],
             ),
         )
-        render_init_outcome(fs.base_path, outcome, rich_output=rich_output)
+        render_init_outcome(fs.base_path, outcome, output=rich_output)
+        rich_output.print()
         rendered = output.getvalue()
         assert "repaired" in rendered.lower()
         assert "telemetry.enabled" in rendered
@@ -97,7 +102,8 @@ class RenderInitOutcomeTests:
             ),
             seed_result=SeedResult(overwritten_files=[root / "workflows" / "x.yml"]),
         )
-        render_init_outcome(fs.base_path, outcome, rich_output=rich_output)
+        render_init_outcome(fs.base_path, outcome, output=rich_output)
+        rich_output.print()
         rendered = output.getvalue()
         assert "Initialized Worktree" in rendered
         assert "Regenerated config" in rendered
@@ -114,7 +120,8 @@ class RenderInitOutcomeTests:
             ),
             seed_result=SeedResult(errors=["could not seed"]),
         )
-        render_init_outcome(fs.base_path, outcome, rich_output=rich_output)
+        render_init_outcome(fs.base_path, outcome, output=rich_output)
+        rich_output.print()
         rendered = output.getvalue()
         assert "Generated config" in rendered
         assert "Starter workflow seeding failed" in rendered
@@ -127,12 +134,14 @@ class RenderInitOutcomeTests:
             config_result=ConfigGenerationResult(config_path=None),
             seed_result=SeedResult(),
         )
-        render_init_outcome(fs.base_path, outcome, rich_output=rich_output)
+        render_init_outcome(fs.base_path, outcome, output=rich_output)
+        rich_output.print()
         rendered = output.getvalue()
         assert "Config" not in rendered or "Config exists" not in rendered
         assert "Starter workflows already present" in rendered
 
-    def test_render_default_rich_output(self, fs: FileSystem) -> None:
+    def test_render_output_call(self, fs: FileSystem) -> None:
+        rich_output, _ = make_rich_output()
         outcome = InitCommandOutcome(
             bootstrap_result=BootstrapResult(root_path=fs.base_path / ".worktree"),
             config_result=ConfigGenerationResult(
@@ -141,4 +150,4 @@ class RenderInitOutcomeTests:
             ),
             seed_result=SeedResult(),
         )
-        render_init_outcome(fs.base_path, outcome)
+        render_init_outcome(fs.base_path, outcome, output=rich_output)

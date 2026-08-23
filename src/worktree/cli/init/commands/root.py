@@ -12,7 +12,6 @@ from worktree.common.fs import (
     is_git_repository,
     update_gitignore,
 )
-from worktree.common.utils import RichOutput
 from worktree.core.bootstrap import bootstrap_worktree
 from worktree.core.catalog.services.seeder import seed_all_catalog_templates
 from worktree.core.config.generator import generate_default_config
@@ -27,8 +26,6 @@ from ..renderers import (
     render_init_outcome,
 )
 
-_DEFAULT_RICH_OUTPUT = RichOutput()
-
 
 def init_command(
     *,
@@ -36,10 +33,9 @@ def init_command(
     tool_version: str | None = None,
     overwrite: bool = False,
     repair: bool = False,
-    rich_output: RichOutput | None = None,
 ) -> None:
     """Initialize a local project workspace for Worktree CLI and desktop sync."""
-    output = rich_output or _DEFAULT_RICH_OUTPUT
+    output = context.output
     root = context.cwd
 
     if not is_git_repository(root):
@@ -48,11 +44,13 @@ def init_command(
             "The current directory is not a valid Git repository.\n"
             "Run [bold cyan]git init[/bold cyan] before running [bold cyan]wt init[/bold cyan].",
         )
+        output.print()
         raise typer.Exit(code=1)
 
     result = bootstrap_worktree(get_worktree_dir(root), tool_version=tool_version)
     if not result.ok:
-        render_init_bootstrap_failure(root, result.errors, rich_output=output)
+        render_init_bootstrap_failure(root, result.errors, output=output)
+        output.print()
         raise typer.Exit(code=1)
 
     if result.root_created:
@@ -65,7 +63,8 @@ def init_command(
         repair=repair,
     )
     if not config_result.ok:
-        render_init_config_failure(config_result.errors, rich_output=output)
+        render_init_config_failure(config_result.errors, output=output)
+        output.print()
         raise typer.Exit(code=1)
 
     db_rel = PathsConfig().db_path
@@ -81,7 +80,8 @@ def init_command(
             config_result=config_result,
             seed_result=seed_result,
         )
-        render_init_outcome(root, outcome, rich_output=output)
+        render_init_outcome(root, outcome, output=output)
+        output.print()
         raise typer.Exit(code=1)
 
     outcome = InitCommandOutcome(
@@ -89,4 +89,5 @@ def init_command(
         config_result=config_result,
         seed_result=seed_result,
     )
-    render_init_outcome(root, outcome, rich_output=output)
+    render_init_outcome(root, outcome, output=output)
+    output.print()

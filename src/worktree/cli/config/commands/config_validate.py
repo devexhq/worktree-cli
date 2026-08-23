@@ -5,7 +5,6 @@ from __future__ import annotations
 import typer
 
 from worktree.cli.context import Context
-from worktree.common.utils import RichOutput
 from worktree.core.config.validate import validate_config_result
 
 from ..renderers import (
@@ -13,13 +12,10 @@ from ..renderers import (
     render_config_validation_warnings,
 )
 
-_DEFAULT_RICH_OUTPUT = RichOutput()
-
 
 def config_validate_command(
     *,
     context: Context,
-    rich_output: RichOutput | None = None,
 ) -> None:
     """Validate config and print the CLI validation report.
 
@@ -30,19 +26,20 @@ def config_validate_command(
 
     Args:
         context: CLI context instance.
-        rich_output: Optional RichOutput presenter.
     """
-    output = rich_output or _DEFAULT_RICH_OUTPUT
+    output = context.output
     result = validate_config_result(path=context.cwd)
 
     if result.ok:
-        render_config_validate_success(result.config_path, list(result.warnings), rich_output=output)
+        render_config_validate_success(result.config_path, list(result.warnings), output=output)
+        output.print()
         raise typer.Exit(code=0)
 
     message = "\n\n".join(result.errors) if result.errors else "Configuration validation failed."
     output.error_panel("Config Validation Failed", message)
 
     if result.warnings:
-        render_config_validation_warnings(list(result.warnings), rich_output=output)
+        render_config_validation_warnings(list(result.warnings), output=output)
 
+    output.print()
     raise typer.Exit(code=1)

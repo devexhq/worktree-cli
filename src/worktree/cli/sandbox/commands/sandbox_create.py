@@ -38,12 +38,15 @@ def sandbox_create_command(
         include_wip=wip,
     )
     if not result.ok or result.session is None:
-        render_sandbox_create_failed(result.errors)
+        render_sandbox_create_failed(result.errors, output=context.output)
+        context.output.print()
         raise typer.Exit(code=1)
 
     render_sandbox_create_success(
         result.session,
         warnings=result.warnings,
         cwd=context.cwd,
+        output=context.output,
     )
+    context.output.print()
     raise typer.Exit(code=0)

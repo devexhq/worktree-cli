@@ -51,7 +51,8 @@ class SandboxCreateRenderTests:
     def test_success_block(self, fs: FileSystem) -> None:
         session = _session(sandbox_path=fs.base_path / ".worktree" / "sandboxes" / "sbx_a1b2c3d4")
         rich_output, buffer = make_rich_output()
-        render_sandbox_create_success(session, cwd=fs.base_path, rich_output=rich_output)
+        render_sandbox_create_success(session, cwd=fs.base_path, output=rich_output)
+        rich_output.print()
         out = buffer.getvalue()
         assert "Sandbox created: sbx_a1b2c3d4" in out
         assert "Branch: worktree/sandbox-sbx_a1b2c3d4" in out
@@ -67,8 +68,9 @@ class SandboxCreateRenderTests:
             session,
             warnings=["db write failed"],
             cwd=fs.base_path,
-            rich_output=rich_output,
+            output=rich_output,
         )
+        rich_output.print()
         out = buffer.getvalue()
         assert "Sandbox created: sbx_warn" in out
         assert "db write failed" in out
@@ -78,15 +80,17 @@ class SandboxCreateRenderTests:
         rich_output, buffer = make_rich_output()
         render_sandbox_create_failed(
             ["capacity exceeded detail"],
-            rich_output=rich_output,
+            output=rich_output,
         )
+        rich_output.print()
         out = buffer.getvalue()
         assert "Sandbox Create Failed" in out
         assert "capacity exceeded detail" in out
 
     def test_failed_panel_empty_errors_fallback(self) -> None:
         rich_output, buffer = make_rich_output()
-        render_sandbox_create_failed([], rich_output=rich_output)
+        render_sandbox_create_failed([], output=rich_output)
+        rich_output.print()
         out = buffer.getvalue()
         assert "Sandbox Create Failed" in out
         assert "Sandbox creation failed." in out

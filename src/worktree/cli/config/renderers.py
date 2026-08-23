@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from rich.text import Text
+
 from worktree.common.formatters import format_warning_bullets
 from worktree.common.utils import RichOutput
 from worktree.core.config.models import WorktreeConfig
@@ -24,26 +26,20 @@ def render_config_show(
     config: WorktreeConfig,
     config_path: Path,
     *,
-    rich_output: RichOutput,
+    output: RichOutput,
 ) -> None:
-    """Print source metadata header and normalized configuration JSON."""
+    """Buffer source metadata header and normalized configuration JSON without markup."""
     payload = f"Config: {config_path.as_posix()}\nStatus: valid\n\n{as_json(config)}"
-    rich_output.console.print(
-        payload,
-        end="",
-        markup=False,
-        highlight=False,
-        soft_wrap=True,
-    )
+    output.info(Text(payload))
 
 
 def render_config_validate_success(
     config_path: Path,
     warnings: list[str],
     *,
-    rich_output: RichOutput,
+    output: RichOutput,
 ) -> None:
-    """Print successful configuration validation report with optional warnings."""
+    """Buffer successful configuration validation report with optional warnings without markup."""
     status_label = "valid with warnings" if warnings else "valid"
     lines = [
         f"Config: {config_path.as_posix()}",
@@ -55,26 +51,15 @@ def render_config_validate_success(
         lines.extend(format_warning_bullets(warnings))
         lines.append("")
     lines.append("Config is valid.")
-    payload = "\n".join(lines) + "\n"
-    rich_output.console.print(
-        payload,
-        end="",
-        markup=False,
-        highlight=False,
-        soft_wrap=True,
-    )
+    payload = "\n".join(lines)
+    output.info(Text(payload))
 
 
 def render_config_validation_warnings(
     warnings: list[str],
     *,
-    rich_output: RichOutput,
+    output: RichOutput,
 ) -> None:
-    """Print trailing validation warnings block."""
+    """Buffer trailing validation warnings block without markup."""
     warning_block = "Warnings:\n" + "\n".join(format_warning_bullets(warnings))
-    rich_output.console.print(
-        warning_block,
-        markup=False,
-        highlight=False,
-        soft_wrap=True,
-    )
+    output.info(Text(warning_block))

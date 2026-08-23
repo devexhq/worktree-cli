@@ -159,7 +159,8 @@ class SandboxListRenderTests:
             ),
         ]
         rich_output, buffer = make_rich_output(width=120)
-        render_sandbox_list(sandboxes, rich_output=rich_output)
+        render_sandbox_list(sandboxes, output=rich_output)
+        rich_output.print()
         out = buffer.getvalue()
         assert "Worktree Sandboxes" in out
         for header in ("ID", "Name", "Branch", "Status", "Created"):
@@ -181,15 +182,17 @@ class SandboxListRenderTests:
 
     def test_empty_list_message(self) -> None:
         rich_output, buffer = make_rich_output()
-        render_sandbox_list([], rich_output=rich_output)
+        render_sandbox_list([], output=rich_output)
+        rich_output.print()
         assert buffer.getvalue() == "No sandboxes found.\n"
 
     def test_not_initialized_panel(self) -> None:
         rich_output, buffer = make_rich_output()
         render_not_initialized(
             ["Configuration file not found at '/x' (CONFIG_NOT_FOUND)."],
-            rich_output=rich_output,
+            output=rich_output,
         )
+        rich_output.print()
         out = buffer.getvalue()
         assert "Worktree Not Initialized" in out
         assert "CONFIG_NOT_FOUND" in out

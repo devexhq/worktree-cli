@@ -120,13 +120,15 @@ class SandboxDeleteRenderTests:
 
     def test_already_cleaned_message(self) -> None:
         rich_output, buffer = make_rich_output()
-        render_sandbox_already_cleaned("sbx_done", rich_output=rich_output)
+        render_sandbox_already_cleaned("sbx_done", output=rich_output)
+        rich_output.print()
         out = buffer.getvalue()
         assert "Sandbox 'sbx_done' is already cleaned; nothing to remove." in out
 
     def test_delete_success(self) -> None:
         rich_output, buffer = make_rich_output()
-        render_sandbox_delete_success("sbx_gone", rich_output=rich_output)
+        render_sandbox_delete_success("sbx_gone", output=rich_output)
+        rich_output.print()
         out = buffer.getvalue()
         assert "Sandbox deleted: sbx_gone" in out
 

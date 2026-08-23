@@ -158,7 +158,8 @@ class SandboxShowRenderTests:
             updated_at="2026-08-03 10:00:00",
         )
         rich_output, buffer = make_rich_output(width=120)
-        render_sandbox_show(sandbox, disk_present=True, rich_output=rich_output)
+        render_sandbox_show(sandbox, disk_present=True, output=rich_output)
+        rich_output.print()
         out = buffer.getvalue()
         assert "sbx_a1b2c3d4" in out
         assert "worktree/sandbox-sbx_a1b2c3d4" in out
@@ -203,8 +204,9 @@ class SandboxShowRenderTests:
             sandbox,
             disk_present=False,
             reconciled=True,
-            rich_output=rich_output,
+            output=rich_output,
         )
+        rich_output.print()
         out = buffer.getvalue()
         assert "cleaned" in out
         assert "missing" in out
@@ -212,7 +214,8 @@ class SandboxShowRenderTests:
 
     def test_not_found_panel(self) -> None:
         rich_output, buffer = make_rich_output()
-        render_sandbox_not_found("sbx_missing", rich_output=rich_output)
+        render_sandbox_not_found("sbx_missing", output=rich_output)
+        rich_output.print()
         out = buffer.getvalue()
         assert "Sandbox Not Found" in out
         assert "Sandbox 'sbx_missing' not found." in out

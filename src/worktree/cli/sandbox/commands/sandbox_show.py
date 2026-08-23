@@ -83,15 +83,19 @@ def sandbox_show_command(
     """
     result = collect_sandbox_show(sandbox_id, context=context)
     if result.status is SandboxShowStatus.NOT_INITIALIZED:
-        render_not_initialized(result.errors)
+        render_not_initialized(result.errors, output=context.output)
+        context.output.print()
         raise typer.Exit(code=1)
     if result.status is SandboxShowStatus.NOT_FOUND or result.sandbox is None:
-        render_sandbox_not_found(sandbox_id)
+        render_sandbox_not_found(sandbox_id, output=context.output)
+        context.output.print()
         raise typer.Exit(code=1)
 
     render_sandbox_show(
         result.sandbox,
         disk_present=result.disk_present,
         reconciled=result.reconciled,
+        output=context.output,
     )
+    context.output.print()
     raise typer.Exit(code=0)

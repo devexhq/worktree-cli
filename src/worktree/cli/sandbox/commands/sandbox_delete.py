@@ -78,7 +78,6 @@ def sandbox_delete_command(
     force: bool = False,
     *,
     context: Context,
-    rich_output: RichOutput | None = None,
 ) -> None:
     """Delete a tracked sandbox worktree and branch.
 
@@ -90,27 +89,31 @@ def sandbox_delete_command(
         sandbox_id: Sandbox primary key to delete.
         force: When True, skip the confirmation prompt.
         context: CLI context instance.
-        rich_output: Optional injected console helpers.
     """
-    output = rich_output or RichOutput()
+    output = context.output
     result = collect_sandbox_delete(sandbox_id, context=context)
 
     if result.status is SandboxDeleteStatus.NOT_INITIALIZED:
-        render_not_initialized(result.errors, rich_output=output)
+        render_not_initialized(result.errors, output=output)
+        output.print()
         raise typer.Exit(code=1)
     if result.status is SandboxDeleteStatus.NOT_FOUND:
-        render_sandbox_not_found(sandbox_id, rich_output=output)
+        render_sandbox_not_found(sandbox_id, output=output)
+        output.print()
         raise typer.Exit(code=1)
     if result.status is SandboxDeleteStatus.ALREADY_CLEANED:
-        render_sandbox_already_cleaned(sandbox_id, rich_output=output)
+        render_sandbox_already_cleaned(sandbox_id, output=output)
+        output.print()
         raise typer.Exit(code=0)
     if result.sandbox is None:
-        render_sandbox_not_found(sandbox_id, rich_output=output)
+        render_sandbox_not_found(sandbox_id, output=output)
+        output.print()
         raise typer.Exit(code=1)
 
     row = result.sandbox
 
     if not force and not _confirm_or_abort(row, output):
+        output.print()
         raise typer.Exit(code=1)
 
     session = SandboxSession(
@@ -122,5 +125,6 @@ def sandbox_delete_command(
         created_at=row.created_at,
     )
     GitSandboxManager(path=context.cwd, db=context.db.sandboxes).cleanup_sandbox(session)
-    render_sandbox_delete_success(sandbox_id, rich_output=output)
+    render_sandbox_delete_success(sandbox_id, output=output)
+    output.print()
     raise typer.Exit(code=0)

@@ -10,8 +10,6 @@ from worktree.common.utils import RichOutput, display_path
 from worktree.core.db import SandboxRecord
 from worktree.core.git_sandbox import SandboxSession
 
-_DEFAULT_RICH_OUTPUT = RichOutput()
-
 _SANDBOX_SHOW_FIELDS = (
     "ID",
     "Name",
@@ -25,20 +23,16 @@ _SANDBOX_SHOW_FIELDS = (
 )
 
 
-def render_not_initialized(errors: list[str], *, rich_output: RichOutput | None = None) -> None:
+def render_not_initialized(errors: list[str], *, output: RichOutput) -> None:
     """Render the not-initialized error panel for sandbox commands."""
-    output = rich_output or _DEFAULT_RICH_OUTPUT
-    message = (
-        "\n\n".join(errors)
-        if errors
-        else (".worktree/config.json not found.\nFix:\n- run `wt init` to create `.worktree/config.json`")
+    output.render_not_initialized(
+        errors,
+        fix_hint="run `wt init` to create `.worktree/config.json`",
     )
-    output.error_panel("Worktree Not Initialized", message)
 
 
-def render_sandbox_create_failed(errors: list[str], *, rich_output: RichOutput | None = None) -> None:
+def render_sandbox_create_failed(errors: list[str], *, output: RichOutput) -> None:
     """Render the create-failed error panel for ``wt sandbox create``."""
-    output = rich_output or _DEFAULT_RICH_OUTPUT
     message = "\n\n".join(errors) if errors else "Sandbox creation failed."
     output.error_panel("Sandbox Create Failed", message)
 
@@ -46,12 +40,11 @@ def render_sandbox_create_failed(errors: list[str], *, rich_output: RichOutput |
 def render_sandbox_create_success(
     session: SandboxSession,
     *,
+    output: RichOutput,
     warnings: list[str] | None = None,
     cwd: Path | None = None,
-    rich_output: RichOutput | None = None,
 ) -> None:
     """Render success block and optional non-fatal warnings for create."""
-    output = rich_output or _DEFAULT_RICH_OUTPUT
     root = (cwd or Path.cwd()).resolve()
     path_label = display_path(session.sandbox_path, root)
     output.success(f"Sandbox created: {session.session_id}")
@@ -61,16 +54,14 @@ def render_sandbox_create_success(
         output.dim_bullet(warning)
 
 
-def render_sandbox_not_found(sandbox_id: str, *, rich_output: RichOutput | None = None) -> None:
+def render_sandbox_not_found(sandbox_id: str, *, output: RichOutput) -> None:
     """Render the not-found error panel for ``wt sandbox show``."""
-    output = rich_output or _DEFAULT_RICH_OUTPUT
     message = f"Sandbox '{sandbox_id}' not found.\nFix:\n- run `wt sandbox list` to see known sandboxes"
     output.error_panel("Sandbox Not Found", message)
 
 
-def render_empty_list(*, rich_output: RichOutput | None = None) -> None:
+def render_empty_list(*, output: RichOutput) -> None:
     """Render the empty-state line when no sandboxes match."""
-    output = rich_output or _DEFAULT_RICH_OUTPUT
     output.info("No sandboxes found.")
 
 
@@ -102,11 +93,10 @@ def build_sandbox_table(sandboxes: list[SandboxRecord]) -> Table:
     return table
 
 
-def render_sandbox_list(sandboxes: list[SandboxRecord], *, rich_output: RichOutput | None = None) -> None:
+def render_sandbox_list(sandboxes: list[SandboxRecord], *, output: RichOutput) -> None:
     """Render empty state or the sandboxes table."""
-    output = rich_output or _DEFAULT_RICH_OUTPUT
     if not sandboxes:
-        render_empty_list(rich_output=output)
+        render_empty_list(output=output)
         return
     output.info(build_sandbox_table(sandboxes))
 
@@ -148,24 +138,34 @@ def render_sandbox_show(
     *,
     disk_present: bool,
     reconciled: bool = False,
-    rich_output: RichOutput | None = None,
+    output: RichOutput,
 ) -> None:
     """Render sandbox detail fields and an optional reconciliation note."""
-    output = rich_output or _DEFAULT_RICH_OUTPUT
-    output.info(build_sandbox_detail_table(sandbox, disk_present=disk_present))
+    name = sandbox.name if sandbox.name is not None else "-"
+    disk = "present" if disk_present else "missing"
+    values = {
+        "ID": sandbox.id,
+        "Name": name,
+        "Branch": sandbox.branch_name,
+        "Base Commit": sandbox.base_commit,
+        "Path": str(sandbox.sandbox_path),
+        "Status": sandbox.status.value,
+        "Disk": disk,
+        "Created": sandbox.created_at,
+        "Updated": sandbox.updated_at,
+    }
+    output.add_kv_table([(f"{field}", values[field]) for field in _SANDBOX_SHOW_FIELDS])
     if reconciled:
         output.info("Note: sandbox directory is missing; status updated to 'cleaned'.")
 
 
-def render_sandbox_already_cleaned(sandbox_id: str, *, rich_output: RichOutput | None = None) -> None:
+def render_sandbox_already_cleaned(sandbox_id: str, *, output: RichOutput) -> None:
     """Render the idempotent already-cleaned message for delete."""
-    output = rich_output or _DEFAULT_RICH_OUTPUT
     output.info(f"Sandbox '{sandbox_id}' is already cleaned; nothing to remove.")
 
 
-def render_sandbox_delete_success(sandbox_id: str, *, rich_output: RichOutput | None = None) -> None:
+def render_sandbox_delete_success(sandbox_id: str, *, output: RichOutput) -> None:
     """Render success line after a sandbox is deleted."""
-    output = rich_output or _DEFAULT_RICH_OUTPUT
     output.success(f"Sandbox deleted: {sandbox_id}")
 
 

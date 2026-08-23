@@ -10,6 +10,7 @@ from typer.testing import CliRunner
 
 from tests.helpers import FileSystem, make_rich_output, make_run
 from worktree.cli import app
+from worktree.common.utils import RichOutput
 from worktree.core.blueprint import BlueprintKind
 from worktree.core.config.generator import generate_default_config
 from worktree.core.db import RunsRepository, RunStatus
@@ -99,7 +100,8 @@ def test_render_history_list_fixed_width(fs: FileSystem) -> None:
         started_at="2026-08-19 01:00:00",
         completed_at="2026-08-19 01:00:10",
     )
-    render_history_list([run], rich_output=rich_output)
+    render_history_list([run], output=rich_output)
+    rich_output.print()
     output = buffer.getvalue()
     assert "Execution History" in output
     assert "sess-12345678" in output
@@ -119,7 +121,8 @@ def test_render_history_show_fixed_width(fs: FileSystem) -> None:
         started_at="2026-08-19 01:00:00",
         completed_at="2026-08-19 01:00:10",
     )
-    render_history_show(run, rich_output=rich_output)
+    render_history_show(run, output=rich_output)
+    rich_output.print()
     output = buffer.getvalue()
     assert "Session Metadata: sess-show-123" in output
     assert "show-task" in output
@@ -133,7 +136,7 @@ def test_render_history_show_fixed_width(fs: FileSystem) -> None:
 def test_collect_history_list_not_initialized(fs: FileSystem) -> None:
     """Verify HistoryListService returns NOT_INITIALIZED when config is missing."""
     path = fs.base_path / "nonexistent"
-    result = HistoryListService(path=path, db=RunsRepository(path)).collect()
+    result = HistoryListService(path=path, db=RunsRepository(path), output=RichOutput()).collect()
     assert not result.ok
     assert result.status is HistoryListStatus.NOT_INITIALIZED
 
@@ -158,25 +161,30 @@ def test_collect_history_list_filters(fs: FileSystem) -> None:
         root=fs.base_path, session_id="run-3", blueprint_name="task-c", kind=BlueprintKind.TASK, status=RunStatus.PAUSED
     )
 
+    out = RichOutput()
     # All runs
-    all_res = HistoryListService(path=fs.base_path, db=RunsRepository(fs.base_path)).collect()
+    all_res = HistoryListService(path=fs.base_path, db=RunsRepository(fs.base_path), output=out).collect()
     assert all_res.ok
     assert len(all_res.runs) == 3
 
     # Filter status
-    failed_res = HistoryListService(path=fs.base_path, db=RunsRepository(fs.base_path), status="failed").collect()
+    failed_res = HistoryListService(
+        path=fs.base_path, db=RunsRepository(fs.base_path), status="failed", output=out
+    ).collect()
     assert failed_res.ok
     assert len(failed_res.runs) == 1
     assert failed_res.runs[0].session_id == "run-2"
 
     # Filter kind
-    wf_res = HistoryListService(path=fs.base_path, db=RunsRepository(fs.base_path), kind="workflow").collect()
+    wf_res = HistoryListService(
+        path=fs.base_path, db=RunsRepository(fs.base_path), kind="workflow", output=out
+    ).collect()
     assert wf_res.ok
     assert len(wf_res.runs) == 1
     assert wf_res.runs[0].session_id == "run-2"
 
     # Limit
-    limit_res = HistoryListService(path=fs.base_path, db=RunsRepository(fs.base_path), limit=2).collect()
+    limit_res = HistoryListService(path=fs.base_path, db=RunsRepository(fs.base_path), limit=2, output=out).collect()
     assert limit_res.ok
     assert len(limit_res.runs) == 2
 
@@ -191,14 +199,17 @@ def test_collect_history_show(fs: FileSystem) -> None:
         status=RunStatus.COMPLETED,
     )
 
-    found = HistoryShowService(session_id="run-show-1", path=fs.base_path, db=RunsRepository(fs.base_path)).collect()
+    out = RichOutput()
+    found = HistoryShowService(
+        session_id="run-show-1", path=fs.base_path, db=RunsRepository(fs.base_path), output=out
+    ).collect()
     assert found.ok
     assert found.status is HistoryShowStatus.OK
     assert found.run is not None
     assert found.run.session_id == "run-show-1"
 
     missing = HistoryShowService(
-        session_id="non-existent-session", path=fs.base_path, db=RunsRepository(fs.base_path)
+        session_id="non-existent-session", path=fs.base_path, db=RunsRepository(fs.base_path), output=out
     ).collect()
     assert not missing.ok
     assert missing.status is HistoryShowStatus.NOT_FOUND
@@ -207,7 +218,9 @@ def test_collect_history_show(fs: FileSystem) -> None:
 def test_collect_history_show_not_initialized(fs: FileSystem) -> None:
     """Verify HistoryShowService returns NOT_INITIALIZED when uninitialized."""
     path = fs.base_path / "nonexistent"
-    result = HistoryShowService(session_id="session-1", path=path, db=RunsRepository(path)).collect()
+    result = HistoryShowService(
+        session_id="session-1", path=path, db=RunsRepository(path), output=RichOutput()
+    ).collect()
     assert not result.ok
     assert result.status is HistoryShowStatus.NOT_INITIALIZED
 
@@ -222,12 +235,13 @@ def test_history_services_execute(fs: FileSystem) -> None:
         status=RunStatus.COMPLETED,
     )
 
-    list_outcome = HistoryListService(path=fs.base_path, db=RunsRepository(fs.base_path)).execute()
+    out = RichOutput()
+    list_outcome = HistoryListService(path=fs.base_path, db=RunsRepository(fs.base_path), output=out).execute()
     assert list_outcome.ok
     assert len(list_outcome.runs) == 1
 
     show_outcome = HistoryShowService(
-        session_id="svc-run-1", path=fs.base_path, db=RunsRepository(fs.base_path)
+        session_id="svc-run-1", path=fs.base_path, db=RunsRepository(fs.base_path), output=out
     ).execute()
     assert show_outcome.ok
     assert show_outcome.run is not None
@@ -235,7 +249,7 @@ def test_history_services_execute(fs: FileSystem) -> None:
 
     # Show not found
     show_missing = HistoryShowService(
-        session_id="missing", path=fs.base_path, db=RunsRepository(fs.base_path)
+        session_id="missing", path=fs.base_path, db=RunsRepository(fs.base_path), output=out
     ).execute()
     assert not show_missing.ok
     assert show_missing.status is HistoryShowStatus.NOT_FOUND
@@ -243,13 +257,13 @@ def test_history_services_execute(fs: FileSystem) -> None:
     # Show uninitialized
     path_missing = fs.base_path / "nonexistent"
     show_uninit = HistoryShowService(
-        session_id="svc-run-1", path=path_missing, db=RunsRepository(path_missing)
+        session_id="svc-run-1", path=path_missing, db=RunsRepository(path_missing), output=out
     ).execute()
     assert not show_uninit.ok
     assert show_uninit.status is HistoryShowStatus.NOT_INITIALIZED
 
     # List uninitialized
-    list_uninit = HistoryListService(path=path_missing, db=RunsRepository(path_missing)).execute()
+    list_uninit = HistoryListService(path=path_missing, db=RunsRepository(path_missing), output=out).execute()
     assert not list_uninit.ok
     assert list_uninit.status is HistoryListStatus.NOT_INITIALIZED
 

@@ -37,6 +37,7 @@ class BlueprintRunService:
     path: Path
     runs_db: RunsRepository
     catalog_db: CatalogRepository
+    output: RichOutput
     kind: BlueprintKind | None = None
     no_sandbox: bool = False
     keep: bool = False
@@ -44,7 +45,6 @@ class BlueprintRunService:
     session_id: str | None = None
     cli_args: list[str] | None = None
     non_interactive: bool = False
-    output: RichOutput = field(default_factory=RichOutput)
     renderer: BlueprintRenderer = field(init=False)
 
     def __post_init__(self) -> None:
@@ -157,7 +157,7 @@ class BlueprintRunService:
         )
 
     def _render_success(self, final_record: RunRecord) -> None:
-        render_blueprint_run_success(final_record, self.kind, rich_output=self.output)
+        render_blueprint_run_success(final_record, self.kind, output=self.output)
 
     def _finalize(self, run_outcome: RunOutcome) -> BlueprintRunCommandOutcome:
         sid = run_outcome.session_id or ""
