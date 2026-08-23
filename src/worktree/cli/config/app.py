@@ -1,5 +1,7 @@
 import typer
 
+from worktree.core.context import get_cli_context
+
 from .commands.config_set import config_set_command
 from .commands.config_show import config_show_command
 from .commands.config_validate import config_validate_command
@@ -13,7 +15,8 @@ config_app = typer.Typer(
 @config_app.command("show")
 def config_show(ctx: typer.Context):
     """Display the full normalized effective configuration as JSON."""
-    config_show_command()
+    cli_ctx = get_cli_context()
+    config_show_command(cli_ctx=cli_ctx)
 
 
 @config_app.command("set")
@@ -28,10 +31,12 @@ def config_set(
     ),
 ):
     """Set a configuration value by key or nested dot-path."""
-    config_set_command(key, value)
+    cli_ctx = get_cli_context()
+    config_set_command(key, value, cli_ctx=cli_ctx)
 
 
 @config_app.command("validate")
 def config_validate(ctx: typer.Context):
     """Validate .worktree/config.json against the V1 schema and semantic rules."""
-    config_validate_command()
+    cli_ctx = get_cli_context()
+    config_validate_command(cli_ctx=cli_ctx)

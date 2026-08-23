@@ -21,6 +21,7 @@ from worktree.cli.sandbox.renderers import (
     render_not_initialized,
     render_sandbox_list,
 )
+from worktree.core.context import get_cli_context
 from worktree.core.db import (
     SandboxesRepository,
     SandboxRecord,
@@ -35,7 +36,7 @@ class SandboxListCollectTests:
     """Tests for collect_sandbox_list (data path, no Rich width coupling)."""
 
     def test_not_initialized(self, git_fs: GitFileSystem) -> None:
-        result = collect_sandbox_list(cwd=git_fs.base_path)
+        result = collect_sandbox_list(cli_ctx=get_cli_context(cwd=git_fs.base_path))
         assert result.status is SandboxListStatus.NOT_INITIALIZED
         assert not result.ok
         assert result.errors
@@ -43,7 +44,7 @@ class SandboxListCollectTests:
 
     def test_empty_state(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        result = collect_sandbox_list(cwd=git_fs.base_path)
+        result = collect_sandbox_list(cli_ctx=get_cli_context(cwd=git_fs.base_path))
         assert result.status is SandboxListStatus.OK
         assert result.ok
         assert result.sandboxes == []
@@ -62,7 +63,7 @@ class SandboxListCollectTests:
         first = db.get(first.id)
         second = db.get(second.id)
 
-        result = collect_sandbox_list(cwd=git_fs.base_path)
+        result = collect_sandbox_list(cli_ctx=get_cli_context(cwd=git_fs.base_path))
         assert result.ok
         assert [row.id for row in result.sandboxes] == [second.id, first.id]
         assert result.sandboxes[0].name == "beta"
@@ -79,7 +80,7 @@ class SandboxListCollectTests:
             SandboxStatus.CLEANED,
         )
 
-        result = collect_sandbox_list(status="cleaned", cwd=git_fs.base_path)
+        result = collect_sandbox_list(status="cleaned", cli_ctx=get_cli_context(cwd=git_fs.base_path))
         assert result.ok
         assert [row.id for row in result.sandboxes] == [cleaned.id]
         assert active.id not in {row.id for row in result.sandboxes}
@@ -94,7 +95,7 @@ class SandboxListCollectTests:
         )
         assert not Path(stale.sandbox_path).exists()
 
-        result = collect_sandbox_list(cwd=git_fs.base_path)
+        result = collect_sandbox_list(cli_ctx=get_cli_context(cwd=git_fs.base_path))
         assert result.ok
         assert len(result.sandboxes) == 1
         assert result.sandboxes[0].id == stale.id
@@ -112,7 +113,7 @@ class SandboxListCollectTests:
             create_dir=False,
         )
 
-        result = collect_sandbox_list(status="active", cwd=git_fs.base_path)
+        result = collect_sandbox_list(status="active", cli_ctx=get_cli_context(cwd=git_fs.base_path))
         assert result.ok
         assert result.sandboxes == []
         loaded = SandboxesRepository(git_fs.base_path, DB_REL).get(stale.id)
@@ -124,7 +125,7 @@ class SandboxListCollectTests:
         config_path.parent.mkdir(parents=True, exist_ok=True)
         config_path.write_text("{not-json", encoding="utf-8")
 
-        result = collect_sandbox_list(cwd=git_fs.base_path)
+        result = collect_sandbox_list(cli_ctx=get_cli_context(cwd=git_fs.base_path))
         assert result.status is SandboxListStatus.NOT_INITIALIZED
         assert not result.ok
         assert result.errors
@@ -206,7 +207,7 @@ class SandboxListCommandDirectTests:
         monkeypatch.chdir(git_fs.base_path)
 
         with pytest.raises(typer.Exit) as exc_info:
-            sandbox_list_command(cwd=git_fs.base_path)
+            sandbox_list_command(cli_ctx=get_cli_context(cwd=git_fs.base_path))
         assert exc_info.value.exit_code == 1
 
         out = capsys.readouterr().out
@@ -223,7 +224,7 @@ class SandboxListCommandDirectTests:
         git_fs.init_repo()
 
         with pytest.raises(typer.Exit) as exc_info:
-            sandbox_list_command(cwd=git_fs.base_path)
+            sandbox_list_command(cli_ctx=get_cli_context(cwd=git_fs.base_path))
         assert exc_info.value.exit_code == 0
         assert "No sandboxes found." in capsys.readouterr().out
 
@@ -238,7 +239,7 @@ class SandboxListCommandDirectTests:
         seed_sandbox(git_fs.base_path, sandbox_id="sbx_one", path_suffix="1")
 
         with pytest.raises(typer.Exit) as exc_info:
-            sandbox_list_command(cwd=git_fs.base_path)
+            sandbox_list_command(cli_ctx=get_cli_context(cwd=git_fs.base_path))
         assert exc_info.value.exit_code == 0
         assert "Worktree Sandboxes" in capsys.readouterr().out
 

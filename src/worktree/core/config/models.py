@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, Field
+
+from worktree.core.db.facade import WorktreeDb
 
 AgentProvider = Literal[
     "local",
@@ -132,3 +135,12 @@ class WorktreeContext(BaseModel):
     config: WorktreeConfig
     current_branch: str
     warnings: list[str] = Field(default_factory=list)
+
+
+class CliContext(BaseModel):
+    """Global CLI context."""
+
+    model_config = {"extra": "forbid", "strict": True, "arbitrary_types_allowed": True}
+
+    db: WorktreeDb
+    cwd: Path

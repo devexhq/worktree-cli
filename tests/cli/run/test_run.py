@@ -9,6 +9,7 @@ from tests.helpers import FileSystem, GitFileSystem
 from worktree.cli import app
 from worktree.core.blueprint import BlueprintKind, BlueprintRunService
 from worktree.core.catalog.services.inventory import scan_and_index_catalog
+from worktree.core.context import get_cli_context
 from worktree.core.db import RunsRepository, RunStatus
 
 runner = CliRunner()
@@ -28,7 +29,11 @@ def test_blueprint_run_service_executes_task(fs: FileSystem, monkeypatch: pytest
         ],
     )
 
-    res = BlueprintRunService(name="build-task", cwd=fs.base_path, session_id="test_run_task_1").execute()
+    res = BlueprintRunService(
+        name="build-task",
+        cli_ctx=get_cli_context(cwd=fs.base_path),
+        session_id="test_run_task_1",
+    ).execute()
     assert res.ok
     assert res.run_record is not None
     assert res.run_record.status == RunStatus.COMPLETED
@@ -52,7 +57,7 @@ def test_blueprint_run_service_executes_workflow(git_fs: GitFileSystem, monkeypa
 
     res = BlueprintRunService(
         name="deploy-flow",
-        cwd=git_fs.base_path,
+        cli_ctx=get_cli_context(cwd=git_fs.base_path),
         no_sandbox=True,
         session_id="test_run_wf_1",
     ).execute()
@@ -209,6 +214,10 @@ def test_run_cli_paused_status_exits_0(
         lambda *args, **kwargs: _InterruptPrompter(),
     )
 
-    outcome = BlueprintRunService(name="pause-task", cwd=fs.base_path, session_id="paused_session_1").execute()
+    outcome = BlueprintRunService(
+        name="pause-task",
+        cli_ctx=get_cli_context(cwd=fs.base_path),
+        session_id="paused_session_1",
+    ).execute()
     assert outcome.run_record is not None
     assert outcome.run_record.status == RunStatus.PAUSED

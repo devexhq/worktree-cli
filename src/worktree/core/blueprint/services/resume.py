@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from pathlib import Path
 
 from worktree.common.utils import RichOutput
 from worktree.core.blueprint.models import (
@@ -11,7 +10,8 @@ from worktree.core.blueprint.models import (
     BlueprintRunCommandOutcome,
 )
 from worktree.core.blueprint.renderers import render_blueprint_run_success
-from worktree.core.db import RunRecord, RunStatus, WorktreeDb
+from worktree.core.config.models import CliContext
+from worktree.core.db import RunRecord, RunStatus
 from worktree.core.engine import Engine, EngineResumeError, EngineRuntimeError
 from worktree.core.runtime import (
     CliFailurePrompter,
@@ -25,17 +25,10 @@ from worktree.core.runtime import (
 class BlueprintResumeService:
     """Service encapsulating the paused session resume lifecycle."""
 
+    cli_ctx: CliContext
     session_id: str | None = None
-    cwd: Path | None = None
     non_interactive: bool = False
     output: RichOutput = field(default_factory=RichOutput)
-
-    root: Path = field(init=False)
-    db: WorktreeDb = field(init=False)
-
-    def __post_init__(self) -> None:
-        self.root = (self.cwd or Path.cwd()).resolve()
-        self.db = WorktreeDb(self.root)
 
     def execute(self) -> BlueprintRunCommandOutcome:
         """Find session if omitted, classify and resume via Engine."""
@@ -48,7 +41,7 @@ class BlueprintResumeService:
 
         try:
             with observer:
-                run_outcome = Engine(self.root).resume(
+                run_outcome = Engine(self.cli_ctx.cwd).resume(
                     target_session_id,
                     observer=observer,
                     failure_prompter=prompter,
@@ -64,7 +57,7 @@ class BlueprintResumeService:
 
     def _resolve_target_session(self) -> tuple[str, BlueprintKind | None, str | None]:
         if not self.session_id:
-            record = self.db.runs.get_latest_paused()
+            record = self.cli_ctx.db.runs.get_latest_paused()
             if record is None:
                 return "", None, "No paused session found to resume."
             self.output.info(f"Resuming latest paused session '{record.session_id}' ({record.blueprint_name})...")
@@ -90,7 +83,7 @@ class BlueprintResumeService:
 
     def _load_record(self, session_id: str) -> RunRecord | None:
         try:
-            return self.db.runs.get(session_id)
+            return self.cli_ctx.db.runs.get(session_id)
         except Exception:
             return None
 

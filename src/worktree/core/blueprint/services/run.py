@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from pathlib import Path
 
 from worktree.common.utils import RichOutput
 from worktree.core.blueprint.exceptions import (
@@ -18,7 +17,8 @@ from worktree.core.blueprint.models import (
 from worktree.core.blueprint.renderers import BlueprintRenderer, render_blueprint_run_success
 from worktree.core.blueprint.services.blueprint import Blueprint
 from worktree.core.catalog import Catalog
-from worktree.core.db import RunRecord, RunStatus, WorktreeDb
+from worktree.core.config.models import CliContext
+from worktree.core.db import RunRecord, RunStatus
 from worktree.core.engine import Engine, EngineInputError, EngineRuntimeError, RunRequest
 from worktree.core.inputs import format_input_error_message
 from worktree.core.runtime import (
@@ -34,8 +34,8 @@ class BlueprintRunService:
     """Service encapsulating the blueprint execution lifecycle."""
 
     name: str
+    cli_ctx: CliContext
     kind: BlueprintKind | None = None
-    cwd: Path | None = None
     no_sandbox: bool = False
     keep: bool = False
     agent: str | None = None
@@ -43,14 +43,9 @@ class BlueprintRunService:
     cli_args: list[str] | None = None
     non_interactive: bool = False
     output: RichOutput = field(default_factory=RichOutput)
-
-    root: Path = field(init=False)
-    db: WorktreeDb = field(init=False)
     renderer: BlueprintRenderer = field(init=False)
 
     def __post_init__(self) -> None:
-        self.root = (self.cwd or Path.cwd()).resolve()
-        self.db = WorktreeDb(self.root)
         self.renderer = BlueprintRenderer(self.kind or BlueprintKind.TASK)
 
     @property
@@ -73,7 +68,7 @@ class BlueprintRunService:
 
         try:
             with observer:
-                run_outcome = Engine(self.root).run(
+                run_outcome = Engine(self.cli_ctx.cwd).run(
                     blueprint,
                     RunRequest(
                         cli_args=self.cli_args,
@@ -109,7 +104,7 @@ class BlueprintRunService:
         return BlueprintRunCommandOutcome(run_record=None, errors=[message])
 
     def _load_blueprint(self) -> tuple[Blueprint | None, BlueprintRunCommandOutcome | None]:
-        catalog = Catalog(self.root)
+        catalog = Catalog(cwd=self.cli_ctx.cwd, db=self.cli_ctx.db)
         try:
             blueprint = Blueprint.load(self.name, catalog=catalog)
         except (BlueprintNotFoundError, BlueprintLoadError) as exc:
@@ -137,7 +132,7 @@ class BlueprintRunService:
 
     def _load_record(self, session_id: str) -> RunRecord | None:
         try:
-            return self.db.runs.get(session_id)
+            return self.cli_ctx.db.runs.get(session_id)
         except Exception:
             return None
 

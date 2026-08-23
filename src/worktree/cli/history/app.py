@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+from typing import Annotated
+
 import typer
 
-from .commands.root import history_root
-from .commands.show import history_show
+from worktree.core.context import get_cli_context
+from worktree.core.db import BlueprintKind, RunStatus
+
+from .commands.root import history_root_command
+from .commands.show import history_show_command
 
 history_app = typer.Typer(
     name="history",
@@ -13,8 +18,57 @@ history_app = typer.Typer(
     invoke_without_command=True,
 )
 
-history_app.callback(invoke_without_command=True)(history_root)
-history_app.command(
-    name="show",
-    help="Show detailed metadata, error messages, and checkpoint state for a session.",
-)(history_show)
+
+@history_app.callback(invoke_without_command=True)
+def history_callback(
+    ctx: typer.Context,
+    limit: int = typer.Option(
+        20,
+        "--limit",
+        "-l",
+        help="Maximum number of execution runs to display (defaults to 20).",
+    ),
+    status: Annotated[
+        RunStatus | None,
+        typer.Option(
+            "--status",
+            "-s",
+            help="Filter by run status (running, completed, failed, cancelled, paused).",
+            case_sensitive=False,
+        ),
+    ] = None,
+    kind: Annotated[
+        BlueprintKind | None,
+        typer.Option(
+            "--kind",
+            "-k",
+            help="Filter by blueprint kind (task, workflow).",
+            case_sensitive=False,
+        ),
+    ] = None,
+) -> None:
+    """Inspect past blueprint execution sessions, step details, and checkpoints."""
+    if ctx.invoked_subcommand is None:
+        cli_ctx = get_cli_context()
+        outcome = history_root_command(
+            cli_ctx=cli_ctx,
+            limit=limit,
+            status=status.value if status is not None else None,
+            kind=kind.value if kind is not None else None,
+        )
+        if not outcome.ok:
+            raise typer.Exit(code=1)
+
+
+@history_app.command("show")
+def history_show(
+    session_id: str = typer.Argument(..., help="Session ID to inspect."),
+) -> None:
+    """Show detailed metadata, error messages, and checkpoint state for a session."""
+    cli_ctx = get_cli_context()
+    outcome = history_show_command(
+        session_id,
+        cli_ctx=cli_ctx,
+    )
+    if not outcome.ok:
+        raise typer.Exit(code=1)

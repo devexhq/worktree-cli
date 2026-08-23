@@ -7,9 +7,9 @@ from pathlib import Path
 import typer
 
 from worktree.core.config.loader import load_config_result
+from worktree.core.config.models import CliContext
 from worktree.core.db import (
     SandboxStatus,
-    WorktreeDb,
 )
 
 from ..models import (
@@ -26,35 +26,31 @@ from ..renderers import (
 def collect_sandbox_show(
     sandbox_id: str,
     *,
-    cwd: Path | None = None,
-    db: WorktreeDb | None = None,
+    cli_ctx: CliContext,
 ) -> SandboxShowResult:
     """Load config, look up one sandbox, and reconcile a stale active row.
 
     Args:
         sandbox_id: Sandbox primary key to show.
-        cwd: Repository root. Defaults to process CWD.
-        db: Optional WorktreeDb instance.
+        cli_ctx: CLI context instance.
 
     Returns:
         Structured show result. Does not print or exit.
     """
-    root = (cwd or Path.cwd()).resolve()
-    load = load_config_result(cwd=root)
+    load = load_config_result(cwd=cli_ctx.cwd)
     if not load.ok:
         return SandboxShowResult(
             status=SandboxShowStatus.NOT_INITIALIZED,
             errors=list(load.errors),
         )
 
-    db = db or WorktreeDb(root)
-    row = db.sandboxes.get(sandbox_id)
+    row = cli_ctx.db.sandboxes.get(sandbox_id)
     if row is None:
         return SandboxShowResult(status=SandboxShowStatus.NOT_FOUND)
 
     reconciled = False
     if row.status is SandboxStatus.ACTIVE and not Path(row.sandbox_path).is_dir():
-        updated = db.sandboxes.update_status(row.id, SandboxStatus.CLEANED)
+        updated = cli_ctx.db.sandboxes.update_status(row.id, SandboxStatus.CLEANED)
         if updated is not None:
             row = updated
         else:
@@ -73,8 +69,7 @@ def collect_sandbox_show(
 def sandbox_show_command(
     sandbox_id: str,
     *,
-    cwd: Path | None = None,
-    db: WorktreeDb | None = None,
+    cli_ctx: CliContext,
 ) -> None:
     """Show detail for one tracked sandbox.
 
@@ -84,11 +79,9 @@ def sandbox_show_command(
 
     Args:
         sandbox_id: Sandbox primary key to show.
-        cwd: Repository root. Defaults to process CWD.
-        db: Optional WorktreeDb instance.
+        cli_ctx: CLI context instance.
     """
-    db = db or WorktreeDb(cwd)
-    result = collect_sandbox_show(sandbox_id, cwd=cwd, db=db)
+    result = collect_sandbox_show(sandbox_id, cli_ctx=cli_ctx)
     if result.status is SandboxShowStatus.NOT_INITIALIZED:
         render_not_initialized(result.errors)
         raise typer.Exit(code=1)

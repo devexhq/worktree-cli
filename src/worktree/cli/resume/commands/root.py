@@ -5,6 +5,7 @@ from __future__ import annotations
 import typer
 
 from worktree.core.blueprint import BlueprintResumeService
+from worktree.core.context import get_cli_context
 
 
 def resume_root(
@@ -19,7 +20,9 @@ def resume_root(
     ),
 ) -> None:
     """Resume a paused task or workflow blueprint execution session."""
+    cli_ctx = get_cli_context()
     outcome = BlueprintResumeService(
+        cli_ctx=cli_ctx,
         session_id=session_id,
         non_interactive=non_interactive,
     ).execute()

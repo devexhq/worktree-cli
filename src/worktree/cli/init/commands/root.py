@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import typer
 
 from worktree.common.fs import (
@@ -18,7 +16,7 @@ from worktree.core.bootstrap import bootstrap_worktree
 from worktree.core.catalog.services.seeder import seed_all_catalog_templates
 from worktree.core.config.generator import generate_default_config
 from worktree.core.config.loader import load_config_result
-from worktree.core.config.models import PathsConfig
+from worktree.core.config.models import CliContext, PathsConfig
 from worktree.core.db import init_database
 
 from ..models import InitCommandOutcome
@@ -33,15 +31,15 @@ _DEFAULT_RICH_OUTPUT = RichOutput()
 
 def init_command(
     *,
+    cli_ctx: CliContext,
     tool_version: str | None = None,
     overwrite: bool = False,
     repair: bool = False,
-    cwd: Path | None = None,
     rich_output: RichOutput | None = None,
 ) -> None:
     """Initialize a local project workspace for Worktree CLI and desktop sync."""
     output = rich_output or _DEFAULT_RICH_OUTPUT
-    root = (cwd or Path.cwd()).resolve()
+    root = cli_ctx.cwd
 
     if not is_git_repository(root):
         output.error_panel(

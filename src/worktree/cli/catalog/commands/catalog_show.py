@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from worktree.common.fs import get_catalog_templates_dir
 from worktree.common.utils import RichOutput
 from worktree.core.catalog.services.inventory import (
     get_catalog_dir,
     get_catalog_item,
 )
-from worktree.core.db import WorktreeDb
+from worktree.core.config.models import CliContext
 
 from ..models import CatalogShowCommandOutcome
 from ..renderers import (
@@ -39,25 +37,23 @@ def _find_packaged_templates(sha_or_name: str) -> list[tuple[str, str]]:
 
 def catalog_show_command(
     sha_or_name: str,
-    cwd: Path | None = None,
     *,
+    cli_ctx: CliContext,
     rich_output: RichOutput | None = None,
-    db: WorktreeDb | None = None,
 ) -> CatalogShowCommandOutcome:
     """Show details and definition content of a catalog blueprint.
 
     Args:
         sha_or_name: SHA identifier or name of the blueprint.
-        cwd: Optional CWD path.
+        cli_ctx: CLI context instance.
         rich_output: Optional RichOutput presenter.
-        db: Optional WorktreeDb instance.
 
     Returns:
         CatalogShowCommandOutcome containing record and content or errors.
     """
     output = rich_output or _DEFAULT_RICH_OUTPUT
 
-    resolution_result = get_catalog_item(sha_or_name, cwd=cwd, db=db)
+    resolution_result = get_catalog_item(sha_or_name, cwd=cli_ctx.cwd, db=cli_ctx.db)
     item = resolution_result.resolved
     if not resolution_result.ok or item is None:
         found = _find_packaged_templates(sha_or_name)
@@ -70,7 +66,7 @@ def catalog_show_command(
         output.error_panel("Catalog Show Failed", error_message)
         return CatalogShowCommandOutcome(item=None, content=None, errors=[error_message])
 
-    catalog_dir = get_catalog_dir(cwd)
+    catalog_dir = get_catalog_dir(cli_ctx.cwd)
     file_path = catalog_dir / item.path
 
     try:

@@ -6,6 +6,7 @@ from typer.testing import CliRunner
 from tests.helpers import FileSystem
 from worktree.cli import app
 from worktree.core.blueprint import BlueprintRunService
+from worktree.core.context import get_cli_context
 from worktree.core.task import resolve_and_load_task
 
 runner = CliRunner()
@@ -43,7 +44,11 @@ def test_run_command_no_sandbox_flag(fs: FileSystem, monkeypatch: pytest.MonkeyP
     )
 
     # Run with BlueprintRunService --no-sandbox
-    res = BlueprintRunService(name="sample-task", cwd=fs.base_path, no_sandbox=True).execute()
+    res = BlueprintRunService(
+        name="sample-task",
+        cli_ctx=get_cli_context(cwd=fs.base_path),
+        no_sandbox=True,
+    ).execute()
     assert res.ok
 
     # CLI test

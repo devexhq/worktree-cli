@@ -27,16 +27,59 @@ class WorktreeDb:
     ) -> None:
         self.cwd = cwd
         self.db_rel_path = db_rel_path
-        self.db_engine = db_engine if db_engine is not None else get_engine(resolve_db_path(cwd, db_rel_path))
-        self.sandboxes = SandboxesRepository(cwd, db_rel_path=db_rel_path, auto_init=True, db_engine=self.db_engine)
-        self.runs = RunsRepository(cwd, db_rel_path=db_rel_path, auto_init=True, db_engine=self.db_engine)
-        self.catalog = CatalogRepository(cwd, db_rel_path=db_rel_path, auto_init=True, db_engine=self.db_engine)
-        self.costs = CostsRepository(cwd, db_rel_path=db_rel_path, auto_init=True, db_engine=self.db_engine)
+        self._db_engine = db_engine
+        self._sandboxes: SandboxesRepository | None = None
+        self._runs: RunsRepository | None = None
+        self._catalog: CatalogRepository | None = None
+        self._costs: CostsRepository | None = None
+
+    @property
+    def db_engine(self) -> Engine:
+        """SQLAlchemy / SQLModel Engine bound to resolved database path."""
+        if self._db_engine is None:
+            self._db_engine = get_engine(resolve_db_path(self.cwd, self.db_rel_path))
+        return self._db_engine
 
     @property
     def engine(self) -> Engine:
         """Alias to db_engine for compatibility."""
         return self.db_engine
+
+    @property
+    def sandboxes(self) -> SandboxesRepository:
+        """Repository managing sandbox worktrees and metadata."""
+        if self._sandboxes is None:
+            self._sandboxes = SandboxesRepository(
+                self.cwd, db_rel_path=self.db_rel_path, auto_init=True, db_engine=self.db_engine
+            )
+        return self._sandboxes
+
+    @property
+    def runs(self) -> RunsRepository:
+        """Repository managing task and workflow execution runs."""
+        if self._runs is None:
+            self._runs = RunsRepository(
+                self.cwd, db_rel_path=self.db_rel_path, auto_init=True, db_engine=self.db_engine
+            )
+        return self._runs
+
+    @property
+    def catalog(self) -> CatalogRepository:
+        """Repository managing indexed blueprint definitions."""
+        if self._catalog is None:
+            self._catalog = CatalogRepository(
+                self.cwd, db_rel_path=self.db_rel_path, auto_init=True, db_engine=self.db_engine
+            )
+        return self._catalog
+
+    @property
+    def costs(self) -> CostsRepository:
+        """Repository managing tracked token costs."""
+        if self._costs is None:
+            self._costs = CostsRepository(
+                self.cwd, db_rel_path=self.db_rel_path, auto_init=True, db_engine=self.db_engine
+            )
+        return self._costs
 
     def init_db(self) -> Path:
         """Run migrations and mark all child repositories as initialized."""

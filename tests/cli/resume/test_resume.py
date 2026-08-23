@@ -13,6 +13,7 @@ from tests.helpers import (
 from worktree.cli import app
 from worktree.core.blueprint import BlueprintKind, BlueprintResumeService
 from worktree.core.catalog.services.inventory import scan_and_index_catalog
+from worktree.core.context import get_cli_context
 from worktree.core.db import RunsRepository, RunStatus
 from worktree.core.runtime import FailurePromptDecision, RunCheckpoint
 
@@ -73,7 +74,10 @@ def test_blueprint_resume_service_resumes_task(
     )
     _seed_paused_run(fs.base_path, "task-res-1", "sample-task", BlueprintKind.TASK)
 
-    outcome = BlueprintResumeService(session_id="task-res-1", cwd=fs.base_path).execute()
+    outcome = BlueprintResumeService(
+        session_id="task-res-1",
+        cli_ctx=get_cli_context(cwd=fs.base_path),
+    ).execute()
     assert outcome.ok
     assert outcome.run_record is not None
     assert outcome.run_record.status == RunStatus.COMPLETED
@@ -102,7 +106,10 @@ def test_blueprint_resume_service_resumes_workflow(
     scan_and_index_catalog(cwd=git_fs.base_path)
     _seed_paused_run(git_fs.base_path, "wf-res-1", "deploy-wf", BlueprintKind.WORKFLOW)
 
-    outcome = BlueprintResumeService(session_id="wf-res-1", cwd=git_fs.base_path).execute()
+    outcome = BlueprintResumeService(
+        session_id="wf-res-1",
+        cli_ctx=get_cli_context(cwd=git_fs.base_path),
+    ).execute()
     assert outcome.ok
     assert outcome.run_record is not None
     assert outcome.run_record.status == RunStatus.COMPLETED
@@ -131,7 +138,7 @@ def test_blueprint_resume_service_auto_resumes_latest(
     _seed_paused_run(fs.base_path, "task-old", "task-auto", BlueprintKind.TASK)
     _seed_paused_run(fs.base_path, "task-new", "task-auto", BlueprintKind.TASK)
 
-    outcome = BlueprintResumeService(cwd=fs.base_path).execute()
+    outcome = BlueprintResumeService(cli_ctx=get_cli_context(cwd=fs.base_path)).execute()
     assert outcome.ok
     assert outcome.run_record is not None
     assert outcome.run_record.session_id == "task-new"
@@ -141,7 +148,7 @@ def test_blueprint_resume_service_auto_resumes_latest(
 def test_blueprint_resume_service_no_paused_session_fails(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify BlueprintResumeService returns failure outcome when no paused session exists."""
     monkeypatch.chdir(fs.base_path)
-    outcome = BlueprintResumeService(cwd=fs.base_path).execute()
+    outcome = BlueprintResumeService(cli_ctx=get_cli_context(cwd=fs.base_path)).execute()
     assert not outcome.ok
     assert outcome.run_record is None
     assert any("No paused session found to resume." in err for err in outcome.errors)
@@ -308,7 +315,10 @@ def test_resume_cli_paused_status_exits_0(fs: FileSystem, monkeypatch: pytest.Mo
         lambda *args, **kwargs: _InterruptPrompter(),
     )
 
-    outcome = BlueprintResumeService(session_id="task-pause-again", cwd=fs.base_path).execute()
+    outcome = BlueprintResumeService(
+        session_id="task-pause-again",
+        cli_ctx=get_cli_context(cwd=fs.base_path),
+    ).execute()
     assert outcome.ok
     assert outcome.run_record is not None
     assert outcome.run_record.status == RunStatus.PAUSED
