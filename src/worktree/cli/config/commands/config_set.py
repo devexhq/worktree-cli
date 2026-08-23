@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import typer
 
+from worktree.cli.context import Context
 from worktree.common.utils import RichOutput
-from worktree.core.config.models import CliContext
 from worktree.core.config.mutate import set_config_value_result
 from worktree.core.config.parser import parse_config_value
 
@@ -18,7 +18,7 @@ def config_set_command(
     key: str,
     value: str,
     *,
-    cli_ctx: CliContext,
+    context: Context,
     rich_output: RichOutput | None = None,
 ) -> None:
     """Set a configuration value by top-level or nested dot-path key.
@@ -31,12 +31,12 @@ def config_set_command(
     Args:
         key: Dot-path key (e.g. ``agent.model`` or ``version``).
         value: String value from CLI to parse and store at ``key``.
-        cli_ctx: CLI context instance.
+        context: CLI context instance.
         rich_output: Optional RichOutput presenter.
     """
     output = rich_output or _DEFAULT_RICH_OUTPUT
     parsed_value = parse_config_value(value)
-    result = set_config_value_result(key, parsed_value, cwd=cli_ctx.cwd)
+    result = set_config_value_result(key, parsed_value, path=context.cwd)
 
     if not result.ok:
         message = "\n\n".join(result.errors) if result.errors else "Failed to update configuration."

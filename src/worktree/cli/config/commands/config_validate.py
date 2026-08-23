@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import typer
 
+from worktree.cli.context import Context
 from worktree.common.utils import RichOutput
-from worktree.core.config.models import CliContext
 from worktree.core.config.validate import validate_config_result
 
 from ..renderers import (
@@ -18,7 +18,7 @@ _DEFAULT_RICH_OUTPUT = RichOutput()
 
 def config_validate_command(
     *,
-    cli_ctx: CliContext,
+    context: Context,
     rich_output: RichOutput | None = None,
 ) -> None:
     """Validate config and print the CLI validation report.
@@ -29,11 +29,11 @@ def config_validate_command(
     creates, repairs, or mutates config files.
 
     Args:
-        cli_ctx: CLI context instance.
+        context: CLI context instance.
         rich_output: Optional RichOutput presenter.
     """
     output = rich_output or _DEFAULT_RICH_OUTPUT
-    result = validate_config_result(cwd=cli_ctx.cwd)
+    result = validate_config_result(path=context.cwd)
 
     if result.ok:
         render_config_validate_success(result.config_path, list(result.warnings), rich_output=output)

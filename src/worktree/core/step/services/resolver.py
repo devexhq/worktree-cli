@@ -8,13 +8,13 @@ from worktree.core.step.models import StepDefinition, StepType
 from .loader import load_step_by_id
 
 
-def resolve_step_definition(step: StepDefinition, *, cwd: Path | None = None) -> StepDefinition:
+def resolve_step_definition(step: StepDefinition, *, path: Path | None = None) -> StepDefinition:
     """Resolve a step, following its dependencies if any."""
     if step.run is not None:
         return _resolve_run(step)
 
     if step.uses is not None:
-        return _resolve_from_uses(step, cwd)
+        return _resolve_from_uses(step, path)
 
     if step.type is not None:
         return step
@@ -38,9 +38,11 @@ def _resolve_run(step: StepDefinition) -> StepDefinition:
     )
 
 
-def _resolve_from_uses(step: StepDefinition, cwd: Path | None = None) -> StepDefinition:
+def _resolve_from_uses(step: StepDefinition, path: Path | None = None) -> StepDefinition:
     """Load the referenced step and apply only the fields the referencing step explicitly set."""
-    base_step = load_step_by_id(str(step.uses), cwd)
+    if path is None:
+        raise StepValidationError(f"Cannot resolve 'uses: {step.uses}' without a workspace path.")
+    base_step = load_step_by_id(str(step.uses), path)
     fields_set = step.model_fields_set
 
     def _pick(field_name: str):

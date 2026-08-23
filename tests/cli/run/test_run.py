@@ -7,9 +7,9 @@ from typer.testing import CliRunner
 
 from tests.helpers import FileSystem, GitFileSystem
 from worktree.cli import app
+from worktree.cli.context import get_cli_context
 from worktree.core.blueprint import BlueprintKind, BlueprintRunService
 from worktree.core.catalog.services.inventory import scan_and_index_catalog
-from worktree.core.context import get_cli_context
 from worktree.core.db import RunsRepository, RunStatus
 
 runner = CliRunner()
@@ -29,9 +29,12 @@ def test_blueprint_run_service_executes_task(fs: FileSystem, monkeypatch: pytest
         ],
     )
 
+    ctx = get_cli_context(cwd=fs.base_path)
     res = BlueprintRunService(
         name="build-task",
-        cli_ctx=get_cli_context(cwd=fs.base_path),
+        path=ctx.cwd,
+        runs_db=ctx.db.runs,
+        catalog_db=ctx.db.catalog,
         session_id="test_run_task_1",
     ).execute()
     assert res.ok
@@ -53,11 +56,14 @@ def test_blueprint_run_service_executes_workflow(git_fs: GitFileSystem, monkeypa
         "deploy-flow",
         steps=[{"id": "step-1", "run": "echo deploy step 1"}],
     )
-    scan_and_index_catalog(cwd=git_fs.base_path)
+    scan_and_index_catalog(path=git_fs.base_path)
 
+    ctx = get_cli_context(cwd=git_fs.base_path)
     res = BlueprintRunService(
         name="deploy-flow",
-        cli_ctx=get_cli_context(cwd=git_fs.base_path),
+        path=ctx.cwd,
+        runs_db=ctx.db.runs,
+        catalog_db=ctx.db.catalog,
         no_sandbox=True,
         session_id="test_run_wf_1",
     ).execute()
@@ -100,7 +106,7 @@ def test_run_cli_workflow_invocation(git_fs: GitFileSystem, monkeypatch: pytest.
         "audit-flow",
         steps=[{"id": "audit-step", "run": "echo auditing"}],
     )
-    scan_and_index_catalog(cwd=git_fs.base_path)
+    scan_and_index_catalog(path=git_fs.base_path)
 
     result = runner.invoke(
         app,
@@ -137,7 +143,7 @@ def test_run_cli_keep_flag(git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatc
         "sandbox-flow",
         steps=[{"id": "sbx-step", "run": "echo sandbox"}],
     )
-    scan_and_index_catalog(cwd=git_fs.base_path)
+    scan_and_index_catalog(path=git_fs.base_path)
 
     result = runner.invoke(
         app,
@@ -199,8 +205,6 @@ def test_run_cli_paused_status_exits_0(
         steps=[{"id": "pause-step", "run": "exit 1", "on_failure": "prompt_user"}],
     )
 
-    # In non-interactive mode without --non-interactive flag, stdin is closed in CliRunner -> KeyboardInterrupt/abort
-    # Test paused status via direct root_command with mock / outcome
     from worktree.core.runtime import FailurePromptDecision
 
     class _InterruptPrompter:
@@ -214,9 +218,12 @@ def test_run_cli_paused_status_exits_0(
         lambda *args, **kwargs: _InterruptPrompter(),
     )
 
+    ctx = get_cli_context(cwd=fs.base_path)
     outcome = BlueprintRunService(
         name="pause-task",
-        cli_ctx=get_cli_context(cwd=fs.base_path),
+        path=ctx.cwd,
+        runs_db=ctx.db.runs,
+        catalog_db=ctx.db.catalog,
         session_id="paused_session_1",
     ).execute()
     assert outcome.run_record is not None

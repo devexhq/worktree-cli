@@ -11,7 +11,7 @@ from worktree.core.blueprint.exceptions import (
 )
 from worktree.core.blueprint.services.blueprint import Blueprint
 from worktree.core.catalog import Catalog
-from worktree.core.db import RunRecord, RunStatus, WorktreeDb
+from worktree.core.db import RunRecord, RunsRepository, RunStatus
 from worktree.core.engine.exceptions import EngineResumeError
 from worktree.core.engine.models import EngineResumeStatus
 from worktree.core.runtime import RunCheckpoint, parse_checkpoint
@@ -25,16 +25,17 @@ class ResumableRun:
         self,
         session_id: str,
         *,
-        cwd: Path,
+        path: Path,
         status: EngineResumeStatus,
         message: str = "",
         checkpoint: RunCheckpoint | None = None,
         steps: list[StepDefinition] | None = None,
-        db: WorktreeDb | None = None,
+        db: RunsRepository | None = None,
         blueprint: Blueprint | None = None,
     ) -> None:
         self.session_id = session_id
-        self.cwd = cwd
+        self.path = path
+        self.cwd = path
         self.status = status
         self.message = message
         self.checkpoint = checkpoint
@@ -56,7 +57,7 @@ class ResumableRun:
             and self.blueprint is not None
         )
 
-    def ready(self) -> tuple[Blueprint, WorktreeDb, RunCheckpoint]:
+    def ready(self) -> tuple[Blueprint, RunsRepository, RunCheckpoint]:
         """Return blueprint, db, and checkpoint, or raise ``EngineResumeError``."""
         blueprint = self.blueprint
         db = self.db
@@ -72,33 +73,44 @@ class ResumableRun:
         session_id: str,
         blueprint: Blueprint | None = None,
         *,
-        cwd: Path | None = None,
+        path: Path,
+        db: RunsRepository | None = None,
+        catalog: Catalog | None = None,
     ) -> ResumableRun:
         """Classify a session without raising. Check ``is_resumable`` before resuming."""
-        root = (cwd or Path.cwd()).resolve()
-        return cls._classify(session_id, blueprint, root)
+        root = path.resolve()
+        runs_db = db if db is not None else RunsRepository(root)
+        cat = catalog if catalog is not None else Catalog(root)
+        return cls._classify(session_id, blueprint, root, db=runs_db, catalog=cat)
 
     @classmethod
-    def _classify(cls, session_id: str, blueprint: Blueprint | None, cwd: Path) -> ResumableRun:
+    def _classify(
+        cls,
+        session_id: str,
+        blueprint: Blueprint | None,
+        path: Path,
+        *,
+        db: RunsRepository,
+        catalog: Catalog,
+    ) -> ResumableRun:
         """Walk row, status, checkpoint, and blueprint checks in order."""
-        found = cls._lookup_row(session_id, blueprint, cwd)
-        if found is None:
-            return cls._rejected(session_id, cwd, EngineResumeStatus.NOT_FOUND, f"Session '{session_id}' not found.")
+        row = cls._lookup_row(session_id, blueprint, db)
+        if row is None:
+            return cls._rejected(session_id, path, EngineResumeStatus.NOT_FOUND, f"Session '{session_id}' not found.")
 
-        row, db = found
         if row.status != RunStatus.PAUSED:
             return cls._rejected(
                 session_id,
-                cwd,
+                path,
                 EngineResumeStatus.WRONG_STATUS,
                 f"Cannot resume session '{session_id}': status is '{row.status.value}' (expected paused).",
             )
 
-        checkpoint = cls._parse_checkpoint(session_id, row.checkpoint_json, cwd)
+        checkpoint = cls._parse_checkpoint(session_id, row.checkpoint_json, path)
         if isinstance(checkpoint, ResumableRun):
             return checkpoint
 
-        loaded = blueprint if blueprint is not None else cls._load_blueprint(session_id, row, cwd)
+        loaded = blueprint if blueprint is not None else cls._load_blueprint(session_id, row, path, catalog=catalog)
         if isinstance(loaded, ResumableRun):
             return loaded
 
@@ -106,14 +118,14 @@ class ResumableRun:
         if checkpoint.pending_step_id not in {step.id for step in steps}:
             return cls._rejected(
                 session_id,
-                cwd,
+                path,
                 EngineResumeStatus.CORRUPT_CHECKPOINT,
                 f"Cannot resume session '{session_id}': checkpoint is missing or corrupt.",
             )
 
         return cls(
             session_id,
-            cwd=cwd,
+            path=path,
             status=EngineResumeStatus.OK,
             checkpoint=checkpoint,
             steps=steps,
@@ -125,37 +137,36 @@ class ResumableRun:
     def _rejected(
         cls,
         session_id: str,
-        cwd: Path,
+        path: Path,
         status: EngineResumeStatus,
         message: str,
     ) -> ResumableRun:
         """Build a non-resumable handle for a classification failure."""
-        return cls(session_id, cwd=cwd, status=status, message=message)
+        return cls(session_id, path=path, status=status, message=message)
 
     @classmethod
     def _lookup_row(
         cls,
         session_id: str,
         blueprint: Blueprint | None,
-        cwd: Path,
-    ) -> tuple[RunRecord, WorktreeDb] | None:
-        """Return the run row and database facade, or None when the session is missing."""
-        db = WorktreeDb(cwd)
-        row = db.runs.get(session_id)
+        db: RunsRepository,
+    ) -> RunRecord | None:
+        """Return the run row, or None when the session is missing."""
+        row = db.get(session_id)
         if row is None:
             return None
         if blueprint is not None and row.kind != blueprint.kind:
             return None
-        return row, db
+        return row
 
     @classmethod
-    def _parse_checkpoint(cls, session_id: str, raw: str | None, cwd: Path) -> RunCheckpoint | ResumableRun:
+    def _parse_checkpoint(cls, session_id: str, raw: str | None, path: Path) -> RunCheckpoint | ResumableRun:
         """Return a parsed checkpoint, or a rejected handle when it cannot be used."""
         checkpoint = parse_checkpoint(raw)
         if checkpoint is None:
             return cls._rejected(
                 session_id,
-                cwd,
+                path,
                 EngineResumeStatus.CORRUPT_CHECKPOINT,
                 f"Cannot resume session '{session_id}': checkpoint is missing or corrupt.",
             )
@@ -169,7 +180,7 @@ class ResumableRun:
 
         return cls._rejected(
             session_id,
-            cwd,
+            path,
             EngineResumeStatus.MISSING_SANDBOX,
             f"Cannot resume session '{session_id}': sandbox path '{sandbox_path}' no longer exists.",
         )
@@ -179,17 +190,19 @@ class ResumableRun:
         cls,
         session_id: str,
         row: RunRecord,
-        cwd: Path,
+        path: Path,
+        *,
+        catalog: Catalog,
     ) -> Blueprint | ResumableRun:
         """Load the catalog blueprint named by the paused row."""
         name = row.blueprint_name
 
         try:
-            return Blueprint.load(name, catalog=Catalog(cwd))
+            return Blueprint.load(name, catalog=catalog)
         except (BlueprintNotFoundError, BlueprintLoadError, BlueprintValidationError):
             return cls._rejected(
                 session_id,
-                cwd,
+                path,
                 EngineResumeStatus.FAILED,
                 f"Cannot resume session '{session_id}': blueprint '{name}' not found.",
             )

@@ -6,19 +6,21 @@ from pathlib import Path
 
 from worktree.common.models import DefinitionResolutionResult
 from worktree.core.catalog.services.inventory import get_catalog_item
-from worktree.core.db import CatalogItemType, CatalogRecord
+from worktree.core.db import CatalogItemType, CatalogRecord, CatalogRepository
 from worktree.core.task.models import TaskDefinition
 
 
 def resolve_and_load_task(
     name: str,
-    cwd: Path | None = None,
+    path: Path,
+    db: CatalogRepository | None = None,
 ) -> DefinitionResolutionResult[CatalogRecord]:
     """Resolve a task blueprint by name from catalog inventory and validate its model.
 
     Args:
         name: Task blueprint name or SHA to resolve.
-        cwd: Optional working directory used to locate ``.worktree/``.
+        path: Working directory used to locate ``.worktree/``.
+        db: Optional CatalogRepository instance.
 
     Returns:
         A ``DefinitionResolutionResult`` whose ``definition`` is a ``TaskDefinition``
@@ -28,5 +30,6 @@ def resolve_and_load_task(
         name,
         CatalogItemType.TASK,
         definition_cls=TaskDefinition,
-        cwd=cwd,
+        path=path,
+        db=db,
     )

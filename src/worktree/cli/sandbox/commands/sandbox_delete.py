@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import typer
 
+from worktree.cli.context import Context
 from worktree.common.utils import RichOutput
 from worktree.core.config.loader import load_config_result
-from worktree.core.config.models import CliContext
 from worktree.core.db import (
     SandboxStatus,
 )
@@ -28,25 +28,25 @@ from ..renderers import (
 def collect_sandbox_delete(
     sandbox_id: str,
     *,
-    cli_ctx: CliContext,
+    context: Context,
 ) -> SandboxDeleteResult:
     """Load config and look up one sandbox for delete (no mutation).
 
     Args:
         sandbox_id: Sandbox primary key to delete.
-        cli_ctx: CLI context instance.
+        context: CLI context instance.
 
     Returns:
         Structured delete result. Does not print, confirm, or clean up.
     """
-    load = load_config_result(cwd=cli_ctx.cwd)
+    load = load_config_result(path=context.cwd)
     if not load.ok:
         return SandboxDeleteResult(
             status=SandboxDeleteStatus.NOT_INITIALIZED,
             errors=list(load.errors),
         )
 
-    row = cli_ctx.db.sandboxes.get(sandbox_id)
+    row = context.db.sandboxes.get(sandbox_id)
     if row is None:
         return SandboxDeleteResult(status=SandboxDeleteStatus.NOT_FOUND)
 
@@ -77,7 +77,7 @@ def sandbox_delete_command(
     sandbox_id: str,
     force: bool = False,
     *,
-    cli_ctx: CliContext,
+    context: Context,
     rich_output: RichOutput | None = None,
 ) -> None:
     """Delete a tracked sandbox worktree and branch.
@@ -89,11 +89,11 @@ def sandbox_delete_command(
     Args:
         sandbox_id: Sandbox primary key to delete.
         force: When True, skip the confirmation prompt.
-        cli_ctx: CLI context instance.
+        context: CLI context instance.
         rich_output: Optional injected console helpers.
     """
     output = rich_output or RichOutput()
-    result = collect_sandbox_delete(sandbox_id, cli_ctx=cli_ctx)
+    result = collect_sandbox_delete(sandbox_id, context=context)
 
     if result.status is SandboxDeleteStatus.NOT_INITIALIZED:
         render_not_initialized(result.errors, rich_output=output)
@@ -121,6 +121,6 @@ def sandbox_delete_command(
         name=row.name,
         created_at=row.created_at,
     )
-    GitSandboxManager(cwd=cli_ctx.cwd, db=cli_ctx.db).cleanup_sandbox(session)
+    GitSandboxManager(path=context.cwd, db=context.db.sandboxes).cleanup_sandbox(session)
     render_sandbox_delete_success(sandbox_id, rich_output=output)
     raise typer.Exit(code=0)

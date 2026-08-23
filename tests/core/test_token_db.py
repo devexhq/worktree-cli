@@ -21,7 +21,7 @@ class DatabaseTests:
     """Tests for init/record/aggregate token usage."""
 
     def test_init_creates_db(self, fs: FileSystem) -> None:
-        db_path = init_database(cwd=fs.base_path, db_rel_path=DB_REL)
+        db_path = init_database(path=fs.base_path, db_rel_path=DB_REL)
         assert db_path.is_file()
 
         with sqlite3.connect(db_path) as conn:
@@ -30,13 +30,13 @@ class DatabaseTests:
         assert "sandboxes" in tables
 
     def test_init_is_idempotent(self, fs: FileSystem) -> None:
-        first = init_database(cwd=fs.base_path, db_rel_path=DB_REL)
-        second = init_database(cwd=fs.base_path, db_rel_path=DB_REL)
+        first = init_database(path=fs.base_path, db_rel_path=DB_REL)
+        second = init_database(path=fs.base_path, db_rel_path=DB_REL)
         assert first == second
         assert first.is_file()
 
     def test_record_and_aggregate(self, fs: FileSystem) -> None:
-        db = CostsRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = CostsRepository(path=fs.base_path, db_rel_path=DB_REL)
         row_id = db.record_token_usage(
             session_id="s1",
             branch_name="feature",
@@ -54,7 +54,7 @@ class DatabaseTests:
         assert totals["total_usd_cost"] == pytest.approx(0.01)
 
     def test_empty_session_totals(self, fs: FileSystem) -> None:
-        db = CostsRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = CostsRepository(path=fs.base_path, db_rel_path=DB_REL)
         db.init_db()
         totals = db.get_session_total_cost("missing")
         assert totals["total_tokens"] == 0
@@ -72,7 +72,7 @@ class SandboxDatabaseTests:
         name: str | None = "alpha",
         path_suffix: str = "a",
     ):
-        return SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL).insert(
+        return SandboxesRepository(path=fs.base_path, db_rel_path=DB_REL).insert(
             id=sandbox_id,
             branch_name=f"worktree/sandbox-{sandbox_id}",
             base_commit="abc123",
@@ -81,7 +81,7 @@ class SandboxDatabaseTests:
         )
 
     def test_insert_and_get_sandbox(self, fs: FileSystem) -> None:
-        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = SandboxesRepository(path=fs.base_path, db_rel_path=DB_REL)
         created = self._insert(fs)
         assert created.id == "sbx_a1b2c3d4"
         assert created.name == "alpha"
@@ -97,7 +97,7 @@ class SandboxDatabaseTests:
         assert loaded == created
 
     def test_insert_name_none_stores_null(self, fs: FileSystem) -> None:
-        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = SandboxesRepository(path=fs.base_path, db_rel_path=DB_REL)
         created = self._insert(fs, name=None)
         assert created.name is None
         loaded = db.get(created.id)
@@ -105,7 +105,7 @@ class SandboxDatabaseTests:
         assert loaded.name is None
 
     def test_insert_duplicate_id_raises(self, fs: FileSystem) -> None:
-        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = SandboxesRepository(path=fs.base_path, db_rel_path=DB_REL)
         self._insert(fs, sandbox_id="dup", path_suffix="one")
         with pytest.raises(ValueError, match="dup"):
             self._insert(fs, sandbox_id="dup", path_suffix="two")
@@ -115,11 +115,11 @@ class SandboxDatabaseTests:
         assert len(listed) == 1
 
     def test_get_sandbox_missing_returns_none(self, fs: FileSystem) -> None:
-        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = SandboxesRepository(path=fs.base_path, db_rel_path=DB_REL)
         assert db.get("missing") is None
 
     def test_list_sandboxes_order_and_filter(self, fs: FileSystem) -> None:
-        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = SandboxesRepository(path=fs.base_path, db_rel_path=DB_REL)
         first = self._insert(fs, sandbox_id="sbx_first", path_suffix="1")
         second = self._insert(fs, sandbox_id="sbx_second", path_suffix="2", name="beta")
         import sqlite3
@@ -143,11 +143,11 @@ class SandboxDatabaseTests:
         assert empty == []
 
     def test_list_sandboxes_empty(self, fs: FileSystem) -> None:
-        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = SandboxesRepository(path=fs.base_path, db_rel_path=DB_REL)
         assert db.list() == []
 
     def test_update_sandbox_status(self, fs: FileSystem) -> None:
-        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = SandboxesRepository(path=fs.base_path, db_rel_path=DB_REL)
         created = self._insert(fs)
         original_updated = created.updated_at
         import sqlite3
@@ -168,18 +168,18 @@ class SandboxDatabaseTests:
         assert loaded.status == SandboxStatus.MERGED
 
     def test_update_sandbox_status_missing(self, fs: FileSystem) -> None:
-        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = SandboxesRepository(path=fs.base_path, db_rel_path=DB_REL)
         assert db.update_status("missing", SandboxStatus.CLEANED) is None
 
     def test_delete_sandbox_row(self, fs: FileSystem) -> None:
-        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = SandboxesRepository(path=fs.base_path, db_rel_path=DB_REL)
         created = self._insert(fs)
         assert db.delete(created.id)
         assert db.get(created.id) is None
         assert not db.delete(created.id)
 
     def test_helpers_auto_init_database(self, fs: FileSystem) -> None:
-        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = SandboxesRepository(path=fs.base_path, db_rel_path=DB_REL)
         created = db.insert(
             id="sbx_auto",
             branch_name="worktree/sandbox-sbx_auto",

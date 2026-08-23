@@ -79,7 +79,7 @@ class TestProgrammaticMigrations:
         assert version_row is not None
 
     def test_resolve_db_path_helper(self, tmp_path: Path) -> None:
-        resolved = resolve_db_path(cwd=tmp_path, db_rel_path=".custom/my.db")
+        resolved = resolve_db_path(path=tmp_path, db_rel_path=".custom/my.db")
         assert resolved == (tmp_path / ".custom/my.db").resolve()
         assert resolved.parent.is_dir()
 
@@ -88,7 +88,7 @@ class TestBaseRepository:
     """Tests for BaseRepository lazy initialization and session lifecycle."""
 
     def test_base_repository_lazy_init_and_session(self, fs: FileSystem) -> None:
-        repo = BaseRepository(cwd=fs.base_path, db_rel_path=".worktree/custom.db")
+        repo = BaseRepository(path=fs.base_path, db_rel_path=".worktree/custom.db")
 
         with repo.session() as session:
             sandbox = SandboxRecord(
@@ -108,6 +108,6 @@ class TestBaseRepository:
             assert loaded.path == fs.base_path / "sandboxes" / "sb_base_repo"
 
     def test_base_repository_explicit_init_db(self, fs: FileSystem) -> None:
-        repo = BaseRepository(cwd=fs.base_path, auto_init=False)
+        repo = BaseRepository(path=fs.base_path, auto_init=False)
         db_path = repo.init_db()
         assert db_path.is_file()

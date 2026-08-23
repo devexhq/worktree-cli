@@ -1,4 +1,4 @@
-"""Database migration execution and database initialization logic."""
+"""Database migration routines using Alembic programmatic API."""
 
 from pathlib import Path
 
@@ -12,12 +12,18 @@ from worktree.core.db.connection import (
 
 
 def init_database(
-    cwd: Path | None = None,
+    path: Path | None = None,
     db_rel_path: str = DEFAULT_DB_REL_PATH,
     db_path: Path | None = None,
 ) -> Path:
     """Run table migrations and initialize local SQLite database layout."""
-    target_path = db_path if db_path is not None else resolve_db_path(cwd, db_rel_path)
+    if db_path is not None:
+        target_path = db_path
+    elif path is not None:
+        target_path = resolve_db_path(path, db_rel_path)
+    else:
+        raise ValueError("Either path or db_path must be provided to init_database.")
+
     target_path.parent.mkdir(parents=True, exist_ok=True)
 
     alembic_cfg = Config()

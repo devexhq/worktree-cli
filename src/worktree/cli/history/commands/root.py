@@ -1,11 +1,11 @@
+from worktree.cli.context import Context
 from worktree.common.utils import RichOutput
-from worktree.core.config.models import CliContext
 from worktree.core.history import HistoryListResult, HistoryListService
 
 
 def history_root_command(
     *,
-    cli_ctx: CliContext,
+    context: Context,
     limit: int = 20,
     status: str | None = None,
     kind: str | None = None,
@@ -13,7 +13,8 @@ def history_root_command(
 ) -> HistoryListResult:
     """Execute history list query and render results to console."""
     return HistoryListService(
-        cli_ctx=cli_ctx,
+        path=context.cwd,
+        db=context.db.runs,
         limit=limit,
         status=status,
         kind=kind,

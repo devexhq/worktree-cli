@@ -11,6 +11,7 @@ from typer.testing import CliRunner
 
 from tests.helpers import GitFileSystem, make_rich_output, seed_sandbox
 from worktree.cli import app
+from worktree.cli.context import get_cli_context
 from worktree.cli.sandbox.commands.sandbox_show import (
     collect_sandbox_show,
     sandbox_show_command,
@@ -21,7 +22,6 @@ from worktree.cli.sandbox.renderers import (
     render_sandbox_not_found,
     render_sandbox_show,
 )
-from worktree.core.context import get_cli_context
 from worktree.core.db import (
     SandboxesRepository,
     SandboxRecord,
@@ -36,7 +36,7 @@ class SandboxShowCollectTests:
     """Tests for collect_sandbox_show (data path, no Rich width coupling)."""
 
     def test_not_initialized(self, git_fs: GitFileSystem) -> None:
-        result = collect_sandbox_show("sbx_any", cli_ctx=get_cli_context(cwd=git_fs.base_path))
+        result = collect_sandbox_show("sbx_any", context=get_cli_context(cwd=git_fs.base_path))
         assert result.status is SandboxShowStatus.NOT_INITIALIZED
         assert not result.ok
         assert result.errors
@@ -48,7 +48,7 @@ class SandboxShowCollectTests:
         config_path.parent.mkdir(parents=True, exist_ok=True)
         config_path.write_text("{not-json", encoding="utf-8")
 
-        result = collect_sandbox_show("sbx_any", cli_ctx=get_cli_context(cwd=git_fs.base_path))
+        result = collect_sandbox_show("sbx_any", context=get_cli_context(cwd=git_fs.base_path))
         assert result.status is SandboxShowStatus.NOT_INITIALIZED
         assert not result.ok
         assert result.errors
@@ -56,7 +56,7 @@ class SandboxShowCollectTests:
 
     def test_not_found(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        result = collect_sandbox_show("sbx_missing", cli_ctx=get_cli_context(cwd=git_fs.base_path))
+        result = collect_sandbox_show("sbx_missing", context=get_cli_context(cwd=git_fs.base_path))
         assert result.status is SandboxShowStatus.NOT_FOUND
         assert not result.ok
         assert result.sandbox is None
@@ -92,7 +92,7 @@ class SandboxShowCollectTests:
             assert updated is not None
             created = updated
 
-        result = collect_sandbox_show(created.id, cli_ctx=get_cli_context(cwd=git_fs.base_path))
+        result = collect_sandbox_show(created.id, context=get_cli_context(cwd=git_fs.base_path))
         assert result.status is SandboxShowStatus.OK
         assert result.ok
         assert result.sandbox is not None
@@ -111,7 +111,7 @@ class SandboxShowCollectTests:
         )
         assert not Path(stale.sandbox_path).exists()
 
-        result = collect_sandbox_show(stale.id, cli_ctx=get_cli_context(cwd=git_fs.base_path))
+        result = collect_sandbox_show(stale.id, context=get_cli_context(cwd=git_fs.base_path))
         assert result.status is SandboxShowStatus.OK
         assert result.ok
         assert result.sandbox is not None
@@ -135,7 +135,7 @@ class SandboxShowCollectTests:
             SandboxStatus.MERGED,
         )
 
-        result = collect_sandbox_show(created.id, cli_ctx=get_cli_context(cwd=git_fs.base_path))
+        result = collect_sandbox_show(created.id, context=get_cli_context(cwd=git_fs.base_path))
         assert result.ok
         assert result.sandbox is not None
         assert result.sandbox.status is SandboxStatus.MERGED
@@ -231,7 +231,7 @@ class SandboxShowCommandDirectTests:
         monkeypatch.chdir(git_fs.base_path)
 
         with pytest.raises(typer.Exit) as exc_info:
-            sandbox_show_command("sbx_any", cli_ctx=get_cli_context(cwd=git_fs.base_path))
+            sandbox_show_command("sbx_any", context=get_cli_context(cwd=git_fs.base_path))
         assert exc_info.value.exit_code == 1
 
         out = capsys.readouterr().out
@@ -248,7 +248,7 @@ class SandboxShowCommandDirectTests:
         git_fs.init_repo()
 
         with pytest.raises(typer.Exit) as exc_info:
-            sandbox_show_command("sbx_missing", cli_ctx=get_cli_context(cwd=git_fs.base_path))
+            sandbox_show_command("sbx_missing", context=get_cli_context(cwd=git_fs.base_path))
         assert exc_info.value.exit_code == 1
         out = capsys.readouterr().out
         assert "Sandbox Not Found" in out
@@ -264,7 +264,7 @@ class SandboxShowCommandDirectTests:
         created = seed_sandbox(git_fs.base_path, sandbox_id="sbx_one", path_suffix="1")
 
         with pytest.raises(typer.Exit) as exc_info:
-            sandbox_show_command(created.id, cli_ctx=get_cli_context(cwd=git_fs.base_path))
+            sandbox_show_command(created.id, context=get_cli_context(cwd=git_fs.base_path))
         assert exc_info.value.exit_code == 0
         out = capsys.readouterr().out
         assert created.id in out
@@ -287,7 +287,7 @@ class SandboxShowCommandDirectTests:
         )
 
         with pytest.raises(typer.Exit) as exc_info:
-            sandbox_show_command(stale.id, cli_ctx=get_cli_context(cwd=git_fs.base_path))
+            sandbox_show_command(stale.id, context=get_cli_context(cwd=git_fs.base_path))
         assert exc_info.value.exit_code == 0
         out = capsys.readouterr().out
         assert "cleaned" in out

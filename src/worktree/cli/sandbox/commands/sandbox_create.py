@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import typer
 
-from worktree.core.config.models import CliContext
+from worktree.cli.context import Context
 from worktree.core.git_sandbox import GitSandboxManager
 
 from ..renderers import (
@@ -18,7 +18,7 @@ def sandbox_create_command(
     base_ref: str | None = None,
     wip: bool = False,
     *,
-    cli_ctx: CliContext,
+    context: Context,
 ) -> None:
     """Create an isolated git worktree sandbox.
 
@@ -30,9 +30,9 @@ def sandbox_create_command(
         name: Optional human-readable sandbox name.
         base_ref: Optional git ref override for worktree creation.
         wip: When True, overlay uncommitted working-tree changes.
-        cli_ctx: CLI context instance.
+        context: CLI context instance.
     """
-    result = GitSandboxManager(cwd=cli_ctx.cwd, db=cli_ctx.db).create_sandbox_result(
+    result = GitSandboxManager(path=context.cwd, db=context.db.sandboxes).create_sandbox_result(
         name=name,
         base_ref=base_ref,
         include_wip=wip,
@@ -44,6 +44,6 @@ def sandbox_create_command(
     render_sandbox_create_success(
         result.session,
         warnings=result.warnings,
-        cwd=cli_ctx.cwd,
+        cwd=context.cwd,
     )
     raise typer.Exit(code=0)

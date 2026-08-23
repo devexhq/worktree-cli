@@ -43,7 +43,7 @@ def _seed_paused_workflow(git_fs: GitFileSystem, session_id: str, checkpoint: Ru
             {"id": "later", "run": "echo later"},
         ],
     )
-    scan_and_index_catalog(cwd=git_fs.base_path)
+    scan_and_index_catalog(path=git_fs.base_path)
     db = RunsRepository(git_fs.base_path)
     db.create(session_id=session_id, blueprint_name="resume-demo", kind=BlueprintKind.WORKFLOW, branch_name="wt/resume")
     db.save_pause(session_id, checkpoint.model_dump_json(), checkpoint.diagnostic)

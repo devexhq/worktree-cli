@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from worktree.core.db import RunStatus
+from worktree.core.db import RunStatus, SandboxesRepository
 from worktree.core.git_sandbox import GitSandboxManager, SandboxSession
 from worktree.core.runtime.exceptions import PromptUserInterruptedError
 from worktree.core.runtime.failure import (
@@ -67,7 +67,7 @@ def _setup_resumed_sandbox(
         return context.cwd.resolve(), None, None, f"Git sandbox is missing: {path}"
 
     session = _session_from_checkpoint(checkpoint, path)
-    manager = GitSandboxManager(cwd=context.cwd.resolve())
+    manager = GitSandboxManager(context.cwd.resolve(), db=SandboxesRepository(context.cwd.resolve()))
     _notify_sandbox_ready(context, path, active=True)
     return path, manager, session, None
 
@@ -89,7 +89,7 @@ def _setup_sandbox(
         _notify_sandbox_ready(context, target_dir, active=False)
         return target_dir, None, None, None
 
-    manager = GitSandboxManager(cwd=context.cwd.resolve())
+    manager = GitSandboxManager(context.cwd.resolve(), db=SandboxesRepository(context.cwd.resolve()))
     create_result = manager.create_sandbox_result()
     if not create_result.ok or create_result.session is None:
         detail = create_result.errors[0] if create_result.errors else "Sandbox creation failed."

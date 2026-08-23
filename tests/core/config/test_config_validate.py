@@ -40,7 +40,7 @@ class ValidateConfigResultSuccessTests:
         config_path = fs.base_path / ".worktree" / "config.json"
         config_path.parent.mkdir(parents=True)
         assert generate_default_config(config_path, "demo").ok
-        result = validate_config_result(cwd=fs.base_path)
+        result = validate_config_result(path=fs.base_path)
         assert result.status == ConfigValidationStatus.VALID
         assert result.ok
         assert result.config_path == config_path.resolve()
@@ -56,7 +56,7 @@ class ValidateConfigResultSuccessTests:
         alt = fs.base_path / "elsewhere" / "config.json"
         alt.parent.mkdir(parents=True)
         assert generate_default_config(alt, "alt-demo").ok
-        result = validate_config_result(cwd=fs.base_path, config_path=alt)
+        result = validate_config_result(path=fs.base_path, config_path=alt)
         assert result.ok
         assert result.config is not None
         assert result.config.project.name == "alt-demo"
@@ -67,7 +67,7 @@ class ValidateConfigResultLoadFailureTests:
     """IO/parse failure passthrough from the loader stack."""
 
     def test_not_found(self, fs: FileSystem) -> None:
-        result = validate_config_result(cwd=fs.base_path)
+        result = validate_config_result(path=fs.base_path)
         assert result.status == ConfigValidationStatus.NOT_FOUND
         assert not result.ok
         assert result.config is None
@@ -80,7 +80,7 @@ class ValidateConfigResultLoadFailureTests:
 
     def test_malformed_json(self, fs: FileSystem) -> None:
         path = _write_config(fs.base_path / ".worktree" / "config.json", "{not-json")
-        result = validate_config_result(cwd=fs.base_path)
+        result = validate_config_result(path=fs.base_path)
         assert result.status == ConfigValidationStatus.MALFORMED_JSON
         assert not result.ok
         assert result.warnings == []
@@ -89,7 +89,7 @@ class ValidateConfigResultLoadFailureTests:
 
     def test_root_not_object(self, fs: FileSystem) -> None:
         _write_config(fs.base_path / ".worktree" / "config.json", [])
-        result = validate_config_result(cwd=fs.base_path)
+        result = validate_config_result(path=fs.base_path)
         assert result.status == ConfigValidationStatus.ROOT_NOT_OBJECT
         assert not result.ok
         assert result.warnings == []
@@ -98,7 +98,7 @@ class ValidateConfigResultLoadFailureTests:
     def test_path_is_directory(self, fs: FileSystem) -> None:
         path = fs.base_path / ".worktree" / "config.json"
         path.mkdir(parents=True)
-        result = validate_config_result(cwd=fs.base_path)
+        result = validate_config_result(path=fs.base_path)
         assert result.status == ConfigValidationStatus.PATH_IS_DIRECTORY
         assert not result.ok
         assert result.warnings == []
@@ -111,7 +111,7 @@ class ValidateConfigResultLoadFailureTests:
         )
         path.chmod(0)
         try:
-            result = validate_config_result(cwd=fs.base_path)
+            result = validate_config_result(path=fs.base_path)
             if os.access(path, os.R_OK):
                 pytest.skip("filesystem still allows reading unreadable mode")
             assert result.status == ConfigValidationStatus.UNREADABLE
@@ -124,7 +124,7 @@ class ValidateConfigResultLoadFailureTests:
     def test_schema_invalid_grouped(self, fs: FileSystem) -> None:
         raw = {"version": 1}
         _write_config(fs.base_path / ".worktree" / "config.json", raw)
-        result = validate_config_result(cwd=fs.base_path)
+        result = validate_config_result(path=fs.base_path)
         assert result.status == ConfigValidationStatus.INVALID
         assert not result.ok
         assert result.config is None
@@ -148,7 +148,7 @@ class ValidateConfigResultSemanticErrorTests:
         raw["paths"]["sessions_dir"] = ".worktree/sessions\nbad"
         raw["paths"]["db_path"] = ".worktree/token\x00audit.db"
         _write_config(fs.base_path / ".worktree" / "config.json", raw)
-        result = validate_config_result(cwd=fs.base_path)
+        result = validate_config_result(path=fs.base_path)
         assert result.status == ConfigValidationStatus.INVALID
         assert not result.ok
         assert len(result.errors) == 2
@@ -166,7 +166,7 @@ class ValidateConfigResultSemanticWarningTests:
         raw["agent"]["provider"] = "openai"
         raw["agent"]["model"] = None
         _write_config(fs.base_path / ".worktree" / "config.json", raw)
-        result = validate_config_result(cwd=fs.base_path)
+        result = validate_config_result(path=fs.base_path)
         assert result.status == ConfigValidationStatus.VALID
         assert result.ok
         assert result.config is not None
@@ -180,7 +180,7 @@ class ValidateConfigResultSemanticWarningTests:
         assert raw["agent"]["provider"] == "local"
         assert raw["agent"]["model"] is None
         _write_config(fs.base_path / ".worktree" / "config.json", raw)
-        result = validate_config_result(cwd=fs.base_path)
+        result = validate_config_result(path=fs.base_path)
         assert result.ok
         assert result.warnings == []
 
@@ -188,7 +188,7 @@ class ValidateConfigResultSemanticWarningTests:
         raw = build_default_config("demo")
         raw["agent"]["endpoint"] = "ftp://example.com/api"
         _write_config(fs.base_path / ".worktree" / "config.json", raw)
-        result = validate_config_result(cwd=fs.base_path)
+        result = validate_config_result(path=fs.base_path)
         assert result.ok
         assert result.errors == []
         assert any("CONFIG_WARN_AGENT_ENDPOINT" in w for w in result.warnings)
@@ -198,7 +198,7 @@ class ValidateConfigResultSemanticWarningTests:
         raw = build_default_config("demo")
         raw["agent"]["endpoint"] = None
         _write_config(fs.base_path / ".worktree" / "config.json", raw)
-        result = validate_config_result(cwd=fs.base_path)
+        result = validate_config_result(path=fs.base_path)
         assert result.ok
         assert not any("CONFIG_WARN_AGENT_ENDPOINT" in w for w in result.warnings)
 
@@ -206,7 +206,7 @@ class ValidateConfigResultSemanticWarningTests:
         raw = build_default_config("demo")
         raw["sandbox"]["max_active_sandboxes"] = 11
         _write_config(fs.base_path / ".worktree" / "config.json", raw)
-        result = validate_config_result(cwd=fs.base_path)
+        result = validate_config_result(path=fs.base_path)
         assert result.ok
         assert result.errors == []
         assert len(result.warnings) == 1
@@ -221,7 +221,7 @@ class ValidateConfigResultSemanticWarningTests:
         raw["agent"]["endpoint"] = "not-a-url"
         raw["sandbox"]["max_active_sandboxes"] = 20
         _write_config(fs.base_path / ".worktree" / "config.json", raw)
-        result = validate_config_result(cwd=fs.base_path)
+        result = validate_config_result(path=fs.base_path)
         assert result.ok
         assert len(result.warnings) == 3
         assert "CONFIG_WARN_AGENT_MODEL_MISSING" in result.warnings[0]
@@ -234,7 +234,7 @@ class ValidateConfigResultSemanticWarningTests:
         raw["agent"]["provider"] = "custom"
         raw["agent"]["model"] = None
         _write_config(fs.base_path / ".worktree" / "config.json", raw)
-        result = validate_config_result(cwd=fs.base_path)
+        result = validate_config_result(path=fs.base_path)
         assert result.status == ConfigValidationStatus.INVALID
         assert not result.ok
         assert result.config is None

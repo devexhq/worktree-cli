@@ -94,21 +94,21 @@ command: ruff check .
     )
 
     # Resolve by direct filename
-    step1 = load_step_by_id("step_lint", cwd=fs.base_path)
+    step1 = load_step_by_id("step_lint", path=fs.base_path)
     assert step1.id == "step_lint_id"
 
     # Resolve by id field
-    step2 = load_step_by_id("step_lint_id", cwd=fs.base_path)
+    step2 = load_step_by_id("step_lint_id", path=fs.base_path)
     assert step2.name == "run-lint"
 
     # Resolve by name slug
-    step3 = load_step_by_id("run-lint", cwd=fs.base_path)
+    step3 = load_step_by_id("run-lint", path=fs.base_path)
     assert step3.id == "step_lint_id"
 
 
 def test_load_step_by_id_missing_directory(fs: FileSystem):
     with pytest.raises(StepNotFoundError, match=r"Directory .* does not exist"):
-        load_step_by_id("step_test", cwd=fs.base_path)
+        load_step_by_id("step_test", path=fs.base_path)
 
 
 def test_load_step_by_id_not_found(fs: FileSystem):
@@ -124,7 +124,7 @@ command: echo other
     )
 
     with pytest.raises(StepNotFoundError, match="not found in"):
-        load_step_by_id("nonexistent_step", cwd=fs.base_path)
+        load_step_by_id("nonexistent_step", path=fs.base_path)
 
 
 def test_load_step_definition_returns_step_definition_instance(fs: FileSystem):
@@ -142,9 +142,9 @@ def test_packaged_step_seeds_validate_as_step_definition():
 
 
 def test_load_step_by_id_resolves_wt_prefix_after_seed(fs: FileSystem):
-    seed_catalog_templates(CatalogItemType.STEP, cwd=fs.base_path)
+    seed_catalog_templates(CatalogItemType.STEP, path=fs.base_path)
 
-    step = load_step_by_id("wt/ai-code-patcher", cwd=fs.base_path)
+    step = load_step_by_id("wt/ai-code-patcher", path=fs.base_path)
 
     assert step.id == "ai-code-patcher"
     assert step.type == StepType.AGENT
@@ -152,9 +152,9 @@ def test_load_step_by_id_resolves_wt_prefix_after_seed(fs: FileSystem):
 
 
 def test_load_step_by_id_scan_finds_wt_subdir_by_id(fs: FileSystem):
-    seed_catalog_templates(CatalogItemType.STEP, cwd=fs.base_path)
+    seed_catalog_templates(CatalogItemType.STEP, path=fs.base_path)
 
-    step = load_step_by_id("ai-code-patcher", cwd=fs.base_path)
+    step = load_step_by_id("ai-code-patcher", path=fs.base_path)
 
     assert step.id == "ai-code-patcher"
     assert step.type == StepType.AGENT
@@ -164,21 +164,21 @@ def test_load_step_by_id_wt_missing_step_error(fs: FileSystem):
     (fs.base_path / ".worktree" / "catalog" / "steps").mkdir(parents=True)
 
     with pytest.raises(StepNotFoundError, match=r"Step 'wt/ai-code-patcher' not found in"):
-        load_step_by_id("wt/ai-code-patcher", cwd=fs.base_path)
+        load_step_by_id("wt/ai-code-patcher", path=fs.base_path)
 
 
 def test_load_step_by_id_direct_invalid_yaml_raises(fs: FileSystem):
     fs.write_file(".worktree/catalog/steps/wt/broken.yml", "id: [unclosed")
 
     with pytest.raises(StepValidationError, match="Failed to read or parse YAML"):
-        load_step_by_id("wt/broken", cwd=fs.base_path)
+        load_step_by_id("wt/broken", path=fs.base_path)
 
 
 def test_resolve_uses_wt_ai_code_patcher_after_seed(fs: FileSystem):
-    seed_catalog_templates(CatalogItemType.STEP, cwd=fs.base_path)
+    seed_catalog_templates(CatalogItemType.STEP, path=fs.base_path)
     step = StepDefinition(id="ai-fix", uses="wt/ai-code-patcher")
 
-    resolved = resolve_step_definition(step, cwd=fs.base_path)
+    resolved = resolve_step_definition(step, path=fs.base_path)
 
     assert resolved.id == "ai-fix"
     assert resolved.type == StepType.AGENT

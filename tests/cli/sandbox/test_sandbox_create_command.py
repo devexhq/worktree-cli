@@ -14,12 +14,12 @@ from typer.testing import CliRunner
 
 from tests.helpers import FileSystem, GitFileSystem, make_rich_output
 from worktree.cli import app
+from worktree.cli.context import get_cli_context
 from worktree.cli.sandbox.commands.sandbox_create import sandbox_create_command
 from worktree.cli.sandbox.renderers import (
     render_sandbox_create_failed,
     render_sandbox_create_success,
 )
-from worktree.core.context import get_cli_context
 from worktree.core.db import SandboxesRepository, SandboxStatus
 from worktree.core.git_sandbox import (
     SandboxCreateResult,
@@ -105,7 +105,7 @@ class SandboxCreateCommandDirectTests:
         git_fs.init_repo()
 
         with pytest.raises(typer.Exit) as exc_info:
-            sandbox_create_command(cli_ctx=get_cli_context(cwd=git_fs.base_path))
+            sandbox_create_command(context=get_cli_context(cwd=git_fs.base_path))
         assert exc_info.value.exit_code == 0
         out = capsys.readouterr().out
         assert "Sandbox created:" in out
@@ -126,7 +126,7 @@ class SandboxCreateCommandDirectTests:
         git_fs.init_repo()
 
         with pytest.raises(typer.Exit) as exc_info:
-            sandbox_create_command(name="  demo  ", cli_ctx=get_cli_context(cwd=git_fs.base_path))
+            sandbox_create_command(name="  demo  ", context=get_cli_context(cwd=git_fs.base_path))
         assert exc_info.value.exit_code == 0
         rows = SandboxesRepository(git_fs.base_path).list()
         assert len(rows) == 1
@@ -171,7 +171,7 @@ class SandboxCreateCommandDirectTests:
         ).stdout.strip()
 
         with pytest.raises(typer.Exit) as exc_info:
-            sandbox_create_command(base_ref="feature", cli_ctx=get_cli_context(cwd=git_fs.base_path))
+            sandbox_create_command(base_ref="feature", context=get_cli_context(cwd=git_fs.base_path))
         assert exc_info.value.exit_code == 0
         rows = SandboxesRepository(git_fs.base_path).list()
         assert len(rows) == 1
@@ -188,7 +188,7 @@ class SandboxCreateCommandDirectTests:
         (git_fs.base_path / "new.txt").write_text("untracked\n", encoding="utf-8")
 
         with pytest.raises(typer.Exit) as exc_info:
-            sandbox_create_command(wip=True, cli_ctx=get_cli_context(cwd=git_fs.base_path))
+            sandbox_create_command(wip=True, context=get_cli_context(cwd=git_fs.base_path))
         assert exc_info.value.exit_code == 0
         rows = SandboxesRepository(git_fs.base_path).list()
         assert len(rows) == 1
@@ -227,7 +227,7 @@ class SandboxCreateCommandDirectTests:
         )
 
         with pytest.raises(typer.Exit) as exc_info:
-            sandbox_create_command(cli_ctx=get_cli_context(cwd=git_fs.base_path))
+            sandbox_create_command(context=get_cli_context(cwd=git_fs.base_path))
         assert exc_info.value.exit_code == 1
         out = capsys.readouterr().out
         assert "Sandbox Create Failed" in out
@@ -256,7 +256,7 @@ class SandboxCreateCommandDirectTests:
         )
 
         with pytest.raises(typer.Exit) as exc_info:
-            sandbox_create_command(cli_ctx=get_cli_context(cwd=git_fs.base_path))
+            sandbox_create_command(context=get_cli_context(cwd=git_fs.base_path))
         assert exc_info.value.exit_code == 0
         out = capsys.readouterr().out
         assert "Sandbox created: sbx_warnok" in out

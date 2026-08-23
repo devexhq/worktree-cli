@@ -48,7 +48,7 @@ class GitSandboxManagerTests:
 
     def test_create_and_cleanup(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        manager = GitSandboxManager(cwd=git_fs.base_path)
+        manager = GitSandboxManager(path=git_fs.base_path)
         result = manager.create_sandbox_result(session_id="sbx_test1")
         assert result.ok
         assert result.status == SandboxCreateStatus.OK
@@ -63,14 +63,14 @@ class GitSandboxManagerTests:
 
     def test_create_sandbox_wrapper_raises(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        manager = GitSandboxManager(cwd=git_fs.base_path)
+        manager = GitSandboxManager(path=git_fs.base_path)
         session = manager.create_sandbox(session_id="sbx_wrap")
         assert session.session_id == "sbx_wrap"
         manager.cleanup_sandbox(session)
 
     def test_default_session_id_pattern(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        manager = GitSandboxManager(cwd=git_fs.base_path)
+        manager = GitSandboxManager(path=git_fs.base_path)
         session = manager.create_sandbox()
         assert re.fullmatch(r"sbx_[0-9a-f]{8}", session.session_id)
         assert session.target_branch == f"worktree/sandbox-{session.session_id}"
@@ -78,7 +78,7 @@ class GitSandboxManagerTests:
 
     def test_get_active_sandboxes_dirs_only(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        manager = GitSandboxManager(cwd=git_fs.base_path)
+        manager = GitSandboxManager(path=git_fs.base_path)
         assert manager.get_active_sandboxes() == []
         manager.sandbox_base_dir.mkdir(parents=True, exist_ok=True)
         (manager.sandbox_base_dir / "note.txt").write_text("x\n", encoding="utf-8")
@@ -95,7 +95,7 @@ class GitSandboxManagerTests:
         data["sandbox"]["max_active_sandboxes"] = 1
         config_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
-        manager = GitSandboxManager(cwd=git_fs.base_path)
+        manager = GitSandboxManager(path=git_fs.base_path)
         first = manager.create_sandbox(session_id="sbx_a")
         second = manager.create_sandbox_result(session_id="sbx_b")
         assert not second.ok
@@ -110,7 +110,7 @@ class GitSandboxManagerTests:
 
     def test_not_initialized(self, fs: FileSystem) -> None:
         _init_git_repo(fs.base_path)
-        manager = GitSandboxManager(cwd=fs.base_path)
+        manager = GitSandboxManager(path=fs.base_path)
         result = manager.create_sandbox_result(session_id="sbx_x")
         assert result.status == SandboxCreateStatus.NOT_INITIALIZED
         assert "SANDBOX_NOT_INITIALIZED" in result.errors[0]
@@ -120,7 +120,7 @@ class GitSandboxManagerTests:
         git_fs.init_repo()
         config_path = git_fs.base_path / ".worktree" / "config.json"
         config_path.write_text("{ not-json\n", encoding="utf-8")
-        manager = GitSandboxManager(cwd=git_fs.base_path)
+        manager = GitSandboxManager(path=git_fs.base_path)
         result = manager.create_sandbox_result(session_id="sbx_badcfg")
         assert result.status == SandboxCreateStatus.UNREADABLE_CONFIG
         assert "SANDBOX_CONFIG_UNREADABLE" in result.errors[0]
@@ -139,7 +139,7 @@ class GitSandboxManagerTests:
             check=True,
             capture_output=True,
         )
-        manager = GitSandboxManager(cwd=git_fs.base_path)
+        manager = GitSandboxManager(path=git_fs.base_path)
         result = manager.create_sandbox_result(session_id="sbx_badref")
         assert result.status == SandboxCreateStatus.GIT_FAILED
         assert result.session is None
@@ -148,7 +148,7 @@ class GitSandboxManagerTests:
 
     def test_git_timeout_on_worktree_add(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         git_fs.init_repo()
-        manager = GitSandboxManager(cwd=git_fs.base_path)
+        manager = GitSandboxManager(path=git_fs.base_path)
 
         def _timeout(*_args: object, **_kwargs: object) -> object:
             raise subprocess.TimeoutExpired(cmd=["git", "worktree", "add"], timeout=120)
@@ -163,14 +163,14 @@ class GitSandboxManagerTests:
 
     def test_cleanup_idempotent(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        manager = GitSandboxManager(cwd=git_fs.base_path)
+        manager = GitSandboxManager(path=git_fs.base_path)
         session = manager.create_sandbox(session_id="sbx_idemp")
         manager.cleanup_sandbox(session)
         manager.cleanup_sandbox(session)  # must not raise
 
     def test_config_property_none_until_create_loads(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        manager = GitSandboxManager(cwd=git_fs.base_path)
+        manager = GitSandboxManager(path=git_fs.base_path)
         assert manager.config is None
         session = manager.create_sandbox(session_id="sbx_cfg")
         assert manager.config is not None
@@ -178,7 +178,7 @@ class GitSandboxManagerTests:
 
     def test_cleanup_missing_path_and_branch(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        manager = GitSandboxManager(cwd=git_fs.base_path)
+        manager = GitSandboxManager(path=git_fs.base_path)
         ghost = SandboxSession(
             session_id="sbx_ghost",
             target_branch="worktree/sandbox-sbx_ghost",
@@ -190,7 +190,7 @@ class GitSandboxManagerTests:
 
     def test_base_ref_uses_current_branch(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        manager = GitSandboxManager(cwd=git_fs.base_path)
+        manager = GitSandboxManager(path=git_fs.base_path)
         session = manager.create_sandbox(session_id="sbx_br")
         head = subprocess.run(
             ["git", "rev-parse", "--abbrev-ref", "HEAD"],
@@ -223,7 +223,7 @@ class GitSandboxManagerTests:
         (git_fs.base_path / "f.txt").write_text("dirty\n", encoding="utf-8")
         (git_fs.base_path / "new.txt").write_text("untracked\n", encoding="utf-8")
 
-        manager = GitSandboxManager(cwd=git_fs.base_path)
+        manager = GitSandboxManager(path=git_fs.base_path)
         clean = manager.create_sandbox_result(session_id="sbx_nowip")
         assert clean.ok and clean.session is not None
         assert clean.session.wip_applied is False
@@ -243,7 +243,7 @@ class GitSandboxManagerTests:
     def test_include_wip_deletes_removed_tracked_file(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
         (git_fs.base_path / "f.txt").unlink()
-        manager = GitSandboxManager(cwd=git_fs.base_path)
+        manager = GitSandboxManager(path=git_fs.base_path)
         result = manager.create_sandbox_result(session_id="sbx_del", include_wip=True)
         assert result.ok and result.session is not None
         assert "f.txt" in result.session.wip_paths
@@ -259,7 +259,7 @@ class GitSandboxManagerTests:
             capture_output=True,
             text=True,
         ).stdout.strip()
-        manager = GitSandboxManager(cwd=git_fs.base_path)
+        manager = GitSandboxManager(path=git_fs.base_path)
         result = manager.create_sandbox_result(session_id="sbx_base")
         assert result.ok and result.session is not None
         assert result.session.base_commit == expected
@@ -267,7 +267,7 @@ class GitSandboxManagerTests:
 
     def test_name_threading_and_whitespace_normalization(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        manager = GitSandboxManager(cwd=git_fs.base_path)
+        manager = GitSandboxManager(path=git_fs.base_path)
         named = manager.create_sandbox_result(session_id="sbx_name", name="  demo  ")
         assert named.ok and named.session is not None
         assert named.session.name == "demo"
@@ -323,7 +323,7 @@ class GitSandboxManagerTests:
         ).stdout.strip()
         assert other_tip != feature_tip
 
-        manager = GitSandboxManager(cwd=git_fs.base_path)
+        manager = GitSandboxManager(path=git_fs.base_path)
         # On branch other; override back to feature tip.
         overridden = manager.create_sandbox_result(
             session_id="sbx_override",
@@ -350,7 +350,7 @@ class GitSandboxManagerTests:
 
     def test_persists_active_row_on_create(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        manager = GitSandboxManager(cwd=git_fs.base_path)
+        manager = GitSandboxManager(path=git_fs.base_path)
         result = manager.create_sandbox_result(session_id="sbx_db1", name="persist-me")
         assert result.ok and result.session is not None
         assert result.warnings == []
@@ -365,7 +365,7 @@ class GitSandboxManagerTests:
 
     def test_marks_cleaned_on_cleanup(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        manager = GitSandboxManager(cwd=git_fs.base_path)
+        manager = GitSandboxManager(path=git_fs.base_path)
         session = manager.create_sandbox(session_id="sbx_db2")
         assert SandboxesRepository(git_fs.base_path).get("sbx_db2") is not None
         manager.cleanup_sandbox(session)
@@ -380,7 +380,7 @@ class GitSandboxManagerTests:
             raise RuntimeError("db locked")
 
         monkeypatch.setattr("worktree.core.db.repositories.sandboxes.SandboxesRepository.insert", _boom)
-        manager = GitSandboxManager(cwd=git_fs.base_path)
+        manager = GitSandboxManager(path=git_fs.base_path)
         result = manager.create_sandbox_result(session_id="sbx_warn")
         assert result.ok and result.session is not None
         assert result.session.sandbox_path.is_dir()
@@ -391,7 +391,7 @@ class GitSandboxManagerTests:
 
     def test_cleanup_without_db_row_does_not_raise(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        manager = GitSandboxManager(cwd=git_fs.base_path)
+        manager = GitSandboxManager(path=git_fs.base_path)
         ghost = SandboxSession(
             session_id="sbx_norow",
             target_branch="worktree/sandbox-sbx_norow",
@@ -403,7 +403,7 @@ class GitSandboxManagerTests:
 
     def test_rev_parse_failure_is_git_failed(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         git_fs.init_repo()
-        manager = GitSandboxManager(cwd=git_fs.base_path)
+        manager = GitSandboxManager(path=git_fs.base_path)
         real_run = subprocess.run
 
         def _run(cmd: list[str], *args: object, **kwargs: object) -> object:

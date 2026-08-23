@@ -228,7 +228,7 @@ def test_resume_omitted_blueprint_loads_from_catalog(monkeypatch: pytest.MonkeyP
             {"id": "later", "run": "echo later"},
         ],
     )
-    scan_and_index_catalog(cwd=fs.base_path)
+    scan_and_index_catalog(path=fs.base_path)
     _seed_paused_task(fs, "task_catalog", _checkpoint())
     captured: dict[str, RunContext] = {}
 
@@ -299,7 +299,7 @@ def test_resumable_run_load_is_resumable(fs: FileSystem) -> None:
     checkpoint = _checkpoint()
     _seed_paused_task(fs, "task_ready", checkpoint)
 
-    handle = ResumableRun.load("task_ready", _task_blueprint(), cwd=fs.base_path)
+    handle = ResumableRun.load("task_ready", _task_blueprint(), path=fs.base_path)
 
     assert handle.is_resumable is True
     assert handle.status is EngineResumeStatus.OK
@@ -308,7 +308,7 @@ def test_resumable_run_load_is_resumable(fs: FileSystem) -> None:
 
 
 def test_resumable_run_load_not_resumable(fs: FileSystem) -> None:
-    handle = ResumableRun.load("missing", _task_blueprint(), cwd=fs.base_path)
+    handle = ResumableRun.load("missing", _task_blueprint(), path=fs.base_path)
 
     assert handle.is_resumable is False
     assert handle.status is EngineResumeStatus.NOT_FOUND

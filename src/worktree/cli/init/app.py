@@ -1,7 +1,7 @@
 import typer
 
+from worktree.cli.context import get_cli_context
 from worktree.common.version import get_version
-from worktree.core.context import get_cli_context
 
 from .commands.root import init_command
 
@@ -23,5 +23,5 @@ def init_callback(
     ),
 ):
     """Provision a secure local hidden folder path and tracking schemas."""
-    cli_ctx = get_cli_context()
-    init_command(cli_ctx=cli_ctx, tool_version=get_version(), overwrite=overwrite, repair=repair)
+    context = get_cli_context()
+    init_command(context=context, tool_version=get_version(), overwrite=overwrite, repair=repair)

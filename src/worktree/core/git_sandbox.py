@@ -12,10 +12,10 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from worktree.common.constants import GIT_SUBPROCESS_TIMEOUT_SECONDS
-from worktree.core.config.context import get_current_git_branch
+from worktree.common.git import get_current_git_branch
 from worktree.core.config.loader import ConfigLoadStatus, load_config_result
 from worktree.core.config.models import WorktreeConfig
-from worktree.core.db import SandboxStatus, WorktreeDb
+from worktree.core.db import SandboxesRepository, SandboxStatus
 
 
 class GitPlumbingTimeoutError(RuntimeError):
@@ -190,18 +190,19 @@ class GitSandboxManager:
 
     def __init__(
         self,
-        cwd: Path | None = None,
-        db: WorktreeDb | None = None,
+        path: Path,
+        db: SandboxesRepository | None = None,
     ) -> None:
         """Bind to an absolute repository root.
 
         Args:
-            cwd: Repository root. Defaults to the process current directory.
-            db: Optional WorktreeDb instance.
+            path: Repository root.
+            db: Optional SandboxesRepository instance.
         """
-        self.cwd = (cwd or Path.cwd()).expanduser().resolve()
-        self.sandbox_base_dir = self.cwd / ".worktree" / "sandboxes"
-        self.db = db or WorktreeDb(self.cwd)
+        self.path = path.expanduser().resolve()
+        self.cwd = self.path
+        self.sandbox_base_dir = self.path / ".worktree" / "sandboxes"
+        self.db = db if db is not None else SandboxesRepository(self.path)
         self._config: WorktreeConfig | None = None
 
     @property
@@ -291,7 +292,7 @@ class GitSandboxManager:
             ``(error_result, None)`` when config is missing or unreadable,
             ``(None, config)`` on success.
         """
-        load = load_config_result(cwd=self.cwd)
+        load = load_config_result(path=self.path)
         if load.status == ConfigLoadStatus.NOT_FOUND:
             return (
                 SandboxCreateResult(
@@ -467,7 +468,7 @@ class GitSandboxManager:
     def _persist_sandbox_session(self, session: SandboxSession) -> list[str]:
         """Insert *session* into the local DB; return any warning messages."""
         try:
-            self.db.sandboxes.insert(
+            self.db.insert(
                 id=session.session_id,
                 name=session.name,
                 branch_name=session.target_branch,
@@ -674,7 +675,7 @@ class GitSandboxManager:
                 shutil.rmtree(session.sandbox_path, ignore_errors=True)
 
         try:
-            self.db.sandboxes.update_status(
+            self.db.update_status(
                 session.session_id,
                 SandboxStatus.CLEANED,
             )

@@ -13,7 +13,7 @@ from typer.testing import CliRunner
 from tests.helpers import GitFileSystem
 from worktree.cli import app
 from worktree.cli.config.commands.config_set import config_set_command
-from worktree.core.context import get_cli_context
+from worktree.cli.context import get_cli_context
 
 runner = CliRunner()
 
@@ -35,7 +35,7 @@ class ConfigSetCommandTests:
         config_path = git_fs.init_repo()
 
         with pytest.raises(typer.Exit) as exc_info:
-            config_set_command("agent.model", "qwen2.5-coder", cli_ctx=get_cli_context(cwd=git_fs.base_path))
+            config_set_command("agent.model", "qwen2.5-coder", context=get_cli_context(cwd=git_fs.base_path))
         assert exc_info.value.exit_code == 0
         out = capsys.readouterr().out
         assert "Config updated: agent.model = qwen2.5-coder (str)" in out
@@ -58,7 +58,7 @@ class ConfigSetCommandTests:
         original = config_path.read_text(encoding="utf-8")
 
         with pytest.raises(typer.Exit) as exc_info:
-            config_set_command("agents.ollama.port", "11434", cli_ctx=get_cli_context(cwd=git_fs.base_path))
+            config_set_command("agents.ollama.port", "11434", context=get_cli_context(cwd=git_fs.base_path))
         assert exc_info.value.exit_code == 1
         out = capsys.readouterr().out
         assert "Config Error" in out
@@ -74,7 +74,7 @@ class ConfigSetCommandTests:
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
         with pytest.raises(typer.Exit) as exc_info:
-            config_set_command("agent.model", "x", cli_ctx=get_cli_context(cwd=git_fs.base_path))
+            config_set_command("agent.model", "x", context=get_cli_context(cwd=git_fs.base_path))
         assert exc_info.value.exit_code == 1
         out = capsys.readouterr().out
         assert "CONFIG_NOT_FOUND" in out or "not found" in out.lower()

@@ -44,13 +44,14 @@ class ConfigLoadResult(BaseModel):
 
 
 def resolve_config_path(
-    cwd: Path | None = None,
+    path: Path | None = None,
+    *,
     config_path: Path | None = None,
 ) -> Path:
     """Return absolute path to config.json.
 
     Args:
-        cwd: Repository root used when ``config_path`` is omitted.
+        path: Repository root used when ``config_path`` is omitted.
         config_path: Explicit config path; wins when provided.
 
     Returns:
@@ -58,12 +59,14 @@ def resolve_config_path(
     """
     if config_path is not None:
         return config_path.expanduser().resolve()
-    root = (cwd or Path.cwd()).expanduser().resolve()
+    if path is None:
+        raise ValueError("Repository path must be provided when config_path is omitted.")
+    root = path.expanduser().resolve()
     return get_worktree_config_file(root).resolve()
 
 
 def load_config_result(
-    cwd: Path | None = None,
+    path: Path | None = None,
     *,
     config_path: Path | None = None,
 ) -> ConfigLoadResult:
@@ -73,13 +76,13 @@ def load_config_result(
     config files.
 
     Args:
-        cwd: Repository root for default path resolution.
+        path: Repository root for default path resolution.
         config_path: Explicit path override.
 
     Returns:
         Classified ``ConfigLoadResult`` with absolute ``config_path``.
     """
-    path = resolve_config_path(cwd=cwd, config_path=config_path)
+    path = resolve_config_path(path=path, config_path=config_path)
 
     if path.exists() and path.is_dir():
         return ConfigLoadResult(
@@ -280,14 +283,14 @@ def parse_and_validate_config(raw: dict[str, Any]) -> WorktreeConfig:
 
 
 def load_config(
-    cwd: Path | None = None,
+    path: Path | None = None,
     *,
     config_path: Path | None = None,
 ) -> WorktreeConfig:
     """Return WorktreeConfig or raise with classified message.
 
     Args:
-        cwd: Repository root for default path resolution.
+        path: Repository root for default path resolution.
         config_path: Explicit path override.
 
     Returns:
@@ -298,7 +301,7 @@ def load_config(
         ValueError: For other classified load failures.
         OSError: When the path cannot be read.
     """
-    result = load_config_result(cwd=cwd, config_path=config_path)
+    result = load_config_result(path=path, config_path=config_path)
     if result.status == ConfigLoadStatus.OK:
         if result.config is None:
             raise ValueError(

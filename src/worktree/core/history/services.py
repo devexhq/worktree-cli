@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from worktree.common.utils import RichOutput
 from worktree.core.config.loader import load_config_result
-from worktree.core.config.models import CliContext
-from worktree.core.db import BlueprintKind, RunStatus
+from worktree.core.db import BlueprintKind, RunsRepository, RunStatus
 
 from .models import (
     HistoryListResult,
@@ -27,7 +27,8 @@ from .renderers import (
 class HistoryListService:
     """Service encapsulating execution history retrieval and rendering."""
 
-    cli_ctx: CliContext
+    path: Path
+    db: RunsRepository
     limit: int | None = 20
     status: str | None = None
     kind: str | None = None
@@ -35,7 +36,7 @@ class HistoryListService:
 
     def collect(self) -> HistoryListResult:
         """Load configuration and retrieve filtered execution runs from database."""
-        load = load_config_result(cwd=self.cli_ctx.cwd)
+        load = load_config_result(path=self.path)
         if not load.ok:
             return HistoryListResult(
                 status=HistoryListStatus.NOT_INITIALIZED,
@@ -56,7 +57,7 @@ class HistoryListService:
             except ValueError:
                 kind_filter = self.kind
 
-        runs = self.cli_ctx.db.runs.list(limit=self.limit, status=status_filter, kind=kind_filter)
+        runs = self.db.list(limit=self.limit, status=status_filter, kind=kind_filter)
         return HistoryListResult(status=HistoryListStatus.OK, runs=runs)
 
     def execute(self) -> HistoryListResult:
@@ -75,19 +76,20 @@ class HistoryShowService:
     """Service encapsulating history session inspection and rendering."""
 
     session_id: str
-    cli_ctx: CliContext
+    path: Path
+    db: RunsRepository
     output: RichOutput = field(default_factory=RichOutput)
 
     def collect(self) -> HistoryShowResult:
         """Look up execution session metadata, errors, and checkpoint contents."""
-        load = load_config_result(cwd=self.cli_ctx.cwd)
+        load = load_config_result(path=self.path)
         if not load.ok:
             return HistoryShowResult(
                 status=HistoryShowStatus.NOT_INITIALIZED,
                 errors=list(load.errors),
             )
 
-        row = self.cli_ctx.db.runs.get(self.session_id)
+        row = self.db.get(self.session_id)
 
         if row is None:
             return HistoryShowResult(status=HistoryShowStatus.NOT_FOUND)

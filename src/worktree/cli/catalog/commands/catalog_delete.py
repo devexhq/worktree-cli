@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import typer
 
+from worktree.cli.context import Context
 from worktree.common.utils import RichOutput
 from worktree.core.catalog.services.inventory import delete_catalog_item_by_sha_or_name
-from worktree.core.config.models import CliContext
 
 from ..models import CatalogDeleteCommandOutcome
 from ..renderers import render_catalog_delete_success
@@ -18,7 +18,7 @@ def catalog_delete_command(
     sha_or_name: str,
     force: bool = False,
     *,
-    cli_ctx: CliContext,
+    context: Context,
     rich_output: RichOutput | None = None,
 ) -> CatalogDeleteCommandOutcome:
     """Delete a catalog blueprint file and its database index record.
@@ -26,7 +26,7 @@ def catalog_delete_command(
     Args:
         sha_or_name: SHA identifier or name of the blueprint to delete.
         force: When True, skip the confirmation prompt.
-        cli_ctx: CLI context instance.
+        context: CLI context instance.
         rich_output: Optional RichOutput presenter.
 
     Returns:
@@ -46,7 +46,7 @@ def catalog_delete_command(
             output.info("Deletion cancelled.")
             return CatalogDeleteCommandOutcome(item=None, deleted=False, errors=["Deletion cancelled."])
 
-    deleted_item = delete_catalog_item_by_sha_or_name(sha_or_name, cwd=cli_ctx.cwd, db=cli_ctx.db)
+    deleted_item = delete_catalog_item_by_sha_or_name(sha_or_name, path=context.cwd, db=context.db.catalog)
     if deleted_item is None:
         error_message = f"Catalog blueprint '{sha_or_name}' not found."
         output.error_panel("Catalog Delete Failed", error_message)

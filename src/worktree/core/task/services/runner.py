@@ -17,7 +17,7 @@ from worktree.core.task.models import TaskDefinition
 
 def run_task(
     definition: TaskDefinition,
-    cwd: Path,
+    path: Path,
     *,
     use_sandbox: bool = True,
     keep: bool = False,
@@ -31,7 +31,7 @@ def run_task(
     """Adapt ``TaskDefinition`` into ``RunContext`` and delegate to ``run_steps``."""
     context = RunContext(
         steps=definition.steps,
-        cwd=cwd,
+        cwd=path,
         use_sandbox=use_sandbox and definition.use_sandbox,
         keep=keep,
         agent=agent,
