@@ -58,7 +58,7 @@ def catalog_show_command(
             return CatalogShowCommandOutcome(item=None, content=found[0][1])
 
         error_message = f"Catalog blueprint or template '{sha_or_name}' not found."
-        output.error_panel("Catalog Show Failed", error_message)
+        output.add_error_panel("Catalog Show Failed", error_message)
         return CatalogShowCommandOutcome(item=None, content=None, errors=[error_message])
 
     catalog_dir = get_catalog_dir(context.cwd)
@@ -68,7 +68,7 @@ def catalog_show_command(
         content = file_path.read_text(encoding="utf-8")
     except OSError as exc:
         error_message = f"Failed to read file for catalog blueprint '{sha_or_name}': {exc}"
-        output.error_panel("Catalog Show Failed", error_message)
+        output.add_error_panel("Catalog Show Failed", error_message)
         return CatalogShowCommandOutcome(item=item, content=None, errors=[error_message])
 
     render_catalog_show(item, content, output=output)

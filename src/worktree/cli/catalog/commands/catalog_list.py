@@ -43,7 +43,7 @@ def _parse_catalog_type_filter(
 
 def _render_scan_warnings(errors: list[str], *, output: RichOutput) -> None:
     for error in errors:
-        output.error_panel("Catalog Scan Warning", error)
+        output.add_error_panel("Catalog Scan Warning", error)
 
 
 def catalog_list_command(
@@ -68,7 +68,7 @@ def catalog_list_command(
 
     parsed_type, type_error = _parse_catalog_type_filter(type_filter)
     if type_error is not None:
-        output.error_panel("Catalog Filter Error", type_error)
+        output.add_error_panel("Catalog Filter Error", type_error)
         return CatalogListCommandOutcome(items=[], type_filter=None, errors=[type_error])
 
     scan_result = scan_and_index_catalog(path=context.cwd, db=context.db.catalog)

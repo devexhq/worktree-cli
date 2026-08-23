@@ -30,7 +30,7 @@ def render_config_show(
 ) -> None:
     """Buffer source metadata header and normalized configuration JSON without markup."""
     payload = f"Config: {config_path.as_posix()}\nStatus: valid\n\n{as_json(config)}"
-    output.info(Text(payload))
+    output.add_line(Text(payload))
 
 
 def render_config_validate_success(
@@ -52,7 +52,7 @@ def render_config_validate_success(
         lines.append("")
     lines.append("Config is valid.")
     payload = "\n".join(lines)
-    output.info(Text(payload))
+    output.add_line(Text(payload))
 
 
 def render_config_validation_warnings(
@@ -62,4 +62,4 @@ def render_config_validation_warnings(
 ) -> None:
     """Buffer trailing validation warnings block without markup."""
     warning_block = "Warnings:\n" + "\n".join(format_warning_bullets(warnings))
-    output.info(Text(warning_block))
+    output.add_line(Text(warning_block))

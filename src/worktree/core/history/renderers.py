@@ -104,7 +104,7 @@ def build_history_table(runs: list[RunRecord]) -> Table:
 
 def render_empty_history(*, output: RichOutput) -> None:
     """Render the empty-state line when no runs match."""
-    output.info("No execution history found.")
+    output.add_line("No execution history found.")
 
 
 def render_history_list(runs: list[RunRecord], *, output: RichOutput) -> None:
@@ -112,7 +112,7 @@ def render_history_list(runs: list[RunRecord], *, output: RichOutput) -> None:
     if not runs:
         render_empty_history(output=output)
         return
-    output.info(build_history_table(runs))
+    output.add_line(build_history_table(runs))
 
 
 def render_not_initialized(errors: list[str], *, output: RichOutput) -> None:
@@ -126,7 +126,7 @@ def render_not_initialized(errors: list[str], *, output: RichOutput) -> None:
 def render_history_not_found(session_id: str, *, output: RichOutput) -> None:
     """Render the not-found error panel for history show."""
     message = f"Session '{session_id}' not found.\nFix:\n- run `wt history` to view past sessions"
-    output.error_panel("Session Not Found", message)
+    output.add_error_panel("Session Not Found", message)
 
 
 def _build_metadata_table(run: RunRecord) -> Table:
@@ -176,9 +176,9 @@ def _render_checkpoint_panel(checkpoint_json: str, *, output: RichOutput) -> Non
     if checkpoint is None:
         try:
             formatted_json = json.dumps(json.loads(checkpoint_json), indent=2)
-            output.info(Panel(Syntax(formatted_json, "json"), title="Checkpoint JSON", border_style="cyan"))
+            output.add_line(Panel(Syntax(formatted_json, "json"), title="Checkpoint JSON", border_style="cyan"))
         except Exception:
-            output.info(Panel(checkpoint_json, title="Checkpoint Data", border_style="cyan"))
+            output.add_line(Panel(checkpoint_json, title="Checkpoint Data", border_style="cyan"))
         return
 
     checkpoint_table = Table(show_header=False, box=None, padding=(0, 2, 0, 0))
@@ -189,20 +189,20 @@ def _render_checkpoint_panel(checkpoint_json: str, *, output: RichOutput) -> Non
     if checkpoint.diagnostic:
         checkpoint_table.add_row("Diagnostic:", checkpoint.diagnostic)
 
-    output.info(Panel(checkpoint_table, title="Checkpoint Details", border_style="cyan"))
+    output.add_line(Panel(checkpoint_table, title="Checkpoint Details", border_style="cyan"))
 
     step_table = _build_step_results_table(checkpoint)
     if step_table is not None:
-        output.info(step_table)
+        output.add_line(step_table)
 
 
 def render_history_show(run: RunRecord, *, output: RichOutput) -> None:
     """Render granular session metadata, errors, and checkpoint contents."""
     metadata_table = _build_metadata_table(run)
-    output.info(Panel(metadata_table, title=f"Session Metadata: {run.session_id}", border_style="blue"))
+    output.add_line(Panel(metadata_table, title=f"Session Metadata: {run.session_id}", border_style="blue"))
 
     if run.error_message:
-        output.info(Panel(run.error_message, title="Error Details", border_style="red"))
+        output.add_line(Panel(run.error_message, title="Error Details", border_style="red"))
 
     if run.checkpoint_json:
         _render_checkpoint_panel(run.checkpoint_json, output=output)

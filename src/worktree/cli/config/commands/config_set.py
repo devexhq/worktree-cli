@@ -32,10 +32,10 @@ def config_set_command(
 
     if not result.ok:
         message = "\n\n".join(result.errors) if result.errors else "Failed to update configuration."
-        output.error_panel("Config Error", message)
+        output.add_error_panel("Config Error", message)
         return ConfigSetCommandOutcome(errors=list(result.errors))
 
     value_str = format_config_value(result.value)
     type_name = type(result.value).__name__
-    output.success(f"Config updated: {result.key} = {value_str} ({type_name})")
+    output.add_success(f"Config updated: {result.key} = {value_str} ({type_name})")
     return ConfigSetCommandOutcome(key=result.key, value=result.value)

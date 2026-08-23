@@ -21,7 +21,7 @@ def render_status_table(ctx: WorktreeContext, *, output: RichOutput) -> None:
     table.add_row("Agent Model", ctx.config.agent.model or "[dim]Not Configured[/dim]")
     table.add_row("Max Active Sandboxes", str(ctx.config.sandbox.max_active_sandboxes))
 
-    output.info(table)
-    output.spacer()
+    output.add_line(table)
+    output.add_spacer()
 
     display_context_warnings(ctx)

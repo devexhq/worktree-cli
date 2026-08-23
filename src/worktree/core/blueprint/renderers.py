@@ -78,7 +78,7 @@ def render_blueprint_run_success(
     """Render blueprint run execution summary."""
     effective_kind = kind or run_record.kind
     label = effective_kind.value.capitalize() if effective_kind is not None else "Blueprint"
-    output.info(
+    output.add_line(
         f"[bold green]{label} Run Completed:[/] {run_record.blueprint_name} "
         f"(session: {run_record.session_id}, status: {run_record.status.value})"
     )

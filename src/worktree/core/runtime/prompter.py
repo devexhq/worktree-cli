@@ -50,18 +50,18 @@ class CliFailurePrompter:
     ) -> FailurePromptDecision:
         """Print the failure prompt and return a validated user decision."""
         step_label = step.name or step.id
-        self.output.info(f"Step '{step_label}' failed (exit code {result.exit_code}).")
+        self.output.add_line(f"Step '{step_label}' failed (exit code {result.exit_code}).")
         if diagnostic:
-            self.output.info(diagnostic)
-        self.output.info("")
+            self.output.add_line(diagnostic)
+        self.output.add_line("")
         paused = "Task paused" if self.kind == "task" else "Workflow paused"
-        self.output.info(f"{paused} waiting for user input.")
-        self.output.info("")
-        self.output.info("Options:")
-        self.output.info("  [r] Retry step execution")
-        self.output.info("  [c] Continue run (ignore failure)")
-        self.output.info("  [a] Abort run")
-        self.output.info("")
+        self.output.add_line(f"{paused} waiting for user input.")
+        self.output.add_line("")
+        self.output.add_line("Options:")
+        self.output.add_line("  [r] Retry step execution")
+        self.output.add_line("  [c] Continue run (ignore failure)")
+        self.output.add_line("  [a] Abort run")
+        self.output.add_line("")
         return self._read_decision()
 
     def _read_decision(self) -> FailurePromptDecision:
@@ -74,4 +74,4 @@ class CliFailurePrompter:
             decision = _CHOICE_MAP.get(choice)
             if decision is not None:
                 return decision
-            self.output.info("Invalid option. Enter r, c, or a (retry/continue/abort).")
+            self.output.add_line("Invalid option. Enter r, c, or a (retry/continue/abort).")

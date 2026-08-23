@@ -70,7 +70,7 @@ def _confirm_or_abort(row: object, output: RichOutput) -> bool:
     except typer.Abort:
         confirmed = False
     if not confirmed:
-        output.info("Aborted.")
+        output.add_line("Aborted.")
     return confirmed
 
 

@@ -14,7 +14,7 @@ def status_command(*, context: Context) -> StatusCommandOutcome:
     try:
         ctx = load_context(context.cwd)
     except Exception as exc:
-        output.error_panel("Context Error", str(exc))
+        output.add_error_panel("Context Error", str(exc))
         return StatusCommandOutcome(errors=[str(exc)])
 
     render_status_table(ctx, output=output)

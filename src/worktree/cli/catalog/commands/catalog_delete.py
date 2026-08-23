@@ -38,13 +38,13 @@ def catalog_delete_command(
         except typer.Abort:
             confirmed = False
         if not confirmed:
-            output.info("Deletion cancelled.")
+            output.add_line("Deletion cancelled.")
             return CatalogDeleteCommandOutcome(item=None, deleted=False, errors=["Deletion cancelled."])
 
     deleted_item = delete_catalog_item_by_sha_or_name(sha_or_name, path=context.cwd, db=context.db.catalog)
     if deleted_item is None:
         error_message = f"Catalog blueprint '{sha_or_name}' not found."
-        output.error_panel("Catalog Delete Failed", error_message)
+        output.add_error_panel("Catalog Delete Failed", error_message)
         return CatalogDeleteCommandOutcome(item=None, deleted=False, errors=[error_message])
 
     render_catalog_delete_success(deleted_item, output=output)

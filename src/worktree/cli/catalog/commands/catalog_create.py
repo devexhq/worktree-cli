@@ -37,7 +37,7 @@ def catalog_create_command(
         )
     except Exception as exc:
         error_message = str(exc)
-        output.error_panel("Catalog Creation Failed", error_message)
+        output.add_error_panel("Catalog Creation Failed", error_message)
         return CatalogCreateCommandOutcome(item=None, errors=[error_message])
 
     render_catalog_create_success(record, output=output)
