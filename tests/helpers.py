@@ -204,9 +204,9 @@ def make_checkpoint(*, step_id: str = "step-1", **overrides: Any) -> RunCheckpoi
 
 
 def make_run(
-    *,
-    root: Path,
+    db: RunsRepository,
     session_id: str = "run-1",
+    *,
     blueprint_name: str = "task-1",
     kind: BlueprintKind = BlueprintKind.TASK,
     status: RunStatus = RunStatus.COMPLETED,
@@ -215,14 +215,12 @@ def make_run(
     completed_at: str | None = "2026-08-19 01:00:15",
     error_message: str | None = None,
     checkpoint_json: str | None = None,
-    db_rel_path: str = ".worktree/data.db",
 ) -> RunRecord:
     """Helper to insert a run row directly into RunsRepository with test defaults."""
-    config_file = root / ".worktree" / "config.json"
+    config_file = db.path / ".worktree" / "config.json"
     if not config_file.exists():
         config_file.parent.mkdir(parents=True, exist_ok=True)
         generate_default_config(config_file, project_name="test")
-    db = RunsRepository(root, db_rel_path=db_rel_path)
     db.create(
         session_id=session_id,
         blueprint_name=blueprint_name,
@@ -248,21 +246,20 @@ def make_run(
 
 
 def seed_sandbox(
-    repo: Path,
+    db: SandboxesRepository,
     sandbox_id: str = "sbx_1",
     *,
     name: str | None = None,
     path_suffix: str | None = None,
     create_dir: bool = True,
     base_commit: str = "4f2c9a1e8b3d6f0a2c5e7b1d9a3f6c8e0b2d4f6a",
-    db_rel_path: str = ".worktree/data.db",
 ) -> SandboxRecord:
     """Helper to insert a sandbox record into SandboxesRepository for tests."""
     suffix = path_suffix if path_suffix is not None else sandbox_id
-    sandbox_path = repo / ".worktree" / "sandboxes" / suffix
+    sandbox_path = db.path / ".worktree" / "sandboxes" / suffix
     if create_dir:
         sandbox_path.mkdir(parents=True, exist_ok=True)
-    return SandboxesRepository(repo, db_rel_path).insert(
+    return db.insert(
         id=sandbox_id,
         branch_name=f"worktree/sandbox-{sandbox_id}",
         base_commit=base_commit,

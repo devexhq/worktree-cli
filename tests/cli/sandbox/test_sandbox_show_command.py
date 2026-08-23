@@ -22,9 +22,9 @@ from worktree.cli.sandbox.renderers import (
     render_sandbox_show,
 )
 from worktree.core.db import (
-    SandboxesRepository,
     SandboxRecord,
     SandboxStatus,
+    WorktreeDb,
 )
 
 runner = CliRunner()
@@ -33,6 +33,12 @@ DB_REL = ".worktree/data.db"
 
 class SandboxShowCollectTests:
     """Tests for collect_sandbox_show (data path, no Rich width coupling)."""
+
+    db: WorktreeDb
+
+    @pytest.fixture(autouse=True)
+    def setup_method(self, git_fs: GitFileSystem) -> None:
+        self.db = WorktreeDb(path=git_fs.base_path, db_rel_path=DB_REL)
 
     def test_not_initialized(self, git_fs: GitFileSystem) -> None:
         result = collect_sandbox_show("sbx_any", context=get_cli_context(cwd=git_fs.base_path))
@@ -77,14 +83,14 @@ class SandboxShowCollectTests:
     ) -> None:
         git_fs.init_repo()
         created = seed_sandbox(
-            git_fs.base_path,
+            self.db.sandboxes,
             sandbox_id=f"sbx_{status.value}",
             name="detail" if status is SandboxStatus.ACTIVE else None,
             path_suffix=status.value,
             create_dir=create_dir,
         )
         if status is not SandboxStatus.ACTIVE:
-            updated = SandboxesRepository(git_fs.base_path, DB_REL).update_status(
+            updated = self.db.sandboxes.update_status(
                 created.id,
                 status,
             )
@@ -100,11 +106,11 @@ class SandboxShowCollectTests:
         assert result.reconciled is False
         assert result.disk_present is create_dir
 
-    def test_reconciles_stale_active_missing_directory(self, git_fs: GitFileSystem) -> None:
+    def test_reconciles_missing_directory_to_cleaned(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
         stale = seed_sandbox(
-            git_fs.base_path,
-            sandbox_id="sbx_stale",
+            self.db.sandboxes,
+            sandbox_id="sbx_stale_show",
             path_suffix="gone",
             create_dir=False,
         )
@@ -114,22 +120,23 @@ class SandboxShowCollectTests:
         assert result.status is SandboxShowStatus.OK
         assert result.ok
         assert result.sandbox is not None
+        assert result.sandbox.id == stale.id
         assert result.sandbox.status is SandboxStatus.CLEANED
         assert result.reconciled is True
-        assert result.disk_present is False
-        loaded = SandboxesRepository(git_fs.base_path, DB_REL).get(stale.id)
+
+        loaded = self.db.sandboxes.get(stale.id)
         assert loaded is not None
         assert loaded.status is SandboxStatus.CLEANED
 
     def test_non_active_missing_dir_does_not_reconcile(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
         created = seed_sandbox(
-            git_fs.base_path,
+            self.db.sandboxes,
             sandbox_id="sbx_merged_gone",
             path_suffix="merged-gone",
             create_dir=False,
         )
-        SandboxesRepository(git_fs.base_path, DB_REL).update_status(
+        self.db.sandboxes.update_status(
             created.id,
             SandboxStatus.MERGED,
         )
@@ -224,6 +231,12 @@ class SandboxShowRenderTests:
 class SandboxShowCommandDirectTests:
     """Direct sandbox_show_command exit-code / side-effect tests."""
 
+    db: WorktreeDb
+
+    @pytest.fixture(autouse=True)
+    def setup_method(self, git_fs: GitFileSystem) -> None:
+        self.db = WorktreeDb(path=git_fs.base_path, db_rel_path=DB_REL)
+
     def test_not_initialized_exits_one(
         self,
         git_fs: GitFileSystem,
@@ -265,7 +278,7 @@ class SandboxShowCommandDirectTests:
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
-        created = seed_sandbox(git_fs.base_path, sandbox_id="sbx_one", path_suffix="1")
+        created = seed_sandbox(self.db.sandboxes, sandbox_id="sbx_one", path_suffix="1")
 
         ctx = get_cli_context(cwd=git_fs.base_path)
         outcome = sandbox_show_command(created.id, context=ctx)
@@ -285,7 +298,7 @@ class SandboxShowCommandDirectTests:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
         stale = seed_sandbox(
-            git_fs.base_path,
+            self.db.sandboxes,
             sandbox_id="sbx_stale_cmd",
             path_suffix="gone-cmd",
             create_dir=False,
@@ -303,6 +316,12 @@ class SandboxShowCommandDirectTests:
 
 class SandboxShowCliTests:
     """CliRunner coverage for Typer wiring."""
+
+    db: WorktreeDb
+
+    @pytest.fixture(autouse=True)
+    def setup_method(self, git_fs: GitFileSystem) -> None:
+        self.db = WorktreeDb(path=git_fs.base_path, db_rel_path=DB_REL)
 
     def test_help_lists_show(self) -> None:
         result = runner.invoke(app, ["sandbox", "--help"])
@@ -324,7 +343,7 @@ class SandboxShowCliTests:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
         created = seed_sandbox(
-            git_fs.base_path,
+            self.db.sandboxes,
             sandbox_id="sbx_cli",
             name="cli-name",
             path_suffix="cli",

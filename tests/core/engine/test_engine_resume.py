@@ -14,7 +14,7 @@ from tests.helpers import (
 )
 from worktree.core.blueprint import Blueprint, BlueprintDefinition, BlueprintKind
 from worktree.core.catalog.services.inventory import scan_and_index_catalog
-from worktree.core.db import RunsRepository, RunStatus
+from worktree.core.db import RunsRepository, RunStatus, WorktreeDb
 from worktree.core.engine import Engine, EngineResumeError, EngineResumeStatus, EngineRuntimeError, ResumableRun
 from worktree.core.runtime import RunCheckpoint, RunContext, RunOutcome
 from worktree.core.step import LoopStepBlock
@@ -68,253 +68,268 @@ def _workflow_blueprint(*, name: str = "ship") -> Blueprint:
     )
 
 
-def _seed_paused_task(fs: FileSystem, session_id: str, checkpoint: RunCheckpoint, *, name: str = "lint") -> None:
-    db = RunsRepository(fs.base_path)
+def _seed_paused_task(db: RunsRepository, session_id: str, checkpoint: RunCheckpoint, *, name: str = "lint") -> None:
     db.create(session_id, blueprint_name=name, kind=BlueprintKind.TASK, status=RunStatus.RUNNING)
     db.save_pause(session_id, checkpoint.model_dump_json(), checkpoint.diagnostic)
 
 
-def _seed_paused_workflow(fs: FileSystem, session_id: str, checkpoint: RunCheckpoint, *, name: str = "ship") -> None:
-    db = RunsRepository(fs.base_path)
+def _seed_paused_workflow(
+    db: RunsRepository, session_id: str, checkpoint: RunCheckpoint, *, name: str = "ship"
+) -> None:
     db.create(session_id, blueprint_name=name, kind=BlueprintKind.WORKFLOW, branch_name="", status=RunStatus.RUNNING)
     db.save_pause(session_id, checkpoint.model_dump_json(), checkpoint.diagnostic)
 
 
-def test_resume_rebuilds_context_from_checkpoint(monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
-    checkpoint = _checkpoint(keep=True, agent="copilot", inputs={"name": "demo"})
-    _seed_paused_task(fs, "task_resume", checkpoint)
-    observer = MagicMock()
-    expected = RunOutcome(status=RunStatus.COMPLETED, step_results=[], sandbox_path=fs.base_path)
-    captured: dict[str, RunContext] = {}
+class EngineResumeExecutionTests:
+    """Unit tests for Engine.resume execution flow and state persistence."""
+
+    db: WorktreeDb
+
+    @pytest.fixture(autouse=True)
+    def setup_method(self, fs: FileSystem) -> None:
+        self.db = WorktreeDb(path=fs.base_path)
+
+    def test_resume_rebuilds_context_from_checkpoint(self, monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
+        checkpoint = _checkpoint(keep=True, agent="copilot", inputs={"name": "demo"})
+        _seed_paused_task(self.db.runs, "task_resume", checkpoint)
+        observer = MagicMock()
+        expected = RunOutcome(status=RunStatus.COMPLETED, step_results=[], sandbox_path=fs.base_path)
+        captured: dict[str, RunContext] = {}
+
+        def fake_run_steps(context: RunContext) -> RunOutcome:
+            captured["context"] = context
+            return expected
+
+        monkeypatch.setattr("worktree.core.engine.engine.run_steps", fake_run_steps)
+
+        outcome = Engine(fs.base_path).resume(
+            "task_resume",
+            blueprint=_task_blueprint(),
+            observer=observer,
+            non_interactive=True,
+            failure_prompter=None,
+        )
+
+        assert outcome == expected.model_copy(update={"session_id": "task_resume"})
+        context = captured["context"]
+        assert [step.id for step in context.steps] == ["setup", "publish", "later"]
+        assert context.cwd == fs.base_path.resolve()
+        assert context.use_sandbox is False
+        assert context.keep is True
+        assert context.agent == "copilot"
+        assert context.observer is observer
+        assert context.inputs == {"name": "demo"}
+        assert context.non_interactive is True
+        assert context.failure_prompter is None
+        assert context.pause_store is not None
+        assert context.resume_from == checkpoint
+
+    def test_resume_finalizes_task_row(self, monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
+        _seed_paused_task(self.db.runs, "task_done", _checkpoint())
+        monkeypatch.setattr(
+            "worktree.core.engine.engine.run_steps",
+            lambda _context: RunOutcome(status=RunStatus.COMPLETED, sandbox_path=fs.base_path),
+        )
+
+        outcome = Engine(fs.base_path).resume("task_done", blueprint=_task_blueprint())
+
+        assert outcome.ok
+        record = self.db.runs.get("task_done")
+        assert record is not None
+        assert record.status is RunStatus.COMPLETED
+        assert record.completed_at is not None
+
+    def test_resume_finalizes_workflow_row(self, monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
+        _seed_paused_workflow(self.db.runs, "workflow_done", _checkpoint())
+        monkeypatch.setattr(
+            "worktree.core.engine.engine.run_steps",
+            lambda _context: RunOutcome(status=RunStatus.COMPLETED, sandbox_path=fs.base_path),
+        )
+
+        outcome = Engine(fs.base_path).resume("workflow_done", blueprint=_workflow_blueprint())
+
+        assert outcome.ok
+        record = self.db.runs.get("workflow_done")
+        assert record is not None
+        assert record.blueprint_name == "ship"
+        assert record.status is RunStatus.COMPLETED
+
+    def test_resume_omitted_blueprint_loads_from_catalog(self, monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
+        fs.create_task_file(
+            "lint",
+            use_sandbox=False,
+            steps=[
+                {"id": "setup", "run": "echo setup"},
+                {"id": "publish", "run": "exit 1"},
+                {"id": "later", "run": "echo later"},
+            ],
+        )
+        scan_and_index_catalog(path=fs.base_path)
+        _seed_paused_task(self.db.runs, "task_catalog", _checkpoint())
+        captured: dict[str, RunContext] = {}
+
+        def fake_run_steps(context: RunContext) -> RunOutcome:
+            captured["context"] = context
+            return RunOutcome(status=RunStatus.COMPLETED, sandbox_path=fs.base_path)
+
+        monkeypatch.setattr("worktree.core.engine.engine.run_steps", fake_run_steps)
+
+        outcome = Engine(fs.base_path).resume("task_catalog")
+
+        assert outcome.ok
+        assert [step.id for step in captured["context"].steps] == ["setup", "publish", "later"]
+        assert captured["context"].resume_from is not None
+
+    def test_resume_mark_running_failure_warns(self, monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
+        _seed_paused_task(self.db.runs, "task_mark", _checkpoint())
+        expected = RunOutcome(status=RunStatus.COMPLETED, sandbox_path=fs.base_path, warnings=["step note"])
+        monkeypatch.setattr("worktree.core.engine.engine.run_steps", lambda _context: expected)
+        monkeypatch.setattr(
+            "worktree.core.db.repositories.runs.RunsRepository.update_status",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("locked")),
+        )
 
-    def fake_run_steps(context: RunContext) -> RunOutcome:
-        captured["context"] = context
-        return expected
+        outcome = Engine(fs.base_path).resume("task_mark", blueprint=_task_blueprint())
 
-    monkeypatch.setattr("worktree.core.engine.engine.run_steps", fake_run_steps)
+        assert outcome is not expected
+        assert outcome.warnings[0] == "step note"
+        assert any(warning.startswith("Failed to update run status in database:") for warning in outcome.warnings)
 
-    outcome = Engine(fs.base_path).resume(
-        "task_resume",
-        blueprint=_task_blueprint(),
-        observer=observer,
-        non_interactive=True,
-        failure_prompter=None,
-    )
+    def test_resume_finalize_failure_warns(self, monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
+        _seed_paused_task(self.db.runs, "task_final", _checkpoint())
+        expected = RunOutcome(status=RunStatus.COMPLETED, sandbox_path=fs.base_path)
+        monkeypatch.setattr("worktree.core.engine.engine.run_steps", lambda _context: expected)
 
-    assert outcome == expected.model_copy(update={"session_id": "task_resume"})
-    context = captured["context"]
-    assert [step.id for step in context.steps] == ["setup", "publish", "later"]
-    assert context.cwd == fs.base_path.resolve()
-    assert context.use_sandbox is False
-    assert context.keep is True
-    assert context.agent == "copilot"
-    assert context.observer is observer
-    assert context.inputs == {"name": "demo"}
-    assert context.non_interactive is True
-    assert context.failure_prompter is None
-    assert context.pause_store is not None
-    assert context.resume_from == checkpoint
+        real_update = RunsRepository.update_status
 
+        def _fail_finalize(self_repo: RunsRepository, session_id: str, status: RunStatus, **kwargs: object) -> None:
+            if status != RunStatus.RUNNING:
+                raise RuntimeError("locked")
+            real_update(self_repo, session_id, status, **kwargs)
 
-def test_resume_finalizes_task_row(monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
-    _seed_paused_task(fs, "task_done", _checkpoint())
-    monkeypatch.setattr(
-        "worktree.core.engine.engine.run_steps",
-        lambda _context: RunOutcome(status=RunStatus.COMPLETED, sandbox_path=fs.base_path),
-    )
+        monkeypatch.setattr(
+            "worktree.core.db.repositories.runs.RunsRepository.update_status",
+            _fail_finalize,
+        )
 
-    outcome = Engine(fs.base_path).resume("task_done", blueprint=_task_blueprint())
+        outcome = Engine(fs.base_path).resume("task_final", blueprint=_task_blueprint())
 
-    assert outcome.ok
-    record = RunsRepository(fs.base_path).get("task_done")
-    assert record is not None
-    assert record.status is RunStatus.COMPLETED
-    assert record.completed_at is not None
+        assert any(warning.startswith("Failed to update run status in database:") for warning in outcome.warnings)
+        record = self.db.runs.get("task_final")
+        assert record is not None
+        assert record.status is RunStatus.RUNNING
 
 
-def test_resume_finalizes_workflow_row(monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
-    _seed_paused_workflow(fs, "workflow_done", _checkpoint())
-    monkeypatch.setattr(
-        "worktree.core.engine.engine.run_steps",
-        lambda _context: RunOutcome(status=RunStatus.COMPLETED, sandbox_path=fs.base_path),
-    )
+class EngineResumeValidationTests:
+    """Unit tests for Engine.resume validation errors and precondition checks."""
 
-    outcome = Engine(fs.base_path).resume("workflow_done", blueprint=_workflow_blueprint())
+    db: WorktreeDb
 
-    assert outcome.ok
-    record = RunsRepository(fs.base_path).get("workflow_done")
-    assert record is not None
-    assert record.blueprint_name == "ship"
-    assert record.status is RunStatus.COMPLETED
+    @pytest.fixture(autouse=True)
+    def setup_method(self, fs: FileSystem) -> None:
+        self.db = WorktreeDb(path=fs.base_path)
 
+    def test_resume_not_found(self, fs: FileSystem) -> None:
+        with pytest.raises(EngineResumeError, match=r"Session 'missing' not found\.") as exc_info:
+            Engine(fs.base_path).resume("missing", blueprint=_task_blueprint())
 
-def test_resume_not_found(fs: FileSystem) -> None:
-    with pytest.raises(EngineResumeError, match=r"Session 'missing' not found\.") as exc_info:
-        Engine(fs.base_path).resume("missing", blueprint=_task_blueprint())
+        assert exc_info.value.status is EngineResumeStatus.NOT_FOUND
 
-    assert exc_info.value.status is EngineResumeStatus.NOT_FOUND
+    def test_resume_omitted_blueprint_not_found(self, fs: FileSystem) -> None:
+        with pytest.raises(EngineResumeError, match=r"Session 'missing' not found\.") as exc_info:
+            Engine(fs.base_path).resume("missing")
 
+        assert exc_info.value.status is EngineResumeStatus.NOT_FOUND
 
-def test_resume_omitted_blueprint_not_found(fs: FileSystem) -> None:
-    with pytest.raises(EngineResumeError, match=r"Session 'missing' not found\.") as exc_info:
-        Engine(fs.base_path).resume("missing")
+    @pytest.mark.parametrize("status", [RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.RUNNING, RunStatus.CANCELLED])
+    def test_resume_wrong_status(self, fs: FileSystem, status: RunStatus) -> None:
+        self.db.runs.create("task_wrong", blueprint_name="lint", kind=BlueprintKind.TASK, status=status)
 
-    assert exc_info.value.status is EngineResumeStatus.NOT_FOUND
+        with pytest.raises(EngineResumeError) as exc_info:
+            Engine(fs.base_path).resume("task_wrong", blueprint=_task_blueprint())
 
+        assert exc_info.value.status is EngineResumeStatus.WRONG_STATUS
+        assert (
+            str(exc_info.value) == f"Cannot resume session 'task_wrong': status is '{status.value}' (expected paused)."
+        )
 
-@pytest.mark.parametrize("status", [RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.RUNNING, RunStatus.CANCELLED])
-def test_resume_wrong_status(fs: FileSystem, status: RunStatus) -> None:
-    RunsRepository(fs.base_path).create("task_wrong", blueprint_name="lint", kind=BlueprintKind.TASK, status=status)
+    def test_resume_corrupt_checkpoint(self, fs: FileSystem) -> None:
+        self.db.runs.create("task_bad", blueprint_name="lint", kind=BlueprintKind.TASK, status=RunStatus.RUNNING)
+        self.db.runs.save_pause("task_bad", "{nope", "paused")
 
-    with pytest.raises(EngineResumeError) as exc_info:
-        Engine(fs.base_path).resume("task_wrong", blueprint=_task_blueprint())
+        with pytest.raises(EngineResumeError, match="checkpoint is missing or corrupt") as exc_info:
+            Engine(fs.base_path).resume("task_bad", blueprint=_task_blueprint())
 
-    assert exc_info.value.status is EngineResumeStatus.WRONG_STATUS
-    assert str(exc_info.value) == f"Cannot resume session 'task_wrong': status is '{status.value}' (expected paused)."
+        assert exc_info.value.status is EngineResumeStatus.CORRUPT_CHECKPOINT
 
+    def test_resume_missing_sandbox(self, fs: FileSystem) -> None:
+        missing = fs.base_path / "does-not-exist"
+        _seed_paused_task(self.db.runs, "task_box", _checkpoint(use_sandbox=True, sandbox_path=str(missing)))
 
-def test_resume_corrupt_checkpoint(fs: FileSystem) -> None:
-    db = RunsRepository(fs.base_path)
-    db.create("task_bad", blueprint_name="lint", kind=BlueprintKind.TASK, status=RunStatus.RUNNING)
-    db.save_pause("task_bad", "{nope", "paused")
+        with pytest.raises(EngineResumeError) as exc_info:
+            Engine(fs.base_path).resume("task_box", blueprint=_task_blueprint())
 
-    with pytest.raises(EngineResumeError, match="checkpoint is missing or corrupt") as exc_info:
-        Engine(fs.base_path).resume("task_bad", blueprint=_task_blueprint())
+        assert exc_info.value.status is EngineResumeStatus.MISSING_SANDBOX
+        assert str(exc_info.value) == f"Cannot resume session 'task_box': sandbox path '{missing}' no longer exists."
 
-    assert exc_info.value.status is EngineResumeStatus.CORRUPT_CHECKPOINT
+    def test_resume_pending_step_mismatch_is_corrupt(self, fs: FileSystem) -> None:
+        _seed_paused_task(self.db.runs, "task_pending", _checkpoint(pending_step_id="ghost"))
 
+        with pytest.raises(EngineResumeError, match="checkpoint is missing or corrupt") as exc_info:
+            Engine(fs.base_path).resume("task_pending", blueprint=_task_blueprint())
 
-def test_resume_missing_sandbox(fs: FileSystem) -> None:
-    missing = fs.base_path / "does-not-exist"
-    _seed_paused_task(fs, "task_box", _checkpoint(use_sandbox=True, sandbox_path=str(missing)))
+        assert exc_info.value.status is EngineResumeStatus.CORRUPT_CHECKPOINT
+        record = self.db.runs.get("task_pending")
+        assert record is not None
+        assert record.status is RunStatus.PAUSED
 
-    with pytest.raises(EngineResumeError) as exc_info:
-        Engine(fs.base_path).resume("task_box", blueprint=_task_blueprint())
+    def test_resume_rejects_loop_steps_after_classification(self, fs: FileSystem) -> None:
+        _seed_paused_workflow(self.db.runs, "workflow_loop", _checkpoint())
 
-    assert exc_info.value.status is EngineResumeStatus.MISSING_SANDBOX
-    assert str(exc_info.value) == f"Cannot resume session 'task_box': sandbox path '{missing}' no longer exists."
+        with pytest.raises(EngineRuntimeError, match=r"Engine\.resume does not execute loop steps\."):
+            Engine(fs.base_path).resume("workflow_loop", blueprint=_task_blueprint(loop=True, name="ship"))
 
+        record = self.db.runs.get("workflow_loop")
+        assert record is not None
+        assert record.status is RunStatus.PAUSED
 
-def test_resume_pending_step_mismatch_is_corrupt(fs: FileSystem) -> None:
-    _seed_paused_task(fs, "task_pending", _checkpoint(pending_step_id="ghost"))
+    def test_resume_omitted_blueprint_missing_catalog(self, fs: FileSystem) -> None:
+        _seed_paused_task(self.db.runs, "task_gone", _checkpoint(), name="missing-task")
 
-    with pytest.raises(EngineResumeError, match="checkpoint is missing or corrupt") as exc_info:
-        Engine(fs.base_path).resume("task_pending", blueprint=_task_blueprint())
+        with pytest.raises(EngineResumeError, match="blueprint 'missing-task' not found") as exc_info:
+            Engine(fs.base_path).resume("task_gone")
 
-    assert exc_info.value.status is EngineResumeStatus.CORRUPT_CHECKPOINT
-    record = RunsRepository(fs.base_path).get("task_pending")
-    assert record is not None
-    assert record.status is RunStatus.PAUSED
+        assert exc_info.value.status is EngineResumeStatus.FAILED
 
 
-def test_resume_rejects_loop_steps_after_classification(fs: FileSystem) -> None:
-    _seed_paused_workflow(fs, "workflow_loop", _checkpoint())
+class ResumableRunHandleTests:
+    """Unit tests for ResumableRun descriptor loading and validation handle."""
 
-    with pytest.raises(EngineRuntimeError, match=r"Engine\.resume does not execute loop steps\."):
-        Engine(fs.base_path).resume("workflow_loop", blueprint=_task_blueprint(loop=True, name="ship"))
+    db: WorktreeDb
 
-    record = RunsRepository(fs.base_path).get("workflow_loop")
-    assert record is not None
-    assert record.status is RunStatus.PAUSED
+    @pytest.fixture(autouse=True)
+    def setup_method(self, fs: FileSystem) -> None:
+        self.db = WorktreeDb(path=fs.base_path)
 
+    def test_resumable_run_load_is_resumable(self, fs: FileSystem) -> None:
+        checkpoint = _checkpoint()
+        _seed_paused_task(self.db.runs, "task_ready", checkpoint)
 
-def test_resume_omitted_blueprint_loads_from_catalog(monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
-    fs.create_task_file(
-        "lint",
-        use_sandbox=False,
-        steps=[
-            {"id": "setup", "run": "echo setup"},
-            {"id": "publish", "run": "exit 1"},
-            {"id": "later", "run": "echo later"},
-        ],
-    )
-    scan_and_index_catalog(path=fs.base_path)
-    _seed_paused_task(fs, "task_catalog", _checkpoint())
-    captured: dict[str, RunContext] = {}
+        handle = ResumableRun.load("task_ready", _task_blueprint(), path=fs.base_path)
 
-    def fake_run_steps(context: RunContext) -> RunOutcome:
-        captured["context"] = context
-        return RunOutcome(status=RunStatus.COMPLETED, sandbox_path=fs.base_path)
+        assert handle.is_resumable is True
+        assert handle.status is EngineResumeStatus.OK
+        assert handle.checkpoint == checkpoint
+        assert [step.id for step in handle.steps] == ["setup", "publish", "later"]
 
-    monkeypatch.setattr("worktree.core.engine.engine.run_steps", fake_run_steps)
+    def test_resumable_run_load_not_resumable(self, fs: FileSystem) -> None:
+        handle = ResumableRun.load("missing", _task_blueprint(), path=fs.base_path)
 
-    outcome = Engine(fs.base_path).resume("task_catalog")
+        assert handle.is_resumable is False
+        assert handle.status is EngineResumeStatus.NOT_FOUND
+        assert str(handle) == "Session 'missing' not found."
 
-    assert outcome.ok
-    assert [step.id for step in captured["context"].steps] == ["setup", "publish", "later"]
-    assert captured["context"].resume_from is not None
+        with pytest.raises(EngineResumeError, match=r"Session 'missing' not found\.") as exc_info:
+            handle.ready()
 
-
-def test_resume_omitted_blueprint_missing_catalog(fs: FileSystem) -> None:
-    _seed_paused_task(fs, "task_gone", _checkpoint(), name="missing-task")
-
-    with pytest.raises(EngineResumeError, match="blueprint 'missing-task' not found") as exc_info:
-        Engine(fs.base_path).resume("task_gone")
-
-    assert exc_info.value.status is EngineResumeStatus.FAILED
-
-
-def test_resume_mark_running_failure_warns(monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
-    _seed_paused_task(fs, "task_mark", _checkpoint())
-    expected = RunOutcome(status=RunStatus.COMPLETED, sandbox_path=fs.base_path, warnings=["step note"])
-    monkeypatch.setattr("worktree.core.engine.engine.run_steps", lambda _context: expected)
-    monkeypatch.setattr(
-        "worktree.core.db.repositories.runs.RunsRepository.update_status",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("locked")),
-    )
-
-    outcome = Engine(fs.base_path).resume("task_mark", blueprint=_task_blueprint())
-
-    assert outcome is not expected
-    assert outcome.warnings[0] == "step note"
-    assert any(warning.startswith("Failed to update run status in database:") for warning in outcome.warnings)
-
-
-def test_resume_finalize_failure_warns(monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
-    _seed_paused_task(fs, "task_final", _checkpoint())
-    expected = RunOutcome(status=RunStatus.COMPLETED, sandbox_path=fs.base_path)
-    monkeypatch.setattr("worktree.core.engine.engine.run_steps", lambda _context: expected)
-
-    real_update = RunsRepository.update_status
-
-    def _fail_finalize(self: RunsRepository, session_id: str, status: RunStatus, **kwargs: object) -> None:
-        if status != RunStatus.RUNNING:
-            raise RuntimeError("locked")
-        real_update(self, session_id, status, **kwargs)
-
-    monkeypatch.setattr(
-        "worktree.core.db.repositories.runs.RunsRepository.update_status",
-        _fail_finalize,
-    )
-
-    outcome = Engine(fs.base_path).resume("task_final", blueprint=_task_blueprint())
-
-    assert any(warning.startswith("Failed to update run status in database:") for warning in outcome.warnings)
-    record = RunsRepository(fs.base_path).get("task_final")
-    assert record is not None
-    assert record.status is RunStatus.RUNNING
-
-
-def test_resumable_run_load_is_resumable(fs: FileSystem) -> None:
-    checkpoint = _checkpoint()
-    _seed_paused_task(fs, "task_ready", checkpoint)
-
-    handle = ResumableRun.load("task_ready", _task_blueprint(), path=fs.base_path)
-
-    assert handle.is_resumable is True
-    assert handle.status is EngineResumeStatus.OK
-    assert handle.checkpoint == checkpoint
-    assert [step.id for step in handle.steps] == ["setup", "publish", "later"]
-
-
-def test_resumable_run_load_not_resumable(fs: FileSystem) -> None:
-    handle = ResumableRun.load("missing", _task_blueprint(), path=fs.base_path)
-
-    assert handle.is_resumable is False
-    assert handle.status is EngineResumeStatus.NOT_FOUND
-    assert str(handle) == "Session 'missing' not found."
-
-    with pytest.raises(EngineResumeError, match=r"Session 'missing' not found\.") as exc_info:
-        handle.ready()
-
-    assert exc_info.value.status is EngineResumeStatus.NOT_FOUND
+        assert exc_info.value.status is EngineResumeStatus.NOT_FOUND
