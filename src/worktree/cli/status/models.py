@@ -22,6 +22,10 @@ class StatusCommandOutcome(BaseModel):
 
     model_config = {"extra": "forbid", "strict": True}
 
-    ok: bool = True
     context: WorktreeContext | None = None
     errors: list[str] = Field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        """Return True if status context loaded without errors."""
+        return not self.errors and self.context is not None

@@ -24,13 +24,13 @@ class InitCommandOutcome(BaseModel):
 
     @property
     def ok(self) -> bool:
-        """True when bootstrap and config succeed with no seeding errors."""
-        if self.errors:
-            return False
-        if self.bootstrap_result is not None and not self.bootstrap_result.ok:
-            return False
-        if self.config_result is not None and not self.config_result.ok:
-            return False
-        if self.seed_result is not None and self.seed_result.errors:
-            return False
-        return True
+        """True when bootstrap, config, and catalog seeding all succeed with no errors."""
+        return (
+            not self.errors
+            and self.bootstrap_result is not None
+            and self.bootstrap_result.ok
+            and self.config_result is not None
+            and self.config_result.ok
+            and self.seed_result is not None
+            and self.seed_result.ok
+        )

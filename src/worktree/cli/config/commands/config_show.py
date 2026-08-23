@@ -25,7 +25,7 @@ def config_show_command(
     if not result.ok or result.config is None:
         message = "\n\n".join(result.errors) if result.errors else "Failed to load configuration."
         output.error_panel("Config Error", message)
-        return ConfigShowCommandOutcome(ok=False, errors=list(result.errors))
+        return ConfigShowCommandOutcome(errors=list(result.errors))
 
     render_config_show(result.config, result.config_path, output=output)
-    return ConfigShowCommandOutcome(ok=True, config=result.config, config_path=result.config_path)
+    return ConfigShowCommandOutcome(config=result.config, config_path=result.config_path)

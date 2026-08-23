@@ -82,10 +82,10 @@ def sandbox_show_command(
     result = collect_sandbox_show(sandbox_id, context=context)
     if result.status is SandboxShowStatus.NOT_INITIALIZED:
         render_not_initialized(result.errors, output=context.output)
-        return SandboxShowCommandOutcome(ok=False, errors=list(result.errors))
+        return SandboxShowCommandOutcome(errors=list(result.errors))
     if result.status is SandboxShowStatus.NOT_FOUND or result.sandbox is None:
         render_sandbox_not_found(sandbox_id, output=context.output)
-        return SandboxShowCommandOutcome(ok=False, errors=[f"Sandbox '{sandbox_id}' not found."])
+        return SandboxShowCommandOutcome(errors=[f"Sandbox '{sandbox_id}' not found."])
 
     render_sandbox_show(
         result.sandbox,
@@ -93,4 +93,4 @@ def sandbox_show_command(
         reconciled=result.reconciled,
         output=context.output,
     )
-    return SandboxShowCommandOutcome(ok=True, sandbox=result.sandbox)
+    return SandboxShowCommandOutcome(sandbox=result.sandbox)

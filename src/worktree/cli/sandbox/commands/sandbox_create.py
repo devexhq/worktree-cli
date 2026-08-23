@@ -33,7 +33,7 @@ def sandbox_create_command(
     )
     if not result.ok or result.session is None:
         render_sandbox_create_failed(result.errors, output=context.output)
-        return SandboxCreateCommandOutcome(ok=False, errors=list(result.errors), warnings=list(result.warnings))
+        return SandboxCreateCommandOutcome(errors=list(result.errors), warnings=list(result.warnings))
 
     render_sandbox_create_success(
         result.session,
@@ -42,7 +42,6 @@ def sandbox_create_command(
         output=context.output,
     )
     return SandboxCreateCommandOutcome(
-        ok=True,
         session_id=result.session.session_id,
         warnings=list(result.warnings),
     )

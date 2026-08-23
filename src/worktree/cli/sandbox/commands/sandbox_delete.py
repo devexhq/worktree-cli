@@ -95,21 +95,21 @@ def sandbox_delete_command(
 
     if result.status is SandboxDeleteStatus.NOT_INITIALIZED:
         render_not_initialized(result.errors, output=output)
-        return SandboxDeleteCommandOutcome(ok=False, errors=list(result.errors))
+        return SandboxDeleteCommandOutcome(errors=list(result.errors))
     if result.status is SandboxDeleteStatus.NOT_FOUND:
         render_sandbox_not_found(sandbox_id, output=output)
-        return SandboxDeleteCommandOutcome(ok=False, errors=[f"Sandbox '{sandbox_id}' not found."])
+        return SandboxDeleteCommandOutcome(errors=[f"Sandbox '{sandbox_id}' not found."])
     if result.status is SandboxDeleteStatus.ALREADY_CLEANED:
         render_sandbox_already_cleaned(sandbox_id, output=output)
-        return SandboxDeleteCommandOutcome(ok=True, deleted=False)
+        return SandboxDeleteCommandOutcome(already_cleaned=True)
     if result.sandbox is None:
         render_sandbox_not_found(sandbox_id, output=output)
-        return SandboxDeleteCommandOutcome(ok=False, errors=[f"Sandbox '{sandbox_id}' not found."])
+        return SandboxDeleteCommandOutcome(errors=[f"Sandbox '{sandbox_id}' not found."])
 
     row = result.sandbox
 
     if not force and not _confirm_or_abort(row, output):
-        return SandboxDeleteCommandOutcome(ok=False, errors=["Aborted."])
+        return SandboxDeleteCommandOutcome(errors=["Aborted."])
 
     session = SandboxSession(
         session_id=row.id,
@@ -121,4 +121,4 @@ def sandbox_delete_command(
     )
     GitSandboxManager(path=context.cwd, db=context.db.sandboxes).cleanup_sandbox(session)
     render_sandbox_delete_success(sandbox_id, output=output)
-    return SandboxDeleteCommandOutcome(ok=True, deleted=True)
+    return SandboxDeleteCommandOutcome(deleted=True)

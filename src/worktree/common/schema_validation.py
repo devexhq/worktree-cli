@@ -19,8 +19,12 @@ class ValidationResult(BaseModel):
         "strict": True,
     }
 
-    ok: bool
     errors: list[str] = Field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        """Return True if validation succeeded without errors."""
+        return not self.errors
 
 
 class SchemaValidator:
@@ -39,7 +43,7 @@ class SchemaValidator:
         for error in sorted(validator.iter_errors(document), key=lambda e: e.path):
             path = ".".join(str(p) for p in error.path) if error.path else "(root)"
             messages.append(f"{path}: {error.message}")
-        return ValidationResult(ok=not messages, errors=messages)
+        return ValidationResult(errors=messages)
 
 
 def _config_schema_path() -> Traversable:

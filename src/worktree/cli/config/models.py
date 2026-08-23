@@ -14,10 +14,14 @@ class ConfigShowCommandOutcome(BaseModel):
 
     model_config = {"extra": "forbid", "strict": True}
 
-    ok: bool
     config: WorktreeConfig | None = None
     config_path: Path | None = None
     errors: list[str] = Field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        """Return True if config was loaded without errors."""
+        return not self.errors and self.config is not None
 
 
 class ConfigSetCommandOutcome(BaseModel):
@@ -25,10 +29,14 @@ class ConfigSetCommandOutcome(BaseModel):
 
     model_config = {"extra": "forbid", "strict": True}
 
-    ok: bool
     key: str | None = None
     value: object = None
     errors: list[str] = Field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        """Return True if config key was updated without errors."""
+        return not self.errors and self.key is not None
 
 
 class ConfigValidateCommandOutcome(BaseModel):
@@ -36,7 +44,11 @@ class ConfigValidateCommandOutcome(BaseModel):
 
     model_config = {"extra": "forbid", "strict": True}
 
-    ok: bool
     config_path: Path | None = None
     warnings: list[str] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        """Return True if config is valid without errors."""
+        return not self.errors and self.config_path is not None
