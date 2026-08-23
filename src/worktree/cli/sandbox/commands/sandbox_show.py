@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import typer
-
 from worktree.cli.context import Context
 from worktree.core.config.loader import load_config_result
 from worktree.core.db import (
@@ -13,6 +11,7 @@ from worktree.core.db import (
 )
 
 from ..models import (
+    SandboxShowCommandOutcome,
     SandboxShowResult,
     SandboxShowStatus,
 )
@@ -70,12 +69,11 @@ def sandbox_show_command(
     sandbox_id: str,
     *,
     context: Context,
-) -> None:
+) -> SandboxShowCommandOutcome:
     """Show detail for one tracked sandbox.
 
     Read-only aside from reconciling a stale ``active`` row whose sandbox
-    directory was removed out-of-band. Exit ``0`` when found (including after
-    reconciliation); exit ``1`` when not initialized or not found.
+    directory was removed out-of-band.
 
     Args:
         sandbox_id: Sandbox primary key to show.
@@ -84,12 +82,10 @@ def sandbox_show_command(
     result = collect_sandbox_show(sandbox_id, context=context)
     if result.status is SandboxShowStatus.NOT_INITIALIZED:
         render_not_initialized(result.errors, output=context.output)
-        context.output.print()
-        raise typer.Exit(code=1)
+        return SandboxShowCommandOutcome(ok=False, errors=list(result.errors))
     if result.status is SandboxShowStatus.NOT_FOUND or result.sandbox is None:
         render_sandbox_not_found(sandbox_id, output=context.output)
-        context.output.print()
-        raise typer.Exit(code=1)
+        return SandboxShowCommandOutcome(ok=False, errors=[f"Sandbox '{sandbox_id}' not found."])
 
     render_sandbox_show(
         result.sandbox,
@@ -97,5 +93,4 @@ def sandbox_show_command(
         reconciled=result.reconciled,
         output=context.output,
     )
-    context.output.print()
-    raise typer.Exit(code=0)
+    return SandboxShowCommandOutcome(ok=True, sandbox=result.sandbox)

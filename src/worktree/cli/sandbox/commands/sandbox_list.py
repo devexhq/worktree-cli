@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import typer
-
 from worktree.cli.context import Context
 from worktree.core.config.loader import load_config_result
 from worktree.core.db import (
@@ -14,6 +12,7 @@ from worktree.core.db import (
 )
 
 from ..models import (
+    SandboxListCommandOutcome,
     SandboxListResult,
     SandboxListStatus,
 )
@@ -69,12 +68,11 @@ def sandbox_list_command(
     status: str | None = None,
     *,
     context: Context,
-) -> None:
+) -> SandboxListCommandOutcome:
     """List tracked sandboxes with lifecycle status.
 
     Read-only aside from reconciling stale ``active`` rows whose sandbox
-    directory was removed out-of-band. Exit ``0`` on success (including empty
-    lists); exit ``1`` when Worktree is not initialized.
+    directory was removed out-of-band.
 
     Args:
         status: Optional status filter validated by Typer at the CLI layer.
@@ -83,9 +81,7 @@ def sandbox_list_command(
     result = collect_sandbox_list(status, context=context)
     if result.status is SandboxListStatus.NOT_INITIALIZED:
         render_not_initialized(result.errors, output=context.output)
-        context.output.print()
-        raise typer.Exit(code=1)
+        return SandboxListCommandOutcome(ok=False, errors=list(result.errors))
 
     render_sandbox_list(result.sandboxes, output=context.output)
-    context.output.print()
-    raise typer.Exit(code=0)
+    return SandboxListCommandOutcome(ok=True, sandboxes=result.sandboxes)

@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-import typer
 from typer.main import get_command
 from typer.testing import CliRunner
 
@@ -209,9 +208,10 @@ class SandboxListCommandDirectTests:
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
 
-        with pytest.raises(typer.Exit) as exc_info:
-            sandbox_list_command(context=get_cli_context(cwd=git_fs.base_path))
-        assert exc_info.value.exit_code == 1
+        ctx = get_cli_context(cwd=git_fs.base_path)
+        outcome = sandbox_list_command(context=ctx)
+        assert not outcome.ok
+        ctx.output.print()
 
         out = capsys.readouterr().out
         assert "Worktree Not Initialized" in out
@@ -226,9 +226,10 @@ class SandboxListCommandDirectTests:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
 
-        with pytest.raises(typer.Exit) as exc_info:
-            sandbox_list_command(context=get_cli_context(cwd=git_fs.base_path))
-        assert exc_info.value.exit_code == 0
+        ctx = get_cli_context(cwd=git_fs.base_path)
+        outcome = sandbox_list_command(context=ctx)
+        assert outcome.ok
+        ctx.output.print()
         assert "No sandboxes found." in capsys.readouterr().out
 
     def test_populated_exits_zero(
@@ -241,9 +242,10 @@ class SandboxListCommandDirectTests:
         git_fs.init_repo()
         seed_sandbox(git_fs.base_path, sandbox_id="sbx_one", path_suffix="1")
 
-        with pytest.raises(typer.Exit) as exc_info:
-            sandbox_list_command(context=get_cli_context(cwd=git_fs.base_path))
-        assert exc_info.value.exit_code == 0
+        ctx = get_cli_context(cwd=git_fs.base_path)
+        outcome = sandbox_list_command(context=ctx)
+        assert outcome.ok
+        ctx.output.print()
         assert "Worktree Sandboxes" in capsys.readouterr().out
 
 

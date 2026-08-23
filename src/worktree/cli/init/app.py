@@ -24,4 +24,7 @@ def init_callback(
 ):
     """Provision a secure local hidden folder path and tracking schemas."""
     context = get_cli_context()
-    init_command(context=context, tool_version=get_version(), overwrite=overwrite, repair=repair)
+    outcome = init_command(context=context, tool_version=get_version(), overwrite=overwrite, repair=repair)
+    context.output.print()
+    if not outcome.ok:
+        raise typer.Exit(code=1)

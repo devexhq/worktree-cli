@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-import typer
 from typer.main import get_command
 from typer.testing import CliRunner
 
@@ -233,9 +232,10 @@ class SandboxShowCommandDirectTests:
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
 
-        with pytest.raises(typer.Exit) as exc_info:
-            sandbox_show_command("sbx_any", context=get_cli_context(cwd=git_fs.base_path))
-        assert exc_info.value.exit_code == 1
+        ctx = get_cli_context(cwd=git_fs.base_path)
+        outcome = sandbox_show_command("sbx_any", context=ctx)
+        assert not outcome.ok
+        ctx.output.print()
 
         out = capsys.readouterr().out
         assert "Worktree Not Initialized" in out
@@ -250,9 +250,10 @@ class SandboxShowCommandDirectTests:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
 
-        with pytest.raises(typer.Exit) as exc_info:
-            sandbox_show_command("sbx_missing", context=get_cli_context(cwd=git_fs.base_path))
-        assert exc_info.value.exit_code == 1
+        ctx = get_cli_context(cwd=git_fs.base_path)
+        outcome = sandbox_show_command("sbx_missing", context=ctx)
+        assert not outcome.ok
+        ctx.output.print()
         out = capsys.readouterr().out
         assert "Sandbox Not Found" in out
 
@@ -266,9 +267,10 @@ class SandboxShowCommandDirectTests:
         git_fs.init_repo()
         created = seed_sandbox(git_fs.base_path, sandbox_id="sbx_one", path_suffix="1")
 
-        with pytest.raises(typer.Exit) as exc_info:
-            sandbox_show_command(created.id, context=get_cli_context(cwd=git_fs.base_path))
-        assert exc_info.value.exit_code == 0
+        ctx = get_cli_context(cwd=git_fs.base_path)
+        outcome = sandbox_show_command(created.id, context=ctx)
+        assert outcome.ok
+        ctx.output.print()
         out = capsys.readouterr().out
         assert created.id in out
         assert "active" in out
@@ -289,9 +291,10 @@ class SandboxShowCommandDirectTests:
             create_dir=False,
         )
 
-        with pytest.raises(typer.Exit) as exc_info:
-            sandbox_show_command(stale.id, context=get_cli_context(cwd=git_fs.base_path))
-        assert exc_info.value.exit_code == 0
+        ctx = get_cli_context(cwd=git_fs.base_path)
+        outcome = sandbox_show_command(stale.id, context=ctx)
+        assert outcome.ok
+        ctx.output.print()
         out = capsys.readouterr().out
         assert "cleaned" in out
         assert "missing" in out

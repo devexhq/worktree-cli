@@ -99,8 +99,11 @@ def render_init_outcome(
 ) -> None:
     """Render the full success summary for an init command outcome."""
     output.spacer()
-    _render_bootstrap_success(cwd, outcome.bootstrap_result, output=output)
-    _render_config_result(cwd, outcome.config_result, output=output)
-    _render_seed_result(cwd, outcome.seed_result, output=output)
+    if outcome.bootstrap_result is not None:
+        _render_bootstrap_success(cwd, outcome.bootstrap_result, output=output)
+    if outcome.config_result is not None:
+        _render_config_result(cwd, outcome.config_result, output=output)
+    if outcome.seed_result is not None:
+        _render_seed_result(cwd, outcome.seed_result, output=output)
     output.spacer()
     output.dim_text("Next: run [bold cyan]wt config show[/bold cyan] or [bold cyan]wt workflow list[/bold cyan]")

@@ -15,3 +15,13 @@ class WorktreeContext(BaseModel):
     config: WorktreeConfig
     current_branch: str
     warnings: list[str] = Field(default_factory=list)
+
+
+class StatusCommandOutcome(BaseModel):
+    """Structured outcome for wt status command."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    ok: bool = True
+    context: WorktreeContext | None = None
+    errors: list[str] = Field(default_factory=list)

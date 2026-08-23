@@ -85,3 +85,44 @@ class SandboxDeleteResult(BaseModel):
             }
             and not self.errors
         )
+
+
+class SandboxCreateCommandOutcome(BaseModel):
+    """Outcome for wt sandbox create command."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    ok: bool
+    session_id: str | None = None
+    warnings: list[str] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
+
+
+class SandboxListCommandOutcome(BaseModel):
+    """Outcome for wt sandbox list command."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    ok: bool
+    sandboxes: list[SandboxRecord] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
+
+
+class SandboxShowCommandOutcome(BaseModel):
+    """Outcome for wt sandbox show command."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    ok: bool
+    sandbox: SandboxRecord | None = None
+    errors: list[str] = Field(default_factory=list)
+
+
+class SandboxDeleteCommandOutcome(BaseModel):
+    """Outcome for wt sandbox delete command."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    ok: bool
+    deleted: bool = False
+    errors: list[str] = Field(default_factory=list)

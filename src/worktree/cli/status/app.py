@@ -15,4 +15,7 @@ status_app = typer.Typer(
 def status_callback(ctx: typer.Context):
     """Display configuration status for Worktree CLI."""
     context = get_cli_context()
-    status_command(context=context)
+    outcome = status_command(context=context)
+    context.output.print()
+    if not outcome.ok:
+        raise typer.Exit(code=1)

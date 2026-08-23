@@ -27,6 +27,7 @@ def catalog_callback(
     if ctx.invoked_subcommand is None:
         context = get_cli_context()
         outcome = catalog_list_command(context=context, type_filter=type)
+        context.output.print()
         if not outcome.ok:
             raise typer.Exit(code=1)
 
@@ -43,6 +44,7 @@ def catalog_list(
     """List catalog blueprints."""
     context = get_cli_context()
     outcome = catalog_list_command(context=context, type_filter=type)
+    context.output.print()
     if not outcome.ok:
         raise typer.Exit(code=1)
 
@@ -56,6 +58,7 @@ def catalog_create(
     """Create a new catalog blueprint under .worktree/catalog/<type>s/<name>.yml."""
     context = get_cli_context()
     outcome = catalog_create_command(context=context, item_type=type, name=name)
+    context.output.print()
     if not outcome.ok:
         raise typer.Exit(code=1)
 
@@ -68,6 +71,7 @@ def catalog_show(
     """Show metadata and definition content of a catalog blueprint."""
     context = get_cli_context()
     outcome = catalog_show_command(context=context, sha_or_name=name)
+    context.output.print()
     if not outcome.ok:
         raise typer.Exit(code=1)
 
@@ -85,5 +89,6 @@ def catalog_delete(
     """Delete a catalog blueprint file and its database index record."""
     context = get_cli_context()
     outcome = catalog_delete_command(context=context, sha_or_name=name, force=force)
+    context.output.print()
     if not outcome.ok:
         raise typer.Exit(code=1)

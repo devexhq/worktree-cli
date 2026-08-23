@@ -8,12 +8,9 @@ def history_show_command(
     context: Context,
 ) -> HistoryShowResult:
     """Execute session show query and render results to console."""
-    service = HistoryShowService(
+    return HistoryShowService(
         session_id=session_id,
         path=context.cwd,
         db=context.db.runs,
         output=context.output,
-    )
-    result = service.execute()
-    context.output.print()
-    return result
+    ).execute()

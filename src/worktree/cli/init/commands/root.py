@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import typer
-
 from worktree.cli.context import Context
 from worktree.common.fs import (
     get_gitignore_file,
@@ -33,25 +31,23 @@ def init_command(
     tool_version: str | None = None,
     overwrite: bool = False,
     repair: bool = False,
-) -> None:
+) -> InitCommandOutcome:
     """Initialize a local project workspace for Worktree CLI and desktop sync."""
     output = context.output
     root = context.cwd
 
     if not is_git_repository(root):
-        output.error_panel(
-            "Initialization Failed!",
+        err = (
             "The current directory is not a valid Git repository.\n"
-            "Run [bold cyan]git init[/bold cyan] before running [bold cyan]wt init[/bold cyan].",
+            "Run [bold cyan]git init[/bold cyan] before running [bold cyan]wt init[/bold cyan]."
         )
-        output.print()
-        raise typer.Exit(code=1)
+        output.error_panel("Initialization Failed!", err)
+        return InitCommandOutcome(errors=[err])
 
     result = bootstrap_worktree(get_worktree_dir(root), tool_version=tool_version)
     if not result.ok:
         render_init_bootstrap_failure(root, result.errors, output=output)
-        output.print()
-        raise typer.Exit(code=1)
+        return InitCommandOutcome(bootstrap_result=result, errors=list(result.errors))
 
     if result.root_created:
         update_gitignore(get_gitignore_file(root))
@@ -64,8 +60,9 @@ def init_command(
     )
     if not config_result.ok:
         render_init_config_failure(config_result.errors, output=output)
-        output.print()
-        raise typer.Exit(code=1)
+        return InitCommandOutcome(
+            bootstrap_result=result, config_result=config_result, errors=list(config_result.errors)
+        )
 
     db_rel = PathsConfig().db_path
     loaded = load_config_result(path=root)
@@ -74,20 +71,11 @@ def init_command(
     init_database(path=root, db_rel_path=db_rel)
 
     seed_result = seed_all_catalog_templates(path=root)
-    if seed_result.errors:
-        outcome = InitCommandOutcome(
-            bootstrap_result=result,
-            config_result=config_result,
-            seed_result=seed_result,
-        )
-        render_init_outcome(root, outcome, output=output)
-        output.print()
-        raise typer.Exit(code=1)
-
     outcome = InitCommandOutcome(
         bootstrap_result=result,
         config_result=config_result,
         seed_result=seed_result,
+        errors=list(seed_result.errors),
     )
     render_init_outcome(root, outcome, output=output)
-    output.print()
+    return outcome

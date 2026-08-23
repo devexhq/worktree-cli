@@ -10,14 +10,11 @@ def history_root_command(
     kind: str | None = None,
 ) -> HistoryListResult:
     """Execute history list query and render results to console."""
-    service = HistoryListService(
+    return HistoryListService(
         path=context.cwd,
         db=context.db.runs,
         output=context.output,
         limit=limit,
         status=status,
         kind=kind,
-    )
-    result = service.execute()
-    context.output.print()
-    return result
+    ).execute()
