@@ -36,7 +36,10 @@ def sandbox_create(
 ):
     """Create an isolated git worktree sandbox."""
     context = get_cli_context()
-    sandbox_create_command(name=name, base_ref=base_ref, wip=wip, context=context)
+    outcome = sandbox_create_command(name=name, base_ref=base_ref, wip=wip, context=context)
+    context.output.print()
+    if not outcome.ok:
+        raise typer.Exit(code=1)
 
 
 @sandbox_app.command("list")
@@ -52,7 +55,10 @@ def sandbox_list(
 ):
     """List tracked sandboxes and their lifecycle status."""
     context = get_cli_context()
-    sandbox_list_command(status=status.value if status is not None else None, context=context)
+    outcome = sandbox_list_command(status=status.value if status is not None else None, context=context)
+    context.output.print()
+    if not outcome.ok:
+        raise typer.Exit(code=1)
 
 
 @sandbox_app.command("show")
@@ -61,7 +67,10 @@ def sandbox_show(
 ):
     """Show full detail for one tracked sandbox."""
     context = get_cli_context()
-    sandbox_show_command(sandbox_id, context=context)
+    outcome = sandbox_show_command(sandbox_id, context=context)
+    context.output.print()
+    if not outcome.ok:
+        raise typer.Exit(code=1)
 
 
 @sandbox_app.command("delete")
@@ -75,4 +84,7 @@ def sandbox_delete(
 ):
     """Delete a sandbox worktree and branch after confirmation."""
     context = get_cli_context()
-    sandbox_delete_command(sandbox_id, force=force, context=context)
+    outcome = sandbox_delete_command(sandbox_id, force=force, context=context)
+    context.output.print()
+    if not outcome.ok:
+        raise typer.Exit(code=1)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 from worktree.common.utils import RichOutput
@@ -29,9 +29,9 @@ class BlueprintResumeService:
     path: Path
     db: RunsRepository
     catalog_db: CatalogRepository
+    output: RichOutput
     session_id: str | None = None
     non_interactive: bool = False
-    output: RichOutput = field(default_factory=RichOutput)
 
     def execute(self) -> BlueprintRunCommandOutcome:
         """Find session if omitted, classify and resume via Engine."""
@@ -94,7 +94,7 @@ class BlueprintResumeService:
 
     def _render_success(self, record: RunRecord | None) -> None:
         if record is not None:
-            render_blueprint_run_success(record, record.kind, rich_output=self.output)
+            render_blueprint_run_success(record, record.kind, output=self.output)
 
     def _finalize(self, session_id: str, run_outcome: RunOutcome) -> BlueprintRunCommandOutcome:
         record = self._load_record(session_id)

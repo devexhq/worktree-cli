@@ -1,23 +1,16 @@
 """Handles `wt config show` command."""
 
-from __future__ import annotations
-
-import typer
-
 from worktree.cli.context import Context
-from worktree.common.utils import RichOutput
 from worktree.core.config.loader import load_config_result
 
+from ..models import ConfigShowCommandOutcome
 from ..renderers import render_config_show
-
-_DEFAULT_RICH_OUTPUT = RichOutput()
 
 
 def config_show_command(
     *,
     context: Context,
-    rich_output: RichOutput | None = None,
-) -> None:
+) -> ConfigShowCommandOutcome:
     """Print source metadata, then the effective configuration as pretty JSON.
 
     Success stdout is a fixed header, a blank line, then ``as_json`` body.
@@ -25,14 +18,14 @@ def config_show_command(
 
     Args:
         context: CLI context instance.
-        rich_output: Optional RichOutput presenter.
     """
-    output = rich_output or _DEFAULT_RICH_OUTPUT
+    output = context.output
     result = load_config_result(path=context.cwd)
 
     if not result.ok or result.config is None:
         message = "\n\n".join(result.errors) if result.errors else "Failed to load configuration."
         output.error_panel("Config Error", message)
-        raise typer.Exit(code=1)
+        return ConfigShowCommandOutcome(errors=list(result.errors))
 
-    render_config_show(result.config, result.config_path, rich_output=output)
+    render_config_show(result.config, result.config_path, output=output)
+    return ConfigShowCommandOutcome(config=result.config, config_path=result.config_path)

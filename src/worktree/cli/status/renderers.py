@@ -8,13 +8,9 @@ from worktree.cli.status.context import display_context_warnings
 from worktree.cli.status.models import WorktreeContext
 from worktree.common.utils import RichOutput
 
-_DEFAULT_RICH_OUTPUT = RichOutput()
 
-
-def render_status_table(ctx: WorktreeContext, *, rich_output: RichOutput | None = None) -> None:
+def render_status_table(ctx: WorktreeContext, *, output: RichOutput) -> None:
     """Render workspace context summary table and any active warnings."""
-    output = rich_output or _DEFAULT_RICH_OUTPUT
-
     table = Table(title="Worktree Local Workspace Status", title_justify="left", show_header=True)
     table.add_column("Property", style="cyan")
     table.add_column("Value", style="bold green")

@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from tests.helpers import FileSystem, make_rich_output, make_run
+from worktree.common.utils import RichOutput
 from worktree.core.blueprint import BlueprintKind
 from worktree.core.config.generator import generate_default_config
 from worktree.core.db import RunsRepository, RunStatus
@@ -29,7 +30,7 @@ class HistoryListServiceTests:
 
     def test_collect_uninitialized(self, fs: FileSystem) -> None:
         path = fs.base_path / "missing"
-        service = HistoryListService(path=path, db=RunsRepository(path))
+        service = HistoryListService(path=path, db=RunsRepository(path), output=RichOutput())
         result = service.collect()
         assert not result.ok
         assert result.status is HistoryListStatus.NOT_INITIALIZED
@@ -51,7 +52,7 @@ class HistoryListServiceTests:
             status=RunStatus.FAILED,
         )
 
-        service = HistoryListService(path=fs.base_path, db=RunsRepository(fs.base_path))
+        service = HistoryListService(path=fs.base_path, db=RunsRepository(fs.base_path), output=RichOutput())
         result = service.collect()
         assert result.ok
         assert result.status is HistoryListStatus.OK
@@ -74,7 +75,9 @@ class HistoryListServiceTests:
         )
 
         # Status matching enum
-        service = HistoryListService(path=fs.base_path, db=RunsRepository(fs.base_path), status="failed")
+        service = HistoryListService(
+            path=fs.base_path, db=RunsRepository(fs.base_path), status="failed", output=RichOutput()
+        )
         result = service.collect()
         assert result.ok
         assert len(result.runs) == 1
@@ -82,7 +85,7 @@ class HistoryListServiceTests:
 
         # Invalid status string fallback
         service_invalid = HistoryListService(
-            path=fs.base_path, db=RunsRepository(fs.base_path), status="nonexistent_status"
+            path=fs.base_path, db=RunsRepository(fs.base_path), status="nonexistent_status", output=RichOutput()
         )
         result_invalid = service_invalid.collect()
         assert result_invalid.ok
@@ -105,14 +108,18 @@ class HistoryListServiceTests:
         )
 
         # Kind matching enum
-        service = HistoryListService(path=fs.base_path, db=RunsRepository(fs.base_path), kind="workflow")
+        service = HistoryListService(
+            path=fs.base_path, db=RunsRepository(fs.base_path), kind="workflow", output=RichOutput()
+        )
         result = service.collect()
         assert result.ok
         assert len(result.runs) == 1
         assert result.runs[0].session_id == "run-wf"
 
         # Invalid kind string fallback
-        service_invalid = HistoryListService(path=fs.base_path, db=RunsRepository(fs.base_path), kind="invalid_kind")
+        service_invalid = HistoryListService(
+            path=fs.base_path, db=RunsRepository(fs.base_path), kind="invalid_kind", output=RichOutput()
+        )
         result_invalid = service_invalid.collect()
         assert result_invalid.ok
         assert len(result_invalid.runs) == 0
@@ -127,7 +134,7 @@ class HistoryListServiceTests:
                 status=RunStatus.COMPLETED,
             )
 
-        service = HistoryListService(path=fs.base_path, db=RunsRepository(fs.base_path), limit=3)
+        service = HistoryListService(path=fs.base_path, db=RunsRepository(fs.base_path), limit=3, output=RichOutput())
         result = service.collect()
         assert result.ok
         assert len(result.runs) == 3
@@ -145,6 +152,7 @@ class HistoryListServiceTests:
         service = HistoryListService(path=fs.base_path, db=RunsRepository(fs.base_path), output=rich_output)
         result = service.execute()
         assert result.ok
+        rich_output.print()
         output = buffer.getvalue()
         assert "Execution History" in output
         assert "run-exec" in output
@@ -155,6 +163,7 @@ class HistoryListServiceTests:
         service = HistoryListService(path=path, db=RunsRepository(path), output=rich_output)
         result = service.execute()
         assert not result.ok
+        rich_output.print()
         assert "Worktree Not Initialized" in buffer.getvalue()
 
 
@@ -163,7 +172,7 @@ class HistoryShowServiceTests:
 
     def test_collect_uninitialized(self, fs: FileSystem) -> None:
         path = fs.base_path / "missing"
-        service = HistoryShowService(session_id="run-1", path=path, db=RunsRepository(path))
+        service = HistoryShowService(session_id="run-1", path=path, db=RunsRepository(path), output=RichOutput())
         result = service.collect()
         assert not result.ok
         assert result.status is HistoryShowStatus.NOT_INITIALIZED
@@ -178,7 +187,9 @@ class HistoryShowServiceTests:
             status=RunStatus.COMPLETED,
         )
 
-        service = HistoryShowService(session_id="run-show", path=fs.base_path, db=RunsRepository(fs.base_path))
+        service = HistoryShowService(
+            session_id="run-show", path=fs.base_path, db=RunsRepository(fs.base_path), output=RichOutput()
+        )
         result = service.collect()
         assert result.ok
         assert result.status is HistoryShowStatus.OK
@@ -187,7 +198,9 @@ class HistoryShowServiceTests:
 
     def test_collect_not_found(self, fs: FileSystem) -> None:
         _init_workspace(fs.base_path)
-        service = HistoryShowService(session_id="missing-session", path=fs.base_path, db=RunsRepository(fs.base_path))
+        service = HistoryShowService(
+            session_id="missing-session", path=fs.base_path, db=RunsRepository(fs.base_path), output=RichOutput()
+        )
         result = service.collect()
         assert not result.ok
         assert result.status is HistoryShowStatus.NOT_FOUND
@@ -208,6 +221,7 @@ class HistoryShowServiceTests:
         )
         result = service.execute()
         assert result.ok
+        rich_output.print()
         output = buffer.getvalue()
         assert "Session Metadata: run-show-exec" in output
         assert "show-task" in output
@@ -221,6 +235,7 @@ class HistoryShowServiceTests:
         )
         result = service.execute()
         assert not result.ok
+        rich_output.print()
         output = buffer.getvalue()
         assert "Session Not Found" in output
         assert "missing-exec" in output
@@ -231,4 +246,5 @@ class HistoryShowServiceTests:
         service = HistoryShowService(session_id="any", path=path, db=RunsRepository(path), output=rich_output)
         result = service.execute()
         assert not result.ok
+        rich_output.print()
         assert "Worktree Not Initialized" in buffer.getvalue()

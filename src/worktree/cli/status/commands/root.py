@@ -1,26 +1,21 @@
 """Status command implementation."""
 
-from __future__ import annotations
-
-import typer
-
 from worktree.cli.context import Context
 from worktree.cli.status.context import load_context
-from worktree.common.utils import RichOutput
 
+from ..models import StatusCommandOutcome
 from ..renderers import render_status_table
 
-_DEFAULT_RICH_OUTPUT = RichOutput()
 
-
-def status_command(*, context: Context, rich_output: RichOutput | None = None) -> None:
+def status_command(*, context: Context) -> StatusCommandOutcome:
     """Inspect active worktree configuration and repository context."""
-    output = rich_output or _DEFAULT_RICH_OUTPUT
+    output = context.output
 
     try:
         ctx = load_context(context.cwd)
     except Exception as exc:
         output.error_panel("Context Error", str(exc))
-        raise typer.Exit(code=1) from exc
+        return StatusCommandOutcome(errors=[str(exc)])
 
-    render_status_table(ctx, rich_output=output)
+    render_status_table(ctx, output=output)
+    return StatusCommandOutcome(context=ctx)

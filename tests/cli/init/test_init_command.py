@@ -7,7 +7,6 @@ from importlib import resources
 from pathlib import Path
 
 import pytest
-import typer
 
 from tests.helpers import FileSystem, GitFileSystem
 from worktree.cli.context import get_cli_context
@@ -178,9 +177,8 @@ class InitCommandFailureTests:
         self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.chdir(fs.base_path)
-        with pytest.raises(typer.Exit) as exc:
-            init_command(context=get_cli_context(cwd=fs.base_path), tool_version="0.1.1")
-        assert exc.value.exit_code == 1
+        outcome = init_command(context=get_cli_context(cwd=fs.base_path), tool_version="0.1.1")
+        assert not outcome.ok
         assert not (fs.base_path / ".worktree").exists()
 
     def test_accepts_gitfile_style_repository(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -188,8 +186,8 @@ class InitCommandFailureTests:
         (fs.base_path / ".git").write_text("gitdir: /tmp/fake\n", encoding="utf-8")
         monkeypatch.chdir(fs.base_path)
 
-        init_command(context=get_cli_context(cwd=fs.base_path), tool_version="0.1.1")
-
+        outcome = init_command(context=get_cli_context(cwd=fs.base_path), tool_version="0.1.1")
+        assert outcome.ok
         assert (fs.base_path / ".worktree" / "config.json").is_file()
 
     def test_bootstrap_path_collision_exits(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -197,9 +195,8 @@ class InitCommandFailureTests:
         collision = git_fs.base_path / ".worktree"
         collision.write_text("not-a-directory\n", encoding="utf-8")
 
-        with pytest.raises(typer.Exit) as exc:
-            init_command(context=get_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
-        assert exc.value.exit_code == 1
+        outcome = init_command(context=get_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
+        assert not outcome.ok
         assert collision.is_file()
         assert collision.read_text(encoding="utf-8") == "not-a-directory\n"
 
@@ -213,9 +210,8 @@ class InitCommandFailureTests:
             )
 
         monkeypatch.setattr("worktree.cli.init.commands.root.bootstrap_worktree", boom)
-        with pytest.raises(typer.Exit) as exc:
-            init_command(context=get_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
-        assert exc.value.exit_code == 1
+        outcome = init_command(context=get_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
+        assert not outcome.ok
 
     def test_config_generation_failure_exits(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_fs.base_path)
@@ -224,9 +220,8 @@ class InitCommandFailureTests:
             return ConfigGenerationResult(errors=["CONFIG_WRITE_FAILED"])
 
         monkeypatch.setattr("worktree.cli.init.commands.root.generate_default_config", bad_config)
-        with pytest.raises(typer.Exit) as exc:
-            init_command(context=get_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
-        assert exc.value.exit_code == 1
+        outcome = init_command(context=get_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
+        assert not outcome.ok
 
     def test_workflow_seed_failure_exits(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_fs.base_path)
@@ -235,9 +230,8 @@ class InitCommandFailureTests:
             return SeedResult(errors=["seed failed"])
 
         monkeypatch.setattr("worktree.cli.init.commands.root.seed_all_catalog_templates", bad_seed)
-        with pytest.raises(typer.Exit) as exc:
-            init_command(context=get_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
-        assert exc.value.exit_code == 1
+        outcome = init_command(context=get_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
+        assert not outcome.ok
 
     def test_invalid_config_falls_back_to_default_db_path(
         self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch

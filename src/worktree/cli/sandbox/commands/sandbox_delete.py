@@ -13,6 +13,7 @@ from worktree.core.db import (
 from worktree.core.git_sandbox import GitSandboxManager, SandboxSession
 
 from ..models import (
+    SandboxDeleteCommandOutcome,
     SandboxDeleteResult,
     SandboxDeleteStatus,
 )
@@ -78,40 +79,37 @@ def sandbox_delete_command(
     force: bool = False,
     *,
     context: Context,
-    rich_output: RichOutput | None = None,
-) -> None:
+) -> SandboxDeleteCommandOutcome:
     """Delete a tracked sandbox worktree and branch.
 
     Confirms before mutating unless ``force`` is True. Already-cleaned rows are
-    an idempotent no-op. Exit ``0`` on success or already-cleaned; exit ``1``
-    when not initialized, not found, or confirmation is declined/EOF.
+    an idempotent no-op.
 
     Args:
         sandbox_id: Sandbox primary key to delete.
         force: When True, skip the confirmation prompt.
         context: CLI context instance.
-        rich_output: Optional injected console helpers.
     """
-    output = rich_output or RichOutput()
+    output = context.output
     result = collect_sandbox_delete(sandbox_id, context=context)
 
     if result.status is SandboxDeleteStatus.NOT_INITIALIZED:
-        render_not_initialized(result.errors, rich_output=output)
-        raise typer.Exit(code=1)
+        render_not_initialized(result.errors, output=output)
+        return SandboxDeleteCommandOutcome(errors=list(result.errors))
     if result.status is SandboxDeleteStatus.NOT_FOUND:
-        render_sandbox_not_found(sandbox_id, rich_output=output)
-        raise typer.Exit(code=1)
+        render_sandbox_not_found(sandbox_id, output=output)
+        return SandboxDeleteCommandOutcome(errors=[f"Sandbox '{sandbox_id}' not found."])
     if result.status is SandboxDeleteStatus.ALREADY_CLEANED:
-        render_sandbox_already_cleaned(sandbox_id, rich_output=output)
-        raise typer.Exit(code=0)
+        render_sandbox_already_cleaned(sandbox_id, output=output)
+        return SandboxDeleteCommandOutcome(already_cleaned=True)
     if result.sandbox is None:
-        render_sandbox_not_found(sandbox_id, rich_output=output)
-        raise typer.Exit(code=1)
+        render_sandbox_not_found(sandbox_id, output=output)
+        return SandboxDeleteCommandOutcome(errors=[f"Sandbox '{sandbox_id}' not found."])
 
     row = result.sandbox
 
     if not force and not _confirm_or_abort(row, output):
-        raise typer.Exit(code=1)
+        return SandboxDeleteCommandOutcome(errors=["Aborted."])
 
     session = SandboxSession(
         session_id=row.id,
@@ -122,5 +120,5 @@ def sandbox_delete_command(
         created_at=row.created_at,
     )
     GitSandboxManager(path=context.cwd, db=context.db.sandboxes).cleanup_sandbox(session)
-    render_sandbox_delete_success(sandbox_id, rich_output=output)
-    raise typer.Exit(code=0)
+    render_sandbox_delete_success(sandbox_id, output=output)
+    return SandboxDeleteCommandOutcome(deleted=True)

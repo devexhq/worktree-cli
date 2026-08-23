@@ -1,17 +1,11 @@
 """Handles `wt config set` command."""
 
-from __future__ import annotations
-
-import typer
-
 from worktree.cli.context import Context
-from worktree.common.utils import RichOutput
 from worktree.core.config.mutate import set_config_value_result
 from worktree.core.config.parser import parse_config_value
 
+from ..models import ConfigSetCommandOutcome
 from ..renderers import format_config_value
-
-_DEFAULT_RICH_OUTPUT = RichOutput()
 
 
 def config_set_command(
@@ -19,8 +13,7 @@ def config_set_command(
     value: str,
     *,
     context: Context,
-    rich_output: RichOutput | None = None,
-) -> None:
+) -> ConfigSetCommandOutcome:
     """Set a configuration value by top-level or nested dot-path key.
 
     String inputs are parsed into native types (bool, int, float, list, dict).
@@ -32,18 +25,17 @@ def config_set_command(
         key: Dot-path key (e.g. ``agent.model`` or ``version``).
         value: String value from CLI to parse and store at ``key``.
         context: CLI context instance.
-        rich_output: Optional RichOutput presenter.
     """
-    output = rich_output or _DEFAULT_RICH_OUTPUT
+    output = context.output
     parsed_value = parse_config_value(value)
     result = set_config_value_result(key, parsed_value, path=context.cwd)
 
     if not result.ok:
         message = "\n\n".join(result.errors) if result.errors else "Failed to update configuration."
         output.error_panel("Config Error", message)
-        raise typer.Exit(code=1)
+        return ConfigSetCommandOutcome(errors=list(result.errors))
 
     value_str = format_config_value(result.value)
     type_name = type(result.value).__name__
     output.success(f"Config updated: {result.key} = {value_str} ({type_name})")
-    raise typer.Exit(code=0)
+    return ConfigSetCommandOutcome(key=result.key, value=result.value)

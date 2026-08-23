@@ -120,13 +120,15 @@ class SandboxDeleteRenderTests:
 
     def test_already_cleaned_message(self) -> None:
         rich_output, buffer = make_rich_output()
-        render_sandbox_already_cleaned("sbx_done", rich_output=rich_output)
+        render_sandbox_already_cleaned("sbx_done", output=rich_output)
+        rich_output.print()
         out = buffer.getvalue()
         assert "Sandbox 'sbx_done' is already cleaned; nothing to remove." in out
 
     def test_delete_success(self) -> None:
         rich_output, buffer = make_rich_output()
-        render_sandbox_delete_success("sbx_gone", rich_output=rich_output)
+        render_sandbox_delete_success("sbx_gone", output=rich_output)
+        rich_output.print()
         out = buffer.getvalue()
         assert "Sandbox deleted: sbx_gone" in out
 
@@ -151,9 +153,10 @@ class SandboxDeleteCommandDirectTests:
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
 
-        with pytest.raises(typer.Exit) as exc_info:
-            sandbox_delete_command("sbx_any", context=get_cli_context(cwd=git_fs.base_path))
-        assert exc_info.value.exit_code == 1
+        ctx = get_cli_context(cwd=git_fs.base_path)
+        outcome = sandbox_delete_command("sbx_any", context=ctx)
+        assert not outcome.ok
+        ctx.output.print()
 
         out = capsys.readouterr().out
         assert "Worktree Not Initialized" in out
@@ -168,9 +171,10 @@ class SandboxDeleteCommandDirectTests:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
 
-        with pytest.raises(typer.Exit) as exc_info:
-            sandbox_delete_command("sbx_missing", context=get_cli_context(cwd=git_fs.base_path))
-        assert exc_info.value.exit_code == 1
+        ctx = get_cli_context(cwd=git_fs.base_path)
+        outcome = sandbox_delete_command("sbx_missing", context=ctx)
+        assert not outcome.ok
+        ctx.output.print()
         out = capsys.readouterr().out
         assert "Sandbox Not Found" in out
         assert "Sandbox 'sbx_missing' not found." in out
@@ -192,10 +196,11 @@ class SandboxDeleteCommandDirectTests:
         with (
             patch.object(GitSandboxManager, "cleanup_sandbox") as cleanup,
             patch("worktree.cli.sandbox.commands.sandbox_delete.typer.confirm") as confirm,
-            pytest.raises(typer.Exit) as exc_info,
         ):
-            sandbox_delete_command(created.id, context=get_cli_context(cwd=git_fs.base_path))
-        assert exc_info.value.exit_code == 0
+            ctx = get_cli_context(cwd=git_fs.base_path)
+            outcome = sandbox_delete_command(created.id, context=ctx)
+        assert outcome.ok
+        ctx.output.print()
         cleanup.assert_not_called()
         confirm.assert_not_called()
         out = capsys.readouterr().out
@@ -218,10 +223,11 @@ class SandboxDeleteCommandDirectTests:
                 "worktree.cli.sandbox.commands.sandbox_delete.typer.confirm",
                 return_value=False,
             ) as confirm,
-            pytest.raises(typer.Exit) as exc_info,
         ):
-            sandbox_delete_command(created.id, context=get_cli_context(cwd=git_fs.base_path))
-        assert exc_info.value.exit_code == 1
+            ctx = get_cli_context(cwd=git_fs.base_path)
+            outcome = sandbox_delete_command(created.id, context=ctx)
+        assert not outcome.ok
+        ctx.output.print()
         confirm.assert_called_once()
         cleanup.assert_not_called()
         assert sandbox_path.is_dir()
@@ -246,10 +252,11 @@ class SandboxDeleteCommandDirectTests:
                 "worktree.cli.sandbox.commands.sandbox_delete.typer.confirm",
                 side_effect=typer.Abort(),
             ),
-            pytest.raises(typer.Exit) as exc_info,
         ):
-            sandbox_delete_command(created.id, context=get_cli_context(cwd=git_fs.base_path))
-        assert exc_info.value.exit_code == 1
+            ctx = get_cli_context(cwd=git_fs.base_path)
+            outcome = sandbox_delete_command(created.id, context=ctx)
+        assert not outcome.ok
+        ctx.output.print()
         cleanup.assert_not_called()
         loaded = SandboxesRepository(git_fs.base_path, DB_REL).get(created.id)
         assert loaded is not None
@@ -269,10 +276,11 @@ class SandboxDeleteCommandDirectTests:
 
         with (
             patch("worktree.cli.sandbox.commands.sandbox_delete.typer.confirm") as confirm,
-            pytest.raises(typer.Exit) as exc_info,
         ):
-            sandbox_delete_command(session.session_id, force=True, context=get_cli_context(cwd=git_fs.base_path))
-        assert exc_info.value.exit_code == 0
+            ctx = get_cli_context(cwd=git_fs.base_path)
+            outcome = sandbox_delete_command(session.session_id, force=True, context=ctx)
+        assert outcome.ok
+        ctx.output.print()
         confirm.assert_not_called()
         assert not Path(session.sandbox_path).exists()
         loaded = SandboxesRepository(git_fs.base_path, DB_REL).get(session.session_id)
@@ -295,11 +303,12 @@ class SandboxDeleteCommandDirectTests:
                 "worktree.cli.sandbox.commands.sandbox_delete.typer.confirm",
                 return_value=True,
             ) as confirm,
-            pytest.raises(typer.Exit) as exc_info,
         ):
-            sandbox_delete_command(session.session_id, context=get_cli_context(cwd=git_fs.base_path))
+            ctx = get_cli_context(cwd=git_fs.base_path)
+            outcome = sandbox_delete_command(session.session_id, context=ctx)
 
-        assert exc_info.value.exit_code == 0
+        assert outcome.ok
+        ctx.output.print()
         confirm.assert_called_once()
         assert not Path(session.sandbox_path).exists()
         loaded = SandboxesRepository(git_fs.base_path, DB_REL).get(session.session_id)
@@ -322,9 +331,10 @@ class SandboxDeleteCommandDirectTests:
         )
         assert not Path(created.sandbox_path).exists()
 
-        with pytest.raises(typer.Exit) as exc_info:
-            sandbox_delete_command(created.id, force=True, context=get_cli_context(cwd=git_fs.base_path))
-        assert exc_info.value.exit_code == 0
+        ctx = get_cli_context(cwd=git_fs.base_path)
+        outcome = sandbox_delete_command(created.id, force=True, context=ctx)
+        assert outcome.ok
+        ctx.output.print()
         loaded = SandboxesRepository(git_fs.base_path, DB_REL).get(created.id)
         assert loaded is not None
         assert loaded.status is SandboxStatus.CLEANED
@@ -345,10 +355,10 @@ class SandboxDeleteCommandDirectTests:
 
         with (
             patch.object(GitSandboxManager, "cleanup_sandbox") as cleanup,
-            pytest.raises(typer.Exit) as exc_info,
         ):
-            sandbox_delete_command(created.id, force=True, context=get_cli_context(cwd=git_fs.base_path))
-        assert exc_info.value.exit_code == 0
+            ctx = get_cli_context(cwd=git_fs.base_path)
+            outcome = sandbox_delete_command(created.id, force=True, context=ctx)
+        assert outcome.ok
         cleanup.assert_called_once()
         session = cleanup.call_args.args[0]
         assert session.session_id == created.id

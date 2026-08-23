@@ -8,7 +8,6 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-import typer
 from typer.main import get_command
 from typer.testing import CliRunner
 
@@ -51,7 +50,8 @@ class SandboxCreateRenderTests:
     def test_success_block(self, fs: FileSystem) -> None:
         session = _session(sandbox_path=fs.base_path / ".worktree" / "sandboxes" / "sbx_a1b2c3d4")
         rich_output, buffer = make_rich_output()
-        render_sandbox_create_success(session, cwd=fs.base_path, rich_output=rich_output)
+        render_sandbox_create_success(session, cwd=fs.base_path, output=rich_output)
+        rich_output.print()
         out = buffer.getvalue()
         assert "Sandbox created: sbx_a1b2c3d4" in out
         assert "Branch: worktree/sandbox-sbx_a1b2c3d4" in out
@@ -67,8 +67,9 @@ class SandboxCreateRenderTests:
             session,
             warnings=["db write failed"],
             cwd=fs.base_path,
-            rich_output=rich_output,
+            output=rich_output,
         )
+        rich_output.print()
         out = buffer.getvalue()
         assert "Sandbox created: sbx_warn" in out
         assert "db write failed" in out
@@ -78,15 +79,17 @@ class SandboxCreateRenderTests:
         rich_output, buffer = make_rich_output()
         render_sandbox_create_failed(
             ["capacity exceeded detail"],
-            rich_output=rich_output,
+            output=rich_output,
         )
+        rich_output.print()
         out = buffer.getvalue()
         assert "Sandbox Create Failed" in out
         assert "capacity exceeded detail" in out
 
     def test_failed_panel_empty_errors_fallback(self) -> None:
         rich_output, buffer = make_rich_output()
-        render_sandbox_create_failed([], rich_output=rich_output)
+        render_sandbox_create_failed([], output=rich_output)
+        rich_output.print()
         out = buffer.getvalue()
         assert "Sandbox Create Failed" in out
         assert "Sandbox creation failed." in out
@@ -104,9 +107,10 @@ class SandboxCreateCommandDirectTests:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
 
-        with pytest.raises(typer.Exit) as exc_info:
-            sandbox_create_command(context=get_cli_context(cwd=git_fs.base_path))
-        assert exc_info.value.exit_code == 0
+        ctx = get_cli_context(cwd=git_fs.base_path)
+        outcome = sandbox_create_command(context=ctx)
+        assert outcome.ok
+        ctx.output.print()
         out = capsys.readouterr().out
         assert "Sandbox created:" in out
         assert "Branch: worktree/sandbox-" in out
@@ -125,9 +129,10 @@ class SandboxCreateCommandDirectTests:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
 
-        with pytest.raises(typer.Exit) as exc_info:
-            sandbox_create_command(name="  demo  ", context=get_cli_context(cwd=git_fs.base_path))
-        assert exc_info.value.exit_code == 0
+        ctx = get_cli_context(cwd=git_fs.base_path)
+        outcome = sandbox_create_command(name="  demo  ", context=ctx)
+        assert outcome.ok
+        ctx.output.print()
         rows = SandboxesRepository(git_fs.base_path).list()
         assert len(rows) == 1
         assert rows[0].name == "demo"
@@ -170,9 +175,9 @@ class SandboxCreateCommandDirectTests:
             text=True,
         ).stdout.strip()
 
-        with pytest.raises(typer.Exit) as exc_info:
-            sandbox_create_command(base_ref="feature", context=get_cli_context(cwd=git_fs.base_path))
-        assert exc_info.value.exit_code == 0
+        ctx = get_cli_context(cwd=git_fs.base_path)
+        outcome = sandbox_create_command(base_ref="feature", context=ctx)
+        assert outcome.ok
         rows = SandboxesRepository(git_fs.base_path).list()
         assert len(rows) == 1
         assert rows[0].base_commit == feature_tip
@@ -187,9 +192,9 @@ class SandboxCreateCommandDirectTests:
         (git_fs.base_path / "f.txt").write_text("dirty\n", encoding="utf-8")
         (git_fs.base_path / "new.txt").write_text("untracked\n", encoding="utf-8")
 
-        with pytest.raises(typer.Exit) as exc_info:
-            sandbox_create_command(wip=True, context=get_cli_context(cwd=git_fs.base_path))
-        assert exc_info.value.exit_code == 0
+        ctx = get_cli_context(cwd=git_fs.base_path)
+        outcome = sandbox_create_command(wip=True, context=ctx)
+        assert outcome.ok
         rows = SandboxesRepository(git_fs.base_path).list()
         assert len(rows) == 1
         sandbox_path = Path(rows[0].sandbox_path)
@@ -226,9 +231,10 @@ class SandboxCreateCommandDirectTests:
             lambda cwd=None, **_kwargs: mock_manager,
         )
 
-        with pytest.raises(typer.Exit) as exc_info:
-            sandbox_create_command(context=get_cli_context(cwd=git_fs.base_path))
-        assert exc_info.value.exit_code == 1
+        ctx = get_cli_context(cwd=git_fs.base_path)
+        outcome = sandbox_create_command(context=ctx)
+        assert not outcome.ok
+        ctx.output.print()
         out = capsys.readouterr().out
         assert "Sandbox Create Failed" in out
         assert errors[0] in out
@@ -255,9 +261,10 @@ class SandboxCreateCommandDirectTests:
             lambda cwd=None, **_kwargs: mock_manager,
         )
 
-        with pytest.raises(typer.Exit) as exc_info:
-            sandbox_create_command(context=get_cli_context(cwd=git_fs.base_path))
-        assert exc_info.value.exit_code == 0
+        ctx = get_cli_context(cwd=git_fs.base_path)
+        outcome = sandbox_create_command(context=ctx)
+        assert outcome.ok
+        ctx.output.print()
         out = capsys.readouterr().out
         assert "Sandbox created: sbx_warnok" in out
         assert "Failed to persist sandbox metadata" in out

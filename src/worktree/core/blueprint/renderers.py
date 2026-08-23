@@ -73,10 +73,9 @@ def render_blueprint_run_success(
     run_record: RunRecord,
     kind: BlueprintKind | None = None,
     *,
-    rich_output: RichOutput | None = None,
+    output: RichOutput,
 ) -> None:
     """Render blueprint run execution summary."""
-    output = rich_output or RichOutput()
     effective_kind = kind or run_record.kind
     label = effective_kind.value.capitalize() if effective_kind is not None else "Blueprint"
     output.info(

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from worktree.cli.context import Context
 from worktree.common.fs import get_catalog_templates_dir
-from worktree.common.utils import RichOutput
 from worktree.core.catalog.services.inventory import (
     get_catalog_dir,
     get_catalog_item,
@@ -15,8 +14,6 @@ from ..renderers import (
     render_catalog_show,
     render_template_show_content,
 )
-
-_DEFAULT_RICH_OUTPUT = RichOutput()
 
 
 def _find_packaged_templates(sha_or_name: str) -> list[tuple[str, str]]:
@@ -39,19 +36,17 @@ def catalog_show_command(
     sha_or_name: str,
     *,
     context: Context,
-    rich_output: RichOutput | None = None,
 ) -> CatalogShowCommandOutcome:
     """Show details and definition content of a catalog blueprint.
 
     Args:
         sha_or_name: SHA identifier or name of the blueprint.
         context: CLI context instance.
-        rich_output: Optional RichOutput presenter.
 
     Returns:
         CatalogShowCommandOutcome containing record and content or errors.
     """
-    output = rich_output or _DEFAULT_RICH_OUTPUT
+    output = context.output
 
     resolution_result = get_catalog_item(sha_or_name, path=context.cwd, db=context.db.catalog)
     item = resolution_result.resolved
@@ -59,7 +54,7 @@ def catalog_show_command(
         found = _find_packaged_templates(sha_or_name)
         if found:
             for rel_path, content in found:
-                render_template_show_content(rel_path, content, rich_output=output)
+                render_template_show_content(rel_path, content, output=output)
             return CatalogShowCommandOutcome(item=None, content=found[0][1])
 
         error_message = f"Catalog blueprint or template '{sha_or_name}' not found."
@@ -76,5 +71,5 @@ def catalog_show_command(
         output.error_panel("Catalog Show Failed", error_message)
         return CatalogShowCommandOutcome(item=item, content=None, errors=[error_message])
 
-    render_catalog_show(item, content, rich_output=output)
+    render_catalog_show(item, content, output=output)
     return CatalogShowCommandOutcome(item=item, content=content)

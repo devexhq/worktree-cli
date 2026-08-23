@@ -3,8 +3,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
+from worktree.common.utils import RichOutput
 from worktree.core.db.facade import WorktreeDb
 
 
@@ -15,6 +16,7 @@ class Context(BaseModel):
 
     db: WorktreeDb
     cwd: Path
+    output: RichOutput = Field(default_factory=RichOutput)
 
 
 # Backward compatibility alias
@@ -28,5 +30,6 @@ def get_cli_context(cwd: Path | None = None) -> Context:
     # If you ever need to load a config.toml, set up a global logger,
     # or handle a missing .worktree directory, you do it here, exactly once.
     db = WorktreeDb(path=effective_cwd)
+    output = RichOutput()
 
-    return Context(cwd=effective_cwd, db=db)
+    return Context(cwd=effective_cwd, db=db, output=output)

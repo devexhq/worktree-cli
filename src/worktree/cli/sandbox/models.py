@@ -85,3 +85,61 @@ class SandboxDeleteResult(BaseModel):
             }
             and not self.errors
         )
+
+
+class SandboxCreateCommandOutcome(BaseModel):
+    """Outcome for wt sandbox create command."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    session_id: str | None = None
+    warnings: list[str] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        """Return True if sandbox session was created without errors."""
+        return not self.errors and self.session_id is not None
+
+
+class SandboxListCommandOutcome(BaseModel):
+    """Outcome for wt sandbox list command."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    sandboxes: list[SandboxRecord] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        """Return True if sandboxes were listed without errors."""
+        return not self.errors
+
+
+class SandboxShowCommandOutcome(BaseModel):
+    """Outcome for wt sandbox show command."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    sandbox: SandboxRecord | None = None
+    errors: list[str] = Field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        """Return True if sandbox was found without errors."""
+        return not self.errors and self.sandbox is not None
+
+
+class SandboxDeleteCommandOutcome(BaseModel):
+    """Outcome for wt sandbox delete command."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    deleted: bool = False
+    already_cleaned: bool = False
+    errors: list[str] = Field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        """Return True if sandbox was deleted or already cleaned without errors."""
+        return not self.errors and (self.deleted or self.already_cleaned)

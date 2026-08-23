@@ -50,6 +50,7 @@ def test_run_command_no_sandbox_flag(fs: FileSystem, monkeypatch: pytest.MonkeyP
         path=ctx.cwd,
         runs_db=ctx.db.runs,
         catalog_db=ctx.db.catalog,
+        output=ctx.output,
         no_sandbox=True,
     ).execute()
     assert res.ok

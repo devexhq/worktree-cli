@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 
 import pytest
-import typer
 from typer.main import get_command
 from typer.testing import CliRunner
 
@@ -34,9 +33,10 @@ class ConfigSetCommandTests:
         monkeypatch.chdir(git_fs.base_path)
         config_path = git_fs.init_repo()
 
-        with pytest.raises(typer.Exit) as exc_info:
-            config_set_command("agent.model", "qwen2.5-coder", context=get_cli_context(cwd=git_fs.base_path))
-        assert exc_info.value.exit_code == 0
+        ctx = get_cli_context(cwd=git_fs.base_path)
+        outcome = config_set_command("agent.model", "qwen2.5-coder", context=ctx)
+        assert outcome.ok
+        ctx.output.print()
         out = capsys.readouterr().out
         assert "Config updated: agent.model = qwen2.5-coder (str)" in out
         assert _read_config(config_path)["agent"]["model"] == "qwen2.5-coder"
@@ -57,9 +57,10 @@ class ConfigSetCommandTests:
         )
         original = config_path.read_text(encoding="utf-8")
 
-        with pytest.raises(typer.Exit) as exc_info:
-            config_set_command("agents.ollama.port", "11434", context=get_cli_context(cwd=git_fs.base_path))
-        assert exc_info.value.exit_code == 1
+        ctx = get_cli_context(cwd=git_fs.base_path)
+        outcome = config_set_command("agents.ollama.port", "11434", context=ctx)
+        assert not outcome.ok
+        ctx.output.print()
         out = capsys.readouterr().out
         assert "Config Error" in out
         assert "agents.ollama.port" in out
@@ -73,9 +74,10 @@ class ConfigSetCommandTests:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
-        with pytest.raises(typer.Exit) as exc_info:
-            config_set_command("agent.model", "x", context=get_cli_context(cwd=git_fs.base_path))
-        assert exc_info.value.exit_code == 1
+        ctx = get_cli_context(cwd=git_fs.base_path)
+        outcome = config_set_command("agent.model", "x", context=ctx)
+        assert not outcome.ok
+        ctx.output.print()
         out = capsys.readouterr().out
         assert "CONFIG_NOT_FOUND" in out or "not found" in out.lower()
 

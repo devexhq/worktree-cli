@@ -16,7 +16,10 @@ config_app = typer.Typer(
 def config_show(ctx: typer.Context):
     """Display the full normalized effective configuration as JSON."""
     context = get_cli_context()
-    config_show_command(context=context)
+    outcome = config_show_command(context=context)
+    context.output.print()
+    if not outcome.ok:
+        raise typer.Exit(code=1)
 
 
 @config_app.command("set")
@@ -32,11 +35,17 @@ def config_set(
 ):
     """Set a configuration value by key or nested dot-path."""
     context = get_cli_context()
-    config_set_command(key, value, context=context)
+    outcome = config_set_command(key, value, context=context)
+    context.output.print()
+    if not outcome.ok:
+        raise typer.Exit(code=1)
 
 
 @config_app.command("validate")
 def config_validate(ctx: typer.Context):
     """Validate .worktree/config.json against the V1 schema and semantic rules."""
     context = get_cli_context()
-    config_validate_command(context=context)
+    outcome = config_validate_command(context=context)
+    context.output.print()
+    if not outcome.ok:
+        raise typer.Exit(code=1)

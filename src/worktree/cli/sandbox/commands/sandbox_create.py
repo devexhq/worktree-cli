@@ -1,12 +1,7 @@
-"""Sandbox create command handler."""
-
-from __future__ import annotations
-
-import typer
-
 from worktree.cli.context import Context
 from worktree.core.git_sandbox import GitSandboxManager
 
+from ..models import SandboxCreateCommandOutcome
 from ..renderers import (
     render_sandbox_create_failed,
     render_sandbox_create_success,
@@ -19,12 +14,11 @@ def sandbox_create_command(
     wip: bool = False,
     *,
     context: Context,
-) -> None:
+) -> SandboxCreateCommandOutcome:
     """Create an isolated git worktree sandbox.
 
     Calls ``GitSandboxManager.create_sandbox_result`` and renders success or a
-    classified failure panel. Exit ``0`` on success (including non-fatal
-    warnings); exit ``1`` on any failed create status.
+    classified failure panel.
 
     Args:
         name: Optional human-readable sandbox name.
@@ -38,12 +32,16 @@ def sandbox_create_command(
         include_wip=wip,
     )
     if not result.ok or result.session is None:
-        render_sandbox_create_failed(result.errors)
-        raise typer.Exit(code=1)
+        render_sandbox_create_failed(result.errors, output=context.output)
+        return SandboxCreateCommandOutcome(errors=list(result.errors), warnings=list(result.warnings))
 
     render_sandbox_create_success(
         result.session,
         warnings=result.warnings,
         cwd=context.cwd,
+        output=context.output,
     )
-    raise typer.Exit(code=0)
+    return SandboxCreateCommandOutcome(
+        session_id=result.session.session_id,
+        warnings=list(result.warnings),
+    )

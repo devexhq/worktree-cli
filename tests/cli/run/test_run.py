@@ -35,6 +35,7 @@ def test_blueprint_run_service_executes_task(fs: FileSystem, monkeypatch: pytest
         path=ctx.cwd,
         runs_db=ctx.db.runs,
         catalog_db=ctx.db.catalog,
+        output=ctx.output,
         session_id="test_run_task_1",
     ).execute()
     assert res.ok
@@ -64,6 +65,7 @@ def test_blueprint_run_service_executes_workflow(git_fs: GitFileSystem, monkeypa
         path=ctx.cwd,
         runs_db=ctx.db.runs,
         catalog_db=ctx.db.catalog,
+        output=ctx.output,
         no_sandbox=True,
         session_id="test_run_wf_1",
     ).execute()
@@ -224,6 +226,7 @@ def test_run_cli_paused_status_exits_0(
         path=ctx.cwd,
         runs_db=ctx.db.runs,
         catalog_db=ctx.db.catalog,
+        output=ctx.output,
         session_id="paused_session_1",
     ).execute()
     assert outcome.run_record is not None

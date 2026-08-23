@@ -80,6 +80,7 @@ def test_blueprint_resume_service_resumes_task(
         path=ctx.cwd,
         db=ctx.db.runs,
         catalog_db=ctx.db.catalog,
+        output=ctx.output,
     ).execute()
     assert outcome.ok
     assert outcome.run_record is not None
@@ -115,6 +116,7 @@ def test_blueprint_resume_service_resumes_workflow(
         path=ctx.cwd,
         db=ctx.db.runs,
         catalog_db=ctx.db.catalog,
+        output=ctx.output,
     ).execute()
     assert outcome.ok
     assert outcome.run_record is not None
@@ -149,6 +151,7 @@ def test_blueprint_resume_service_auto_resumes_latest(
         path=ctx.cwd,
         db=ctx.db.runs,
         catalog_db=ctx.db.catalog,
+        output=ctx.output,
     ).execute()
     assert outcome.ok
     assert outcome.run_record is not None
@@ -164,6 +167,7 @@ def test_blueprint_resume_service_no_paused_session_fails(fs: FileSystem, monkey
         path=ctx.cwd,
         db=ctx.db.runs,
         catalog_db=ctx.db.catalog,
+        output=ctx.output,
     ).execute()
     assert not outcome.ok
     assert outcome.run_record is None
@@ -337,6 +341,7 @@ def test_resume_cli_paused_status_exits_0(fs: FileSystem, monkeypatch: pytest.Mo
         path=ctx.cwd,
         db=ctx.db.runs,
         catalog_db=ctx.db.catalog,
+        output=ctx.output,
     ).execute()
     assert outcome.ok
     assert outcome.run_record is not None

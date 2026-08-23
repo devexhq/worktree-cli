@@ -56,6 +56,7 @@ def history_callback(
             status=status.value if status is not None else None,
             kind=kind.value if kind is not None else None,
         )
+        context.output.print()
         if not outcome.ok:
             raise typer.Exit(code=1)
 
@@ -70,5 +71,6 @@ def history_show(
         session_id,
         context=context,
     )
+    context.output.print()
     if not outcome.ok:
         raise typer.Exit(code=1)

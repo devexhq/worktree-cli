@@ -13,8 +13,6 @@ from worktree.common.utils import RichOutput, enum_value
 from worktree.core.db import RunRecord, RunStatus
 from worktree.core.runtime import RunCheckpoint, parse_checkpoint
 
-_DEFAULT_RICH_OUTPUT = RichOutput()
-
 _SESSION_SHOW_FIELDS = (
     "Session ID",
     "Blueprint Name",
@@ -104,35 +102,29 @@ def build_history_table(runs: list[RunRecord]) -> Table:
     return table
 
 
-def render_empty_history(*, rich_output: RichOutput | None = None) -> None:
+def render_empty_history(*, output: RichOutput) -> None:
     """Render the empty-state line when no runs match."""
-    output = rich_output or _DEFAULT_RICH_OUTPUT
     output.info("No execution history found.")
 
 
-def render_history_list(runs: list[RunRecord], *, rich_output: RichOutput | None = None) -> None:
+def render_history_list(runs: list[RunRecord], *, output: RichOutput) -> None:
     """Render empty state or execution history table."""
-    output = rich_output or _DEFAULT_RICH_OUTPUT
     if not runs:
-        render_empty_history(rich_output=output)
+        render_empty_history(output=output)
         return
     output.info(build_history_table(runs))
 
 
-def render_not_initialized(errors: list[str], *, rich_output: RichOutput | None = None) -> None:
+def render_not_initialized(errors: list[str], *, output: RichOutput) -> None:
     """Render the not-initialized error panel for history commands."""
-    output = rich_output or _DEFAULT_RICH_OUTPUT
-    message = (
-        "\n\n".join(errors)
-        if errors
-        else (".worktree/config.json not found.\nFix:\n- run `wt init` to initialize the workspace")
+    output.render_not_initialized(
+        errors,
+        fix_hint="run `wt init` to initialize the workspace",
     )
-    output.error_panel("Worktree Not Initialized", message)
 
 
-def render_history_not_found(session_id: str, *, rich_output: RichOutput | None = None) -> None:
+def render_history_not_found(session_id: str, *, output: RichOutput) -> None:
     """Render the not-found error panel for history show."""
-    output = rich_output or _DEFAULT_RICH_OUTPUT
     message = f"Session '{session_id}' not found.\nFix:\n- run `wt history` to view past sessions"
     output.error_panel("Session Not Found", message)
 
@@ -178,15 +170,15 @@ def _build_step_results_table(checkpoint: RunCheckpoint) -> Table | None:
     return table
 
 
-def _render_checkpoint_panel(checkpoint_json: str, *, rich_output: RichOutput) -> None:
+def _render_checkpoint_panel(checkpoint_json: str, *, output: RichOutput) -> None:
     """Render checkpoint metadata and step details or pretty JSON fallback."""
     checkpoint = parse_checkpoint(checkpoint_json)
     if checkpoint is None:
         try:
             formatted_json = json.dumps(json.loads(checkpoint_json), indent=2)
-            rich_output.info(Panel(Syntax(formatted_json, "json"), title="Checkpoint JSON", border_style="cyan"))
+            output.info(Panel(Syntax(formatted_json, "json"), title="Checkpoint JSON", border_style="cyan"))
         except Exception:
-            rich_output.info(Panel(checkpoint_json, title="Checkpoint Data", border_style="cyan"))
+            output.info(Panel(checkpoint_json, title="Checkpoint Data", border_style="cyan"))
         return
 
     checkpoint_table = Table(show_header=False, box=None, padding=(0, 2, 0, 0))
@@ -197,16 +189,15 @@ def _render_checkpoint_panel(checkpoint_json: str, *, rich_output: RichOutput) -
     if checkpoint.diagnostic:
         checkpoint_table.add_row("Diagnostic:", checkpoint.diagnostic)
 
-    rich_output.info(Panel(checkpoint_table, title="Checkpoint Details", border_style="cyan"))
+    output.info(Panel(checkpoint_table, title="Checkpoint Details", border_style="cyan"))
 
     step_table = _build_step_results_table(checkpoint)
     if step_table is not None:
-        rich_output.info(step_table)
+        output.info(step_table)
 
 
-def render_history_show(run: RunRecord, *, rich_output: RichOutput | None = None) -> None:
+def render_history_show(run: RunRecord, *, output: RichOutput) -> None:
     """Render granular session metadata, errors, and checkpoint contents."""
-    output = rich_output or _DEFAULT_RICH_OUTPUT
     metadata_table = _build_metadata_table(run)
     output.info(Panel(metadata_table, title=f"Session Metadata: {run.session_id}", border_style="blue"))
 
@@ -214,4 +205,4 @@ def render_history_show(run: RunRecord, *, rich_output: RichOutput | None = None
         output.info(Panel(run.error_message, title="Error Details", border_style="red"))
 
     if run.checkpoint_json:
-        _render_checkpoint_panel(run.checkpoint_json, rich_output=output)
+        _render_checkpoint_panel(run.checkpoint_json, output=output)

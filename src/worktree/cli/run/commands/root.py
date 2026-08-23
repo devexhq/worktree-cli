@@ -44,6 +44,7 @@ def run_root(
         path=context.cwd,
         runs_db=context.db.runs,
         catalog_db=context.db.catalog,
+        output=context.output,
         kind=None,
         no_sandbox=no_sandbox,
         keep=keep,
@@ -52,5 +53,6 @@ def run_root(
         cli_args=list(ctx.args),
         non_interactive=non_interactive,
     ).execute()
+    context.output.print()
     if not outcome.ok:
         raise typer.Exit(code=1)

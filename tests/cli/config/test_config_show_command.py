@@ -49,7 +49,10 @@ class ConfigShowCommandTests:
         monkeypatch.chdir(git_fs.base_path)
         config_path = git_fs.init_repo()
 
-        config_show_command(context=get_cli_context(cwd=git_fs.base_path))
+        ctx = get_cli_context(cwd=git_fs.base_path)
+        outcome = config_show_command(context=ctx)
+        assert outcome.ok
+        ctx.output.print()
         header, body = _split_show_stdout(capsys.readouterr().out)
         _assert_success_header(header, config_path)
         data = json.loads(body)
@@ -64,9 +67,10 @@ class ConfigShowCommandTests:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
-        with pytest.raises(typer.Exit) as exc_info:
-            config_show_command(context=get_cli_context(cwd=git_fs.base_path))
-        assert exc_info.value.exit_code == 1
+        ctx = get_cli_context(cwd=git_fs.base_path)
+        outcome = config_show_command(context=ctx)
+        assert not outcome.ok
+        ctx.output.print()
         _assert_no_success_header(capsys.readouterr().out)
 
     def test_schema_invalid_exits_nonzero(
@@ -80,9 +84,10 @@ class ConfigShowCommandTests:
         config_path.parent.mkdir(parents=True)
         config_path.write_text('{"version": 1}\n', encoding="utf-8")
 
-        with pytest.raises(typer.Exit) as exc_info:
-            config_show_command(context=get_cli_context(cwd=git_fs.base_path))
-        assert exc_info.value.exit_code == 1
+        ctx = get_cli_context(cwd=git_fs.base_path)
+        outcome = config_show_command(context=ctx)
+        assert not outcome.ok
+        ctx.output.print()
         _assert_no_success_header(capsys.readouterr().out)
 
 

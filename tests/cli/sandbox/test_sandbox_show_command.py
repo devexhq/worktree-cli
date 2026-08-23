@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-import typer
 from typer.main import get_command
 from typer.testing import CliRunner
 
@@ -158,7 +157,8 @@ class SandboxShowRenderTests:
             updated_at="2026-08-03 10:00:00",
         )
         rich_output, buffer = make_rich_output(width=120)
-        render_sandbox_show(sandbox, disk_present=True, rich_output=rich_output)
+        render_sandbox_show(sandbox, disk_present=True, output=rich_output)
+        rich_output.print()
         out = buffer.getvalue()
         assert "sbx_a1b2c3d4" in out
         assert "worktree/sandbox-sbx_a1b2c3d4" in out
@@ -203,8 +203,9 @@ class SandboxShowRenderTests:
             sandbox,
             disk_present=False,
             reconciled=True,
-            rich_output=rich_output,
+            output=rich_output,
         )
+        rich_output.print()
         out = buffer.getvalue()
         assert "cleaned" in out
         assert "missing" in out
@@ -212,7 +213,8 @@ class SandboxShowRenderTests:
 
     def test_not_found_panel(self) -> None:
         rich_output, buffer = make_rich_output()
-        render_sandbox_not_found("sbx_missing", rich_output=rich_output)
+        render_sandbox_not_found("sbx_missing", output=rich_output)
+        rich_output.print()
         out = buffer.getvalue()
         assert "Sandbox Not Found" in out
         assert "Sandbox 'sbx_missing' not found." in out
@@ -230,9 +232,10 @@ class SandboxShowCommandDirectTests:
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
 
-        with pytest.raises(typer.Exit) as exc_info:
-            sandbox_show_command("sbx_any", context=get_cli_context(cwd=git_fs.base_path))
-        assert exc_info.value.exit_code == 1
+        ctx = get_cli_context(cwd=git_fs.base_path)
+        outcome = sandbox_show_command("sbx_any", context=ctx)
+        assert not outcome.ok
+        ctx.output.print()
 
         out = capsys.readouterr().out
         assert "Worktree Not Initialized" in out
@@ -247,9 +250,10 @@ class SandboxShowCommandDirectTests:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
 
-        with pytest.raises(typer.Exit) as exc_info:
-            sandbox_show_command("sbx_missing", context=get_cli_context(cwd=git_fs.base_path))
-        assert exc_info.value.exit_code == 1
+        ctx = get_cli_context(cwd=git_fs.base_path)
+        outcome = sandbox_show_command("sbx_missing", context=ctx)
+        assert not outcome.ok
+        ctx.output.print()
         out = capsys.readouterr().out
         assert "Sandbox Not Found" in out
 
@@ -263,9 +267,10 @@ class SandboxShowCommandDirectTests:
         git_fs.init_repo()
         created = seed_sandbox(git_fs.base_path, sandbox_id="sbx_one", path_suffix="1")
 
-        with pytest.raises(typer.Exit) as exc_info:
-            sandbox_show_command(created.id, context=get_cli_context(cwd=git_fs.base_path))
-        assert exc_info.value.exit_code == 0
+        ctx = get_cli_context(cwd=git_fs.base_path)
+        outcome = sandbox_show_command(created.id, context=ctx)
+        assert outcome.ok
+        ctx.output.print()
         out = capsys.readouterr().out
         assert created.id in out
         assert "active" in out
@@ -286,9 +291,10 @@ class SandboxShowCommandDirectTests:
             create_dir=False,
         )
 
-        with pytest.raises(typer.Exit) as exc_info:
-            sandbox_show_command(stale.id, context=get_cli_context(cwd=git_fs.base_path))
-        assert exc_info.value.exit_code == 0
+        ctx = get_cli_context(cwd=git_fs.base_path)
+        outcome = sandbox_show_command(stale.id, context=ctx)
+        assert outcome.ok
+        ctx.output.print()
         out = capsys.readouterr().out
         assert "cleaned" in out
         assert "missing" in out

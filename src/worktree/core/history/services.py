@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 from worktree.common.utils import RichOutput
@@ -29,10 +29,10 @@ class HistoryListService:
 
     path: Path
     db: RunsRepository
+    output: RichOutput
     limit: int | None = 20
     status: str | None = None
     kind: str | None = None
-    output: RichOutput = field(default_factory=RichOutput)
 
     def collect(self) -> HistoryListResult:
         """Load configuration and retrieve filtered execution runs from database."""
@@ -64,10 +64,10 @@ class HistoryListService:
         """Execute history list query and render results to console."""
         result = self.collect()
         if result.status is HistoryListStatus.NOT_INITIALIZED:
-            render_not_initialized(result.errors, rich_output=self.output)
+            render_not_initialized(result.errors, output=self.output)
             return result
 
-        render_history_list(result.runs, rich_output=self.output)
+        render_history_list(result.runs, output=self.output)
         return result
 
 
@@ -78,7 +78,7 @@ class HistoryShowService:
     session_id: str
     path: Path
     db: RunsRepository
-    output: RichOutput = field(default_factory=RichOutput)
+    output: RichOutput
 
     def collect(self) -> HistoryShowResult:
         """Look up execution session metadata, errors, and checkpoint contents."""
@@ -100,12 +100,12 @@ class HistoryShowService:
         """Execute session show query and render results to console."""
         result = self.collect()
         if result.status is HistoryShowStatus.NOT_INITIALIZED:
-            render_not_initialized(result.errors, rich_output=self.output)
+            render_not_initialized(result.errors, output=self.output)
             return result
 
         if result.status is HistoryShowStatus.NOT_FOUND or result.run is None:
-            render_history_not_found(self.session_id, rich_output=self.output)
+            render_history_not_found(self.session_id, output=self.output)
             return result
 
-        render_history_show(result.run, rich_output=self.output)
+        render_history_show(result.run, output=self.output)
         return result
