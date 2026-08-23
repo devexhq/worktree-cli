@@ -1,5 +1,7 @@
 import typer
 
+from worktree.cli.context import get_cli_context
+
 from .commands.catalog_create import catalog_create_command
 from .commands.catalog_delete import catalog_delete_command
 from .commands.catalog_list import catalog_list_command
@@ -23,7 +25,8 @@ def catalog_callback(
 ):
     """Inspect and manage executable blueprints in .worktree/catalog/."""
     if ctx.invoked_subcommand is None:
-        outcome = catalog_list_command(type_filter=type)
+        context = get_cli_context()
+        outcome = catalog_list_command(context=context, type_filter=type)
         if not outcome.ok:
             raise typer.Exit(code=1)
 
@@ -38,7 +41,8 @@ def catalog_list(
     ),
 ):
     """List catalog blueprints."""
-    outcome = catalog_list_command(type_filter=type)
+    context = get_cli_context()
+    outcome = catalog_list_command(context=context, type_filter=type)
     if not outcome.ok:
         raise typer.Exit(code=1)
 
@@ -50,7 +54,8 @@ def catalog_create(
     name: str = typer.Option(..., "--name", help="Name for the catalog blueprint file."),
 ):
     """Create a new catalog blueprint under .worktree/catalog/<type>s/<name>.yml."""
-    outcome = catalog_create_command(item_type=type, name=name)
+    context = get_cli_context()
+    outcome = catalog_create_command(context=context, item_type=type, name=name)
     if not outcome.ok:
         raise typer.Exit(code=1)
 
@@ -61,7 +66,8 @@ def catalog_show(
     name: str = typer.Argument(..., help="Catalog blueprint SHA or name to show."),
 ):
     """Show metadata and definition content of a catalog blueprint."""
-    outcome = catalog_show_command(sha_or_name=name)
+    context = get_cli_context()
+    outcome = catalog_show_command(context=context, sha_or_name=name)
     if not outcome.ok:
         raise typer.Exit(code=1)
 
@@ -77,6 +83,7 @@ def catalog_delete(
     ),
 ):
     """Delete a catalog blueprint file and its database index record."""
-    outcome = catalog_delete_command(sha_or_name=name, force=force)
+    context = get_cli_context()
+    outcome = catalog_delete_command(context=context, sha_or_name=name, force=force)
     if not outcome.ok:
         raise typer.Exit(code=1)

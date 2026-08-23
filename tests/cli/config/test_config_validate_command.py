@@ -14,6 +14,7 @@ from typer.testing import CliRunner
 from tests.helpers import GitFileSystem
 from worktree.cli import app
 from worktree.cli.config.commands.config_validate import config_validate_command
+from worktree.cli.context import get_cli_context
 from worktree.core.config.validate import (
     ConfigValidationResult,
     ConfigValidationStatus,
@@ -77,7 +78,7 @@ class ConfigValidateCommandTests:
         config_path = git_fs.init_repo()
 
         with pytest.raises(typer.Exit) as exc_info:
-            config_validate_command(cwd=git_fs.base_path)
+            config_validate_command(context=get_cli_context(cwd=git_fs.base_path))
         assert exc_info.value.exit_code == 0
         _assert_success_stdout(
             capsys.readouterr().out,
@@ -99,7 +100,7 @@ class ConfigValidateCommandTests:
         _write_config(config_path, data)
 
         with pytest.raises(typer.Exit) as exc_info:
-            config_validate_command(cwd=git_fs.base_path)
+            config_validate_command(context=get_cli_context(cwd=git_fs.base_path))
         assert exc_info.value.exit_code == 0
         out = capsys.readouterr().out
         _assert_success_stdout(out, config_path=config_path, with_warnings=True)
@@ -115,7 +116,7 @@ class ConfigValidateCommandTests:
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
         with pytest.raises(typer.Exit) as exc_info:
-            config_validate_command(cwd=git_fs.base_path)
+            config_validate_command(context=get_cli_context(cwd=git_fs.base_path))
         assert exc_info.value.exit_code == 1
         combined = _assert_failure_output(capsys.readouterr().out)
         assert "CONFIG_NOT_FOUND" in combined or "not found" in combined.lower()
@@ -132,7 +133,7 @@ class ConfigValidateCommandTests:
         config_path.write_text('{"version": 1}\n', encoding="utf-8")
 
         with pytest.raises(typer.Exit) as exc_info:
-            config_validate_command(cwd=git_fs.base_path)
+            config_validate_command(context=get_cli_context(cwd=git_fs.base_path))
         assert exc_info.value.exit_code == 1
         combined = _assert_failure_output(capsys.readouterr().out)
         assert "schema" in combined.lower() or "CONFIG_SCHEMA_INVALID" in combined
@@ -150,7 +151,7 @@ class ConfigValidateCommandTests:
         _write_config(config_path, data)
 
         with pytest.raises(typer.Exit) as exc_info:
-            config_validate_command(cwd=git_fs.base_path)
+            config_validate_command(context=get_cli_context(cwd=git_fs.base_path))
         assert exc_info.value.exit_code == 1
         combined = _assert_failure_output(capsys.readouterr().out)
         assert "CONFIG_SEMANTIC_PATH_INVALID" in combined
@@ -167,7 +168,7 @@ class ConfigValidateCommandTests:
         config_path.write_text("{not-json\n", encoding="utf-8")
 
         with pytest.raises(typer.Exit) as exc_info:
-            config_validate_command(cwd=git_fs.base_path)
+            config_validate_command(context=get_cli_context(cwd=git_fs.base_path))
         assert exc_info.value.exit_code == 1
         combined = _assert_failure_output(capsys.readouterr().out)
         assert "CONFIG_MALFORMED_JSON" in combined or "json" in combined.lower()
@@ -183,7 +184,7 @@ class ConfigValidateCommandTests:
         config_path.mkdir(parents=True)
 
         with pytest.raises(typer.Exit) as exc_info:
-            config_validate_command(cwd=git_fs.base_path)
+            config_validate_command(context=get_cli_context(cwd=git_fs.base_path))
         assert exc_info.value.exit_code == 1
         combined = _assert_failure_output(capsys.readouterr().out)
         assert "CONFIG_PATH_IS_DIRECTORY" in combined or "directory" in combined.lower()
@@ -206,7 +207,7 @@ class ConfigValidateCommandTests:
             return_value=fake,
         ):
             with pytest.raises(typer.Exit) as exc_info:
-                config_validate_command(cwd=git_fs.base_path)
+                config_validate_command(context=get_cli_context(cwd=git_fs.base_path))
         assert exc_info.value.exit_code == 1
         combined = _assert_failure_output(capsys.readouterr().out)
         assert "Configuration validation failed." in combined
@@ -234,7 +235,7 @@ class ConfigValidateCommandTests:
             return_value=fake,
         ):
             with pytest.raises(typer.Exit) as exc_info:
-                config_validate_command(cwd=git_fs.base_path)
+                config_validate_command(context=get_cli_context(cwd=git_fs.base_path))
         assert exc_info.value.exit_code == 1
         out = capsys.readouterr().out
         combined = _assert_failure_output(out)
@@ -254,7 +255,7 @@ class ConfigValidateCommandTests:
         config_path = git_fs.base_path / ".worktree" / "config.json"
         assert not config_path.exists()
         with pytest.raises(typer.Exit) as exc_info:
-            config_validate_command(cwd=git_fs.base_path)
+            config_validate_command(context=get_cli_context(cwd=git_fs.base_path))
         assert exc_info.value.exit_code == 1
         assert not config_path.exists()
         _assert_failure_output(capsys.readouterr().out)

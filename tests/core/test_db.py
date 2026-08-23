@@ -30,18 +30,18 @@ class TestDatabaseMigrations:
     """Tests for database initialization and schema creation."""
 
     def test_init_creates_database_file(self, fs: FileSystem) -> None:
-        db_path = init_database(cwd=fs.base_path, db_rel_path=DB_REL)
+        db_path = init_database(path=fs.base_path, db_rel_path=DB_REL)
         assert db_path.is_file()
-        assert RunsRepository(cwd=fs.base_path, db_rel_path=DB_REL).list() == []
+        assert RunsRepository(path=fs.base_path, db_rel_path=DB_REL).list() == []
 
     def test_init_is_idempotent(self, fs: FileSystem) -> None:
-        path1 = init_database(cwd=fs.base_path, db_rel_path=DB_REL)
-        path2 = init_database(cwd=fs.base_path, db_rel_path=DB_REL)
+        path1 = init_database(path=fs.base_path, db_rel_path=DB_REL)
+        path2 = init_database(path=fs.base_path, db_rel_path=DB_REL)
         assert path1 == path2
         assert path1.is_file()
 
     def test_get_db_connection_lifecycle(self, fs: FileSystem) -> None:
-        db_path = init_database(cwd=fs.base_path, db_rel_path=DB_REL)
+        db_path = init_database(path=fs.base_path, db_rel_path=DB_REL)
         with get_db_connection(db_path) as conn:
             cursor = conn.execute("SELECT 1 AS num")
             row = cursor.fetchone()
@@ -49,7 +49,7 @@ class TestDatabaseMigrations:
             assert row["num"] == 1
 
     def test_get_db_connection_rollback_on_error(self, fs: FileSystem) -> None:
-        db_path = init_database(cwd=fs.base_path, db_rel_path=DB_REL)
+        db_path = init_database(path=fs.base_path, db_rel_path=DB_REL)
         with pytest.raises(RuntimeError, match="simulated db error"):
             with get_db_connection(db_path) as conn:
                 conn.execute("SELECT 1")
@@ -60,7 +60,7 @@ class TestBaseRepository:
     """Tests for BaseRepository core path resolution, init_db, and session lifecycle."""
 
     def test_db_path_resolution(self, fs: FileSystem) -> None:
-        repo = BaseRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        repo = BaseRepository(path=fs.base_path, db_rel_path=DB_REL)
         assert repo.db_path == fs.base_path / DB_REL
 
         custom_path = fs.base_path / "custom.db"
@@ -68,22 +68,28 @@ class TestBaseRepository:
         assert repo_custom.db_path == custom_path
 
     def test_init_db_creates_file(self, fs: FileSystem) -> None:
-        repo = BaseRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        repo = BaseRepository(path=fs.base_path, db_rel_path=DB_REL)
         path = repo.init_db()
         assert path.is_file()
 
     def test_session_auto_inits_db(self, fs: FileSystem) -> None:
-        repo = BaseRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        repo = BaseRepository(path=fs.base_path, db_rel_path=DB_REL)
         with repo.session() as session:
             assert session is not None
         assert repo.db_path.is_file()
+
+    def test_custom_db_engine(self, fs: FileSystem) -> None:
+        custom_engine = BaseRepository(path=fs.base_path, db_rel_path=DB_REL).db_engine
+        repo = BaseRepository(path=fs.base_path, db_engine=custom_engine)
+        assert repo.db_engine is custom_engine
+        assert repo.engine is custom_engine
 
 
 class TestSandboxesRepository:
     """Tests for SandboxesRepository CRUD methods."""
 
     def test_insert_and_get(self, fs: FileSystem) -> None:
-        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = SandboxesRepository(path=fs.base_path, db_rel_path=DB_REL)
         sb = db.insert(
             id="sb-001",
             branch_name="feat/branch",
@@ -105,7 +111,7 @@ class TestSandboxesRepository:
         assert fetched == sb
 
     def test_insert_with_name(self, fs: FileSystem) -> None:
-        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = SandboxesRepository(path=fs.base_path, db_rel_path=DB_REL)
         sb = db.insert(
             id="sb-named",
             branch_name="feat/named",
@@ -116,17 +122,17 @@ class TestSandboxesRepository:
         assert sb.name == "my-sandbox"
 
     def test_insert_duplicate_raises_value_error(self, fs: FileSystem) -> None:
-        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = SandboxesRepository(path=fs.base_path, db_rel_path=DB_REL)
         db.insert(id="dup-id", branch_name="b", base_commit="c", sandbox_path=fs.base_path / "dup")
         with pytest.raises(ValueError, match="dup-id"):
             db.insert(id="dup-id", branch_name="b2", base_commit="c2", sandbox_path=fs.base_path / "dup2")
 
     def test_get_missing_returns_none(self, fs: FileSystem) -> None:
-        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = SandboxesRepository(path=fs.base_path, db_rel_path=DB_REL)
         assert db.get("does-not-exist") is None
 
     def test_list_unfiltered_and_filtered(self, fs: FileSystem) -> None:
-        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = SandboxesRepository(path=fs.base_path, db_rel_path=DB_REL)
         db.insert(id="a", branch_name="b", base_commit="c", sandbox_path=fs.base_path / "a")
         db.insert(id="b", branch_name="b2", base_commit="c2", sandbox_path=fs.base_path / "b")
         db.update_status("b", SandboxStatus.MERGED)
@@ -143,7 +149,7 @@ class TestSandboxesRepository:
         assert merged[0].id == "b"
 
     def test_update_status(self, fs: FileSystem) -> None:
-        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = SandboxesRepository(path=fs.base_path, db_rel_path=DB_REL)
         sb = db.insert(id="upd", branch_name="b", base_commit="c", sandbox_path=fs.base_path / "upd")
         original_updated_at = sb.updated_at
 
@@ -153,11 +159,11 @@ class TestSandboxesRepository:
         assert updated.updated_at >= original_updated_at
 
     def test_update_status_missing_returns_none(self, fs: FileSystem) -> None:
-        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = SandboxesRepository(path=fs.base_path, db_rel_path=DB_REL)
         assert db.update_status("ghost", SandboxStatus.CLEANED) is None
 
     def test_delete(self, fs: FileSystem) -> None:
-        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = SandboxesRepository(path=fs.base_path, db_rel_path=DB_REL)
         db.insert(id="del-me", branch_name="b", base_commit="c", sandbox_path=fs.base_path / "del-me")
 
         assert db.delete("del-me") is True
@@ -165,7 +171,7 @@ class TestSandboxesRepository:
         assert db.delete("del-me") is False
 
     def test_reconcile_stale_active_all(self, fs: FileSystem) -> None:
-        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = SandboxesRepository(path=fs.base_path, db_rel_path=DB_REL)
         active_existing_dir = fs.base_path / "existing-dir"
         active_existing_dir.mkdir(parents=True, exist_ok=True)
         active_missing_dir1 = fs.base_path / "missing-dir-1"
@@ -190,7 +196,7 @@ class TestSandboxesRepository:
         assert stale.status == SandboxStatus.CLEANED
 
     def test_reconcile_stale_active_by_id(self, fs: FileSystem) -> None:
-        db = SandboxesRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = SandboxesRepository(path=fs.base_path, db_rel_path=DB_REL)
         active_missing_dir1 = fs.base_path / "missing-dir-1"
         active_missing_dir2 = fs.base_path / "missing-dir-2"
         db.insert(id="sb-target", branch_name="b1", base_commit="c1", sandbox_path=active_missing_dir1)
@@ -213,7 +219,7 @@ class TestCatalogRepository:
     """Tests for CatalogRepository repository methods."""
 
     def test_upsert_insert_and_get_by_sha_and_name(self, fs: FileSystem) -> None:
-        db = CatalogRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = CatalogRepository(path=fs.base_path, db_rel_path=DB_REL)
         path = Path(".worktree/catalog/workflow_a.yaml")
         rec = db.upsert(
             sha="workflow_1234567",
@@ -246,7 +252,7 @@ class TestCatalogRepository:
         assert by_name_and_type == rec
 
     def test_upsert_update_preserves_id_and_updates_fields(self, fs: FileSystem) -> None:
-        db = CatalogRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = CatalogRepository(path=fs.base_path, db_rel_path=DB_REL)
         path = Path(".worktree/catalog/task_b.yaml")
         first = db.upsert(
             sha="task_1111111",
@@ -274,12 +280,12 @@ class TestCatalogRepository:
         assert second.created_at == first_created_at
 
     def test_get_missing_catalog_item_returns_none(self, fs: FileSystem) -> None:
-        db = CatalogRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = CatalogRepository(path=fs.base_path, db_rel_path=DB_REL)
         assert db.get_by_sha("missing") is None
         assert db.get_by_name("missing_name") is None
 
     def test_list_catalog_items_filtering(self, fs: FileSystem) -> None:
-        db = CatalogRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = CatalogRepository(path=fs.base_path, db_rel_path=DB_REL)
         db.upsert(sha="w1", item_type=CatalogItemType.WORKFLOW, name="wf1", path=Path("w1.yaml"), checksum="c1")
         db.upsert(sha="t1", item_type=CatalogItemType.TASK, name="task1", path=Path("t1.yaml"), checksum="c2")
         db.upsert(sha="s1", item_type=CatalogItemType.STEP, name="step1", path=Path("s1.yaml"), checksum="c3")
@@ -296,7 +302,7 @@ class TestCatalogRepository:
         assert steps[0].sha == "s1"
 
     def test_list_by_name(self, fs: FileSystem) -> None:
-        db = CatalogRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = CatalogRepository(path=fs.base_path, db_rel_path=DB_REL)
         db.upsert(
             sha="n1", item_type=CatalogItemType.WORKFLOW, name="shared", path=Path("a/shared.yaml"), checksum="c1"
         )
@@ -310,7 +316,7 @@ class TestCatalogRepository:
         assert wf_shared[0].sha == "n1"
 
     def test_invalid_catalog_item_type_raises_value_error(self, fs: FileSystem) -> None:
-        db = CatalogRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = CatalogRepository(path=fs.base_path, db_rel_path=DB_REL)
         with pytest.raises(ValueError, match="constraint"):
             db.upsert(
                 sha="invalid",
@@ -321,7 +327,7 @@ class TestCatalogRepository:
             )
 
     def test_delete_catalog_item(self, fs: FileSystem) -> None:
-        db = CatalogRepository(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = CatalogRepository(path=fs.base_path, db_rel_path=DB_REL)
         db.upsert(
             sha="to_delete",
             item_type=CatalogItemType.WORKFLOW,
@@ -339,8 +345,14 @@ class TestWorktreeDbFacade:
     """Tests for WorktreeDb unified facade."""
 
     def test_facade_sub_repository_access(self, fs: FileSystem) -> None:
-        db = WorktreeDb(cwd=fs.base_path, db_rel_path=DB_REL)
+        db = WorktreeDb(path=fs.base_path, db_rel_path=DB_REL)
         db.init_db()
+
+        assert db.sandboxes.db_engine is db.db_engine
+        assert db.runs.db_engine is db.db_engine
+        assert db.catalog.db_engine is db.db_engine
+        assert db.costs.db_engine is db.db_engine
+        assert db.engine is db.db_engine
 
         sb = db.sandboxes.insert(
             id="sb_facade",
@@ -379,3 +391,9 @@ class TestWorktreeDbFacade:
         assert cost_id is not None
         totals = db.costs.get_session_total_cost("run_facade")
         assert totals["total_tokens"] == 30
+
+    def test_facade_custom_db_engine(self, fs: FileSystem) -> None:
+        db1 = WorktreeDb(path=fs.base_path, db_rel_path=DB_REL)
+        db2 = WorktreeDb(path=fs.base_path, db_engine=db1.db_engine)
+        assert db2.db_engine is db1.db_engine
+        assert db2.sandboxes.db_engine is db1.db_engine

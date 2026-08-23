@@ -18,7 +18,7 @@ from worktree.core.blueprint.models import (
 from worktree.core.blueprint.renderers import BlueprintRenderer, render_blueprint_run_success
 from worktree.core.blueprint.services.blueprint import Blueprint
 from worktree.core.catalog import Catalog
-from worktree.core.db import RunRecord, RunsRepository, RunStatus
+from worktree.core.db import CatalogRepository, RunRecord, RunsRepository, RunStatus
 from worktree.core.engine import Engine, EngineInputError, EngineRuntimeError, RunRequest
 from worktree.core.inputs import format_input_error_message
 from worktree.core.runtime import (
@@ -34,8 +34,10 @@ class BlueprintRunService:
     """Service encapsulating the blueprint execution lifecycle."""
 
     name: str
+    path: Path
+    runs_db: RunsRepository
+    catalog_db: CatalogRepository
     kind: BlueprintKind | None = None
-    cwd: Path | None = None
     no_sandbox: bool = False
     keep: bool = False
     agent: str | None = None
@@ -43,12 +45,9 @@ class BlueprintRunService:
     cli_args: list[str] | None = None
     non_interactive: bool = False
     output: RichOutput = field(default_factory=RichOutput)
-
-    root: Path = field(init=False)
     renderer: BlueprintRenderer = field(init=False)
 
     def __post_init__(self) -> None:
-        self.root = (self.cwd or Path.cwd()).resolve()
         self.renderer = BlueprintRenderer(self.kind or BlueprintKind.TASK)
 
     @property
@@ -57,7 +56,8 @@ class BlueprintRunService:
 
     def execute(self) -> BlueprintRunCommandOutcome:
         """Run the full execution pipeline and return the outcome."""
-        blueprint, fail_outcome = self._load_blueprint()
+        catalog = Catalog(path=self.path, db=self.catalog_db)
+        blueprint, fail_outcome = self._load_blueprint(catalog)
         if fail_outcome is not None or blueprint is None:
             return fail_outcome or self._fail(f"Failed to load {self._kind_label} '{self.name}'.")
 
@@ -71,7 +71,7 @@ class BlueprintRunService:
 
         try:
             with observer:
-                run_outcome = Engine(self.root).run(
+                run_outcome = Engine(self.path, db=self.runs_db, catalog=catalog).run(
                     blueprint,
                     RunRequest(
                         cli_args=self.cli_args,
@@ -106,8 +106,7 @@ class BlueprintRunService:
         self.output.error_panel(panel_title, message)
         return BlueprintRunCommandOutcome(run_record=None, errors=[message])
 
-    def _load_blueprint(self) -> tuple[Blueprint | None, BlueprintRunCommandOutcome | None]:
-        catalog = Catalog(self.root)
+    def _load_blueprint(self, catalog: Catalog) -> tuple[Blueprint | None, BlueprintRunCommandOutcome | None]:
         try:
             blueprint = Blueprint.load(self.name, catalog=catalog)
         except (BlueprintNotFoundError, BlueprintLoadError) as exc:
@@ -135,7 +134,7 @@ class BlueprintRunService:
 
     def _load_record(self, session_id: str) -> RunRecord | None:
         try:
-            return RunsRepository(self.root).get(session_id)
+            return self.runs_db.get(session_id)
         except Exception:
             return None
 

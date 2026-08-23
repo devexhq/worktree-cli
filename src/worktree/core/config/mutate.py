@@ -209,7 +209,7 @@ def set_config_value_result(
     key: str,
     value: Any,
     *,
-    cwd: Path | None = None,
+    path: Path | None = None,
     config_path: Path | None = None,
 ) -> ConfigSetResult:
     """Load config JSON, set a dot-path value, and persist on success.
@@ -219,14 +219,14 @@ def set_config_value_result(
     Args:
         key: Dot-path key to set.
         value: Native Python value (or string) to assign.
-        cwd: Repository root used when ``config_path`` is omitted.
+        path: Repository root used when ``config_path`` is omitted.
         config_path: Explicit config path override.
 
     Returns:
         Classified ``ConfigSetResult`` with absolute ``config_path``.
     """
-    path = resolve_config_path(cwd=cwd, config_path=config_path)
-    loaded = _read_config_object(path, key)
+    resolved_path = resolve_config_path(path=path, config_path=config_path)
+    loaded = _read_config_object(resolved_path, key)
     if isinstance(loaded, ConfigSetResult):
         return loaded
 
@@ -242,24 +242,24 @@ def set_config_value_result(
         )
         return ConfigSetResult(
             status=status,
-            config_path=path,
+            config_path=resolved_path,
             key=key,
             errors=[message],
         )
 
-    schema_error = _validate_mutated_config(updated, path, key)
+    schema_error = _validate_mutated_config(updated, resolved_path, key)
     if schema_error is not None:
         return schema_error
 
     try:
-        atomic_write_json(path, updated)
+        atomic_write_json(resolved_path, updated)
     except OSError as exc:
         return ConfigSetResult(
             status=ConfigSetStatus.WRITE_FAILED,
-            config_path=path,
+            config_path=resolved_path,
             key=key,
             errors=[
-                f"Unable to write config.json at '{path}': {exc} "
+                f"Unable to write config.json at '{resolved_path}': {exc} "
                 f"(CONFIG_WRITE_FAILED).\n"
                 "Fix:\n"
                 "- check file permissions and free disk space"
@@ -268,7 +268,7 @@ def set_config_value_result(
 
     return ConfigSetResult(
         status=ConfigSetStatus.OK,
-        config_path=path,
+        config_path=resolved_path,
         key=key,
         value=value,
         errors=[],

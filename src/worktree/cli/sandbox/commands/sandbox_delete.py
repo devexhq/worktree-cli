@@ -2,16 +2,14 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import typer
 
+from worktree.cli.context import Context
 from worktree.common.utils import RichOutput
 from worktree.core.config.loader import load_config_result
 from worktree.core.db import (
     SandboxStatus,
 )
-from worktree.core.db.repositories.sandboxes import SandboxesRepository
 from worktree.core.git_sandbox import GitSandboxManager, SandboxSession
 
 from ..models import (
@@ -30,26 +28,25 @@ from ..renderers import (
 def collect_sandbox_delete(
     sandbox_id: str,
     *,
-    cwd: Path | None = None,
+    context: Context,
 ) -> SandboxDeleteResult:
     """Load config and look up one sandbox for delete (no mutation).
 
     Args:
         sandbox_id: Sandbox primary key to delete.
-        cwd: Repository root. Defaults to process CWD.
+        context: CLI context instance.
 
     Returns:
         Structured delete result. Does not print, confirm, or clean up.
     """
-    root = (cwd or Path.cwd()).resolve()
-    load = load_config_result(cwd=root)
+    load = load_config_result(path=context.cwd)
     if not load.ok:
         return SandboxDeleteResult(
             status=SandboxDeleteStatus.NOT_INITIALIZED,
             errors=list(load.errors),
         )
 
-    row = SandboxesRepository(root).get(sandbox_id)
+    row = context.db.sandboxes.get(sandbox_id)
     if row is None:
         return SandboxDeleteResult(status=SandboxDeleteStatus.NOT_FOUND)
 
@@ -62,11 +59,25 @@ def collect_sandbox_delete(
     return SandboxDeleteResult(status=SandboxDeleteStatus.READY, sandbox=row)
 
 
+def _confirm_or_abort(row: object, output: RichOutput) -> bool:
+    """Prompt user for confirmation; return True if confirmed."""
+    try:
+        confirmed = typer.confirm(
+            sandbox_delete_confirm_prompt(row),  # pyright: ignore[reportArgumentType]
+            default=False,
+        )
+    except typer.Abort:
+        confirmed = False
+    if not confirmed:
+        output.info("Aborted.")
+    return confirmed
+
+
 def sandbox_delete_command(
     sandbox_id: str,
     force: bool = False,
     *,
-    cwd: Path | None = None,
+    context: Context,
     rich_output: RichOutput | None = None,
 ) -> None:
     """Delete a tracked sandbox worktree and branch.
@@ -78,12 +89,11 @@ def sandbox_delete_command(
     Args:
         sandbox_id: Sandbox primary key to delete.
         force: When True, skip the confirmation prompt.
-        cwd: Repository root. Defaults to process CWD.
+        context: CLI context instance.
         rich_output: Optional injected console helpers.
     """
-    root = (cwd or Path.cwd()).resolve()
     output = rich_output or RichOutput()
-    result = collect_sandbox_delete(sandbox_id, cwd=root)
+    result = collect_sandbox_delete(sandbox_id, context=context)
 
     if result.status is SandboxDeleteStatus.NOT_INITIALIZED:
         render_not_initialized(result.errors, rich_output=output)
@@ -100,17 +110,8 @@ def sandbox_delete_command(
 
     row = result.sandbox
 
-    if not force:
-        try:
-            confirmed = typer.confirm(
-                sandbox_delete_confirm_prompt(row),
-                default=False,
-            )
-        except typer.Abort:
-            confirmed = False
-        if not confirmed:
-            output.info("Aborted.")
-            raise typer.Exit(code=1)
+    if not force and not _confirm_or_abort(row, output):
+        raise typer.Exit(code=1)
 
     session = SandboxSession(
         session_id=row.id,
@@ -120,6 +121,6 @@ def sandbox_delete_command(
         name=row.name,
         created_at=row.created_at,
     )
-    GitSandboxManager(cwd=root).cleanup_sandbox(session)
+    GitSandboxManager(path=context.cwd, db=context.db.sandboxes).cleanup_sandbox(session)
     render_sandbox_delete_success(sandbox_id, rich_output=output)
     raise typer.Exit(code=0)

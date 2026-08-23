@@ -27,16 +27,16 @@ from .renderers import (
 class HistoryListService:
     """Service encapsulating execution history retrieval and rendering."""
 
+    path: Path
+    db: RunsRepository
     limit: int | None = 20
     status: str | None = None
     kind: str | None = None
-    cwd: Path | None = None
     output: RichOutput = field(default_factory=RichOutput)
 
     def collect(self) -> HistoryListResult:
         """Load configuration and retrieve filtered execution runs from database."""
-        root = (self.cwd or Path.cwd()).resolve()
-        load = load_config_result(cwd=root)
+        load = load_config_result(path=self.path)
         if not load.ok:
             return HistoryListResult(
                 status=HistoryListStatus.NOT_INITIALIZED,
@@ -57,8 +57,7 @@ class HistoryListService:
             except ValueError:
                 kind_filter = self.kind
 
-        db = RunsRepository(root)
-        runs = db.list(limit=self.limit, status=status_filter, kind=kind_filter)
+        runs = self.db.list(limit=self.limit, status=status_filter, kind=kind_filter)
         return HistoryListResult(status=HistoryListStatus.OK, runs=runs)
 
     def execute(self) -> HistoryListResult:
@@ -77,21 +76,20 @@ class HistoryShowService:
     """Service encapsulating history session inspection and rendering."""
 
     session_id: str
-    cwd: Path | None = None
+    path: Path
+    db: RunsRepository
     output: RichOutput = field(default_factory=RichOutput)
 
     def collect(self) -> HistoryShowResult:
         """Look up execution session metadata, errors, and checkpoint contents."""
-        root = (self.cwd or Path.cwd()).resolve()
-        load = load_config_result(cwd=root)
+        load = load_config_result(path=self.path)
         if not load.ok:
             return HistoryShowResult(
                 status=HistoryShowStatus.NOT_INITIALIZED,
                 errors=list(load.errors),
             )
 
-        db = RunsRepository(root)
-        row = db.get(self.session_id)
+        row = self.db.get(self.session_id)
 
         if row is None:
             return HistoryShowResult(status=HistoryShowStatus.NOT_FOUND)

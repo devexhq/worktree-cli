@@ -216,7 +216,7 @@ class ConfigV1LoaderCompatibilityTests:
         config_path = fs.base_path / ".worktree" / "config.json"
         config_path.parent.mkdir(parents=True)
         assert generate_default_config(config_path, "demo").ok
-        result = load_config_result(cwd=fs.base_path)
+        result = load_config_result(path=fs.base_path)
         assert result.status == ConfigLoadStatus.OK
         assert result.config is not None
 
@@ -229,7 +229,7 @@ class ConfigV1LoaderCompatibilityTests:
             json.dumps(data, indent=2) + "\n",
             encoding="utf-8",
         )
-        result = load_config_result(cwd=fs.base_path)
+        result = load_config_result(path=fs.base_path)
         assert result.status == ConfigLoadStatus.SCHEMA_INVALID
         joined = "\n".join(result.errors)
         assert "CONFIG_SCHEMA_INVALID" in joined

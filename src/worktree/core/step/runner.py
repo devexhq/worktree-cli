@@ -252,7 +252,7 @@ def _prepare_step_for_execution(
 ) -> tuple[StepDefinition, int]:
     """Resolve uses/run shorthand, interpolate inputs, and compute retry budget."""
     if step.uses is not None or step.run is not None:
-        step = resolve_step_definition(step, cwd=sandbox_path)
+        step = resolve_step_definition(step, path=sandbox_path)
     inputs = (context or {}).get("inputs")
     if isinstance(inputs, dict) and inputs:
         step = interpolate_step_fields(step, inputs)

@@ -6,11 +6,11 @@ from pathlib import Path
 
 import typer
 
+from worktree.cli.context import Context
 from worktree.core.config.loader import load_config_result
 from worktree.core.db import (
     SandboxStatus,
 )
-from worktree.core.db.repositories.sandboxes import SandboxesRepository
 
 from ..models import (
     SandboxShowResult,
@@ -26,33 +26,31 @@ from ..renderers import (
 def collect_sandbox_show(
     sandbox_id: str,
     *,
-    cwd: Path | None = None,
+    context: Context,
 ) -> SandboxShowResult:
     """Load config, look up one sandbox, and reconcile a stale active row.
 
     Args:
         sandbox_id: Sandbox primary key to show.
-        cwd: Repository root. Defaults to process CWD.
+        context: CLI context instance.
 
     Returns:
         Structured show result. Does not print or exit.
     """
-    root = (cwd or Path.cwd()).resolve()
-    load = load_config_result(cwd=root)
+    load = load_config_result(path=context.cwd)
     if not load.ok:
         return SandboxShowResult(
             status=SandboxShowStatus.NOT_INITIALIZED,
             errors=list(load.errors),
         )
 
-    db = SandboxesRepository(root)
-    row = db.get(sandbox_id)
+    row = context.db.sandboxes.get(sandbox_id)
     if row is None:
         return SandboxShowResult(status=SandboxShowStatus.NOT_FOUND)
 
     reconciled = False
     if row.status is SandboxStatus.ACTIVE and not Path(row.sandbox_path).is_dir():
-        updated = db.update_status(row.id, SandboxStatus.CLEANED)
+        updated = context.db.sandboxes.update_status(row.id, SandboxStatus.CLEANED)
         if updated is not None:
             row = updated
         else:
@@ -71,7 +69,7 @@ def collect_sandbox_show(
 def sandbox_show_command(
     sandbox_id: str,
     *,
-    cwd: Path | None = None,
+    context: Context,
 ) -> None:
     """Show detail for one tracked sandbox.
 
@@ -81,9 +79,9 @@ def sandbox_show_command(
 
     Args:
         sandbox_id: Sandbox primary key to show.
-        cwd: Repository root. Defaults to process CWD.
+        context: CLI context instance.
     """
-    result = collect_sandbox_show(sandbox_id, cwd=cwd)
+    result = collect_sandbox_show(sandbox_id, context=context)
     if result.status is SandboxShowStatus.NOT_INITIALIZED:
         render_not_initialized(result.errors)
         raise typer.Exit(code=1)

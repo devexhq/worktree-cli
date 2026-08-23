@@ -62,7 +62,7 @@ _PATH_FIELD_NAMES = (
 
 
 def validate_config_result(
-    cwd: Path | None = None,
+    path: Path | None = None,
     *,
     config_path: Path | None = None,
 ) -> ConfigValidationResult:
@@ -72,13 +72,13 @@ def validate_config_result(
     exit, create, or mutate config files.
 
     Args:
-        cwd: Repository root for default path resolution.
+        path: Repository root for default path resolution.
         config_path: Explicit path override.
 
     Returns:
         Classified ``ConfigValidationResult`` with absolute ``config_path``.
     """
-    loaded = load_config_result(cwd=cwd, config_path=config_path)
+    loaded = load_config_result(path=path, config_path=config_path)
     status = _LOAD_STATUS_TO_VALIDATION[loaded.status]
 
     if loaded.status != ConfigLoadStatus.OK:

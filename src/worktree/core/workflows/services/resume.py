@@ -1,4 +1,4 @@
-"""Resume a paused workflow session through the shared runtime engine."""
+"""Core workflow resume service: reload paused run from checkpoint and continue."""
 
 from __future__ import annotations
 
@@ -6,13 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from worktree.core.catalog.services.inventory import get_catalog_item
-from worktree.core.db import (
-    BlueprintKind,
-    CatalogItemType,
-    RunRecord,
-    RunsRepository,
-    RunStatus,
-)
+from worktree.core.db import CatalogItemType, RunRecord, RunsRepository, RunStatus
 from worktree.core.runtime import (
     FailurePrompter,
     RunCheckpoint,
@@ -22,29 +16,29 @@ from worktree.core.runtime import (
     parse_checkpoint,
     run_steps,
 )
-from worktree.core.step import StepDefinition
+from worktree.core.step import (
+    LoopStepBlock,
+    StepDefinition,
+)
 from worktree.core.workflows.models import (
     WorkflowDefinition,
     WorkflowResumeResult,
     WorkflowResumeStatus,
 )
-from worktree.core.workflows.services.pause import WorkflowPauseStore
-
-
-def _standard_steps(definition: WorkflowDefinition) -> list[StepDefinition]:
-    return [step for step in (definition.steps or []) if isinstance(step, StepDefinition)]
+from worktree.core.workflows.services.pause import DbWorkflowPauseStore
 
 
 def _resume_error(status: WorkflowResumeStatus, message: str) -> WorkflowResumeResult:
     return WorkflowResumeResult(status=status, errors=[message])
 
 
+def _standard_steps(definition: WorkflowDefinition) -> list[StepDefinition]:
+    return [step for step in (definition.steps or []) if not isinstance(step, LoopStepBlock)]
+
+
 def _validate_resume_row(session_id: str, row: RunRecord | None) -> WorkflowResumeResult | None:
-    if row is None or row.kind != BlueprintKind.WORKFLOW:
-        return _resume_error(
-            WorkflowResumeStatus.NOT_FOUND,
-            f"Workflow session '{session_id}' not found.",
-        )
+    if row is None:
+        return _resume_error(WorkflowResumeStatus.NOT_FOUND, f"Workflow session '{session_id}' not found.")
     if row.status != RunStatus.PAUSED:
         return _resume_error(
             WorkflowResumeStatus.WRONG_STATUS,
@@ -53,8 +47,10 @@ def _validate_resume_row(session_id: str, row: RunRecord | None) -> WorkflowResu
     return None
 
 
-def _validate_checkpoint(session_id: str, raw: str | None) -> tuple[RunCheckpoint | None, WorkflowResumeResult | None]:
-    checkpoint = parse_checkpoint(raw)
+def _validate_checkpoint(
+    session_id: str, checkpoint_json: str | None
+) -> tuple[RunCheckpoint | None, WorkflowResumeResult | None]:
+    checkpoint = parse_checkpoint(checkpoint_json)
     if checkpoint is None:
         return None, _resume_error(
             WorkflowResumeStatus.CORRUPT_CHECKPOINT,
@@ -74,13 +70,13 @@ def _load_resume_steps(
     session_id: str,
     row: RunRecord,
     checkpoint: RunCheckpoint,
-    cwd: Path,
+    path: Path,
 ) -> tuple[list[StepDefinition] | None, WorkflowResumeResult | None]:
     loaded = get_catalog_item(
         row.blueprint_name,
         CatalogItemType.WORKFLOW,
         definition_cls=WorkflowDefinition,
-        cwd=cwd,
+        path=path,
     )
     if not loaded.ok or not isinstance(loaded.definition, WorkflowDefinition):
         return None, _resume_error(
@@ -103,7 +99,7 @@ class _PreparedResume:
     steps: list[StepDefinition]
 
 
-def _prepare_resume(session_id: str, cwd: Path, db: RunsRepository) -> _PreparedResume | WorkflowResumeResult:
+def _prepare_resume(session_id: str, path: Path, db: RunsRepository) -> _PreparedResume | WorkflowResumeResult:
     row = db.get(session_id)
     row_error = _validate_resume_row(session_id, row)
     if row_error is not None or row is None:
@@ -117,7 +113,7 @@ def _prepare_resume(session_id: str, cwd: Path, db: RunsRepository) -> _Prepared
             WorkflowResumeStatus.CORRUPT_CHECKPOINT,
             f"Cannot resume session '{session_id}': checkpoint is missing or corrupt.",
         )
-    steps, steps_error = _load_resume_steps(session_id, row, checkpoint, cwd)
+    steps, steps_error = _load_resume_steps(session_id, row, checkpoint, path)
     if steps_error is not None or steps is None:
         return steps_error or _resume_error(
             WorkflowResumeStatus.FAILED,
@@ -138,16 +134,16 @@ def _result_from_outcome(session_id: str, outcome: RunOutcome) -> WorkflowResume
 
 def resume_workflow(
     session_id: str,
-    cwd: Path,
+    path: Path,
     *,
     failure_prompter: FailurePrompter | None = None,
     non_interactive: bool = False,
     observer: RunObserver | None = None,
 ) -> WorkflowResumeResult:
     """Load a paused workflow row, rebuild ``RunContext``, and re-enter ``run_steps``."""
-    db = RunsRepository(cwd)
+    db = RunsRepository(path)
 
-    prepared = _prepare_resume(session_id, cwd, db)
+    prepared = _prepare_resume(session_id, path, db)
     if isinstance(prepared, WorkflowResumeResult):
         return prepared
 
@@ -155,7 +151,7 @@ def resume_workflow(
     outcome = run_steps(
         RunContext(
             steps=prepared.steps,
-            cwd=cwd,
+            cwd=path,
             use_sandbox=prepared.checkpoint.use_sandbox,
             keep=prepared.checkpoint.keep,
             agent=prepared.checkpoint.agent,
@@ -163,9 +159,16 @@ def resume_workflow(
             inputs=prepared.checkpoint.inputs or None,
             non_interactive=non_interactive,
             failure_prompter=failure_prompter,
-            pause_store=WorkflowPauseStore(cwd, session_id),
+            pause_store=DbWorkflowPauseStore(db, session_id),
             resume_from=prepared.checkpoint,
         )
     )
-    db.update_status(session_id, outcome.status, error_message=outcome.error_message)
+
+    if outcome.status != RunStatus.PAUSED:
+        db.update_status(
+            session_id,
+            outcome.status,
+            error_message=outcome.error_message,
+        )
+
     return _result_from_outcome(session_id, outcome)

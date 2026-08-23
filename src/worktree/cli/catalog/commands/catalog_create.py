@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
+from worktree.cli.context import Context
 from worktree.common.utils import RichOutput
 from worktree.core.catalog.services.inventory import create_catalog_item
 from worktree.core.db import CatalogItemType
@@ -17,8 +16,8 @@ _DEFAULT_RICH_OUTPUT = RichOutput()
 def catalog_create_command(
     item_type: CatalogItemType | str,
     name: str,
-    cwd: Path | None = None,
     *,
+    context: Context,
     rich_output: RichOutput | None = None,
 ) -> CatalogCreateCommandOutcome:
     """Create a new catalog blueprint under ``.worktree/catalog/<type>s/<name>.yml``.
@@ -26,7 +25,7 @@ def catalog_create_command(
     Args:
         item_type: Blueprint type (workflow, task, step).
         name: Blueprint name.
-        cwd: Optional CWD path.
+        context: CLI context instance.
         rich_output: Optional RichOutput presenter.
 
     Returns:
@@ -38,7 +37,8 @@ def catalog_create_command(
         record = create_catalog_item(
             item_type=item_type,
             name=name,
-            cwd=cwd,
+            path=context.cwd,
+            db=context.db.catalog,
         )
     except Exception as exc:
         error_message = str(exc)

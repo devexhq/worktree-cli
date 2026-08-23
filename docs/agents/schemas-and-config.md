@@ -89,16 +89,16 @@ Typed config lives in
 `AgentConfig` / `HistoryConfig` / `DoctorConfig` / `PruneConfig` / `TelemetryConfig`
 sections — read that file for the exact field list, all `extra: "forbid", strict: True`).
 Repo context/warnings live in
-[src/worktree/core/config/context.py](../../src/worktree/core/config/context.py).
+[src/worktree/cli/status/context.py](../../src/worktree/cli/status/context.py).
 Command packages must not call `json.load` on config directly.
 
-Default path: `get_worktree_config_file(cwd)` → `<repo>/.worktree/config.json`.
-`resolve_config_path(cwd=..., config_path=...)` returns an absolute path;
+Default path: `get_worktree_config_file(path)` → `<repo>/.worktree/config.json`.
+`resolve_config_path(path=..., config_path=...)` returns an absolute path;
 explicit `config_path` wins when provided.
 
 ### Primary API
 
-`load_config_result(cwd=None, *, config_path=None) -> ConfigLoadResult` is the
+`load_config_result(path=None, *, config_path=None) -> ConfigLoadResult` is the
 primary surface. It does not print, call `sys.exit`, or create/mutate files.
 
 `ConfigLoadResult` (`core/config/loader.py`, `extra: "forbid", strict: True`):
@@ -132,14 +132,14 @@ Thin wrappers over the same internals (no print/exit):
 
 - `load_raw_config(config_path) -> dict`
 - `parse_and_validate_config(raw) -> WorktreeConfig`
-- `load_config(cwd=None, *, config_path=None) -> WorktreeConfig`
+- `load_config(path=None, *, config_path=None) -> WorktreeConfig`
 
 They raise `FileNotFoundError` for `not_found`, `OSError` for `unreadable`, and
-`ValueError` for other non-ok statuses, using messages from `errors`.
+`ValueError` for other non-non-ok statuses, using messages from `errors`.
 
 ### Context warnings
 
-`load_context` in `core/config/context.py` builds `WorktreeContext` (config +
+`load_context` in `cli/status/context.py` builds `WorktreeContext` (config +
 current branch + warnings) via `load_config`. Current warning rules, in order: missing
 `agent.model`, active branch is `main`/`master`, `sandbox.max_active_sandboxes > 5`.
 This is a separate, narrower rule set from `wt config validate`'s semantic warnings

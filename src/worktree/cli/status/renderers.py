@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from rich.table import Table
 
+from worktree.cli.status.context import display_context_warnings
+from worktree.cli.status.models import WorktreeContext
 from worktree.common.utils import RichOutput
-from worktree.core.config.context import display_context_warnings
-from worktree.core.config.models import WorktreeContext
 
 _DEFAULT_RICH_OUTPUT = RichOutput()
 

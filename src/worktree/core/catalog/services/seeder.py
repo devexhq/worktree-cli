@@ -39,7 +39,7 @@ def _seed_one_file(source_file: Path, target_path: Path, *, force: bool, result:
 
 def seed_catalog_templates(
     item_type: CatalogItemType,
-    cwd: Path | None = None,
+    path: Path,
     *,
     force: bool = False,
 ) -> SeedResult:
@@ -50,7 +50,7 @@ def seed_catalog_templates(
     if not source_dir.is_dir():
         return result
 
-    base_dir = (cwd or Path.cwd()).resolve()
+    base_dir = path.resolve()
     target_dir = base_dir / ".worktree" / "catalog" / f"{item_type.value}s" / "wt"
 
     for source_file in _iter_source_files(Path(str(source_dir))):
@@ -62,7 +62,7 @@ def seed_catalog_templates(
 
 
 def seed_all_catalog_templates(
-    cwd: Path | None = None,
+    path: Path,
     *,
     force: bool = False,
 ) -> SeedResult:
@@ -70,7 +70,7 @@ def seed_all_catalog_templates(
     aggregate = SeedResult()
 
     for item_type in (CatalogItemType.WORKFLOW, CatalogItemType.TASK, CatalogItemType.STEP):
-        result = seed_catalog_templates(item_type, cwd=cwd, force=force)
+        result = seed_catalog_templates(item_type, path=path, force=force)
         aggregate.created_files.extend(result.created_files)
         aggregate.skipped_existing_files.extend(result.skipped_existing_files)
         aggregate.overwritten_files.extend(result.overwritten_files)

@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import typer
 
+from worktree.cli.context import Context
 from worktree.common.fs import (
     get_gitignore_file,
     get_worktree_config_file,
@@ -33,15 +32,15 @@ _DEFAULT_RICH_OUTPUT = RichOutput()
 
 def init_command(
     *,
+    context: Context,
     tool_version: str | None = None,
     overwrite: bool = False,
     repair: bool = False,
-    cwd: Path | None = None,
     rich_output: RichOutput | None = None,
 ) -> None:
     """Initialize a local project workspace for Worktree CLI and desktop sync."""
     output = rich_output or _DEFAULT_RICH_OUTPUT
-    root = (cwd or Path.cwd()).resolve()
+    root = context.cwd
 
     if not is_git_repository(root):
         output.error_panel(
@@ -70,12 +69,12 @@ def init_command(
         raise typer.Exit(code=1)
 
     db_rel = PathsConfig().db_path
-    loaded = load_config_result(cwd=root)
+    loaded = load_config_result(path=root)
     if loaded.ok and loaded.config is not None:
         db_rel = loaded.config.paths.db_path
-    init_database(cwd=root, db_rel_path=db_rel)
+    init_database(path=root, db_rel_path=db_rel)
 
-    seed_result = seed_all_catalog_templates(cwd=root)
+    seed_result = seed_all_catalog_templates(path=root)
     if seed_result.errors:
         outcome = InitCommandOutcome(
             bootstrap_result=result,

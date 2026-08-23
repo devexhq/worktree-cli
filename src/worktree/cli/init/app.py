@@ -1,5 +1,6 @@
 import typer
 
+from worktree.cli.context import get_cli_context
 from worktree.common.version import get_version
 
 from .commands.root import init_command
@@ -8,7 +9,7 @@ init_app = typer.Typer(name="init", help="Initialize Worktree CLI in the current
 
 
 @init_app.callback(invoke_without_command=True)
-def init_workspace(
+def init_callback(
     ctx: typer.Context,
     overwrite: bool = typer.Option(
         False,
@@ -22,4 +23,5 @@ def init_workspace(
     ),
 ):
     """Provision a secure local hidden folder path and tracking schemas."""
-    init_command(tool_version=get_version(), overwrite=overwrite, repair=repair)
+    context = get_cli_context()
+    init_command(context=context, tool_version=get_version(), overwrite=overwrite, repair=repair)

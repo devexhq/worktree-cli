@@ -64,7 +64,7 @@ class TestEngineAndPragmas:
 
 
 class TestProgrammaticMigrations:
-    """Tests for programmatic Alembic upgrades and unversioned baseline auto-stamping."""
+    """Tests for programmatic Alembic upgrades."""
 
     def test_init_database_creates_all_tables_and_alembic_version(self, tmp_path: Path) -> None:
         db_path = tmp_path / "fresh.db"
@@ -77,49 +77,9 @@ class TestProgrammaticMigrations:
             version_row = cursor.fetchone()
 
         assert version_row is not None
-        assert version_row[0] == "0001_initial_schema"
-
-    def test_init_database_stamps_legacy_unversioned_db(self, tmp_path: Path) -> None:
-        db_path = tmp_path / "legacy.db"
-        # Pre-create legacy database with existing schema without alembic_version table
-        with sqlite3.connect(db_path) as conn:
-            conn.executescript(
-                """
-                CREATE TABLE sandboxes (
-                    id TEXT PRIMARY KEY,
-                    name TEXT,
-                    branch_name TEXT NOT NULL,
-                    base_commit TEXT NOT NULL,
-                    sandbox_path TEXT NOT NULL UNIQUE,
-                    status TEXT NOT NULL DEFAULT 'active'
-                );
-                CREATE TABLE runs (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    session_id TEXT NOT NULL UNIQUE,
-                    blueprint_name TEXT NOT NULL,
-                    kind TEXT NOT NULL,
-                    branch_name TEXT NOT NULL DEFAULT '',
-                    status TEXT NOT NULL DEFAULT 'running'
-                );
-                INSERT INTO sandboxes (id, branch_name, base_commit, sandbox_path)
-                VALUES ('sb_legacy', 'feat/legacy', 'c123', '/tmp/sb_legacy');
-                """
-            )
-
-        # Run init_database which should baseline-stamp to 0001_initial_schema without collision
-        init_database(db_path=db_path)
-
-        with sqlite3.connect(db_path) as conn:
-            cursor = conn.execute("SELECT version_num FROM alembic_version")
-            version_row = cursor.fetchone()
-            sb_count = conn.execute("SELECT count(*) FROM sandboxes").fetchone()[0]
-
-        assert version_row is not None
-        assert version_row[0] == "0001_initial_schema"
-        assert sb_count == 1
 
     def test_resolve_db_path_helper(self, tmp_path: Path) -> None:
-        resolved = resolve_db_path(cwd=tmp_path, db_rel_path=".custom/my.db")
+        resolved = resolve_db_path(path=tmp_path, db_rel_path=".custom/my.db")
         assert resolved == (tmp_path / ".custom/my.db").resolve()
         assert resolved.parent.is_dir()
 
@@ -128,7 +88,7 @@ class TestBaseRepository:
     """Tests for BaseRepository lazy initialization and session lifecycle."""
 
     def test_base_repository_lazy_init_and_session(self, fs: FileSystem) -> None:
-        repo = BaseRepository(cwd=fs.base_path, db_rel_path=".worktree/custom.db")
+        repo = BaseRepository(path=fs.base_path, db_rel_path=".worktree/custom.db")
 
         with repo.session() as session:
             sandbox = SandboxRecord(
@@ -148,6 +108,6 @@ class TestBaseRepository:
             assert loaded.path == fs.base_path / "sandboxes" / "sb_base_repo"
 
     def test_base_repository_explicit_init_db(self, fs: FileSystem) -> None:
-        repo = BaseRepository(cwd=fs.base_path, auto_init=False)
+        repo = BaseRepository(path=fs.base_path, auto_init=False)
         db_path = repo.init_db()
         assert db_path.is_file()

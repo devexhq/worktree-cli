@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
+from worktree.cli.context import Context
 from worktree.common.fs import get_catalog_templates_dir
 from worktree.common.utils import RichOutput
 from worktree.core.catalog.services.inventory import (
@@ -38,15 +37,15 @@ def _find_packaged_templates(sha_or_name: str) -> list[tuple[str, str]]:
 
 def catalog_show_command(
     sha_or_name: str,
-    cwd: Path | None = None,
     *,
+    context: Context,
     rich_output: RichOutput | None = None,
 ) -> CatalogShowCommandOutcome:
     """Show details and definition content of a catalog blueprint.
 
     Args:
         sha_or_name: SHA identifier or name of the blueprint.
-        cwd: Optional CWD path.
+        context: CLI context instance.
         rich_output: Optional RichOutput presenter.
 
     Returns:
@@ -54,7 +53,7 @@ def catalog_show_command(
     """
     output = rich_output or _DEFAULT_RICH_OUTPUT
 
-    resolution_result = get_catalog_item(sha_or_name, cwd=cwd)
+    resolution_result = get_catalog_item(sha_or_name, path=context.cwd, db=context.db.catalog)
     item = resolution_result.resolved
     if not resolution_result.ok or item is None:
         found = _find_packaged_templates(sha_or_name)
@@ -67,7 +66,7 @@ def catalog_show_command(
         output.error_panel("Catalog Show Failed", error_message)
         return CatalogShowCommandOutcome(item=None, content=None, errors=[error_message])
 
-    catalog_dir = get_catalog_dir(cwd)
+    catalog_dir = get_catalog_dir(context.cwd)
     file_path = catalog_dir / item.path
 
     try:

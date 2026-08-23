@@ -12,6 +12,7 @@ from typer.testing import CliRunner
 from tests.helpers import GitFileSystem
 from worktree.cli import app
 from worktree.cli.config.commands.config_show import config_show_command
+from worktree.cli.context import get_cli_context
 
 runner = CliRunner()
 
@@ -48,7 +49,7 @@ class ConfigShowCommandTests:
         monkeypatch.chdir(git_fs.base_path)
         config_path = git_fs.init_repo()
 
-        config_show_command(cwd=git_fs.base_path)
+        config_show_command(context=get_cli_context(cwd=git_fs.base_path))
         header, body = _split_show_stdout(capsys.readouterr().out)
         _assert_success_header(header, config_path)
         data = json.loads(body)
@@ -64,7 +65,7 @@ class ConfigShowCommandTests:
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
         with pytest.raises(typer.Exit) as exc_info:
-            config_show_command(cwd=git_fs.base_path)
+            config_show_command(context=get_cli_context(cwd=git_fs.base_path))
         assert exc_info.value.exit_code == 1
         _assert_no_success_header(capsys.readouterr().out)
 
@@ -80,7 +81,7 @@ class ConfigShowCommandTests:
         config_path.write_text('{"version": 1}\n', encoding="utf-8")
 
         with pytest.raises(typer.Exit) as exc_info:
-            config_show_command(cwd=git_fs.base_path)
+            config_show_command(context=get_cli_context(cwd=git_fs.base_path))
         assert exc_info.value.exit_code == 1
         _assert_no_success_header(capsys.readouterr().out)
 

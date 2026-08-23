@@ -70,7 +70,7 @@ def _find_step_by_scan(steps_dir: Path, step_id_or_name: str) -> StepDefinition 
     return None
 
 
-def load_step_by_id(step_id_or_name: str, cwd: Path | None = None) -> StepDefinition:
+def load_step_by_id(step_id_or_name: str, path: Path) -> StepDefinition:
     """Resolve a StepDefinition from ``.worktree/catalog/steps/`` by ID or name.
 
     Direct path resolution joins ``step_id_or_name`` under the steps directory
@@ -80,7 +80,7 @@ def load_step_by_id(step_id_or_name: str, cwd: Path | None = None) -> StepDefini
 
     Args:
         step_id_or_name: Identifier, name slug, or ``wt/<name>`` catalog path.
-        cwd: Optional working directory root (defaults to Path.cwd()).
+        path: Working directory root.
 
     Returns:
         Resolved StepDefinition instance.
@@ -89,7 +89,7 @@ def load_step_by_id(step_id_or_name: str, cwd: Path | None = None) -> StepDefini
         StepNotFoundError: If step directory does not exist or step is not found.
         StepValidationError: If matching file has schema validation errors.
     """
-    root_dir = cwd or Path.cwd()
+    root_dir = path.resolve()
     steps_dir = root_dir / ".worktree" / "catalog" / "steps"
 
     if not steps_dir.exists() or not steps_dir.is_dir():

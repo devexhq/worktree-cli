@@ -11,6 +11,7 @@ from tests.helpers import (
     make_checkpoint,
 )
 from worktree.cli import app
+from worktree.cli.context import get_cli_context
 from worktree.core.blueprint import BlueprintKind, BlueprintResumeService
 from worktree.core.catalog.services.inventory import scan_and_index_catalog
 from worktree.core.db import RunsRepository, RunStatus
@@ -73,7 +74,13 @@ def test_blueprint_resume_service_resumes_task(
     )
     _seed_paused_run(fs.base_path, "task-res-1", "sample-task", BlueprintKind.TASK)
 
-    outcome = BlueprintResumeService(session_id="task-res-1", cwd=fs.base_path).execute()
+    ctx = get_cli_context(cwd=fs.base_path)
+    outcome = BlueprintResumeService(
+        session_id="task-res-1",
+        path=ctx.cwd,
+        db=ctx.db.runs,
+        catalog_db=ctx.db.catalog,
+    ).execute()
     assert outcome.ok
     assert outcome.run_record is not None
     assert outcome.run_record.status == RunStatus.COMPLETED
@@ -99,10 +106,16 @@ def test_blueprint_resume_service_resumes_workflow(
             {"id": "step-2", "run": "echo wf2", "on_failure": "prompt_user"},
         ],
     )
-    scan_and_index_catalog(cwd=git_fs.base_path)
+    scan_and_index_catalog(path=git_fs.base_path)
     _seed_paused_run(git_fs.base_path, "wf-res-1", "deploy-wf", BlueprintKind.WORKFLOW)
 
-    outcome = BlueprintResumeService(session_id="wf-res-1", cwd=git_fs.base_path).execute()
+    ctx = get_cli_context(cwd=git_fs.base_path)
+    outcome = BlueprintResumeService(
+        session_id="wf-res-1",
+        path=ctx.cwd,
+        db=ctx.db.runs,
+        catalog_db=ctx.db.catalog,
+    ).execute()
     assert outcome.ok
     assert outcome.run_record is not None
     assert outcome.run_record.status == RunStatus.COMPLETED
@@ -131,7 +144,12 @@ def test_blueprint_resume_service_auto_resumes_latest(
     _seed_paused_run(fs.base_path, "task-old", "task-auto", BlueprintKind.TASK)
     _seed_paused_run(fs.base_path, "task-new", "task-auto", BlueprintKind.TASK)
 
-    outcome = BlueprintResumeService(cwd=fs.base_path).execute()
+    ctx = get_cli_context(cwd=fs.base_path)
+    outcome = BlueprintResumeService(
+        path=ctx.cwd,
+        db=ctx.db.runs,
+        catalog_db=ctx.db.catalog,
+    ).execute()
     assert outcome.ok
     assert outcome.run_record is not None
     assert outcome.run_record.session_id == "task-new"
@@ -141,7 +159,12 @@ def test_blueprint_resume_service_auto_resumes_latest(
 def test_blueprint_resume_service_no_paused_session_fails(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify BlueprintResumeService returns failure outcome when no paused session exists."""
     monkeypatch.chdir(fs.base_path)
-    outcome = BlueprintResumeService(cwd=fs.base_path).execute()
+    ctx = get_cli_context(cwd=fs.base_path)
+    outcome = BlueprintResumeService(
+        path=ctx.cwd,
+        db=ctx.db.runs,
+        catalog_db=ctx.db.catalog,
+    ).execute()
     assert not outcome.ok
     assert outcome.run_record is None
     assert any("No paused session found to resume." in err for err in outcome.errors)
@@ -185,7 +208,7 @@ def test_resume_cli_explicit_session_workflow(
             {"id": "step-2", "run": "echo wf2", "on_failure": "prompt_user"},
         ],
     )
-    scan_and_index_catalog(cwd=git_fs.base_path)
+    scan_and_index_catalog(path=git_fs.base_path)
     _seed_paused_run(git_fs.base_path, "wf-explicit-1", "cli-wf", BlueprintKind.WORKFLOW)
 
     result = runner.invoke(app, ["resume", "wf-explicit-1"])
@@ -308,7 +331,13 @@ def test_resume_cli_paused_status_exits_0(fs: FileSystem, monkeypatch: pytest.Mo
         lambda *args, **kwargs: _InterruptPrompter(),
     )
 
-    outcome = BlueprintResumeService(session_id="task-pause-again", cwd=fs.base_path).execute()
+    ctx = get_cli_context(cwd=fs.base_path)
+    outcome = BlueprintResumeService(
+        session_id="task-pause-again",
+        path=ctx.cwd,
+        db=ctx.db.runs,
+        catalog_db=ctx.db.catalog,
+    ).execute()
     assert outcome.ok
     assert outcome.run_record is not None
     assert outcome.run_record.status == RunStatus.PAUSED
