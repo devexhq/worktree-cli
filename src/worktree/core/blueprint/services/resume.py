@@ -56,7 +56,7 @@ class BlueprintResumeService:
             return self._fail(str(exc))
 
         for warning in run_outcome.warnings:
-            self.output.info(warning)
+            self.output.add_line(warning)
 
         return self._finalize(target_session_id, run_outcome)
 
@@ -65,16 +65,16 @@ class BlueprintResumeService:
             record = self.db.get_latest_paused()
             if record is None:
                 return "", None, "No paused session found to resume."
-            self.output.info(f"Resuming latest paused session '{record.session_id}' ({record.blueprint_name})...")
+            self.output.add_line(f"Resuming latest paused session '{record.session_id}' ({record.blueprint_name})...")
             return record.session_id, record.kind, None
 
-        self.output.info(f"Resuming session '{self.session_id}'...")
+        self.output.add_line(f"Resuming session '{self.session_id}'...")
         record = self._load_record(self.session_id)
         target_kind = record.kind if record is not None else None
         return self.session_id, target_kind, None
 
     def _fail(self, message: str) -> BlueprintRunCommandOutcome:
-        self.output.error_panel("Resume Failed", message)
+        self.output.add_error_panel("Resume Failed", message)
         return BlueprintRunCommandOutcome(run_record=None, errors=[message])
 
     def _resolve_prompter(self, kind: BlueprintKind | None = None) -> tuple[bool, FailurePrompter | None]:
@@ -106,12 +106,12 @@ class BlueprintResumeService:
 
         if run_outcome.status == RunStatus.PAUSED:
             msg = run_outcome.error_message or "Run paused; checkpoint saved."
-            self.output.info(msg)
+            self.output.add_line(msg)
             return BlueprintRunCommandOutcome(run_record=record, warnings=warnings)
 
         if run_outcome.status == RunStatus.CANCELLED:
             msg = run_outcome.error_message or "Cancelled by user."
-            self.output.error_panel("Resume Cancelled", msg)
+            self.output.add_error_panel("Resume Cancelled", msg)
             return BlueprintRunCommandOutcome(
                 run_record=record,
                 errors=[msg],
@@ -119,7 +119,7 @@ class BlueprintResumeService:
             )
 
         msg = run_outcome.error_message or f"Cannot resume session '{session_id}'."
-        self.output.error_panel("Resume Failed", msg)
+        self.output.add_error_panel("Resume Failed", msg)
         return BlueprintRunCommandOutcome(
             run_record=record,
             errors=[msg],

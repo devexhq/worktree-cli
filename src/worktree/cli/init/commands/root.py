@@ -41,7 +41,7 @@ def init_command(
             "The current directory is not a valid Git repository.\n"
             "Run [bold cyan]git init[/bold cyan] before running [bold cyan]wt init[/bold cyan]."
         )
-        output.error_panel("Initialization Failed!", err)
+        output.add_error_panel("Initialization Failed!", err)
         return InitCommandOutcome(errors=[err])
 
     result = bootstrap_worktree(get_worktree_dir(root), tool_version=tool_version)

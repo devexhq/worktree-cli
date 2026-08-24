@@ -66,7 +66,7 @@ class BlueprintRunService:
             self.renderer = BlueprintRenderer(self.kind)
 
         effective_non_interactive, prompter = self._resolve_prompter()
-        self.output.info(f"Running {self._kind_label} '{self.name}'...")
+        self.output.add_line(f"Running {self._kind_label} '{self.name}'...")
         observer = resolve_run_observer(self.output, non_interactive=effective_non_interactive)
 
         try:
@@ -97,13 +97,13 @@ class BlueprintRunService:
             return self._fail(str(exc))
 
         for warning in run_outcome.warnings:
-            self.output.info(warning)
+            self.output.add_line(warning)
 
         return self._finalize(run_outcome)
 
     def _fail(self, message: str) -> BlueprintRunCommandOutcome:
         panel_title = f"{self._kind_label.capitalize()} Run Failed"
-        self.output.error_panel(panel_title, message)
+        self.output.add_error_panel(panel_title, message)
         return BlueprintRunCommandOutcome(run_record=None, errors=[message])
 
     def _load_blueprint(self, catalog: Catalog) -> tuple[Blueprint | None, BlueprintRunCommandOutcome | None]:
@@ -175,12 +175,12 @@ class BlueprintRunService:
 
         if run_outcome.status == RunStatus.PAUSED:
             msg = run_outcome.error_message or f"{self._kind_label.capitalize()} paused; checkpoint saved."
-            self.output.info(msg)
+            self.output.add_line(msg)
             return BlueprintRunCommandOutcome(run_record=final_record, warnings=warnings)
 
         if run_outcome.status == RunStatus.CANCELLED:
             msg = run_outcome.error_message or "Cancelled by user."
-            self.output.error_panel(f"{self._kind_label.capitalize()} Run Cancelled", msg)
+            self.output.add_error_panel(f"{self._kind_label.capitalize()} Run Cancelled", msg)
             return BlueprintRunCommandOutcome(
                 run_record=final_record,
                 errors=[msg],
@@ -188,7 +188,7 @@ class BlueprintRunService:
             )
 
         msg = self.renderer.render(run_outcome)
-        self.output.error_panel(f"{self._kind_label.capitalize()} Run Failed", msg)
+        self.output.add_error_panel(f"{self._kind_label.capitalize()} Run Failed", msg)
         return BlueprintRunCommandOutcome(
             run_record=final_record,
             errors=[msg],

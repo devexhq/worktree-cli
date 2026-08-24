@@ -16,15 +16,35 @@ class RichOutput:
         self.console = console or Console()
         self._items: list[RenderableType | str] = []
 
-    def spacer(self) -> None:
+    def add_spacer(self) -> None:
         """Add a blank line."""
         self._items.append("")
 
-    def success(self, message: str) -> None:
+    def add_success(self, message: str) -> None:
         """Add a green success line."""
         self._items.append(f"[bold green]✔  {message}[/bold green]")
 
-    def error_panel(self, title: str, message: str) -> None:
+    def add_error(self, message: str) -> None:
+        """Add an error message."""
+        self._items.append(message)
+
+    def add_warning(self, message: str) -> None:
+        """Add a warning message."""
+        self._items.append(f"[yellow]Warning:[/] {message}")
+
+    def add_line(self, message: str | RenderableType) -> None:
+        """Add a plain message or Rich renderable."""
+        self._items.append(message)
+
+    def add_dim_bullet(self, message: str) -> None:
+        """Add a dim bullet list item."""
+        self._items.append(f"  [dim]•[/dim] {message}")
+
+    def add_dim_text(self, message: str) -> None:
+        """Add dim-styled text."""
+        self._items.append(f"[bold dim]{message}[/bold dim]")
+
+    def add_error_panel(self, title: str, message: str) -> None:
         """Add a red-bordered panel for errors."""
         self._items.append(
             Panel.fit(
@@ -32,38 +52,6 @@ class RichOutput:
                 border_style="red",
             )
         )
-
-    def error(self, message: str) -> None:
-        """Add an error message."""
-        self._items.append(message)
-
-    def info(self, message: str | RenderableType) -> None:
-        """Add a plain message or Rich renderable."""
-        self._items.append(message)
-
-    def dim_bullet(self, message: str) -> None:
-        """Add a dim bullet list item."""
-        self._items.append(f"  [dim]•[/dim] {message}")
-
-    def dim_text(self, message: str) -> None:
-        """Add dim-styled text."""
-        self._items.append(f"[bold dim]{message}[/bold dim]")
-
-    def add_line(self, message: str | RenderableType) -> None:
-        """Add a message or renderable item."""
-        self.info(message)
-
-    def add_error(self, message: str) -> None:
-        """Add an error message."""
-        self.error(message)
-
-    def add_warning(self, message: str) -> None:
-        """Add a warning message."""
-        self.info(f"[yellow]Warning:[/] {message}")
-
-    def add_error_panel(self, title: str, message: str) -> None:
-        """Add an error panel."""
-        self.error_panel(title, message)
 
     def add_kv_table(self, rows: Iterable[tuple[str, str]]) -> None:
         """Add a key-value detail table."""
@@ -77,7 +65,7 @@ class RichOutput:
     def render_not_initialized(self, errors: list[str], *, fix_hint: str) -> None:
         """Add standardized not-initialized error panel."""
         message = "\n\n".join(errors) if errors else f".worktree/config.json not found.\nFix:\n- {fix_hint}"
-        self.error_panel("Worktree Not Initialized", message)
+        self.add_error_panel("Worktree Not Initialized", message)
 
     def print(self) -> None:
         """Flush and print all accumulated renderables to the console."""

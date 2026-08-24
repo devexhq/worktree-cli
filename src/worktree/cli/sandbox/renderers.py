@@ -34,7 +34,7 @@ def render_not_initialized(errors: list[str], *, output: RichOutput) -> None:
 def render_sandbox_create_failed(errors: list[str], *, output: RichOutput) -> None:
     """Render the create-failed error panel for ``wt sandbox create``."""
     message = "\n\n".join(errors) if errors else "Sandbox creation failed."
-    output.error_panel("Sandbox Create Failed", message)
+    output.add_error_panel("Sandbox Create Failed", message)
 
 
 def render_sandbox_create_success(
@@ -47,22 +47,22 @@ def render_sandbox_create_success(
     """Render success block and optional non-fatal warnings for create."""
     root = (cwd or Path.cwd()).resolve()
     path_label = display_path(session.sandbox_path, root)
-    output.success(f"Sandbox created: {session.session_id}")
-    output.info(f"   Branch: {session.target_branch}")
-    output.info(f"   Path: {path_label}")
+    output.add_success(f"Sandbox created: {session.session_id}")
+    output.add_line(f"   Branch: {session.target_branch}")
+    output.add_line(f"   Path: {path_label}")
     for warning in warnings or []:
-        output.dim_bullet(warning)
+        output.add_dim_bullet(warning)
 
 
 def render_sandbox_not_found(sandbox_id: str, *, output: RichOutput) -> None:
     """Render the not-found error panel for ``wt sandbox show``."""
     message = f"Sandbox '{sandbox_id}' not found.\nFix:\n- run `wt sandbox list` to see known sandboxes"
-    output.error_panel("Sandbox Not Found", message)
+    output.add_error_panel("Sandbox Not Found", message)
 
 
 def render_empty_list(*, output: RichOutput) -> None:
     """Render the empty-state line when no sandboxes match."""
-    output.info("No sandboxes found.")
+    output.add_line("No sandboxes found.")
 
 
 def build_sandbox_table(sandboxes: list[SandboxRecord]) -> Table:
@@ -98,7 +98,7 @@ def render_sandbox_list(sandboxes: list[SandboxRecord], *, output: RichOutput) -
     if not sandboxes:
         render_empty_list(output=output)
         return
-    output.info(build_sandbox_table(sandboxes))
+    output.add_line(build_sandbox_table(sandboxes))
 
 
 def build_sandbox_detail_table(sandbox: SandboxRecord, *, disk_present: bool) -> Table:
@@ -156,17 +156,17 @@ def render_sandbox_show(
     }
     output.add_kv_table([(f"{field}", values[field]) for field in _SANDBOX_SHOW_FIELDS])
     if reconciled:
-        output.info("Note: sandbox directory is missing; status updated to 'cleaned'.")
+        output.add_line("Note: sandbox directory is missing; status updated to 'cleaned'.")
 
 
 def render_sandbox_already_cleaned(sandbox_id: str, *, output: RichOutput) -> None:
     """Render the idempotent already-cleaned message for delete."""
-    output.info(f"Sandbox '{sandbox_id}' is already cleaned; nothing to remove.")
+    output.add_line(f"Sandbox '{sandbox_id}' is already cleaned; nothing to remove.")
 
 
 def render_sandbox_delete_success(sandbox_id: str, *, output: RichOutput) -> None:
     """Render success line after a sandbox is deleted."""
-    output.success(f"Sandbox deleted: {sandbox_id}")
+    output.add_success(f"Sandbox deleted: {sandbox_id}")
 
 
 def sandbox_delete_confirm_prompt(sandbox: SandboxRecord) -> str:

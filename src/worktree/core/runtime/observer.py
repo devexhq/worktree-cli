@@ -118,31 +118,31 @@ class CliRunObserver(RunObserver):
     def on_sandbox_ready(self, path: Path, active: bool) -> None:
         """Report sandbox readiness to the CLI."""
         if active:
-            self.output.info(f"Sandbox: Active ({path})")
+            self.output.add_line(f"Sandbox: Active ({path})")
         else:
-            self.output.info("Sandbox: In-place (workspace)")
+            self.output.add_line("Sandbox: In-place (workspace)")
 
     def on_step_start(self, idx: int, total: int, step: StepDefinition) -> None:
         """Report step start progress to the CLI."""
         step_label = step.name or step.id
         cmd_info = f" (command: {step.run})" if step.run else ""
-        self.output.info(f"[STEP {idx}/{total}] Executing {step_label}{cmd_info}...")
+        self.output.add_line(f"[STEP {idx}/{total}] Executing {step_label}{cmd_info}...")
 
     def on_step_done(self, idx: int, total: int, result: StepResult) -> None:
         """Report step completion or failure to the CLI."""
         step_label = result.step_id
         if result.ok:
-            self.output.info(f"[bold green][STEP {idx}/{total}] {step_label} COMPLETED[/]")
+            self.output.add_line(f"[bold green][STEP {idx}/{total}] {step_label} COMPLETED[/]")
             return
         msg = result.error_message or result.stderr or f"exit code {result.exit_code}"
-        self.output.info(f"[bold red][STEP {idx}/{total}] {step_label} FAILED[/]: {msg}")
+        self.output.add_line(f"[bold red][STEP {idx}/{total}] {step_label} FAILED[/]: {msg}")
 
     def on_sandbox_cleanup(self, kept: bool, path: Path) -> None:
         """Report sandbox cleanup or retention to the CLI."""
         if kept:
-            self.output.info(f"Sandbox: Retained ({path})")
+            self.output.add_line(f"Sandbox: Retained ({path})")
         else:
-            self.output.info("Sandbox: Cleaned")
+            self.output.add_line("Sandbox: Cleaned")
 
 
 class LiveRunObserver(RunObserver):
@@ -179,10 +179,10 @@ class LiveRunObserver(RunObserver):
         """Report sandbox readiness to the CLI."""
         if active:
             self.sandbox_info = f"Active ({path})"
-            self.output.info(f"Sandbox: Active ({path})")
+            self.output.add_line(f"Sandbox: Active ({path})")
         else:
             self.sandbox_info = "In-place (workspace)"
-            self.output.info("Sandbox: In-place (workspace)")
+            self.output.add_line("Sandbox: In-place (workspace)")
         self._refresh()
 
     def on_step_start(self, idx: int, total: int, step: StepDefinition) -> None:
@@ -214,9 +214,9 @@ class LiveRunObserver(RunObserver):
     def on_sandbox_cleanup(self, kept: bool, path: Path) -> None:
         """Report sandbox cleanup or retention to the CLI."""
         if kept:
-            self.output.info(f"Sandbox: Retained ({path})")
+            self.output.add_line(f"Sandbox: Retained ({path})")
         else:
-            self.output.info("Sandbox: Cleaned")
+            self.output.add_line("Sandbox: Cleaned")
 
     def _refresh(self) -> None:
         if self._live is not None:

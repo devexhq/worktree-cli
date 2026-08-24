@@ -32,7 +32,7 @@ def config_validate_command(
         return ConfigValidateCommandOutcome(config_path=result.config_path, warnings=list(result.warnings))
 
     message = "\n\n".join(result.errors) if result.errors else "Configuration validation failed."
-    output.error_panel("Config Validation Failed", message)
+    output.add_error_panel("Config Validation Failed", message)
 
     if result.warnings:
         render_config_validation_warnings(list(result.warnings), output=output)

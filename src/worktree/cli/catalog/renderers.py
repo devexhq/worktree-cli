@@ -45,9 +45,9 @@ def render_catalog_list(
 ) -> None:
     """Render empty state or catalog blueprints table."""
     if not items:
-        output.info("No catalog blueprints found.")
+        output.add_line("No catalog blueprints found.")
     else:
-        output.info(build_catalog_table(items))
+        output.add_line(build_catalog_table(items))
 
 
 def render_catalog_create_success(
@@ -58,7 +58,7 @@ def render_catalog_create_success(
     """Render blueprint creation confirmation message."""
     t_type = enum_value(item.item_type)
     rel_path = Path(".worktree") / "catalog" / item.path
-    output.info(f"Created catalog blueprint '{item.sha}' (type: {t_type}) at '{rel_path}'.")
+    output.add_line(f"Created catalog blueprint '{item.sha}' (type: {t_type}) at '{rel_path}'.")
 
 
 def render_catalog_show(
@@ -70,13 +70,13 @@ def render_catalog_show(
     """Render detailed catalog blueprint view including definition content."""
     t_type = enum_value(item.item_type)
     rel_path = Path(".worktree") / "catalog" / item.path
-    output.info(f"[bold green]Blueprint:[/]   {item.name} ({item.sha})")
-    output.info(f"[bold green]Type:[/]        {t_type}")
-    output.info(f"[bold green]Path:[/]        {rel_path}")
-    output.info(f"[bold green]Checksum:[/]    {item.checksum}")
-    output.info("\n[bold cyan]Definition:[/]")
+    output.add_line(f"[bold green]Blueprint:[/]   {item.name} ({item.sha})")
+    output.add_line(f"[bold green]Type:[/]        {t_type}")
+    output.add_line(f"[bold green]Path:[/]        {rel_path}")
+    output.add_line(f"[bold green]Checksum:[/]    {item.checksum}")
+    output.add_line("\n[bold cyan]Definition:[/]")
     if content:
-        output.info(Syntax(content.strip(), "yaml"))
+        output.add_line(Syntax(content.strip(), "yaml"))
 
 
 def render_catalog_delete_success(
@@ -85,7 +85,7 @@ def render_catalog_delete_success(
     output: RichOutput,
 ) -> None:
     """Render blueprint deletion confirmation message."""
-    output.info(f"Deleted catalog blueprint '{item.sha}' ({item.path}).")
+    output.add_line(f"Deleted catalog blueprint '{item.sha}' ({item.path}).")
 
 
 def build_catalog_template_table(rows: list[tuple[str, str]]) -> Table:
@@ -114,9 +114,9 @@ def render_catalog_template_list(
 ) -> None:
     """Render the packaged `default.yml` templates table for `wt catalog list --type template`."""
     if not rows:
-        output.info("No packaged templates found.")
+        output.add_line("No packaged templates found.")
     else:
-        output.info(build_catalog_template_table(rows))
+        output.add_line(build_catalog_template_table(rows))
 
 
 def render_template_show_content(
@@ -126,7 +126,7 @@ def render_template_show_content(
     output: RichOutput,
 ) -> None:
     """Render the raw YAML content of a matching packaged template."""
-    output.info(f"[bold green]Template:[/]    {rel_path}")
-    output.info("\n[bold cyan]Definition:[/]")
+    output.add_line(f"[bold green]Template:[/]    {rel_path}")
+    output.add_line("\n[bold cyan]Definition:[/]")
     if content:
-        output.info(Syntax(content.strip(), "yaml"))
+        output.add_line(Syntax(content.strip(), "yaml"))
