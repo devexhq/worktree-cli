@@ -1,13 +1,13 @@
 """Status command implementation."""
 
-from worktree.cli.context import Context
+from worktree.cli.context import CliContext
 from worktree.cli.status.context import load_context
 
 from ..models import StatusCommandOutcome
 from ..renderers import render_status_table
 
 
-def status_command(*, context: Context) -> StatusCommandOutcome:
+def status_command(context: CliContext) -> StatusCommandOutcome:
     """Inspect active worktree configuration and repository context."""
     output = context.output
 

@@ -6,8 +6,7 @@ import subprocess
 
 import pytest
 
-from tests.helpers import FileSystem, GitFileSystem
-from worktree.cli.context import get_cli_context
+from tests.helpers import FileSystem, GitFileSystem, make_cli_context
 from worktree.cli.status.commands.root import status_command
 
 
@@ -24,8 +23,8 @@ class StatusCommandTests:
         subprocess.run(["git", "checkout", "feature"], cwd=git_fs.base_path, check=True, capture_output=True)
         git_fs.init_repo()
 
-        ctx = get_cli_context(cwd=git_fs.base_path)
-        outcome = status_command(context=ctx)
+        ctx = make_cli_context(cwd=git_fs.base_path)
+        outcome = status_command(ctx)
         assert outcome.ok
         ctx.output.print()
         out = capsys.readouterr().out
@@ -35,6 +34,6 @@ class StatusCommandTests:
 
     def test_status_without_init_exits(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(fs.base_path)
-        ctx = get_cli_context(cwd=fs.base_path)
-        outcome = status_command(context=ctx)
+        ctx = make_cli_context(cwd=fs.base_path)
+        outcome = status_command(ctx)
         assert not outcome.ok

@@ -1,18 +1,24 @@
 """Typer CLI entrypoint for the Worktree (`wt`) command."""
 
+import sys
+from typing import Any
+
 import typer
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
+from typer.core import TyperGroup
 
 from worktree.cli.catalog.app import catalog_app
 from worktree.cli.config.app import config_app
+from worktree.cli.context import CliContext
 from worktree.cli.history.app import history_app
 from worktree.cli.init.app import init_app
 from worktree.cli.resume.app import register_resume_command
 from worktree.cli.run.app import register_run_command
 from worktree.cli.sandbox.app import sandbox_app
 from worktree.cli.status.app import status_app
+from worktree.common.utils import RichOutput
 from worktree.common.version import get_version
 
 # Initialize a central styling console for high-utility layout parsing
@@ -21,8 +27,22 @@ console = Console()
 # Package Metadata matching our PyPI footprint
 __version__ = get_version()
 
+
+class WorktreeTyperGroup(TyperGroup):
+    """Custom TyperGroup capturing subcommand args for context initialization."""
+
+    def invoke(self, ctx: Any) -> Any:
+        """Capture help flags before executing command callbacks."""
+        if getattr(ctx, "_protected_args", None) or getattr(ctx, "args", None):
+            raw_args = [*ctx._protected_args, *ctx.args]
+            ctx.ensure_object(dict)
+            ctx.obj["is_help"] = any(a in ("--help", "-h") for a in raw_args)
+        return super().invoke(ctx)
+
+
 # Initialize Typer App with clean configuration defaults
 app = typer.Typer(
+    cls=WorktreeTyperGroup,
     name="wt",
     help="Isolated git worktree developer workflows and autonomous AI agent workspaces.",
     add_completion=True,
@@ -78,7 +98,7 @@ def main(
     ctx.ensure_object(dict)
     ctx.obj["verbose"] = verbose
 
-    # If the developer types just 'wt' without a subcommand, render banner and help
+    # 1. Handle base commands
     if ctx.invoked_subcommand is None:
         print_welcome_banner()
         console.print(ctx.get_help())
@@ -86,6 +106,31 @@ def main(
     elif verbose:
         console.print("[dim yellow][TELEMETRY] Global verbose tracking layer active.[/dim yellow]")
 
+    # 2. Edge validation & exclusion list
+    excluded_commands = {"init", "install"}
+    if ctx.invoked_subcommand not in excluded_commands and not ctx.obj.get("is_help", False):
+        context = CliContext.build()
+        if context is None:
+            # Output already handled in CliContext.build
+            raise typer.Exit(code=1)
+        ctx.obj["context"] = context
+
+
+def run_cli() -> None:
+    """Main entrypoint with global crash protection."""
+    try:
+        app()
+    except typer.Exit:
+        # Allow intentional Typer exits (like version_callback or help) to pass through normally
+        raise
+    except Exception as exc:
+        # Global Catch-All for unexpected bugs (e.g., missing record.id)
+        output = RichOutput()
+        output.add_error("A fatal unexpected error occurred.")
+        output.add_line(f"Details: {exc!s}")
+        output.print()
+        sys.exit(1)
+
 
 if __name__ == "__main__":
-    app()
+    run_cli()

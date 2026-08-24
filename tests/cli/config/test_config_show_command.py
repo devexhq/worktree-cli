@@ -9,10 +9,9 @@ import pytest
 import typer
 from typer.testing import CliRunner
 
-from tests.helpers import GitFileSystem
+from tests.helpers import GitFileSystem, make_cli_context
 from worktree.cli import app
 from worktree.cli.config.commands.config_show import config_show_command
-from worktree.cli.context import get_cli_context
 
 runner = CliRunner()
 
@@ -49,8 +48,8 @@ class ConfigShowCommandTests:
         monkeypatch.chdir(git_fs.base_path)
         config_path = git_fs.init_repo()
 
-        ctx = get_cli_context(cwd=git_fs.base_path)
-        outcome = config_show_command(context=ctx)
+        ctx = make_cli_context(cwd=git_fs.base_path)
+        outcome = config_show_command(ctx)
         assert outcome.ok
         ctx.output.print()
         header, body = _split_show_stdout(capsys.readouterr().out)
@@ -67,8 +66,8 @@ class ConfigShowCommandTests:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
-        ctx = get_cli_context(cwd=git_fs.base_path)
-        outcome = config_show_command(context=ctx)
+        ctx = make_cli_context(cwd=git_fs.base_path)
+        outcome = config_show_command(ctx)
         assert not outcome.ok
         ctx.output.print()
         _assert_no_success_header(capsys.readouterr().out)
@@ -84,8 +83,8 @@ class ConfigShowCommandTests:
         config_path.parent.mkdir(parents=True)
         config_path.write_text('{"version": 1}\n', encoding="utf-8")
 
-        ctx = get_cli_context(cwd=git_fs.base_path)
-        outcome = config_show_command(context=ctx)
+        ctx = make_cli_context(cwd=git_fs.base_path)
+        outcome = config_show_command(ctx)
         assert not outcome.ok
         ctx.output.print()
         _assert_no_success_header(capsys.readouterr().out)
@@ -116,7 +115,7 @@ class ConfigShowCliTests:
         result = runner.invoke(app, ["config", "show"])
         assert result.exit_code == 1
         combined = result.stdout + result.stderr
-        assert "CONFIG_NOT_FOUND" in combined or "not found" in combined.lower()
+        assert "Not initialized or invalid config" in combined
         _assert_no_success_header(result.stdout)
         # Must not look like a successful effective JSON object dump.
         with pytest.raises(json.JSONDecodeError):
@@ -131,7 +130,7 @@ class ConfigShowCliTests:
         result = runner.invoke(app, ["config", "show"])
         assert result.exit_code == 1
         combined = result.stdout + result.stderr
-        assert "schema" in combined.lower() or "CONFIG_SCHEMA_INVALID" in combined
+        assert "Not initialized or invalid config" in combined
         _assert_no_success_header(result.stdout)
         with pytest.raises(json.JSONDecodeError):
             json.loads(result.stdout)

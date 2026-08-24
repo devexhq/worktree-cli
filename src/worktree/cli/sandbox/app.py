@@ -2,7 +2,7 @@ from typing import Annotated
 
 import typer
 
-from worktree.cli.context import get_cli_context
+from worktree.cli.context import CliContext
 from worktree.core.db import SandboxStatus
 
 from .commands.sandbox_create import sandbox_create_command
@@ -18,6 +18,7 @@ sandbox_app = typer.Typer(
 
 @sandbox_app.command("create")
 def sandbox_create(
+    ctx: typer.Context,
     name: str | None = typer.Option(
         None,
         "--name",
@@ -35,8 +36,8 @@ def sandbox_create(
     ),
 ):
     """Create an isolated git worktree sandbox."""
-    context = get_cli_context()
-    outcome = sandbox_create_command(name=name, base_ref=base_ref, wip=wip, context=context)
+    context: CliContext = ctx.obj["context"]
+    outcome = sandbox_create_command(context, name=name, base_ref=base_ref, wip=wip)
     context.output.print()
     if not outcome.ok:
         raise typer.Exit(code=1)
@@ -44,6 +45,7 @@ def sandbox_create(
 
 @sandbox_app.command("list")
 def sandbox_list(
+    ctx: typer.Context,
     status: Annotated[
         SandboxStatus | None,
         typer.Option(
@@ -54,8 +56,8 @@ def sandbox_list(
     ] = None,
 ):
     """List tracked sandboxes and their lifecycle status."""
-    context = get_cli_context()
-    outcome = sandbox_list_command(status=status.value if status is not None else None, context=context)
+    context: CliContext = ctx.obj["context"]
+    outcome = sandbox_list_command(context, status=status.value if status is not None else None)
     context.output.print()
     if not outcome.ok:
         raise typer.Exit(code=1)
@@ -63,11 +65,12 @@ def sandbox_list(
 
 @sandbox_app.command("show")
 def sandbox_show(
+    ctx: typer.Context,
     sandbox_id: str = typer.Argument(..., help="Sandbox id to show."),
 ):
     """Show full detail for one tracked sandbox."""
-    context = get_cli_context()
-    outcome = sandbox_show_command(sandbox_id, context=context)
+    context: CliContext = ctx.obj["context"]
+    outcome = sandbox_show_command(context, sandbox_id)
     context.output.print()
     if not outcome.ok:
         raise typer.Exit(code=1)
@@ -75,6 +78,7 @@ def sandbox_show(
 
 @sandbox_app.command("delete")
 def sandbox_delete(
+    ctx: typer.Context,
     sandbox_id: str = typer.Argument(..., help="Sandbox id to delete."),
     force: bool = typer.Option(
         False,
@@ -83,8 +87,8 @@ def sandbox_delete(
     ),
 ):
     """Delete a sandbox worktree and branch after confirmation."""
-    context = get_cli_context()
-    outcome = sandbox_delete_command(sandbox_id, force=force, context=context)
+    context: CliContext = ctx.obj["context"]
+    outcome = sandbox_delete_command(context, sandbox_id, force=force)
     context.output.print()
     if not outcome.ok:
         raise typer.Exit(code=1)

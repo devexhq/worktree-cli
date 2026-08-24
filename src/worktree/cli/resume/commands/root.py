@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import typer
 
-from worktree.cli.context import get_cli_context
+from worktree.cli.context import CliContext
 from worktree.core.blueprint import BlueprintResumeService
 
 
 def resume_root(
+    ctx: typer.Context,
     session_id: str | None = typer.Argument(
         None,
         help="Session identifier to resume. If omitted, the latest paused session is resumed.",
@@ -20,7 +21,7 @@ def resume_root(
     ),
 ) -> None:
     """Resume a paused task or workflow blueprint execution session."""
-    context = get_cli_context()
+    context: CliContext = ctx.obj["context"]
     outcome = BlueprintResumeService(
         path=context.cwd,
         db=context.db.runs,

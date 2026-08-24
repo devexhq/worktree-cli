@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from worktree.cli.context import Context
+from worktree.cli.context import CliContext
 from worktree.core.config.loader import load_config_result
 from worktree.core.db import (
     SandboxStatus,
@@ -23,15 +23,14 @@ from ..renderers import (
 
 
 def collect_sandbox_show(
+    context: CliContext,
     sandbox_id: str,
-    *,
-    context: Context,
 ) -> SandboxShowResult:
     """Load config, look up one sandbox, and reconcile a stale active row.
 
     Args:
-        sandbox_id: Sandbox primary key to show.
         context: CLI context instance.
+        sandbox_id: Sandbox primary key to show.
 
     Returns:
         Structured show result. Does not print or exit.
@@ -66,9 +65,8 @@ def collect_sandbox_show(
 
 
 def sandbox_show_command(
+    context: CliContext,
     sandbox_id: str,
-    *,
-    context: Context,
 ) -> SandboxShowCommandOutcome:
     """Show detail for one tracked sandbox.
 
@@ -76,10 +74,10 @@ def sandbox_show_command(
     directory was removed out-of-band.
 
     Args:
-        sandbox_id: Sandbox primary key to show.
         context: CLI context instance.
+        sandbox_id: Sandbox primary key to show.
     """
-    result = collect_sandbox_show(sandbox_id, context=context)
+    result = collect_sandbox_show(context, sandbox_id)
     if result.status is SandboxShowStatus.NOT_INITIALIZED:
         render_not_initialized(result.errors, output=context.output)
         return SandboxShowCommandOutcome(errors=list(result.errors))

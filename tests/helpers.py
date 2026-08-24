@@ -8,6 +8,7 @@ from typing import Any
 import yaml
 from rich.console import Console
 
+from worktree.cli.context import CliContext
 from worktree.common.utils import RichOutput
 from worktree.core.config.generator import generate_default_config
 from worktree.core.db import (
@@ -17,9 +18,20 @@ from worktree.core.db import (
     RunStatus,
     SandboxesRepository,
     SandboxRecord,
+    WorktreeDb,
 )
 from worktree.core.runtime import RunCheckpoint
 from worktree.core.step import StepDefinition, StepResult
+
+
+def make_cli_context(cwd: Path | None = None, *, output: RichOutput | None = None) -> CliContext:
+    """Helper to construct a CliContext for test invocations."""
+    effective_cwd = cwd or Path.cwd()
+    return CliContext(
+        cwd=effective_cwd,
+        db=WorktreeDb(path=effective_cwd),
+        output=output or RichOutput(),
+    )
 
 
 def _deep_merge(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
@@ -67,18 +79,14 @@ class FileSystem:
         return self.write_file(Path(dir) / (filename or f"{step_id}.yaml"), body)
 
     def create_config_file(self, *, filename: str = ".worktree/config.json", **overrides: Any) -> Path:
-        defaults = {
-            "version": 1,
-            "project": {"name": "test-project"},
-            "paths": {
-                "root_dir": ".worktree",
-                "sessions_dir": ".worktree/sessions",
-                "artifacts_dir": ".worktree/artifacts",
-                "db_path": ".worktree/data.db",
-            },
-        }
-        body = _deep_merge(defaults, overrides)
-        return self.write_file(filename, body)
+        config_path = self.base_path / filename
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        generate_default_config(config_path, project_name=self.base_path.name)
+        if overrides:
+            data = json.loads(config_path.read_text(encoding="utf-8"))
+            data = _deep_merge(data, overrides)
+            config_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        return config_path
 
     def create_workflow_file(
         self,

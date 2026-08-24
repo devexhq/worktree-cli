@@ -5,14 +5,13 @@ from __future__ import annotations
 import pytest
 from typer.testing import CliRunner
 
-from tests.helpers import FileSystem
+from tests.helpers import FileSystem, make_cli_context
 from worktree.cli import app
 from worktree.cli.catalog.commands.catalog_create import catalog_create_command
 from worktree.cli.catalog.commands.catalog_delete import catalog_delete_command
 from worktree.cli.catalog.commands.catalog_list import catalog_list_command
 from worktree.cli.catalog.commands.catalog_show import catalog_show_command
 from worktree.cli.catalog.renderers import build_catalog_table
-from worktree.cli.context import get_cli_context
 from worktree.core.catalog.services.inventory import create_catalog_item
 from worktree.core.db import CatalogItemType, CatalogRecord
 
@@ -43,57 +42,57 @@ class CatalogCommandDirectTests:
 
     def test_catalog_list_command_empty(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(fs.base_path)
-        outcome = catalog_list_command(context=get_cli_context(cwd=fs.base_path))
+        outcome = catalog_list_command(make_cli_context(cwd=fs.base_path))
         assert outcome.ok
         assert len(outcome.items) == 0
 
     def test_catalog_create_command_and_list_filtering(self, fs: FileSystem) -> None:
-        cli_ctx = get_cli_context(cwd=fs.base_path)
-        create_res1 = catalog_create_command("workflow", name="wf-1", context=cli_ctx)
+        cli_ctx = make_cli_context(cwd=fs.base_path)
+        create_res1 = catalog_create_command(cli_ctx, "workflow", name="wf-1")
         assert create_res1.ok
         assert create_res1.item is not None
         assert create_res1.item.item_type == CatalogItemType.WORKFLOW
 
-        create_res2 = catalog_create_command("task", name="task-1", context=cli_ctx)
+        create_res2 = catalog_create_command(cli_ctx, "task", name="task-1")
         assert create_res2.ok
 
         # List all
-        list_all = catalog_list_command(context=cli_ctx)
+        list_all = catalog_list_command(cli_ctx)
         assert list_all.ok
         assert len(list_all.items) == 2
 
         # Filter workflow
-        list_wf = catalog_list_command(type_filter="workflow", context=cli_ctx)
+        list_wf = catalog_list_command(cli_ctx, type_filter="workflow")
         assert list_wf.ok
         assert len(list_wf.items) == 1
         assert list_wf.items[0].name == "wf-1"
 
         # Filter task
-        list_task = catalog_list_command(type_filter=CatalogItemType.TASK, context=cli_ctx)
+        list_task = catalog_list_command(cli_ctx, type_filter=CatalogItemType.TASK)
         assert list_task.ok
         assert len(list_task.items) == 1
         assert list_task.items[0].name == "task-1"
 
         # Filter invalid type
-        list_invalid = catalog_list_command(type_filter="invalid_type", context=cli_ctx)
+        list_invalid = catalog_list_command(cli_ctx, type_filter="invalid_type")
         assert not list_invalid.ok
         assert "Invalid --type" in list_invalid.errors[0]
 
     def test_catalog_create_collision_returns_error(self, fs: FileSystem) -> None:
-        cli_ctx = get_cli_context(cwd=fs.base_path)
-        res1 = catalog_create_command("step", name="step-1", context=cli_ctx)
+        cli_ctx = make_cli_context(cwd=fs.base_path)
+        res1 = catalog_create_command(cli_ctx, "step", name="step-1")
         assert res1.ok
 
-        res2 = catalog_create_command("step", name="step-1", context=cli_ctx)
+        res2 = catalog_create_command(cli_ctx, "step", name="step-1")
         assert not res2.ok
         assert "collision" in res2.errors[0]
 
     def test_catalog_show_command(self, fs: FileSystem) -> None:
         create_catalog_item("workflow", "show-wf", path=fs.base_path)
-        cli_ctx = get_cli_context(cwd=fs.base_path)
+        cli_ctx = make_cli_context(cwd=fs.base_path)
 
         # Show by name
-        show_name = catalog_show_command("show-wf", context=cli_ctx)
+        show_name = catalog_show_command(cli_ctx, "show-wf")
         assert show_name.ok
         assert show_name.item is not None
         assert show_name.item.sha is not None
@@ -101,56 +100,56 @@ class CatalogCommandDirectTests:
         assert "show-wf" in show_name.content
 
         # Show by SHA
-        show_sha = catalog_show_command(show_name.item.sha, context=cli_ctx)
+        show_sha = catalog_show_command(cli_ctx, show_name.item.sha)
         assert show_sha.ok
         assert show_sha.item is not None
 
         # Show missing
-        show_missing = catalog_show_command("missing-item", context=cli_ctx)
+        show_missing = catalog_show_command(cli_ctx, "missing-item")
         assert not show_missing.ok
         assert "not found" in show_missing.errors[0]
 
     def test_catalog_list_type_template(self, fs: FileSystem) -> None:
-        cli_ctx = get_cli_context(cwd=fs.base_path)
-        outcome = catalog_list_command(type_filter="template", context=cli_ctx)
+        cli_ctx = make_cli_context(cwd=fs.base_path)
+        outcome = catalog_list_command(cli_ctx, type_filter="template")
         assert outcome.ok
         assert outcome.items == []
 
     def test_catalog_show_packaged_template_fallback(self, fs: FileSystem) -> None:
-        cli_ctx = get_cli_context(cwd=fs.base_path)
-        show_fix = catalog_show_command("fix-tests", context=cli_ctx)
+        cli_ctx = make_cli_context(cwd=fs.base_path)
+        show_fix = catalog_show_command(cli_ctx, "fix-tests")
         assert show_fix.ok
         assert show_fix.item is None
         assert show_fix.content is not None
         assert "fix-tests" in show_fix.content
 
-        show_default = catalog_show_command("default", context=cli_ctx)
+        show_default = catalog_show_command(cli_ctx, "default")
         assert show_default.ok
         assert show_default.content is not None
 
     def test_catalog_delete_command(self, fs: FileSystem) -> None:
         item = create_catalog_item("task", "del-task", path=fs.base_path)
-        cli_ctx = get_cli_context(cwd=fs.base_path)
+        cli_ctx = make_cli_context(cwd=fs.base_path)
 
-        del_res = catalog_delete_command(item.sha, force=True, context=cli_ctx)
+        del_res = catalog_delete_command(cli_ctx, item.sha, force=True)
         assert del_res.ok
         assert del_res.deleted
 
-        del_missing = catalog_delete_command(item.sha, force=True, context=cli_ctx)
+        del_missing = catalog_delete_command(cli_ctx, item.sha, force=True)
         assert not del_missing.ok
         assert not del_missing.deleted
 
     def test_catalog_delete_command_confirmation(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         item1 = create_catalog_item("task", "del-task-1", path=fs.base_path)
-        cli_ctx = get_cli_context(cwd=fs.base_path)
+        cli_ctx = make_cli_context(cwd=fs.base_path)
         monkeypatch.setattr("typer.confirm", lambda *args, **kwargs: True)
-        res_confirmed = catalog_delete_command(item1.sha, force=False, context=cli_ctx)
+        res_confirmed = catalog_delete_command(cli_ctx, item1.sha, force=False)
         assert res_confirmed.ok
         assert res_confirmed.deleted
 
         item2 = create_catalog_item("task", "del-task-2", path=fs.base_path)
         monkeypatch.setattr("typer.confirm", lambda *args, **kwargs: False)
-        res_cancelled = catalog_delete_command(item2.sha, force=False, context=cli_ctx)
+        res_cancelled = catalog_delete_command(cli_ctx, item2.sha, force=False)
         assert not res_cancelled.ok
         assert not res_cancelled.deleted
         assert "cancelled" in res_cancelled.errors[0]
@@ -161,7 +160,7 @@ class CatalogCommandDirectTests:
             raise typer.Abort()
 
         monkeypatch.setattr("typer.confirm", _raise_abort)
-        res_abort = catalog_delete_command(item2.sha, force=False, context=cli_ctx)
+        res_abort = catalog_delete_command(cli_ctx, item2.sha, force=False)
         assert not res_abort.ok
         assert not res_abort.deleted
 
@@ -170,6 +169,7 @@ class CatalogCliTests:
     """Integration CLI invocation tests for wt catalog commands."""
 
     def test_cli_catalog_list_type_template(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
         res = runner.invoke(app, ["catalog", "list", "--type", "template"])
         assert res.exit_code == 0
@@ -178,6 +178,7 @@ class CatalogCliTests:
         assert "steps/default.yml" in res.output
 
     def test_cli_catalog_show_template_fallback(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
         res = runner.invoke(app, ["catalog", "show", "fix-tests"])
         assert res.exit_code == 0
@@ -188,6 +189,7 @@ class CatalogCliTests:
         assert "Catalog blueprint or template 'no-such-name' not found" in res_missing.output
 
     def test_cli_wt_catalog_runner(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
 
         # wt catalog create workflow --name cli-wf

@@ -1,11 +1,10 @@
-from worktree.cli.context import Context
+from worktree.cli.context import CliContext
 from worktree.core.history import HistoryShowResult, HistoryShowService
 
 
 def history_show_command(
+    context: CliContext,
     session_id: str,
-    *,
-    context: Context,
 ) -> HistoryShowResult:
     """Execute session show query and render results to console."""
     return HistoryShowService(

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from worktree.cli.context import Context
+from worktree.cli.context import CliContext
 from worktree.common.fs import (
     get_gitignore_file,
     get_worktree_config_file,
@@ -26,8 +26,7 @@ from ..renderers import (
 
 
 def init_command(
-    *,
-    context: Context,
+    context: CliContext,
     tool_version: str | None = None,
     overwrite: bool = False,
     repair: bool = False,

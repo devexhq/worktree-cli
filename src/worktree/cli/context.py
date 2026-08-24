@@ -1,35 +1,36 @@
 # src/worktree/cli/context.py
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
-
-from pydantic import BaseModel, Field
+from typing import Self
 
 from worktree.common.utils import RichOutput
+from worktree.core.config.loader import load_config_result
 from worktree.core.db.facade import WorktreeDb
 
 
-class Context(BaseModel):
-    """Global CLI context."""
+@dataclass
+class CliContext:
+    """Core environment state for Worktree CLI."""
 
-    model_config = {"extra": "forbid", "strict": True, "arbitrary_types_allowed": True}
-
-    db: WorktreeDb
     cwd: Path
-    output: RichOutput = Field(default_factory=RichOutput)
+    db: WorktreeDb
+    output: RichOutput
 
+    @classmethod
+    def build(cls, cwd: Path | None = None) -> Self | None:
+        """Factory to build and validate the global CLI state."""
+        effective_cwd = cwd or Path.cwd()
+        output = RichOutput()
 
-# Backward compatibility alias
-CliContext = Context
+        # Config validation
+        load_result = load_config_result(path=effective_cwd)
+        if not load_result.ok:
+            output.add_error("Not initialized or invalid config.")
+            output.add_line("Hint: Run wt init")
+            output.print()
+            return None
 
-
-def get_cli_context(cwd: Path | None = None) -> Context:
-    """Factory to build the global application state."""
-    effective_cwd = cwd or Path.cwd()
-
-    # If you ever need to load a config.toml, set up a global logger,
-    # or handle a missing .worktree directory, you do it here, exactly once.
-    db = WorktreeDb(path=effective_cwd)
-    output = RichOutput()
-
-    return Context(cwd=effective_cwd, db=db, output=output)
+        db = WorktreeDb(path=effective_cwd)
+        return cls(cwd=effective_cwd, db=db, output=output)

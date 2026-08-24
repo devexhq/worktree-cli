@@ -9,10 +9,9 @@ import pytest
 from typer.main import get_command
 from typer.testing import CliRunner
 
-from tests.helpers import GitFileSystem
+from tests.helpers import GitFileSystem, make_cli_context
 from worktree.cli import app
 from worktree.cli.config.commands.config_set import config_set_command
-from worktree.cli.context import get_cli_context
 
 runner = CliRunner()
 
@@ -33,8 +32,8 @@ class ConfigSetCommandTests:
         monkeypatch.chdir(git_fs.base_path)
         config_path = git_fs.init_repo()
 
-        ctx = get_cli_context(cwd=git_fs.base_path)
-        outcome = config_set_command("agent.model", "qwen2.5-coder", context=ctx)
+        ctx = make_cli_context(cwd=git_fs.base_path)
+        outcome = config_set_command(ctx, "agent.model", "qwen2.5-coder")
         assert outcome.ok
         ctx.output.print()
         out = capsys.readouterr().out
@@ -57,8 +56,8 @@ class ConfigSetCommandTests:
         )
         original = config_path.read_text(encoding="utf-8")
 
-        ctx = get_cli_context(cwd=git_fs.base_path)
-        outcome = config_set_command("agents.ollama.port", "11434", context=ctx)
+        ctx = make_cli_context(cwd=git_fs.base_path)
+        outcome = config_set_command(ctx, "agents.ollama.port", "11434")
         assert not outcome.ok
         ctx.output.print()
         out = capsys.readouterr().out
@@ -74,8 +73,8 @@ class ConfigSetCommandTests:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
-        ctx = get_cli_context(cwd=git_fs.base_path)
-        outcome = config_set_command("agent.model", "x", context=ctx)
+        ctx = make_cli_context(cwd=git_fs.base_path)
+        outcome = config_set_command(ctx, "agent.model", "x")
         assert not outcome.ok
         ctx.output.print()
         out = capsys.readouterr().out
@@ -147,9 +146,7 @@ class ConfigSetCliTests:
         result = runner.invoke(app, ["config", "set", "agent.model", "qwen2.5-coder"])
         assert result.exit_code == 1
         combined = result.stdout + result.stderr
-        assert "Config Error" in combined
-        assert "agent.model" in combined
-        assert "scalar" in combined
+        assert "Not initialized or invalid config" in combined
         assert _read_config(config_path)["agent"] == "scalar-value"
 
     def test_set_missing_config(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -157,7 +154,7 @@ class ConfigSetCliTests:
         result = runner.invoke(app, ["config", "set", "agent.model", "x"])
         assert result.exit_code == 1
         combined = result.stdout + result.stderr
-        assert "CONFIG_NOT_FOUND" in combined or "not found" in combined.lower()
+        assert "Not initialized or invalid config" in combined
 
     def test_help_lists_config_set(self) -> None:
         result = runner.invoke(app, ["config", "set", "--help"])

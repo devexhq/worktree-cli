@@ -10,10 +10,9 @@ import pytest
 from typer.main import get_command
 from typer.testing import CliRunner
 
-from tests.helpers import GitFileSystem
+from tests.helpers import GitFileSystem, make_cli_context
 from worktree.cli import app
 from worktree.cli.config.commands.config_validate import config_validate_command
-from worktree.cli.context import get_cli_context
 from worktree.core.config.validate import (
     ConfigValidationResult,
     ConfigValidationStatus,
@@ -76,8 +75,8 @@ class ConfigValidateCommandTests:
         monkeypatch.chdir(git_fs.base_path)
         config_path = git_fs.init_repo()
 
-        ctx = get_cli_context(cwd=git_fs.base_path)
-        outcome = config_validate_command(context=ctx)
+        ctx = make_cli_context(cwd=git_fs.base_path)
+        outcome = config_validate_command(ctx)
         assert outcome.ok
         ctx.output.print()
         _assert_success_stdout(
@@ -99,8 +98,8 @@ class ConfigValidateCommandTests:
         data["agent"]["model"] = None
         _write_config(config_path, data)
 
-        ctx = get_cli_context(cwd=git_fs.base_path)
-        outcome = config_validate_command(context=ctx)
+        ctx = make_cli_context(cwd=git_fs.base_path)
+        outcome = config_validate_command(ctx)
         assert outcome.ok
         ctx.output.print()
         out = capsys.readouterr().out
@@ -116,8 +115,8 @@ class ConfigValidateCommandTests:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
-        ctx = get_cli_context(cwd=git_fs.base_path)
-        outcome = config_validate_command(context=ctx)
+        ctx = make_cli_context(cwd=git_fs.base_path)
+        outcome = config_validate_command(ctx)
         assert not outcome.ok
         ctx.output.print()
         combined = _assert_failure_output(capsys.readouterr().out)
@@ -134,8 +133,8 @@ class ConfigValidateCommandTests:
         config_path.parent.mkdir(parents=True)
         config_path.write_text('{"version": 1}\n', encoding="utf-8")
 
-        ctx = get_cli_context(cwd=git_fs.base_path)
-        outcome = config_validate_command(context=ctx)
+        ctx = make_cli_context(cwd=git_fs.base_path)
+        outcome = config_validate_command(ctx)
         assert not outcome.ok
         ctx.output.print()
         combined = _assert_failure_output(capsys.readouterr().out)
@@ -153,8 +152,8 @@ class ConfigValidateCommandTests:
         data["paths"]["root_dir"] = "root\x00dir"
         _write_config(config_path, data)
 
-        ctx = get_cli_context(cwd=git_fs.base_path)
-        outcome = config_validate_command(context=ctx)
+        ctx = make_cli_context(cwd=git_fs.base_path)
+        outcome = config_validate_command(ctx)
         assert not outcome.ok
         ctx.output.print()
         combined = _assert_failure_output(capsys.readouterr().out)
@@ -171,8 +170,8 @@ class ConfigValidateCommandTests:
         config_path.parent.mkdir(parents=True)
         config_path.write_text("{not-json\n", encoding="utf-8")
 
-        ctx = get_cli_context(cwd=git_fs.base_path)
-        outcome = config_validate_command(context=ctx)
+        ctx = make_cli_context(cwd=git_fs.base_path)
+        outcome = config_validate_command(ctx)
         assert not outcome.ok
         ctx.output.print()
         combined = _assert_failure_output(capsys.readouterr().out)
@@ -188,8 +187,8 @@ class ConfigValidateCommandTests:
         config_path = git_fs.base_path / ".worktree" / "config.json"
         config_path.mkdir(parents=True)
 
-        ctx = get_cli_context(cwd=git_fs.base_path)
-        outcome = config_validate_command(context=ctx)
+        ctx = make_cli_context(cwd=git_fs.base_path)
+        outcome = config_validate_command(ctx)
         assert not outcome.ok
         ctx.output.print()
         combined = _assert_failure_output(capsys.readouterr().out)
@@ -212,8 +211,8 @@ class ConfigValidateCommandTests:
             "worktree.cli.config.commands.config_validate.validate_config_result",
             return_value=fake,
         ):
-            ctx = get_cli_context(cwd=git_fs.base_path)
-            outcome = config_validate_command(context=ctx)
+            ctx = make_cli_context(cwd=git_fs.base_path)
+            outcome = config_validate_command(ctx)
         assert not outcome.ok
         ctx.output.print()
         combined = _assert_failure_output(capsys.readouterr().out)
@@ -241,8 +240,8 @@ class ConfigValidateCommandTests:
             "worktree.cli.config.commands.config_validate.validate_config_result",
             return_value=fake,
         ):
-            ctx = get_cli_context(cwd=git_fs.base_path)
-            outcome = config_validate_command(context=ctx)
+            ctx = make_cli_context(cwd=git_fs.base_path)
+            outcome = config_validate_command(ctx)
         assert not outcome.ok
         ctx.output.print()
         out = capsys.readouterr().out
@@ -262,8 +261,8 @@ class ConfigValidateCommandTests:
         monkeypatch.chdir(git_fs.base_path)
         config_path = git_fs.base_path / ".worktree" / "config.json"
         assert not config_path.exists()
-        ctx = get_cli_context(cwd=git_fs.base_path)
-        outcome = config_validate_command(context=ctx)
+        ctx = make_cli_context(cwd=git_fs.base_path)
+        outcome = config_validate_command(ctx)
         assert not outcome.ok
         ctx.output.print()
         assert not config_path.exists()
@@ -310,8 +309,8 @@ class ConfigValidateCliTests:
         monkeypatch.chdir(git_fs.base_path)
         result = runner.invoke(app, ["config", "validate"])
         assert result.exit_code == 1
-        combined = _assert_failure_output(result.stdout, result.stderr)
-        assert "CONFIG_NOT_FOUND" in combined or "not found" in combined.lower()
+        combined = result.stdout + result.stderr
+        assert "Not initialized or invalid config" in combined
         assert "wt init" in combined
 
     def test_validate_schema_invalid(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -322,8 +321,8 @@ class ConfigValidateCliTests:
 
         result = runner.invoke(app, ["config", "validate"])
         assert result.exit_code == 1
-        combined = _assert_failure_output(result.stdout, result.stderr)
-        assert "schema" in combined.lower() or "CONFIG_SCHEMA_INVALID" in combined
+        combined = result.stdout + result.stderr
+        assert "Not initialized or invalid config" in combined
 
     def test_validate_semantic_invalid(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_fs.base_path)

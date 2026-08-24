@@ -1,6 +1,6 @@
 import typer
 
-from worktree.cli.context import get_cli_context
+from worktree.cli.context import CliContext
 
 from .commands.config_set import config_set_command
 from .commands.config_show import config_show_command
@@ -15,8 +15,8 @@ config_app = typer.Typer(
 @config_app.command("show")
 def config_show(ctx: typer.Context):
     """Display the full normalized effective configuration as JSON."""
-    context = get_cli_context()
-    outcome = config_show_command(context=context)
+    context: CliContext = ctx.obj["context"]
+    outcome = config_show_command(context)
     context.output.print()
     if not outcome.ok:
         raise typer.Exit(code=1)
@@ -24,6 +24,7 @@ def config_show(ctx: typer.Context):
 
 @config_app.command("set")
 def config_set(
+    ctx: typer.Context,
     key: str = typer.Argument(
         ...,
         help="Config key or nested dot-path (e.g. agent.model).",
@@ -34,8 +35,8 @@ def config_set(
     ),
 ):
     """Set a configuration value by key or nested dot-path."""
-    context = get_cli_context()
-    outcome = config_set_command(key, value, context=context)
+    context: CliContext = ctx.obj["context"]
+    outcome = config_set_command(context, key, value)
     context.output.print()
     if not outcome.ok:
         raise typer.Exit(code=1)
@@ -44,8 +45,8 @@ def config_set(
 @config_app.command("validate")
 def config_validate(ctx: typer.Context):
     """Validate .worktree/config.json against the V1 schema and semantic rules."""
-    context = get_cli_context()
-    outcome = config_validate_command(context=context)
+    context: CliContext = ctx.obj["context"]
+    outcome = config_validate_command(context)
     context.output.print()
     if not outcome.ok:
         raise typer.Exit(code=1)

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import typer
 
-from worktree.cli.context import get_cli_context
+from worktree.cli.context import CliContext
 from worktree.core.blueprint import BlueprintRunService
 
 
@@ -38,7 +38,7 @@ def run_root(
     ),
 ) -> None:
     """Execute a task or workflow blueprint."""
-    context = get_cli_context()
+    context: CliContext = ctx.obj["context"]
     outcome = BlueprintRunService(
         name=name,
         path=context.cwd,
