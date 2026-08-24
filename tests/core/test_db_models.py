@@ -1,15 +1,11 @@
 """Unit tests for SQLModel record models and Alembic metadata registration."""
 
-import sqlite3
 from pathlib import Path
 
 import pytest
-from alembic import command
-from alembic.config import Config
 from pydantic import ValidationError
 from sqlmodel import SQLModel
 
-from tests.helpers import FileSystem
 from worktree.core.db import (
     BlueprintKind,
     CatalogItemType,
@@ -141,50 +137,3 @@ class TestSQLModelRecords:
                     "unknown_field": "disallowed",
                 }
             )
-
-
-class TestAlembicMigrations:
-    """Tests verifying embedded Alembic migrations and schema application."""
-
-    def test_alembic_upgrade_and_downgrade(self, fs: FileSystem) -> None:
-        """Verify running Alembic upgrade head creates all tables and downgrade drops them."""
-        db_path = fs.base_path / "test_migration.db"
-        alembic_dir = Path(__file__).resolve().parents[2] / "src" / "worktree" / "core" / "db" / "alembic"
-
-        config = Config()
-        config.set_main_option("script_location", str(alembic_dir))
-        config.set_main_option("sqlalchemy.url", f"sqlite:///{db_path}")
-
-        command.upgrade(config, "head")
-
-        with sqlite3.connect(db_path) as conn:
-            tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
-            indexes = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'index'")}
-
-        assert "sandboxes" in tables
-        assert "catalog" in tables
-        assert "runs" in tables
-        assert "workflow_costs" in tables
-        assert "alembic_version" in tables
-
-        assert "idx_sandboxes_status" in indexes
-        assert "idx_catalog_sha" in indexes
-        assert "idx_catalog_type" in indexes
-        assert "idx_catalog_path" in indexes
-        assert "idx_runs_session" in indexes
-        assert "idx_runs_status" in indexes
-        assert "idx_runs_started" in indexes
-        assert "idx_workflow_costs_session" in indexes
-        assert "idx_workflow_costs_created" in indexes
-
-        command.downgrade(config, "base")
-
-        with sqlite3.connect(db_path) as conn:
-            tables_after_downgrade = {
-                row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
-            }
-
-        assert "sandboxes" not in tables_after_downgrade
-        assert "catalog" not in tables_after_downgrade
-        assert "runs" not in tables_after_downgrade
-        assert "workflow_costs" not in tables_after_downgrade

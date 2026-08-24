@@ -72,9 +72,12 @@ class TestProgrammaticMigrations:
         assert result_path == db_path
         assert db_path.is_file()
 
-        with sqlite3.connect(db_path) as conn:
+        conn = sqlite3.connect(db_path)
+        try:
             cursor = conn.execute("SELECT version_num FROM alembic_version")
             version_row = cursor.fetchone()
+        finally:
+            conn.close()
 
         assert version_row is not None
 

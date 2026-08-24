@@ -19,7 +19,7 @@ from worktree.cli.sandbox.renderers import (
     render_sandbox_create_failed,
     render_sandbox_create_success,
 )
-from worktree.core.db import SandboxesRepository, SandboxStatus
+from worktree.core.db import SandboxStatus, WorktreeDb
 from worktree.core.git_sandbox import (
     SandboxCreateResult,
     SandboxCreateStatus,
@@ -98,6 +98,12 @@ class SandboxCreateRenderTests:
 class SandboxCreateCommandDirectTests:
     """Direct sandbox_create_command exit-code / side-effect tests."""
 
+    db: WorktreeDb
+
+    @pytest.fixture(autouse=True)
+    def setup_method(self, git_fs: GitFileSystem) -> None:
+        self.db = WorktreeDb(path=git_fs.base_path, db_rel_path=DB_REL)
+
     def test_default_create_exits_zero(
         self,
         git_fs: GitFileSystem,
@@ -116,7 +122,7 @@ class SandboxCreateCommandDirectTests:
         assert "Branch: worktree/sandbox-" in out
         assert "Path: .worktree/sandboxes/" in out
 
-        rows = SandboxesRepository(git_fs.base_path).list()
+        rows = self.db.sandboxes.list()
         assert len(rows) == 1
         assert rows[0].status is SandboxStatus.ACTIVE
 
@@ -133,7 +139,7 @@ class SandboxCreateCommandDirectTests:
         outcome = sandbox_create_command(name="  demo  ", context=ctx)
         assert outcome.ok
         ctx.output.print()
-        rows = SandboxesRepository(git_fs.base_path).list()
+        rows = self.db.sandboxes.list()
         assert len(rows) == 1
         assert rows[0].name == "demo"
         assert "Sandbox created:" in capsys.readouterr().out
@@ -178,7 +184,7 @@ class SandboxCreateCommandDirectTests:
         ctx = get_cli_context(cwd=git_fs.base_path)
         outcome = sandbox_create_command(base_ref="feature", context=ctx)
         assert outcome.ok
-        rows = SandboxesRepository(git_fs.base_path).list()
+        rows = self.db.sandboxes.list()
         assert len(rows) == 1
         assert rows[0].base_commit == feature_tip
 
@@ -195,7 +201,7 @@ class SandboxCreateCommandDirectTests:
         ctx = get_cli_context(cwd=git_fs.base_path)
         outcome = sandbox_create_command(wip=True, context=ctx)
         assert outcome.ok
-        rows = SandboxesRepository(git_fs.base_path).list()
+        rows = self.db.sandboxes.list()
         assert len(rows) == 1
         sandbox_path = Path(rows[0].sandbox_path)
         assert (sandbox_path / "f.txt").read_text(encoding="utf-8") == "dirty\n"
@@ -273,6 +279,12 @@ class SandboxCreateCommandDirectTests:
 class SandboxCreateCliTests:
     """CliRunner coverage for Typer wiring and integration."""
 
+    db: WorktreeDb
+
+    @pytest.fixture(autouse=True)
+    def setup_method(self, git_fs: GitFileSystem) -> None:
+        self.db = WorktreeDb(path=git_fs.base_path, db_rel_path=DB_REL)
+
     def test_help_lists_create(self) -> None:
         result = runner.invoke(app, ["sandbox", "--help"])
         assert result.exit_code == 0
@@ -309,11 +321,11 @@ class SandboxCreateCliTests:
         assert created.exit_code == 0
         assert "Sandbox created:" in created.stdout
 
-        rows = SandboxesRepository(git_fs.base_path).list()
+        rows = self.db.sandboxes.list()
         assert len(rows) == 1
         sandbox_id = rows[0].id
         assert rows[0].name == "integration"
-        assert SandboxesRepository(git_fs.base_path).get(sandbox_id) is not None
+        assert self.db.sandboxes.get(sandbox_id) is not None
 
         listed = runner.invoke(app, ["sandbox", "list"])
         assert listed.exit_code == 0

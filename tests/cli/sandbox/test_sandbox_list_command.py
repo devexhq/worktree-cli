@@ -22,9 +22,9 @@ from worktree.cli.sandbox.renderers import (
     render_sandbox_list,
 )
 from worktree.core.db import (
-    SandboxesRepository,
     SandboxRecord,
     SandboxStatus,
+    WorktreeDb,
 )
 
 runner = CliRunner()
@@ -33,6 +33,12 @@ DB_REL = ".worktree/data.db"
 
 class SandboxListCollectTests:
     """Tests for collect_sandbox_list (data path, no Rich width coupling)."""
+
+    db: WorktreeDb
+
+    @pytest.fixture(autouse=True)
+    def setup_method(self, git_fs: GitFileSystem) -> None:
+        self.db = WorktreeDb(path=git_fs.base_path, db_rel_path=DB_REL)
 
     def test_not_initialized(self, git_fs: GitFileSystem) -> None:
         result = collect_sandbox_list(context=get_cli_context(cwd=git_fs.base_path))
@@ -50,15 +56,18 @@ class SandboxListCollectTests:
 
     def test_multiple_rows_sorted_by_created_at_desc(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        first = seed_sandbox(git_fs.base_path, sandbox_id="sbx_first", name=None, path_suffix="1")
-        second = seed_sandbox(git_fs.base_path, sandbox_id="sbx_second", name="beta", path_suffix="2")
-        db = SandboxesRepository(path=git_fs.base_path)
+        first = seed_sandbox(self.db.sandboxes, sandbox_id="sbx_first", name=None, path_suffix="1")
+        second = seed_sandbox(self.db.sandboxes, sandbox_id="sbx_second", name="beta", path_suffix="2")
+        db = self.db.sandboxes
         import sqlite3
 
-        with sqlite3.connect(db.db_path) as conn:
+        conn = sqlite3.connect(db.db_path)
+        try:
             conn.execute("UPDATE sandboxes SET created_at = '2026-01-01 00:00:00' WHERE id = ?", (first.id,))
             conn.execute("UPDATE sandboxes SET created_at = '2026-01-01 00:00:01' WHERE id = ?", (second.id,))
             conn.commit()
+        finally:
+            conn.close()
         first = db.get(first.id)
         second = db.get(second.id)
 
@@ -72,9 +81,9 @@ class SandboxListCollectTests:
 
     def test_status_filter(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        active = seed_sandbox(git_fs.base_path, sandbox_id="sbx_active", path_suffix="a")
-        cleaned = seed_sandbox(git_fs.base_path, sandbox_id="sbx_cleaned", path_suffix="c")
-        SandboxesRepository(git_fs.base_path, DB_REL).update_status(
+        active = seed_sandbox(self.db.sandboxes, sandbox_id="sbx_active", path_suffix="a")
+        cleaned = seed_sandbox(self.db.sandboxes, sandbox_id="sbx_cleaned", path_suffix="c")
+        self.db.sandboxes.update_status(
             cleaned.id,
             SandboxStatus.CLEANED,
         )
@@ -87,7 +96,7 @@ class SandboxListCollectTests:
     def test_reconciles_stale_active_missing_directory(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
         stale = seed_sandbox(
-            git_fs.base_path,
+            self.db.sandboxes,
             sandbox_id="sbx_stale",
             path_suffix="gone",
             create_dir=False,
@@ -99,14 +108,14 @@ class SandboxListCollectTests:
         assert len(result.sandboxes) == 1
         assert result.sandboxes[0].id == stale.id
         assert result.sandboxes[0].status is SandboxStatus.CLEANED
-        loaded = SandboxesRepository(git_fs.base_path, DB_REL).get(stale.id)
+        loaded = self.db.sandboxes.get(stale.id)
         assert loaded is not None
         assert loaded.status is SandboxStatus.CLEANED
 
     def test_status_filter_after_reconciliation(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
         stale = seed_sandbox(
-            git_fs.base_path,
+            self.db.sandboxes,
             sandbox_id="sbx_stale_filter",
             path_suffix="missing",
             create_dir=False,
@@ -115,7 +124,7 @@ class SandboxListCollectTests:
         result = collect_sandbox_list(status="active", context=get_cli_context(cwd=git_fs.base_path))
         assert result.ok
         assert result.sandboxes == []
-        loaded = SandboxesRepository(git_fs.base_path, DB_REL).get(stale.id)
+        loaded = self.db.sandboxes.get(stale.id)
         assert loaded is not None
         assert loaded.status is SandboxStatus.CLEANED
 
@@ -200,6 +209,12 @@ class SandboxListRenderTests:
 class SandboxListCommandDirectTests:
     """Direct sandbox_list_command exit-code / side-effect tests."""
 
+    db: WorktreeDb
+
+    @pytest.fixture(autouse=True)
+    def setup_method(self, git_fs: GitFileSystem) -> None:
+        self.db = WorktreeDb(path=git_fs.base_path, db_rel_path=DB_REL)
+
     def test_not_initialized_exits_one(
         self,
         git_fs: GitFileSystem,
@@ -240,7 +255,7 @@ class SandboxListCommandDirectTests:
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
-        seed_sandbox(git_fs.base_path, sandbox_id="sbx_one", path_suffix="1")
+        seed_sandbox(self.db.sandboxes, sandbox_id="sbx_one", path_suffix="1")
 
         ctx = get_cli_context(cwd=git_fs.base_path)
         outcome = sandbox_list_command(context=ctx)
@@ -251,6 +266,12 @@ class SandboxListCommandDirectTests:
 
 class SandboxListCliTests:
     """CliRunner coverage for Typer wiring."""
+
+    db: WorktreeDb
+
+    @pytest.fixture(autouse=True)
+    def setup_method(self, git_fs: GitFileSystem) -> None:
+        self.db = WorktreeDb(path=git_fs.base_path, db_rel_path=DB_REL)
 
     def test_help_lists_sandbox_group(self) -> None:
         # Assert registration via Click metadata. Do not parse Rich --help text:

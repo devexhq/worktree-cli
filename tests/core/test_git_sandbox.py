@@ -11,7 +11,7 @@ import pytest
 
 import worktree.core.git_sandbox as git_sandbox_mod
 from tests.helpers import FileSystem, GitFileSystem
-from worktree.core.db import SandboxesRepository, SandboxStatus, WorktreeDb
+from worktree.core.db import SandboxStatus, WorktreeDb
 from worktree.core.git_sandbox import (
     GitSandboxManager,
     SandboxCreateStatus,
@@ -45,6 +45,12 @@ def _init_git_repo(path: Path, branch: str = "feature") -> None:
 
 class GitSandboxManagerTests:
     """Integration tests against a real git repository."""
+
+    db: WorktreeDb
+
+    @pytest.fixture(autouse=True)
+    def setup_method(self, git_fs: GitFileSystem) -> None:
+        self.db = WorktreeDb(path=git_fs.base_path)
 
     def test_create_and_cleanup(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
@@ -354,7 +360,7 @@ class GitSandboxManagerTests:
         result = manager.create_sandbox_result(session_id="sbx_db1", name="persist-me")
         assert result.ok and result.session is not None
         assert result.warnings == []
-        row = SandboxesRepository(git_fs.base_path).get("sbx_db1")
+        row = self.db.sandboxes.get("sbx_db1")
         assert row is not None
         assert row.status == SandboxStatus.ACTIVE
         assert row.name == "persist-me"
@@ -367,9 +373,9 @@ class GitSandboxManagerTests:
         git_fs.init_repo()
         manager = GitSandboxManager(path=git_fs.base_path)
         session = manager.create_sandbox(session_id="sbx_db2")
-        assert SandboxesRepository(git_fs.base_path).get("sbx_db2") is not None
+        assert self.db.sandboxes.get("sbx_db2") is not None
         manager.cleanup_sandbox(session)
-        row = SandboxesRepository(git_fs.base_path).get("sbx_db2")
+        row = self.db.sandboxes.get("sbx_db2")
         assert row is not None
         assert row.status == SandboxStatus.CLEANED
 
@@ -386,7 +392,7 @@ class GitSandboxManagerTests:
         assert result.session.sandbox_path.is_dir()
         assert len(result.warnings) == 1
         assert "db locked" in result.warnings[0]
-        assert WorktreeDb(git_fs.base_path).sandboxes.get("sbx_warn") is None
+        assert self.db.sandboxes.get("sbx_warn") is None
         manager.cleanup_sandbox(result.session)
 
     def test_cleanup_without_db_row_does_not_raise(self, git_fs: GitFileSystem) -> None:

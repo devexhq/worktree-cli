@@ -164,6 +164,7 @@ completely untested.
 
 ```bash
 inv test                            # invoke task, tasks.py
+inv test --no-parallel              # run without xdist (faster for single/small test files)
 inv test --coverage                 # adds --cov=worktree --cov-report=term-missing
 inv test --fast-fail                # stop on first failure
 python -m pytest tests/ -q {file}   # equivalent, no invoke dependency

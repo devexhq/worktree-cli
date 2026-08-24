@@ -15,30 +15,29 @@ from worktree.core.workflows.exceptions import (
 )
 
 
-def test_definition_error_hierarchy() -> None:
-    assert issubclass(DefinitionNotFoundError, DefinitionError)
-    assert issubclass(DefinitionLoadError, DefinitionError)
-    assert issubclass(DefinitionValidationError, DefinitionError)
+class CommonExceptionsTests:
+    """Unit tests for exception hierarchies and deprecations."""
 
+    def test_definition_error_hierarchy(self) -> None:
+        assert issubclass(DefinitionNotFoundError, DefinitionError)
+        assert issubclass(DefinitionLoadError, DefinitionError)
+        assert issubclass(DefinitionValidationError, DefinitionError)
 
-def test_step_exceptions_subclass_shared_generics() -> None:
-    assert issubclass(StepNotFoundError, DefinitionNotFoundError)
-    assert issubclass(StepValidationError, DefinitionValidationError)
+    def test_step_exceptions_subclass_shared_generics(self) -> None:
+        assert issubclass(StepNotFoundError, DefinitionNotFoundError)
+        assert issubclass(StepValidationError, DefinitionValidationError)
 
+    def test_workflow_exceptions_subclass_shared_generics(self) -> None:
+        assert issubclass(WorkflowLoadError, DefinitionLoadError)
+        assert issubclass(WorkflowValidationError, DefinitionValidationError)
 
-def test_workflow_exceptions_subclass_shared_generics() -> None:
-    assert issubclass(WorkflowLoadError, DefinitionLoadError)
-    assert issubclass(WorkflowValidationError, DefinitionValidationError)
+    def test_workflow_error_umbrella_removed(self) -> None:
+        import worktree.core.workflows.exceptions as workflow_exceptions
 
+        assert not hasattr(workflow_exceptions, "WorkflowError")
 
-def test_workflow_error_umbrella_removed() -> None:
-    import worktree.core.workflows.exceptions as workflow_exceptions
+    def test_workflow_error_not_exported_from_package(self) -> None:
+        import worktree.core.workflows as workflows
 
-    assert not hasattr(workflow_exceptions, "WorkflowError")
-
-
-def test_workflow_error_not_exported_from_package() -> None:
-    import worktree.core.workflows as workflows
-
-    assert "WorkflowError" not in workflows.__all__
-    assert not hasattr(workflows, "WorkflowError")
+        assert "WorkflowError" not in workflows.__all__
+        assert not hasattr(workflows, "WorkflowError")
