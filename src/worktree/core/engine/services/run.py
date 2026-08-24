@@ -6,20 +6,21 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from worktree.common.utils import RichOutput
-from worktree.core.blueprint.exceptions import (
+from worktree.core.blueprint import (
+    Blueprint,
+    BlueprintKind,
     BlueprintLoadError,
     BlueprintNotFoundError,
-    BlueprintValidationError,
-)
-from worktree.core.blueprint.models import (
-    BlueprintKind,
+    BlueprintRenderer,
     BlueprintRunCommandOutcome,
+    BlueprintValidationError,
+    render_blueprint_run_success,
 )
-from worktree.core.blueprint.renderers import BlueprintRenderer, render_blueprint_run_success
-from worktree.core.blueprint.services.blueprint import Blueprint
 from worktree.core.catalog import Catalog
 from worktree.core.db import CatalogRepository, RunRecord, RunsRepository, RunStatus
-from worktree.core.engine import Engine, EngineInputError, EngineRuntimeError, RunRequest
+from worktree.core.engine.engine import Engine
+from worktree.core.engine.exceptions import EngineInputError, EngineRuntimeError
+from worktree.core.engine.models import RunRequest
 from worktree.core.inputs import format_input_error_message
 from worktree.core.runtime import (
     CliFailurePrompter,

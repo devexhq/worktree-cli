@@ -5,7 +5,7 @@ from __future__ import annotations
 import typer
 
 from worktree.cli.context import CliContext
-from worktree.core.blueprint import BlueprintResumeService
+from worktree.core.engine import BlueprintResumeService
 
 
 def resume_root(
