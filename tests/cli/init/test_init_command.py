@@ -8,8 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.helpers import FileSystem, GitFileSystem
-from worktree.cli.context import get_cli_context
+from tests.helpers import FileSystem, GitFileSystem, make_cli_context
 from worktree.cli.init.commands.root import init_command
 from worktree.common.schema_validation import SchemaValidator
 from worktree.core.bootstrap import BootstrapResult
@@ -25,7 +24,7 @@ class InitCommandConfigTests:
 
     def test_init_creates_v1_config(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.chdir(git_fs.base_path)
-        init_command(context=get_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
+        init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
 
         config_path = git_fs.base_path / ".worktree" / "config.json"
         assert config_path.is_file()
@@ -36,37 +35,37 @@ class InitCommandConfigTests:
 
     def test_init_idempotent_config(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.chdir(git_fs.base_path)
-        init_command(context=get_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
+        init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
         config_path = git_fs.base_path / ".worktree" / "config.json"
         first = config_path.read_text(encoding="utf-8")
 
-        init_command(context=get_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
+        init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
         second = config_path.read_text(encoding="utf-8")
         assert first == second
 
     def test_init_repair_partial_config(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.chdir(git_fs.base_path)
-        init_command(context=get_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
+        init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
         config_path = git_fs.base_path / ".worktree" / "config.json"
         data = json.loads(config_path.read_text(encoding="utf-8"))
         del data["telemetry"]
         config_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
-        init_command(context=get_cli_context(cwd=git_fs.base_path), tool_version="0.1.1", repair=True)
+        init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1", repair=True)
         repaired = json.loads(config_path.read_text(encoding="utf-8"))
         assert "telemetry" in repaired
         assert CONFIG_VALIDATOR.validate(repaired).ok
 
     def test_init_overwrite_replaces_config(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_fs.base_path)
-        init_command(context=get_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
+        init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
         config_path = git_fs.base_path / ".worktree" / "config.json"
         data = json.loads(config_path.read_text(encoding="utf-8"))
         data["project"]["name"] = "stale-name"
         data["custom_user_key"] = True
         config_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
-        init_command(context=get_cli_context(cwd=git_fs.base_path), tool_version="0.1.1", overwrite=True)
+        init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1", overwrite=True)
 
         replaced = json.loads(config_path.read_text(encoding="utf-8"))
         assert replaced["project"]["name"] == git_fs.base_path.name
@@ -80,7 +79,7 @@ class InitCommandGuardrailTests:
     def test_fresh_init_creates_full_layout(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_fs.base_path)
 
-        init_command(context=get_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
+        init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
 
         root = git_fs.base_path / ".worktree"
         assert root.is_dir()
@@ -109,7 +108,7 @@ class InitCommandGuardrailTests:
 
     def test_second_init_is_non_destructive(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_fs.base_path)
-        init_command(context=get_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
+        init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
 
         config_path = git_fs.base_path / ".worktree" / "config.json"
         workflow_path = git_fs.base_path / ".worktree" / "catalog" / "workflows" / "wt" / "fix-tests.yml"
@@ -119,7 +118,7 @@ class InitCommandGuardrailTests:
             (git_fs.base_path / ".worktree" / ".meta" / "bootstrap.json").read_text(encoding="utf-8")
         )
 
-        init_command(context=get_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
+        init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
 
         assert config_path.read_text(encoding="utf-8") == config_before
         assert workflow_path.read_text(encoding="utf-8") == "edited by user\n"
@@ -130,12 +129,12 @@ class InitCommandGuardrailTests:
 
     def test_repairs_missing_subdirectory(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_fs.base_path)
-        init_command(context=get_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
+        init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
         sessions = git_fs.base_path / ".worktree" / "sessions"
         sessions.rmdir()
         assert not sessions.exists()
 
-        init_command(context=get_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
+        init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
 
         assert sessions.is_dir()
         meta = json.loads((git_fs.base_path / ".worktree" / ".meta" / "bootstrap.json").read_text(encoding="utf-8"))
@@ -150,7 +149,7 @@ class InitCommandWorkflowSeedingTests:
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
 
-        init_command(context=get_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
+        init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
 
         workflows_dir = git_fs.base_path / ".worktree" / "catalog" / "workflows" / "wt"
         assert (workflows_dir / "fix-tests.yml").is_file()
@@ -161,11 +160,11 @@ class InitCommandWorkflowSeedingTests:
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
 
-        init_command(context=get_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
+        init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
         workflow_path = git_fs.base_path / ".worktree" / "catalog" / "workflows" / "wt" / "fix-tests.yml"
         workflow_path.write_text("edited by user\n", encoding="utf-8")
 
-        init_command(context=get_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
+        init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
 
         assert workflow_path.read_text(encoding="utf-8") == "edited by user\n"
 
@@ -177,7 +176,7 @@ class InitCommandFailureTests:
         self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.chdir(fs.base_path)
-        outcome = init_command(context=get_cli_context(cwd=fs.base_path), tool_version="0.1.1")
+        outcome = init_command(make_cli_context(cwd=fs.base_path), tool_version="0.1.1")
         assert not outcome.ok
         assert not (fs.base_path / ".worktree").exists()
 
@@ -186,7 +185,7 @@ class InitCommandFailureTests:
         (fs.base_path / ".git").write_text("gitdir: /tmp/fake\n", encoding="utf-8")
         monkeypatch.chdir(fs.base_path)
 
-        outcome = init_command(context=get_cli_context(cwd=fs.base_path), tool_version="0.1.1")
+        outcome = init_command(make_cli_context(cwd=fs.base_path), tool_version="0.1.1")
         assert outcome.ok
         assert (fs.base_path / ".worktree" / "config.json").is_file()
 
@@ -195,7 +194,7 @@ class InitCommandFailureTests:
         collision = git_fs.base_path / ".worktree"
         collision.write_text("not-a-directory\n", encoding="utf-8")
 
-        outcome = init_command(context=get_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
+        outcome = init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
         assert not outcome.ok
         assert collision.is_file()
         assert collision.read_text(encoding="utf-8") == "not-a-directory\n"
@@ -210,7 +209,7 @@ class InitCommandFailureTests:
             )
 
         monkeypatch.setattr("worktree.cli.init.commands.root.bootstrap_worktree", boom)
-        outcome = init_command(context=get_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
+        outcome = init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
         assert not outcome.ok
 
     def test_config_generation_failure_exits(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -220,7 +219,7 @@ class InitCommandFailureTests:
             return ConfigGenerationResult(errors=["CONFIG_WRITE_FAILED"])
 
         monkeypatch.setattr("worktree.cli.init.commands.root.generate_default_config", bad_config)
-        outcome = init_command(context=get_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
+        outcome = init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
         assert not outcome.ok
 
     def test_workflow_seed_failure_exits(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -230,14 +229,14 @@ class InitCommandFailureTests:
             return SeedResult(errors=["seed failed"])
 
         monkeypatch.setattr("worktree.cli.init.commands.root.seed_all_catalog_templates", bad_seed)
-        outcome = init_command(context=get_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
+        outcome = init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
         assert not outcome.ok
 
     def test_invalid_config_falls_back_to_default_db_path(
         self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
-        init_command(context=get_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
+        init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
         config_path = git_fs.base_path / ".worktree" / "config.json"
         config_path.write_text("{not-json", encoding="utf-8")
 
@@ -264,6 +263,6 @@ class InitCommandFailureTests:
             lambda root_path, *, tool_version=None: BootstrapResult(root_path=root_path, root_created=False),
         )
 
-        init_command(context=get_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
+        init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
         assert recorded
         assert recorded[-1] == PathsConfig().db_path

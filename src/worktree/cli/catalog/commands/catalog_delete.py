@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import typer
 
-from worktree.cli.context import Context
+from worktree.cli.context import CliContext
 from worktree.core.catalog.services.inventory import delete_catalog_item_by_sha_or_name
 
 from ..models import CatalogDeleteCommandOutcome
@@ -12,10 +12,9 @@ from ..renderers import render_catalog_delete_success
 
 
 def catalog_delete_command(
+    context: CliContext,
     sha_or_name: str,
     force: bool = False,
-    *,
-    context: Context,
 ) -> CatalogDeleteCommandOutcome:
     """Delete a catalog blueprint file and its database index record.
 

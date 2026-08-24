@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from worktree.cli.context import Context
+from worktree.cli.context import CliContext
 from worktree.core.catalog.services.inventory import create_catalog_item
 from worktree.core.db import CatalogItemType
 
@@ -11,10 +11,9 @@ from ..renderers import render_catalog_create_success
 
 
 def catalog_create_command(
+    context: CliContext,
     item_type: CatalogItemType | str,
     name: str,
-    *,
-    context: Context,
 ) -> CatalogCreateCommandOutcome:
     """Create a new catalog blueprint under ``.worktree/catalog/<type>s/<name>.yml``.
 

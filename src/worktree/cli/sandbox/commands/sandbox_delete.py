@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import typer
 
-from worktree.cli.context import Context
+from worktree.cli.context import CliContext
 from worktree.common.utils import RichOutput
 from worktree.core.config.loader import load_config_result
 from worktree.core.db import (
@@ -27,15 +27,14 @@ from ..renderers import (
 
 
 def collect_sandbox_delete(
+    context: CliContext,
     sandbox_id: str,
-    *,
-    context: Context,
 ) -> SandboxDeleteResult:
     """Load config and look up one sandbox for delete (no mutation).
 
     Args:
-        sandbox_id: Sandbox primary key to delete.
         context: CLI context instance.
+        sandbox_id: Sandbox primary key to delete.
 
     Returns:
         Structured delete result. Does not print, confirm, or clean up.
@@ -75,10 +74,9 @@ def _confirm_or_abort(row: object, output: RichOutput) -> bool:
 
 
 def sandbox_delete_command(
+    context: CliContext,
     sandbox_id: str,
     force: bool = False,
-    *,
-    context: Context,
 ) -> SandboxDeleteCommandOutcome:
     """Delete a tracked sandbox worktree and branch.
 
@@ -86,12 +84,12 @@ def sandbox_delete_command(
     an idempotent no-op.
 
     Args:
+        context: CLI context instance.
         sandbox_id: Sandbox primary key to delete.
         force: When True, skip the confirmation prompt.
-        context: CLI context instance.
     """
     output = context.output
-    result = collect_sandbox_delete(sandbox_id, context=context)
+    result = collect_sandbox_delete(context, sandbox_id)
 
     if result.status is SandboxDeleteStatus.NOT_INITIALIZED:
         render_not_initialized(result.errors, output=output)

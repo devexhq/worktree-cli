@@ -1,6 +1,6 @@
 """Handles `wt config set` command."""
 
-from worktree.cli.context import Context
+from worktree.cli.context import CliContext
 from worktree.core.config.mutate import set_config_value_result
 from worktree.core.config.parser import parse_config_value
 
@@ -9,10 +9,9 @@ from ..renderers import format_config_value
 
 
 def config_set_command(
+    context: CliContext,
     key: str,
     value: str,
-    *,
-    context: Context,
 ) -> ConfigSetCommandOutcome:
     """Set a configuration value by top-level or nested dot-path key.
 

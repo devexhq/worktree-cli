@@ -3,9 +3,8 @@
 import pytest
 from typer.testing import CliRunner
 
-from tests.helpers import FileSystem
+from tests.helpers import FileSystem, make_cli_context
 from worktree.cli import app
-from worktree.cli.context import get_cli_context
 from worktree.core.blueprint import BlueprintRunService
 from worktree.core.task import resolve_and_load_task
 
@@ -33,6 +32,7 @@ class NoSandboxCliTests:
         assert result.definition.use_sandbox is False
 
     def test_run_command_no_sandbox_flag(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
         fs.write_file(
             ".worktree/catalog/tasks/sample-task.yml",
@@ -46,7 +46,7 @@ class NoSandboxCliTests:
         )
 
         # Run with BlueprintRunService --no-sandbox
-        ctx = get_cli_context(cwd=fs.base_path)
+        ctx = make_cli_context(cwd=fs.base_path)
         res = BlueprintRunService(
             name="sample-task",
             path=ctx.cwd,

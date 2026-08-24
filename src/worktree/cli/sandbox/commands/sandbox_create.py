@@ -1,4 +1,4 @@
-from worktree.cli.context import Context
+from worktree.cli.context import CliContext
 from worktree.core.git_sandbox import GitSandboxManager
 
 from ..models import SandboxCreateCommandOutcome
@@ -9,11 +9,10 @@ from ..renderers import (
 
 
 def sandbox_create_command(
+    context: CliContext,
     name: str | None = None,
     base_ref: str | None = None,
     wip: bool = False,
-    *,
-    context: Context,
 ) -> SandboxCreateCommandOutcome:
     """Create an isolated git worktree sandbox.
 

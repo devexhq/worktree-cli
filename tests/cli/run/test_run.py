@@ -5,9 +5,8 @@ from __future__ import annotations
 import pytest
 from typer.testing import CliRunner
 
-from tests.helpers import FileSystem, GitFileSystem
+from tests.helpers import FileSystem, GitFileSystem, make_cli_context
 from worktree.cli import app
-from worktree.cli.context import get_cli_context
 from worktree.core.blueprint import BlueprintKind, BlueprintRunService
 from worktree.core.catalog.services.inventory import scan_and_index_catalog
 from worktree.core.db import RunStatus, WorktreeDb
@@ -38,7 +37,7 @@ class BlueprintRunServiceTests:
             ],
         )
 
-        ctx = get_cli_context(cwd=fs.base_path)
+        ctx = make_cli_context(cwd=fs.base_path)
         res = BlueprintRunService(
             name="build-task",
             path=ctx.cwd,
@@ -69,7 +68,7 @@ class BlueprintRunServiceTests:
         )
         scan_and_index_catalog(path=git_fs.base_path)
 
-        ctx = get_cli_context(cwd=git_fs.base_path)
+        ctx = make_cli_context(cwd=git_fs.base_path)
         res = BlueprintRunService(
             name="deploy-flow",
             path=ctx.cwd,
@@ -101,6 +100,7 @@ class RunCliTests:
 
     def test_run_cli_task_invocation(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify CLI 'wt run <task-name>' options and output."""
+        fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
         fs.create_task_file(
             "format-task",
@@ -138,6 +138,7 @@ class RunCliTests:
 
     def test_run_cli_input_forwarding(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify trailing CLI args are forwarded to blueprint declared inputs."""
+        fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
         fs.create_task_file(
             "greet-task",
@@ -174,6 +175,7 @@ class RunCliTests:
 
     def test_run_cli_non_existent_blueprint_fails(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify running a non-existent blueprint fails with exit code 1."""
+        fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
         result = runner.invoke(app, ["run", "unknown-blueprint"])
         assert result.exit_code == 1
@@ -181,6 +183,7 @@ class RunCliTests:
 
     def test_run_cli_step_failure_exits_1(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify a failing blueprint step returns exit code 1."""
+        fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
         fs.create_task_file(
             "failing-task",
@@ -194,6 +197,7 @@ class RunCliTests:
 
     def test_run_cli_non_interactive_aborts_prompt_user(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify --non-interactive aborts on prompt_user and exits 1."""
+        fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
         fs.create_task_file(
             "prompt-task",
@@ -213,6 +217,7 @@ class RunCliTests:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Verify a paused run exits with code 0 and logs checkpoint notice."""
+        fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
         fs.create_task_file(
             "pause-task",
@@ -233,7 +238,7 @@ class RunCliTests:
             lambda *args, **kwargs: _InterruptPrompter(),
         )
 
-        ctx = get_cli_context(cwd=fs.base_path)
+        ctx = make_cli_context(cwd=fs.base_path)
         outcome = BlueprintRunService(
             name="pause-task",
             path=ctx.cwd,

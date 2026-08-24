@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from worktree.cli.context import Context
+from worktree.cli.context import CliContext
 from worktree.common.fs import get_catalog_templates_dir
 from worktree.common.utils import RichOutput
 from worktree.core.catalog.services.inventory import scan_and_index_catalog
@@ -47,9 +47,8 @@ def _render_scan_warnings(errors: list[str], *, output: RichOutput) -> None:
 
 
 def catalog_list_command(
+    context: CliContext,
     type_filter: CatalogItemType | str | None = None,
-    *,
-    context: Context,
 ) -> CatalogListCommandOutcome:
     """List catalog blueprints with optional type filtering.
 

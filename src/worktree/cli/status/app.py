@@ -1,6 +1,6 @@
 import typer
 
-from worktree.cli.context import get_cli_context
+from worktree.cli.context import CliContext
 
 from .commands.root import status_command
 
@@ -14,8 +14,8 @@ status_app = typer.Typer(
 @status_app.callback(invoke_without_command=True)
 def status_callback(ctx: typer.Context):
     """Display configuration status for Worktree CLI."""
-    context = get_cli_context()
-    outcome = status_command(context=context)
+    context: CliContext = ctx.obj["context"]
+    outcome = status_command(context)
     context.output.print()
     if not outcome.ok:
         raise typer.Exit(code=1)

@@ -285,6 +285,7 @@ class HistoryCliTests:
 
     def test_cli_history_table_output(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify 'wt history' renders formatted table with columns and runs."""
+        fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
         make_run(
             self.db.runs,
@@ -307,7 +308,9 @@ class HistoryCliTests:
 
     def test_cli_history_filtering_options(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify 'wt history' options --status, --kind, and --limit."""
+        fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
+
         make_run(
             self.db.runs,
             session_id="sess-task-ok",
@@ -368,7 +371,7 @@ class HistoryCliTests:
         monkeypatch.chdir(tmp_path)
         result = runner.invoke(app, ["history"])
         assert result.exit_code == 1
-        assert "Worktree Not Initialized" in result.output
+        assert "Not initialized or invalid config" in result.output or "Worktree Not Initialized" in result.output
 
 
 class HistoryShowCliTests:
@@ -382,6 +385,7 @@ class HistoryShowCliTests:
 
     def test_cli_history_show_success(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify 'wt history show <session_id>' displays session metadata panel."""
+        fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
         make_run(
             self.db.runs,
@@ -405,6 +409,7 @@ class HistoryShowCliTests:
 
     def test_cli_history_show_with_error(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify 'wt history show' renders Error Details panel when error_message is present."""
+        fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
         make_run(
             self.db.runs,
@@ -423,6 +428,7 @@ class HistoryShowCliTests:
 
     def test_cli_history_show_with_checkpoint(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify 'wt history show' renders Checkpoint Details panel and step results table."""
+        fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
         step_res = StepResult(
             step_id="step-1",
@@ -460,6 +466,7 @@ class HistoryShowCliTests:
         self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Verify 'wt history show' falls back to pretty JSON panel if checkpoint is non-standard."""
+        fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
         raw_payload = json.dumps({"custom_field": "val123", "step": "arbitrary"})
         make_run(
@@ -490,4 +497,4 @@ class HistoryShowCliTests:
         monkeypatch.chdir(tmp_path)
         result = runner.invoke(app, ["history", "show", "any-sess"])
         assert result.exit_code == 1
-        assert "Worktree Not Initialized" in result.output
+        assert "Not initialized or invalid config" in result.output or "Worktree Not Initialized" in result.output

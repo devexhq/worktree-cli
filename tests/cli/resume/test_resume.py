@@ -9,9 +9,9 @@ from tests.helpers import (
     FileSystem,
     GitFileSystem,
     make_checkpoint,
+    make_cli_context,
 )
 from worktree.cli import app
-from worktree.cli.context import get_cli_context
 from worktree.core.blueprint import BlueprintKind, BlueprintResumeService
 from worktree.core.catalog.services.inventory import scan_and_index_catalog
 from worktree.core.db import RunsRepository, RunStatus, WorktreeDb
@@ -83,7 +83,7 @@ class BlueprintResumeServiceTests:
         )
         _seed_paused_run(self.db.runs, "task-res-1", "sample-task", BlueprintKind.TASK)
 
-        ctx = get_cli_context(cwd=fs.base_path)
+        ctx = make_cli_context(cwd=fs.base_path)
         outcome = BlueprintResumeService(
             session_id="task-res-1",
             path=ctx.cwd,
@@ -120,7 +120,7 @@ class BlueprintResumeServiceTests:
         git_db = WorktreeDb(path=git_fs.base_path)
         _seed_paused_run(git_db.runs, "wf-res-1", "deploy-wf", BlueprintKind.WORKFLOW)
 
-        ctx = get_cli_context(cwd=git_fs.base_path)
+        ctx = make_cli_context(cwd=git_fs.base_path)
         outcome = BlueprintResumeService(
             session_id="wf-res-1",
             path=ctx.cwd,
@@ -156,7 +156,7 @@ class BlueprintResumeServiceTests:
         _seed_paused_run(self.db.runs, "task-old", "task-auto", BlueprintKind.TASK)
         _seed_paused_run(self.db.runs, "task-new", "task-auto", BlueprintKind.TASK)
 
-        ctx = get_cli_context(cwd=fs.base_path)
+        ctx = make_cli_context(cwd=fs.base_path)
         outcome = BlueprintResumeService(
             path=ctx.cwd,
             db=ctx.db.runs,
@@ -173,7 +173,7 @@ class BlueprintResumeServiceTests:
     ) -> None:
         """Verify BlueprintResumeService returns failure outcome when no paused session exists."""
         monkeypatch.chdir(fs.base_path)
-        ctx = get_cli_context(cwd=fs.base_path)
+        ctx = make_cli_context(cwd=fs.base_path)
         outcome = BlueprintResumeService(
             path=ctx.cwd,
             db=ctx.db.runs,
@@ -201,6 +201,7 @@ class ResumeCliTests:
         mock_interactive_prompter: None,
     ) -> None:
         """Verify CLI 'wt resume <session_id>' resumes an explicit task run."""
+        fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
         fs.create_task_file(
             "cli-task",
@@ -249,6 +250,7 @@ class ResumeCliTests:
         mock_interactive_prompter: None,
     ) -> None:
         """Verify CLI 'wt resume' with no arguments auto-resumes the latest paused session."""
+        fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
         fs.create_task_file(
             "latest-task",
@@ -266,6 +268,7 @@ class ResumeCliTests:
 
     def test_resume_cli_not_paused_exits_1(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify CLI 'wt resume' fails when the target session is not in 'paused' status."""
+        fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
         fs.create_task_file(
             "sample-task",
@@ -281,6 +284,7 @@ class ResumeCliTests:
 
     def test_resume_cli_missing_sandbox_exits_1(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify CLI 'wt resume' fails when sandbox directory was deleted."""
+        fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
         fs.create_task_file(
             "sandbox-task",
@@ -297,6 +301,7 @@ class ResumeCliTests:
 
     def test_resume_cli_corrupt_checkpoint_exits_1(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify CLI 'wt resume' fails cleanly on corrupt checkpoint JSON."""
+        fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
         fs.create_task_file(
             "corrupt-task",
@@ -315,6 +320,7 @@ class ResumeCliTests:
 
     def test_resume_cli_paused_status_exits_0(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify a resumed run that pauses again exits with code 0."""
+        fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
         fs.create_task_file(
             "pause-again-task",
@@ -337,7 +343,7 @@ class ResumeCliTests:
             lambda *args, **kwargs: _InterruptPrompter(),
         )
 
-        ctx = get_cli_context(cwd=fs.base_path)
+        ctx = make_cli_context(cwd=fs.base_path)
         outcome = BlueprintResumeService(
             session_id="task-pause-again",
             path=ctx.cwd,
@@ -356,6 +362,7 @@ class ResumeCliTests:
         mock_interactive_prompter: None,
     ) -> None:
         """Verify a resumed run that ends in failed status exits with code 1."""
+        fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
         fs.create_task_file(
             "fail-task",
@@ -372,6 +379,7 @@ class ResumeCliTests:
 
     def test_resume_cli_non_interactive_aborts_prompt(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify non-interactive mode aborts failure prompts cleanly."""
+        fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
         fs.create_task_file(
             "non-int-task",
@@ -389,6 +397,7 @@ class ResumeCliTests:
 
     def test_resume_cli_cancelled_status(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify CLI 'wt resume' handles cancelled status cleanly."""
+        fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
         fs.create_task_file(
             "cancel-task",

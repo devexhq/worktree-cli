@@ -6,7 +6,7 @@ from typing import Annotated
 
 import typer
 
-from worktree.cli.context import get_cli_context
+from worktree.cli.context import CliContext
 from worktree.core.db import BlueprintKind, RunStatus
 
 from .commands.root import history_root_command
@@ -49,9 +49,9 @@ def history_callback(
 ) -> None:
     """Inspect past blueprint execution sessions, step details, and checkpoints."""
     if ctx.invoked_subcommand is None:
-        context = get_cli_context()
+        context: CliContext = ctx.obj["context"]
         outcome = history_root_command(
-            context=context,
+            context,
             limit=limit,
             status=status.value if status is not None else None,
             kind=kind.value if kind is not None else None,
@@ -63,13 +63,14 @@ def history_callback(
 
 @history_app.command("show")
 def history_show(
+    ctx: typer.Context,
     session_id: str = typer.Argument(..., help="Session ID to inspect."),
 ) -> None:
     """Show detailed metadata, error messages, and checkpoint state for a session."""
-    context = get_cli_context()
+    context: CliContext = ctx.obj["context"]
     outcome = history_show_command(
+        context,
         session_id,
-        context=context,
     )
     context.output.print()
     if not outcome.ok:

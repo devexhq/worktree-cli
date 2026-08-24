@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from worktree.cli.context import Context
+from worktree.cli.context import CliContext
 from worktree.core.config.loader import load_config_result
 from worktree.core.db import (
     SandboxesRepository,
@@ -33,16 +33,15 @@ def _reconcile_stale_active_sandboxes(*, db: SandboxesRepository) -> None:
 
 
 def collect_sandbox_list(
+    context: CliContext,
     status: str | None = None,
-    *,
-    context: Context,
 ) -> SandboxListResult:
     """Load config, reconcile stale active rows, and return list data.
 
     Args:
+        context: CLI context instance.
         status: Optional status filter (``active``, ``merged``, ``cleaned``,
             ``conflict``). Reconciliation always runs on the full row set first.
-        context: CLI context instance.
 
     Returns:
         Structured list result. Does not print or exit.
@@ -65,9 +64,8 @@ def collect_sandbox_list(
 
 
 def sandbox_list_command(
+    context: CliContext,
     status: str | None = None,
-    *,
-    context: Context,
 ) -> SandboxListCommandOutcome:
     """List tracked sandboxes with lifecycle status.
 
@@ -75,10 +73,10 @@ def sandbox_list_command(
     directory was removed out-of-band.
 
     Args:
-        status: Optional status filter validated by Typer at the CLI layer.
         context: CLI context instance.
+        status: Optional status filter validated by Typer at the CLI layer.
     """
-    result = collect_sandbox_list(status, context=context)
+    result = collect_sandbox_list(context, status)
     if result.status is SandboxListStatus.NOT_INITIALIZED:
         render_not_initialized(result.errors, output=context.output)
         return SandboxListCommandOutcome(errors=list(result.errors))

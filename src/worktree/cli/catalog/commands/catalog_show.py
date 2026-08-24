@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from worktree.cli.context import Context
+from worktree.cli.context import CliContext
 from worktree.common.fs import get_catalog_templates_dir
 from worktree.core.catalog.services.inventory import (
     get_catalog_dir,
@@ -33,9 +33,8 @@ def _find_packaged_templates(sha_or_name: str) -> list[tuple[str, str]]:
 
 
 def catalog_show_command(
+    context: CliContext,
     sha_or_name: str,
-    *,
-    context: Context,
 ) -> CatalogShowCommandOutcome:
     """Show details and definition content of a catalog blueprint.
 

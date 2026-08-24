@@ -1,6 +1,6 @@
 """Handles `wt config show` command."""
 
-from worktree.cli.context import Context
+from worktree.cli.context import CliContext
 from worktree.core.config.loader import load_config_result
 
 from ..models import ConfigShowCommandOutcome
@@ -8,8 +8,7 @@ from ..renderers import render_config_show
 
 
 def config_show_command(
-    *,
-    context: Context,
+    context: CliContext,
 ) -> ConfigShowCommandOutcome:
     """Print source metadata, then the effective configuration as pretty JSON.
 
