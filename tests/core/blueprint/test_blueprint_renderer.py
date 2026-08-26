@@ -4,19 +4,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from worktree.common.models import DefinitionResolutionResult, DefinitionResolutionStatus
 from worktree.core.blueprint import (
     BlueprintKind,
     BlueprintRenderer,
     RenderableRunOutcome,
     Renderer,
 )
-from worktree.core.catalog.models import DefinitionValidationOutcome
 from worktree.core.db import RunStatus
 from worktree.core.runtime import RunOutcome
 from worktree.core.step import StepResult
-from worktree.core.task import format_task_resolve_failure, format_task_run_failure
-from worktree.core.workflows import format_workflow_run_resolve_failure, format_workflow_run_validate_failure
 
 
 def _failed_outcome(**overrides: object) -> RunOutcome:
@@ -133,65 +129,3 @@ class BlueprintRendererValidateTests:
         assert (
             BlueprintRenderer(BlueprintKind.WORKFLOW).render_validate_failure([]) == "Workflow definition is invalid."
         )
-
-
-class BlueprintRendererDelegateTests:
-    def test_task_resolve_matches_renderer(self) -> None:
-        result = DefinitionResolutionResult(
-            status=DefinitionResolutionStatus.NOT_FOUND,
-            requested_name="missing",
-            errors=["err-a", "err-b"],
-        )
-        renderer = BlueprintRenderer(BlueprintKind.TASK)
-
-        assert format_task_resolve_failure(result) == renderer.render_resolve_failure(result.errors)
-
-    def test_task_resolve_empty_matches_renderer(self) -> None:
-        result = DefinitionResolutionResult(
-            status=DefinitionResolutionStatus.NOT_FOUND,
-            requested_name="missing",
-            errors=[],
-        )
-        renderer = BlueprintRenderer(BlueprintKind.TASK)
-
-        assert format_task_resolve_failure(result) == renderer.render_resolve_failure(result.errors)
-
-    def test_task_run_matches_renderer(self) -> None:
-        outcome = _failed_outcome(error_message="top-level boom")
-        renderer = BlueprintRenderer(BlueprintKind.TASK)
-
-        assert format_task_run_failure(outcome) == renderer.render(outcome)
-
-    def test_task_run_fallback_matches_renderer(self) -> None:
-        outcome = _failed_outcome()
-        renderer = BlueprintRenderer(BlueprintKind.TASK)
-
-        assert format_task_run_failure(outcome) == renderer.render(outcome)
-
-    def test_workflow_resolve_matches_renderer(self) -> None:
-        result = DefinitionResolutionResult(
-            status=DefinitionResolutionStatus.NOT_FOUND,
-            requested_name="missing",
-            errors=["err-a", "err-b"],
-        )
-        renderer = BlueprintRenderer(BlueprintKind.WORKFLOW)
-
-        assert format_workflow_run_resolve_failure(result) == renderer.render_resolve_failure(result.errors)
-
-    def test_workflow_validate_matches_renderer(self) -> None:
-        result = DefinitionValidationOutcome(
-            status=DefinitionResolutionStatus.LOAD_ERROR,
-            errors=["schema bad", "more"],
-        )
-        renderer = BlueprintRenderer(BlueprintKind.WORKFLOW)
-
-        assert format_workflow_run_validate_failure(result) == renderer.render_validate_failure(result.errors)
-
-    def test_workflow_validate_empty_matches_renderer(self) -> None:
-        result = DefinitionValidationOutcome(
-            status=DefinitionResolutionStatus.LOAD_ERROR,
-            errors=[],
-        )
-        renderer = BlueprintRenderer(BlueprintKind.WORKFLOW)
-
-        assert format_workflow_run_validate_failure(result) == renderer.render_validate_failure(result.errors)

@@ -5,8 +5,9 @@ from typer.testing import CliRunner
 
 from tests.helpers import FileSystem, make_cli_context
 from worktree.cli import app
+from worktree.core.blueprint import Blueprint
+from worktree.core.catalog import Catalog
 from worktree.core.engine import BlueprintRunService
-from worktree.core.task import resolve_and_load_task
 
 runner = CliRunner()
 
@@ -26,10 +27,8 @@ class NoSandboxCliTests:
             },
         )
 
-        result = resolve_and_load_task("in-place-task", path=fs.base_path)
-        assert result.ok
-        assert result.definition is not None
-        assert result.definition.use_sandbox is False
+        blueprint = Blueprint.load("in-place-task", catalog=Catalog(fs.base_path))
+        assert blueprint.use_sandbox is False
 
     def test_run_command_no_sandbox_flag(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         fs.create_config_file()
