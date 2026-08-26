@@ -116,8 +116,7 @@ repository method):
 ## Removing dead code
 
 When a package/module is confirmed unused by the live CLI (see
-[architecture.md](architecture.md#layers) — `core/task/` and `core/workflows/`
-are the current example) and you're actually removing it, not just leaving the
+[architecture.md](architecture.md#layers)) and you're actually removing it, not just leaving the
 "unused" note in place:
 
 - **Confirm zero call sites first**, not just from the note in architecture.md —
@@ -139,8 +138,8 @@ are the current example) and you're actually removing it, not just leaving the
   exactly the kind of doc drift [AGENTS.md](../../AGENTS.md#keeping-docs-accurate)
   asks you to avoid.
 - If the package is being **consolidated into** a replacement rather than
-  deleted outright (as `core/task/`/`core/workflows/` are candidates for
-  merging into `core/blueprint/`), do the migration and the deletion in the same
+  deleted outright (as legacy domain packages were consolidated into
+  `core/blueprint/`), do the migration and the deletion in the same
   PR where practical — a long-lived "both exist, only one is live" state is
   exactly what produces the kind of duplicated-model drift this file's
   **Migration hygiene** section and

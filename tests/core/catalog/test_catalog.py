@@ -254,8 +254,6 @@ class CatalogFileOperationsTests:
             "worktree.core.step",
             "worktree.core.blueprint",
             "worktree.core.engine",
-            "worktree.core.task",
-            "worktree.core.workflows",
         ):
             assert f"import {forbidden}" not in source
             assert f"from {forbidden}" not in source

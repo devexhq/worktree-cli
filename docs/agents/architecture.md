@@ -61,33 +61,15 @@ Single-step execution: `core/step/` (`runner.py`). Multi-step orchestration:
 > importing either, double-check which package you actually meant before
 > adding the import.
 
-> **Live pipeline vs. legacy packages:** the CLI (`wt run`, `wt resume`)
-> exclusively goes through `BlueprintRunService`/`BlueprintResumeService` →
-> `Engine` → `run_steps`. `core/task/` and `core/workflows/` are older
-> catalog-domain packages that predate `core/blueprint/` and are **not**
-> imported by `cli/`, `engine/`, or `blueprint/` today — they are exercised
-> only by their own tests. Do not add new callers of `task/services/*` or
-> `workflows/services/*`, and do not add a third parallel "load a blueprint
-> document and run its steps" implementation for a new catalog domain; extend
-> `core/blueprint/` instead. If a task/workflow-specific catalog entry point is
-> genuinely still needed, it should delegate to `Blueprint.load(...)`/`Engine`
-> rather than maintain its own model, pause-store, and resume implementation.
-> Consolidating or removing `task/`/`workflows/` is tracked separately; this
-> note exists so the packages aren't mistaken for the source of truth in the
-> meantime.
-
 ### Domain ownership
 
-- **Task** (`core/task/`, currently unused by the live CLI — see note above):
-  `TaskDefinition`, catalog loader, `run_task` adapter, plain-text failure
-  renderers.
 - **Inputs** (`core/inputs/`): `ParameterInput`, CLI resolve, `${{ inputs.* }}`
-  interpolation. Must not import step/runtime/task/workflows/agents/patch.
+  interpolation. Must not import step/runtime/agents/patch.
 - **Step** (`core/step/`): `StepDefinition`, `StepAssert` / assertions,
   `execute_step`, failure policy types used by blueprints. Must not import
-  runtime/task/workflows.
+  runtime.
 - **Agents** (`core/agents/`): adapter protocol, provider implementations,
-  and failure payload models. Must not import step/runtime/task/workflows.
+  and failure payload models. Must not import step/runtime.
   `config/models.py`'s `AgentProvider` enum is intentionally broader than
   `agents/factory.py`'s implemented providers (schema-valid placeholders for
   providers not built yet — see
@@ -97,7 +79,7 @@ Single-step execution: `core/step/` (`runner.py`). Multi-step orchestration:
   typed error at adapter-resolution time, not a bare `ValueError` surfacing
   mid-run.
 - **Patch** (`core/patch/`): unified-diff parse/validate (no git apply).
-  Must not import agents/step/runtime/task/workflows.
+  Must not import agents/step/runtime.
 - **Blueprint** (`core/blueprint/`): unified task/workflow document handle,
   catalog/path load, and `resolve_inputs` against declared parameters.
 - **Runtime** (`core/runtime/`): `run_steps`, `RunContext` / `RunObserver` /
@@ -105,15 +87,11 @@ Single-step execution: `core/step/` (`runner.py`). Multi-step orchestration:
   (stop / `prompt_user` / retry-or-continue), and durable pause via
   `RunPauseStore` / `RunCheckpoint` hooks. Step-local retry stays in step.
   `RunOutcome.session_id` may be stamped by Engine; `run_steps` does not mint
-  it. Runtime must not import task/workflow DB facades or `cli/`.
+  it. Runtime must not import `cli/`.
 - **Engine** (`core/engine/`): `RunRequest`, persist run row, mint session id,
   resolve inputs before `run_steps`, stamp `session_id` on `RunOutcome`,
   and run/resume execution services (`BlueprintRunService`, `BlueprintResumeService`).
   Must not import `cli/`.
-- **Workflows** (`core/workflows/`, currently unused by the live CLI — see
-  note above): workflow definition models and `resume_workflow` (rebuilds
-  `RunContext` from a paused checkpoint and re-enters `run_steps`). Sibling of
-  task — neither imports the other. Domain adapters persist pause checkpoints.
 - **Catalog** (`core/catalog/`): blueprint scan/index, `CatalogDb` sync hooks,
   packaged seeds under `templates/`.
 - **History** (`core/history/`): `HistoryListService`, `HistoryShowService`,
@@ -129,27 +107,19 @@ business logic, database queries, or execution algorithms.
 Dependencies flow one way; do not import "up" the stack:
 
 ```
-common/  ->  core/{db,catalog,inputs,patch,history}/  ->  core/agents/  ->  core/step/  ->  {core/runtime/, core/blueprint/}  ->  core/engine/  ->  {core/task/, core/workflows/}  ->  cli/
+common/  ->  core/{db,catalog,inputs,patch,history}/  ->  core/agents/  ->  core/step/  ->  {core/runtime/, core/blueprint/}  ->  core/engine/  ->  cli/
 ```
 
 - `common/` never depends on `core/`.
-- `core/inputs/` must not import `step`, `runtime`, `task`, `workflows`,
-  `agents`, or `patch`.
-- `core/patch/` must not import `agents`, `step`, `runtime`, `task`, or
-  `workflows`.
-- `core/agents/` may use `patch/` and `config/`; must not import `step`,
-  `runtime`, `task`, or `workflows`.
-- `core/step/` must not import `runtime`, `task`, or `workflows` for shared
-  vocabulary — put shared types in `common/` or `step/`. Agent dispatch uses
-  `core.agents` from the step runner.
+- `core/inputs/` must not import `step`, `runtime`, `agents`, or `patch`.
+- `core/patch/` must not import `agents`, `step`, or `runtime`.
+- `core/agents/` may use `patch/` and `config/`; must not import `step` or `runtime`.
+- `core/step/` must not import `runtime` for shared vocabulary — put shared types in `common/` or `step/`. Agent dispatch uses `core.agents` from the step runner.
 - `core/runtime/` may use `step/`, `db/`, `git_sandbox.py`; must not import
-  `blueprint/`, `engine/`, `task/`, `workflows/`, or `cli/`.
+  `blueprint/`, `engine/`, or `cli/`.
 - `core/blueprint/` may use `catalog/`, `inputs/`, `step/`; must not import
-  `runtime/`, `engine/`, `task/`, `workflows/`, or `cli/`.
-- `core/engine/` may use `runtime/`, `blueprint/`, `db/`; must not import
-  `task/`, `workflows/`, or `cli/`.
-- `core/task/` and `core/workflows/` depend on runtime/step/inputs/catalog;
-  they do not import each other.
+  `runtime/`, `engine/`, or `cli/`.
+- `core/engine/` may use `runtime/`, `blueprint/`, `db/`; must not import `cli/`.
 - `cli/` may import `core/` and `common/`; those layers never import `cli/`.
 
 If a lower package needs a type from a higher one, **move the type down**
@@ -334,8 +304,7 @@ and best-effort `SandboxesDb` writes.
 
 | Concern | Where |
 |---------|--------|
-| Workflow YAML | `schemas/v1/workflow.json`, [schemas-and-config.md](schemas-and-config.md) |
-| Task YAML | `core/task/models.py`, schemas-and-config |
+| Blueprint schema (v1) | `schemas/v1/workflow.json`, [schemas-and-config.md](schemas-and-config.md) |
 | Blueprint execution (`wt run`) | [docs/cli/run.md](../cli/run.md), `core/blueprint/` |
 | Patch validation | `core/patch/` (`validate_patch_text`) |
 | Agent failure payload DTOs | `core/agents/models.py` |

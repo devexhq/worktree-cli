@@ -13,12 +13,10 @@ treating this list as a second source of truth for field-level detail.
   executable by the live `Engine` — see
   [schemas-and-config.md](schemas-and-config.md#unified-blueprint-execution-coreblueprint--coreengine).
 - **Task** — a blueprint document with `steps: list[StepDefinition]` (no loop
-  steps allowed) and declared `inputs`. Two implementations exist: the legacy
-  `TaskDefinition` (`core/task/models.py`, unused by the live CLI) and, live,
-  `BlueprintDefinition(kind=task)` (`core/blueprint/models.py`).
+  steps allowed) and declared `inputs`. Model: `BlueprintDefinition(kind=task)`
+  (`core/blueprint/models.py`).
 - **Workflow** — a blueprint document like a task but allowed to contain loop
-  steps. Same split: legacy `WorkflowDefinition` (`core/workflows/models.py`)
-  vs. live `BlueprintDefinition(kind=workflow)`.
+  steps. Model: `BlueprintDefinition(kind=workflow)` (`core/blueprint/models.py`).
 - **Blueprint** — the unifying term for "task or workflow document." In code,
   specifically `BlueprintDefinition` / `Blueprint` (`core/blueprint/`), the live
   model/handle that superseded separate task and workflow models — not just an

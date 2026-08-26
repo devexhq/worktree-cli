@@ -22,9 +22,8 @@ comment; not all do yet):
 
 - `OllamaModelStdout` (`core/agents/ollama.py`) — parses LLM-generated JSON;
   see the file for why leniency was chosen there despite the guidance above.
-- `TaskDefinition`, `WorkflowDefinition`, `BlueprintDefinition`,
-  `BlueprintDefaults`, and `LoopStepBlock` (`core/task/`, `core/workflows/`,
-  `core/blueprint/`, `core/step/models.py`) all use `extra: "ignore"` — see
+- `BlueprintDefinition`, `BlueprintDefaults`, and `LoopStepBlock`
+  (`core/blueprint/models.py`, `core/step/models.py`) all use `extra: "ignore"` — see
   [schemas-and-config.md](schemas-and-config.md#blueprint-models-and-extra-ignore)
   for the likely (hand-authored-YAML) rationale and why it should be made
   explicit rather than inferred.
@@ -62,7 +61,7 @@ stripped under `python -O` and is not a control-flow or type-narrowing tool.
 ### Core package layout
 
 Default skeleton for a **domain** package under `src/worktree/core/<domain>/`
-(exemplars: `task/`, `inputs/`, `catalog/`, `workflows/`, `patch/`):
+(exemplars: `inputs/`, `catalog/`, `blueprint/`, `patch/`):
 
 ```text
 core/<domain>/
@@ -105,7 +104,7 @@ core/<domain>/
 CLI packages stay `cli/<name>/{app.py, commands/, models.py, renderers.py}` — see
 [architecture.md](architecture.md#adding-a-new-command).
 
-When unsure, copy `core/task/` or `core/inputs/`, not `core/config/`.
+When unsure, copy `core/blueprint/` or `core/inputs/`, not `core/config/`.
 
 ### Database repositories (`core/db/`)
 

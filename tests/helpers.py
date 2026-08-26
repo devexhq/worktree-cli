@@ -113,7 +113,7 @@ class FileSystem:
         filename: str | None = None,
         **overrides: Any,
     ) -> Path:
-        """Write a task blueprint matching ``TaskDefinition`` shape."""
+        """Write a task blueprint matching blueprint task shape."""
         defaults = {
             "name": task_id,
             "description": "Test task",
