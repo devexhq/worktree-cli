@@ -200,7 +200,7 @@ class BlueprintResumeServiceTests:
             lambda *args, **kwargs: type(
                 "RunOutcome",
                 (),
-                {"ok": False, "status": RunStatus.FAILED, "error_message": "Run failed", "warnings": []},
+                {"ok": False, "status": RunStatus.FAILED, "errors": ["Run failed"], "warnings": []},
             )(),
         )
         ctx = make_cli_context(cwd=fs.base_path)
@@ -443,7 +443,7 @@ class ResumeCliTests:
             lambda *args, **kwargs: type(
                 "RunOutcome",
                 (),
-                {"ok": False, "status": RunStatus.CANCELLED, "error_message": "Cancelled by user.", "warnings": []},
+                {"ok": False, "status": RunStatus.CANCELLED, "errors": ["Cancelled by user."], "warnings": []},
             )(),
         )
 

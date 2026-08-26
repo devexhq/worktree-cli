@@ -134,7 +134,7 @@ class RunOutcome(BaseModel):
 
     status: RunStatus
     step_results: list[StepResult] = Field(default_factory=list)
-    error_message: str | None = None
+    errors: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     sandbox_kept: bool = False
     sandbox_path: Path
@@ -143,4 +143,4 @@ class RunOutcome(BaseModel):
     @property
     def ok(self) -> bool:
         """Return True when the run completed successfully."""
-        return self.status == RunStatus.COMPLETED
+        return self.status == RunStatus.COMPLETED and not self.errors

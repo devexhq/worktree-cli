@@ -648,10 +648,10 @@ Rich output.
 ### `RunOutcome`
 
 Pydantic model (`extra: "forbid", strict: True`) in `core/runtime/models.py`. Read
-the model for the exact field list (`status`, `step_results`, `error_message`,
+the model for the exact field list (`status`, `step_results`, `errors`,
 `warnings`, `sandbox_kept`, `sandbox_path`, `session_id`). Non-obvious:
 
-- `ok` is true iff `status == RunStatus.COMPLETED`. A non-empty `warnings` never
+- `ok` is true iff `status == RunStatus.COMPLETED` and `not errors`. A non-empty `warnings` never
   flips `ok` — warnings are informational (e.g. "failed to persist pause
   checkpoint"), not failures.
 - `status` can also be `PAUSED` (see below) or `CANCELLED` (`KeyboardInterrupt`

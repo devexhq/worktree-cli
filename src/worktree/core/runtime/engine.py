@@ -353,7 +353,7 @@ def _run_remaining_steps(
     context: RunContext,
     state: StepLoopState,
     start: int,
-) -> tuple[RunStatus, str | None]:
+) -> tuple[RunStatus, list[str]]:
     """Execute remaining steps from ``start`` until completion or abort."""
     step_context = _build_step_context(context)
     for step_index, step in enumerate(context.steps):
@@ -363,23 +363,25 @@ def _run_remaining_steps(
         if result is not None:
             state.step_results.append(result)
         if action == "abort":
-            return RunStatus.FAILED, error_message
-    return RunStatus.COMPLETED, None
+            errors = [error_message] if error_message else []
+            return RunStatus.FAILED, errors
+    return RunStatus.COMPLETED, []
 
 
 def _run_step_loop(
     context: RunContext,
     state: StepLoopState,
-) -> tuple[RunStatus, list[StepResult], str | None, list[str]]:
+) -> tuple[RunStatus, list[StepResult], list[str], list[str]]:
     """Execute all steps, honoring failure policies and cancellation."""
     start = context.resume_from.next_step_index if context.resume_from is not None else 0
     try:
-        status, error_message = _run_remaining_steps(context, state, start)
+        status, errors = _run_remaining_steps(context, state, start)
     except PromptUserInterruptedError as exc:
-        return RunStatus.PAUSED, state.step_results, str(exc) or None, state.warnings
+        errors = [str(exc)] if str(exc) else []
+        return RunStatus.PAUSED, state.step_results, errors, state.warnings
     except KeyboardInterrupt:
-        return RunStatus.CANCELLED, state.step_results, "Execution cancelled by user.", state.warnings
-    return status, state.step_results, error_message, state.warnings
+        return RunStatus.CANCELLED, state.step_results, ["Execution cancelled by user."], state.warnings
+    return status, state.step_results, errors, state.warnings
 
 
 def run_steps(context: RunContext) -> RunOutcome:
@@ -397,21 +399,21 @@ def run_steps(context: RunContext) -> RunOutcome:
         return RunOutcome(
             status=RunStatus.FAILED,
             step_results=[],
-            error_message=setup_error,
+            errors=[setup_error],
             sandbox_kept=False,
             sandbox_path=target_dir,
         )
 
     status: RunStatus = RunStatus.COMPLETED
     step_results: list[StepResult] = []
-    error_message: str | None = None
+    errors: list[str] = []
     warnings: list[str] = []
     sandbox_kept = False
     prior = list(context.resume_from.step_results) if context.resume_from is not None else []
     state = StepLoopState(target_dir=target_dir, session=session, step_results=prior)
 
     try:
-        status, step_results, error_message, warnings = _run_step_loop(context, state)
+        status, step_results, errors, warnings = _run_step_loop(context, state)
     finally:
         if status == RunStatus.PAUSED:
             sandbox_kept = True
@@ -423,7 +425,7 @@ def run_steps(context: RunContext) -> RunOutcome:
     return RunOutcome(
         status=status,
         step_results=step_results,
-        error_message=error_message,
+        errors=errors,
         warnings=warnings,
         sandbox_kept=sandbox_kept,
         sandbox_path=session.sandbox_path if session is not None else target_dir,

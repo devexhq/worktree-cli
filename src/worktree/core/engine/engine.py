@@ -163,7 +163,8 @@ class Engine:
     ) -> None:
         """Persist the outcome status when the start insert succeeded."""
         try:
-            pause_store.finalize(outcome.status, outcome.error_message)
+            error_message = outcome.errors[0] if outcome.errors else None
+            pause_store.finalize(outcome.status, error_message)
         except Exception as exc:
             warnings.append(f"Failed to update run status in database: {exc}")
 

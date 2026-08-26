@@ -240,7 +240,7 @@ class RuntimeEngineExecutionTests:
         assert outcome.status == RunStatus.FAILED
         assert calls == ["fail"]
         assert len(outcome.step_results) == 1
-        assert outcome.error_message == "Step 'fail' failed: boom"
+        assert outcome.errors == ["Step 'fail' failed: boom"]
 
     def test_run_steps_continue_on_failure(self, fs: FileSystem) -> None:
         outcome = run_steps(
@@ -293,7 +293,7 @@ class RuntimeEngineExecutionTests:
         outcome = run_steps(make_run_context(fs=fs))
 
         assert outcome.status == RunStatus.CANCELLED
-        assert outcome.error_message == "Execution cancelled by user."
+        assert outcome.errors == ["Execution cancelled by user."]
         assert outcome.step_results == []
 
     def test_run_steps_empty_steps(self, fs: FileSystem) -> None:
@@ -308,8 +308,8 @@ class RuntimeEngineExecutionTests:
 
         assert outcome.status == RunStatus.FAILED
         assert outcome.step_results == []
-        assert outcome.error_message is not None
-        assert "Git sandbox creation failed" in outcome.error_message
+        assert outcome.errors
+        assert "Git sandbox creation failed" in outcome.errors[0]
 
 
 class RuntimeEngineFailurePromptTests:
@@ -332,7 +332,7 @@ class RuntimeEngineFailurePromptTests:
         assert outcome.status == RunStatus.FAILED
         assert calls == ["fail"]
         assert prompter.calls == 1
-        assert outcome.error_message == "Step 'fail' failed: boom"
+        assert outcome.errors == ["Step 'fail' failed: boom"]
 
     def test_run_steps_prompt_user_continue(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         prompter = _ScriptedPrompter([FailurePromptDecision.CONTINUE])
