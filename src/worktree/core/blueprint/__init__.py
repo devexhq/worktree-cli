@@ -10,12 +10,13 @@ from worktree.core.blueprint.models import (
     BlueprintKind,
     BlueprintRunCommandOutcome,
 )
-from worktree.core.blueprint.renderers import BlueprintRenderer, Renderer
-from worktree.core.blueprint.services import (
-    Blueprint,
-    BlueprintResumeService,
-    BlueprintRunService,
+from worktree.core.blueprint.renderers import (
+    BlueprintRenderer,
+    RenderableRunOutcome,
+    Renderer,
+    render_blueprint_run_success,
 )
+from worktree.core.blueprint.services import Blueprint
 
 __all__ = [
     "Blueprint",
@@ -24,9 +25,9 @@ __all__ = [
     "BlueprintLoadError",
     "BlueprintNotFoundError",
     "BlueprintRenderer",
-    "BlueprintResumeService",
     "BlueprintRunCommandOutcome",
-    "BlueprintRunService",
     "BlueprintValidationError",
+    "RenderableRunOutcome",
     "Renderer",
+    "render_blueprint_run_success",
 ]

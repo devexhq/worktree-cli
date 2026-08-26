@@ -12,9 +12,10 @@ from tests.helpers import (
     make_cli_context,
 )
 from worktree.cli import app
-from worktree.core.blueprint import BlueprintKind, BlueprintResumeService
+from worktree.core.blueprint import BlueprintKind
 from worktree.core.catalog.services.inventory import scan_and_index_catalog
 from worktree.core.db import RunsRepository, RunStatus, WorktreeDb
+from worktree.core.engine import BlueprintResumeService
 from worktree.core.runtime import FailurePromptDecision, RunCheckpoint
 
 runner = CliRunner()
@@ -47,11 +48,11 @@ def _seed_paused_run(
 def mock_interactive_prompter(monkeypatch: pytest.MonkeyPatch) -> None:
     """Simulate an interactive user choosing to RETRY the paused step."""
     monkeypatch.setattr(
-        "worktree.core.blueprint.services.resume.CliFailurePrompter.is_interactive",
+        "worktree.core.engine.services.resume.CliFailurePrompter.is_interactive",
         True,
     )
     monkeypatch.setattr(
-        "worktree.core.blueprint.services.resume.CliFailurePrompter.prompt_step_failure",
+        "worktree.core.engine.services.resume.CliFailurePrompter.prompt_step_failure",
         lambda self, *args, **kwargs: FailurePromptDecision.RETRY,
     )
 
@@ -339,7 +340,7 @@ class ResumeCliTests:
                 raise KeyboardInterrupt
 
         monkeypatch.setattr(
-            "worktree.core.blueprint.services.resume.CliFailurePrompter",
+            "worktree.core.engine.services.resume.CliFailurePrompter",
             lambda *args, **kwargs: _InterruptPrompter(),
         )
 
@@ -410,7 +411,7 @@ class ResumeCliTests:
         _seed_paused_run(self.db.runs, "task-cancel", "cancel-task", BlueprintKind.TASK)
 
         monkeypatch.setattr(
-            "worktree.core.blueprint.services.resume.Engine.resume",
+            "worktree.core.engine.services.resume.Engine.resume",
             lambda *args, **kwargs: type(
                 "RunOutcome",
                 (),

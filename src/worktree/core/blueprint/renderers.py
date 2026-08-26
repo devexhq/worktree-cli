@@ -2,31 +2,47 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Protocol, runtime_checkable
 
 from worktree.common.utils import RichOutput
 from worktree.core.blueprint.models import BlueprintKind
 from worktree.core.db import RunRecord
-from worktree.core.runtime import RunOutcome
+from worktree.core.step import StepResult
+
+
+@runtime_checkable
+class RenderableRunOutcome(Protocol):
+    """Structural protocol for run outcomes accepted by plain-text renderers."""
+
+    @property
+    def error_message(self) -> str | None:
+        """Top-level failure or summary error message."""
+        ...
+
+    @property
+    def step_results(self) -> Sequence[StepResult]:
+        """Ordered sequence of executed step results."""
+        ...
 
 
 @runtime_checkable
 class Renderer(Protocol):
-    """Structural protocol for turning a ``RunOutcome`` into plain text."""
+    """Structural protocol for turning a run outcome into plain text."""
 
-    def render(self, outcome: RunOutcome) -> str:
+    def render(self, outcome: RenderableRunOutcome) -> str:
         """Return a plain-text body for a run outcome."""
         ...
 
 
-def _collect_primary_error(outcome: RunOutcome) -> str | None:
+def _collect_primary_error(outcome: RenderableRunOutcome) -> str | None:
     if outcome.error_message:
         return outcome.error_message
     failed = [result.error_message for result in outcome.step_results if result.error_message]
     return "\n".join(failed) if failed else None
 
 
-def _collect_step_output_details(outcome: RunOutcome) -> list[str]:
+def _collect_step_output_details(outcome: RenderableRunOutcome) -> list[str]:
     details: list[str] = []
     primary = outcome.error_message or ""
     for result in outcome.step_results:
@@ -44,7 +60,7 @@ class BlueprintRenderer:
     def __init__(self, kind: BlueprintKind) -> None:
         self.kind = kind
 
-    def render(self, outcome: RunOutcome) -> str:
+    def render(self, outcome: RenderableRunOutcome) -> str:
         """Return a plain-text body for a run failure."""
         parts: list[str] = []
         primary = _collect_primary_error(outcome)

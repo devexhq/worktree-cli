@@ -22,7 +22,7 @@ src/worktree/core/                   Business logic (no Typer)
   inputs/                            models.py + services/ (resolve, interpolate, renderer)
   catalog/                           models.py + services/ + templates/
   blueprint/                         models.py, exceptions.py, renderers.py,
-                                     services/{blueprint,run,resume}.py
+                                     services/blueprint.py
   history/                           models.py, renderers.py, services.py
   step/                              models.py, exceptions.py, runner.py (entrypoint),
                                      assertions/, services/{loader,resolver}.py
@@ -30,7 +30,8 @@ src/worktree/core/                   Business logic (no Typer)
                                      `run_steps`, in-process step-loop orchestration),
                                      failure + pause helpers
   engine/                            models.py, engine.py (entrypoint: `Engine` class,
-                                     DB-persisted run/resume process facade)
+                                     DB-persisted run/resume process facade),
+                                     resumable.py, services/{run,resume}.py
   task/                              [status: unused by the live CLI — see note below]
                                      models.py, exceptions.py, services/{loader,runner,renderer}.py
   agents/                            models.py, exceptions.py + adapters (base, factory,
@@ -50,7 +51,7 @@ extend the flat `config/` / `db/` pattern to new domains. See
 
 Single-step execution: `core/step/` (`runner.py`). Multi-step orchestration:
 `core/runtime/` (`engine.py` → `run_steps`). Process facade: `core/engine/`
-(`Engine.run` / `Engine.resume`).
+(`Engine.run` / `Engine.resume`, `BlueprintRunService` / `BlueprintResumeService`).
 
 > **Naming hazard:** `core/runtime/engine.py` and `core/engine/engine.py` are
 > two unrelated modules that share the literal filename `engine.py` in
@@ -98,7 +99,7 @@ Single-step execution: `core/step/` (`runner.py`). Multi-step orchestration:
 - **Patch** (`core/patch/`): unified-diff parse/validate (no git apply).
   Must not import agents/step/runtime/task/workflows.
 - **Blueprint** (`core/blueprint/`): unified task/workflow document handle,
-  catalog/path load, execution/resume services, and `resolve_inputs` against declared parameters.
+  catalog/path load, and `resolve_inputs` against declared parameters.
 - **Runtime** (`core/runtime/`): `run_steps`, `RunContext` / `RunObserver` /
   `RunOutcome`, in-process failure orchestration after a failed step
   (stop / `prompt_user` / retry-or-continue), and durable pause via
@@ -106,7 +107,8 @@ Single-step execution: `core/step/` (`runner.py`). Multi-step orchestration:
   `RunOutcome.session_id` may be stamped by Engine; `run_steps` does not mint
   it. Runtime must not import task/workflow DB facades or `cli/`.
 - **Engine** (`core/engine/`): `RunRequest`, persist run row, mint session id,
-  resolve inputs before `run_steps`, stamp `session_id` on `RunOutcome`.
+  resolve inputs before `run_steps`, stamp `session_id` on `RunOutcome`,
+  and run/resume execution services (`BlueprintRunService`, `BlueprintResumeService`).
   Must not import `cli/`.
 - **Workflows** (`core/workflows/`, currently unused by the live CLI — see
   note above): workflow definition models and `resume_workflow` (rebuilds
@@ -154,19 +156,11 @@ If a lower package needs a type from a higher one, **move the type down**
 instead of adding an upward import.
 
 **Watch for prompter/observer construction reaching past `Engine`.**
-`blueprint/services/{run,resume}.py` own the CLI-facing run/resume flow, but
-constructing a `CliFailurePrompter` or resolving a `RunObserver` requires
-`runtime/`, which `blueprint/` is not allowed to import (`blueprint` → `engine`
-→ `cli`, not `blueprint` → `runtime` directly). This exact shape produced a
-reproducible circular import (`blueprint` → `engine` → `blueprint`) that only
-"worked" because import order happened to mask it — a fresh script or test
-that imports `worktree.core.engine` before `worktree.core.blueprint` would
-have failed immediately. If blueprint-layer code needs a default
-prompter/observer, either have `Engine` resolve sane defaults internally (it's
-the layer allowed to depend on both `blueprint` and `runtime`), or push
-prompter/observer construction up into the CLI command handlers that call
-`BlueprintRunService`/`BlueprintResumeService` — never import `runtime`
-directly from `blueprint/`.
+`engine/services/{run,resume}.py` (`BlueprintRunService` / `BlueprintResumeService`)
+own the CLI-facing run/resume flow and delegate to `Engine` / `run_steps`.
+`core/blueprint/` is a pure definition/document domain and must not import
+`runtime/` or `engine/`. `core/engine/` is the orchestrating process layer that
+is allowed to import both `blueprint/` and `runtime/`.
 
 ## Adding a new command
 

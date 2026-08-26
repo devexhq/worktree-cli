@@ -5,7 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from worktree.common.models import DefinitionResolutionResult, DefinitionResolutionStatus
-from worktree.core.blueprint import BlueprintKind, BlueprintRenderer, Renderer
+from worktree.core.blueprint import (
+    BlueprintKind,
+    BlueprintRenderer,
+    RenderableRunOutcome,
+    Renderer,
+)
 from worktree.core.catalog.models import DefinitionValidationOutcome
 from worktree.core.db import RunStatus
 from worktree.core.runtime import RunOutcome
@@ -35,11 +40,23 @@ def _step_result(step_id: str, error_message: str | None) -> StepResult:
     )
 
 
+class DuckOutcome:
+    def __init__(self, error_message: str | None = None, step_results: list[StepResult] | None = None) -> None:
+        self.error_message = error_message
+        self.step_results = step_results or []
+
+
 class BlueprintRendererProtocolTests:
     def test_instance_satisfies_renderer_protocol(self) -> None:
         renderer = BlueprintRenderer(BlueprintKind.TASK)
 
         assert isinstance(renderer, Renderer)
+
+    def test_duck_typed_outcome_satisfies_renderable_run_outcome(self) -> None:
+        duck = DuckOutcome(error_message="duck boom")
+        assert isinstance(duck, RenderableRunOutcome)
+        rendered = BlueprintRenderer(BlueprintKind.TASK).render(duck)
+        assert rendered == "duck boom"
 
 
 class BlueprintRendererRenderTests:

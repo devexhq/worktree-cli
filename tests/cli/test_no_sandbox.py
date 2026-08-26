@@ -5,7 +5,7 @@ from typer.testing import CliRunner
 
 from tests.helpers import FileSystem, make_cli_context
 from worktree.cli import app
-from worktree.core.blueprint import BlueprintRunService
+from worktree.core.engine import BlueprintRunService
 from worktree.core.task import resolve_and_load_task
 
 runner = CliRunner()
