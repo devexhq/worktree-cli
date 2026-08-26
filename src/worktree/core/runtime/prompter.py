@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import sys
-from collections.abc import Callable
 from typing import Literal
 
 from worktree.common.utils import RichOutput
@@ -28,18 +27,14 @@ class CliFailurePrompter:
         output: RichOutput,
         *,
         kind: Literal["task", "workflow"] | str = "task",
-        input_fn: Callable[[str], str] | None = None,
-        stdin_isatty: bool | None = None,
     ) -> None:
         self.output = output
         self.kind = kind
-        self._input_fn = input_fn or input
-        self._stdin_isatty = sys.stdin.isatty() if stdin_isatty is None else stdin_isatty
 
     @property
     def is_interactive(self) -> bool:
         """Return whether this adapter can safely block on stdin."""
-        return self._stdin_isatty
+        return sys.stdin.isatty()
 
     def prompt_step_failure(
         self,
@@ -67,7 +62,7 @@ class CliFailurePrompter:
     def _read_decision(self) -> FailurePromptDecision:
         while True:
             try:
-                raw = self._input_fn("Select option [r/c/a]: ")
+                raw = input("Select option [r/c/a]: ")
             except EOFError:
                 raw = ""
             choice = str(raw).strip().lower()
