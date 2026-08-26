@@ -2,7 +2,6 @@ import pytest
 
 from tests.helpers import FileSystem
 from worktree.core.step import StepAssert, StepDefinition, StepResult, StepType, execute_step
-from worktree.core.step.runner import StepDispatchOutcome
 
 
 class StepResultModelTests:
@@ -124,27 +123,6 @@ class StepRunnerExecutionTests:
         assert res.ok is False
         assert res.status == "failed"
         assert "not found" in (res.error_message or "").lower()
-
-    def test_execute_agent_step_custom_handler(self, fs: FileSystem) -> None:
-        def custom_handler(step_def, sb_path, ctx):
-            return StepDispatchOutcome(
-                status="completed",
-                exit_code=0,
-                stdout="agent result",
-                stderr="",
-            )
-
-        step = StepDefinition(
-            id="agent_step",
-            type=StepType.AGENT,
-            prompt="Fix bugs",
-            tools=["edit_file"],
-        )
-
-        res = execute_step(step, sandbox_path=fs.base_path, context={"agent_handler": custom_handler})
-        assert res.ok is True
-        assert res.status == "completed"
-        assert res.stdout == "agent result"
 
     def test_execute_agent_step_defaults_to_local_provider(self, fs: FileSystem) -> None:
         step = StepDefinition(id="agent_step", type=StepType.AGENT, prompt="Fix bugs")

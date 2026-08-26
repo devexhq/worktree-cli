@@ -6,9 +6,8 @@ import os
 import subprocess
 import sys
 import time
-from collections.abc import Callable
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -178,16 +177,6 @@ def _execute_agent_step(
     step: StepDefinition, sandbox_path: Path, context: dict[str, Any] | None
 ) -> StepDispatchOutcome:
     """Execute an AGENT step inside sandbox_path."""
-    if context and "agent_handler" in context and callable(context["agent_handler"]):
-        handler = cast(
-            Callable[[StepDefinition, Path, dict[str, Any] | None], StepDispatchOutcome],
-            context["agent_handler"],
-        )
-        try:
-            return handler(step, sandbox_path, context)
-        except Exception as exc:
-            return _failed_dispatch(f"Agent handler exception: {exc}")
-
     provider = (context or {}).get("agent") or "local"
     try:
         _ = get_agent_adapter(provider)
