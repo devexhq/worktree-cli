@@ -37,8 +37,8 @@ def _step_result(step_id: str, error_message: str | None) -> StepResult:
 
 
 class DuckOutcome:
-    def __init__(self, error_message: str | None = None, step_results: list[StepResult] | None = None) -> None:
-        self.error_message = error_message
+    def __init__(self, errors: list[str] | None = None, step_results: list[StepResult] | None = None) -> None:
+        self.errors = errors or []
         self.step_results = step_results or []
 
 
@@ -49,15 +49,15 @@ class BlueprintRendererProtocolTests:
         assert isinstance(renderer, Renderer)
 
     def test_duck_typed_outcome_satisfies_renderable_run_outcome(self) -> None:
-        duck = DuckOutcome(error_message="duck boom")
+        duck = DuckOutcome(errors=["duck boom"])
         assert isinstance(duck, RenderableRunOutcome)
         rendered = BlueprintRenderer(BlueprintKind.TASK).render(duck)
         assert rendered == "duck boom"
 
 
 class BlueprintRendererRenderTests:
-    def test_error_message_wins(self) -> None:
-        outcome = _failed_outcome(error_message="top-level boom")
+    def test_top_level_errors_win(self) -> None:
+        outcome = _failed_outcome(errors=["top-level boom"])
 
         assert BlueprintRenderer(BlueprintKind.TASK).render(outcome) == "top-level boom"
         assert BlueprintRenderer(BlueprintKind.WORKFLOW).render(outcome) == "top-level boom"
@@ -84,7 +84,7 @@ class BlueprintRendererRenderTests:
 
     def test_includes_stderr_detail_when_available(self) -> None:
         outcome = _failed_outcome(
-            error_message="Step 'run-tests' failed: Command failed with exit code 127.",
+            errors=["Step 'run-tests' failed: Command failed with exit code 127."],
             step_results=[
                 StepResult(
                     step_id="run-tests",

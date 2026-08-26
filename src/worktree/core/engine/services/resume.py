@@ -106,18 +106,19 @@ class BlueprintResumeService:
     def _finalize(self, session_id: str, run_outcome: RunOutcome) -> BlueprintRunCommandOutcome:
         self.warnings.extend(run_outcome.warnings)
         record = self._load_record(session_id)
+        primary_error = run_outcome.errors[0] if run_outcome.errors else None
 
         if run_outcome.ok:
             self._render_success(record)
             return BlueprintRunCommandOutcome(run_record=record, warnings=self.warnings)
 
         if run_outcome.status == RunStatus.PAUSED:
-            msg = run_outcome.error_message or "Run paused; checkpoint saved."
+            msg = primary_error or "Run paused; checkpoint saved."
             self.output.add_line(msg)
             return BlueprintRunCommandOutcome(run_record=record, warnings=self.warnings)
 
         if run_outcome.status == RunStatus.CANCELLED:
-            msg = run_outcome.error_message or "Cancelled by user."
+            msg = primary_error or "Cancelled by user."
             self.output.add_error_panel("Resume Cancelled", msg)
             return BlueprintRunCommandOutcome(
                 run_record=record,
@@ -125,7 +126,7 @@ class BlueprintResumeService:
                 warnings=self.warnings,
             )
 
-        msg = run_outcome.error_message or f"Cannot resume session '{session_id}'."
+        msg = primary_error or f"Cannot resume session '{session_id}'."
         self.output.add_error_panel("Resume Failed", msg)
         return BlueprintRunCommandOutcome(
             run_record=record,

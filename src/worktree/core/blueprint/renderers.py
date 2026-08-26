@@ -16,8 +16,8 @@ class RenderableRunOutcome(Protocol):
     """Structural protocol for run outcomes accepted by plain-text renderers."""
 
     @property
-    def error_message(self) -> str | None:
-        """Top-level failure or summary error message."""
+    def errors(self) -> Sequence[str]:
+        """Top-level failure or summary error messages."""
         ...
 
     @property
@@ -36,15 +36,15 @@ class Renderer(Protocol):
 
 
 def _collect_primary_error(outcome: RenderableRunOutcome) -> str | None:
-    if outcome.error_message:
-        return outcome.error_message
+    if outcome.errors:
+        return "\n".join(outcome.errors)
     failed = [result.error_message for result in outcome.step_results if result.error_message]
     return "\n".join(failed) if failed else None
 
 
 def _collect_step_output_details(outcome: RenderableRunOutcome) -> list[str]:
     details: list[str] = []
-    primary = outcome.error_message or ""
+    primary = "\n".join(outcome.errors) if outcome.errors else ""
     for result in outcome.step_results:
         if result.ok:
             continue

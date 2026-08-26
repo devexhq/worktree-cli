@@ -166,10 +166,11 @@ class BlueprintRunService:
         sid = run_outcome.session_id or ""
         self.warnings.extend(run_outcome.warnings)
         record = self._load_record(sid) if sid else None
+        primary_error = run_outcome.errors[0] if run_outcome.errors else None
         final_record = record or self._fallback_record(
             sid,
             run_outcome.status,
-            run_outcome.error_message,
+            primary_error,
         )
 
         if run_outcome.ok:
@@ -177,12 +178,12 @@ class BlueprintRunService:
             return BlueprintRunCommandOutcome(run_record=final_record, warnings=self.warnings)
 
         if run_outcome.status == RunStatus.PAUSED:
-            msg = run_outcome.error_message or f"{self._kind_label.capitalize()} paused; checkpoint saved."
+            msg = primary_error or f"{self._kind_label.capitalize()} paused; checkpoint saved."
             self.output.add_line(msg)
             return BlueprintRunCommandOutcome(run_record=final_record, warnings=self.warnings)
 
         if run_outcome.status == RunStatus.CANCELLED:
-            msg = run_outcome.error_message or "Cancelled by user."
+            msg = primary_error or "Cancelled by user."
             self.output.add_error_panel(f"{self._kind_label.capitalize()} Run Cancelled", msg)
             return BlueprintRunCommandOutcome(
                 run_record=final_record,

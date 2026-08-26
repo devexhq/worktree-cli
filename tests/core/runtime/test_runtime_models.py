@@ -16,10 +16,18 @@ class RuntimeOutcomeModelTests:
         outcome = RunOutcome(status=RunStatus.COMPLETED, sandbox_path=Path("/tmp/run"))
         assert outcome.ok is True
 
+    def test_run_outcome_ok_false_for_completed_with_errors(self) -> None:
+        outcome = RunOutcome(
+            status=RunStatus.COMPLETED,
+            errors=["unexpected post-run error"],
+            sandbox_path=Path("/tmp/run"),
+        )
+        assert outcome.ok is False
+
     def test_run_outcome_ok_false_for_failed(self) -> None:
         outcome = RunOutcome(
             status=RunStatus.FAILED,
-            error_message="boom",
+            errors=["boom"],
             sandbox_path=Path("/tmp/run"),
         )
         assert outcome.ok is False
@@ -27,7 +35,7 @@ class RuntimeOutcomeModelTests:
     def test_run_outcome_ok_false_for_cancelled(self) -> None:
         outcome = RunOutcome(
             status=RunStatus.CANCELLED,
-            error_message="Execution cancelled by user.",
+            errors=["Execution cancelled by user."],
             sandbox_path=Path("/tmp/run"),
         )
         assert outcome.ok is False
@@ -35,7 +43,7 @@ class RuntimeOutcomeModelTests:
     def test_run_outcome_ok_false_for_paused(self) -> None:
         outcome = RunOutcome(
             status=RunStatus.PAUSED,
-            error_message="Step 'publish' failed: exit code 1",
+            errors=["Step 'publish' failed: exit code 1"],
             sandbox_path=Path("/tmp/run"),
         )
         assert outcome.ok is False
