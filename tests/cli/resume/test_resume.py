@@ -185,6 +185,34 @@ class BlueprintResumeServiceTests:
         assert outcome.run_record is None
         assert any("No paused session found to resume." in err for err in outcome.errors)
 
+    def test_blueprint_resume_service_db_get_exception_captured_in_warnings(
+        self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Verify exceptions in _load_record during resolution are captured as warnings."""
+        monkeypatch.chdir(fs.base_path)
+        monkeypatch.setattr(
+            self.db.runs,
+            "get",
+            lambda sid: (_ for _ in ()).throw(RuntimeError("DB query failed")),
+        )
+        monkeypatch.setattr(
+            "worktree.core.engine.services.resume.Engine.resume",
+            lambda *args, **kwargs: type(
+                "RunOutcome",
+                (),
+                {"ok": False, "status": RunStatus.FAILED, "error_message": "Run failed", "warnings": []},
+            )(),
+        )
+        ctx = make_cli_context(cwd=fs.base_path)
+        outcome = BlueprintResumeService(
+            session_id="broken-session",
+            path=ctx.cwd,
+            db=self.db.runs,
+            catalog_db=ctx.db.catalog,
+            output=ctx.output,
+        ).execute()
+        assert any("Failed to load run record for 'broken-session': DB query failed" in w for w in outcome.warnings)
+
 
 class ResumeCliTests:
     """CLI integration tests for wt resume command."""

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from worktree.common.utils import RichOutput
@@ -33,6 +33,7 @@ class BlueprintResumeService:
     output: RichOutput
     session_id: str | None = None
     non_interactive: bool = False
+    warnings: list[str] = field(default_factory=list)
 
     def execute(self) -> BlueprintRunCommandOutcome:
         """Find session if omitted, classify and resume via Engine."""
@@ -76,7 +77,11 @@ class BlueprintResumeService:
 
     def _fail(self, message: str) -> BlueprintRunCommandOutcome:
         self.output.add_error_panel("Resume Failed", message)
-        return BlueprintRunCommandOutcome(run_record=None, errors=[message])
+        return BlueprintRunCommandOutcome(
+            run_record=None,
+            errors=[message],
+            warnings=self.warnings,
+        )
 
     def _resolve_prompter(self, kind: BlueprintKind | None = None) -> tuple[bool, FailurePrompter | None]:
         if self.non_interactive:
@@ -90,7 +95,8 @@ class BlueprintResumeService:
     def _load_record(self, session_id: str) -> RunRecord | None:
         try:
             return self.db.get(session_id)
-        except Exception:
+        except Exception as exc:
+            self.warnings.append(f"Failed to load run record for '{session_id}': {exc}")
             return None
 
     def _render_success(self, record: RunRecord | None) -> None:
@@ -98,17 +104,17 @@ class BlueprintResumeService:
             render_blueprint_run_success(record, record.kind, output=self.output)
 
     def _finalize(self, session_id: str, run_outcome: RunOutcome) -> BlueprintRunCommandOutcome:
+        self.warnings.extend(run_outcome.warnings)
         record = self._load_record(session_id)
-        warnings = list(run_outcome.warnings)
 
         if run_outcome.ok:
             self._render_success(record)
-            return BlueprintRunCommandOutcome(run_record=record, warnings=warnings)
+            return BlueprintRunCommandOutcome(run_record=record, warnings=self.warnings)
 
         if run_outcome.status == RunStatus.PAUSED:
             msg = run_outcome.error_message or "Run paused; checkpoint saved."
             self.output.add_line(msg)
-            return BlueprintRunCommandOutcome(run_record=record, warnings=warnings)
+            return BlueprintRunCommandOutcome(run_record=record, warnings=self.warnings)
 
         if run_outcome.status == RunStatus.CANCELLED:
             msg = run_outcome.error_message or "Cancelled by user."
@@ -116,7 +122,7 @@ class BlueprintResumeService:
             return BlueprintRunCommandOutcome(
                 run_record=record,
                 errors=[msg],
-                warnings=warnings,
+                warnings=self.warnings,
             )
 
         msg = run_outcome.error_message or f"Cannot resume session '{session_id}'."
@@ -124,5 +130,5 @@ class BlueprintResumeService:
         return BlueprintRunCommandOutcome(
             run_record=record,
             errors=[msg],
-            warnings=warnings,
+            warnings=self.warnings,
         )
