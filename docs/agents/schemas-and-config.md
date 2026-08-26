@@ -373,34 +373,24 @@ Registration: `wt config set <key> <value>` under `config_app` in
 
 ## Unified blueprint execution (`core/blueprint/` + `core/engine/`)
 
-**This is the live path.** `wt run` and `wt resume` go through
-`BlueprintRunService`/`BlueprintResumeService` → `Engine` → `run_steps` — not
-through `core/task/` or `core/workflows/`, which are older, CLI-unused packages
-(see [architecture.md](architecture.md#layers) for why they still exist). The
-**Task blueprint resolution & execution**, **Workflow blueprint resolution**, and
-workflow half of **Pause, checkpoint, and resume** sections below describe those
-legacy packages; read this section first for what actually runs.
+`wt run` and `wt resume` go through
+`BlueprintRunService`/`BlueprintResumeService` → `Engine` → `run_steps`.
 
 - `BlueprintDefinition` ([src/worktree/core/blueprint/models.py](../../src/worktree/core/blueprint/models.py),
-  `extra: "ignore", populate_by_name: True`) unifies `TaskDefinition` and
-  `WorkflowDefinition` into one model. Read the model for the exact field list.
+  `extra: "ignore", populate_by_name: True`) is the unified blueprint model for tasks and workflows.
+  Read the model for the exact field list.
   Non-obvious: `kind: BlueprintKind` (`task` | `workflow`) is **injected** by
   `BlueprintDefinition.from_document(raw, kind=...)`, never read from the YAML —
   any authored `kind` key is dropped before validation. `id` defaults to `name`
-  when omitted (same as `WorkflowDefinition`, but without that model's schema/model
-  `required` mismatch, since `BlueprintDefinition` has no `schema_validator` at
-  all). A `kind=task` document containing a `LoopStepBlock` step fails validation
-  (`"kind=task cannot contain loop steps"`) — loop steps are workflow-only here,
-  same as the split enforced structurally by `TaskDefinition.steps:
-  list[StepDefinition]` (no loop variant) vs. `WorkflowDefinition.steps:
-  list[StepDefinition | LoopStepBlock]`.
+  when omitted. A `kind=task` document containing a `LoopStepBlock` step fails validation
+  (`"kind=task cannot contain loop steps"`) — loop steps are workflow-only.
 - `Blueprint` ([src/worktree/core/blueprint/services/blueprint.py](../../src/worktree/core/blueprint/services/blueprint.py))
   is the load/inspect handle: `Blueprint.load(name, catalog=None)` resolves a
   catalog task/workflow by name/SHA and infers `kind` from the catalog item type;
   `Blueprint.from_path(path)` infers `kind` from the nearest `tasks/`/`workflows/`
   ancestor directory instead. `.resolve_inputs(cli_args, *, overrides=None)`
   delegates to `core.inputs.resolve_inputs` against the wrapped document's
-  `inputs` — see **Inputs and interpolation** above.
+  `inputs` — see **Inputs and interpolation** below.
 - `Engine` ([src/worktree/core/engine/engine.py](../../src/worktree/core/engine/engine.py))
   is the process handle: `Engine(cwd=None)`, `.run(blueprint, request=None) ->
   RunOutcome`, `.resume(session_id, *, blueprint=None, observer=None,
@@ -436,157 +426,11 @@ legacy packages; read this section first for what actually runs.
   raises; check `.is_resumable` before calling `.ready()`, which raises
   `EngineResumeError` when not resumable. `EngineResumeStatus` (`core/engine/models.py`)
   statuses: `ok`, `not_found`, `wrong_status`, `missing_sandbox`,
-  `corrupt_checkpoint`, `failed` — this is the live-path equivalent of
-  `WorkflowResumeStatus` below; the two enums are not the same type and are not
-  kept in sync by anything other than convention (they happen to have identical
-  members today).
-
-## Workflow blueprint resolution
-
-**[status: describes `core/workflows/`, unused by the live CLI — see
-**Unified blueprint execution** above for `wt run`/`wt resume`'s actual model
-(`BlueprintDefinition`) and services (`Blueprint`, `Engine`).]**
-
-Workflow blueprints are catalog items: discovery, YAML parsing, schema
-validation, and name resolution all flow through the catalog layer's
-`get_catalog_item(name, CatalogItemType.WORKFLOW, definition_cls=WorkflowDefinition, cwd=root)`
-(`worktree.core.catalog.services.inventory`) — the same surface used by
-`wt task` and `wt step`. `WorkflowDefinition` declares a
-`schema_validator: ClassVar[SchemaValidator]` bound to `WORKFLOW_VALIDATOR`, which the
-catalog's internal `_validate_definition` helper detects automatically and runs against
-the parsed YAML *before* constructing the model. There is no separate workflow
-discovery/inventory/resolve/validate pipeline; a non-ok `DefinitionResolutionResult`
-carries schema or lookup errors in `result.errors`, formatted for CLI panels by
-`format_workflow_run_resolve_failure` in
-[src/worktree/core/workflows/services/renderer.py](../../src/worktree/core/workflows/services/renderer.py).
-
-### `WorkflowDefinition`
-
-Model: [src/worktree/core/workflows/models.py](../../src/worktree/core/workflows/models.py)
-(`model_config = {"extra": "ignore", "populate_by_name": True}` — see
-**Blueprint models and `extra: "ignore"`** below for why this diverges from the
-project-wide `extra: "forbid"` default). Read the model for the exact field list;
-non-obvious behavior the fields don't convey:
-
-- `version` accepts JSON `1` or the string `"1.0"`; anything else fails a
-  post-validator, not the JSON Schema (the schema's `oneOf` already narrows this,
-  so the Pydantic check is defense-in-depth for programmatic construction).
-- `id` defaults to `name` when omitted from the *parsed model*. The JSON Schema
-  requires `id` in `required` (`v1/workflow.json`), so a workflow YAML that omits
-  `id` and relies on this default is rejected at the schema gate before the model
-  ever runs — the schema and the model disagree about whether `id` is optional.
-  If the model's default-from-`name` behavior is meant to be reachable from YAML,
-  drop `id` from workflow.json's `required` list; if it isn't, this default only
-  serves programmatic `WorkflowDefinition(...)` construction and that should be
-  said explicitly at the model, not left implicit.
-- `steps` is `list[StepDefinition | LoopStepBlock] | None`; a top-level
-  `_apply_blueprint_defaults` validator fills `on_failure` on standard steps only
-  (see **`BlueprintDefaults` and `defaults.on_failure`** below) before the union
-  discriminates each item.
-- `inputs: dict[str, ParameterInput]` — see **Inputs and interpolation** below.
-
-## Task blueprint resolution & execution
-
-**[status: describes `core/task/`, unused by the live CLI — see
-**Unified blueprint execution** above.]**
-
-Task blueprints live under `.worktree/catalog/tasks/` and resolve through the
-same catalog inventory path as workflows.
-
-### `TaskDefinition`
-
-Model: [src/worktree/core/task/models.py](../../src/worktree/core/task/models.py)
-(`model_config = {"extra": "ignore", "populate_by_name": True}` — see
-**Blueprint models and `extra: "ignore"`** below). Read the model for the exact
-field list (`name`, `description`, `summary`, `use_sandbox`, `inputs`, `defaults`,
-`steps`); non-obvious behavior:
-
-- `inputs: dict[str, ParameterInput]` declares typed task parameters — see
-  **Inputs and interpolation** below. `TaskDefinition` has no `schema_validator`
-  at all (Pydantic-only validation, unlike `WorkflowDefinition`). If that
-  asymmetry is intentional rather than a second instance of the schema-drift
-  problem described in **Changing config or workflow shape** below, say so here
-  explicitly.
-- `defaults: BlueprintDefaults` only carries `on_failure` (extra keys forbidden
-  on `BlueprintDefaults` itself, independent of `TaskDefinition`'s own
-  `extra: "ignore"`).
-
-Before validation, `_fill_step_shorthand_defaults` normalizes each raw step dict:
-
-- Missing/empty `id` → slug from `name`, else `step-{idx}` (1-based).
-- Bare `command: ...` with no `run` / `uses` / `type` → mapped to `run`.
-- If the step omits `on_failure` and `defaults.on_failure` is set → copy that
-  `FailureSpec` onto the step (fill-if-omitted only; explicit step values win
-  unchanged with no field merge).
-
-Example:
-
-```yaml
-name: lint-fix
-description: Run project linters
-use_sandbox: true
-defaults:
-  on_failure: continue
-steps:
-  - command: ruff check .
-  - id: tests
-    name: unit tests
-    run: pytest -q
-    on_failure: abort   # explicit wins
-```
-
-Exceptions subclass the shared definition bases in
-[src/worktree/common/exceptions.py](../../src/worktree/common/exceptions.py):
-
-- `TaskLoadError(DefinitionLoadError)`
-- `TaskValidationError(DefinitionValidationError)`
-
-### Resolve: `resolve_and_load_task`
-
-[src/worktree/core/task/services/loader.py](../../src/worktree/core/task/services/loader.py)
-
-```python
-def resolve_and_load_task(
-    name: str,
-    cwd: Path | None = None,
-) -> DefinitionResolutionResult[CatalogRecord]:
-    return get_catalog_item(
-        name,
-        CatalogItemType.TASK,
-        definition_cls=TaskDefinition,
-        cwd=cwd,
-    )
-```
-
-Thin catalog wrapper only — no custom YAML scan/parse pipeline. On success,
-`result.definition` is a `TaskDefinition`. Failure bodies for CLI panels come
-from `format_task_resolve_failure` in
-[src/worktree/core/task/services/renderer.py](../../src/worktree/core/task/services/renderer.py).
-
-### Execute: `run_task`
-
-[src/worktree/core/task/services/runner.py](../../src/worktree/core/task/services/runner.py)
-
-```python
-def run_task(
-    definition: TaskDefinition,
-    cwd: Path,
-    *,
-    use_sandbox: bool = True,
-    keep: bool = False,
-    agent: str | None = None,
-    observer: RunObserver | None = None,
-) -> RunOutcome: ...
-```
-
-Builds a `RunContext` (`steps=definition.steps`,
-`use_sandbox=use_sandbox and definition.use_sandbox`, plus `keep` / `agent` /
-`observer`) and delegates to `run_steps`. Plain failure text formatting lives in
-`core/task/services/renderer.py` (`format_task_run_failure`).
+  `corrupt_checkpoint`, `failed`.
 
 ## Inputs and interpolation
 
-`TaskDefinition.inputs` and `WorkflowDefinition.inputs` both declare
+`BlueprintDefinition.inputs` declares
 `dict[str, ParameterInput]` — typed parameters a blueprint author can require or
 default, and that step authors can reference from `command` / `prompt` /
 `script_path` / `run` / `env` values. Models live in
@@ -712,30 +556,10 @@ a human looks at the failure). Models: `RunCheckpoint`, `FailurePromptDecision`,
   the prompter returns. `context.pause_store is None` (the default) means no
   checkpoint is ever persisted, so a `prompt_user` failure there can only
   abort/continue/retry in-process, never pause.
-- **Live path**: `Engine` (see **Unified blueprint execution** above) wires its
+- `Engine` (see **Unified blueprint execution** above) wires its
   own private `_DbPauseStore` (`core/engine/engine.py`, same shape as
   `RunPauseStore`, not exported) for both `.run` and `.resume`, and
-  `ResumableRun` is the live classifier/loader analogous to the paragraph below.
-  `wt resume` calls `Engine.resume`, never `resume_workflow`.
-- **Legacy path** (`core/workflows/`, unused by the live CLI):
-  `WorkflowPauseStore` ([src/worktree/core/workflows/services/pause.py](../../src/worktree/core/workflows/services/pause.py))
-  implements `RunPauseStore` against `RunsRepository`, storing
-  `checkpoint.model_dump_json()` and marking the run row `PAUSED`.
-  `resume_workflow(session_id, cwd, *, failure_prompter=None, non_interactive=False,
-  observer=None) -> WorkflowResumeResult`
-  ([src/worktree/core/workflows/services/resume.py](../../src/worktree/core/workflows/services/resume.py))
-  loads that row, validates it's `PAUSED` with a parseable checkpoint and an
-  existing sandbox path (when `use_sandbox` was true), re-resolves the workflow
-  definition and confirms the checkpoint's `pending_step_id` still exists in it,
-  then re-enters `run_steps` with `resume_from=checkpoint`. `WorkflowResumeResult`
-  (`extra: "forbid", strict: True`) statuses: `ok`, `not_found`, `wrong_status`,
-  `missing_sandbox`, `corrupt_checkpoint`, `failed` — `ok` requires
-  `status == OK and not errors`. This is exercised only by `core/workflows/`'s
-  own tests today.
-- Task execution (`run_task`, also legacy) does not wire a `pause_store` either.
-  `Engine` (live path) wires the same `_DbPauseStore` for both task- and
-  workflow-kind blueprints, so this asymmetry is specific to the legacy
-  `task`/`workflows` split and does not carry over to the live path.
+  `ResumableRun` is the live classifier/loader. `wt resume` calls `Engine.resume`.
 
 ## Catalog templates & seeding
 
@@ -771,17 +595,6 @@ CLI template surfaces (no separate `wt template` command group):
   templates matching the name and prints raw YAML via
   `render_template_show_content`.
 
-## Workflow formatters
-
-Pure formatters (no IO/print/exit) for resolve/validate failure panel bodies live in
-[src/worktree/core/workflows/services/renderer.py](../../src/worktree/core/workflows/services/renderer.py):
-
-- `format_workflow_run_resolve_failure(result: DefinitionResolutionResult[CatalogRecord]) -> str`
-- `format_workflow_run_validate_failure(result: DefinitionValidationOutcome) -> str`
-
-Resolve body: `"\n\n".join(errors)` or `Failed to resolve workflow.`
-Validate body: `"\n\n".join(errors)` or `Workflow definition is invalid.`
-
 ## Changing config or workflow shape
 
 1. Update the relevant JSON Schema (`v1/config.json` or `v1/workflow.json`).
@@ -789,44 +602,13 @@ Validate body: `"\n\n".join(errors)` or `Workflow definition is invalid.`
    `core/catalog/templates/` (workflows/tasks/steps `default.yml` and curated
    `wt/` seeds). See **Catalog templates & seeding** above for list/show fallback.
 3. Update the corresponding Pydantic model. For step/blueprint shape, that's
-   `core/blueprint/models.py`'s `BlueprintDefinition` (the live model) — and, if
-   you're intentionally keeping the legacy packages in step with it rather than
-   letting them diverge further, also `core/workflows/models.py` /
-   `core/task/models.py`. For config: `core/config/models.py`. For inputs:
+   `core/blueprint/models.py`'s `BlueprintDefinition` and `core/step/models.py`'s
+   `StepDefinition`. For config: `core/config/models.py`. For inputs:
    `core/inputs/models.py`.
 4. Add/adjust tests under the matching `tests/core/...` package.
 
 Bump the schema version (`config_v2.json`, etc.) instead of making breaking
 changes to a `v1` schema that users may already have on disk.
-
-**`v1/workflow.json`'s inline step shape must mirror `StepDefinition`'s
-inline-authoring shape exactly.** `WorkflowDefinition.schema_validator` runs
-the JSON Schema gate *before* Pydantic model validation (see **Workflow
-blueprint resolution** above), so if `standard_step` in `workflow.json` is
-missing a field `StepDefinition` accepts for inline steps, any workflow YAML
-that inlines that shape (rather than using `uses:`/`run:`) gets rejected at the
-schema gate with a confusing "not valid under any of the given schemas" error,
-even though the model would accept it.
-
-**This is currently the case, not just a historical risk**: as of this writing,
-`standard_step` in `workflow.json` has no `type`, `command`, `description`, or
-`script_path` properties, while `StepDefinition` accepts all four for inline
-`type=command` / `type=agent` / `type=script` steps (see **StepDefinition
-Model** below). Every packaged step template under
-`core/catalog/templates/steps/wt/*.yml` uses that inline `type:`/`command:`
-shape, so `workflow.json` is out of sync with the templates it's meant to
-validate. When you add or fix a field on `StepDefinition`'s inline shape,
-update `standard_step` in the same change, and add (or keep passing) a test
-that round-trips every file under `core/catalog/templates/steps/**/*.yml`
-through both `WORKFLOW_VALIDATOR` and `StepDefinition` so this class of drift
-fails a test instead of shipping silently.
-
-**A second, related asymmetry**: `workflow.json`'s top-level `required` list
-includes `id`, but `WorkflowDefinition.id` defaults to `name` when omitted (see
-**`WorkflowDefinition`** above). A workflow YAML that omits `id` to use that
-default is schema-invalid before the model ever runs. Resolve this the same
-way: either drop `id` from `required`, or make the model require it too — don't
-leave the schema stricter than the model it's supposed to gate.
 
 ## Step Definition Schema and Execution Engine
 
@@ -849,7 +631,7 @@ prompt_user}` (excludes `retry`); any other name returns the full set.
 ### `BlueprintDefaults` and `defaults.on_failure`
 
 `BlueprintDefaults` (`extra: "forbid"`, not `strict`) is the optional root-level
-`defaults` block on `TaskDefinition` and `WorkflowDefinition`: a single
+`defaults` block on `BlueprintDefinition`: a single
 `on_failure: FailureSpec | None` field with the same string-or-object coercion as
 `StepDefinition.on_failure`.
 
@@ -1018,7 +800,7 @@ assert:
 
 ## Blueprint models and `extra: "ignore"`
 
-`TaskDefinition`, `WorkflowDefinition`, `BlueprintDefaults`, and `LoopStepBlock` all
+`BlueprintDefinition`, `BlueprintDefaults`, and `LoopStepBlock` all
 use `extra: "ignore"` (and no `strict: True`) instead of the project-wide
 `extra: "forbid", strict: True` default (see
 [code-conventions.md](code-conventions.md#pydantic-models)). `StepDefinition`,
@@ -1026,11 +808,11 @@ use `extra: "ignore"` (and no `strict: True`) instead of the project-wide
 `core/config/` do use the strict default — so this is a real, scoped deviation, not
 a project-wide relaxation.
 
-The likely rationale: these four are the *hand-authored YAML entry points* into the
+The likely rationale: these three are the *hand-authored YAML entry points* into the
 blueprint system, and `extra: "ignore"` lets a blueprint author leave in a comment
 field, a future key, or a typo'd sibling key from copy-pasting another blueprint
 without hard-failing the whole file — whereas `StepDefinition` (the thing actually
 executed) and every internal result/outcome model should fail loudly on an unknown
 key. If that's the real reason, it should be a one-line comment at each
 `model_config`, not left to be inferred from this doc. If it isn't the reason, these
-four should move to `extra: "forbid"` like everything else.
+models should move to `extra: "forbid"` like everything else.

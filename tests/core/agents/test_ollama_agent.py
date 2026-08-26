@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import json
+from importlib import resources
 from pathlib import Path
 from urllib.error import URLError
 
 import pytest
 
 from tests.helpers import FileSystem
-from worktree.common.schema_validation import CONFIG_VALIDATOR
+from worktree.common.schema_validation import CONFIG_VALIDATOR, SchemaValidator
 from worktree.core.agents import (
     AgentRequest,
     AgentResponseStatus,
@@ -27,7 +28,8 @@ from worktree.core.agents.ollama import (
     resolve_ollama_endpoint,
     validate_ollama_endpoint,
 )
-from worktree.core.workflows.models import WORKFLOW_VALIDATOR
+
+WORKFLOW_VALIDATOR = SchemaValidator(resources.files("worktree.schemas.v1") / "workflow.json")
 
 
 def _payload() -> AgentFailurePayload:

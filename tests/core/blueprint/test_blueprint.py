@@ -112,7 +112,7 @@ class BlueprintHandleTests:
         source = Path("src/worktree/core/blueprint/services/blueprint.py").read_text(encoding="utf-8")
         models = Path("src/worktree/core/blueprint/models.py").read_text(encoding="utf-8")
 
-        for forbidden in ("worktree.core.engine", "worktree.core.task", "worktree.core.workflows"):
+        for forbidden in ("worktree.core.engine",):
             assert forbidden not in source
         assert "worktree.core.catalog" not in models
 

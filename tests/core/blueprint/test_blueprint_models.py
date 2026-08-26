@@ -45,8 +45,6 @@ class BlueprintModelExportTests:
         for forbidden in (
             "worktree.core.catalog",
             "worktree.core.engine",
-            "worktree.core.task",
-            "worktree.core.workflows",
         ):
             assert f"import {forbidden}" not in source
             assert f"from {forbidden}" not in source
