@@ -2,7 +2,6 @@ import pytest
 
 from tests.helpers import FileSystem
 from worktree.core.step import StepAssert, StepDefinition, StepResult, StepType, execute_step
-from worktree.core.step.runner import StepDispatchOutcome
 
 
 class StepResultModelTests:
