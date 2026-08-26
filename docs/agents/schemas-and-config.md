@@ -610,7 +610,7 @@ resolution and interpolation live in `core/inputs/services/`.
   placeholders. `interpolate_step_fields` substitutes resolved values (coerced to
   `str`) and returns a copy of the step; an unresolved placeholder (name not in the
   resolved `inputs` dict) is left as literal text rather than raising. This runs at
-  execution time — `Step.execute()` and `runner._prepare_step_for_execution`, not at
+  execution time — `runner._prepare_step_for_execution`, not at
   blueprint load — so a step's authored YAML always shows the placeholder, never a
   substituted value.
 - `format_missing_inputs_error` / `format_input_error_message` (`resolve.py`) build
@@ -901,15 +901,6 @@ Functions in `core/step/services/` (re-exported from `worktree.core.step`):
 - `load_step_definition(path: Path) -> StepDefinition`: Loads and parses a step YAML file. Raises `StepNotFoundError` if file missing/unreadable, `StepValidationError` on YAML or Pydantic validation error.
 - `load_step_by_id(step_id_or_name: str, cwd: Path | None = None) -> StepDefinition`: Resolves from `.worktree/catalog/steps/` only (local catalog after seed; no package-resource bypass at runtime). Direct path first: `wt/<name>` → `.worktree/catalog/steps/wt/<name>.yml` (also `.yaml`); unprefixed `<name>` → `.worktree/catalog/steps/<name>.yml`. If no direct file, scan YAML under the steps tree including `wt/` for matching `id`/`name` (invalid siblings skipped during scan). Missing directory or no match → `StepNotFoundError`.
 - `resolve_step_definition(step: StepDefinition, *, cwd: Path | None = None) -> StepDefinition`: Normalizes a step with `uses` (loads the referenced step via `load_step_by_id()`, including `uses: wt/<name>`) or `run` (synthesizes `type=command`, `command=run`) into a concrete, directly executable `StepDefinition`. Inline `type` steps pass through unchanged.
-
-`Step` ([src/worktree/core/step/step.py](../../src/worktree/core/step/step.py)) is a
-higher-level handle over the same functions, used where callers want input
-interpolation applied before execution: `Step.load(source, catalog=None)` accepts
-a `StepDefinition`, a raw dict (validated against `StepDefinition`), or a catalog
-name/SHA (via `Catalog().resolve_step`); `.execute(sandbox_path, *, inputs=None,
-context=None)` calls `interpolate_step_fields` when `inputs` is given, then
-delegates to `execute_step`. It does not replace `execute_step` or the loader
-functions above — it composes them for the input-interpolation call path.
 
 ### Step Execution Engine
 
