@@ -32,6 +32,14 @@ Prefer one fix or one concern per PR, even during larger refactors:
   PRs over one large one, unless the intermediate states would leave the
   codebase broken.
 
+## PR descriptions
+
+Write intent-based PR descriptions instead of listing changed files or mechanical diffs:
+
+- **Why**: State the context and motivation in 2–3 short sentences.
+- **Approach**: Provide a bulleted list of useful, intent-based implementation details. Keep each bullet concise — 1–2 sentences at most.
+- **Linkage**: Cite `Fixes #N` or `Closes #N` for the associated issue.
+
 ## GitHub issues
 
 For opening or revising issues (required sections, tone, skeleton), see
