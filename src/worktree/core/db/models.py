@@ -164,11 +164,6 @@ class SandboxRecord(SQLModel, table=True):
             data["sandbox_path"] = Path(data["sandbox_path"])
         super().__init__(**data)
 
-    @property
-    def path(self) -> Path:
-        """Convenience property accessing sandbox_path as a Path."""
-        return self.sandbox_path
-
 
 class CatalogRecord(SQLModel, table=True):
     """Row shape for the local `catalog` table."""

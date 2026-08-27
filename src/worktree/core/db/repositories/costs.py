@@ -37,7 +37,8 @@ class CostsRepository(BaseRepository):
             session.add(record)
             session.commit()
             session.refresh(record)
-            assert record.id is not None
+            if record.id is None:
+                raise RuntimeError("Failed to retrieve generated id for WorkflowCostRecord.")
             return record.id
 
     def get_session_total_cost(self, session_id: str) -> dict[str, float]:

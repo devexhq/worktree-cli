@@ -129,7 +129,7 @@ internal consistency still matters:
 - **Pick one behavior for an invalid enum-like filter value** (raise, or
   return empty) and apply it to every query method on the same repository —
   don't raise in `upsert()` while silently returning `[]` for the same bad
-  input in `list()`/`get_by_name()`.
+  input in `list()`/`list_by_name()`.
 - Package resources referenced by `core/db/` (e.g. the Alembic script
   directory) load via `importlib.resources`, the same as every other packaged
   resource — see [Packaged resources](architecture.md#packaged-resources).

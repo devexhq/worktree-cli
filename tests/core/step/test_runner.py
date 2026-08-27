@@ -214,8 +214,18 @@ class StepRunnerRetryTests:
     def test_execute_command_step_retry_sleeps_backoff_between_attempts(
         self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        import time
+
+        original_sleep = time.sleep
         sleep_calls: list[float] = []
-        monkeypatch.setattr("worktree.core.step.runner.time.sleep", lambda secs: sleep_calls.append(secs))
+
+        def mock_sleep(secs: float) -> None:
+            if secs >= 0.1:
+                sleep_calls.append(secs)
+            else:
+                original_sleep(secs)
+
+        monkeypatch.setattr("worktree.core.step.runner.time.sleep", mock_sleep)
 
         step = StepDefinition(
             id="cmd_backoff",
