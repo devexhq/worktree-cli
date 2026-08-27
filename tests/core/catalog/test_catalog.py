@@ -246,6 +246,18 @@ class CatalogFileOperationsTests:
         with pytest.raises(CatalogYamlError, match="non-object"):
             Catalog.read_yaml(path)
 
+    def test_record_for_rel_path_uses_get_by_path(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        catalog = Catalog(fs.base_path)
+        record = catalog.save("lint", {"name": "lint"}, item_type="task")
+
+        def _forbidden_list(*_args: object, **_kwargs: object) -> list[object]:
+            raise AssertionError("CatalogRepository.list should not be called by _record_for_rel_path")
+
+        monkeypatch.setattr(catalog.db, "list", _forbidden_list)
+        found = catalog._record_for_rel_path(Path("tasks/lint.yml"))
+        assert found is not None
+        assert found.sha == record.sha
+
     def test_catalog_module_does_not_import_higher_domains(self) -> None:
         import worktree.core.catalog.catalog as catalog_mod
 

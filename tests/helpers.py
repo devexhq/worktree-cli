@@ -262,12 +262,12 @@ def seed_sandbox(
     create_dir: bool = True,
     base_commit: str = "4f2c9a1e8b3d6f0a2c5e7b1d9a3f6c8e0b2d4f6a",
 ) -> SandboxRecord:
-    """Helper to insert a sandbox record into SandboxesRepository for tests."""
+    """Helper to create a sandbox record in SandboxesRepository for tests."""
     suffix = path_suffix if path_suffix is not None else sandbox_id
     sandbox_path = db.path / ".worktree" / "sandboxes" / suffix
     if create_dir:
         sandbox_path.mkdir(parents=True, exist_ok=True)
-    return db.insert(
+    return db.create(
         id=sandbox_id,
         branch_name=f"worktree/sandbox-{sandbox_id}",
         base_commit=base_commit,

@@ -468,7 +468,7 @@ class GitSandboxManager:
     def _persist_sandbox_session(self, session: SandboxSession) -> list[str]:
         """Insert *session* into the local DB; return any warning messages."""
         try:
-            self.db.insert(
+            self.db.create(
                 id=session.session_id,
                 name=session.name,
                 branch_name=session.target_branch,

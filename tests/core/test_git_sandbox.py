@@ -379,13 +379,13 @@ class GitSandboxManagerTests:
         assert row is not None
         assert row.status == SandboxStatus.CLEANED
 
-    def test_insert_failure_surfaces_as_warning(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_create_failure_surfaces_as_warning(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         git_fs.init_repo()
 
         def _boom(*_args: object, **_kwargs: object) -> object:
             raise RuntimeError("db locked")
 
-        monkeypatch.setattr("worktree.core.db.repositories.sandboxes.SandboxesRepository.insert", _boom)
+        monkeypatch.setattr("worktree.core.db.repositories.sandboxes.SandboxesRepository.create", _boom)
         manager = GitSandboxManager(path=git_fs.base_path)
         result = manager.create_sandbox_result(session_id="sbx_warn")
         assert result.ok and result.session is not None

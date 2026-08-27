@@ -60,8 +60,6 @@ class RunsRepository(BaseRepository):
             session.refresh(record)
             return record
 
-    insert = create
-
     def get(self, session_id: str) -> RunRecord | None:
         """Return the run record matching session_id, or None."""
         with self.session() as session:

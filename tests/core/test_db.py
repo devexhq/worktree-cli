@@ -97,8 +97,8 @@ class TestSandboxesRepository:
     def setup_method(self, fs: FileSystem) -> None:
         self.db = WorktreeDb(path=fs.base_path, db_rel_path=DB_REL)
 
-    def test_insert_and_get(self, fs: FileSystem) -> None:
-        sb = self.db.sandboxes.insert(
+    def test_create_and_get(self, fs: FileSystem) -> None:
+        sb = self.db.sandboxes.create(
             id="sb-001",
             branch_name="feat/branch",
             base_commit="abc123",
@@ -118,8 +118,8 @@ class TestSandboxesRepository:
         fetched = self.db.sandboxes.get("sb-001")
         assert fetched == sb
 
-    def test_insert_with_name(self, fs: FileSystem) -> None:
-        sb = self.db.sandboxes.insert(
+    def test_create_with_name(self, fs: FileSystem) -> None:
+        sb = self.db.sandboxes.create(
             id="sb-named",
             branch_name="feat/named",
             base_commit="def456",
@@ -128,10 +128,10 @@ class TestSandboxesRepository:
         )
         assert sb.name == "my-sandbox"
 
-    def test_insert_duplicate_raises_value_error(self, fs: FileSystem) -> None:
-        self.db.sandboxes.insert(id="dup-id", branch_name="b", base_commit="c", sandbox_path=fs.base_path / "dup")
+    def test_create_duplicate_raises_value_error(self, fs: FileSystem) -> None:
+        self.db.sandboxes.create(id="dup-id", branch_name="b", base_commit="c", sandbox_path=fs.base_path / "dup")
         with pytest.raises(ValueError, match="dup-id"):
-            self.db.sandboxes.insert(
+            self.db.sandboxes.create(
                 id="dup-id", branch_name="b2", base_commit="c2", sandbox_path=fs.base_path / "dup2"
             )
 
@@ -139,8 +139,8 @@ class TestSandboxesRepository:
         assert self.db.sandboxes.get("does-not-exist") is None
 
     def test_list_unfiltered_and_filtered(self, fs: FileSystem) -> None:
-        self.db.sandboxes.insert(id="a", branch_name="b", base_commit="c", sandbox_path=fs.base_path / "a")
-        self.db.sandboxes.insert(id="b", branch_name="b2", base_commit="c2", sandbox_path=fs.base_path / "b")
+        self.db.sandboxes.create(id="a", branch_name="b", base_commit="c", sandbox_path=fs.base_path / "a")
+        self.db.sandboxes.create(id="b", branch_name="b2", base_commit="c2", sandbox_path=fs.base_path / "b")
         self.db.sandboxes.update_status("b", SandboxStatus.MERGED)
 
         all_rows = self.db.sandboxes.list()
@@ -155,7 +155,7 @@ class TestSandboxesRepository:
         assert merged[0].id == "b"
 
     def test_update_status(self, fs: FileSystem) -> None:
-        sb = self.db.sandboxes.insert(id="upd", branch_name="b", base_commit="c", sandbox_path=fs.base_path / "upd")
+        sb = self.db.sandboxes.create(id="upd", branch_name="b", base_commit="c", sandbox_path=fs.base_path / "upd")
         original_updated_at = sb.updated_at
 
         updated = self.db.sandboxes.update_status("upd", SandboxStatus.CLEANED)
@@ -167,7 +167,7 @@ class TestSandboxesRepository:
         assert self.db.sandboxes.update_status("ghost", SandboxStatus.CLEANED) is None
 
     def test_delete(self, fs: FileSystem) -> None:
-        self.db.sandboxes.insert(id="del-me", branch_name="b", base_commit="c", sandbox_path=fs.base_path / "del-me")
+        self.db.sandboxes.create(id="del-me", branch_name="b", base_commit="c", sandbox_path=fs.base_path / "del-me")
 
         assert self.db.sandboxes.delete("del-me") is True
         assert self.db.sandboxes.get("del-me") is None
@@ -179,9 +179,9 @@ class TestSandboxesRepository:
         active_missing_dir1 = fs.base_path / "missing-dir-1"
         active_missing_dir2 = fs.base_path / "missing-dir-2"
 
-        self.db.sandboxes.insert(id="sb-alive", branch_name="b1", base_commit="c1", sandbox_path=active_existing_dir)
-        self.db.sandboxes.insert(id="sb-stale", branch_name="b2", base_commit="c2", sandbox_path=active_missing_dir1)
-        self.db.sandboxes.insert(id="sb-cleaned", branch_name="b3", base_commit="c3", sandbox_path=active_missing_dir2)
+        self.db.sandboxes.create(id="sb-alive", branch_name="b1", base_commit="c1", sandbox_path=active_existing_dir)
+        self.db.sandboxes.create(id="sb-stale", branch_name="b2", base_commit="c2", sandbox_path=active_missing_dir1)
+        self.db.sandboxes.create(id="sb-cleaned", branch_name="b3", base_commit="c3", sandbox_path=active_missing_dir2)
         self.db.sandboxes.update_status("sb-cleaned", SandboxStatus.CLEANED)
 
         reconciled = self.db.sandboxes.reconcile_stale_active()
@@ -200,8 +200,8 @@ class TestSandboxesRepository:
     def test_reconcile_stale_active_by_id(self, fs: FileSystem) -> None:
         active_missing_dir1 = fs.base_path / "missing-dir-1"
         active_missing_dir2 = fs.base_path / "missing-dir-2"
-        self.db.sandboxes.insert(id="sb-target", branch_name="b1", base_commit="c1", sandbox_path=active_missing_dir1)
-        self.db.sandboxes.insert(id="sb-other", branch_name="b2", base_commit="c2", sandbox_path=active_missing_dir2)
+        self.db.sandboxes.create(id="sb-target", branch_name="b1", base_commit="c1", sandbox_path=active_missing_dir1)
+        self.db.sandboxes.create(id="sb-other", branch_name="b2", base_commit="c2", sandbox_path=active_missing_dir2)
 
         reconciled = self.db.sandboxes.reconcile_stale_active(id="sb-target")
         assert len(reconciled) == 1
@@ -257,6 +257,12 @@ class TestCatalogRepository:
         )
         assert by_name_and_type == rec
 
+        by_path = self.db.catalog.get_by_path(path)
+        assert by_path == rec
+
+        by_str_path = self.db.catalog.get_by_path(str(path))
+        assert by_str_path == rec
+
     def test_upsert_update_preserves_id_and_updates_fields(self, fs: FileSystem) -> None:
         path = Path(".worktree/catalog/task_b.yaml")
         first = self.db.catalog.upsert(
@@ -287,6 +293,7 @@ class TestCatalogRepository:
     def test_get_missing_catalog_item_returns_none(self, fs: FileSystem) -> None:
         assert self.db.catalog.get_by_sha("missing") is None
         assert self.db.catalog.get_by_name("missing_name") is None
+        assert self.db.catalog.get_by_path("missing_path.yaml") is None
 
     def test_list_catalog_items_filtering(self, fs: FileSystem) -> None:
         self.db.catalog.upsert(
@@ -335,6 +342,15 @@ class TestCatalogRepository:
                 checksum="c",
             )
 
+        with pytest.raises(ValueError, match="constraint"):
+            self.db.catalog.list(item_type="invalid_type")
+
+        with pytest.raises(ValueError, match="constraint"):
+            self.db.catalog.list_by_name("name", item_type="invalid_type")
+
+        with pytest.raises(ValueError, match="constraint"):
+            self.db.catalog.get_by_name("name", item_type="invalid_type")
+
     def test_delete_catalog_item(self, fs: FileSystem) -> None:
         self.db.catalog.upsert(
             sha="to_delete",
@@ -367,7 +383,7 @@ class TestWorktreeDbFacade:
         assert self.db.costs.db_engine is self.db.db_engine
         assert self.db.engine is self.db.db_engine
 
-        sb = self.db.sandboxes.insert(
+        sb = self.db.sandboxes.create(
             id="sb_facade",
             branch_name="feat/facade",
             base_commit="abc",

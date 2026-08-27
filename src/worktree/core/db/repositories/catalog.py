@@ -12,6 +12,16 @@ from worktree.core.db.models import CatalogItemType, CatalogRecord
 from worktree.core.db.repositories.base import BaseRepository
 
 
+def _coerce_item_type(item_type: CatalogItemType | str) -> CatalogItemType:
+    """Coerce string or CatalogItemType into a CatalogItemType enum, raising ValueError on failure."""
+    if isinstance(item_type, CatalogItemType):
+        return item_type
+    try:
+        return CatalogItemType(str(item_type))
+    except ValueError as exc:
+        raise ValueError(f"Invalid catalog item constraint violation: {exc}") from exc
+
+
 class CatalogRepository(BaseRepository):
     """Repository managing catalog index records CRUD operations using SQLModel."""
 
@@ -36,10 +46,7 @@ class CatalogRepository(BaseRepository):
             ValueError: If the ``item_type`` is not a valid `CatalogItemType` value.
         """
         coerced_path = Path(str(path))
-        try:
-            type_enum = item_type if isinstance(item_type, CatalogItemType) else CatalogItemType(str(item_type))
-        except ValueError as exc:
-            raise ValueError(f"Invalid catalog item constraint violation: {exc}") from exc
+        type_enum = _coerce_item_type(item_type)
 
         now_utc = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
 
@@ -75,6 +82,13 @@ class CatalogRepository(BaseRepository):
             session.refresh(record)
             return record
 
+    def get_by_path(self, path: Path | str) -> CatalogRecord | None:
+        """Fetch a catalog record by its relative or stored path."""
+        coerced_path = Path(str(path))
+        with self.session() as session:
+            statement = select(CatalogRecord).where(CatalogRecord.path == coerced_path)
+            return session.exec(statement).first()
+
     def list(
         self,
         item_type: CatalogItemType | str | None = None,
@@ -83,10 +97,7 @@ class CatalogRepository(BaseRepository):
         with self.session() as session:
             statement = select(CatalogRecord)
             if item_type is not None:
-                try:
-                    type_enum = item_type if isinstance(item_type, CatalogItemType) else CatalogItemType(str(item_type))
-                except ValueError:
-                    return []
+                type_enum = _coerce_item_type(item_type)
                 statement = statement.where(CatalogRecord.item_type == type_enum)
             statement = statement.order_by(col(CatalogRecord.id).asc())
             return list(session.exec(statement).all())
@@ -106,10 +117,7 @@ class CatalogRepository(BaseRepository):
         with self.session() as session:
             statement = select(CatalogRecord).where(CatalogRecord.name == name)
             if item_type is not None:
-                try:
-                    type_enum = item_type if isinstance(item_type, CatalogItemType) else CatalogItemType(str(item_type))
-                except ValueError:
-                    return None
+                type_enum = _coerce_item_type(item_type)
                 statement = statement.where(CatalogRecord.item_type == type_enum)
             return session.exec(statement).first()
 
@@ -122,10 +130,7 @@ class CatalogRepository(BaseRepository):
         with self.session() as session:
             statement = select(CatalogRecord).where(CatalogRecord.name == name)
             if item_type is not None:
-                try:
-                    type_enum = item_type if isinstance(item_type, CatalogItemType) else CatalogItemType(str(item_type))
-                except ValueError:
-                    return []
+                type_enum = _coerce_item_type(item_type)
                 statement = statement.where(CatalogRecord.item_type == type_enum)
             statement = statement.order_by(col(CatalogRecord.path).asc())
             return list(session.exec(statement).all())

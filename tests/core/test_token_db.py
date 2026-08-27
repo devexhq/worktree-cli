@@ -84,7 +84,7 @@ class SandboxDatabaseTests:
         name: str | None = "alpha",
         path_suffix: str = "a",
     ):
-        return self.db.sandboxes.insert(
+        return self.db.sandboxes.create(
             id=sandbox_id,
             branch_name=f"worktree/sandbox-{sandbox_id}",
             base_commit="abc123",
@@ -92,7 +92,7 @@ class SandboxDatabaseTests:
             name=name,
         )
 
-    def test_insert_and_get_sandbox(self, fs: FileSystem) -> None:
+    def test_create_and_get_sandbox(self, fs: FileSystem) -> None:
         created = self._insert(fs)
         assert created.id == "sbx_a1b2c3d4"
         assert created.name == "alpha"
@@ -188,7 +188,7 @@ class SandboxDatabaseTests:
         assert not self.db.sandboxes.delete(created.id)
 
     def test_helpers_auto_init_database(self, fs: FileSystem) -> None:
-        created = self.db.sandboxes.insert(
+        created = self.db.sandboxes.create(
             id="sbx_auto",
             branch_name="worktree/sandbox-sbx_auto",
             base_commit="deadbeef",

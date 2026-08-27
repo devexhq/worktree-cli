@@ -15,7 +15,7 @@ from worktree.core.db.repositories.base import BaseRepository
 class SandboxesRepository(BaseRepository):
     """Repository managing sandbox metadata CRUD operations using SQLModel."""
 
-    def insert(
+    def create(
         self,
         id: str,
         branch_name: str,
@@ -23,10 +23,10 @@ class SandboxesRepository(BaseRepository):
         sandbox_path: Path | str,
         name: str | None = None,
     ) -> SandboxRecord:
-        """Insert a sandbox metadata row with status ``active``.
+        """Create a sandbox metadata row with status ``active``.
 
         Returns:
-            The inserted `SandboxRecord`, including DB-assigned timestamps.
+            The created `SandboxRecord`, including DB-assigned timestamps.
 
         Raises:
             ValueError: If a row with the same ``id`` already exists.
