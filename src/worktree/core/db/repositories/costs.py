@@ -34,9 +34,7 @@ class CostsRepository(BaseRepository):
             estimated_usd_cost=estimated_usd_cost,
         )
         with self.session() as session:
-            session.add(record)
-            session.commit()
-            session.refresh(record)
+            self._commit(session, record, "Failed to record workflow token usage")
             if record.id is None:
                 raise RuntimeError("Failed to retrieve generated id for WorkflowCostRecord.")
             return record.id

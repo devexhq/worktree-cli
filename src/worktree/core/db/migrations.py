@@ -8,7 +8,10 @@ from alembic.config import Config
 from worktree.core.db.connection import (
     DEFAULT_DB_REL_PATH,
     resolve_db_path,
+    sqlite_url,
 )
+
+INITIAL_SCHEMA_REVISION = "0001_initial_schema"
 
 
 def init_database(
@@ -29,7 +32,7 @@ def init_database(
     alembic_cfg = Config()
     alembic_dir = Path(__file__).parent / "alembic"
     alembic_cfg.set_main_option("script_location", str(alembic_dir))
-    alembic_cfg.set_main_option("sqlalchemy.url", f"sqlite:///{target_path}")
+    alembic_cfg.set_main_option("sqlalchemy.url", sqlite_url(target_path))
 
     command.upgrade(alembic_cfg, "head")
 

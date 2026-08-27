@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
-from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 
 from worktree.core.db.models import CatalogItemType, CatalogRecord
@@ -72,15 +71,7 @@ class CatalogRepository(BaseRepository):
                     updated_at=now_utc,
                 )
 
-            session.add(record)
-            try:
-                session.commit()
-            except IntegrityError as exc:
-                session.rollback()
-                raise ValueError(f"Invalid catalog item constraint violation: {exc}") from exc
-
-            session.refresh(record)
-            return record
+            return self._commit(session, record, "Invalid catalog item constraint violation")
 
     def get_by_path(self, path: Path | str) -> CatalogRecord | None:
         """Fetch a catalog record by its relative or stored path."""
@@ -125,10 +116,4 @@ class CatalogRepository(BaseRepository):
     def delete(self, sha: str) -> bool:
         """Delete a catalog record by ``sha``. Returns ``True`` if a row was deleted."""
         with self.session() as session:
-            statement = select(CatalogRecord).where(CatalogRecord.sha == sha)
-            record = session.exec(statement).first()
-            if record is None:
-                return False
-            session.delete(record)
-            session.commit()
-            return True
+            return self._delete_where(session, select(CatalogRecord).where(CatalogRecord.sha == sha))

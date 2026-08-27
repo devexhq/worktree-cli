@@ -23,9 +23,16 @@ class TestSQLModelRecords:
 
     def test_models_subclass_sqlmodel_and_register_tables(self) -> None:
         """Verify all record classes are SQLModel tables and registered in metadata."""
-        for model in (SandboxRecord, CatalogRecord, RunRecord, WorkflowCostRecord):
+        expected = {
+            SandboxRecord: "sandboxes",
+            CatalogRecord: "catalog",
+            RunRecord: "runs",
+            WorkflowCostRecord: "workflow_costs",
+        }
+        for model, tablename in expected.items():
             assert issubclass(model, SQLModel)
             assert getattr(model, "__table__", None) is not None
+            assert model.__tablename__ == tablename
 
         tables = SQLModel.metadata.tables
         assert "sandboxes" in tables
