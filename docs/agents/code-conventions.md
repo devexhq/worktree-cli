@@ -111,10 +111,9 @@ When unsure, copy `core/blueprint/` or `core/inputs/`, not `core/config/`.
 `core/db/` is legacy flat infra (see the exceptions table above), but its
 internal consistency still matters:
 
-- **One verb for "create a row."** Repositories currently disagree
-  (`.insert()`, `.upsert()`, `.create()`, `.record_token_usage()`) — new
-  repository methods should use `.create()` unless the operation is a genuine
-  upsert (insert-or-update), which earns its own name.
+- **One verb for "create a row."** Repository methods use `.create()`
+  unless the operation is a genuine upsert (`.upsert()`), which earns
+  its own name.
 - **Share the commit/rollback/refresh dance.** Every repository's "insert a
   row, commit, translate `IntegrityError` to a domain-appropriate error,
   refresh, return" block should call a shared `BaseRepository` helper (e.g.

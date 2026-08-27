@@ -169,8 +169,4 @@ class Catalog:
 
     def _record_for_rel_path(self, rel_path: Path) -> CatalogRecord | None:
         """Return the indexed record whose path equals ``rel_path``."""
-        expected = rel_path.as_posix()
-        for record in self.db.list():
-            if record.path.as_posix() == expected:
-                return record
-        return None
+        return self.db.get_by_path(rel_path)
