@@ -3,9 +3,12 @@
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import TypeVar
 
 from sqlalchemy import Engine
-from sqlmodel import Session
+from sqlalchemy.exc import IntegrityError
+from sqlmodel import Session, SQLModel
+from sqlmodel.sql.expression import Select, SelectOfScalar
 
 from worktree.core.db.connection import (
     DEFAULT_DB_REL_PATH,
@@ -14,6 +17,8 @@ from worktree.core.db.connection import (
     resolve_db_path,
 )
 from worktree.core.db.migrations import init_database
+
+RecordT = TypeVar("RecordT", bound=SQLModel)
 
 
 class BaseRepository:
@@ -63,6 +68,30 @@ class BaseRepository:
             self._ensure_initialized()
         with get_session(self.db_engine) as sess:
             yield sess
+
+    def _commit(self, session: Session, record: RecordT, conflict_message: str) -> RecordT:
+        """Add record, commit transaction, rollback and raise ValueError on IntegrityError, and refresh record."""
+        session.add(record)
+        try:
+            session.commit()
+        except IntegrityError as exc:
+            session.rollback()
+            raise ValueError(conflict_message) from exc
+        session.refresh(record)
+        return record
+
+    def _delete_where(
+        self,
+        session: Session,
+        statement: Select[tuple[RecordT]] | SelectOfScalar[RecordT],
+    ) -> bool:
+        """Execute statement, delete the first matching record if found, commit, and return True if deleted."""
+        record = session.exec(statement).first()
+        if record is None:
+            return False
+        session.delete(record)
+        session.commit()
+        return True
 
     def init_db(self) -> Path:
         """Explicitly run table migrations and mark repository initialized."""

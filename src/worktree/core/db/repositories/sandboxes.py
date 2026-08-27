@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
-from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 
 from worktree.core.db.models import SandboxRecord, SandboxStatus
@@ -41,14 +40,7 @@ class SandboxesRepository(BaseRepository):
         )
 
         with self.session() as session:
-            session.add(record)
-            try:
-                session.commit()
-            except IntegrityError as exc:
-                session.rollback()
-                raise ValueError(f"Sandbox with id '{id}' already exists") from exc
-            session.refresh(record)
-            return record
+            return self._commit(session, record, f"Sandbox with id '{id}' already exists")
 
     def get(self, id: str) -> SandboxRecord | None:
         """Return the sandbox row for ``id``, or ``None`` when missing."""
@@ -79,26 +71,12 @@ class SandboxesRepository(BaseRepository):
             record.status = status
             record.updated_at = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
 
-            session.add(record)
-            try:
-                session.commit()
-            except IntegrityError as exc:
-                session.rollback()
-                raise ValueError(f"Invalid status update constraint: {exc}") from exc
-
-            session.refresh(record)
-            return record
+            return self._commit(session, record, f"Invalid status update constraint: {id}")
 
     def delete(self, id: str) -> bool:
         """Hard-delete a sandbox metadata row. Returns whether a row was removed."""
         with self.session() as session:
-            statement = select(SandboxRecord).where(SandboxRecord.id == id)
-            record = session.exec(statement).first()
-            if record is None:
-                return False
-            session.delete(record)
-            session.commit()
-            return True
+            return self._delete_where(session, select(SandboxRecord).where(SandboxRecord.id == id))
 
     def _reconcile_single_record(self, record: SandboxRecord | None) -> SandboxRecord | None:
         """Mark a single record as CLEANED if active and missing on disk."""

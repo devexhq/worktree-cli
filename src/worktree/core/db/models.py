@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from sqlalchemy import String, TypeDecorator
 from sqlmodel import Field, SQLModel
@@ -146,7 +146,7 @@ class RunStatusType(TypeDecorator[RunStatus]):
 class SandboxRecord(SQLModel, table=True):
     """Row shape for the local `sandboxes` table."""
 
-    __tablename__: Any = "sandboxes"
+    __tablename__: ClassVar[str] = "sandboxes"  # pyright: ignore[reportIncompatibleVariableOverride]
     model_config = {"extra": "forbid"}
 
     id: str = Field(primary_key=True)
@@ -168,14 +168,14 @@ class SandboxRecord(SQLModel, table=True):
 class CatalogRecord(SQLModel, table=True):
     """Row shape for the local `catalog` table."""
 
-    __tablename__: Any = "catalog"
+    __tablename__: ClassVar[str] = "catalog"  # pyright: ignore[reportIncompatibleVariableOverride]
     model_config = {"extra": "forbid"}
 
     id: int | None = Field(default=None, primary_key=True)
-    sha: str = Field(unique=True, index=True)
+    sha: str = Field(unique=True)
     item_type: CatalogItemType = Field(sa_type=CatalogItemTypeType, index=True)
     name: str
-    path: Path = Field(sa_type=PathType, unique=True, index=True)
+    path: Path = Field(sa_type=PathType, unique=True)
     checksum: str
     created_at: str = Field(default_factory=_now_utc_str)
     updated_at: str = Field(default_factory=_now_utc_str)
@@ -190,11 +190,11 @@ class CatalogRecord(SQLModel, table=True):
 class RunRecord(SQLModel, table=True):
     """Row shape for the local `runs` table."""
 
-    __tablename__: Any = "runs"
+    __tablename__: ClassVar[str] = "runs"  # pyright: ignore[reportIncompatibleVariableOverride]
     model_config = {"extra": "forbid"}
 
     id: int | None = Field(default=None, primary_key=True)
-    session_id: str = Field(unique=True, index=True)
+    session_id: str = Field(unique=True)
     blueprint_name: str
     kind: BlueprintKind = Field(sa_type=BlueprintKindType)
     branch_name: str = Field(default="")
@@ -216,7 +216,7 @@ class RunRecord(SQLModel, table=True):
 class WorkflowCostRecord(SQLModel, table=True):
     """Row shape for the local `workflow_costs` table."""
 
-    __tablename__: Any = "workflow_costs"
+    __tablename__: ClassVar[str] = "workflow_costs"  # pyright: ignore[reportIncompatibleVariableOverride]
     model_config = {"extra": "forbid"}
 
     id: int | None = Field(default=None, primary_key=True)

@@ -5,11 +5,13 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+import pytest
 from sqlalchemy import text
 from sqlmodel import select
 
 from tests.helpers import FileSystem
 from worktree.core.db import (
+    INITIAL_SCHEMA_REVISION,
     BaseRepository,
     BlueprintKind,
     RunRecord,
@@ -20,11 +22,16 @@ from worktree.core.db import (
     get_session,
     init_database,
     resolve_db_path,
+    sqlite_url,
 )
 
 
 class TestEngineAndPragmas:
     """Tests for get_engine, SQLite PRAGMA configuration, and get_session."""
+
+    def test_sqlite_url_helper(self, tmp_path: Path) -> None:
+        db_path = tmp_path / "test.db"
+        assert sqlite_url(db_path) == f"sqlite:///{db_path}"
 
     def test_get_engine_creates_parent_dir_and_sets_pragmas(self, tmp_path: Path) -> None:
         db_path = tmp_path / "subdir" / "test.db"
@@ -80,6 +87,7 @@ class TestProgrammaticMigrations:
             conn.close()
 
         assert version_row is not None
+        assert version_row[0] == INITIAL_SCHEMA_REVISION
 
     def test_resolve_db_path_helper(self, tmp_path: Path) -> None:
         resolved = resolve_db_path(path=tmp_path, db_rel_path=".custom/my.db")
@@ -88,7 +96,7 @@ class TestProgrammaticMigrations:
 
 
 class TestBaseRepository:
-    """Tests for BaseRepository lazy initialization and session lifecycle."""
+    """Tests for BaseRepository lazy initialization, session lifecycle, and CRUD helpers."""
 
     def test_base_repository_lazy_init_and_session(self, fs: FileSystem) -> None:
         repo = BaseRepository(path=fs.base_path, db_rel_path=".worktree/custom.db")
@@ -114,3 +122,40 @@ class TestBaseRepository:
         repo = BaseRepository(path=fs.base_path, auto_init=False)
         db_path = repo.init_db()
         assert db_path.is_file()
+
+    def test_base_repository_commit_and_delete_where(self, fs: FileSystem) -> None:
+        repo = BaseRepository(path=fs.base_path, db_rel_path=".worktree/helpers.db")
+
+        record = SandboxRecord(
+            id="sb_helper",
+            branch_name="feat/helper",
+            base_commit="abc",
+            sandbox_path=fs.base_path / "sb_helper",
+            status=SandboxStatus.ACTIVE,
+        )
+
+        with repo.session() as session:
+            committed = repo._commit(session, record, "Failed to commit record")
+            assert committed.id == "sb_helper"
+
+        # Duplicate commit should rollback and raise ValueError
+        dup = SandboxRecord(
+            id="sb_helper",
+            branch_name="feat/helper2",
+            base_commit="def",
+            sandbox_path=fs.base_path / "sb_helper2",
+            status=SandboxStatus.ACTIVE,
+        )
+        with repo.session() as session:
+            with pytest.raises(ValueError, match="Duplicate sandbox"):
+                repo._commit(session, dup, "Duplicate sandbox")
+
+        # Delete where matches
+        with repo.session() as session:
+            stmt = select(SandboxRecord).where(SandboxRecord.id == "sb_helper")
+            assert repo._delete_where(session, stmt) is True
+
+        # Delete where missing
+        with repo.session() as session:
+            stmt = select(SandboxRecord).where(SandboxRecord.id == "sb_helper")
+            assert repo._delete_where(session, stmt) is False

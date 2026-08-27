@@ -10,9 +10,13 @@ from worktree.core.db.connection import (
     get_engine,
     get_session,
     resolve_db_path,
+    sqlite_url,
 )
 from worktree.core.db.facade import WorktreeDb
-from worktree.core.db.migrations import init_database
+from worktree.core.db.migrations import (
+    INITIAL_SCHEMA_REVISION,
+    init_database,
+)
 from worktree.core.db.models import (
     BlueprintKind,
     CatalogItemType,
@@ -33,6 +37,7 @@ from worktree.core.db.repositories import (
 
 __all__ = [
     "DEFAULT_DB_REL_PATH",
+    "INITIAL_SCHEMA_REVISION",
     "BaseRepository",
     "BlueprintKind",
     "CatalogItemType",
@@ -52,4 +57,5 @@ __all__ = [
     "get_session",
     "init_database",
     "resolve_db_path",
+    "sqlite_url",
 ]

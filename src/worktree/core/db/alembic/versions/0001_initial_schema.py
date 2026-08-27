@@ -12,8 +12,10 @@ import sqlalchemy as sa
 from alembic import op
 from sqlmodel import AutoString
 
+from worktree.core.db.migrations import INITIAL_SCHEMA_REVISION
+
 # revision identifiers, used by Alembic.
-revision: str = "0001_initial_schema"
+revision: str = INITIAL_SCHEMA_REVISION
 down_revision: str | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None

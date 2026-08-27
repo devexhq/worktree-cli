@@ -31,11 +31,16 @@ def _set_sqlite_pragmas(dbapi_connection: Any, connection_record: Any) -> None:
     cursor.close()
 
 
+def sqlite_url(path: Path) -> str:
+    """Format an SQLite database file path as a SQLAlchemy connection URL."""
+    return f"sqlite:///{path}"
+
+
 def get_engine(db_path: Path) -> Engine:
     """Create a SQLModel/SQLAlchemy engine configured with SQLite WAL pragmas."""
     db_path.parent.mkdir(parents=True, exist_ok=True)
     engine = create_engine(
-        f"sqlite:///{db_path}",
+        sqlite_url(db_path),
         connect_args={"check_same_thread": False},
         poolclass=NullPool,
     )

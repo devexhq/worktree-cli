@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 
 from worktree.core.db.models import BlueprintKind, RunRecord, RunStatus
@@ -49,16 +48,11 @@ class RunsRepository(BaseRepository):
         )
 
         with self.session() as session:
-            session.add(record)
-            try:
-                session.commit()
-            except IntegrityError as exc:
-                session.rollback()
-                raise ValueError(
-                    f"Run with session_id '{session_id}' already exists or failed constraints: {exc}"
-                ) from exc
-            session.refresh(record)
-            return record
+            return self._commit(
+                session,
+                record,
+                f"Run with session_id '{session_id}' already exists or failed constraints",
+            )
 
     def get(self, session_id: str) -> RunRecord | None:
         """Return the run record matching session_id, or None."""
@@ -98,15 +92,11 @@ class RunsRepository(BaseRepository):
             if checkpoint_json is not None:
                 record.checkpoint_json = checkpoint_json
 
-            session.add(record)
-            try:
-                session.commit()
-            except IntegrityError as exc:
-                session.rollback()
-                raise ValueError(f"Invalid status update constraint: {exc}") from exc
-
-            session.refresh(record)
-            return record
+            return self._commit(
+                session,
+                record,
+                f"Invalid status update constraint for session '{session_id}'",
+            )
 
     def save_pause(
         self,
