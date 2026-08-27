@@ -108,7 +108,7 @@ class TestBaseRepository:
             loaded = session.exec(select(SandboxRecord).where(SandboxRecord.id == "sb_base_repo")).first()
             assert loaded is not None
             assert loaded.branch_name == "feature/repo"
-            assert loaded.path == fs.base_path / "sandboxes" / "sb_base_repo"
+            assert loaded.sandbox_path == fs.base_path / "sandboxes" / "sb_base_repo"
 
     def test_base_repository_explicit_init_db(self, fs: FileSystem) -> None:
         repo = BaseRepository(path=fs.base_path, auto_init=False)

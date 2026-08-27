@@ -66,6 +66,29 @@ class DatabaseTests:
         assert totals["total_tokens"] == 0
         assert totals["total_usd_cost"] == 0.0
 
+    def test_record_token_usage_missing_id_raises_runtime_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from typing import Any
+
+        from sqlmodel import Session
+
+        original_refresh = Session.refresh
+
+        def fake_refresh(session_self: Session, instance: Any, *args: object, **kwargs: object) -> None:
+            original_refresh(session_self, instance, *args, **kwargs)
+            instance.id = None
+
+        monkeypatch.setattr(Session, "refresh", fake_refresh)
+
+        with pytest.raises(RuntimeError, match="Failed to retrieve generated id"):
+            self.db.costs.record_token_usage(
+                session_id="s_err",
+                branch_name="feature",
+                model_id="m",
+                prompt_tokens=10,
+                completion_tokens=5,
+                estimated_usd_cost=0.01,
+            )
+
 
 class SandboxDatabaseTests:
     """Tests for sandboxes table CRUD helpers."""

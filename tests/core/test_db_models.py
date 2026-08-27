@@ -34,7 +34,7 @@ class TestSQLModelRecords:
         assert "workflow_costs" in tables
 
     def test_sandbox_record_field_validation_and_path_coercion(self) -> None:
-        """Verify SandboxRecord coerces str paths to Path and supports path property."""
+        """Verify SandboxRecord coerces str paths to Path."""
         record_from_str = SandboxRecord(
             id="sbx_1",
             name="test-sandbox",
@@ -45,7 +45,6 @@ class TestSQLModelRecords:
         )
         assert isinstance(record_from_str.sandbox_path, Path)
         assert record_from_str.sandbox_path == Path("/tmp/sbx_1")
-        assert record_from_str.path == Path("/tmp/sbx_1")
         assert str(record_from_str.sandbox_path) == "/tmp/sbx_1"
         assert record_from_str.created_at
         assert record_from_str.updated_at

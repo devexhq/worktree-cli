@@ -108,19 +108,6 @@ class CatalogRepository(BaseRepository):
             statement = select(CatalogRecord).where(CatalogRecord.sha == sha)
             return session.exec(statement).first()
 
-    def get_by_name(
-        self,
-        name: str,
-        item_type: CatalogItemType | str | None = None,
-    ) -> CatalogRecord | None:
-        """Return the catalog record matching ``name`` (and optional ``item_type``), or ``None``."""
-        with self.session() as session:
-            statement = select(CatalogRecord).where(CatalogRecord.name == name)
-            if item_type is not None:
-                type_enum = _coerce_item_type(item_type)
-                statement = statement.where(CatalogRecord.item_type == type_enum)
-            return session.exec(statement).first()
-
     def list_by_name(
         self,
         name: str,

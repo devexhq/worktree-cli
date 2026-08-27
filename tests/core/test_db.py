@@ -248,14 +248,14 @@ class TestCatalogRepository:
         by_sha = self.db.catalog.get_by_sha("workflow_1234567")
         assert by_sha == rec
 
-        by_name = self.db.catalog.get_by_name("workflow_a")
-        assert by_name == rec
+        by_name = self.db.catalog.list_by_name("workflow_a")
+        assert by_name == [rec]
 
-        by_name_and_type = self.db.catalog.get_by_name(
+        by_name_and_type = self.db.catalog.list_by_name(
             "workflow_a",
             item_type=CatalogItemType.WORKFLOW,
         )
-        assert by_name_and_type == rec
+        assert by_name_and_type == [rec]
 
         by_path = self.db.catalog.get_by_path(path)
         assert by_path == rec
@@ -292,7 +292,7 @@ class TestCatalogRepository:
 
     def test_get_missing_catalog_item_returns_none(self, fs: FileSystem) -> None:
         assert self.db.catalog.get_by_sha("missing") is None
-        assert self.db.catalog.get_by_name("missing_name") is None
+        assert self.db.catalog.list_by_name("missing_name") == []
         assert self.db.catalog.get_by_path("missing_path.yaml") is None
 
     def test_list_catalog_items_filtering(self, fs: FileSystem) -> None:
@@ -347,9 +347,6 @@ class TestCatalogRepository:
 
         with pytest.raises(ValueError, match="constraint"):
             self.db.catalog.list_by_name("name", item_type="invalid_type")
-
-        with pytest.raises(ValueError, match="constraint"):
-            self.db.catalog.get_by_name("name", item_type="invalid_type")
 
     def test_delete_catalog_item(self, fs: FileSystem) -> None:
         self.db.catalog.upsert(
