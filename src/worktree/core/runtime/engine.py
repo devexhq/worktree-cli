@@ -293,7 +293,17 @@ def _execute_one_step(
     """
     while True:
         _notify_step_start(context, idx, total, step)
-        result = execute_step(step, sandbox_path=state.target_dir, context=step_context)
+        on_output = (
+            (lambda stream_name, line: _notify_step_output(context, idx, total, step, line, stream=stream_name))
+            if context.observer is not None
+            else None
+        )
+        result = execute_step(
+            step,
+            sandbox_path=state.target_dir,
+            context=step_context,
+            on_output=on_output,
+        )
         _notify_step_done(context, idx, total, result)
         if result.ok:
             return "continue", result, None

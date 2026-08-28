@@ -355,3 +355,164 @@ class StepRunnerAssertionTests:
         assert res.exit_code == 0
         assert res.error_message is not None
         assert "failed assertion checks" in res.error_message
+
+
+class StepRunnerStreamingOutputTests:
+    """Unit tests for real-time subprocess stdout/stderr line streaming and timeout retention."""
+
+    def test_execute_command_step_streams_stdout(self, fs: FileSystem) -> None:
+        step = StepDefinition(
+            id="stream-stdout",
+            type=StepType.COMMAND,
+            command="python3 -c \"print('line 1'); print('line 2'); print('line 3')\"",
+        )
+        streamed: list[tuple[str, str]] = []
+
+        res = execute_step(
+            step,
+            sandbox_path=fs.base_path,
+            on_output=lambda stream, line: streamed.append((stream, line)),
+        )
+
+        assert res.ok is True
+        assert res.status == "completed"
+        assert res.exit_code == 0
+        assert res.stdout == "line 1\nline 2\nline 3\n"
+        assert streamed == [
+            ("stdout", "line 1\n"),
+            ("stdout", "line 2\n"),
+            ("stdout", "line 3\n"),
+        ]
+
+    def test_execute_command_step_streams_stderr(self, fs: FileSystem) -> None:
+        step = StepDefinition(
+            id="stream-stderr",
+            type=StepType.COMMAND,
+            command="python3 -c \"import sys; sys.stderr.write('err 1\\nerr 2\\n'); sys.stderr.flush()\"",
+        )
+        streamed: list[tuple[str, str]] = []
+
+        res = execute_step(
+            step,
+            sandbox_path=fs.base_path,
+            on_output=lambda stream, line: streamed.append((stream, line)),
+        )
+
+        assert res.ok is True
+        assert res.exit_code == 0
+        assert res.stderr == "err 1\nerr 2\n"
+        assert streamed == [
+            ("stderr", "err 1\n"),
+            ("stderr", "err 2\n"),
+        ]
+
+    def test_execute_command_step_streams_interleaved_stdout_and_stderr(self, fs: FileSystem) -> None:
+        cmd = (
+            'python3 -c "'
+            "import sys; "
+            "print('out 1', flush=True); "
+            "sys.stderr.write('err 1\\n'); sys.stderr.flush(); "
+            "print('out 2', flush=True); "
+            "sys.stderr.write('err 2\\n'); sys.stderr.flush()"
+            '"'
+        )
+        step = StepDefinition(id="interleaved", type=StepType.COMMAND, command=cmd)
+        streamed: list[tuple[str, str]] = []
+
+        res = execute_step(
+            step,
+            sandbox_path=fs.base_path,
+            on_output=lambda stream, line: streamed.append((stream, line)),
+        )
+
+        assert res.ok is True
+        assert "out 1\nout 2\n" == res.stdout
+        assert "err 1\nerr 2\n" == res.stderr
+        assert ("stdout", "out 1\n") in streamed
+        assert ("stderr", "err 1\n") in streamed
+        assert ("stdout", "out 2\n") in streamed
+        assert ("stderr", "err 2\n") in streamed
+
+    def test_execute_command_step_large_output_no_deadlock(self, fs: FileSystem) -> None:
+        # Emit large chunks on both stdout and stderr (over 100KB each) to ensure no pipe deadlocks
+        cmd = (
+            'python3 -c "import sys\n'
+            "for i in range(2000):\n"
+            "    print('stdout line ' + str(i))\n"
+            "    sys.stderr.write('stderr line ' + str(i) + '\\n')\n"
+            '"'
+        )
+        step = StepDefinition(id="large-burst", type=StepType.COMMAND, command=cmd)
+        lines_received: list[str] = []
+
+        res = execute_step(
+            step,
+            sandbox_path=fs.base_path,
+            on_output=lambda stream, line: lines_received.append(line),
+        )
+
+        assert res.ok is True
+        assert len(lines_received) == 4000
+        assert res.stdout.count("\n") == 2000
+        assert res.stderr.count("\n") == 2000
+
+    def test_execute_command_step_timeout_retains_partial_output_and_exit_124(self, fs: FileSystem) -> None:
+        cmd = (
+            'python3 -c "'
+            "import time, sys; "
+            "print('initial stdout line', flush=True); "
+            "sys.stderr.write('initial stderr line\\n'); sys.stderr.flush(); "
+            "time.sleep(5)"
+            '"'
+        )
+        step = StepDefinition(id="timeout-partial", type=StepType.COMMAND, command=cmd, timeout_seconds=1)
+        streamed: list[tuple[str, str]] = []
+
+        res = execute_step(
+            step,
+            sandbox_path=fs.base_path,
+            on_output=lambda stream, line: streamed.append((stream, line)),
+        )
+
+        assert res.ok is False
+        assert res.status == "failed"
+        assert res.exit_code == 124
+        assert "timed out" in (res.error_message or "").lower()
+        assert "initial stdout line\n" == res.stdout
+        assert "initial stderr line\n" == res.stderr
+        assert ("stdout", "initial stdout line\n") in streamed
+        assert ("stderr", "initial stderr line\n") in streamed
+
+    def test_execute_command_step_timeout_terminates_process_tree(self, fs: FileSystem) -> None:
+        marker = fs.base_path / "tree_alive.txt"
+        cmd = f"python3 -c \"import time, pathlib; pathlib.Path('{marker}').write_text('running'); time.sleep(10)\""
+        step = StepDefinition(id="tree-timeout", type=StepType.COMMAND, command=cmd, timeout_seconds=1)
+
+        res = execute_step(step, sandbox_path=fs.base_path)
+        assert res.ok is False
+        assert res.exit_code == 124
+        assert marker.read_text() == "running"
+
+    def test_execute_script_step_streams_output(self, fs: FileSystem) -> None:
+        fs.write_file(
+            "stream_script.py",
+            "import sys\nprint('script stdout line')\nsys.stderr.write('script stderr line\\n')\n",
+        )
+        step = StepDefinition(
+            id="script-stream",
+            type=StepType.SCRIPT,
+            script_path="stream_script.py",
+        )
+        streamed: list[tuple[str, str]] = []
+
+        res = execute_step(
+            step,
+            sandbox_path=fs.base_path,
+            on_output=lambda stream, line: streamed.append((stream, line)),
+        )
+
+        assert res.ok is True
+        assert res.stdout == "script stdout line\n"
+        assert res.stderr == "script stderr line\n"
+        assert ("stdout", "script stdout line\n") in streamed
+        assert ("stderr", "script stderr line\n") in streamed

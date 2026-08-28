@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import os
+import signal
 import subprocess
 import sys
+import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 
 from pydantic import BaseModel
 
@@ -67,41 +70,54 @@ def _failed_dispatch(
     )
 
 
-def _decode_captured_output(value: bytes | str | None) -> str:
-    if isinstance(value, bytes):
-        return value.decode("utf-8", errors="replace")
-    return value or ""
+def _terminate_process_tree(proc: subprocess.Popen[str]) -> None:
+    """Terminate or kill a subprocess and its child process tree."""
+    try:
+        if hasattr(os, "killpg"):
+            try:
+                pgid = os.getpgid(proc.pid)
+                os.killpg(pgid, signal.SIGKILL)
+                return
+            except (ProcessLookupError, PermissionError, OSError):
+                pass
+        proc.kill()
+    except (ProcessLookupError, PermissionError, OSError):
+        pass
 
 
-def _outcome_from_subprocess(
-    result: subprocess.CompletedProcess[str],
-    *,
-    failure_label: str,
-) -> StepDispatchOutcome:
-    stdout = result.stdout or ""
-    stderr = result.stderr or ""
-    if result.returncode == 0:
-        return StepDispatchOutcome(status="completed", exit_code=0, stdout=stdout, stderr=stderr)
-    return _failed_dispatch(
-        f"{failure_label} failed with exit code {result.returncode}.",
-        exit_code=result.returncode,
-        stdout=stdout,
-        stderr=stderr,
-    )
+def _dispatch_pipe_line(
+    line: str,
+    stream_name: str,
+    lines_acc: list[str],
+    on_output: Callable[[str, str], None] | None,
+) -> None:
+    lines_acc.append(line)
+    if on_output is not None:
+        try:
+            on_output(stream_name, line)
+        except Exception:
+            pass
 
 
-def _timeout_dispatch_outcome(
-    exc: subprocess.TimeoutExpired,
-    *,
-    step_kind: str,
-    timeout_seconds: int | float | None,
-) -> StepDispatchOutcome:
-    return _failed_dispatch(
-        f"{step_kind} step execution timed out after {timeout_seconds} seconds.",
-        exit_code=124,
-        stdout=_decode_captured_output(exc.stdout),
-        stderr=_decode_captured_output(exc.stderr),
-    )
+def _stream_pipe(
+    pipe: IO[str] | None,
+    stream_name: str,
+    lines_acc: list[str],
+    on_output: Callable[[str, str], None] | None,
+) -> None:
+    """Read lines from pipe, accumulate them, and invoke on_output callback."""
+    if pipe is None:
+        return
+    try:
+        for line in iter(pipe.readline, ""):
+            _dispatch_pipe_line(line, stream_name, lines_acc, on_output)
+    except Exception:
+        pass
+    finally:
+        try:
+            pipe.close()
+        except Exception:
+            pass
 
 
 def _run_process(
@@ -112,21 +128,72 @@ def _run_process(
     timeout_seconds: int | float | None,
     failure_label: str,
     step_kind: str,
+    on_output: Callable[[str, str], None] | None = None,
 ) -> StepDispatchOutcome:
     try:
-        result = subprocess.run(
+        proc = subprocess.Popen(
             cmd,
             shell=shell,
             cwd=cwd,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=timeout_seconds,
+            bufsize=1,
+            start_new_session=(sys.platform != "win32"),
         )
-        return _outcome_from_subprocess(result, failure_label=failure_label)
-    except subprocess.TimeoutExpired as exc:
-        return _timeout_dispatch_outcome(exc, step_kind=step_kind, timeout_seconds=timeout_seconds)
     except Exception as exc:
         return _failed_dispatch(f"{failure_label} execution error: {exc}")
+
+    stdout_lines: list[str] = []
+    stderr_lines: list[str] = []
+
+    t_out = threading.Thread(
+        target=_stream_pipe,
+        args=(proc.stdout, "stdout", stdout_lines, on_output),
+        daemon=True,
+    )
+    t_err = threading.Thread(
+        target=_stream_pipe,
+        args=(proc.stderr, "stderr", stderr_lines, on_output),
+        daemon=True,
+    )
+    t_out.start()
+    t_err.start()
+
+    timed_out = False
+    exit_code = 0
+    try:
+        exit_code = proc.wait(timeout=timeout_seconds)
+    except subprocess.TimeoutExpired:
+        timed_out = True
+        _terminate_process_tree(proc)
+        try:
+            exit_code = proc.wait(timeout=5)
+        except Exception:
+            pass
+
+    t_out.join(timeout=2)
+    t_err.join(timeout=2)
+
+    stdout = "".join(stdout_lines)
+    stderr = "".join(stderr_lines)
+
+    if timed_out:
+        return _failed_dispatch(
+            f"{step_kind} step execution timed out after {timeout_seconds} seconds.",
+            exit_code=124,
+            stdout=stdout,
+            stderr=stderr,
+        )
+
+    if exit_code == 0:
+        return StepDispatchOutcome(status="completed", exit_code=0, stdout=stdout, stderr=stderr)
+    return _failed_dispatch(
+        f"{failure_label} failed with exit code {exit_code}.",
+        exit_code=exit_code,
+        stdout=stdout,
+        stderr=stderr,
+    )
 
 
 def _resolve_script_invocation(script_file: Path) -> tuple[str | list[str], bool]:
@@ -139,7 +206,11 @@ def _resolve_script_invocation(script_file: Path) -> tuple[str | list[str], bool
     return str(script_file), True
 
 
-def _execute_command_step(step: StepDefinition, sandbox_path: Path) -> StepDispatchOutcome:
+def _execute_command_step(
+    step: StepDefinition,
+    sandbox_path: Path,
+    on_output: Callable[[str, str], None] | None = None,
+) -> StepDispatchOutcome:
     """Execute a COMMAND step inside sandbox_path."""
     if not step.command:
         return _failed_dispatch("Command step has no command string defined.")
@@ -150,10 +221,15 @@ def _execute_command_step(step: StepDefinition, sandbox_path: Path) -> StepDispa
         timeout_seconds=step.timeout_seconds,
         failure_label="Command",
         step_kind="Command",
+        on_output=on_output,
     )
 
 
-def _execute_script_step(step: StepDefinition, sandbox_path: Path) -> StepDispatchOutcome:
+def _execute_script_step(
+    step: StepDefinition,
+    sandbox_path: Path,
+    on_output: Callable[[str, str], None] | None = None,
+) -> StepDispatchOutcome:
     """Execute a SCRIPT step inside sandbox_path."""
     if not step.script_path:
         return _failed_dispatch("Script step has no script_path defined.")
@@ -170,11 +246,15 @@ def _execute_script_step(step: StepDefinition, sandbox_path: Path) -> StepDispat
         timeout_seconds=step.timeout_seconds,
         failure_label="Script",
         step_kind="Script",
+        on_output=on_output,
     )
 
 
 def _execute_agent_step(
-    step: StepDefinition, sandbox_path: Path, context: dict[str, Any] | None
+    step: StepDefinition,
+    sandbox_path: Path,
+    context: dict[str, Any] | None,
+    on_output: Callable[[str, str], None] | None = None,
 ) -> StepDispatchOutcome:
     """Execute an AGENT step inside sandbox_path."""
     provider = (context or {}).get("agent") or "local"
@@ -182,21 +262,29 @@ def _execute_agent_step(
         _ = get_agent_adapter(provider)
         # Check if adapter has prompt method or general interface
         stdout = f"Agent prompt executed with tools: {step.tools}"
+        if on_output is not None:
+            try:
+                on_output("stdout", stdout)
+            except Exception:
+                pass
         return StepDispatchOutcome(status="completed", exit_code=0, stdout=stdout, stderr="")
     except Exception as exc:
         return _failed_dispatch(f"Agent provider error: {exc}")
 
 
 def _dispatch_step_primitive(
-    step: StepDefinition, sandbox_path: Path, context: dict[str, Any] | None
+    step: StepDefinition,
+    sandbox_path: Path,
+    context: dict[str, Any] | None,
+    on_output: Callable[[str, str], None] | None = None,
 ) -> StepDispatchOutcome:
     """Run the step's primitive type once and return its raw dispatch outcome."""
     if step.type == StepType.COMMAND:
-        return _execute_command_step(step, sandbox_path)
+        return _execute_command_step(step, sandbox_path, on_output=on_output)
     if step.type == StepType.SCRIPT:
-        return _execute_script_step(step, sandbox_path)
+        return _execute_script_step(step, sandbox_path, on_output=on_output)
     if step.type == StepType.AGENT:
-        return _execute_agent_step(step, sandbox_path, context)
+        return _execute_agent_step(step, sandbox_path, context, on_output=on_output)
     return _failed_dispatch(f"Unsupported step primitive type '{step.type}'.")
 
 
@@ -289,12 +377,13 @@ def _run_step_attempts(
     sandbox_path: Path,
     context: dict[str, Any] | None,
     max_attempts: int,
+    on_output: Callable[[str, str], None] | None = None,
 ) -> StepDispatchOutcome:
     """Dispatch the step up to max_attempts times, sleeping backoff_ms between failures."""
     backoff_ms = step.on_failure.backoff_ms
     outcome = _failed_dispatch("Step did not run.")
     for attempt in range(1, max_attempts + 1):
-        outcome = _dispatch_step_primitive(step, sandbox_path, context)
+        outcome = _dispatch_step_primitive(step, sandbox_path, context, on_output=on_output)
         outcome = outcome.model_copy(update={"attempts": attempt})
         outcome = _apply_assertions(step, outcome, sandbox_path)
         if outcome.status == "completed":
@@ -308,6 +397,7 @@ def execute_step(
     step: StepDefinition,
     sandbox_path: Path,
     context: dict[str, Any] | None = None,
+    on_output: Callable[[str, str], None] | None = None,
 ) -> StepResult:
     """Execute a step definition inside sandbox_path.
 
@@ -315,6 +405,7 @@ def execute_step(
         step: StepDefinition instance to execute.
         sandbox_path: Isolated directory path for execution.
         context: Optional dictionary containing execution context or handlers.
+        on_output: Optional callback invoked with (stream_name, line) for each line emitted.
 
     Returns:
         Populated StepResult instance.
@@ -329,7 +420,7 @@ def execute_step(
 
     step, max_attempts = _prepare_step_for_execution(step, sandbox_path, context)
     start_time = time.monotonic()
-    outcome = _run_step_attempts(step, sandbox_path, context, max_attempts)
+    outcome = _run_step_attempts(step, sandbox_path, context, max_attempts, on_output=on_output)
     duration = time.monotonic() - start_time
 
     if outcome.status == "completed":

@@ -686,7 +686,7 @@ Functions in `core/step/services/` (re-exported from `worktree.core.step`):
 
 ### Step Execution Engine
 
-`execute_step(step: StepDefinition, sandbox_path: Path, context: dict | None = None) -> StepResult`:
+`execute_step(step: StepDefinition, sandbox_path: Path, context: dict | None = None, on_output: Callable[[str, str], None] | None = None) -> StepResult`:
 
 - Resolves `uses`/`run` steps via `resolve_step_definition()` before dispatch, then
   interpolates `${{ inputs.* }}` placeholders when `context["inputs"]` is set.
