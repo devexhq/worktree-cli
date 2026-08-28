@@ -171,6 +171,7 @@ Every step execution receives the complete set of `WT_*` environment variables. 
 | `WT_PREVIOUS_STEP_INDEX` | `previous_step.index` | 1-based index of the previous step (empty on first step). |
 | `WT_PREVIOUS_STEP_STATUS` | `previous_step.status` | Recorded status of previous step (`completed`, `failed`, `ignored`). |
 | `WT_PREVIOUS_STEP_EXIT_CODE` | `previous_step.exit_code` | Decimal exit code of previous step (`0`, `1`, etc.; empty on first step). |
+| `WT_STEPS_JSON` | `steps` | JSON array of all finished step metadata objects in run order (`[]` when none finished yet). |
 
 ### Environment Precedence
 
@@ -183,8 +184,21 @@ When resolving environment variables for step execution:
 
 Step fields (`run`, `command`, `prompt`, `script_path`, and `env`) can reference execution metadata using `{{ <namespace>.<field> }}` or `${{ <namespace>.<field> }}` syntax:
 
+* **Current Step**: `{{ step.id }}`, `{{ step.name }}`, `{{ step.index }}`, `{{ step.attempt }}`
+* **Task / Workflow**: `{{ task.name }}`, `{{ task.sha }}`, `{{ workflow.name }}`, `{{ workflow.sha }}`
+* **Immediate Previous Step**: `{{ previous_step.id }}`, `{{ previous_step.name }}`, `{{ previous_step.index }}`, `{{ previous_step.status }}`, `{{ previous_step.exit_code }}`
+* **Historical Steps (`steps`)**: Access any prior completed step by 0-based index (`steps[0]`), Python-style negative index (`steps[-1]`), or step ID (`steps.<id>` or `steps['<id>']`):
+  * `{{ steps[0].id }}`: First completed step ID
+  * `{{ steps[-1].status }}`: Most recently finished step status (equivalent to `{{ previous_step.status }}`)
+  * `{{ steps.build.exit_code }}`: Exit code of step with `id: build`
+  * Historical steps contain only completed/finished steps — the in-flight current step is never included in `steps`. Out-of-range indices or unknown step IDs resolve safely to an empty string.
+
 ```yaml
 steps:
+  - id: setup
+    name: Setup environment
+    run: echo "Initializing..."
+
   - id: test-with-retry
     name: Run flaky test suite
     run: |
@@ -199,8 +213,11 @@ steps:
       max_retries: 2
 
   - id: report-status
-    name: Report previous outcome
-    run: echo "Previous step {{ previous_step.id }} finished with status {{ previous_step.status }}"
+    name: Report historical outcomes
+    run: |
+      echo "First step was {{ steps[0].id }} with status {{ steps[0].status }}"
+      echo "Test step {{ steps.test-with-retry.id }} exit code: {{ steps.test-with-retry.exit_code }}"
+      echo "Previous step {{ previous_step.id }} finished with status {{ steps[-1].status }}"
 ```
 
 ---

@@ -129,6 +129,56 @@ class InputInterpolateTests:
             == "scripts/hello_2.sh"
         )
 
+    def test_interpolate_string_with_historical_steps(self) -> None:
+        s0 = PreviousStepMetadata(id="step-init", name="Init Step", index="1", status="completed", exit_code="0")
+        s1 = PreviousStepMetadata(id="step-build", name="Build Step", index="2", status="failed", exit_code="2")
+        metadata = ExecutionMetadata(
+            step=StepMetadata(id="step-deploy", name="Deploy Step", index=3, attempt=1),
+            previous_step=s1,
+            steps=[s0, s1],
+        )
+
+        template = (
+            "first_id={{ steps[0].id }} first_idx={{ steps[0].index }} first_status={{ steps[0].status }} "
+            "last_id={{ steps[-1].id }} last_idx={{ steps[-1].index }} last_status={{ steps[-1].status }} "
+            "prev_status={{ previous_step.status }} "
+            "by_id_build_code={{ steps.step-build.exit_code }} "
+            "by_bracket_id={{ steps['step-init'].status }} "
+            "by_unquoted_id={{ steps[step-build].status }}"
+        )
+        rendered = interpolate_string(template, metadata=metadata)
+        assert rendered == (
+            "first_id=step-init first_idx=1 first_status=completed "
+            "last_id=step-build last_idx=2 last_status=failed "
+            "prev_status=failed "
+            "by_id_build_code=2 "
+            "by_bracket_id=completed "
+            "by_unquoted_id=failed"
+        )
+
+    def test_interpolate_historical_steps_out_of_range_and_missing_yields_empty(self) -> None:
+        s0 = PreviousStepMetadata(id="step-init", name="Init Step", index="1", status="completed", exit_code="0")
+        metadata = ExecutionMetadata(
+            step=StepMetadata(id="step-test", index=2, attempt=1),
+            previous_step=s0,
+            steps=[s0],
+        )
+
+        template = "out={{ steps[5].status }} neg_out={{ steps[-5].id }} missing_id={{ steps.unknown.exit_code }}"
+        rendered = interpolate_string(template, metadata=metadata)
+        assert rendered == "out= neg_out= missing_id="
+
+    def test_interpolate_empty_historical_steps_yields_empty(self) -> None:
+        metadata = ExecutionMetadata(
+            step=StepMetadata(id="step-init", index=1, attempt=1),
+            previous_step=PreviousStepMetadata(),
+            steps=[],
+        )
+
+        template = "first={{ steps[0].id }} last={{ steps[-1].status }} named={{ steps.build.exit_code }}"
+        rendered = interpolate_string(template, metadata=metadata)
+        assert rendered == "first= last= named="
+
     def test_interpolate_step_fields_noop_without_inputs_or_metadata(self) -> None:
         step = StepDefinition(id="s1", type=StepType.COMMAND, command="echo hi")
         assert interpolate_step_fields(step) is step

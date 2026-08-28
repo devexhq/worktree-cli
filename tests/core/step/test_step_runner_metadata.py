@@ -87,3 +87,27 @@ class StepExecutionMetadataIntegrationTests:
 
         assert result.ok is True
         assert "4:1" in result.stdout
+
+    def test_step_execution_with_historical_steps_env_and_interpolation(self, fs: FileSystem) -> None:
+        step = StepDefinition(
+            id="third_step",
+            type=StepType.COMMAND,
+            command='echo "FIRST={{ steps[0].id }} LAST={{ steps[-1].status }} BUILD_CODE={{ steps.build_step.exit_code }} JSON=$WT_STEPS_JSON"',
+            env={"STEP0_NAME": "{{ steps[0].name }}"},
+        )
+        s0 = PreviousStepMetadata(id="setup_step", name="Setup Step", index="1", status="completed", exit_code="0")
+        s1 = PreviousStepMetadata(id="build_step", name="Build Step", index="2", status="completed", exit_code="0")
+
+        result = StepExecution(
+            step,
+            sandbox_path=fs.base_path,
+            step_index=3,
+            steps=[s0, s1],
+        ).run()
+
+        assert result.ok is True
+        assert "FIRST=setup_step" in result.stdout
+        assert "LAST=completed" in result.stdout
+        assert "BUILD_CODE=0" in result.stdout
+        assert '"id": "setup_step"' in result.stdout
+        assert '"id": "build_step"' in result.stdout

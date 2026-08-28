@@ -330,6 +330,7 @@ class ExecutionMetadata(BaseModel):
     task: TaskMetadata = Field(default_factory=TaskMetadata)
     workflow: WorkflowMetadata = Field(default_factory=WorkflowMetadata)
     previous_step: PreviousStepMetadata = Field(default_factory=PreviousStepMetadata)
+    steps: list[PreviousStepMetadata] = Field(default_factory=list)
 
 
 class StepDispatchOutcome(BaseModel):

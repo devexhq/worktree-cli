@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+from collections.abc import Sequence
+
 from worktree.core.step.models import (
     ExecutionIdentity,
     ExecutionMetadata,
@@ -21,6 +24,7 @@ def build_execution_metadata(
     attempt: int = 1,
     identity: ExecutionIdentity | None = None,
     previous_step: PreviousStepMetadata | None = None,
+    steps: Sequence[PreviousStepMetadata] | None = None,
 ) -> ExecutionMetadata:
     """Build structured execution metadata for a single step attempt."""
     step_metadata = StepMetadata(
@@ -37,18 +41,25 @@ def build_execution_metadata(
         if identity is not None
         else WorkflowMetadata()
     )
-    prior_metadata = previous_step if previous_step is not None else PreviousStepMetadata()
+    historical_steps = list(steps) if steps is not None else []
+    if previous_step is not None:
+        prior_metadata = previous_step
+    elif historical_steps:
+        prior_metadata = historical_steps[-1]
+    else:
+        prior_metadata = PreviousStepMetadata()
 
     return ExecutionMetadata(
         step=step_metadata,
         task=task_metadata,
         workflow=workflow_metadata,
         previous_step=prior_metadata,
+        steps=historical_steps,
     )
 
 
 def metadata_to_env(metadata: ExecutionMetadata) -> dict[str, str]:
-    """Format full WT_* process environment variable map. All 13 keys always present."""
+    """Format full WT_* process environment variable map. All 14 keys always present."""
     return {
         "WT_STEP_ID": metadata.step.id,
         "WT_STEP_NAME": metadata.step.name,
@@ -63,6 +74,7 @@ def metadata_to_env(metadata: ExecutionMetadata) -> dict[str, str]:
         "WT_PREVIOUS_STEP_INDEX": metadata.previous_step.index,
         "WT_PREVIOUS_STEP_STATUS": metadata.previous_step.status,
         "WT_PREVIOUS_STEP_EXIT_CODE": metadata.previous_step.exit_code,
+        "WT_STEPS_JSON": json.dumps([item.model_dump() for item in metadata.steps]),
     }
 
 
