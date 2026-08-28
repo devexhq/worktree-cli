@@ -516,3 +516,35 @@ class StepRunnerStreamingOutputTests:
         assert res.stderr == "script stderr line\n"
         assert ("stdout", "script stdout line\n") in streamed
         assert ("stderr", "script stderr line\n") in streamed
+
+    def test_execute_command_step_handles_on_output_callback_error(self, fs: FileSystem) -> None:
+        step = StepDefinition(
+            id="cmd-callback-err",
+            type=StepType.COMMAND,
+            command="echo hello",
+        )
+
+        def failing_callback(stream: str, line: str) -> None:
+            raise RuntimeError("callback crashed")
+
+        res = execute_step(step, sandbox_path=fs.base_path, on_output=failing_callback)
+        assert res.ok is False
+        assert res.status == "failed"
+        assert "callback crashed" in (res.error_message or "")
+        assert "Output callback error" in (res.error_message or "")
+
+    def test_execute_agent_step_handles_on_output_callback_error(self, fs: FileSystem) -> None:
+        step = StepDefinition(
+            id="agent-callback-err",
+            type=StepType.AGENT,
+            prompt="Do task",
+        )
+
+        def failing_callback(stream: str, line: str) -> None:
+            raise ValueError("agent callback fail")
+
+        res = execute_step(step, sandbox_path=fs.base_path, on_output=failing_callback)
+        assert res.ok is False
+        assert res.status == "failed"
+        assert "agent callback fail" in (res.error_message or "")
+        assert "Agent output callback error" in (res.error_message or "")

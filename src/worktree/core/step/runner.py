@@ -79,9 +79,11 @@ def _terminate_process_tree(proc: subprocess.Popen[str]) -> None:
                 os.killpg(pgid, signal.SIGKILL)
                 return
             except (ProcessLookupError, PermissionError, OSError):
+                # Best-effort fallback: process group already terminated or inaccessible.
                 pass
         proc.kill()
     except (ProcessLookupError, PermissionError, OSError):
+        # Best-effort cleanup: process already exited or PID not found.
         pass
 
 
@@ -90,13 +92,14 @@ def _dispatch_pipe_line(
     stream_name: str,
     lines_acc: list[str],
     on_output: Callable[[str, str], None] | None,
+    errors_acc: list[str],
 ) -> None:
     lines_acc.append(line)
     if on_output is not None:
         try:
             on_output(stream_name, line)
-        except Exception:
-            pass
+        except Exception as exc:
+            errors_acc.append(f"Output callback error on {stream_name}: {exc}")
 
 
 def _stream_pipe(
@@ -104,19 +107,21 @@ def _stream_pipe(
     stream_name: str,
     lines_acc: list[str],
     on_output: Callable[[str, str], None] | None,
+    errors_acc: list[str],
 ) -> None:
     """Read lines from pipe, accumulate them, and invoke on_output callback."""
     if pipe is None:
         return
     try:
         for line in iter(pipe.readline, ""):
-            _dispatch_pipe_line(line, stream_name, lines_acc, on_output)
-    except Exception:
-        pass
+            _dispatch_pipe_line(line, stream_name, lines_acc, on_output, errors_acc)
+    except Exception as exc:
+        errors_acc.append(f"Failed reading {stream_name} stream: {exc}")
     finally:
         try:
             pipe.close()
         except Exception:
+            # Best-effort cleanup: closing stream pipe during termination.
             pass
 
 
@@ -146,15 +151,16 @@ def _run_process(
 
     stdout_lines: list[str] = []
     stderr_lines: list[str] = []
+    pipe_errors: list[str] = []
 
     t_out = threading.Thread(
         target=_stream_pipe,
-        args=(proc.stdout, "stdout", stdout_lines, on_output),
+        args=(proc.stdout, "stdout", stdout_lines, on_output, pipe_errors),
         daemon=True,
     )
     t_err = threading.Thread(
         target=_stream_pipe,
-        args=(proc.stderr, "stderr", stderr_lines, on_output),
+        args=(proc.stderr, "stderr", stderr_lines, on_output, pipe_errors),
         daemon=True,
     )
     t_out.start()
@@ -170,6 +176,7 @@ def _run_process(
         try:
             exit_code = proc.wait(timeout=5)
         except Exception:
+            # Best-effort wait: process tree was killed; exit code defaults to 124.
             pass
 
     t_out.join(timeout=2)
@@ -177,6 +184,15 @@ def _run_process(
 
     stdout = "".join(stdout_lines)
     stderr = "".join(stderr_lines)
+
+    if pipe_errors:
+        error_details = "; ".join(pipe_errors)
+        return _failed_dispatch(
+            f"{failure_label} pipe error: {error_details}",
+            exit_code=exit_code if exit_code != 0 else 1,
+            stdout=stdout,
+            stderr=stderr,
+        )
 
     if timed_out:
         return _failed_dispatch(
@@ -265,8 +281,8 @@ def _execute_agent_step(
         if on_output is not None:
             try:
                 on_output("stdout", stdout)
-            except Exception:
-                pass
+            except Exception as exc:
+                return _failed_dispatch(f"Agent output callback error: {exc}", stdout=stdout)
         return StepDispatchOutcome(status="completed", exit_code=0, stdout=stdout, stderr="")
     except Exception as exc:
         return _failed_dispatch(f"Agent provider error: {exc}")
