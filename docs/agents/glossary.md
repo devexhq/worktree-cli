@@ -7,7 +7,7 @@ treating this list as a second source of truth for field-level detail.
 - **Step** — the smallest executable unit: a command, agent prompt, or script,
   with an optional `assert` block and `on_failure` policy. Model:
   `StepDefinition` ([schemas-and-config.md](schemas-and-config.md#stepdefinition-model)).
-  Runner: `execute_step`.
+  Runner: `StepExecution.run`.
 - **Loop step** — a step-list wrapper that repeats its `do: []` steps until a
   condition or `max_iterations`. Model: `LoopStepBlock`. Not currently
   executable by the live `Engine` — see

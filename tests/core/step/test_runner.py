@@ -1,7 +1,13 @@
 import pytest
 
 from tests.helpers import FileSystem
-from worktree.core.step import StepAssert, StepDefinition, StepResult, StepType, execute_step
+from worktree.core.step import (
+    StepAssert,
+    StepDefinition,
+    StepExecution,
+    StepResult,
+    StepType,
+)
 
 
 class StepResultModelTests:
@@ -49,7 +55,7 @@ class StepRunnerExecutionTests:
             command="echo 'hello world'",
         )
 
-        res = execute_step(step, sandbox_path=fs.base_path)
+        res = StepExecution(step, sandbox_path=fs.base_path).run()
         assert res.ok is True
         assert res.status == "completed"
         assert res.exit_code == 0
@@ -64,7 +70,7 @@ class StepRunnerExecutionTests:
             on_failure="abort",
         )
 
-        res = execute_step(step, sandbox_path=fs.base_path)
+        res = StepExecution(step, sandbox_path=fs.base_path).run()
         assert res.ok is False
         assert res.status == "failed"
         assert res.exit_code == 42
@@ -79,7 +85,7 @@ class StepRunnerExecutionTests:
             on_failure="continue",
         )
 
-        res = execute_step(step, sandbox_path=fs.base_path)
+        res = StepExecution(step, sandbox_path=fs.base_path).run()
         assert res.ok is True
         assert res.status == "ignored"
         assert res.exit_code == 0
@@ -93,7 +99,7 @@ class StepRunnerExecutionTests:
             timeout_seconds=1,
         )
 
-        res = execute_step(step, sandbox_path=fs.base_path)
+        res = StepExecution(step, sandbox_path=fs.base_path).run()
         assert res.ok is False
         assert res.status == "failed"
         assert "timed out" in (res.error_message or "").lower()
@@ -107,7 +113,7 @@ class StepRunnerExecutionTests:
             script_path="test_script.py",
         )
 
-        res = execute_step(step, sandbox_path=fs.base_path)
+        res = StepExecution(step, sandbox_path=fs.base_path).run()
         assert res.ok is True
         assert res.status == "completed"
         assert "script output" in res.stdout
@@ -119,7 +125,7 @@ class StepRunnerExecutionTests:
             script_path="nonexistent.sh",
         )
 
-        res = execute_step(step, sandbox_path=fs.base_path)
+        res = StepExecution(step, sandbox_path=fs.base_path).run()
         assert res.ok is False
         assert res.status == "failed"
         assert "not found" in (res.error_message or "").lower()
@@ -127,14 +133,14 @@ class StepRunnerExecutionTests:
     def test_execute_agent_step_defaults_to_local_provider(self, fs: FileSystem) -> None:
         step = StepDefinition(id="agent_step", type=StepType.AGENT, prompt="Fix bugs")
 
-        res = execute_step(step, sandbox_path=fs.base_path)
+        res = StepExecution(step, sandbox_path=fs.base_path).run()
         assert res.ok is True
         assert res.status == "completed"
 
     def test_execute_agent_step_uses_context_provider_override(self, fs: FileSystem) -> None:
         step = StepDefinition(id="agent_step", type=StepType.AGENT, prompt="Fix bugs")
 
-        res = execute_step(step, sandbox_path=fs.base_path, context={"agent": "ollama"})
+        res = StepExecution(step, sandbox_path=fs.base_path, context={"agent": "ollama"}).run()
         assert res.ok is True
 
     def test_execute_step_invalid_sandbox_path(self, fs: FileSystem) -> None:
@@ -145,7 +151,7 @@ class StepRunnerExecutionTests:
             command="echo 1",
         )
 
-        res = execute_step(step, sandbox_path=nonexistent)
+        res = StepExecution(step, sandbox_path=nonexistent).run()
         assert res.ok is False
         assert res.status == "failed"
         assert "does not exist" in (res.error_message or "").lower()
@@ -153,7 +159,7 @@ class StepRunnerExecutionTests:
     def test_execute_step_resolves_run_shorthand(self, fs: FileSystem) -> None:
         step = StepDefinition(id="run-step", run="echo from-run")
 
-        res = execute_step(step, sandbox_path=fs.base_path)
+        res = StepExecution(step, sandbox_path=fs.base_path).run()
         assert res.ok is True
         assert "from-run" in res.stdout
 
@@ -162,7 +168,7 @@ class StepRunnerExecutionTests:
 
         step = StepDefinition(id="uses-step", uses="greet")
 
-        res = execute_step(step, sandbox_path=fs.base_path)
+        res = StepExecution(step, sandbox_path=fs.base_path).run()
         assert res.ok is True
         assert "from-uses" in res.stdout
 
@@ -173,11 +179,11 @@ class StepRunnerExecutionTests:
             command="echo '${{ inputs.message }}'",
         )
 
-        res = execute_step(
+        res = StepExecution(
             step,
             sandbox_path=fs.base_path,
             context={"inputs": {"message": "interpolated-value"}},
-        )
+        ).run()
         assert res.ok is True
         assert "interpolated-value" in res.stdout
 
@@ -193,7 +199,7 @@ class StepRunnerRetryTests:
             on_failure={"action": "retry", "max_retries": 2},
         )
 
-        res = execute_step(step, sandbox_path=fs.base_path)
+        res = StepExecution(step, sandbox_path=fs.base_path).run()
         assert res.ok is False
         assert res.status == "failed"
         assert res.attempts == 2
@@ -206,7 +212,7 @@ class StepRunnerRetryTests:
             on_failure={"action": "retry", "max_retries": 2, "on_max_retries": "continue"},
         )
 
-        res = execute_step(step, sandbox_path=fs.base_path)
+        res = StepExecution(step, sandbox_path=fs.base_path).run()
         assert res.ok is True
         assert res.status == "ignored"
         assert res.attempts == 2
@@ -234,7 +240,7 @@ class StepRunnerRetryTests:
             on_failure={"action": "retry", "max_retries": 3, "backoff_ms": 250},
         )
 
-        res = execute_step(step, sandbox_path=fs.base_path)
+        res = StepExecution(step, sandbox_path=fs.base_path).run()
         assert res.attempts == 3
         assert sleep_calls == [0.25, 0.25]
 
@@ -254,7 +260,7 @@ class StepRunnerRetryTests:
             on_failure="retry",
         )
 
-        res = execute_step(step, sandbox_path=fs.base_path)
+        res = StepExecution(step, sandbox_path=fs.base_path).run()
         assert res.ok is True
         assert res.status == "completed"
         assert res.exit_code == 0
@@ -275,7 +281,7 @@ class StepRunnerAssertionTests:
             assert_=StepAssert(file_exists="dist/app.bin"),
         )
 
-        res = execute_step(step, sandbox_path=fs.base_path)
+        res = StepExecution(step, sandbox_path=fs.base_path).run()
         assert res.ok is False
         assert res.status == "failed"
         assert res.exit_code == 0
@@ -302,7 +308,7 @@ class StepRunnerAssertionTests:
             on_failure={"action": "retry", "max_retries": 3, "backoff_ms": 0},
         )
 
-        res = execute_step(step, sandbox_path=fs.base_path)
+        res = StepExecution(step, sandbox_path=fs.base_path).run()
         assert res.ok is True
         assert res.status == "completed"
         assert res.exit_code == 0
@@ -319,7 +325,7 @@ class StepRunnerAssertionTests:
             on_failure="continue",
         )
 
-        res = execute_step(step, sandbox_path=fs.base_path)
+        res = StepExecution(step, sandbox_path=fs.base_path).run()
         assert res.ok is True
         assert res.status == "ignored"
         assert res.exit_code == 0
@@ -335,7 +341,7 @@ class StepRunnerAssertionTests:
             assert_=StepAssert(file_exists="dist/app.bin"),
         )
 
-        res = execute_step(step, sandbox_path=fs.base_path)
+        res = StepExecution(step, sandbox_path=fs.base_path).run()
         assert res.ok is True
         assert res.status == "completed"
         assert res.exit_code == 0
@@ -349,9 +355,202 @@ class StepRunnerAssertionTests:
             assert_=StepAssert(output_contains="never-present-token"),
         )
 
-        res = execute_step(step, sandbox_path=fs.base_path)
+        res = StepExecution(step, sandbox_path=fs.base_path).run()
         assert res.ok is False
         assert res.status == "failed"
         assert res.exit_code == 0
         assert res.error_message is not None
         assert "failed assertion checks" in res.error_message
+
+
+class StepRunnerStreamingOutputTests:
+    """Unit tests for real-time subprocess stdout/stderr line streaming and timeout retention."""
+
+    def test_execute_command_step_streams_stdout(self, fs: FileSystem) -> None:
+        step = StepDefinition(
+            id="stream-stdout",
+            type=StepType.COMMAND,
+            command="python3 -c \"print('line 1'); print('line 2'); print('line 3')\"",
+        )
+        streamed: list[tuple[str, str]] = []
+
+        res = StepExecution(
+            step,
+            sandbox_path=fs.base_path,
+            on_output=lambda stream, line: streamed.append((stream, line)),
+        ).run()
+
+        assert res.ok is True
+        assert res.status == "completed"
+        assert res.exit_code == 0
+        assert res.stdout == "line 1\nline 2\nline 3\n"
+        assert streamed == [
+            ("stdout", "line 1\n"),
+            ("stdout", "line 2\n"),
+            ("stdout", "line 3\n"),
+        ]
+
+    def test_execute_command_step_streams_stderr(self, fs: FileSystem) -> None:
+        step = StepDefinition(
+            id="stream-stderr",
+            type=StepType.COMMAND,
+            command="python3 -c \"import sys; sys.stderr.write('err 1\\nerr 2\\n'); sys.stderr.flush()\"",
+        )
+        streamed: list[tuple[str, str]] = []
+
+        res = StepExecution(
+            step,
+            sandbox_path=fs.base_path,
+            on_output=lambda stream, line: streamed.append((stream, line)),
+        ).run()
+
+        assert res.ok is True
+        assert res.exit_code == 0
+        assert res.stderr == "err 1\nerr 2\n"
+        assert streamed == [
+            ("stderr", "err 1\n"),
+            ("stderr", "err 2\n"),
+        ]
+
+    def test_execute_command_step_streams_interleaved_stdout_and_stderr(self, fs: FileSystem) -> None:
+        cmd = (
+            'python3 -c "'
+            "import sys; "
+            "print('out 1', flush=True); "
+            "sys.stderr.write('err 1\\n'); sys.stderr.flush(); "
+            "print('out 2', flush=True); "
+            "sys.stderr.write('err 2\\n'); sys.stderr.flush()"
+            '"'
+        )
+        step = StepDefinition(id="interleaved", type=StepType.COMMAND, command=cmd)
+        streamed: list[tuple[str, str]] = []
+
+        res = StepExecution(
+            step,
+            sandbox_path=fs.base_path,
+            on_output=lambda stream, line: streamed.append((stream, line)),
+        ).run()
+
+        assert res.ok is True
+        assert "out 1\nout 2\n" == res.stdout
+        assert "err 1\nerr 2\n" == res.stderr
+        assert ("stdout", "out 1\n") in streamed
+        assert ("stderr", "err 1\n") in streamed
+        assert ("stdout", "out 2\n") in streamed
+        assert ("stderr", "err 2\n") in streamed
+
+    def test_execute_command_step_large_output_no_deadlock(self, fs: FileSystem) -> None:
+        # Emit large chunks on both stdout and stderr (over 100KB each) to ensure no pipe deadlocks
+        cmd = (
+            'python3 -c "import sys\n'
+            "for i in range(2000):\n"
+            "    print('stdout line ' + str(i))\n"
+            "    sys.stderr.write('stderr line ' + str(i) + '\\n')\n"
+            '"'
+        )
+        step = StepDefinition(id="large-burst", type=StepType.COMMAND, command=cmd)
+        lines_received: list[str] = []
+
+        res = StepExecution(
+            step,
+            sandbox_path=fs.base_path,
+            on_output=lambda stream, line: lines_received.append(line),
+        ).run()
+
+        assert res.ok is True
+        assert len(lines_received) == 4000
+        assert res.stdout.count("\n") == 2000
+        assert res.stderr.count("\n") == 2000
+
+    def test_execute_command_step_timeout_retains_partial_output_and_exit_124(self, fs: FileSystem) -> None:
+        cmd = (
+            'python3 -c "'
+            "import time, sys; "
+            "print('initial stdout line', flush=True); "
+            "sys.stderr.write('initial stderr line\\n'); sys.stderr.flush(); "
+            "time.sleep(5)"
+            '"'
+        )
+        step = StepDefinition(id="timeout-partial", type=StepType.COMMAND, command=cmd, timeout_seconds=1)
+        streamed: list[tuple[str, str]] = []
+
+        res = StepExecution(
+            step,
+            sandbox_path=fs.base_path,
+            on_output=lambda stream, line: streamed.append((stream, line)),
+        ).run()
+
+        assert res.ok is False
+        assert res.status == "failed"
+        assert res.exit_code == 124
+        assert "timed out" in (res.error_message or "").lower()
+        assert "initial stdout line\n" == res.stdout
+        assert "initial stderr line\n" == res.stderr
+        assert ("stdout", "initial stdout line\n") in streamed
+        assert ("stderr", "initial stderr line\n") in streamed
+
+    def test_execute_command_step_timeout_terminates_process_tree(self, fs: FileSystem) -> None:
+        marker = fs.base_path / "tree_alive.txt"
+        cmd = f"python3 -c \"import time, pathlib; pathlib.Path('{marker}').write_text('running'); time.sleep(10)\""
+        step = StepDefinition(id="tree-timeout", type=StepType.COMMAND, command=cmd, timeout_seconds=1)
+
+        res = StepExecution(step, sandbox_path=fs.base_path).run()
+        assert res.ok is False
+        assert res.exit_code == 124
+        assert marker.read_text() == "running"
+
+    def test_execute_script_step_streams_output(self, fs: FileSystem) -> None:
+        fs.write_file(
+            "stream_script.py",
+            "import sys\nprint('script stdout line')\nsys.stderr.write('script stderr line\\n')\n",
+        )
+        step = StepDefinition(
+            id="script-stream",
+            type=StepType.SCRIPT,
+            script_path="stream_script.py",
+        )
+        streamed: list[tuple[str, str]] = []
+
+        res = StepExecution(
+            step,
+            sandbox_path=fs.base_path,
+            on_output=lambda stream, line: streamed.append((stream, line)),
+        ).run()
+
+        assert res.ok is True
+        assert res.stdout == "script stdout line\n"
+        assert res.stderr == "script stderr line\n"
+        assert ("stdout", "script stdout line\n") in streamed
+        assert ("stderr", "script stderr line\n") in streamed
+
+    def test_execute_command_step_handles_on_output_callback_error(self, fs: FileSystem) -> None:
+        step = StepDefinition(
+            id="cmd-callback-err",
+            type=StepType.COMMAND,
+            command="echo hello",
+        )
+
+        def failing_callback(stream: str, line: str) -> None:
+            raise RuntimeError("callback crashed")
+
+        res = StepExecution(step, sandbox_path=fs.base_path, on_output=failing_callback).run()
+        assert res.ok is False
+        assert res.status == "failed"
+        assert "callback crashed" in (res.error_message or "")
+        assert "Output callback error" in (res.error_message or "")
+
+    def test_execute_agent_step_handles_on_output_callback_error(self, fs: FileSystem) -> None:
+        step = StepDefinition(
+            id="agent-callback-err",
+            type=StepType.AGENT,
+            prompt="Do task",
+        )
+
+        def failing_callback(stream: str, line: str) -> None:
+            raise ValueError("agent callback fail")
+
+        res = StepExecution(step, sandbox_path=fs.base_path, on_output=failing_callback).run()
+        assert res.ok is False
+        assert res.status == "failed"
+        assert "agent callback fail" in (res.error_message or "")
+        assert "Agent output callback error" in (res.error_message or "")

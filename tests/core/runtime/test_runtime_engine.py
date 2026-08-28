@@ -22,6 +22,7 @@ from worktree.core.runtime import (
     FailurePromptDecision,
     RunCheckpoint,
     RunContext,
+    RunObserver,
     run_steps,
 )
 from worktree.core.step import FailurePolicy, FailureSpec, StepDefinition, StepResult
@@ -47,7 +48,7 @@ def patch_execute(
     monkeypatch: pytest.MonkeyPatch,
     behavior: Any = None,
 ) -> list[str]:
-    """Patch engine.execute_step and return the list of executed step ids.
+    """Patch engine.StepExecution and return the list of executed step ids.
 
     ``behavior`` may be:
     - a StepResult (returned for every call, step_id rewritten)
@@ -67,22 +68,31 @@ def patch_execute(
                     raise AssertionError(f"scripted results for {step_id!r} must all be StepResult instances")
                 queues[str(step_id)] = scripted
 
-    def fake_execute(
-        step: StepDefinition,
-        sandbox_path: Path,
-        context: dict[str, Any] | None = None,
-    ) -> StepResult:
-        calls.append(step.id)
-        resolved = _resolve_execute_behavior(step, behavior, queues)
-        if isinstance(resolved, type) and issubclass(resolved, BaseException):
-            raise resolved()
-        if isinstance(resolved, BaseException):
-            raise resolved
-        return resolved
+    class FakeStepExecution:
+        def __init__(
+            self,
+            step: StepDefinition,
+            sandbox_path: Path,
+            context: dict[str, Any] | None = None,
+            on_output: Any = None,
+        ) -> None:
+            self.step = step
+            self.sandbox_path = sandbox_path
+            self.context = context
+            self.on_output = on_output
+
+        def run(self) -> StepResult:
+            calls.append(self.step.id)
+            resolved = _resolve_execute_behavior(self.step, behavior, queues)
+            if isinstance(resolved, type) and issubclass(resolved, BaseException):
+                raise resolved()
+            if isinstance(resolved, BaseException):
+                raise resolved
+            return resolved
 
     import worktree.core.runtime.engine as engine_mod
 
-    monkeypatch.setattr(engine_mod, "execute_step", fake_execute)
+    monkeypatch.setattr(engine_mod, "StepExecution", FakeStepExecution)
     return calls
 
 
@@ -202,6 +212,31 @@ class RuntimeEngineExecutionTests:
         assert all(result.ok for result in outcome.step_results)
         assert outcome.sandbox_path == fs.base_path.resolve()
         assert outcome.sandbox_kept is False
+
+    def test_run_steps_streams_output_to_observer(self, fs: FileSystem) -> None:
+        observer = MagicMock(spec=RunObserver)
+        step1 = make_cmd_step(
+            step_id="s1",
+            command="python3 -c \"print('line 1'); print('line 2')\"",
+        )
+        step2 = make_cmd_step(
+            step_id="s2",
+            command="python3 -c \"import sys; sys.stderr.write('err 1\\n')\"",
+        )
+        outcome = run_steps(
+            make_run_context(
+                fs=fs,
+                steps=[step1, step2],
+                observer=observer,
+            )
+        )
+
+        assert outcome.ok is True
+        assert len(outcome.step_results) == 2
+
+        observer.on_step_output.assert_any_call(1, 2, step1, "line 1\n", stream="stdout")
+        observer.on_step_output.assert_any_call(1, 2, step1, "line 2\n", stream="stdout")
+        observer.on_step_output.assert_any_call(2, 2, step2, "err 1\n", stream="stderr")
 
     def test_run_steps_success_with_sandbox(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
