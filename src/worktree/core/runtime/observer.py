@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 import time
+from collections import deque
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from rich.console import Group
 from rich.live import Live
+from rich.panel import Panel
 from rich.table import Table
+from rich.text import Text
 
 from worktree.common.utils import RichOutput
 from worktree.core.runtime.models import RunObserver
@@ -16,6 +21,8 @@ from worktree.core.step import StepDefinition, StepResult
 
 if TYPE_CHECKING:
     from types import TracebackType
+
+DEFAULT_OUTPUT_BUFFER_SIZE: int = 8
 
 
 @dataclass
@@ -84,12 +91,57 @@ def build_live_step_table(
     return table
 
 
+def build_live_output_panel(
+    step_name: str,
+    lines: Sequence[str],
+) -> Panel:
+    """Build a framed Rich Panel displaying buffered live step output lines.
+
+    Args:
+        step_name: The display name or label of the active step.
+        lines: Sequence of recently captured output lines.
+
+    Returns:
+        A Rich Panel with title "Output: <step_name>".
+    """
+    body_text = Text.from_ansi("\n".join(lines)) if lines else Text("")
+    return Panel(body_text, title=f"Output: {step_name}", title_align="left")
+
+
+def build_live_renderable(
+    steps: list[LiveStepItem],
+    *,
+    active_step_name: str | None = None,
+    output_lines: Sequence[str] | None = None,
+    sandbox_info: str | None = None,
+    now: float | None = None,
+) -> Table | Group:
+    """Build the composite Rich renderable with step progress table and optional output panel.
+
+    Args:
+        steps: List of LiveStepItem instances.
+        active_step_name: Optional name of the currently running step.
+        output_lines: Optional buffered lines for the active step.
+        sandbox_info: Optional string describing sandbox state.
+        now: Optional monotonic timestamp for testing.
+
+    Returns:
+        A Rich Group containing the table and output panel when an active step is running,
+        or just the Table otherwise.
+    """
+    table = build_live_step_table(steps, sandbox_info=sandbox_info, now=now)
+    if active_step_name is not None:
+        panel = build_live_output_panel(active_step_name, output_lines or [])
+        return Group(table, Text(""), panel)
+    return table
+
+
 def _format_failure_detail(result: StepResult) -> str:
-    err_msg = result.error_message or f"Command failed with exit code {result.exit_code}."
+    error_message = result.error_message or f"Command failed with exit code {result.exit_code}."
     detail = (result.stderr or result.stdout or "").strip()
-    if detail and detail not in err_msg:
-        return f"{err_msg}\n{detail}"
-    return err_msg
+    if detail and detail not in error_message:
+        return f"{error_message}\n{detail}"
+    return error_message
 
 
 def _resolve_step_duration(item: LiveStepItem, result: StepResult, now: float) -> float | None:
@@ -128,6 +180,17 @@ class CliRunObserver(RunObserver):
         cmd_info = f" (command: {step.run})" if step.run else ""
         self.output.add_line(f"[STEP {idx}/{total}] Executing {step_label}{cmd_info}...")
 
+    def on_step_output(
+        self,
+        idx: int,
+        total: int,
+        step: StepDefinition,
+        line: str,
+        stream: str = "stdout",
+    ) -> None:
+        """Handle live output emitted by a running step (no-op for non-live CLI output)."""
+        pass
+
     def on_step_done(self, idx: int, total: int, result: StepResult) -> None:
         """Report step completion or failure to the CLI."""
         step_label = result.step_id
@@ -146,17 +209,25 @@ class CliRunObserver(RunObserver):
 
 
 class LiveRunObserver(RunObserver):
-    """Observer adapter displaying live execution progress with Rich Live."""
+    """Observer adapter displaying live execution progress and output tail with Rich Live."""
 
-    def __init__(self, output: RichOutput | None = None) -> None:
+    def __init__(
+        self,
+        output: RichOutput | None = None,
+        *,
+        output_buffer_size: int = DEFAULT_OUTPUT_BUFFER_SIZE,
+    ) -> None:
         self.output = output or RichOutput()
         self.sandbox_info: str | None = None
         self.steps: list[LiveStepItem] = []
+        self.output_buffer_size = output_buffer_size
+        self._active_step_name: str | None = None
+        self._active_output: deque[str] = deque(maxlen=output_buffer_size)
         self._live: Live | None = None
 
     def __enter__(self) -> LiveRunObserver:
         self._live = Live(
-            build_live_step_table(self.steps, sandbox_info=self.sandbox_info),
+            self._build_renderable(),
             console=self.output.console,
             refresh_per_second=4,
             transient=False,
@@ -171,7 +242,9 @@ class LiveRunObserver(RunObserver):
         exc_tb: TracebackType | None,
     ) -> None:
         if self._live is not None:
-            self._live.update(build_live_step_table(self.steps, sandbox_info=self.sandbox_info))
+            self._active_step_name = None
+            self._active_output.clear()
+            self._live.update(self._build_renderable())
             self._live.__exit__(exc_type, exc_val, exc_tb)
             self._live = None
 
@@ -189,6 +262,8 @@ class LiveRunObserver(RunObserver):
         """Report step start progress to the CLI."""
         step_label = step.name or step.id
         now = time.monotonic()
+        self._active_step_name = step_label
+        self._active_output.clear()
         item = LiveStepItem(
             idx=idx,
             total=total,
@@ -200,15 +275,30 @@ class LiveRunObserver(RunObserver):
         self.steps.append(item)
         self._refresh()
 
+    def on_step_output(
+        self,
+        idx: int,
+        total: int,
+        step: StepDefinition,
+        line: str,
+        stream: str = "stdout",
+    ) -> None:
+        """Handle live output emitted by the running step."""
+        step_label = step.name or step.id
+        self._active_step_name = step_label
+        self._active_output.append(line.rstrip("\r\n"))
+        self._refresh()
+
     def on_step_done(self, idx: int, total: int, result: StepResult) -> None:
         """Report step completion or failure to the CLI."""
-        if not self.steps:
-            return
-        current = self.steps[-1]
-        current.status = "completed" if result.ok else "failed"
-        current.duration = _resolve_step_duration(current, result, time.monotonic())
-        if not result.ok:
-            current.error_message = _format_failure_detail(result)
+        if self.steps:
+            current = self.steps[-1]
+            current.status = "completed" if result.ok else "failed"
+            current.duration = _resolve_step_duration(current, result, time.monotonic())
+            if not result.ok:
+                current.error_message = _format_failure_detail(result)
+        self._active_step_name = None
+        self._active_output.clear()
         self._refresh()
 
     def on_sandbox_cleanup(self, kept: bool, path: Path) -> None:
@@ -218,17 +308,26 @@ class LiveRunObserver(RunObserver):
         else:
             self.output.add_line("Sandbox: Cleaned")
 
+    def _build_renderable(self) -> Table | Group:
+        return build_live_renderable(
+            self.steps,
+            active_step_name=self._active_step_name,
+            output_lines=list(self._active_output),
+            sandbox_info=self.sandbox_info,
+        )
+
     def _refresh(self) -> None:
         if self._live is not None:
-            self._live.update(build_live_step_table(self.steps, sandbox_info=self.sandbox_info))
+            self._live.update(self._build_renderable())
 
 
 def resolve_run_observer(
     output: RichOutput,
     *,
     non_interactive: bool = False,
+    output_buffer_size: int = DEFAULT_OUTPUT_BUFFER_SIZE,
 ) -> LiveRunObserver | CliRunObserver:
     """Return LiveRunObserver for interactive TTY terminals, else CliRunObserver."""
     if non_interactive or not output.console.is_terminal:
         return CliRunObserver(output)
-    return LiveRunObserver(output)
+    return LiveRunObserver(output, output_buffer_size=output_buffer_size)

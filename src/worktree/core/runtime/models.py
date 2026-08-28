@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field
 
@@ -107,6 +107,7 @@ class RunContext:
     resume_from: RunCheckpoint | None = None
 
 
+@runtime_checkable
 class RunObserver(Protocol):
     """Optional progress hooks for sandbox and step lifecycle events."""
 
@@ -116,6 +117,17 @@ class RunObserver(Protocol):
 
     def on_step_start(self, idx: int, total: int, step: StepDefinition) -> None:
         """Called immediately before a step begins."""
+        ...
+
+    def on_step_output(
+        self,
+        idx: int,
+        total: int,
+        step: StepDefinition,
+        line: str,
+        stream: str = "stdout",
+    ) -> None:
+        """Called when a running step emits a line of output."""
         ...
 
     def on_step_done(self, idx: int, total: int, result: StepResult) -> None:

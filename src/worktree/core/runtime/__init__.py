@@ -15,15 +15,19 @@ from worktree.core.runtime.models import (
     parse_checkpoint,
 )
 from worktree.core.runtime.observer import (
+    DEFAULT_OUTPUT_BUFFER_SIZE,
     CliRunObserver,
     LiveRunObserver,
     LiveStepItem,
+    build_live_output_panel,
+    build_live_renderable,
     build_live_step_table,
     resolve_run_observer,
 )
 from worktree.core.runtime.prompter import CliFailurePrompter
 
 __all__ = [
+    "DEFAULT_OUTPUT_BUFFER_SIZE",
     "USER_CONTINUED_MARKER",
     "CliFailurePrompter",
     "CliRunObserver",
@@ -38,6 +42,8 @@ __all__ = [
     "RunOutcome",
     "RunPauseStore",
     "StepLoopState",
+    "build_live_output_panel",
+    "build_live_renderable",
     "build_live_step_table",
     "effective_terminal_policy",
     "parse_checkpoint",
