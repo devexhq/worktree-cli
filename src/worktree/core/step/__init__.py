@@ -15,7 +15,7 @@ from worktree.core.step.models import (
     apply_on_failure_default,
     extract_defaults_on_failure,
 )
-from worktree.core.step.runner import StepResult, execute_step
+from worktree.core.step.runner import StepExecution, StepResult
 from worktree.core.step.services import (
     load_step_by_id,
     load_step_definition,
@@ -31,13 +31,13 @@ __all__ = [
     "LoopStepBlock",
     "StepAssert",
     "StepDefinition",
+    "StepExecution",
     "StepNotFoundError",
     "StepResult",
     "StepType",
     "StepValidationError",
     "apply_on_failure_default",
     "evaluate_assertions",
-    "execute_step",
     "extract_defaults_on_failure",
     "load_step_by_id",
     "load_step_definition",

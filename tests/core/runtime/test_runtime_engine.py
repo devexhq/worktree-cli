@@ -48,7 +48,7 @@ def patch_execute(
     monkeypatch: pytest.MonkeyPatch,
     behavior: Any = None,
 ) -> list[str]:
-    """Patch engine.execute_step and return the list of executed step ids.
+    """Patch engine.StepExecution and return the list of executed step ids.
 
     ``behavior`` may be:
     - a StepResult (returned for every call, step_id rewritten)
@@ -68,23 +68,31 @@ def patch_execute(
                     raise AssertionError(f"scripted results for {step_id!r} must all be StepResult instances")
                 queues[str(step_id)] = scripted
 
-    def fake_execute(
-        step: StepDefinition,
-        sandbox_path: Path,
-        context: dict[str, Any] | None = None,
-        on_output: Any = None,
-    ) -> StepResult:
-        calls.append(step.id)
-        resolved = _resolve_execute_behavior(step, behavior, queues)
-        if isinstance(resolved, type) and issubclass(resolved, BaseException):
-            raise resolved()
-        if isinstance(resolved, BaseException):
-            raise resolved
-        return resolved
+    class FakeStepExecution:
+        def __init__(
+            self,
+            step: StepDefinition,
+            sandbox_path: Path,
+            context: dict[str, Any] | None = None,
+            on_output: Any = None,
+        ) -> None:
+            self.step = step
+            self.sandbox_path = sandbox_path
+            self.context = context
+            self.on_output = on_output
+
+        def run(self) -> StepResult:
+            calls.append(self.step.id)
+            resolved = _resolve_execute_behavior(self.step, behavior, queues)
+            if isinstance(resolved, type) and issubclass(resolved, BaseException):
+                raise resolved()
+            if isinstance(resolved, BaseException):
+                raise resolved
+            return resolved
 
     import worktree.core.runtime.engine as engine_mod
 
-    monkeypatch.setattr(engine_mod, "execute_step", fake_execute)
+    monkeypatch.setattr(engine_mod, "StepExecution", FakeStepExecution)
     return calls
 
 

@@ -475,7 +475,7 @@ Immutable frozen dataclass. Read `core/runtime/models.py` for the exact field li
 `non_interactive`, `failure_prompter`, `pause_store`, `resume_from`). Non-obvious:
 
 - `inputs: dict[str, str | int | bool] | None` is the *resolved* input values
-  (post `resolve_inputs`), threaded into `execute_step`'s `context["inputs"]` for
+  (post `resolve_inputs`), threaded into `StepExecution`'s `context["inputs"]` for
   interpolation — not the blueprint's `inputs: dict[str, ParameterInput]`
   declarations.
 - `non_interactive`, `failure_prompter`, `pause_store`, and `resume_from` only
@@ -514,8 +514,8 @@ Flow in [src/worktree/core/runtime/engine.py](../../src/worktree/core/runtime/en
    `GitSandboxManager.create_sandbox_result()`. Setup failure returns
    `status=failed` with `error_message` and no steps run.
 2. **Step loop** (`_run_step_loop`): starts at `resume_from.next_step_index` when
-   resuming, else `0`. For each step, notify start, call `execute_step(step,
-   sandbox_path=target_dir, context=step_context)`, notify done. A failed
+   resuming, else `0`. For each step, notify start, call `StepExecution(step,
+   sandbox_path=target_dir, context=step_context).run()`, notify done. A failed
    `StepResult` triggers `_handle_failed_step`, which computes the effective
    terminal policy (see **Runtime failure orchestration** below) and either
    continues, aborts (`status=failed`), or invokes the failure prompter
@@ -686,7 +686,7 @@ Functions in `core/step/services/` (re-exported from `worktree.core.step`):
 
 ### Step Execution Engine
 
-`execute_step(step: StepDefinition, sandbox_path: Path, context: dict | None = None, on_output: Callable[[str, str], None] | None = None) -> StepResult`:
+`StepExecution(step: StepDefinition, sandbox_path: Path, context: dict | None = None, on_output: Callable[[str, str], None] | None = None).run() -> StepResult`:
 
 - Resolves `uses`/`run` steps via `resolve_step_definition()` before dispatch, then
   interpolates `${{ inputs.* }}` placeholders when `context["inputs"]` is set.
@@ -699,7 +699,7 @@ Functions in `core/step/services/` (re-exported from `worktree.core.step`):
 - Handles step-local `on_failure` recovery only:
   - `action == "retry"`: retries execution up to `max_retries` attempts, sleeping `backoff_ms` milliseconds between attempts. After the final failed attempt, evaluates `on_max_retries`: `continue` returns `status="ignored"` (`ok=True`); `abort`/`prompt_user` return `status="failed"`.
   - `action == "continue"` (no retry): a single failed attempt returns `status="ignored"` (`ok=True`).
-  - `action == "abort"` / `"prompt_user"` (no retry): a single failed attempt returns `status="failed"`. `execute_step` never opens an interactive prompt; `prompt_user` only classifies the attempt as terminal failure for runtime orchestration.
+  - `action == "abort"` / `"prompt_user"` (no retry): a single failed attempt returns `status="failed"`. `StepExecution` never opens an interactive prompt; `prompt_user` only classifies the attempt as terminal failure for runtime orchestration.
 - Returns `StepResult` (`core/step/runner.py`, `extra: "forbid", strict: True`):
   `step_id`, `status` (`completed`, `failed`, `ignored`), `exit_code`, `stdout`,
   `stderr`, `duration_seconds`, `attempts`, `error_message`. `ok` property returns
@@ -708,7 +708,7 @@ Functions in `core/step/services/` (re-exported from `worktree.core.step`):
 ### Runtime failure orchestration (`run_steps`)
 
 Multi-step stop/continue/prompt decisions live in `core/runtime/` (`run_steps`,
-`FailurePrompter`), not in `execute_step` and not in a second task/workflow
+`FailurePrompter`), not in `StepExecution` and not in a second task/workflow
 policy engine.
 
 When a step returns `status="failed"`, runtime computes the **effective terminal
@@ -724,7 +724,7 @@ Effective value is always terminal (`abort` / `continue` / `prompt_user`; never
 - `continue` on a `failed` result is defensive only (step-local continue already
   maps to `ignored`); runtime treats it as non-fatal and proceeds
 - `prompt_user` → invoke `RunContext.failure_prompter` when interactive; honor
-  retry (re-enter `execute_step` for the same step), continue (`ignored` +
+  retry (re-enter `StepExecution` for the same step), continue (`ignored` +
   `user continued after prompt_user` marker), or abort (`FAILED`). If a
   `pause_store` is configured, a `RunCheckpoint` is persisted immediately before
   the prompter is invoked (see **Pause, checkpoint, and resume** above), and a
@@ -737,8 +737,8 @@ warning and behaves as `abort` without blocking on stdin. Default when
 `failure_prompter is None` is abort (safe for library/CI callers).
 
 There is no run-level retry policy in YAML. The only automatic re-execution of a
-step primitive is inside `execute_step`; user-chosen retry at the prompt is a
-runtime re-entry of `execute_step` (full step-local budget applies again).
+step primitive is inside `StepExecution`; user-chosen retry at the prompt is a
+runtime re-entry of `StepExecution` (full step-local budget applies again).
 
 #### Assert Block
 

@@ -19,7 +19,7 @@ from worktree.core.runtime.models import (
     RunOutcome,
     StepLoopState,
 )
-from worktree.core.step import FailurePolicy, StepDefinition, StepResult, execute_step
+from worktree.core.step import FailurePolicy, StepDefinition, StepExecution, StepResult
 
 
 def _notify_sandbox_ready(context: RunContext, path: Path, *, active: bool) -> None:
@@ -298,12 +298,12 @@ def _execute_one_step(
             if context.observer is not None
             else None
         )
-        result = execute_step(
-            step,
+        result = StepExecution(
+            step=step,
             sandbox_path=state.target_dir,
             context=step_context,
             on_output=on_output,
-        )
+        ).run()
         _notify_step_done(context, idx, total, result)
         if result.ok:
             return "continue", result, None

@@ -66,7 +66,7 @@ Single-step execution: `core/step/` (`runner.py`). Multi-step orchestration:
 - **Inputs** (`core/inputs/`): `ParameterInput`, CLI resolve, `${{ inputs.* }}`
   interpolation. Must not import step/runtime/agents/patch.
 - **Step** (`core/step/`): `StepDefinition`, `StepAssert` / assertions,
-  `execute_step`, failure policy types used by blueprints. Must not import
+  `StepExecution`, failure policy types used by blueprints. Must not import
   runtime.
 - **Agents** (`core/agents/`): adapter protocol, provider implementations,
   and failure payload models. Must not import step/runtime.
