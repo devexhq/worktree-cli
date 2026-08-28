@@ -1,6 +1,8 @@
-# Configuration
+# Workspace Configuration
 
-Worktree (`wt`) relies on a local `.worktree/config.json` configuration file inside your project repository root along with an SQLite state database (`.worktree/data.db`) and blueprint catalog storage (`.worktree/catalog/`).
+Worktree (`wt`) operates with a local `.worktree/` directory in your Git repository root. This directory contains the configuration file (`config.json`), the SQLite state database (`data.db`), and the blueprint catalog (`catalog/`).
+
+---
 
 ## Workspace Setup (`wt init`)
 
@@ -14,9 +16,9 @@ This provisions the local `.worktree/` directory structure:
 
 ```text
 .worktree/
-├── config.json
-├── data.db
-└── catalog/
+├── config.json         # Workspace configuration settings
+├── data.db             # SQLite state database (runs, history, sessions)
+└── catalog/            # Project blueprint definitions
     ├── workflows/
     ├── tasks/
     └── steps/
@@ -35,9 +37,11 @@ wt init --repair
 wt init --overwrite
 ```
 
+---
+
 ## Workspace Status (`wt status`)
 
-Inspect current workspace status, database health, tracked sandboxes, and active workflow sessions:
+Inspect the current workspace status, database health, tracked sandboxes, and active sessions:
 
 ```bash
 wt status
@@ -48,13 +52,15 @@ Output includes:
 * Database path and session record counts.
 * Active and historical Git worktree sandboxes (`wt/` branches).
 
+---
+
 ## Managing Configuration (`wt config`)
 
 Inspect and modify your Worktree configuration directly using the `wt config` subcommands.
 
 ### Show Effective Configuration
 
-Display normalized effective configuration as JSON:
+Display normalized effective configuration as formatted JSON:
 
 ```bash
 wt config show
@@ -78,9 +84,11 @@ Validate `.worktree/config.json` against the schema and semantic rules:
 wt config validate
 ```
 
-## Canonical `.worktree/config.json` Schema (V1)
+---
 
-Below is the complete canonical V1 configuration structure:
+## Configuration Overview
+
+Below is the canonical `.worktree/config.json` structure:
 
 ```json
 {
@@ -132,9 +140,13 @@ Below is the complete canonical V1 configuration structure:
 }
 ```
 
-## API Keys & Provider Environment Setup
+For full details on each field and validation rule, see the [Project Config Schema Reference](../reference/config-schema.md).
 
-Worktree supports multiple LLM agent providers: `gemini`, `openai`, `anthropic`, `copilot`, `cursor`, `ollama`, and `local`. Environment variables supply provider credentials:
+---
+
+## API Keys & Environment Setup
+
+Worktree supports multiple LLM agent providers: `gemini`, `openai`, `anthropic`, `cursor`, `copilot`, `ollama`, and `local`. Environment variables supply provider credentials:
 
 ```bash
 # Gemini Provider
@@ -157,3 +169,5 @@ export OLLAMA_HOST="http://localhost:11434"
 ```
 
 For persistent environment setup, save provider credentials to your local shell profile (`.bashrc` / `.zshrc`) or local `.env` file (ensure `.env` is listed in `.gitignore`).
+
+For detailed configuration of each provider, see the [AI Agent Providers Guide](../guides/agent-providers.md).
