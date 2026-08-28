@@ -87,7 +87,7 @@ wt run test-runner --verbose
 
 ## Template Interpolation Syntax
 
-Inputs are referenced using the `${{ inputs.<name> }}` placeholder syntax.
+Inputs and runtime execution metadata are referenced using the `${{ <namespace>.<name> }}` or `{{ <namespace>.<name> }}` placeholder syntax.
 
 ### Supported Fields for Interpolation
 Interpolation is evaluated at runtime in the following step fields:
@@ -97,9 +97,11 @@ Interpolation is evaluated at runtime in the following step fields:
 * `script_path`: `script_path: scripts/${{ inputs.script_name }}.py`
 * `env`: String values inside step `env:` blocks.
 
-### Interpolation Behavior
-* If a declared input is resolved, its string representation replaces `${{ inputs.<name> }}`.
-* If a placeholder references a name not in `inputs`, the placeholder is preserved verbatim as literal text.
+### Interpolation Namespaces & Behavior
+* **Inputs**: `${{ inputs.<name> }}` or `{{ inputs.<name> }}` evaluates declared blueprint parameter values.
+* **Execution Metadata**: `step.*`, `task.*`, `workflow.*`, and `previous_step.*` evaluate runtime execution properties (see [Working with Steps](working-with-steps.md#runtime-execution-metadata--environment-variables)).
+* If a placeholder references an unknown name, the placeholder is preserved verbatim as literal text.
+
 
 ---
 
