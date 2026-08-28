@@ -32,6 +32,19 @@ def _notify_step_start(context: RunContext, idx: int, total: int, step: StepDefi
         context.observer.on_step_start(idx, total, step)
 
 
+def _notify_step_output(
+    context: RunContext,
+    idx: int,
+    total: int,
+    step: StepDefinition,
+    line: str,
+    *,
+    stream: str = "stdout",
+) -> None:
+    if context.observer is not None:
+        context.observer.on_step_output(idx, total, step, line, stream=stream)
+
+
 def _notify_step_done(context: RunContext, idx: int, total: int, result: StepResult) -> None:
     if context.observer is not None:
         context.observer.on_step_done(idx, total, result)

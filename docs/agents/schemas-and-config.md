@@ -485,9 +485,9 @@ Immutable frozen dataclass. Read `core/runtime/models.py` for the exact field li
 ### `RunObserver`
 
 Optional protocol hooks (no-ops when `observer is None`), defined in
-`core/runtime/models.py`: `on_sandbox_ready`, `on_step_start`, `on_step_done`,
-`on_sandbox_cleanup`. `core.runtime.observer` implements `LiveObserver` against
-Rich output.
+`core/runtime/models.py`: `on_sandbox_ready`, `on_step_start`, `on_step_output`,
+`on_step_done`, `on_sandbox_cleanup`. `core.runtime.observer` implements
+`LiveRunObserver` and `CliRunObserver` against Rich output.
 
 ### `RunOutcome`
 
