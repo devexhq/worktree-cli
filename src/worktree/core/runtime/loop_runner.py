@@ -1,0 +1,328 @@
+"""Sequential turn execution runner for declarative LoopStepBlock workflows."""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Sequence
+from pathlib import Path
+from typing import Any
+
+from worktree.core.runtime.failure import (
+    effective_terminal_policy,
+    mark_continued_after_prompt,
+    step_failure_diagnostic,
+)
+from worktree.core.runtime.models import (
+    FailurePromptDecision,
+    FailurePrompter,
+    LoopPromptDecision,
+    RunCheckpoint,
+    RunObserver,
+    RunPauseStore,
+    StepLoopState,
+)
+from worktree.core.step.models import (
+    ConditionEvaluationResult,
+    ExecutionIdentity,
+    FailurePolicy,
+    LoopStepBlock,
+    PreviousStepMetadata,
+    StepDefinition,
+    StepResult,
+)
+from worktree.core.step.runner import StepExecution
+from worktree.core.step.services.conditions import evaluate_condition
+from worktree.core.step.services.metadata import previous_step_metadata_from_result
+
+
+class LoopBlockRunner:
+    """Sequential turn execution runner for a LoopStepBlock."""
+
+    def __init__(
+        self,
+        loop: LoopStepBlock,
+        sandbox_path: Path,
+        *,
+        context: dict[str, Any] | None = None,
+        on_output: Callable[[str, str], None] | None = None,
+        observer: RunObserver | None = None,
+        failure_prompter: FailurePrompter | None = None,
+        non_interactive: bool = False,
+        pause_store: RunPauseStore | None = None,
+        step_index: int = 1,
+        identity: ExecutionIdentity | None = None,
+        resume_from: RunCheckpoint | None = None,
+    ) -> None:
+        self.loop = loop
+        self.sandbox_path = sandbox_path.resolve()
+        self.context = context or {}
+        self.on_output = on_output
+        self.observer = observer
+        self.failure_prompter = failure_prompter
+        self.non_interactive = non_interactive
+        self.pause_store = pause_store
+        self.step_index = step_index
+        self.identity = identity
+        self.resume_from = resume_from
+
+    def _notify_start(self, max_iterations: int) -> None:
+        if self.observer is not None and hasattr(self.observer, "on_loop_start"):
+            self.observer.on_loop_start(self.loop.id, max_iterations)
+
+    def _notify_turn(self, turn: int, max_iterations: int) -> None:
+        if self.observer is not None and hasattr(self.observer, "on_loop_turn_start"):
+            self.observer.on_loop_turn_start(self.loop.id, turn, max_iterations)
+
+    def _notify_done(self, status: str, turns: int) -> None:
+        if self.observer is not None and hasattr(self.observer, "on_loop_done"):
+            self.observer.on_loop_done(self.loop.id, status, turns)
+
+    def _notify_conditions(
+        self,
+        results: list[ConditionEvaluationResult],
+        all_passed: bool,
+        next_turn: int | None,
+    ) -> None:
+        if self.observer is not None and hasattr(self.observer, "on_loop_conditions_evaluated"):
+            self.observer.on_loop_conditions_evaluated(
+                self.loop.id,
+                results,
+                all_passed,
+                next_turn=next_turn,
+            )
+
+    def _build_step_context(self, turn: int) -> dict[str, Any]:
+        step_context = dict(self.context)
+        step_context["iteration_index"] = turn
+        return step_context
+
+    def _execute_sub_step_attempt(
+        self,
+        sub_step: StepDefinition,
+        *,
+        sub_idx: int,
+        turn: int,
+        attempt: int,
+        historical_steps: Sequence[PreviousStepMetadata],
+    ) -> StepResult:
+        obs = self.observer
+        if obs is not None:
+            obs.on_step_start(sub_idx, len(self.loop.do), sub_step)
+        on_output: Callable[[str, str], None] | None = (
+            (
+                lambda stream_name, line: obs.on_step_output(
+                    sub_idx, len(self.loop.do), sub_step, line, stream=stream_name
+                )
+            )
+            if obs is not None
+            else self.on_output
+        )
+        from worktree.core.step.models import FailureSpec
+
+        isolated_sub_step = sub_step.model_copy(update={"on_failure": FailureSpec(action=FailurePolicy.ABORT)})
+        execution = StepExecution(
+            step=isolated_sub_step,
+            sandbox_path=self.sandbox_path,
+            context=self._build_step_context(turn),
+            on_output=on_output,
+            step_index=sub_idx,
+            initial_attempt=attempt,
+            iteration_index=turn,
+            identity=self.identity,
+            steps=historical_steps,
+        )
+        result = execution.run()
+        if obs is not None:
+            obs.on_step_done(sub_idx, len(self.loop.do), result)
+        return result
+
+    def _prompt_sub_step_failure(
+        self,
+        sub_step: StepDefinition,
+        result: StepResult,
+        state: StepLoopState,
+    ) -> tuple[str, StepResult | None, str | None]:
+        if self.non_interactive or self.failure_prompter is None:
+            warning = f"Warning: step '{sub_step.id}' requested prompt_user but run is non-interactive; aborting."
+            state.warnings.append(warning)
+            return "abort", result, f"Step '{sub_step.id}' failed in loop '{self.loop.id}'."
+
+        diagnostic = step_failure_diagnostic(result)
+        decision = self.failure_prompter.prompt_step_failure(
+            step=sub_step,
+            result=result,
+            diagnostic=diagnostic,
+        )
+        if decision == FailurePromptDecision.RETRY:
+            return "retry", None, None
+        if decision == FailurePromptDecision.CONTINUE:
+            return "continue", mark_continued_after_prompt(result), None
+        return "abort", result, f"Step '{sub_step.id}' aborted by user in loop '{self.loop.id}'."
+
+    def _handle_sub_step_result(
+        self,
+        sub_step: StepDefinition,
+        result: StepResult,
+        state: StepLoopState,
+    ) -> tuple[str, StepResult | None, str | None]:
+        if result.ok:
+            return "continue", result, None
+
+        policy = effective_terminal_policy(sub_step.on_failure)
+        if policy == FailurePolicy.CONTINUE:
+            return "continue", mark_continued_after_prompt(result), None
+        if policy == FailurePolicy.PROMPT_USER:
+            return self._prompt_sub_step_failure(sub_step, result, state)
+        return "abort", result, f"Step '{sub_step.id}' failed in loop '{self.loop.id}'."
+
+    def _run_sub_step_with_retries(
+        self,
+        sub_step: StepDefinition,
+        *,
+        sub_idx: int,
+        turn: int,
+        state: StepLoopState,
+        historical_steps: Sequence[PreviousStepMetadata],
+    ) -> tuple[str, StepResult | None, str | None]:
+        attempt = 1
+        while True:
+            result = self._execute_sub_step_attempt(
+                sub_step,
+                sub_idx=sub_idx,
+                turn=turn,
+                attempt=attempt,
+                historical_steps=historical_steps,
+            )
+            action, recorded, error = self._handle_sub_step_result(sub_step, result, state)
+            if action == "retry":
+                attempt = result.attempts + 1
+                continue
+            return action, recorded, error
+
+    def _execute_turn(
+        self,
+        turn: int,
+        state: StepLoopState,
+    ) -> tuple[str, dict[str, StepResult], str | None]:
+        turn_map: dict[str, StepResult] = {}
+        historical: list[PreviousStepMetadata] = [
+            previous_step_metadata_from_result(r, step_index=i + 1) for i, r in enumerate(state.step_results)
+        ]
+        for sub_idx, sub_step in enumerate(self.loop.do, start=1):
+            action, result, error = self._run_sub_step_with_retries(
+                sub_step,
+                sub_idx=sub_idx,
+                turn=turn,
+                state=state,
+                historical_steps=historical,
+            )
+            if result is not None:
+                state.step_results.append(result)
+                turn_map[sub_step.id] = result
+                historical.append(previous_step_metadata_from_result(result, step_index=len(historical) + 1))
+            if action == "abort":
+                return "abort", turn_map, error
+        return "ok", turn_map, None
+
+    def _evaluate_until_conditions(
+        self,
+        turn: int,
+        turn_map: dict[str, StepResult],
+    ) -> tuple[bool, list[ConditionEvaluationResult]]:
+        results = [evaluate_condition(expr, iteration_index=turn, step_results=turn_map) for expr in self.loop.until]
+        all_passed = all(r.passed for r in results)
+        return all_passed, results
+
+    def _prompt_max_iterations_decision(
+        self,
+        turn: int,
+        max_iterations: int,
+    ) -> tuple[str, int, str | None]:
+        if self.non_interactive or self.failure_prompter is None:
+            msg = f"Loop '{self.loop.id}' reached max_iterations ({max_iterations}) and run is non-interactive."
+            return "abort", max_iterations, msg
+
+        decision = self.failure_prompter.prompt_loop_max_iterations(
+            loop=self.loop,
+            iteration=turn,
+            diagnostic=f"Reached max_iterations ({max_iterations}) without meeting 'until' conditions.",
+            grant_count=3,
+        )
+        if decision == LoopPromptDecision.GRANT:
+            return "grant", max_iterations + 3, None
+        if decision == LoopPromptDecision.CONTINUE:
+            return "continue", max_iterations, None
+        return "abort", max_iterations, f"Loop '{self.loop.id}' aborted by user after max_iterations."
+
+    def _handle_max_iterations(
+        self,
+        turn: int,
+        max_iterations: int,
+    ) -> tuple[str, int, str | None]:
+        policy = self.loop.on_max_iterations
+        if policy == FailurePolicy.ABORT:
+            err = f"Loop '{self.loop.id}' reached max_iterations ({max_iterations}) without meeting 'until' conditions."
+            return "abort", max_iterations, err
+        if policy == FailurePolicy.CONTINUE:
+            return "continue", max_iterations, None
+        return self._prompt_max_iterations_decision(turn, max_iterations)
+
+    def _run_turn_cycle(
+        self,
+        turn: int,
+        max_iterations: int,
+        state: StepLoopState,
+    ) -> tuple[str, bool, str | None]:
+        self._notify_turn(turn, max_iterations)
+        status, turn_map, error = self._execute_turn(turn, state)
+        if status == "abort":
+            self._notify_done("failed", turn)
+            return "abort", False, error
+
+        all_passed, condition_results = self._evaluate_until_conditions(turn, turn_map)
+        next_turn = turn + 1 if (not all_passed and turn < max_iterations) else None
+        self._notify_conditions(condition_results, all_passed, next_turn)
+        if all_passed:
+            self._notify_done("completed", turn)
+            return "continue", True, None
+        return "continue", False, None
+
+    def _process_max_iteration_ceiling(
+        self,
+        turn: int,
+        max_iterations: int,
+        state: StepLoopState,
+    ) -> tuple[str, int, str | None]:
+        action, new_max, max_error = self._handle_max_iterations(turn, max_iterations)
+        if action == "grant":
+            return "grant", new_max, None
+        if action == "continue":
+            warning = f"Loop '{self.loop.id}' reached max_iterations ({max_iterations}) without meeting 'until' conditions; continuing."
+            state.warnings.append(warning)
+            self._notify_done("completed", turn)
+            return "continue", max_iterations, None
+        self._notify_done("failed", turn)
+        return "abort", max_iterations, max_error
+
+    def run(self, state: StepLoopState) -> tuple[str, StepResult | None, str | None]:
+        """Execute all turns of the loop block until until conditions pass or ceiling is hit."""
+        max_iterations = self.loop.max_iterations
+        turn = 1
+        self._notify_start(max_iterations)
+
+        while turn <= max_iterations:
+            status, passed, error = self._run_turn_cycle(turn, max_iterations, state)
+            if status == "abort" or passed:
+                return status, None, error
+
+            if turn < max_iterations:
+                turn += 1
+                continue
+
+            action, new_max, max_error = self._process_max_iteration_ceiling(turn, max_iterations, state)
+            if action == "grant":
+                max_iterations = new_max
+                turn += 1
+                continue
+            return action, None, max_error
+
+        return "continue", None, None

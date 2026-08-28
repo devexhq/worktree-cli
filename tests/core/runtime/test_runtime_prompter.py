@@ -8,7 +8,7 @@ import pytest
 
 from tests.helpers import make_rich_output
 from worktree.common.utils import RichOutput
-from worktree.core.runtime.models import FailurePromptDecision
+from worktree.core.runtime.models import FailurePromptDecision, LoopPromptDecision
 from worktree.core.runtime.prompter import CliFailurePrompter
 from worktree.core.step import StepDefinition, StepResult
 
@@ -128,3 +128,84 @@ class CliFailurePrompterTests:
         output.print()
         rendered = buffer.getvalue()
         assert "Invalid option. Enter r, c, or a (retry/continue/abort)." in rendered
+
+    @pytest.mark.parametrize(
+        ("raw_input", "expected_decision"),
+        [
+            ("g", LoopPromptDecision.GRANT),
+            ("grant", LoopPromptDecision.GRANT),
+            ("c", LoopPromptDecision.CONTINUE),
+            ("continue", LoopPromptDecision.CONTINUE),
+            ("a", LoopPromptDecision.ABORT),
+            ("abort", LoopPromptDecision.ABORT),
+            ("  G  ", LoopPromptDecision.GRANT),
+        ],
+    )
+    def test_prompt_loop_max_iterations_valid_decisions(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        raw_input: str,
+        expected_decision: LoopPromptDecision,
+    ) -> None:
+        from worktree.core.step import LoopStepBlock
+
+        output, buffer = make_rich_output()
+        prompter = CliFailurePrompter(output)
+        loop = LoopStepBlock(
+            id="retry_block",
+            type="loop",
+            max_iterations=5,
+            until=["steps.check.exit_code == 0"],
+            do=[StepDefinition(id="check", run="echo hi")],
+        )
+
+        monkeypatch.setattr("builtins.input", lambda _: raw_input)
+        decision = prompter.prompt_loop_max_iterations(
+            loop=loop,
+            iteration=5,
+            diagnostic="Loop did not converge",
+            grant_count=3,
+        )
+
+        assert decision == expected_decision
+        output.print()
+        rendered = buffer.getvalue()
+        assert "[retry_block] Reached max_iterations (5) without meeting 'until' conditions." in rendered
+        assert "Loop block paused." in rendered
+        assert "[g] Grant 3 additional iterations" in rendered
+
+    def test_prompt_loop_max_iterations_retries_on_invalid_input(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from worktree.core.step import LoopStepBlock
+
+        output, buffer = make_rich_output()
+        prompter = CliFailurePrompter(output)
+        loop = LoopStepBlock(
+            id="retry_block",
+            type="loop",
+            max_iterations=3,
+            until=["steps.check.exit_code == 0"],
+            do=[StepDefinition(id="check", run="echo hi")],
+        )
+
+        inputs = iter(["bad_choice", EOFError(), "c"])
+
+        def _mock_input(_prompt: str) -> str:
+            val = next(inputs)
+            if isinstance(val, Exception):
+                raise val
+            return val
+
+        monkeypatch.setattr("builtins.input", _mock_input)
+        decision = prompter.prompt_loop_max_iterations(
+            loop=loop,
+            iteration=3,
+            diagnostic="",
+        )
+
+        assert decision == LoopPromptDecision.CONTINUE
+        output.print()
+        rendered = buffer.getvalue()
+        assert "Invalid option. Enter g, c, or a (grant/continue/abort)." in rendered

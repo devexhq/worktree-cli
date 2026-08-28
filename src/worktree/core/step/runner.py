@@ -45,6 +45,12 @@ def _failed_dispatch(
     )
 
 
+def _int_from_context_or_default(context: dict[str, Any], key: str, default: int) -> int:
+    if default != 1 or key not in context:
+        return default
+    return int(context[key])
+
+
 class StepExecution:
     """Synchronous executor for a single StepDefinition within a sandbox directory."""
 
@@ -57,6 +63,7 @@ class StepExecution:
         *,
         step_index: int = 1,
         initial_attempt: int = 1,
+        iteration_index: int = 1,
         identity: ExecutionIdentity | None = None,
         previous_step: PreviousStepMetadata | None = None,
         steps: Sequence[PreviousStepMetadata] | None = None,
@@ -65,14 +72,9 @@ class StepExecution:
         self.sandbox_path = sandbox_path.resolve()
         self.context = context or {}
         self.on_output = on_output
-        self.step_index = (
-            step_index if step_index != 1 or "step_index" not in self.context else int(self.context["step_index"])
-        )
-        self.initial_attempt = (
-            initial_attempt
-            if initial_attempt != 1 or "initial_attempt" not in self.context
-            else int(self.context["initial_attempt"])
-        )
+        self.step_index = _int_from_context_or_default(self.context, "step_index", step_index)
+        self.initial_attempt = _int_from_context_or_default(self.context, "initial_attempt", initial_attempt)
+        self.iteration_index = _int_from_context_or_default(self.context, "iteration_index", iteration_index)
         self.identity = identity or self.context.get("identity")
         raw_steps = steps or self.context.get("steps")
         self.steps: Sequence[PreviousStepMetadata] = list(raw_steps) if raw_steps else []
@@ -116,6 +118,7 @@ class StepExecution:
                 self._uninterpolated_step,
                 step_index=self.step_index,
                 attempt=attempt,
+                iteration_index=self.iteration_index,
                 identity=self.identity,
                 previous_step=self.previous_step,
                 steps=self.steps,

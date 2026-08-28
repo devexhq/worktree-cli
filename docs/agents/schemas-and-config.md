@@ -406,13 +406,9 @@ Registration: `wt config set <key> <value>` under `config_app` in
   - `Engine.run` mints `session_id` as `req.session_id or
     f"{blueprint.kind.value}_{uuid4().hex[:8]}"` when the caller doesn't supply
     one.
-  - **Both** `.run` and `.resume` reject any `LoopStepBlock` in the blueprint's
-    steps outright (`EngineRuntimeError`, `"Engine.run/resume does not execute
-    loop steps"`) — `Engine` only ever builds a flat `RunContext.steps:
-    list[StepDefinition]`. Loop-step execution is not wired into the live path at
-    all yet, independent of the `kind=task` restriction above (a `kind=workflow`
-    blueprint with a loop step is schema/model-valid but cannot currently be run
-    by `Engine`).
+  - `.run` and `.resume` pass `LoopStepBlock` items through in workflow blueprints to
+    `run_steps` and `LoopBlockRunner`, while `kind=task` blueprints continue to reject loop
+    steps at validation time.
   - `Engine` always stamps `session_id` onto the returned `RunOutcome` via
     `model_copy` after `run_steps` returns — this is what makes
     `RunOutcome.session_id` non-`None` in practice, even though `run_steps` itself

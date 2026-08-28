@@ -8,6 +8,7 @@ from collections.abc import Sequence
 from worktree.core.step.models import (
     ExecutionIdentity,
     ExecutionMetadata,
+    IterationMetadata,
     PreviousStepMetadata,
     StepDefinition,
     StepMetadata,
@@ -22,6 +23,7 @@ def build_execution_metadata(
     *,
     step_index: int = 1,
     attempt: int = 1,
+    iteration_index: int = 1,
     identity: ExecutionIdentity | None = None,
     previous_step: PreviousStepMetadata | None = None,
     steps: Sequence[PreviousStepMetadata] | None = None,
@@ -55,16 +57,18 @@ def build_execution_metadata(
         workflow=workflow_metadata,
         previous_step=prior_metadata,
         steps=historical_steps,
+        iteration=IterationMetadata(index=iteration_index),
     )
 
 
 def metadata_to_env(metadata: ExecutionMetadata) -> dict[str, str]:
-    """Format full WT_* process environment variable map. All 14 keys always present."""
+    """Format full WT_* process environment variable map. All 15 keys always present."""
     return {
         "WT_STEP_ID": metadata.step.id,
         "WT_STEP_NAME": metadata.step.name,
         "WT_STEP_INDEX": str(metadata.step.index),
         "WT_STEP_ATTEMPT": str(metadata.step.attempt),
+        "WT_ITERATION_INDEX": str(metadata.iteration.index),
         "WT_TASK_NAME": metadata.task.name,
         "WT_TASK_SHA": metadata.task.sha,
         "WT_WORKFLOW_NAME": metadata.workflow.name,

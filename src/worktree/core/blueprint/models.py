@@ -16,6 +16,7 @@ from worktree.core.step import (
     StepDefinition,
     apply_on_failure_default,
     extract_defaults_on_failure,
+    validate_condition_expression,
 )
 
 _SLUG_RE = re.compile(r"[^\w-]+")
@@ -56,6 +57,20 @@ def _normalize_step_item(item: Any, idx: int, on_failure_default: Any | None = N
     _ensure_step_id(step_dict, idx)
     _map_command_shorthand(step_dict)
     return apply_on_failure_default(step_dict, on_failure_default)
+
+
+def _validate_single_loop_block(loop: LoopStepBlock) -> None:
+    known = {s.id for s in loop.do}
+    for expr in loop.until:
+        errors = validate_condition_expression(expr, known_step_ids=known)
+        if errors:
+            raise ValueError(f"Loop '{loop.id}': {'; '.join(errors)}")
+
+
+def _validate_loop_steps(steps: list[StepDefinition | LoopStepBlock]) -> None:
+    for step in steps:
+        if isinstance(step, LoopStepBlock):
+            _validate_single_loop_block(step)
 
 
 class BlueprintDefinition(BaseModel):
@@ -115,11 +130,12 @@ class BlueprintDefinition(BaseModel):
 
     @model_validator(mode="after")
     def _apply_kind_rules(self) -> BlueprintDefinition:
-        """Default ``id`` to ``name`` and reject loop steps on tasks."""
+        """Default ``id`` to ``name``, reject loop steps on tasks, and validate loop conditions."""
         if self.id is None:
             self.id = self.name
         if self.kind == BlueprintKind.TASK and any(isinstance(step, LoopStepBlock) for step in self.steps):
             raise ValueError("kind=task cannot contain loop steps")
+        _validate_loop_steps(self.steps)
         return self
 
 

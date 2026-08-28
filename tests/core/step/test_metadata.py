@@ -79,7 +79,7 @@ class StepExecutionMetadataTests:
         assert metadata.previous_step.status == "completed"
         assert metadata.previous_step.exit_code == "0"
 
-    def test_metadata_to_env_all_fourteen_keys_present_with_defaults(self) -> None:
+    def test_metadata_to_env_all_fifteen_keys_present_with_defaults(self) -> None:
         step = StepDefinition(id="s1", type=StepType.COMMAND, command="echo hi")
         metadata = build_execution_metadata(step)
         env_map = metadata_to_env(metadata)
@@ -89,6 +89,7 @@ class StepExecutionMetadataTests:
             "WT_STEP_NAME",
             "WT_STEP_INDEX",
             "WT_STEP_ATTEMPT",
+            "WT_ITERATION_INDEX",
             "WT_TASK_NAME",
             "WT_TASK_SHA",
             "WT_WORKFLOW_NAME",
@@ -105,6 +106,7 @@ class StepExecutionMetadataTests:
         assert env_map["WT_STEP_NAME"] == ""
         assert env_map["WT_STEP_INDEX"] == "1"
         assert env_map["WT_STEP_ATTEMPT"] == "1"
+        assert env_map["WT_ITERATION_INDEX"] == "1"
         assert env_map["WT_TASK_NAME"] == ""
         assert env_map["WT_TASK_SHA"] == ""
         assert env_map["WT_WORKFLOW_NAME"] == ""

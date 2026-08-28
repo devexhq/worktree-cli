@@ -11,7 +11,7 @@ import pytest
 from tests.helpers import FileSystem, make_cmd_step
 from worktree.core.blueprint import Blueprint, BlueprintDefinition, BlueprintKind
 from worktree.core.db import RunStatus, WorktreeDb
-from worktree.core.engine import Engine, EngineInputError, EngineRuntimeError, RunRequest
+from worktree.core.engine import Engine, EngineInputError, RunRequest
 from worktree.core.inputs import InputType, ParameterInput
 from worktree.core.runtime import RunContext, RunOutcome
 from worktree.core.step import LoopStepBlock, StepDefinition
@@ -42,7 +42,7 @@ def _workflow_blueprint(*, name: str = "ship", loop: bool = False) -> Blueprint:
                     "id": "retry",
                     "type": "loop",
                     "until": ["steps.unit.exit_code == 0"],
-                    "do": [{"id": "unit", "run": "pytest"}],
+                    "do": [make_cmd_step(step_id="unit", command="echo hi").model_dump()],
                 }
             )
         )
@@ -193,11 +193,13 @@ class EngineRunDelegationTests:
         assert record.branch_name == ""
         assert record.status is RunStatus.COMPLETED
 
-    def test_run_rejects_loop_steps_before_insert(self, fs: FileSystem) -> None:
-        with pytest.raises(EngineRuntimeError, match=r"Engine\.run does not execute loop steps\."):
-            Engine(fs.base_path).run(_workflow_blueprint(loop=True), RunRequest(session_id="workflow_loop"))
+    def test_run_accepts_loop_steps_in_workflow(self, fs: FileSystem) -> None:
+        outcome = Engine(fs.base_path).run(_workflow_blueprint(loop=True), RunRequest(session_id="workflow_loop"))
 
-        assert self.db.runs.get("workflow_loop") is None
+        assert outcome.status is RunStatus.COMPLETED
+        record = self.db.runs.get("workflow_loop")
+        assert record is not None
+        assert record.status is RunStatus.COMPLETED
 
     def test_insert_failure_warns_and_still_runs(self, monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
         captured: dict[str, RunContext] = {}

@@ -237,6 +237,18 @@ class StepDefinition(BaseModel):
         return self
 
 
+class ConditionEvaluationResult(BaseModel):
+    """Result of evaluating a single until condition expression."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    expression: str
+    passed: bool
+    actual: Any = None
+    expected: Any = None
+    detail: str = ""
+
+
 class LoopStepBlock(BaseModel):
     """Loop block step execution definition."""
 
@@ -321,6 +333,14 @@ class ExecutionIdentity(BaseModel):
     workflow_sha: str = ""
 
 
+class IterationMetadata(BaseModel):
+    """Execution metadata for the current loop iteration."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    index: int = Field(default=1, ge=1)
+
+
 class ExecutionMetadata(BaseModel):
     """Structured metadata exposed to step execution (env + interpolation)."""
 
@@ -331,6 +351,7 @@ class ExecutionMetadata(BaseModel):
     workflow: WorkflowMetadata = Field(default_factory=WorkflowMetadata)
     previous_step: PreviousStepMetadata = Field(default_factory=PreviousStepMetadata)
     steps: list[PreviousStepMetadata] = Field(default_factory=list)
+    iteration: IterationMetadata = Field(default_factory=IterationMetadata)
 
 
 class StepDispatchOutcome(BaseModel):

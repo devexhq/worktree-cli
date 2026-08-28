@@ -9,9 +9,8 @@ treating this list as a second source of truth for field-level detail.
   `StepDefinition` ([schemas-and-config.md](schemas-and-config.md#stepdefinition-model)).
   Runner: `StepExecution.run`.
 - **Loop step** — a step-list wrapper that repeats its `do: []` steps until a
-  condition or `max_iterations`. Model: `LoopStepBlock`. Not currently
-  executable by the live `Engine` — see
-  [schemas-and-config.md](schemas-and-config.md#unified-blueprint-execution-coreblueprint--coreengine).
+  condition or `max_iterations`. Model: `LoopStepBlock`. Executed in workflows
+  via `LoopBlockRunner` in `core/runtime/`.
 - **Task** — a blueprint document with `steps: list[StepDefinition]` (no loop
   steps allowed) and declared `inputs`. Model: `BlueprintDefinition(kind=task)`
   (`core/blueprint/models.py`).

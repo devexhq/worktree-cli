@@ -185,14 +185,9 @@ class Engine:
         except Exception as exc:
             warnings.append(f"Failed to update run status in database: {exc}")
 
-    def _sequential_steps(self, blueprint: Blueprint, *, action: str = "run") -> list[StepDefinition]:
-        """Return authored steps, or raise when any entry is a loop block."""
-        steps: list[StepDefinition] = []
-        for step in blueprint.steps:
-            if isinstance(step, LoopStepBlock):
-                raise EngineRuntimeError(f"Engine.{action} does not execute loop steps.")
-            steps.append(step)
-        return steps
+    def _sequential_steps(self, blueprint: Blueprint, *, action: str = "run") -> list[StepDefinition | LoopStepBlock]:
+        """Return authored steps from blueprint."""
+        return list(blueprint.steps)
 
     def _insert_running(self, blueprint: Blueprint, session_id: str) -> None:
         """Insert a RUNNING row for the bound repository."""

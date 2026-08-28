@@ -15,7 +15,7 @@ from tests.helpers import (
 from worktree.core.blueprint import Blueprint, BlueprintDefinition, BlueprintKind
 from worktree.core.catalog.services.inventory import scan_and_index_catalog
 from worktree.core.db import RunsRepository, RunStatus, WorktreeDb
-from worktree.core.engine import Engine, EngineResumeError, EngineResumeStatus, EngineRuntimeError, ResumableRun
+from worktree.core.engine import Engine, EngineResumeError, EngineResumeStatus, ResumableRun
 from worktree.core.runtime import RunCheckpoint, RunContext, RunOutcome
 from worktree.core.step import LoopStepBlock
 
@@ -26,10 +26,10 @@ def _checkpoint(**overrides: object) -> RunCheckpoint:
     return make_checkpoint(**payload)
 
 
-def _task_blueprint(*, name: str = "lint", loop: bool = False) -> Blueprint:
+def _task_blueprint(*, name: str = "lint", loop: bool = False, publish_command: str = "exit 1") -> Blueprint:
     steps: list[Any] = [
         make_cmd_step(step_id="setup"),
-        make_cmd_step(step_id="publish", command="exit 1"),
+        make_cmd_step(step_id="publish", command=publish_command),
         make_cmd_step(step_id="later"),
     ]
     if loop:
@@ -39,7 +39,7 @@ def _task_blueprint(*, name: str = "lint", loop: bool = False) -> Blueprint:
                     "id": "retry",
                     "type": "loop",
                     "until": ["steps.unit.exit_code == 0"],
-                    "do": [{"id": "unit", "run": "pytest"}],
+                    "do": [make_cmd_step(step_id="unit", command="echo hi").model_dump()],
                 }
             )
         )
@@ -283,15 +283,22 @@ class EngineResumeValidationTests:
         assert record is not None
         assert record.status is RunStatus.PAUSED
 
-    def test_resume_rejects_loop_steps_after_classification(self, fs: FileSystem) -> None:
+    def test_resume_accepts_loop_steps_in_workflow(self, monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
         _seed_paused_workflow(self.db.runs, "workflow_loop", _checkpoint())
+        monkeypatch.setattr(
+            "worktree.core.engine.engine.run_steps",
+            lambda _context: RunOutcome(status=RunStatus.COMPLETED, sandbox_path=fs.base_path),
+        )
 
-        with pytest.raises(EngineRuntimeError, match=r"Engine\.resume does not execute loop steps\."):
-            Engine(fs.base_path).resume("workflow_loop", blueprint=_task_blueprint(loop=True, name="ship"))
+        outcome = Engine(fs.base_path).resume(
+            "workflow_loop",
+            blueprint=_task_blueprint(loop=True, name="ship"),
+        )
 
+        assert outcome.ok
         record = self.db.runs.get("workflow_loop")
         assert record is not None
-        assert record.status is RunStatus.PAUSED
+        assert record.status is RunStatus.COMPLETED
 
     def test_resume_omitted_blueprint_missing_catalog(self, fs: FileSystem) -> None:
         _seed_paused_task(self.db.runs, "task_gone", _checkpoint(), name="missing-task")
