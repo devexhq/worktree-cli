@@ -99,7 +99,7 @@ Interpolation is evaluated at runtime in the following step fields:
 
 ### Interpolation Namespaces & Behavior
 * **Inputs**: `${{ inputs.<name> }}` or `{{ inputs.<name> }}` evaluates declared blueprint parameter values.
-* **Execution Metadata**: `step.*`, `task.*`, `workflow.*`, and `previous_step.*` evaluate runtime execution properties (see [Working with Steps](working-with-steps.md#runtime-execution-metadata--environment-variables)).
+* **Execution Metadata**: `step.*`, `task.*`, `workflow.*`, `previous_step.*`, and historical `steps[...]` / `steps.<id>.*` evaluate runtime execution properties (see [Working with Steps](working-with-steps.md#runtime-execution-metadata--environment-variables)).
 * If a placeholder references an unknown name, the placeholder is preserved verbatim as literal text.
 
 

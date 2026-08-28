@@ -88,6 +88,19 @@ Step executions receive structured runtime context through `WT_*` environment va
 | `WT_PREVIOUS_STEP_INDEX` | `previous_step.index` | 1-based index of immediately prior step (or empty) |
 | `WT_PREVIOUS_STEP_STATUS` | `previous_step.status` | Recorded status of immediately prior step (`completed`, `failed`, `ignored`, or empty) |
 | `WT_PREVIOUS_STEP_EXIT_CODE` | `previous_step.exit_code` | Decimal exit code of immediately prior step (or empty) |
+| `WT_STEPS_JSON` | `steps` | JSON array of finished step objects (`[{"id": "...", "name": "...", "index": "...", "status": "...", "exit_code": "..."}]`) |
+
+### Interpolation Paths
+
+- **Current step**: `{{ step.id }}`, `{{ step.name }}`, `{{ step.index }}`, `{{ step.attempt }}`
+- **Task / Workflow**: `{{ task.name }}`, `{{ task.sha }}`, `{{ workflow.name }}`, `{{ workflow.sha }}`
+- **Previous step**: `{{ previous_step.id }}`, `{{ previous_step.name }}`, `{{ previous_step.index }}`, `{{ previous_step.status }}`, `{{ previous_step.exit_code }}`
+- **Historical steps (`steps`)**:
+  - `{{ steps[0].<field> }}`: 0-based indexing for finished steps in run order.
+  - `{{ steps[-1].<field> }}`: Python-style negative index (`-1` is the last finished step; matches `previous_step`).
+  - `{{ steps.<id>.<field> }}` / `{{ steps['<id>'].<field> }}`: Keyed access by completed step ID.
+  - Valid historical fields: `id`, `name`, `index` (1-based ordinal), `status`, `exit_code`.
+  - The in-flight current step is never present in `steps`. Out-of-range indices or unknown step IDs safely resolve to empty strings.
 
 ### Precedence
 1. Explicit step `env` key

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 
 from worktree.core.db import RunStatus, SandboxesRepository
@@ -295,6 +296,7 @@ def _execute_one_step(
     step_index: int,
     step_context: dict[str, object] | None,
     previous_step: PreviousStepMetadata | None = None,
+    steps: Sequence[PreviousStepMetadata] | None = None,
     initial_attempt: int = 1,
 ) -> tuple[str, StepResult | None, str | None]:
     """Run a step until success, continue-after-failure, or abort.
@@ -318,6 +320,7 @@ def _execute_one_step(
             initial_attempt=current_attempt,
             identity=context.identity,
             previous_step=previous_step,
+            steps=steps,
         ).run()
         _notify_step_done(context, idx, total, result)
         if result.ok:
@@ -350,6 +353,7 @@ def _resume_pending_gate(
     checkpoint: RunCheckpoint,
     step_index: int,
     previous_step: PreviousStepMetadata | None = None,
+    steps: Sequence[PreviousStepMetadata] | None = None,
 ) -> tuple[str, StepResult | None, str | None]:
     """Re-prompt at the paused step without re-executing it first."""
     result = _pending_result_for_resume(checkpoint, step)
@@ -365,6 +369,7 @@ def _resume_pending_gate(
         step_index=step_index,
         step_context=_build_step_context(context),
         previous_step=previous_step,
+        steps=steps,
         initial_attempt=result.attempts + 1,
     )
 
@@ -376,27 +381,41 @@ def _find_step_name_by_id(steps: list[StepDefinition], step_id: str) -> str:
     return ""
 
 
+def _resolve_historical_steps_metadata(
+    context: RunContext,
+    state: StepLoopState,
+) -> list[PreviousStepMetadata]:
+    """Build list of PreviousStepMetadata for all finished steps so far."""
+    if not state.step_results:
+        return []
+
+    historical: list[PreviousStepMetadata] = []
+    for idx, result in enumerate(state.step_results):
+        step_index = idx + 1
+        if idx < len(context.steps) and context.steps[idx].id == result.step_id:
+            step_name = context.steps[idx].name or ""
+        else:
+            step_name = _find_step_name_by_id(context.steps, result.step_id)
+        historical.append(
+            previous_step_metadata_from_result(
+                result,
+                step_index=step_index,
+                step_name=step_name,
+            )
+        )
+    return historical
+
+
 def _resolve_previous_step_metadata(
     context: RunContext,
     state: StepLoopState,
     step_index: int,
 ) -> PreviousStepMetadata:
     """Build PreviousStepMetadata for the step about to execute."""
-    if not state.step_results:
+    historical = _resolve_historical_steps_metadata(context, state)
+    if not historical:
         return PreviousStepMetadata()
-
-    last_result = state.step_results[-1]
-    last_step_index = len(state.step_results)
-    if step_index > 0 and step_index - 1 < len(context.steps):
-        last_step_name = context.steps[step_index - 1].name or ""
-    else:
-        last_step_name = _find_step_name_by_id(context.steps, last_result.step_id)
-
-    return previous_step_metadata_from_result(
-        last_result,
-        step_index=last_step_index,
-        step_name=last_step_name,
-    )
+    return historical[-1]
 
 
 def _dispatch_step(
@@ -407,10 +426,19 @@ def _dispatch_step(
     step_context: dict[str, object] | None,
 ) -> tuple[str, StepResult | None, str | None]:
     """Run or re-prompt a step depending on whether this is the resume gate."""
-    previous_step = _resolve_previous_step_metadata(context, state, step_index)
+    historical_steps = _resolve_historical_steps_metadata(context, state)
+    previous_step = historical_steps[-1] if historical_steps else PreviousStepMetadata()
     resume = context.resume_from
     if resume is not None and step_index == resume.next_step_index:
-        return _resume_pending_gate(context, state, step, resume, step_index, previous_step=previous_step)
+        return _resume_pending_gate(
+            context,
+            state,
+            step,
+            resume,
+            step_index,
+            previous_step=previous_step,
+            steps=historical_steps,
+        )
     return _execute_one_step(
         context,
         state,
@@ -420,6 +448,7 @@ def _dispatch_step(
         step_index=step_index,
         step_context=step_context,
         previous_step=previous_step,
+        steps=historical_steps,
     )
 
 

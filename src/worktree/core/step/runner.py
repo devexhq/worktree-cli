@@ -8,7 +8,7 @@ import subprocess
 import sys
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import IO, Any
 
@@ -46,7 +46,7 @@ def _failed_dispatch(
 
 
 class StepExecution:
-    """Encapsulates single-step execution lifecycle, retries, and process streaming."""
+    """Synchronous executor for a single StepDefinition within a sandbox directory."""
 
     def __init__(
         self,
@@ -59,6 +59,7 @@ class StepExecution:
         initial_attempt: int = 1,
         identity: ExecutionIdentity | None = None,
         previous_step: PreviousStepMetadata | None = None,
+        steps: Sequence[PreviousStepMetadata] | None = None,
     ) -> None:
         self.step = step
         self.sandbox_path = sandbox_path.resolve()
@@ -73,7 +74,11 @@ class StepExecution:
             else int(self.context["initial_attempt"])
         )
         self.identity = identity or self.context.get("identity")
-        self.previous_step = previous_step or self.context.get("previous_step")
+        raw_steps = steps or self.context.get("steps")
+        self.steps: Sequence[PreviousStepMetadata] = list(raw_steps) if raw_steps else []
+        self.previous_step = (
+            previous_step or self.context.get("previous_step") or (self.steps[-1] if self.steps else None)
+        )
         self.max_attempts = 1
         self._uninterpolated_step = step
 
@@ -113,6 +118,7 @@ class StepExecution:
                 attempt=attempt,
                 identity=self.identity,
                 previous_step=self.previous_step,
+                steps=self.steps,
             )
             inputs = self.context.get("inputs")
             inputs_dict = inputs if isinstance(inputs, dict) else None
