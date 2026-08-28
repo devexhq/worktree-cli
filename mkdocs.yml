@@ -28,16 +28,34 @@ nav:
   - Home: index.md
   - Getting Started:
       - Installation: getting-started/installation.md
-      - Configuration: getting-started/configuration.md
+      - Quickstart Tutorial: getting-started/quickstart.md
+      - Workspace Configuration: getting-started/workspace-config.md
+  - How-To Guides:
+      - Core Concepts: guides/concepts.md
+      - Authoring Blueprints: guides/authoring-blueprints.md
+      - Working with Steps: guides/working-with-steps.md
+      - Parameter Inputs & Expressions: guides/passing-inputs.md
+      - Failure Policies & Resumption: guides/failure-handling-and-resume.md
+      - AI Agent Providers: guides/agent-providers.md
+  - Reference:
+      - Blueprint Schema (YAML): reference/blueprint-schema.md
+      - Step Schema & Types: reference/step-schema.md
+      - Inputs & Placeholders: reference/inputs-schema.md
+      - Assertions & Verification: reference/assertions-schema.md
+      - Project Config (.worktree/config.json): reference/config-schema.md
+  - Recipes & Examples:
+      - TDD Loop: recipes/tdd-loop.md
+      - AI Code Patcher: recipes/ai-code-patcher.md
+      - CI/CD Automation: recipes/ci-cd-automation.md
   - CLI Reference:
-      - Workspace Init: cli/init.md
-      - Status: cli/status.md
-      - Config: cli/config.md
-      - Run: cli/run.md
-      - Resume: cli/resume.md
-      - History: cli/history.md
-      - Sandbox: cli/sandbox.md
-      - Catalog: cli/catalog.md
+      - Workspace Init (wt init): cli/init.md
+      - Status (wt status): cli/status.md
+      - Config (wt config): cli/config.md
+      - Run (wt run): cli/run.md
+      - Resume (wt resume): cli/resume.md
+      - History (wt history): cli/history.md
+      - Sandbox (wt sandbox): cli/sandbox.md
+      - Catalog (wt catalog): cli/catalog.md
 exclude_docs: |
   agents/*
   agents/**/*
