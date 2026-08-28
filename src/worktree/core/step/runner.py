@@ -90,33 +90,33 @@ def _terminate_process_tree(proc: subprocess.Popen[str]) -> None:
 def _dispatch_pipe_line(
     line: str,
     stream_name: str,
-    lines_acc: list[str],
+    collected_lines: list[str],
     on_output: Callable[[str, str], None] | None,
-    errors_acc: list[str],
+    collected_errors: list[str],
 ) -> None:
-    lines_acc.append(line)
+    collected_lines.append(line)
     if on_output is not None:
         try:
             on_output(stream_name, line)
         except Exception as exc:
-            errors_acc.append(f"Output callback error on {stream_name}: {exc}")
+            collected_errors.append(f"Output callback error on {stream_name}: {exc}")
 
 
 def _stream_pipe(
     pipe: IO[str] | None,
     stream_name: str,
-    lines_acc: list[str],
+    collected_lines: list[str],
     on_output: Callable[[str, str], None] | None,
-    errors_acc: list[str],
+    collected_errors: list[str],
 ) -> None:
     """Read lines from pipe, accumulate them, and invoke on_output callback."""
     if pipe is None:
         return
     try:
         for line in iter(pipe.readline, ""):
-            _dispatch_pipe_line(line, stream_name, lines_acc, on_output, errors_acc)
+            _dispatch_pipe_line(line, stream_name, collected_lines, on_output, collected_errors)
     except Exception as exc:
-        errors_acc.append(f"Failed reading {stream_name} stream: {exc}")
+        collected_errors.append(f"Failed reading {stream_name} stream: {exc}")
     finally:
         try:
             pipe.close()
