@@ -25,16 +25,30 @@ from worktree.core.runtime.observer import (
     resolve_run_observer,
 )
 from worktree.core.runtime.prompter import CliFailurePrompter
+from worktree.core.step import (
+    ExecutionIdentity,
+    ExecutionMetadata,
+    PreviousStepMetadata,
+    StepMetadata,
+    TaskMetadata,
+    WorkflowMetadata,
+    build_execution_metadata,
+    metadata_to_env,
+    previous_step_metadata_from_result,
+)
 
 __all__ = [
     "DEFAULT_OUTPUT_BUFFER_SIZE",
     "USER_CONTINUED_MARKER",
     "CliFailurePrompter",
     "CliRunObserver",
+    "ExecutionIdentity",
+    "ExecutionMetadata",
     "FailurePromptDecision",
     "FailurePrompter",
     "LiveRunObserver",
     "LiveStepItem",
+    "PreviousStepMetadata",
     "PromptUserInterruptedError",
     "RunCheckpoint",
     "RunContext",
@@ -42,11 +56,17 @@ __all__ = [
     "RunOutcome",
     "RunPauseStore",
     "StepLoopState",
+    "StepMetadata",
+    "TaskMetadata",
+    "WorkflowMetadata",
+    "build_execution_metadata",
     "build_live_output_panel",
     "build_live_renderable",
     "build_live_step_table",
     "effective_terminal_policy",
+    "metadata_to_env",
     "parse_checkpoint",
+    "previous_step_metadata_from_result",
     "resolve_run_observer",
     "run_steps",
 ]

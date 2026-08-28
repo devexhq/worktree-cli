@@ -75,11 +75,14 @@ def patch_execute(
             sandbox_path: Path,
             context: dict[str, Any] | None = None,
             on_output: Any = None,
+            *args: Any,
+            **kwargs: Any,
         ) -> None:
             self.step = step
             self.sandbox_path = sandbox_path
             self.context = context
             self.on_output = on_output
+            self.extra_kwargs = kwargs
 
         def run(self) -> StepResult:
             calls.append(self.step.id)

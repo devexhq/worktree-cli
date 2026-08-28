@@ -267,3 +267,99 @@ class LoopStepBlock(BaseModel):
         if self.on_max_iterations not in allowed:
             raise ValueError(f"Loop '{self.id}': on_max_iterations must be one of {sorted(allowed)}.")
         return self
+
+
+class StepMetadata(BaseModel):
+    """Execution metadata for the current step."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    id: str
+    name: str = ""
+    index: int = Field(ge=1)
+    attempt: int = Field(default=1, ge=1)
+
+
+class TaskMetadata(BaseModel):
+    """Execution metadata for the parent task (if any)."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    name: str = ""
+    sha: str = ""
+
+
+class WorkflowMetadata(BaseModel):
+    """Execution metadata for the parent workflow (if any)."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    name: str = ""
+    sha: str = ""
+
+
+class PreviousStepMetadata(BaseModel):
+    """Execution metadata for the immediately prior step (if any)."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    id: str = ""
+    name: str = ""
+    index: str = ""
+    status: str = ""
+    exit_code: str = ""
+
+
+class ExecutionIdentity(BaseModel):
+    """Optional run-level task or workflow identity passed into RunContext."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    task_name: str = ""
+    task_sha: str = ""
+    workflow_name: str = ""
+    workflow_sha: str = ""
+
+
+class ExecutionMetadata(BaseModel):
+    """Structured metadata exposed to step execution (env + interpolation)."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    step: StepMetadata
+    task: TaskMetadata = Field(default_factory=TaskMetadata)
+    workflow: WorkflowMetadata = Field(default_factory=WorkflowMetadata)
+    previous_step: PreviousStepMetadata = Field(default_factory=PreviousStepMetadata)
+
+
+class StepDispatchOutcome(BaseModel):
+    """Raw outcome of one or more step primitive dispatches (before finalization)."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    status: str  # "completed" | "failed"
+    exit_code: int
+    stdout: str
+    stderr: str
+    error_message: str | None = None
+    attempts: int = 1
+
+
+class StepResult(BaseModel):
+    """Normalized result of a step execution."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    step_id: str
+    status: str  # "completed" | "failed" | "ignored"
+    exit_code: int
+    stdout: str
+    stderr: str
+    duration_seconds: float
+    attempts: int = 1
+    error_message: str | None = None
+
+    @property
+    def ok(self) -> bool:
+        """Return True if step finished successfully or was ignored."""
+        return self.status in ("completed", "ignored")

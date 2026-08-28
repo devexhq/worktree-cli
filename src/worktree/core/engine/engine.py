@@ -7,12 +7,13 @@ from pathlib import Path
 
 from worktree.core.blueprint.services.blueprint import Blueprint
 from worktree.core.catalog import Catalog
-from worktree.core.db import RunsRepository, RunStatus
+from worktree.core.db import BlueprintKind, RunsRepository, RunStatus
 from worktree.core.engine.exceptions import EngineInputError, EngineRuntimeError
 from worktree.core.engine.models import RunRequest
 from worktree.core.engine.resumable import ResumableRun
 from worktree.core.inputs import InputResolveResult
 from worktree.core.runtime import (
+    ExecutionIdentity,
     FailurePrompter,
     RunCheckpoint,
     RunContext,
@@ -70,6 +71,11 @@ class Engine:
         engine_warnings: list[str] = list(resolved.warnings)
         pause_store = self._start_run(blueprint, sid, engine_warnings)
         caller_sandbox = True if req.use_sandbox is None else req.use_sandbox
+        identity = (
+            ExecutionIdentity(task_name=blueprint.name, task_sha=sid)
+            if blueprint.kind == BlueprintKind.TASK
+            else ExecutionIdentity(workflow_name=blueprint.name, workflow_sha=sid)
+        )
 
         outcome = run_steps(
             RunContext(
@@ -80,6 +86,7 @@ class Engine:
                 agent=req.agent,
                 observer=req.observer,
                 inputs=resolved.values,
+                identity=identity,
                 non_interactive=req.non_interactive,
                 failure_prompter=req.failure_prompter,
                 pause_store=pause_store,
@@ -119,6 +126,15 @@ class Engine:
         pause_store = _DbPauseStore(db, session_id)
         engine_warnings: list[str] = []
         self._mark_running(pause_store, engine_warnings)
+        identity = (
+            checkpoint.identity
+            if checkpoint.identity is not None
+            else (
+                ExecutionIdentity(task_name=loaded.name, task_sha=session_id)
+                if loaded.kind == BlueprintKind.TASK
+                else ExecutionIdentity(workflow_name=loaded.name, workflow_sha=session_id)
+            )
+        )
 
         outcome = run_steps(
             RunContext(
@@ -129,6 +145,7 @@ class Engine:
                 agent=checkpoint.agent,
                 observer=observer,
                 inputs=checkpoint.inputs or None,
+                identity=identity,
                 non_interactive=non_interactive,
                 failure_prompter=failure_prompter,
                 pause_store=pause_store,

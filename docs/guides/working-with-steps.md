@@ -148,8 +148,66 @@ steps:
 
 ---
 
+## Runtime Execution Metadata & Environment Variables
+
+Worktree automatically exposes structured runtime metadata to step commands and templates through process environment variables (`WT_*`) and template interpolation (`{{ ... }}` or `${{ ... }}`).
+
+### Environment Variables
+
+Every step execution receives the complete set of `WT_*` environment variables. Values are always strings (empty string when not applicable):
+
+| Environment Variable | Source | Description |
+|---|---|---|
+| `WT_STEP_ID` | `step.id` | Unique ID of the current step. |
+| `WT_STEP_NAME` | `step.name` | Display name of the current step (empty if unset). |
+| `WT_STEP_INDEX` | `step.index` | 1-based index of this step in the run sequence. |
+| `WT_STEP_ATTEMPT` | `step.attempt` | 1-based attempt counter (increments on retries and prompt resume). |
+| `WT_TASK_NAME` | `task.name` | Name of parent task blueprint (empty if unset or not a task). |
+| `WT_TASK_SHA` | `task.sha` | Task run session ID (empty if unknown). |
+| `WT_WORKFLOW_NAME` | `workflow.name` | Name of parent workflow blueprint (empty if unset or not a workflow). |
+| `WT_WORKFLOW_SHA` | `workflow.sha` | Workflow run session ID (empty if unknown). |
+| `WT_PREVIOUS_STEP_ID` | `previous_step.id` | ID of the immediately prior completed step (empty on first step). |
+| `WT_PREVIOUS_STEP_NAME` | `previous_step.name` | Name of the immediately prior completed step (empty if unset). |
+| `WT_PREVIOUS_STEP_INDEX` | `previous_step.index` | 1-based index of the previous step (empty on first step). |
+| `WT_PREVIOUS_STEP_STATUS` | `previous_step.status` | Recorded status of previous step (`completed`, `failed`, `ignored`). |
+| `WT_PREVIOUS_STEP_EXIT_CODE` | `previous_step.exit_code` | Decimal exit code of previous step (`0`, `1`, etc.; empty on first step). |
+
+### Environment Precedence
+
+When resolving environment variables for step execution:
+1. **Explicit step `env`**: Key-value pairs declared under `env:` in the step definition take highest precedence.
+2. **`WT_*` runtime metadata**: Automatically injected metadata variables.
+3. **Ambient process environment**: Process environment variables from the host runner.
+
+### Interpolation Paths
+
+Step fields (`run`, `command`, `prompt`, `script_path`, and `env`) can reference execution metadata using `{{ <namespace>.<field> }}` or `${{ <namespace>.<field> }}` syntax:
+
+```yaml
+steps:
+  - id: test-with-retry
+    name: Run flaky test suite
+    run: |
+      if [ "$WT_STEP_ATTEMPT" -eq 1 ]; then
+        exit 1
+      else
+        echo "Passed on attempt {{ step.attempt }}"
+        exit 0
+      fi
+    on_failure:
+      action: retry
+      max_retries: 2
+
+  - id: report-status
+    name: Report previous outcome
+    run: echo "Previous step {{ previous_step.id }} finished with status {{ previous_step.status }}"
+```
+
+---
+
 ## Next Steps
 
 - Learn how to pass arguments in [Parameter Inputs & Expressions](passing-inputs.md).
 - Configure assertions and retry policies in [Failure Handling & Resumption](failure-handling-and-resume.md).
 - Read the [Step Schema Reference](../reference/step-schema.md) for full syntax specifications.
+

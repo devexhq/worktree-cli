@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from worktree.core.db import RunStatus
 from worktree.core.git_sandbox import SandboxSession
-from worktree.core.step import StepDefinition, StepResult
+from worktree.core.step import ExecutionIdentity, StepDefinition, StepResult
 
 
 class FailurePromptDecision(StrEnum):
@@ -53,6 +53,7 @@ class RunCheckpoint(BaseModel):
     keep: bool = False
     agent: str | None = None
     inputs: dict[str, str | int | bool] = Field(default_factory=dict)
+    identity: ExecutionIdentity | None = None
     pending_step_id: str
     diagnostic: str
     pending_result: StepResult | None = None
@@ -101,6 +102,7 @@ class RunContext:
     agent: str | None = None
     observer: RunObserver | None = None
     inputs: dict[str, str | int | bool] | None = None
+    identity: ExecutionIdentity | None = None
     non_interactive: bool = False
     failure_prompter: FailurePrompter | None = None
     pause_store: RunPauseStore | None = None

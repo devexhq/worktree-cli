@@ -64,3 +64,33 @@ A composite step block that repeats a list of steps in `do` until an `until` con
 | `until` | `list[string]` | **Yes** | — | Termination condition expressions (e.g. `[step_id.ok]`). |
 | `do` | `list[StepDefinition]` | **Yes** | — | List of steps to execute sequentially on each iteration. |
 | `on_max_iterations` | `string` | No | `prompt_user` | Terminal policy (`abort`, `continue`, `prompt_user`) if loop reaches `max_iterations` without terminating. |
+
+---
+
+## Runtime Execution Metadata & Environment Variables
+
+Step executions receive structured runtime context through `WT_*` environment variables and template interpolation paths:
+
+### Environment Variables
+
+| Variable | Source Path | Description |
+|---|---|---|
+| `WT_STEP_ID` | `step.id` | Current step ID |
+| `WT_STEP_NAME` | `step.name` | Current step display name |
+| `WT_STEP_INDEX` | `step.index` | 1-based index of current step |
+| `WT_STEP_ATTEMPT` | `step.attempt` | 1-based attempt count for this step execution |
+| `WT_TASK_NAME` | `task.name` | Name of running task blueprint (or empty) |
+| `WT_TASK_SHA` | `task.sha` | Task session / run ID (or empty) |
+| `WT_WORKFLOW_NAME` | `workflow.name` | Name of running workflow blueprint (or empty) |
+| `WT_WORKFLOW_SHA` | `workflow.sha` | Workflow session / run ID (or empty) |
+| `WT_PREVIOUS_STEP_ID` | `previous_step.id` | Step ID of immediately prior step (or empty) |
+| `WT_PREVIOUS_STEP_NAME` | `previous_step.name` | Step name of immediately prior step (or empty) |
+| `WT_PREVIOUS_STEP_INDEX` | `previous_step.index` | 1-based index of immediately prior step (or empty) |
+| `WT_PREVIOUS_STEP_STATUS` | `previous_step.status` | Recorded status of immediately prior step (`completed`, `failed`, `ignored`, or empty) |
+| `WT_PREVIOUS_STEP_EXIT_CODE` | `previous_step.exit_code` | Decimal exit code of immediately prior step (or empty) |
+
+### Precedence
+1. Explicit step `env` key
+2. `WT_*` metadata env
+3. Ambient process env
+
