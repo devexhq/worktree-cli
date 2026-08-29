@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import operator
 import re
@@ -53,20 +54,19 @@ def parse_condition_expression(expression: str) -> ParsedCondition | None:
 def parse_literal(raw: str) -> Any:
     """Parse a literal value from a condition operand string."""
     token = raw.strip()
-    if (token.startswith("'") and token.endswith("'")) or (token.startswith('"') and token.endswith('"')):
-        return token[1:-1]
-    if token.lower() == "true":
+    lower = token.lower()
+    if lower == "true":
         return True
-    if token.lower() == "false":
+    if lower == "false":
         return False
+
     try:
-        return int(token)
-    except ValueError:
+        val = ast.literal_eval(token)
+        if isinstance(val, (int, float, str, bool)):
+            return val
+    except (ValueError, SyntaxError):
         pass
-    try:
-        return float(token)
-    except ValueError:
-        pass
+
     return token
 
 

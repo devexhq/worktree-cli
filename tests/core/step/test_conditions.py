@@ -8,6 +8,7 @@ from worktree.core.step.models import StepResult
 from worktree.core.step.services.conditions import (
     evaluate_condition,
     parse_condition_expression,
+    parse_literal,
     validate_condition_expression,
 )
 
@@ -413,3 +414,36 @@ class TestConditionEvaluator:
         assert res.passed is True
         assert res.actual == 3
         assert res.expected == 3
+
+
+class TestParseLiteral:
+    """Tests for parse_literal with ast-based parsing."""
+
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [
+            ("0", 0),
+            ("42", 42),
+            ("-10", -10),
+            ("3.2", 3.2),
+            ("-0.85", -0.85),
+            ("1e-4", 0.0001),
+            ("'hello'", "hello"),
+            ('"hello"', "hello"),
+            ("'it\\'s fine'", "it's fine"),
+            ("true", True),
+            ("false", False),
+            ("True", True),
+            ("False", False),
+            ("TRUE", True),
+            ("completed", "completed"),
+            ("failed", "failed"),
+            ("nan", "nan"),
+            ("inf", "inf"),
+            ("-inf", "-inf"),
+            ("hello world", "hello world"),
+            ("", ""),
+        ],
+    )
+    def test_parse_literal_values(self, raw: str, expected: object) -> None:
+        assert parse_literal(raw) == expected
