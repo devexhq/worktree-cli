@@ -600,7 +600,6 @@ def run_steps(context: RunContext) -> RunOutcome:
     finally:
         sandbox_kept = _finalize_sandbox_cleanup(context, manager, session, target_dir, status, apply_failed)
 
-
     return RunOutcome(
         status=status,
         step_results=step_results,
