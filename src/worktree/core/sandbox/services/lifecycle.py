@@ -9,9 +9,10 @@ from pathlib import Path
 
 from worktree.core.config.loader import ConfigLoadStatus, load_config_result
 from worktree.core.config.models import WorktreeConfig
-from worktree.core.db import SandboxesRepository, SandboxStatus
+from worktree.core.db import SandboxesRepository, SandboxRecord, SandboxStatus
 from worktree.core.git.exceptions import (
     GitCommandError,
+    GitNotFoundError,
     GitPlumbingTimeoutError,
 )
 from worktree.core.git.runner import GitRunner
@@ -28,6 +29,13 @@ def _clean_opt_str(val: str | None) -> str | None:
         return None
     s = val.strip()
     return s if s else None
+
+
+def _extract_target_metadata(target: SandboxSession | SandboxRecord) -> tuple[Path, str, str]:
+    """Extract sandbox path, session id, and branch name from a session or record."""
+    if isinstance(target, SandboxRecord):
+        return Path(target.sandbox_path), target.id, target.branch_name
+    return target.sandbox_path, target.session_id, target.target_branch
 
 
 class SandboxLifecycle:
@@ -66,14 +74,17 @@ class SandboxLifecycle:
             try:
                 GitRunner.worktree_remove(self.path, sandbox_path, force=True)
             except Exception:
+                # Best-effort fallback: remove directory directly if git worktree removal fails.
                 shutil.rmtree(sandbox_path, ignore_errors=True)
         try:
             GitRunner.branch_delete(self.path, temp_branch, force=True)
         except Exception:
+            # Best-effort cleanup: branch may not have been created yet.
             pass
         try:
             GitRunner.worktree_prune(self.path)
         except Exception:
+            # Best-effort cleanup: ignore errors during worktree prune.
             pass
 
     def _load_config(self) -> tuple[SandboxCreateResult | None, WorktreeConfig | None]:
@@ -293,32 +304,73 @@ class SandboxLifecycle:
             warnings=warnings,
         )
 
-    def cleanup(self, session: SandboxSession, *, force: bool = True) -> None:
-        """Remove worktree, delete throwaway branch, and prune (idempotent)."""
-        if session.sandbox_path.exists():
+    def _remove_worktree_dir(self, sandbox_path: Path, *, force: bool) -> str | None:
+        """Remove worktree directory with git worktree remove and rmtree fallback."""
+        if not sandbox_path.exists():
+            return None
+        try:
+            GitRunner.worktree_remove(self.path, sandbox_path, force=force)
+            return None
+        except Exception as exc:
             try:
-                GitRunner.worktree_remove(self.path, session.sandbox_path, force=force)
-            except Exception:
-                shutil.rmtree(session.sandbox_path, ignore_errors=True)
+                shutil.rmtree(sandbox_path)
+                return None
+            except Exception as rm_exc:
+                return f"Failed to remove sandbox worktree directory at '{sandbox_path}': {exc}; fallback removal failed: {rm_exc}"
+
+    def _delete_branch(self, branch_name: str) -> str | None:
+        """Delete temporary branch, ignoring expected idempotent not-found errors."""
+        try:
+            GitRunner.branch_delete(self.path, branch_name, force=True)
+            return None
+        except (GitCommandError, GitNotFoundError):
+            # Best-effort: branch may already be deleted during idempotent cleanup.
+            return None
+        except Exception as exc:
+            return f"Failed to delete branch '{branch_name}': {exc}"
+
+    def cleanup(
+        self,
+        target: SandboxSession | SandboxRecord,
+        *,
+        force: bool = True,
+    ) -> list[str]:
+        """Remove worktree, delete throwaway branch, and prune (idempotent).
+
+        Args:
+            target: SandboxSession or SandboxRecord to clean up.
+            force: Force removal of worktree even if untracked files exist.
+
+        Returns:
+            List of warning messages encountered during cleanup steps.
+        """
+        sandbox_path, session_id, branch_name = _extract_target_metadata(target)
+        warnings: list[str] = []
+
+        dir_warning = self._remove_worktree_dir(sandbox_path, force=force)
+        if dir_warning:
+            warnings.append(dir_warning)
 
         try:
-            self.db.update_status(session.session_id, SandboxStatus.CLEANED)
-        except Exception:
-            pass
+            self.db.update_status(session_id, SandboxStatus.CLEANED)
+        except Exception as exc:
+            warnings.append(f"Failed to update database status to 'cleaned' for sandbox '{session_id}': {exc}")
 
-        try:
-            GitRunner.branch_delete(self.path, session.target_branch, force=True)
-        except Exception:
-            pass
+        branch_warning = self._delete_branch(branch_name)
+        if branch_warning:
+            warnings.append(branch_warning)
 
         try:
             self.prune()
-        except Exception:
-            pass
+        except Exception as exc:
+            warnings.append(f"Failed to prune git worktrees: {exc}")
+
+        return warnings
 
     def prune(self) -> None:
         """Prune stale Git worktree administrative records."""
         try:
             GitRunner.worktree_prune(self.path)
-        except (GitCommandError, Exception):
+        except (GitCommandError, GitNotFoundError):
+            # Best-effort: ignore harmless git errors during administrative worktree prune.
             pass

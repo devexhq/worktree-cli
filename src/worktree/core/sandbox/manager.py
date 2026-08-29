@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from worktree.core.config.models import WorktreeConfig
-from worktree.core.db import SandboxesRepository
+from worktree.core.db import SandboxesRepository, SandboxRecord
 from worktree.core.sandbox.models import (
     SandboxApplyResult,
     SandboxApplyStrategy,
@@ -30,7 +30,7 @@ class GitSandboxManager:
         self.path = path.expanduser().resolve()
         self.db = db
         self.lifecycle = SandboxLifecycle(self.path, self.db)
-        self.patch = SandboxPatch(self.path, self.db)
+        self.patch = SandboxPatch(self.path, self.db, lifecycle=self.lifecycle)
 
     @property
     def config(self) -> WorktreeConfig | None:
@@ -58,9 +58,14 @@ class GitSandboxManager:
             base_ref=base_ref,
         )
 
-    def cleanup_sandbox(self, session: SandboxSession, *, force: bool = True) -> None:
+    def cleanup_sandbox(
+        self,
+        session: SandboxSession | SandboxRecord,
+        *,
+        force: bool = True,
+    ) -> list[str]:
         """Remove worktree, delete throwaway branch, and prune."""
-        self.lifecycle.cleanup(session, force=force)
+        return self.lifecycle.cleanup(session, force=force)
 
     def prune(self) -> None:
         """Prune stale Git worktree registrations."""

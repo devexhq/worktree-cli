@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-import shutil
 from pathlib import Path
 
 from worktree.core.db import SandboxesRepository, SandboxRecord, SandboxStatus
@@ -18,6 +17,7 @@ from worktree.core.sandbox.models import (
     SandboxDiffResult,
     SandboxDiffStatus,
 )
+from worktree.core.sandbox.services.lifecycle import SandboxLifecycle
 from worktree.core.sandbox.services.wip import list_wip_paths
 
 _CONFLICT_PATTERNS = (
@@ -51,15 +51,23 @@ def _extract_conflicts(stderr: str) -> list[str]:
 class SandboxPatch:
     """Orchestrates diff generation, conflict detection, and patch/squash application."""
 
-    def __init__(self, path: Path, db: SandboxesRepository) -> None:
+    def __init__(
+        self,
+        path: Path,
+        db: SandboxesRepository,
+        *,
+        lifecycle: SandboxLifecycle | None = None,
+    ) -> None:
         """Initialize patch service bound to repository root.
 
         Args:
             path: Repository root directory.
             db: Explicit SandboxesRepository instance.
+            lifecycle: Optional SandboxLifecycle instance (constructed if None).
         """
         self.path = path.expanduser().resolve()
         self.db = db
+        self.lifecycle = lifecycle or SandboxLifecycle(self.path, self.db)
 
     def _validate_for_diff(
         self,
@@ -74,7 +82,11 @@ class SandboxPatch:
                 errors=[f"Sandbox '{sandbox_id}' not found."],
             )
         if not Path(record.sandbox_path).is_dir():
-            self.db.reconcile_stale_active(sandbox_id)
+            try:
+                self.db.reconcile_stale_active(sandbox_id)
+            except Exception:
+                # Best-effort reconciliation when sandbox directory is missing on disk.
+                pass
             return None, SandboxDiffResult(
                 status=SandboxDiffStatus.NOT_FOUND,
                 sandbox_id=sandbox_id,
@@ -96,7 +108,11 @@ class SandboxPatch:
             )
 
         if not Path(record.sandbox_path).is_dir():
-            self.db.reconcile_stale_active(sandbox_id)
+            try:
+                self.db.reconcile_stale_active(sandbox_id)
+            except Exception:
+                # Best-effort reconciliation when sandbox directory is missing on disk.
+                pass
             return None, SandboxApplyResult(
                 status=SandboxApplyStatus.NOT_FOUND,
                 sandbox_id=sandbox_id,
@@ -201,7 +217,11 @@ class SandboxPatch:
 
         if returncode != 0:
             conflicts = _extract_conflicts(stderr)
-            self.db.update_status(sandbox_id, SandboxStatus.CONFLICT)
+            try:
+                self.db.update_status(sandbox_id, SandboxStatus.CONFLICT)
+            except Exception:
+                # Best-effort status update during conflict reporting.
+                pass
             conflict_bullets = "\n".join(f"  • {f}" for f in conflicts) if conflicts else f"  {stderr.strip()}"
             return conflicts, SandboxApplyResult(
                 status=SandboxApplyStatus.CONFLICT,
@@ -259,34 +279,13 @@ class SandboxPatch:
                 errors=[f"Git squash commit failed: {exc}"],
             )
 
-    def _cleanup_after_apply(self, record: SandboxRecord, delete: bool) -> bool:
+    def _cleanup_after_apply(self, record: SandboxRecord, delete: bool) -> tuple[bool, list[str]]:
         """Clean up sandbox worktree and branch if delete requested."""
         if not delete:
-            return False
+            return False, []
 
-        sandbox_path = Path(record.sandbox_path)
-        if sandbox_path.exists():
-            try:
-                GitRunner.worktree_remove(self.path, sandbox_path, force=True)
-            except Exception:
-                shutil.rmtree(sandbox_path, ignore_errors=True)
-
-        try:
-            self.db.update_status(record.id, SandboxStatus.CLEANED)
-        except Exception:
-            pass
-
-        try:
-            GitRunner.branch_delete(self.path, record.branch_name, force=True)
-        except Exception:
-            pass
-
-        try:
-            GitRunner.worktree_prune(self.path)
-        except Exception:
-            pass
-
-        return True
+        warnings = self.lifecycle.cleanup(record)
+        return True, warnings
 
     def diff(
         self,
@@ -371,8 +370,14 @@ class SandboxPatch:
         if apply_err is not None:
             return apply_err
 
-        self.db.update_status(sandbox_id, SandboxStatus.MERGED)
-        cleaned_up = self._cleanup_after_apply(record, delete)
+        warnings: list[str] = []
+        try:
+            self.db.update_status(sandbox_id, SandboxStatus.MERGED)
+        except Exception as exc:
+            warnings.append(f"Failed to update database status to 'merged' for sandbox '{sandbox_id}': {exc}")
+
+        cleaned_up, cleanup_warnings = self._cleanup_after_apply(record, delete)
+        warnings.extend(cleanup_warnings)
 
         return SandboxApplyResult(
             status=SandboxApplyStatus.OK,
@@ -381,4 +386,5 @@ class SandboxPatch:
             touched_files=touched_files,
             commit_sha=commit_sha,
             cleaned_up=cleaned_up,
+            warnings=warnings,
         )

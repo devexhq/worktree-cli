@@ -227,6 +227,56 @@ class TestSandboxLifecycle:
         assert row is not None
         assert row.status == SandboxStatus.CLEANED
 
+    def test_cleanup_with_sandbox_record(self, git_fs: GitFileSystem) -> None:
+        git_fs.init_repo()
+        lifecycle = SandboxLifecycle(path=git_fs.base_path, db=self.db.sandboxes)
+        res = lifecycle.create(session_id="sbx_rec")
+        assert res.ok and res.session is not None
+        row = self.db.sandboxes.get("sbx_rec")
+        assert row is not None
+        warnings = lifecycle.cleanup(row)
+        assert warnings == []
+        assert not res.session.sandbox_path.exists()
+        updated_row = self.db.sandboxes.get("sbx_rec")
+        assert updated_row is not None
+        assert updated_row.status == SandboxStatus.CLEANED
+
+    def test_cleanup_warnings_on_db_failure(self, git_fs: GitFileSystem) -> None:
+        git_fs.init_repo()
+        lifecycle = SandboxLifecycle(path=git_fs.base_path, db=self.db.sandboxes)
+        res = lifecycle.create(session_id="sbx_dbfail")
+        assert res.ok and res.session is not None
+
+        with patch.object(self.db.sandboxes, "update_status", side_effect=RuntimeError("db error")):
+            warnings = lifecycle.cleanup(res.session)
+        assert len(warnings) == 1
+        assert "Failed to update database status to 'cleaned'" in warnings[0]
+
+    def test_cleanup_warnings_on_worktree_remove_failure(self, git_fs: GitFileSystem) -> None:
+        git_fs.init_repo()
+        lifecycle = SandboxLifecycle(path=git_fs.base_path, db=self.db.sandboxes)
+        res = lifecycle.create(session_id="sbx_rmfail")
+        assert res.ok and res.session is not None
+
+        with (
+            patch("worktree.core.git.runner.GitRunner.worktree_remove", side_effect=RuntimeError("git wt failed")),
+            patch("shutil.rmtree", side_effect=OSError("permission denied")),
+        ):
+            warnings = lifecycle.cleanup(res.session)
+        assert any("Failed to remove sandbox worktree directory" in w for w in warnings)
+
+    def test_cleanup_warnings_on_branch_delete_unexpected_error(self, git_fs: GitFileSystem) -> None:
+        git_fs.init_repo()
+        lifecycle = SandboxLifecycle(path=git_fs.base_path, db=self.db.sandboxes)
+        res = lifecycle.create(session_id="sbx_brfail")
+        assert res.ok and res.session is not None
+
+        with patch(
+            "worktree.core.git.runner.GitRunner.branch_delete", side_effect=RuntimeError("fatal git branch error")
+        ):
+            warnings = lifecycle.cleanup(res.session)
+        assert any("Failed to delete branch" in w for w in warnings)
+
 
 def test_wip_helpers(tmp_path: Path) -> None:
     _init_git_repo(tmp_path)

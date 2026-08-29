@@ -51,3 +51,15 @@ class TestGitSandboxManager:
 
         manager.prune()
         assert manager.get_active_sandboxes() == []
+
+    def test_cleanup_sandbox_with_record(self, git_fs: GitFileSystem) -> None:
+        git_fs.init_repo()
+        manager = GitSandboxManager(path=git_fs.base_path, db=self.db.sandboxes)
+        create_res = manager.create_sandbox(session_id="sbx_mgr_rec")
+        assert create_res.ok and create_res.session is not None
+
+        row = self.db.sandboxes.get("sbx_mgr_rec")
+        assert row is not None
+        warnings = manager.cleanup_sandbox(row)
+        assert warnings == []
+        assert not create_res.session.sandbox_path.exists()
