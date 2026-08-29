@@ -24,6 +24,7 @@ src/worktree/core/                   Business logic (no Typer)
   catalog/                           models.py + services/ + templates/
   blueprint/                         models.py, exceptions.py, renderers.py,
                                      services/blueprint.py
+  diff/                              models.py, renderers.py, services.py
   history/                           models.py, renderers.py, services.py
   step/                              models.py, exceptions.py, runner.py (entrypoint),
                                      assertions/, services/{loader,resolver}.py
@@ -97,6 +98,8 @@ Single-step execution: `core/step/` (`runner.py`). Multi-step orchestration:
   packaged seeds under `templates/`.
 - **History** (`core/history/`): `HistoryListService`, `HistoryShowService`,
   result models, and table/panel renderers.
+- **Diff** (`core/diff/`): `DiffService`, session diff resolution, artifact loading,
+  result models, and terminal renderers.
 - **Shared core infra**: `config/`, `db/`, `git/`, `sandbox/`, `bootstrap.py`,
   plus foundational domains above.
 

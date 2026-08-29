@@ -12,6 +12,7 @@ from typer.core import TyperGroup
 from worktree.cli.catalog.app import catalog_app
 from worktree.cli.config.app import config_app
 from worktree.cli.context import CliContext
+from worktree.cli.diff.app import register_diff_command
 from worktree.cli.history.app import history_app
 from worktree.cli.init.app import init_app
 from worktree.cli.resume.app import register_resume_command
@@ -51,6 +52,7 @@ app = typer.Typer(
 
 app.add_typer(catalog_app, name="catalog")
 app.add_typer(config_app, name="config")
+register_diff_command(app)
 app.add_typer(history_app, name="history")
 app.add_typer(init_app, name="init")
 register_resume_command(app)
