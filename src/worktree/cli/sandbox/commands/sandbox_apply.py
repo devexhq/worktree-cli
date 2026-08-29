@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 from worktree.cli.context import CliContext
-from worktree.core.git_sandbox import GitSandboxManager
-from worktree.core.sandbox.models import SandboxApplyStrategy
+from worktree.core.sandbox import GitSandboxManager, SandboxApplyStrategy
 
 from ..models import SandboxApplyCommandOutcome
 from ..renderers import render_sandbox_apply_failed, render_sandbox_apply_success
@@ -32,7 +31,7 @@ def sandbox_apply_command(
         message: Optional commit message for squash strategy.
     """
     manager = GitSandboxManager(path=context.cwd, db=context.db.sandboxes)
-    result = manager.apply_sandbox_result(
+    result = manager.apply_sandbox(
         sandbox_id=sandbox_id,
         strategy=strategy,
         allow_dirty=allow_dirty,

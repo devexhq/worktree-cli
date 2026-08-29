@@ -19,7 +19,7 @@ from worktree.cli.sandbox.renderers import (
     render_sandbox_create_success,
 )
 from worktree.core.db import SandboxStatus, WorktreeDb
-from worktree.core.git_sandbox import (
+from worktree.core.sandbox import (
     SandboxCreateResult,
     SandboxCreateStatus,
     SandboxSession,
@@ -227,7 +227,7 @@ class SandboxCreateCommandDirectTests:
         monkeypatch.chdir(git_fs.base_path)
 
         mock_manager = MagicMock()
-        mock_manager.create_sandbox_result.return_value = SandboxCreateResult(
+        mock_manager.create_sandbox.return_value = SandboxCreateResult(
             status=status,
             errors=errors,
         )
@@ -256,7 +256,7 @@ class SandboxCreateCommandDirectTests:
             sandbox_path=git_fs.base_path / ".worktree" / "sandboxes" / "sbx_warnok",
         )
         mock_manager = MagicMock()
-        mock_manager.create_sandbox_result.return_value = SandboxCreateResult(
+        mock_manager.create_sandbox.return_value = SandboxCreateResult(
             status=SandboxCreateStatus.OK,
             session=session,
             warnings=["Failed to persist sandbox metadata to the local database: boom"],

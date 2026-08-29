@@ -10,7 +10,8 @@ from worktree.cli.sandbox.renderers import (
     render_sandbox_apply_failed,
     render_sandbox_apply_success,
 )
-from worktree.core.git_sandbox import (
+from worktree.core.db import WorktreeDb
+from worktree.core.sandbox import (
     GitSandboxManager,
     SandboxApplyResult,
     SandboxApplyStatus,
@@ -86,8 +87,11 @@ class SandboxApplyCommandDirectTests:
 
     def test_sandbox_apply_command_success(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        manager = GitSandboxManager(path=git_fs.base_path)
-        session = manager.create_sandbox(session_id="sbx_dir1")
+        db = WorktreeDb(path=git_fs.base_path)
+        manager = GitSandboxManager(path=git_fs.base_path, db=db.sandboxes)
+        create_res = manager.create_sandbox(session_id="sbx_dir1")
+        assert create_res.ok and create_res.session is not None
+        session = create_res.session
         (session.sandbox_path / "f.txt").write_text("patch apply\n", encoding="utf-8")
 
         context = make_cli_context(cwd=git_fs.base_path)
@@ -110,8 +114,11 @@ class SandboxApplyCliInvocationTests:
     def test_cli_apply_patch_default(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         git_fs.init_repo()
         monkeypatch.chdir(git_fs.base_path)
-        manager = GitSandboxManager(path=git_fs.base_path)
-        session = manager.create_sandbox(session_id="sbx_cli1")
+        db = WorktreeDb(path=git_fs.base_path)
+        manager = GitSandboxManager(path=git_fs.base_path, db=db.sandboxes)
+        create_res = manager.create_sandbox(session_id="sbx_cli1")
+        assert create_res.ok and create_res.session is not None
+        session = create_res.session
         (session.sandbox_path / "new.txt").write_text("cli new\n", encoding="utf-8")
 
         result = runner.invoke(app, ["sandbox", "apply", "sbx_cli1"], catch_exceptions=False)
@@ -125,8 +132,11 @@ class SandboxApplyCliInvocationTests:
     ) -> None:
         git_fs.init_repo()
         monkeypatch.chdir(git_fs.base_path)
-        manager = GitSandboxManager(path=git_fs.base_path)
-        session = manager.create_sandbox(session_id="sbx_cli_sq")
+        db = WorktreeDb(path=git_fs.base_path)
+        manager = GitSandboxManager(path=git_fs.base_path, db=db.sandboxes)
+        create_res = manager.create_sandbox(session_id="sbx_cli_sq")
+        assert create_res.ok and create_res.session is not None
+        session = create_res.session
         (session.sandbox_path / "sq.txt").write_text("sq data\n", encoding="utf-8")
 
         result = runner.invoke(
@@ -142,8 +152,11 @@ class SandboxApplyCliInvocationTests:
     def test_cli_apply_dry_run(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         git_fs.init_repo()
         monkeypatch.chdir(git_fs.base_path)
-        manager = GitSandboxManager(path=git_fs.base_path)
-        session = manager.create_sandbox(session_id="sbx_cli_dry")
+        db = WorktreeDb(path=git_fs.base_path)
+        manager = GitSandboxManager(path=git_fs.base_path, db=db.sandboxes)
+        create_res = manager.create_sandbox(session_id="sbx_cli_dry")
+        assert create_res.ok and create_res.session is not None
+        session = create_res.session
         (session.sandbox_path / "dry.txt").write_text("dry data\n", encoding="utf-8")
 
         result = runner.invoke(app, ["sandbox", "apply", "sbx_cli_dry", "--dry-run"], catch_exceptions=False)

@@ -26,7 +26,7 @@ from worktree.core.db import (
     SandboxStatus,
     WorktreeDb,
 )
-from worktree.core.git_sandbox import GitSandboxManager
+from worktree.core.sandbox import GitSandboxManager
 
 runner = CliRunner()
 DB_REL = ".worktree/data.db"
@@ -288,7 +288,9 @@ class SandboxDeleteCommandDirectTests:
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
-        session = GitSandboxManager(path=git_fs.base_path).create_sandbox(name="force-me")
+        res = GitSandboxManager(path=git_fs.base_path, db=self.db.sandboxes).create_sandbox(name="force-me")
+        assert res.ok and res.session is not None
+        session = res.session
         assert Path(session.sandbox_path).is_dir()
 
         with (
@@ -313,7 +315,9 @@ class SandboxDeleteCommandDirectTests:
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
-        session = GitSandboxManager(path=git_fs.base_path).create_sandbox()
+        res = GitSandboxManager(path=git_fs.base_path, db=self.db.sandboxes).create_sandbox()
+        assert res.ok and res.session is not None
+        session = res.session
 
         with (
             patch(
@@ -426,7 +430,9 @@ class SandboxDeleteCliTests:
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
-        session = GitSandboxManager(path=git_fs.base_path).create_sandbox()
+        res = GitSandboxManager(path=git_fs.base_path, db=self.db.sandboxes).create_sandbox()
+        assert res.ok and res.session is not None
+        session = res.session
 
         result = runner.invoke(
             app,

@@ -1,5 +1,5 @@
 from worktree.cli.context import CliContext
-from worktree.core.git_sandbox import GitSandboxManager
+from worktree.core.sandbox import GitSandboxManager
 
 from ..models import SandboxCreateCommandOutcome
 from ..renderers import (
@@ -16,7 +16,7 @@ def sandbox_create_command(
 ) -> SandboxCreateCommandOutcome:
     """Create an isolated git worktree sandbox.
 
-    Calls ``GitSandboxManager.create_sandbox_result`` and renders success or a
+    Calls ``GitSandboxManager.create_sandbox`` and renders success or a
     classified failure panel.
 
     Args:
@@ -25,7 +25,7 @@ def sandbox_create_command(
         wip: When True, overlay uncommitted working-tree changes.
         context: CLI context instance.
     """
-    result = GitSandboxManager(path=context.cwd, db=context.db.sandboxes).create_sandbox_result(
+    result = GitSandboxManager(path=context.cwd, db=context.db.sandboxes).create_sandbox(
         name=name,
         base_ref=base_ref,
         include_wip=wip,
