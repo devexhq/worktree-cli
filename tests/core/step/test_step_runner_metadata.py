@@ -10,6 +10,7 @@ from worktree.core.step import (
     PreviousStepMetadata,
     StepDefinition,
     StepExecution,
+    StepExecutionContext,
     StepType,
 )
 
@@ -34,11 +35,13 @@ class StepExecutionMetadataIntegrationTests:
         identity = ExecutionIdentity(task_name="my_task", task_sha="sha_999")
 
         result = StepExecution(
-            step,
-            sandbox_path=fs.base_path,
-            step_index=2,
-            identity=identity,
-            previous_step=previous,
+            StepExecutionContext(
+                step=step,
+                sandbox_path=fs.base_path,
+                step_index=2,
+                identity=identity,
+                previous_step=previous,
+            )
         ).run()
 
         assert result.ok is True
@@ -53,7 +56,7 @@ class StepExecutionMetadataIntegrationTests:
             on_failure=FailureSpec(action=FailurePolicy.RETRY, max_retries=3),
         )
 
-        result = StepExecution(step, sandbox_path=fs.base_path).run()
+        result = StepExecution(StepExecutionContext(step=step, sandbox_path=fs.base_path)).run()
 
         assert result.ok is True
         assert result.status == "completed"
@@ -70,7 +73,9 @@ class StepExecutionMetadataIntegrationTests:
             env={"WT_STEP_ATTEMPT": "custom_override"},
         )
 
-        result = StepExecution(step, sandbox_path=fs.base_path, step_index=1, initial_attempt=1).run()
+        result = StepExecution(
+            StepExecutionContext(step=step, sandbox_path=fs.base_path, step_index=1, initial_attempt=1)
+        ).run()
 
         assert result.ok is True
         assert "ATTEMPT=custom_override" in result.stdout
@@ -83,7 +88,7 @@ class StepExecutionMetadataIntegrationTests:
             env={"MY_NAME": "{{ step.id }}"},
         )
 
-        result = StepExecution(step, sandbox_path=fs.base_path, step_index=4).run()
+        result = StepExecution(StepExecutionContext(step=step, sandbox_path=fs.base_path, step_index=4)).run()
 
         assert result.ok is True
         assert "4:1" in result.stdout
@@ -99,10 +104,12 @@ class StepExecutionMetadataIntegrationTests:
         s1 = PreviousStepMetadata(id="build_step", name="Build Step", index="2", status="completed", exit_code="0")
 
         result = StepExecution(
-            step,
-            sandbox_path=fs.base_path,
-            step_index=3,
-            steps=[s0, s1],
+            StepExecutionContext(
+                step=step,
+                sandbox_path=fs.base_path,
+                step_index=3,
+                steps=[s0, s1],
+            )
         ).run()
 
         assert result.ok is True

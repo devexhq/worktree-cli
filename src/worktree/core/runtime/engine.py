@@ -27,6 +27,7 @@ from worktree.core.step import (
     PreviousStepMetadata,
     StepDefinition,
     StepExecution,
+    StepExecutionContext,
     StepResult,
     previous_step_metadata_from_result,
 )
@@ -314,15 +315,17 @@ def _execute_one_step(
             else None
         )
         result = StepExecution(
-            step=step,
-            sandbox_path=state.target_dir,
-            context=step_context,
-            on_output=on_output,
-            step_index=idx,
-            initial_attempt=current_attempt,
-            identity=context.identity,
-            previous_step=previous_step,
-            steps=steps,
+            StepExecutionContext(
+                step=step,
+                sandbox_path=state.target_dir,
+                context=step_context,
+                on_output=on_output,
+                step_index=idx,
+                initial_attempt=current_attempt,
+                identity=context.identity,
+                previous_step=previous_step,
+                steps=steps,
+            )
         ).run()
         _notify_step_done(context, idx, total, result)
         if result.ok:

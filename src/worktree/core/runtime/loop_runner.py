@@ -27,6 +27,7 @@ from worktree.core.step.models import (
     LoopStepBlock,
     PreviousStepMetadata,
     StepDefinition,
+    StepExecutionContext,
     StepResult,
 )
 from worktree.core.step.runner import StepExecution
@@ -120,15 +121,17 @@ class LoopBlockRunner:
 
         isolated_sub_step = sub_step.model_copy(update={"on_failure": FailureSpec(action=FailurePolicy.ABORT)})
         execution = StepExecution(
-            step=isolated_sub_step,
-            sandbox_path=self.sandbox_path,
-            context=self._build_step_context(turn),
-            on_output=on_output,
-            step_index=sub_idx,
-            initial_attempt=attempt,
-            iteration_index=turn,
-            identity=self.identity,
-            steps=historical_steps,
+            StepExecutionContext(
+                step=isolated_sub_step,
+                sandbox_path=self.sandbox_path,
+                context=self._build_step_context(turn),
+                on_output=on_output,
+                step_index=sub_idx,
+                initial_attempt=attempt,
+                iteration_index=turn,
+                identity=self.identity,
+                steps=historical_steps,
+            )
         )
         result = execution.run()
         if obs is not None:

@@ -103,7 +103,7 @@ class Engine:
         blueprint: Blueprint | None = None,
         observer: RunObserver | None = None,
         failure_prompter: FailurePrompter | None = None,
-        non_interactive: bool = False
+        non_interactive: bool = False,
     ) -> RunOutcome:
         """Classify a paused session, rebuild ``RunContext``, and re-enter ``run_steps``."""
         loaded, db, checkpoint = ResumableRun.load(

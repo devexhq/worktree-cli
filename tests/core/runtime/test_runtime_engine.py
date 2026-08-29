@@ -71,17 +71,25 @@ def patch_execute(
     class FakeStepExecution:
         def __init__(
             self,
-            step: StepDefinition,
-            sandbox_path: Path,
+            metadata: Any,
+            sandbox_path: Path | None = None,
             context: dict[str, Any] | None = None,
             on_output: Any = None,
             *args: Any,
             **kwargs: Any,
         ) -> None:
-            self.step = step
-            self.sandbox_path = sandbox_path
-            self.context = context
-            self.on_output = on_output
+            from worktree.core.step.models import StepExecutionContext
+
+            if isinstance(metadata, StepExecutionContext):
+                self.step = metadata.step
+                self.sandbox_path = metadata.sandbox_path
+                self.context = metadata.context
+                self.on_output = metadata.on_output
+            else:
+                self.step = metadata
+                self.sandbox_path = sandbox_path
+                self.context = context
+                self.on_output = on_output
             self.extra_kwargs = kwargs
 
         def run(self) -> StepResult:

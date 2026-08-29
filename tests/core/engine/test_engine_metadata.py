@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from tests.helpers import FileSystem
 from worktree.core.blueprint import Blueprint, BlueprintDefinition, BlueprintKind
+from worktree.core.catalog import Catalog
+from worktree.core.db import RunsRepository
 from worktree.core.engine import Engine, RunRequest
 from worktree.core.step import StepDefinition, StepType
 
@@ -26,7 +28,9 @@ class EngineExecutionMetadataTests:
             )
         )
 
-        engine = Engine(fs.base_path)
+        db = RunsRepository(fs.base_path)
+        catalog = Catalog(fs.base_path)
+        engine = Engine(fs.base_path, db=db, catalog=catalog)
         outcome = engine.run(blueprint, RunRequest(session_id="custom_sess_123", use_sandbox=False))
 
         assert outcome.ok is True
@@ -51,7 +55,9 @@ class EngineExecutionMetadataTests:
             )
         )
 
-        engine = Engine(fs.base_path)
+        db = RunsRepository(fs.base_path)
+        catalog = Catalog(fs.base_path)
+        engine = Engine(fs.base_path, db=db, catalog=catalog)
         outcome = engine.run(blueprint, RunRequest(session_id="flow_sess_456", use_sandbox=False))
 
         assert outcome.ok is True

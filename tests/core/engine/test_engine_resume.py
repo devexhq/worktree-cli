@@ -13,6 +13,7 @@ from tests.helpers import (
     make_cmd_step,
 )
 from worktree.core.blueprint import Blueprint, BlueprintDefinition, BlueprintKind
+from worktree.core.catalog import Catalog
 from worktree.core.catalog.services.inventory import scan_and_index_catalog
 from worktree.core.db import RunsRepository, RunStatus, WorktreeDb
 from worktree.core.engine import Engine, EngineResumeError, EngineResumeStatus, ResumableRun
@@ -84,10 +85,12 @@ class EngineResumeExecutionTests:
     """Unit tests for Engine.resume execution flow and state persistence."""
 
     db: WorktreeDb
+    catalog: Catalog
 
     @pytest.fixture(autouse=True)
     def setup_method(self, fs: FileSystem) -> None:
         self.db = WorktreeDb(path=fs.base_path)
+        self.catalog = Catalog(path=fs.base_path, db=self.db.catalog)
 
     def test_resume_rebuilds_context_from_checkpoint(self, monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
         checkpoint = _checkpoint(keep=True, agent="copilot", inputs={"name": "demo"})
@@ -102,7 +105,7 @@ class EngineResumeExecutionTests:
 
         monkeypatch.setattr("worktree.core.engine.engine.run_steps", fake_run_steps)
 
-        outcome = Engine(fs.base_path).resume(
+        outcome = Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).resume(
             "task_resume",
             blueprint=_task_blueprint(),
             observer=observer,
@@ -131,7 +134,9 @@ class EngineResumeExecutionTests:
             lambda _context: RunOutcome(status=RunStatus.COMPLETED, sandbox_path=fs.base_path),
         )
 
-        outcome = Engine(fs.base_path).resume("task_done", blueprint=_task_blueprint())
+        outcome = Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).resume(
+            "task_done", blueprint=_task_blueprint()
+        )
 
         assert outcome.ok
         record = self.db.runs.get("task_done")
@@ -146,7 +151,9 @@ class EngineResumeExecutionTests:
             lambda _context: RunOutcome(status=RunStatus.COMPLETED, sandbox_path=fs.base_path),
         )
 
-        outcome = Engine(fs.base_path).resume("workflow_done", blueprint=_workflow_blueprint())
+        outcome = Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).resume(
+            "workflow_done", blueprint=_workflow_blueprint()
+        )
 
         assert outcome.ok
         record = self.db.runs.get("workflow_done")
@@ -174,7 +181,7 @@ class EngineResumeExecutionTests:
 
         monkeypatch.setattr("worktree.core.engine.engine.run_steps", fake_run_steps)
 
-        outcome = Engine(fs.base_path).resume("task_catalog")
+        outcome = Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).resume("task_catalog")
 
         assert outcome.ok
         assert [step.id for step in captured["context"].steps] == ["setup", "publish", "later"]
@@ -189,7 +196,9 @@ class EngineResumeExecutionTests:
             lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("locked")),
         )
 
-        outcome = Engine(fs.base_path).resume("task_mark", blueprint=_task_blueprint())
+        outcome = Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).resume(
+            "task_mark", blueprint=_task_blueprint()
+        )
 
         assert outcome is not expected
         assert outcome.warnings[0] == "step note"
@@ -212,7 +221,9 @@ class EngineResumeExecutionTests:
             _fail_finalize,
         )
 
-        outcome = Engine(fs.base_path).resume("task_final", blueprint=_task_blueprint())
+        outcome = Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).resume(
+            "task_final", blueprint=_task_blueprint()
+        )
 
         assert any(warning.startswith("Failed to update run status in database:") for warning in outcome.warnings)
         record = self.db.runs.get("task_final")
@@ -224,20 +235,22 @@ class EngineResumeValidationTests:
     """Unit tests for Engine.resume validation errors and precondition checks."""
 
     db: WorktreeDb
+    catalog: Catalog
 
     @pytest.fixture(autouse=True)
     def setup_method(self, fs: FileSystem) -> None:
         self.db = WorktreeDb(path=fs.base_path)
+        self.catalog = Catalog(path=fs.base_path, db=self.db.catalog)
 
     def test_resume_not_found(self, fs: FileSystem) -> None:
         with pytest.raises(EngineResumeError, match=r"Session 'missing' not found\.") as exc_info:
-            Engine(fs.base_path).resume("missing", blueprint=_task_blueprint())
+            Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).resume("missing", blueprint=_task_blueprint())
 
         assert exc_info.value.status is EngineResumeStatus.NOT_FOUND
 
     def test_resume_omitted_blueprint_not_found(self, fs: FileSystem) -> None:
         with pytest.raises(EngineResumeError, match=r"Session 'missing' not found\.") as exc_info:
-            Engine(fs.base_path).resume("missing")
+            Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).resume("missing")
 
         assert exc_info.value.status is EngineResumeStatus.NOT_FOUND
 
@@ -246,7 +259,9 @@ class EngineResumeValidationTests:
         self.db.runs.create("task_wrong", blueprint_name="lint", kind=BlueprintKind.TASK, status=status)
 
         with pytest.raises(EngineResumeError) as exc_info:
-            Engine(fs.base_path).resume("task_wrong", blueprint=_task_blueprint())
+            Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).resume(
+                "task_wrong", blueprint=_task_blueprint()
+            )
 
         assert exc_info.value.status is EngineResumeStatus.WRONG_STATUS
         assert (
@@ -258,7 +273,7 @@ class EngineResumeValidationTests:
         self.db.runs.save_pause("task_bad", "{nope", "paused")
 
         with pytest.raises(EngineResumeError, match="checkpoint is missing or corrupt") as exc_info:
-            Engine(fs.base_path).resume("task_bad", blueprint=_task_blueprint())
+            Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).resume("task_bad", blueprint=_task_blueprint())
 
         assert exc_info.value.status is EngineResumeStatus.CORRUPT_CHECKPOINT
 
@@ -267,7 +282,7 @@ class EngineResumeValidationTests:
         _seed_paused_task(self.db.runs, "task_box", _checkpoint(use_sandbox=True, sandbox_path=str(missing)))
 
         with pytest.raises(EngineResumeError) as exc_info:
-            Engine(fs.base_path).resume("task_box", blueprint=_task_blueprint())
+            Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).resume("task_box", blueprint=_task_blueprint())
 
         assert exc_info.value.status is EngineResumeStatus.MISSING_SANDBOX
         assert str(exc_info.value) == f"Cannot resume session 'task_box': sandbox path '{missing}' no longer exists."
@@ -276,7 +291,9 @@ class EngineResumeValidationTests:
         _seed_paused_task(self.db.runs, "task_pending", _checkpoint(pending_step_id="ghost"))
 
         with pytest.raises(EngineResumeError, match="checkpoint is missing or corrupt") as exc_info:
-            Engine(fs.base_path).resume("task_pending", blueprint=_task_blueprint())
+            Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).resume(
+                "task_pending", blueprint=_task_blueprint()
+            )
 
         assert exc_info.value.status is EngineResumeStatus.CORRUPT_CHECKPOINT
         record = self.db.runs.get("task_pending")
@@ -290,7 +307,7 @@ class EngineResumeValidationTests:
             lambda _context: RunOutcome(status=RunStatus.COMPLETED, sandbox_path=fs.base_path),
         )
 
-        outcome = Engine(fs.base_path).resume(
+        outcome = Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).resume(
             "workflow_loop",
             blueprint=_task_blueprint(loop=True, name="ship"),
         )
@@ -304,7 +321,7 @@ class EngineResumeValidationTests:
         _seed_paused_task(self.db.runs, "task_gone", _checkpoint(), name="missing-task")
 
         with pytest.raises(EngineResumeError, match="blueprint 'missing-task' not found") as exc_info:
-            Engine(fs.base_path).resume("task_gone")
+            Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).resume("task_gone")
 
         assert exc_info.value.status is EngineResumeStatus.FAILED
 

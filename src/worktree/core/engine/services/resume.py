@@ -51,7 +51,7 @@ class BlueprintResumeService:
                     target_session_id,
                     observer=observer,
                     failure_prompter=prompter,
-                    non_interactive=effective_non_interactive
+                    non_interactive=effective_non_interactive,
                 )
         except (EngineResumeError, EngineRuntimeError) as exc:
             return self._fail(str(exc))

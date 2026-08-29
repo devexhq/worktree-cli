@@ -373,7 +373,6 @@ class StepExecutionContext(BaseModel):
     steps: Sequence[PreviousStepMetadata] | None = None
 
 
-
 class StepDispatchOutcome(BaseModel):
     """Raw outcome of one or more step primitive dispatches (before finalization)."""
 

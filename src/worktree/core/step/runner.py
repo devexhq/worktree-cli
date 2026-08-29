@@ -8,7 +8,7 @@ import subprocess
 import sys
 import threading
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from pathlib import Path
 from typing import IO, Any
 
@@ -16,7 +16,6 @@ from worktree.core.agents.factory import get_agent_adapter
 from worktree.core.inputs import interpolate_step_fields
 from worktree.core.step.assertions import evaluate_assertions
 from worktree.core.step.models import (
-    ExecutionIdentity,
     ExecutionMetadata,
     FailurePolicy,
     PreviousStepMetadata,
