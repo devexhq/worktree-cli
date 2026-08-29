@@ -4,9 +4,12 @@ import typer
 
 from worktree.cli.context import CliContext
 from worktree.core.db import SandboxStatus
+from worktree.core.sandbox.models import SandboxApplyStrategy
 
+from .commands.sandbox_apply import sandbox_apply_command
 from .commands.sandbox_create import sandbox_create_command
 from .commands.sandbox_delete import sandbox_delete_command
+from .commands.sandbox_diff import sandbox_diff_command
 from .commands.sandbox_list import sandbox_list_command
 from .commands.sandbox_show import sandbox_show_command
 
@@ -89,6 +92,75 @@ def sandbox_delete(
     """Delete a sandbox worktree and branch after confirmation."""
     context: CliContext = ctx.obj["context"]
     outcome = sandbox_delete_command(context, sandbox_id, force=force)
+    context.output.print()
+    if not outcome.ok:
+        raise typer.Exit(code=1)
+
+
+@sandbox_app.command("apply")
+def sandbox_apply(
+    ctx: typer.Context,
+    sandbox_id: str = typer.Argument(..., help="Sandbox id to apply."),
+    strategy: Annotated[
+        SandboxApplyStrategy,
+        typer.Option(
+            "--strategy",
+            help="Apply strategy: patch (uncommitted changes) or squash (single commit).",
+            case_sensitive=False,
+        ),
+    ] = SandboxApplyStrategy.PATCH,
+    allow_dirty: bool = typer.Option(
+        False,
+        "--allow-dirty",
+        help="Apply changes even if the main workspace has uncommitted changes.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Check for conflicts without mutating the main workspace.",
+    ),
+    delete: bool = typer.Option(
+        False,
+        "--delete",
+        "-d",
+        help="Clean up sandbox worktree and delete its branch upon successful application.",
+    ),
+    message: str | None = typer.Option(
+        None,
+        "--message",
+        "-m",
+        help="Commit message when using squash strategy.",
+    ),
+):
+    """Apply changes from an isolated sandbox back into the main workspace."""
+    context: CliContext = ctx.obj["context"]
+    outcome = sandbox_apply_command(
+        context,
+        sandbox_id,
+        strategy=strategy,
+        allow_dirty=allow_dirty,
+        dry_run=dry_run,
+        delete=delete,
+        message=message,
+    )
+    context.output.print()
+    if not outcome.ok:
+        raise typer.Exit(code=1)
+
+
+@sandbox_app.command("diff")
+def sandbox_diff(
+    ctx: typer.Context,
+    sandbox_id: str = typer.Argument(..., help="Sandbox id to diff."),
+    stat: bool = typer.Option(
+        False,
+        "--stat",
+        help="Show diffstat summary instead of full unified diff.",
+    ),
+):
+    """Inspect differences between sandbox worktree and base commit."""
+    context: CliContext = ctx.obj["context"]
+    outcome = sandbox_diff_command(context, sandbox_id, stat=stat)
     context.output.print()
     if not outcome.ok:
         raise typer.Exit(code=1)

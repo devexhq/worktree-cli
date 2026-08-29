@@ -36,6 +36,11 @@ def run_root(
         "--non-interactive",
         help="Disable interactive prompts; prompt_user failures abort the run.",
     ),
+    auto_apply: bool = typer.Option(
+        False,
+        "--auto-apply",
+        help="Automatically apply sandbox changes to the main workspace on successful completion.",
+    ),
 ) -> None:
     """Execute a task or workflow blueprint."""
     context: CliContext = ctx.obj["context"]
@@ -52,6 +57,7 @@ def run_root(
         session_id=session_id,
         cli_args=list(ctx.args),
         non_interactive=non_interactive,
+        auto_apply=auto_apply,
     ).execute()
     context.output.print()
     if not outcome.ok:

@@ -132,6 +132,7 @@ class RunContext:
     failure_prompter: FailurePrompter | None = None
     pause_store: RunPauseStore | None = None
     resume_from: RunCheckpoint | None = None
+    auto_apply: bool = False
 
 
 @runtime_checkable
