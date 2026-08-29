@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 
 from worktree.core.blueprint.services.blueprint import Blueprint
 from worktree.core.catalog import Catalog
 from worktree.core.db import BlueprintKind, RunsRepository, RunStatus
 from worktree.core.engine.exceptions import EngineInputError
-from worktree.core.engine.models import RunRequest
+from worktree.core.engine.models import RunRequest, SessionRunPayload
 from worktree.core.engine.resumable import ResumableRun
+from worktree.core.engine.writer import get_session_dir, write_session_run_json
 from worktree.core.inputs import InputResolveResult
 from worktree.core.runtime import (
     ExecutionIdentity,
@@ -75,6 +77,7 @@ class Engine:
             else ExecutionIdentity(workflow_name=blueprint.name, workflow_sha=sid)
         )
 
+        start_time = datetime.now(UTC).isoformat()
         outcome = run_steps(
             RunContext(
                 steps=steps,
@@ -93,7 +96,13 @@ class Engine:
         )
 
         if pause_store is not None:
-            self._finish_run(pause_store, outcome, engine_warnings)
+            self._finish_run(
+                pause_store,
+                outcome,
+                engine_warnings,
+                blueprint=blueprint,
+                started_at=start_time,
+            )
 
         return self._finalize_outcome(outcome, sid, engine_warnings)
 
@@ -129,6 +138,7 @@ class Engine:
             )
         )
 
+        start_time = datetime.now(UTC).isoformat()
         outcome = run_steps(
             RunContext(
                 steps=steps,
@@ -146,7 +156,13 @@ class Engine:
             )
         )
 
-        self._finish_run(pause_store, outcome, engine_warnings)
+        self._finish_run(
+            pause_store,
+            outcome,
+            engine_warnings,
+            blueprint=loaded,
+            started_at=start_time,
+        )
 
         return self._finalize_outcome(outcome, session_id, engine_warnings)
 
@@ -165,11 +181,40 @@ class Engine:
 
         return _DbPauseStore(self.db, session_id)
 
+    def _persist_session_run_json(
+        self,
+        session_id: str,
+        blueprint: Blueprint,
+        outcome: RunOutcome,
+        started_at: str,
+        warnings: list[str],
+    ) -> None:
+        """Persist structured run results and step telemetry to run.json."""
+        try:
+            session_dir = get_session_dir(self.path, session_id)
+            payload = SessionRunPayload(
+                version=1,
+                session_id=session_id,
+                kind=blueprint.kind.value,
+                name=blueprint.name,
+                status=outcome.status.value,
+                started_at=started_at,
+                completed_at=datetime.now(UTC).isoformat(),
+                error_message=outcome.errors[0] if outcome.errors else None,
+                step_results=outcome.step_results,
+            )
+            write_session_run_json(session_dir, payload)
+        except Exception as exc:
+            warnings.append(f"Failed to persist session run json: {exc}")
+
     def _finish_run(
         self,
         pause_store: _DbPauseStore,
         outcome: RunOutcome,
         warnings: list[str],
+        *,
+        blueprint: Blueprint | None = None,
+        started_at: str | None = None,
     ) -> None:
         """Persist the outcome status when the start insert succeeded."""
         try:
@@ -177,6 +222,15 @@ class Engine:
             pause_store.finalize(outcome.status, error_message)
         except Exception as exc:
             warnings.append(f"Failed to update run status in database: {exc}")
+
+        if blueprint is not None and started_at is not None:
+            self._persist_session_run_json(
+                pause_store._session_id,
+                blueprint,
+                outcome,
+                started_at,
+                warnings,
+            )
 
     def _insert_running(self, blueprint: Blueprint, session_id: str) -> None:
         """Insert a RUNNING row for the bound repository."""

@@ -5,7 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
+from pydantic import BaseModel, Field
+
 from worktree.core.runtime.models import FailurePrompter, RunObserver
+from worktree.core.step.models import StepResult
 
 
 class EngineResumeStatus(StrEnum):
@@ -33,3 +36,19 @@ class RunRequest:
     failure_prompter: FailurePrompter | None = None
     non_interactive: bool = False
     auto_apply: bool = False
+
+
+class SessionRunPayload(BaseModel):
+    """Persisted execution results and telemetry for a session."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    version: int = 1
+    session_id: str
+    kind: str  # "task" | "workflow"
+    name: str
+    status: str
+    started_at: str
+    completed_at: str | None = None
+    error_message: str | None = None
+    step_results: list[StepResult] = Field(default_factory=list)
