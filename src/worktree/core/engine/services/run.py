@@ -46,6 +46,7 @@ class BlueprintRunService:
     session_id: str | None = None
     cli_args: list[str] | None = None
     non_interactive: bool = False
+    auto_apply: bool = False
     renderer: BlueprintRenderer = field(init=False)
     warnings: list[str] = field(default_factory=list)
 
@@ -84,6 +85,7 @@ class BlueprintRunService:
                         observer=observer,
                         failure_prompter=prompter,
                         non_interactive=effective_non_interactive,
+                        auto_apply=self.auto_apply,
                     ),
                 )
         except EngineInputError as exc:

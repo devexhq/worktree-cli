@@ -2,68 +2,46 @@
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 import uuid
 from datetime import UTC, datetime
-from enum import StrEnum
 from pathlib import Path
-
-from pydantic import BaseModel, Field
 
 from worktree.common.constants import GIT_SUBPROCESS_TIMEOUT_SECONDS
 from worktree.common.git import get_current_git_branch
 from worktree.core.config.loader import ConfigLoadStatus, load_config_result
 from worktree.core.config.models import WorktreeConfig
-from worktree.core.db import SandboxesRepository, SandboxStatus
+from worktree.core.db import SandboxesRepository, SandboxRecord, SandboxStatus
+from worktree.core.sandbox.models import (
+    SandboxApplyResult,
+    SandboxApplyStatus,
+    SandboxApplyStrategy,
+    SandboxCreateResult,
+    SandboxCreateStatus,
+    SandboxDiffResult,
+    SandboxDiffStatus,
+    SandboxSession,
+)
+
+__all__ = [
+    "GitPlumbingTimeoutError",
+    "GitSandboxManager",
+    "SandboxApplyResult",
+    "SandboxApplyStatus",
+    "SandboxApplyStrategy",
+    "SandboxCreateResult",
+    "SandboxCreateStatus",
+    "SandboxDiffResult",
+    "SandboxDiffStatus",
+    "SandboxSession",
+    "apply_wip_to_sandbox",
+]
 
 
 class GitPlumbingTimeoutError(RuntimeError):
     """Raised when an internal git plumbing subprocess exceeds its timeout."""
-
-
-class SandboxSession(BaseModel):
-    """Metadata for one isolated background git worktree."""
-
-    model_config = {"extra": "forbid", "strict": True}
-
-    session_id: str
-    target_branch: str
-    sandbox_path: Path
-    base_commit: str
-    name: str | None = None
-    created_at: str
-    command_passed: bool | None = None
-    wip_applied: bool = False
-    wip_paths: list[str] = Field(default_factory=list)
-
-
-class SandboxCreateStatus(StrEnum):
-    """Classified outcomes for creating a sandbox worktree."""
-
-    OK = "ok"
-    CAPACITY_EXCEEDED = "capacity_exceeded"
-    GIT_FAILED = "git_failed"
-    GIT_TIMEOUT = "git_timeout"
-    NOT_INITIALIZED = "not_initialized"
-    UNREADABLE_CONFIG = "unreadable_config"
-    WIP_FAILED = "wip_failed"
-
-
-class SandboxCreateResult(BaseModel):
-    """Non-raising result of sandbox creation."""
-
-    model_config = {"extra": "forbid", "strict": True}
-
-    status: SandboxCreateStatus
-    session: SandboxSession | None = None
-    errors: list[str] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
-
-    @property
-    def ok(self) -> bool:
-        """Return True when a sandbox session was created successfully."""
-        return self.status == SandboxCreateStatus.OK and not self.errors
 
 
 def _clean_opt_str(val: str | None) -> str | None:
@@ -697,3 +675,436 @@ class GitSandboxManager:
     def prune(self) -> None:
         """Prune stale Git worktree registrations."""
         self._run_git_cmd(["worktree", "prune"])
+
+    # ------------------------------------------------------------------
+    # apply_sandbox_result helpers
+    # ------------------------------------------------------------------
+
+    def _validate_sandbox_for_apply(
+        self,
+        sandbox_id: str,
+    ) -> tuple[SandboxRecord | None, SandboxApplyResult | None]:
+        """Validate that sandbox exists in DB, is on disk, and is not already merged."""
+        record = self.db.get(sandbox_id)
+        if record is None:
+            return None, SandboxApplyResult(
+                status=SandboxApplyStatus.NOT_FOUND,
+                sandbox_id=sandbox_id,
+                errors=[f"Sandbox '{sandbox_id}' not found.\nFix:\n- run `wt sandbox list` to see known sandboxes"],
+            )
+
+        if not Path(record.sandbox_path).is_dir():
+            self.db.reconcile_stale_active(sandbox_id)
+            return None, SandboxApplyResult(
+                status=SandboxApplyStatus.NOT_FOUND,
+                sandbox_id=sandbox_id,
+                errors=[f"Sandbox '{sandbox_id}' directory is missing on disk; reconciled status to 'cleaned'."],
+            )
+
+        if record.status == SandboxStatus.MERGED:
+            return None, SandboxApplyResult(
+                status=SandboxApplyStatus.ALREADY_MERGED,
+                sandbox_id=sandbox_id,
+                warnings=[f"Sandbox '{sandbox_id}' is already merged."],
+            )
+
+        return record, None
+
+    def _check_main_repo_clean(
+        self,
+        allow_dirty: bool,
+        sandbox_id: str,
+    ) -> SandboxApplyResult | None:
+        """Check if main repository has uncommitted changes."""
+        if allow_dirty:
+            return None
+
+        dirty_paths = _list_wip_paths(self.path)
+        if not dirty_paths:
+            return None
+
+        return SandboxApplyResult(
+            status=SandboxApplyStatus.MAIN_REPO_DIRTY,
+            sandbox_id=sandbox_id,
+            errors=[
+                f"Cannot apply sandbox {sandbox_id}: main repository has uncommitted changes.\n"
+                "Fix:\n"
+                "- commit or stash local changes in the main workspace, or\n"
+                "- pass --allow-dirty to overlay changes anyway"
+            ],
+        )
+
+    def _collect_sandbox_changes(
+        self,
+        record: SandboxRecord,
+    ) -> tuple[str, list[str], SandboxApplyResult | None]:
+        """Generate unified diff and list of touched files."""
+        try:
+            diff_text, touched_files, _ = _collect_sandbox_delta(Path(record.sandbox_path), record.base_commit)
+        except Exception as exc:
+            return (
+                "",
+                [],
+                SandboxApplyResult(
+                    status=SandboxApplyStatus.GIT_FAILED,
+                    sandbox_id=record.id,
+                    errors=[f"Failed to generate diff from sandbox: {exc}"],
+                ),
+            )
+
+        if not touched_files or not diff_text.strip():
+            return (
+                "",
+                [],
+                SandboxApplyResult(
+                    status=SandboxApplyStatus.EMPTY_DIFF,
+                    sandbox_id=record.id,
+                    warnings=[f"Sandbox '{record.id}' has no changes to apply."],
+                ),
+            )
+
+        return diff_text, touched_files, None
+
+    def _verify_patch_cleanliness(
+        self,
+        diff_text: str,
+        sandbox_id: str,
+    ) -> tuple[list[str], SandboxApplyResult | None]:
+        """Perform dry-run conflict check with git apply --check."""
+        try:
+            proc = subprocess.run(
+                ["git", "apply", "--check", "--binary", "-"],
+                cwd=str(self.path),
+                input=diff_text + "\n",
+                capture_output=True,
+                text=True,
+                timeout=GIT_SUBPROCESS_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired as exc:
+            return [], SandboxApplyResult(
+                status=SandboxApplyStatus.GIT_FAILED,
+                sandbox_id=sandbox_id,
+                errors=[f"Git timeout during conflict check: {exc}"],
+            )
+        except (FileNotFoundError, subprocess.SubprocessError) as exc:
+            return [], SandboxApplyResult(
+                status=SandboxApplyStatus.GIT_FAILED,
+                sandbox_id=sandbox_id,
+                errors=[f"Git failure during conflict check: {exc}"],
+            )
+
+        if proc.returncode != 0:
+            conflicts = _extract_conflicts(proc.stderr)
+            self.db.update_status(sandbox_id, SandboxStatus.CONFLICT)
+            conflict_bullets = "\n".join(f"  • {f}" for f in conflicts) if conflicts else f"  {proc.stderr.strip()}"
+            return conflicts, SandboxApplyResult(
+                status=SandboxApplyStatus.CONFLICT,
+                sandbox_id=sandbox_id,
+                conflicting_files=conflicts,
+                errors=[
+                    f"Cannot apply sandbox {sandbox_id}: conflicts detected.\n"
+                    f"Conflicting files:\n{conflict_bullets}\n"
+                    "Fix:\n"
+                    f"- inspect sandbox differences with `wt sandbox diff {sandbox_id}`\n"
+                    "- resolve conflicts in the main workspace or sandbox worktree"
+                ],
+            )
+
+        return [], None
+
+    def _apply_patch_strategy(
+        self,
+        diff_text: str,
+        strategy: SandboxApplyStrategy,
+        message: str | None,
+        sandbox_id: str,
+    ) -> tuple[str | None, SandboxApplyResult | None]:
+        """Apply patch to working directory and optionally commit if squash."""
+        try:
+            apply_proc = subprocess.run(
+                ["git", "apply", "--binary", "-"],
+                cwd=str(self.path),
+                input=diff_text + "\n",
+                capture_output=True,
+                text=True,
+                timeout=GIT_SUBPROCESS_TIMEOUT_SECONDS,
+            )
+        except Exception as exc:
+            return None, SandboxApplyResult(
+                status=SandboxApplyStatus.GIT_FAILED,
+                sandbox_id=sandbox_id,
+                errors=[f"Git apply failed: {exc}"],
+            )
+
+        if apply_proc.returncode != 0:
+            err_detail = apply_proc.stderr.strip() or apply_proc.stdout.strip()
+            return None, SandboxApplyResult(
+                status=SandboxApplyStatus.GIT_FAILED,
+                sandbox_id=sandbox_id,
+                errors=[f"Git apply failed: {err_detail}"],
+            )
+
+        if strategy != SandboxApplyStrategy.SQUASH:
+            return None, None
+
+        commit_msg = message or f"wt: apply changes from sandbox {sandbox_id}"
+        try:
+            self._run_git_cmd(["add", "-A"], cwd=self.path)
+            self._run_git_cmd(["commit", "-m", commit_msg], cwd=self.path)
+            commit_sha = self._run_git_cmd(["rev-parse", "HEAD"], cwd=self.path)
+            return commit_sha, None
+        except Exception as exc:
+            return None, SandboxApplyResult(
+                status=SandboxApplyStatus.GIT_FAILED,
+                sandbox_id=sandbox_id,
+                errors=[f"Git squash commit failed: {exc}"],
+            )
+
+    def _cleanup_after_apply(self, record: SandboxRecord, delete: bool) -> bool:
+        """Clean up sandbox worktree and branch if delete requested."""
+        if not delete:
+            return False
+
+        session = SandboxSession(
+            session_id=record.id,
+            target_branch=record.branch_name,
+            sandbox_path=record.sandbox_path,
+            base_commit=record.base_commit,
+            name=record.name,
+            created_at=record.created_at,
+        )
+        self.cleanup_sandbox(session)
+        return True
+
+    def apply_sandbox_result(
+        self,
+        sandbox_id: str,
+        *,
+        strategy: SandboxApplyStrategy = SandboxApplyStrategy.PATCH,
+        allow_dirty: bool = False,
+        dry_run: bool = False,
+        delete: bool = False,
+        message: str | None = None,
+    ) -> SandboxApplyResult:
+        """Apply sandbox changes back to main workspace without raising."""
+        record, val_err = self._validate_sandbox_for_apply(sandbox_id)
+        if val_err is not None or record is None:
+            return val_err or SandboxApplyResult(
+                status=SandboxApplyStatus.NOT_FOUND,
+                sandbox_id=sandbox_id,
+                errors=["Validation failed"],
+            )
+
+        dirty_err = self._check_main_repo_clean(allow_dirty, sandbox_id)
+        if dirty_err is not None:
+            return dirty_err
+
+        diff_text, touched_files, coll_err = self._collect_sandbox_changes(record)
+        if coll_err is not None:
+            return coll_err
+
+        _, conflict_err = self._verify_patch_cleanliness(diff_text, sandbox_id)
+        if conflict_err is not None:
+            return conflict_err
+
+        if dry_run:
+            return SandboxApplyResult(
+                status=SandboxApplyStatus.OK,
+                sandbox_id=sandbox_id,
+                strategy=strategy,
+                touched_files=touched_files,
+                warnings=["Dry run validation succeeded. No files were modified."],
+            )
+
+        commit_sha, apply_err = self._apply_patch_strategy(diff_text, strategy, message, sandbox_id)
+        if apply_err is not None:
+            return apply_err
+
+        self.db.update_status(sandbox_id, SandboxStatus.MERGED)
+        cleaned_up = self._cleanup_after_apply(record, delete)
+
+        return SandboxApplyResult(
+            status=SandboxApplyStatus.OK,
+            sandbox_id=sandbox_id,
+            strategy=strategy,
+            touched_files=touched_files,
+            commit_sha=commit_sha,
+            cleaned_up=cleaned_up,
+        )
+
+    def apply_sandbox(
+        self,
+        sandbox_id: str,
+        *,
+        strategy: SandboxApplyStrategy = SandboxApplyStrategy.PATCH,
+        allow_dirty: bool = False,
+        dry_run: bool = False,
+        delete: bool = False,
+        message: str | None = None,
+    ) -> SandboxApplyResult:
+        """Apply sandbox changes or raise with classified error message."""
+        result = self.apply_sandbox_result(
+            sandbox_id,
+            strategy=strategy,
+            allow_dirty=allow_dirty,
+            dry_run=dry_run,
+            delete=delete,
+            message=message,
+        )
+        if not result.ok:
+            msg = result.errors[0] if result.errors else f"Sandbox apply failed: {result.status}"
+            raise RuntimeError(msg)
+        return result
+
+    # ------------------------------------------------------------------
+    # diff_sandbox_result helpers
+    # ------------------------------------------------------------------
+
+    def _validate_sandbox_for_diff(
+        self,
+        sandbox_id: str,
+    ) -> tuple[SandboxRecord | None, SandboxDiffResult | None]:
+        """Validate sandbox record for diff inspection."""
+        record = self.db.get(sandbox_id)
+        if record is None:
+            return None, SandboxDiffResult(
+                status=SandboxDiffStatus.NOT_FOUND,
+                sandbox_id=sandbox_id,
+                errors=[f"Sandbox '{sandbox_id}' not found."],
+            )
+        if not Path(record.sandbox_path).is_dir():
+            self.db.reconcile_stale_active(sandbox_id)
+            return None, SandboxDiffResult(
+                status=SandboxDiffStatus.NOT_FOUND,
+                sandbox_id=sandbox_id,
+                errors=[f"Sandbox '{sandbox_id}' directory is missing on disk."],
+            )
+        return record, None
+
+    def diff_sandbox_result(
+        self,
+        sandbox_id: str,
+        *,
+        stat: bool = False,
+    ) -> SandboxDiffResult:
+        """Inspect unified diff or file summary statistics for a sandbox."""
+        record, val_err = self._validate_sandbox_for_diff(sandbox_id)
+        if val_err is not None or record is None:
+            return val_err or SandboxDiffResult(
+                status=SandboxDiffStatus.NOT_FOUND,
+                sandbox_id=sandbox_id,
+                errors=["Validation failed"],
+            )
+
+        try:
+            diff_text, touched_files, stat_text = _collect_sandbox_delta(Path(record.sandbox_path), record.base_commit)
+        except Exception as exc:
+            return SandboxDiffResult(
+                status=SandboxDiffStatus.GIT_FAILED,
+                sandbox_id=sandbox_id,
+                errors=[f"Failed to generate diff for sandbox '{sandbox_id}': {exc}"],
+            )
+
+        if not touched_files or not diff_text.strip():
+            return SandboxDiffResult(
+                status=SandboxDiffStatus.EMPTY_DIFF,
+                sandbox_id=sandbox_id,
+                warnings=[f"Sandbox '{sandbox_id}' has no changes compared to base commit."],
+            )
+
+        return SandboxDiffResult(
+            status=SandboxDiffStatus.OK,
+            sandbox_id=sandbox_id,
+            diff_text=diff_text,
+            stat_text=stat_text,
+            files_changed=touched_files,
+        )
+
+    def diff_sandbox(
+        self,
+        sandbox_id: str,
+        *,
+        stat: bool = False,
+    ) -> SandboxDiffResult:
+        """Inspect sandbox diff or raise with classified error message."""
+        result = self.diff_sandbox_result(sandbox_id, stat=stat)
+        if not result.ok:
+            msg = result.errors[0] if result.errors else f"Sandbox diff failed: {result.status}"
+            raise RuntimeError(msg)
+        return result
+
+
+_CONFLICT_PATTERNS = (
+    re.compile(r"^error:\s+patch failed:\s+([^:]+)"),
+    re.compile(r"^error:\s+([^:]+):\s+patch does not apply"),
+    re.compile(r"cannot apply binary patch to '([^']+)'"),
+    re.compile(r"^error:\s+([^:]+):\s+(?:already exists in working directory|does not exist in index)"),
+)
+
+
+def _match_conflict_line(line: str) -> str | None:
+    """Return conflicting file path from a single line of git stderr, or None."""
+    trimmed = line.strip()
+    for pattern in _CONFLICT_PATTERNS:
+        match = pattern.search(trimmed)
+        if match:
+            return match.group(1).strip()
+    return None
+
+
+def _extract_conflicts(stderr: str) -> list[str]:
+    """Extract conflicting file paths from git apply stderr output."""
+    conflicts: set[str] = set()
+    for line in stderr.splitlines():
+        path = _match_conflict_line(line)
+        if path:
+            conflicts.add(path)
+    return sorted(conflicts)
+
+
+def _collect_sandbox_delta(sandbox_path: Path, base_commit: str) -> tuple[str, list[str], str]:
+    """Collect untracked changes into index with intent-to-add and compute unified diff and name list.
+
+    Returns:
+        Tuple of (unified_diff_text, list_of_touched_files, stat_text).
+    """
+    try:
+        subprocess.run(
+            ["git", "add", "-N", "."],
+            cwd=str(sandbox_path),
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=GIT_SUBPROCESS_TIMEOUT_SECONDS,
+        )
+    except (FileNotFoundError, subprocess.SubprocessError):
+        pass
+
+    diff_proc = subprocess.run(
+        ["git", "diff", "--binary", base_commit],
+        cwd=str(sandbox_path),
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=GIT_SUBPROCESS_TIMEOUT_SECONDS,
+    )
+    name_proc = subprocess.run(
+        ["git", "diff", "--name-only", base_commit],
+        cwd=str(sandbox_path),
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=GIT_SUBPROCESS_TIMEOUT_SECONDS,
+    )
+    stat_proc = subprocess.run(
+        ["git", "diff", "--stat", base_commit],
+        cwd=str(sandbox_path),
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=GIT_SUBPROCESS_TIMEOUT_SECONDS,
+    )
+    diff_text = diff_proc.stdout
+    touched_files = [line.strip() for line in name_proc.stdout.splitlines() if line.strip()]
+    stat_text = stat_proc.stdout
+    return diff_text, touched_files, stat_text

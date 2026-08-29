@@ -7,6 +7,11 @@ from enum import StrEnum
 from pydantic import BaseModel, Field
 
 from worktree.core.db import SandboxRecord
+from worktree.core.sandbox.models import (
+    SandboxApplyResult,
+    SandboxDiffResult,
+    SandboxDiffStatus,
+)
 
 
 class SandboxListStatus(StrEnum):
@@ -143,3 +148,35 @@ class SandboxDeleteCommandOutcome(BaseModel):
     def ok(self) -> bool:
         """Return True if sandbox was deleted or already cleaned without errors."""
         return not self.errors and (self.deleted or self.already_cleaned)
+
+
+class SandboxApplyCommandOutcome(BaseModel):
+    """Outcome for wt sandbox apply command."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    result: SandboxApplyResult | None = None
+    errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        """Return True if sandbox apply completed without errors."""
+        return not self.errors and (self.result is not None and self.result.ok)
+
+
+class SandboxDiffCommandOutcome(BaseModel):
+    """Outcome for wt sandbox diff command."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    result: SandboxDiffResult | None = None
+    errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        """Return True if sandbox diff completed without errors."""
+        return not self.errors and (
+            self.result is not None and (self.result.ok or self.result.status == SandboxDiffStatus.EMPTY_DIFF)
+        )

@@ -32,3 +32,4 @@ class RunRequest:
     observer: RunObserver | None = None
     failure_prompter: FailurePrompter | None = None
     non_interactive: bool = False
+    auto_apply: bool = False

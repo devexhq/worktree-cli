@@ -21,6 +21,7 @@ from worktree.core.runtime.models import (
     RunOutcome,
     StepLoopState,
 )
+from worktree.core.sandbox.models import SandboxApplyStrategy
 from worktree.core.step import (
     FailurePolicy,
     LoopStepBlock,
@@ -518,6 +519,50 @@ def _run_step_loop(
     return status, state.step_results, errors, state.warnings
 
 
+def _handle_auto_apply(
+    context: RunContext,
+    manager: GitSandboxManager | None,
+    session: SandboxSession | None,
+    errors: list[str],
+    warnings: list[str],
+) -> tuple[RunStatus | None, bool]:
+    """Apply sandbox changes on completed runs when auto_apply is enabled.
+
+    Returns:
+        Tuple of (new_status_or_None, apply_failed_boolean).
+    """
+    if not (context.auto_apply and session is not None and manager is not None):
+        return None, False
+
+    apply_result = manager.apply_sandbox_result(
+        session.session_id,
+        strategy=SandboxApplyStrategy.PATCH,
+    )
+    warnings.extend(apply_result.warnings)
+    if not apply_result.ok:
+        errors.extend(apply_result.errors)
+        return RunStatus.FAILED, True
+
+    return None, False
+
+
+def _finalize_sandbox_cleanup(
+    context: RunContext,
+    manager: GitSandboxManager | None,
+    session: SandboxSession | None,
+    target_dir: Path,
+    status: RunStatus,
+    apply_failed: bool,
+) -> bool:
+    """Clean up or keep the sandbox worktree based on run status."""
+    if status == RunStatus.PAUSED or apply_failed:
+        kept_path = session.sandbox_path if session is not None else target_dir
+        _notify_sandbox_cleanup(context, kept=True, path=kept_path)
+        return True
+
+    return _cleanup_sandbox(context, manager, session, target_dir)
+
+
 def run_steps(context: RunContext) -> RunOutcome:
     """Execute a sequence of steps under optional sandbox isolation and observer reporting.
 
@@ -538,23 +583,23 @@ def run_steps(context: RunContext) -> RunOutcome:
             sandbox_path=target_dir,
         )
 
-    status: RunStatus = RunStatus.COMPLETED
-    step_results: list[StepResult] = []
-    errors: list[str] = []
-    warnings: list[str] = []
-    sandbox_kept = False
     prior = list(context.resume_from.step_results) if context.resume_from is not None else []
     state = StepLoopState(target_dir=target_dir, session=session, step_results=prior)
 
+    status: RunStatus = RunStatus.FAILED
+    step_results: list[StepResult] = []
+    errors: list[str] = []
+    warnings: list[str] = []
+    apply_failed = False
     try:
         status, step_results, errors, warnings = _run_step_loop(context, state)
+        if status == RunStatus.COMPLETED:
+            new_status, apply_failed = _handle_auto_apply(context, manager, session, errors, warnings)
+            if new_status is not None:
+                status = new_status
     finally:
-        if status == RunStatus.PAUSED:
-            sandbox_kept = True
-            kept_path = session.sandbox_path if session is not None else target_dir
-            _notify_sandbox_cleanup(context, kept=True, path=kept_path)
-        else:
-            sandbox_kept = _cleanup_sandbox(context, manager, session, target_dir)
+        sandbox_kept = _finalize_sandbox_cleanup(context, manager, session, target_dir, status, apply_failed)
+
 
     return RunOutcome(
         status=status,

@@ -73,6 +73,8 @@ wt history
 - `wt sandbox list`
 - `wt sandbox show <sandbox-id>`
 - `wt sandbox delete <sandbox-id>`
+- `wt sandbox apply <sandbox-id>` — apply sandbox changes back to workspace
+- `wt sandbox diff <sandbox-id>` — inspect differences from base commit
 
 ## Agent providers for workflow runs
 

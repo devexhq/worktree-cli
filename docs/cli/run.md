@@ -15,6 +15,7 @@ wt run <name> [OPTIONS] [-- <input-overrides>]
 | --- | --- |
 | `--no-sandbox` | Run execution in-place in the working tree without creating a Git sandbox. |
 | `--keep` | Retain the sandbox worktree after execution. |
+| `--auto-apply` | Automatically apply sandbox changes to the main workspace on successful completion. |
 | `--agent <name>` | Override the default target agent adapter. |
 | `--session-id <id>` | Explicit session identifier. |
 | `--non-interactive` | Disable interactive prompts; prompt_user failures abort the run instead of blocking for input. |

@@ -88,6 +88,7 @@ class Engine:
                 non_interactive=req.non_interactive,
                 failure_prompter=req.failure_prompter,
                 pause_store=pause_store,
+                auto_apply=req.auto_apply,
             )
         )
 

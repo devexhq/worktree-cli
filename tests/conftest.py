@@ -43,8 +43,9 @@ def _git_repo_template(tmp_path_factory: pytest.TempPathFactory) -> Path:
         text=True,
     )
     (template / "f.txt").write_text("x\n", encoding="utf-8")
+    (template / ".gitignore").write_text("/.worktree/\n", encoding="utf-8")
     subprocess.run(
-        ["git", "add", "f.txt"],
+        ["git", "add", "f.txt", ".gitignore"],
         cwd=template,
         check=True,
         capture_output=True,
