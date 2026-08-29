@@ -65,7 +65,7 @@ class Engine:
     def run(self, blueprint: Blueprint, request: RunRequest | None = None) -> RunOutcome:
         """Adapt ``blueprint`` into ``RunContext`` and delegate to ``run_steps``."""
         req = request or RunRequest()
-        steps = self._sequential_steps(blueprint)
+        steps = blueprint.steps
         resolved = self._resolve_run_inputs(blueprint, req)
         sid = req.session_id or f"{blueprint.kind.value}_{uuid.uuid4().hex[:8]}"
         engine_warnings: list[str] = list(resolved.warnings)
@@ -109,8 +109,8 @@ class Engine:
         catalog: Catalog | None = None,
     ) -> RunOutcome:
         """Classify a paused session, rebuild ``RunContext``, and re-enter ``run_steps``."""
-        cat = catalog or self.catalog
-        if cat is None:
+        catalog = catalog if catalog or self.catalog
+        if catalog is None:
             raise EngineRuntimeError("Engine.resume requires a Catalog instance.")
 
         loaded, db, checkpoint = ResumableRun.load(
@@ -118,9 +118,9 @@ class Engine:
             blueprint,
             path=self.path,
             db=self.db,
-            catalog=cat,
+            catalog=catalog,
         ).ready()
-        steps = self._sequential_steps(loaded, action="resume")
+        steps = loaded.steps
 
         self.db = db
         pause_store = _DbPauseStore(db, session_id)
@@ -184,10 +184,6 @@ class Engine:
             pause_store.finalize(outcome.status, error_message)
         except Exception as exc:
             warnings.append(f"Failed to update run status in database: {exc}")
-
-    def _sequential_steps(self, blueprint: Blueprint, *, action: str = "run") -> list[StepDefinition | LoopStepBlock]:
-        """Return authored steps from blueprint."""
-        return list(blueprint.steps)
 
     def _insert_running(self, blueprint: Blueprint, session_id: str) -> None:
         """Insert a RUNNING row for the bound repository."""
