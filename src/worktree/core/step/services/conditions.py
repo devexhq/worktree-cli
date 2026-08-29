@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import operator
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -11,7 +12,14 @@ from worktree.core.step.models import ConditionEvaluationResult, StepResult
 
 _CONDITION_RE = re.compile(r"^\s*(?P<left>.+?)\s*(?P<op>==|!=|>=|<=|>|<|\bcontains\b)\s*(?P<right>.+?)\s*$")
 _VALID_OPERATORS = frozenset({"==", "!=", ">=", "<=", ">", "<", "contains"})
-_ORDERED_OPERATORS = frozenset({">=", "<=", ">", "<"})
+_COMPARISON_OPERATORS = {
+    ">=": operator.ge,
+    "<=": operator.le,
+    ">": operator.gt,
+    "<": operator.lt,
+    "==": operator.eq,
+    "!=": operator.ne,
+}
 _VALID_STEP_FIELDS = frozenset({"exit_code", "outputs", "status", "stdout"})
 
 
@@ -72,12 +80,8 @@ def _resolve_json_path(root: Any, path: list[str]) -> Any:
 
 
 def _resolve_step_field(result: StepResult, field: str, subpath: list[str]) -> Any:
-    if field == "exit_code":
-        return result.exit_code
-    if field == "status":
-        return result.status
-    if field == "stdout":
-        return result.stdout
+    if field in ("exit_code", "status", "stdout"):
+        return getattr(result, field)
     if field == "outputs":
         try:
             parsed = json.loads(result.stdout)
@@ -116,17 +120,12 @@ def resolve_operand_value(
 
 
 def _compare_ordered(actual: Any, expected: Any, operator: str) -> bool:
+    # Strict numeric check - return False if either value is non-numeric
     if not _is_numeric(actual) or not _is_numeric(expected):
         return False
-    if operator == ">":
-        return actual > expected
-    if operator == "<":
-        return actual < expected
-    if operator == ">=":
-        return actual >= expected
-    if operator == "<=":
-        return actual <= expected
-    return False
+
+    comparison_function = _COMPARISON_OPERATORS.get(operator)
+    return bool(comparison_function(actual, expected)) if comparison_function else False
 
 
 def _compare_contains(actual: Any, expected: Any) -> bool:
@@ -141,13 +140,9 @@ def _compare_contains(actual: Any, expected: Any) -> bool:
 
 def _compare_values(actual: Any, expected: Any, operator: str) -> bool:
     """Evaluate comparison between actual and expected values under operator."""
-    if operator == "==":
-        return actual == expected
-    if operator == "!=":
-        return actual != expected
     if operator == "contains":
         return _compare_contains(actual, expected)
-    if operator in _ORDERED_OPERATORS:
+    if operator in _COMPARISON_OPERATORS.keys():
         return _compare_ordered(actual, expected, operator)
     return False
 

@@ -1,6 +1,8 @@
 import copy
 import re
+from collections.abc import Callable, Sequence
 from enum import StrEnum
+from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -352,6 +354,24 @@ class ExecutionMetadata(BaseModel):
     previous_step: PreviousStepMetadata = Field(default_factory=PreviousStepMetadata)
     steps: list[PreviousStepMetadata] = Field(default_factory=list)
     iteration: IterationMetadata = Field(default_factory=IterationMetadata)
+
+
+class StepExecutionContext(BaseModel):
+    """Structured metadata for a step execution."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    step: StepDefinition
+    sandbox_path: Path
+    context: dict[str, Any] | None = None
+    on_output: Callable[[str, str], None] | None = None
+    step_index: int = 1
+    initial_attempt: int = 1
+    iteration_index: int = 1
+    identity: ExecutionIdentity | None = None
+    previous_step: PreviousStepMetadata | None = None
+    steps: Sequence[PreviousStepMetadata] | None = None
+
 
 
 class StepDispatchOutcome(BaseModel):

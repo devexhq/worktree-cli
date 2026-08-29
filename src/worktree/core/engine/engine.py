@@ -8,7 +8,7 @@ from pathlib import Path
 from worktree.core.blueprint.services.blueprint import Blueprint
 from worktree.core.catalog import Catalog
 from worktree.core.db import BlueprintKind, RunsRepository, RunStatus
-from worktree.core.engine.exceptions import EngineInputError, EngineRuntimeError
+from worktree.core.engine.exceptions import EngineInputError
 from worktree.core.engine.models import RunRequest
 from worktree.core.engine.resumable import ResumableRun
 from worktree.core.inputs import InputResolveResult
@@ -21,7 +21,6 @@ from worktree.core.runtime import (
     RunOutcome,
     run_steps,
 )
-from worktree.core.step import LoopStepBlock, StepDefinition
 
 
 class _DbPauseStore:
@@ -54,13 +53,12 @@ class Engine:
     def __init__(
         self,
         path: Path,
-        db: RunsRepository | None = None,
-        catalog: Catalog | None = None,
+        db: RunsRepository,
+        catalog: Catalog,
     ) -> None:
         self.path = path.resolve()
-        self.cwd = self.path
-        self.db = db if db is not None else RunsRepository(self.path)
-        self.catalog = catalog if catalog is not None else Catalog(self.path)
+        self.db = db
+        self.catalog = catalog
 
     def run(self, blueprint: Blueprint, request: RunRequest | None = None) -> RunOutcome:
         """Adapt ``blueprint`` into ``RunContext`` and delegate to ``run_steps``."""
@@ -105,24 +103,18 @@ class Engine:
         blueprint: Blueprint | None = None,
         observer: RunObserver | None = None,
         failure_prompter: FailurePrompter | None = None,
-        non_interactive: bool = False,
-        catalog: Catalog | None = None,
+        non_interactive: bool = False
     ) -> RunOutcome:
         """Classify a paused session, rebuild ``RunContext``, and re-enter ``run_steps``."""
-        catalog = catalog if catalog or self.catalog
-        if catalog is None:
-            raise EngineRuntimeError("Engine.resume requires a Catalog instance.")
-
         loaded, db, checkpoint = ResumableRun.load(
             session_id,
             blueprint,
             path=self.path,
             db=self.db,
-            catalog=catalog,
+            catalog=self.catalog,
         ).ready()
         steps = loaded.steps
 
-        self.db = db
         pause_store = _DbPauseStore(db, session_id)
         engine_warnings: list[str] = []
         self._mark_running(pause_store, engine_warnings)
