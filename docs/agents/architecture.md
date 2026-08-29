@@ -16,8 +16,8 @@ src/worktree/cli/<name>/             One package per CLI subcommand (thin wrappe
 
 src/worktree/core/                   Business logic (no Typer)
   bootstrap.py                       .worktree/ create/repair
-  git_sandbox.py                     git worktree sandbox lifecycle
-  sandbox/                           models.py (SandboxSession, apply/create/diff result models & enums)
+  git/                               runner.py (stateless GitRunner), exceptions.py
+  sandbox/                           models.py, exceptions.py, manager.py, services/{lifecycle,patch,wip}.py
   config/                            Legacy flat infra (loader/mutate/validate/…)
   db/                                models.py, connection.py, migrations.py, repositories/, alembic/
   inputs/                            models.py + services/ (resolve, interpolate, renderer)
@@ -97,7 +97,7 @@ Single-step execution: `core/step/` (`runner.py`). Multi-step orchestration:
   packaged seeds under `templates/`.
 - **History** (`core/history/`): `HistoryListService`, `HistoryShowService`,
   result models, and table/panel renderers.
-- **Shared core infra**: `config/`, `db/`, `bootstrap.py`, `git_sandbox.py`,
+- **Shared core infra**: `config/`, `db/`, `git/`, `sandbox/`, `bootstrap.py`,
   plus foundational domains above.
 
 CLI: packages are thin wrappers over core domain services and contain no
@@ -108,7 +108,7 @@ business logic, database queries, or execution algorithms.
 Dependencies flow one way; do not import "up" the stack:
 
 ```
-common/  ->  core/{db,catalog,inputs,patch,history}/  ->  core/agents/  ->  core/step/  ->  {core/runtime/, core/blueprint/}  ->  core/engine/  ->  cli/
+common/  ->  core/{db,git,sandbox,catalog,inputs,patch,history}/  ->  core/agents/  ->  core/step/  ->  {core/runtime/, core/blueprint/}  ->  core/engine/  ->  cli/
 ```
 
 - `common/` never depends on `core/`.
@@ -116,7 +116,7 @@ common/  ->  core/{db,catalog,inputs,patch,history}/  ->  core/agents/  ->  core
 - `core/patch/` must not import `agents`, `step`, or `runtime`.
 - `core/agents/` may use `patch/` and `config/`; must not import `step` or `runtime`.
 - `core/step/` must not import `runtime` for shared vocabulary — put shared types in `common/` or `step/`. Agent dispatch uses `core.agents` from the step runner.
-- `core/runtime/` may use `step/`, `db/`, `git_sandbox.py`; must not import
+- `core/runtime/` may use `step/`, `db/`, `sandbox/`; must not import
   `blueprint/`, `engine/`, or `cli/`.
 - `core/blueprint/` may use `catalog/`, `inputs/`, `step/`; must not import
   `runtime/`, `engine/`, or `cli/`.
@@ -293,11 +293,11 @@ checklist in
 
 ## Sandboxes (core)
 
-[GitSandboxManager](../../src/worktree/core/git_sandbox.py) owns create/cleanup
+[GitSandboxManager](../../src/worktree/core/sandbox/manager.py) owns create/cleanup
 and best-effort `SandboxesDb` writes.
 
 - On-disk: `.worktree/sandboxes/<session_id>/`, branch `worktree/sandbox-<id>`.
-- Result API: `create_sandbox_result` → `SandboxCreateResult` (warnings do not
+- Result API: `create_sandbox` → `SandboxCreateResult` (warnings do not
   flip `ok`). `cleanup_sandbox` is idempotent.
 - CLI UX (`wt sandbox create|list|show|delete`): [docs/cli/sandbox.md](../cli/sandbox.md).
 

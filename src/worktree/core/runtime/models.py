@@ -10,7 +10,7 @@ from typing import Protocol, runtime_checkable
 from pydantic import BaseModel, Field
 
 from worktree.core.db import RunStatus
-from worktree.core.git_sandbox import SandboxSession
+from worktree.core.sandbox import SandboxSession
 from worktree.core.step import (
     ConditionEvaluationResult,
     ExecutionIdentity,

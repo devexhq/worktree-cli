@@ -507,7 +507,7 @@ Flow in [src/worktree/core/runtime/engine.py](../../src/worktree/core/runtime/en
    the sandbox session from the checkpoint instead of creating a new one (see
    **Pause, checkpoint, and resume**). Otherwise, if `use_sandbox` is false,
    execute in `cwd` and notify `on_sandbox_ready(..., active=False)`; else
-   `GitSandboxManager.create_sandbox_result()`. Setup failure returns
+   `GitSandboxManager.create_sandbox()`. Setup failure returns
    `status=failed` with `error_message` and no steps run.
 2. **Step loop** (`_run_step_loop`): starts at `resume_from.next_step_index` when
    resuming, else `0`. For each step, notify start, call `StepExecution(step,

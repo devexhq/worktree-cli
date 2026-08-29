@@ -98,7 +98,7 @@ core/<domain>/
 | `core/config/`, `core/db/` | **Legacy flat infra** — modules stay at package root. Do not use as a template for new domains. |
 | `core/step/runner.py`, `core/runtime/engine.py`, `core/engine/engine.py`, `core/patch/patch.py` | **Allowed root entrypoints** for single-step execution, multi-step orchestration, the DB-persisted run/resume process facade, and unified-diff validation, respectively. New helpers still go in `services/` (or stay private in the entry module). Prefer `models.py` for new result/DTO types even when older types still live next to the runner. |
 | `core/agents/` | **Adapter-pattern domain** — `base.py`, `factory.py`, and one module per provider (`local.py`, `ollama.py`, `cursor.py`, `gemini.py`, `copilot.py`) are peers at the package root, not under `services/`. Each provider module is a cohesive adapter implementation, not a generic `services/<verb>.py` operation. This is a deliberate exception, not license to add unrelated logic modules to the package root: shared cross-provider helpers (subprocess invocation, env-secret lookup, elapsed-time calc, stdout-mapping) belong in `base.py` or `models.py`, not copy-pasted per provider — see [Keep code DRY](#keep-code-dry). |
-| `core/bootstrap.py`, `core/git_sandbox.py` | Top-level core infra modules (not domain packages). |
+| `core/bootstrap.py` | Top-level core infra module (not a domain package). |
 | Private helpers (`_ParseState`, module-local exceptions) | May live next to the function that uses them. |
 
 CLI packages stay `cli/<name>/{app.py, commands/, models.py, renderers.py}` — see

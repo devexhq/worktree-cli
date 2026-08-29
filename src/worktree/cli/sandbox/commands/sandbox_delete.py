@@ -10,7 +10,7 @@ from worktree.core.config.loader import load_config_result
 from worktree.core.db import (
     SandboxStatus,
 )
-from worktree.core.git_sandbox import GitSandboxManager, SandboxSession
+from worktree.core.sandbox import GitSandboxManager, SandboxSession
 
 from ..models import (
     SandboxDeleteCommandOutcome,

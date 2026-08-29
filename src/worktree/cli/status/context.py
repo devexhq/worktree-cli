@@ -6,8 +6,8 @@ from pathlib import Path
 
 from rich.console import Console
 
-from worktree.common.git import get_current_git_branch
 from worktree.core.config.loader import load_config
+from worktree.core.git import GitRunner
 
 from .models import WorktreeContext
 
@@ -18,7 +18,7 @@ def load_context(path: Path) -> WorktreeContext:
     """Load config and repo context with unified developer warnings."""
     root_dir = path.resolve()
     config = load_config(path=root_dir)
-    current_branch = get_current_git_branch(root_dir)
+    current_branch = GitRunner.get_current_branch(root_dir)
 
     warnings: list[str] = []
 

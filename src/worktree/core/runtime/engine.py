@@ -6,7 +6,6 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from worktree.core.db import RunStatus, SandboxesRepository
-from worktree.core.git_sandbox import GitSandboxManager, SandboxSession
 from worktree.core.runtime.exceptions import PromptUserInterruptedError
 from worktree.core.runtime.failure import (
     effective_terminal_policy,
@@ -21,7 +20,11 @@ from worktree.core.runtime.models import (
     RunOutcome,
     StepLoopState,
 )
-from worktree.core.sandbox.models import SandboxApplyStrategy
+from worktree.core.sandbox import (
+    GitSandboxManager,
+    SandboxApplyStrategy,
+    SandboxSession,
+)
 from worktree.core.step import (
     FailurePolicy,
     LoopStepBlock,
@@ -115,7 +118,7 @@ def _setup_sandbox(
         return target_dir, None, None, None
 
     manager = GitSandboxManager(context.cwd.resolve(), db=SandboxesRepository(context.cwd.resolve()))
-    create_result = manager.create_sandbox_result()
+    create_result = manager.create_sandbox()
     if not create_result.ok or create_result.session is None:
         detail = create_result.errors[0] if create_result.errors else "Sandbox creation failed."
         return context.cwd.resolve(), None, None, f"Git sandbox creation failed: {detail}"
@@ -534,7 +537,7 @@ def _handle_auto_apply(
     if not (context.auto_apply and session is not None and manager is not None):
         return None, False
 
-    apply_result = manager.apply_sandbox_result(
+    apply_result = manager.apply_sandbox(
         session.session_id,
         strategy=SandboxApplyStrategy.PATCH,
     )

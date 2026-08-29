@@ -7,7 +7,8 @@ from tests.helpers import GitFileSystem, make_cli_context, make_rich_output
 from worktree.cli import app
 from worktree.cli.sandbox.commands.sandbox_diff import sandbox_diff_command
 from worktree.cli.sandbox.renderers import render_sandbox_diff
-from worktree.core.git_sandbox import (
+from worktree.core.db import WorktreeDb
+from worktree.core.sandbox import (
     GitSandboxManager,
     SandboxDiffResult,
     SandboxDiffStatus,
@@ -77,8 +78,11 @@ class SandboxDiffCommandDirectTests:
 
     def test_sandbox_diff_command_success(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        manager = GitSandboxManager(path=git_fs.base_path)
-        session = manager.create_sandbox(session_id="sbx_diff_cmd")
+        db = WorktreeDb(path=git_fs.base_path)
+        manager = GitSandboxManager(path=git_fs.base_path, db=db.sandboxes)
+        create_res = manager.create_sandbox(session_id="sbx_diff_cmd")
+        assert create_res.ok and create_res.session is not None
+        session = create_res.session
         (session.sandbox_path / "hello.py").write_text("hello = True\n", encoding="utf-8")
 
         context = make_cli_context(cwd=git_fs.base_path)
@@ -95,8 +99,11 @@ class SandboxDiffCliInvocationTests:
     def test_cli_diff_default(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         git_fs.init_repo()
         monkeypatch.chdir(git_fs.base_path)
-        manager = GitSandboxManager(path=git_fs.base_path)
-        session = manager.create_sandbox(session_id="sbx_cli_diff")
+        db = WorktreeDb(path=git_fs.base_path)
+        manager = GitSandboxManager(path=git_fs.base_path, db=db.sandboxes)
+        create_res = manager.create_sandbox(session_id="sbx_cli_diff")
+        assert create_res.ok and create_res.session is not None
+        session = create_res.session
         (session.sandbox_path / "cli_diff.txt").write_text("cli diff content\n", encoding="utf-8")
 
         result = runner.invoke(app, ["sandbox", "diff", "sbx_cli_diff"], catch_exceptions=False)
@@ -107,8 +114,11 @@ class SandboxDiffCliInvocationTests:
     def test_cli_diff_stat(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         git_fs.init_repo()
         monkeypatch.chdir(git_fs.base_path)
-        manager = GitSandboxManager(path=git_fs.base_path)
-        session = manager.create_sandbox(session_id="sbx_cli_stat")
+        db = WorktreeDb(path=git_fs.base_path)
+        manager = GitSandboxManager(path=git_fs.base_path, db=db.sandboxes)
+        create_res = manager.create_sandbox(session_id="sbx_cli_stat")
+        assert create_res.ok and create_res.session is not None
+        session = create_res.session
         (session.sandbox_path / "stat_file.txt").write_text("stat content\n", encoding="utf-8")
 
         result = runner.invoke(app, ["sandbox", "diff", "sbx_cli_stat", "--stat"], catch_exceptions=False)
