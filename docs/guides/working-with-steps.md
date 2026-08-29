@@ -133,7 +133,7 @@ steps:
     type: loop
     max_iterations: 5
     until:
-      - step_pytest_verify.ok
+      - steps.step_pytest_verify.exit_code == 0
     on_max_iterations: prompt_user
     do:
       - id: ai-code-patcher

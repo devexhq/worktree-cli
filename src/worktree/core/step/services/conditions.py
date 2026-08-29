@@ -12,11 +12,15 @@ from worktree.core.step.models import ConditionEvaluationResult, StepResult
 
 _CONDITION_RE = re.compile(r"^\s*(?P<left>.+?)\s*(?P<op>==|!=|>=|<=|>|<|\bcontains\b)\s*(?P<right>.+?)\s*$")
 _VALID_OPERATORS = frozenset({"==", "!=", ">=", "<=", ">", "<", "contains"})
-_COMPARISON_OPERATORS = {
+_NUMERIC_COMPARISON_OPERATORS = {
     ">=": operator.ge,
     "<=": operator.le,
     ">": operator.gt,
     "<": operator.lt,
+    "==": operator.eq,
+    "!=": operator.ne,
+}
+_STRING_COMPARISON_OPERATORS = {
     "==": operator.eq,
     "!=": operator.ne,
 }
@@ -119,15 +123,6 @@ def resolve_operand_value(
     return parse_literal(token)
 
 
-def _compare_ordered(actual: Any, expected: Any, operator: str) -> bool:
-    # Strict numeric check - return False if either value is non-numeric
-    if not _is_numeric(actual) or not _is_numeric(expected):
-        return False
-
-    comparison_function = _COMPARISON_OPERATORS.get(operator)
-    return bool(comparison_function(actual, expected)) if comparison_function else False
-
-
 def _compare_contains(actual: Any, expected: Any) -> bool:
     if actual is None or expected is None:
         return False
@@ -140,11 +135,15 @@ def _compare_contains(actual: Any, expected: Any) -> bool:
 
 def _compare_values(actual: Any, expected: Any, operator: str) -> bool:
     """Evaluate comparison between actual and expected values under operator."""
+    if actual is None or expected is None:
+        return False
     if operator == "contains":
         return _compare_contains(actual, expected)
-    if operator in _COMPARISON_OPERATORS.keys():
-        return _compare_ordered(actual, expected, operator)
-    return False
+    if _is_numeric(actual) and _is_numeric(expected):
+        comparison_fn = _NUMERIC_COMPARISON_OPERATORS.get(operator)
+    else:
+        comparison_fn = _STRING_COMPARISON_OPERATORS.get(operator)
+    return bool(comparison_fn(actual, expected)) if comparison_fn else False
 
 
 def _format_condition_detail(passed: bool, actual: Any) -> str:
@@ -177,7 +176,11 @@ def evaluate_condition(
         iteration_index=iteration_index,
         step_results=step_results,
     )
-    expected = parse_literal(parsed.right)
+    expected = resolve_operand_value(
+        parsed.right,
+        iteration_index=iteration_index,
+        step_results=step_results,
+    )
     passed = _compare_values(actual, expected, parsed.operator)
     detail = _format_condition_detail(passed, actual)
 
@@ -190,14 +193,18 @@ def evaluate_condition(
     )
 
 
+def _is_dynamic_operand(operand: str) -> bool:
+    return operand.startswith("steps.") or operand.startswith("iteration.") or operand in ("iteration",)
+
+
 def _validate_step_operand(
-    left: str,
+    operand: str,
     expression: str,
     known_step_ids: set[str] | None,
 ) -> list[str]:
-    parts = left.split(".")
+    parts = operand.split(".")
     if len(parts) < 3:
-        return [f"Invalid step reference '{left}' in condition. Expected 'steps.<step_id>.<field>'."]
+        return [f"Invalid step reference '{operand}' in condition. Expected 'steps.<step_id>.<field>'."]
 
     step_id, field = parts[1], parts[2]
     errors: list[str] = []
@@ -209,21 +216,19 @@ def _validate_step_operand(
         )
     if field not in _VALID_STEP_FIELDS:
         errors.append(
-            f"Unknown step field '{field}' in '{left}'. Allowed fields: {', '.join(sorted(_VALID_STEP_FIELDS))}."
+            f"Unknown step field '{field}' in '{operand}'. Allowed fields: {', '.join(sorted(_VALID_STEP_FIELDS))}."
         )
     return errors
 
 
-def _validate_left_operand(
-    left: str,
+def _validate_operand(
+    operand: str,
     expression: str,
     known_step_ids: set[str] | None,
 ) -> list[str]:
-    if left.startswith("steps."):
-        return _validate_step_operand(left, expression, known_step_ids)
-    if left.startswith("iteration.") or left in ("iteration",):
-        return []
-    return [f"Condition left operand '{left}' must reference 'steps.<id>.<field>' or 'iteration.index'."]
+    if operand.startswith("steps."):
+        return _validate_step_operand(operand, expression, known_step_ids)
+    return []
 
 
 def validate_condition_expression(
@@ -238,6 +243,16 @@ def validate_condition_expression(
     if parsed is None:
         return [
             f"Invalid condition expression '{expression}'. "
-            f"Expected '<operand> <operator> <literal>' with operators: {', '.join(sorted(_VALID_OPERATORS))}."
+            f"Expected '<operand> <operator> <operand>' with operators: {', '.join(sorted(_VALID_OPERATORS))}."
         ]
-    return _validate_left_operand(parsed.left, expression, known_step_ids)
+
+    errors: list[str] = []
+    errors.extend(_validate_operand(parsed.left, expression, known_step_ids))
+    errors.extend(_validate_operand(parsed.right, expression, known_step_ids))
+
+    if not _is_dynamic_operand(parsed.left) and not _is_dynamic_operand(parsed.right):
+        errors.append(
+            f"Condition '{expression}' must reference at least one dynamic operand ('steps.<id>.<field>' or 'iteration.index')."
+        )
+
+    return errors

@@ -670,7 +670,10 @@ steps load the referenced step definition as-is. `command` / `prompt` /
 for the exact field list (`id`, `type: Literal["loop"]`, `max_iterations`,
 `until`, `do`, `on_max_iterations`). Non-obvious: `on_max_iterations` is
 restricted to `FailurePolicy.context("terminal")` just like `FailureSpec.
-on_max_retries` — a value of `retry` raises a validation error.
+on_max_retries` — a value of `retry` raises a validation error. `until`
+conditions use `<operand> <operator> <operand>` format with operators
+`==`, `!=`, `<`, `<=`, `>`, `>=`, `contains`, supporting step references
+(`steps.<id>.<field>`), `iteration.index`, and literals on either side.
 
 ### Step Loader & Resolver
 
@@ -682,7 +685,7 @@ Functions in `core/step/services/` (re-exported from `worktree.core.step`):
 
 ### Step Execution Engine
 
-`StepExecution(step: StepDefinition, sandbox_path: Path, context: dict | None = None, on_output: Callable[[str, str], None] | None = None).run() -> StepResult`:
+`StepExecution(metadata: StepExecutionContext).run() -> StepResult` (also `StepRunner`):
 
 - Resolves `uses`/`run` steps via `resolve_step_definition()` before dispatch, then
   interpolates `${{ inputs.* }}` placeholders when `context["inputs"]` is set.
