@@ -61,7 +61,7 @@ A composite step block that repeats a list of steps in `do` until an `until` con
 | `id` | `string` | **Yes** | — | Unique identifier for the loop block. |
 | `type` | `string` | **Yes** | `loop` | Must be `loop`. |
 | `max_iterations`| `integer` | No | `5` | Maximum number of iterations ($\ge 1$). |
-| `until` | `list[string]` | **Yes** | — | Termination condition expressions (e.g. `[step_id.ok]`). |
+| `until` | `list[string]` | **Yes** | — | Termination condition expressions (e.g. `['steps.test.exit_code == 0']`). |
 | `do` | `list[StepDefinition]` | **Yes** | — | List of steps to execute sequentially on each iteration. |
 | `on_max_iterations` | `string` | No | `prompt_user` | Terminal policy (`abort`, `continue`, `prompt_user`) if loop reaches `max_iterations` without terminating. |
 

@@ -17,7 +17,7 @@ from rich.text import Text
 
 from worktree.common.utils import RichOutput
 from worktree.core.runtime.models import RunObserver
-from worktree.core.step import StepDefinition, StepResult
+from worktree.core.step import ConditionEvaluationResult, StepDefinition, StepResult
 
 if TYPE_CHECKING:
     from types import TracebackType
@@ -200,6 +200,35 @@ class CliRunObserver(RunObserver):
         msg = result.error_message or result.stderr or f"exit code {result.exit_code}"
         self.output.add_line(f"[bold red][STEP {idx}/{total}] {step_label} FAILED[/]: {msg}")
 
+    def on_loop_start(self, loop_id: str, max_iterations: int) -> None:
+        """Report loop start progress to the CLI."""
+        self.output.add_line(f"\\[{loop_id}] Starting loop block (max_iterations: {max_iterations})")
+
+    def on_loop_turn_start(self, loop_id: str, turn: int, max_iterations: int) -> None:
+        """Report turn start progress to the CLI."""
+        self.output.add_line(f"\\[{loop_id}] --- Iteration Turn {turn}/{max_iterations} ---")
+
+    def on_loop_conditions_evaluated(
+        self,
+        loop_id: str,
+        results: list[ConditionEvaluationResult],
+        all_passed: bool,
+        next_turn: int | None = None,
+    ) -> None:
+        """Report evaluated until conditions to the CLI."""
+        self.output.add_line(f"\\[{loop_id}] Evaluated 'until' conditions:")
+        for r in results:
+            self.output.add_line(f"  - {r.expression}: {r.detail}")
+        if not all_passed and next_turn is not None:
+            self.output.add_line(f"\\[{loop_id}] Conditions not met. Continuing to turn {next_turn}...")
+
+    def on_loop_done(self, loop_id: str, status: str, turns: int) -> None:
+        """Report loop completion to the CLI."""
+        if status == "completed":
+            self.output.add_line(f"\\[{loop_id}] Loop completed successfully in {turns} iteration(s).")
+        else:
+            self.output.add_line(f"\\[{loop_id}] Loop terminated with status '{status}' after {turns} iteration(s).")
+
     def on_sandbox_cleanup(self, kept: bool, path: Path) -> None:
         """Report sandbox cleanup or retention to the CLI."""
         if kept:
@@ -299,6 +328,39 @@ class LiveRunObserver(RunObserver):
                 current.error_message = _format_failure_detail(result)
         self._active_step_name = None
         self._active_output.clear()
+        self._refresh()
+
+    def on_loop_start(self, loop_id: str, max_iterations: int) -> None:
+        """Report loop start progress to the CLI."""
+        self.output.add_line(f"\\[{loop_id}] Starting loop block (max_iterations: {max_iterations})")
+        self._refresh()
+
+    def on_loop_turn_start(self, loop_id: str, turn: int, max_iterations: int) -> None:
+        """Report turn start progress to the CLI."""
+        self.output.add_line(f"\\[{loop_id}] --- Iteration Turn {turn}/{max_iterations} ---")
+        self._refresh()
+
+    def on_loop_conditions_evaluated(
+        self,
+        loop_id: str,
+        results: list[ConditionEvaluationResult],
+        all_passed: bool,
+        next_turn: int | None = None,
+    ) -> None:
+        """Report evaluated until conditions to the CLI."""
+        self.output.add_line(f"\\[{loop_id}] Evaluated 'until' conditions:")
+        for r in results:
+            self.output.add_line(f"  - {r.expression}: {r.detail}")
+        if not all_passed and next_turn is not None:
+            self.output.add_line(f"\\[{loop_id}] Conditions not met. Continuing to turn {next_turn}...")
+        self._refresh()
+
+    def on_loop_done(self, loop_id: str, status: str, turns: int) -> None:
+        """Report loop completion to the CLI."""
+        if status == "completed":
+            self.output.add_line(f"\\[{loop_id}] Loop completed successfully in {turns} iteration(s).")
+        else:
+            self.output.add_line(f"\\[{loop_id}] Loop terminated with status '{status}' after {turns} iteration(s).")
         self._refresh()
 
     def on_sandbox_cleanup(self, kept: bool, path: Path) -> None:

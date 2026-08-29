@@ -39,7 +39,7 @@ steps:
     type: loop
     max_iterations: 5
     until:
-      - run-test-suite.ok
+      - steps.run-test-suite.exit_code == 0
     on_max_iterations: prompt_user
     do:
       - id: ai-code-patcher
@@ -70,4 +70,4 @@ wt run tdd-cycle --test tests/test_calculator.py
 1. Worktree spins up an isolated sandbox worktree.
 2. The agent inspects the test file and failure logs, modifying the codebase.
 3. The test suite runs after each attempt.
-4. As soon as all assertions pass (`run-test-suite.ok`), the loop terminates with success.
+4. As soon as all assertions pass (`steps.run-test-suite.exit_code == 0`), the loop terminates with success.

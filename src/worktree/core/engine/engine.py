@@ -8,7 +8,7 @@ from pathlib import Path
 from worktree.core.blueprint.services.blueprint import Blueprint
 from worktree.core.catalog import Catalog
 from worktree.core.db import BlueprintKind, RunsRepository, RunStatus
-from worktree.core.engine.exceptions import EngineInputError, EngineRuntimeError
+from worktree.core.engine.exceptions import EngineInputError
 from worktree.core.engine.models import RunRequest
 from worktree.core.engine.resumable import ResumableRun
 from worktree.core.inputs import InputResolveResult
@@ -21,7 +21,6 @@ from worktree.core.runtime import (
     RunOutcome,
     run_steps,
 )
-from worktree.core.step import LoopStepBlock, StepDefinition
 
 
 class _DbPauseStore:
@@ -54,18 +53,17 @@ class Engine:
     def __init__(
         self,
         path: Path,
-        db: RunsRepository | None = None,
-        catalog: Catalog | None = None,
+        db: RunsRepository,
+        catalog: Catalog,
     ) -> None:
         self.path = path.resolve()
-        self.cwd = self.path
-        self.db = db if db is not None else RunsRepository(self.path)
-        self.catalog = catalog if catalog is not None else Catalog(self.path)
+        self.db = db
+        self.catalog = catalog
 
     def run(self, blueprint: Blueprint, request: RunRequest | None = None) -> RunOutcome:
         """Adapt ``blueprint`` into ``RunContext`` and delegate to ``run_steps``."""
         req = request or RunRequest()
-        steps = self._sequential_steps(blueprint)
+        steps = blueprint.steps
         resolved = self._resolve_run_inputs(blueprint, req)
         sid = req.session_id or f"{blueprint.kind.value}_{uuid.uuid4().hex[:8]}"
         engine_warnings: list[str] = list(resolved.warnings)
@@ -106,23 +104,17 @@ class Engine:
         observer: RunObserver | None = None,
         failure_prompter: FailurePrompter | None = None,
         non_interactive: bool = False,
-        catalog: Catalog | None = None,
     ) -> RunOutcome:
         """Classify a paused session, rebuild ``RunContext``, and re-enter ``run_steps``."""
-        cat = catalog or self.catalog
-        if cat is None:
-            raise EngineRuntimeError("Engine.resume requires a Catalog instance.")
-
         loaded, db, checkpoint = ResumableRun.load(
             session_id,
             blueprint,
             path=self.path,
             db=self.db,
-            catalog=cat,
+            catalog=self.catalog,
         ).ready()
-        steps = self._sequential_steps(loaded, action="resume")
+        steps = loaded.steps
 
-        self.db = db
         pause_store = _DbPauseStore(db, session_id)
         engine_warnings: list[str] = []
         self._mark_running(pause_store, engine_warnings)
@@ -184,15 +176,6 @@ class Engine:
             pause_store.finalize(outcome.status, error_message)
         except Exception as exc:
             warnings.append(f"Failed to update run status in database: {exc}")
-
-    def _sequential_steps(self, blueprint: Blueprint, *, action: str = "run") -> list[StepDefinition]:
-        """Return authored steps, or raise when any entry is a loop block."""
-        steps: list[StepDefinition] = []
-        for step in blueprint.steps:
-            if isinstance(step, LoopStepBlock):
-                raise EngineRuntimeError(f"Engine.{action} does not execute loop steps.")
-            steps.append(step)
-        return steps
 
     def _insert_running(self, blueprint: Blueprint, session_id: str) -> None:
         """Insert a RUNNING row for the bound repository."""

@@ -15,7 +15,21 @@ from worktree.core.db import RunRecord, RunsRepository, RunStatus
 from worktree.core.engine.exceptions import EngineResumeError
 from worktree.core.engine.models import EngineResumeStatus
 from worktree.core.runtime import RunCheckpoint, parse_checkpoint
-from worktree.core.step import StepDefinition
+from worktree.core.step import LoopStepBlock, StepDefinition
+
+
+def _collect_blueprint_steps(blueprint: Blueprint) -> tuple[set[str], list[StepDefinition]]:
+    step_ids: set[str] = set()
+    steps: list[StepDefinition] = []
+    for step in blueprint.steps:
+        step_ids.add(step.id)
+        if isinstance(step, StepDefinition):
+            steps.append(step)
+        elif isinstance(step, LoopStepBlock):
+            for sub_step in step.do:
+                step_ids.add(sub_step.id)
+                steps.append(sub_step)
+    return step_ids, steps
 
 
 class ResumableRun:
@@ -114,8 +128,8 @@ class ResumableRun:
         if isinstance(loaded, ResumableRun):
             return loaded
 
-        steps = [step for step in loaded.steps if isinstance(step, StepDefinition)]
-        if checkpoint.pending_step_id not in {step.id for step in steps}:
+        step_ids, steps = _collect_blueprint_steps(loaded)
+        if checkpoint.pending_step_id not in step_ids:
             return cls._rejected(
                 session_id,
                 path,

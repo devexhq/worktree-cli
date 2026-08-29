@@ -6,8 +6,8 @@ import sys
 from typing import Literal
 
 from worktree.common.utils import RichOutput
-from worktree.core.runtime.models import FailurePromptDecision
-from worktree.core.step import StepDefinition, StepResult
+from worktree.core.runtime.models import FailurePromptDecision, LoopPromptDecision
+from worktree.core.step import LoopStepBlock, StepDefinition, StepResult
 
 _CHOICE_MAP: dict[str, FailurePromptDecision] = {
     "r": FailurePromptDecision.RETRY,
@@ -16,6 +16,15 @@ _CHOICE_MAP: dict[str, FailurePromptDecision] = {
     "continue": FailurePromptDecision.CONTINUE,
     "a": FailurePromptDecision.ABORT,
     "abort": FailurePromptDecision.ABORT,
+}
+
+_LOOP_CHOICE_MAP: dict[str, LoopPromptDecision] = {
+    "g": LoopPromptDecision.GRANT,
+    "grant": LoopPromptDecision.GRANT,
+    "c": LoopPromptDecision.CONTINUE,
+    "continue": LoopPromptDecision.CONTINUE,
+    "a": LoopPromptDecision.ABORT,
+    "abort": LoopPromptDecision.ABORT,
 }
 
 
@@ -53,9 +62,9 @@ class CliFailurePrompter:
         self.output.add_line(f"{paused} waiting for user input.")
         self.output.add_line("")
         self.output.add_line("Options:")
-        self.output.add_line("  [r] Retry step execution")
-        self.output.add_line("  [c] Continue run (ignore failure)")
-        self.output.add_line("  [a] Abort run")
+        self.output.add_line("  \\[r] Retry step execution")
+        self.output.add_line("  \\[c] Continue run (ignore failure)")
+        self.output.add_line("  \\[a] Abort run")
         self.output.add_line("")
         return self._read_decision()
 
@@ -70,3 +79,36 @@ class CliFailurePrompter:
             if decision is not None:
                 return decision
             self.output.add_line("Invalid option. Enter r, c, or a (retry/continue/abort).")
+
+    def prompt_loop_max_iterations(
+        self,
+        *,
+        loop: LoopStepBlock,
+        iteration: int,
+        diagnostic: str,
+        grant_count: int = 3,
+    ) -> LoopPromptDecision:
+        """Print the loop max iterations prompt and return a validated user decision."""
+        self.output.add_line(
+            f"\\[{loop.id}] Reached max_iterations ({loop.max_iterations}) without meeting 'until' conditions."
+        )
+        self.output.add_line("Loop block paused.")
+        self.output.add_line("")
+        self.output.add_line("Options:")
+        self.output.add_line(f"  \\[g] Grant {grant_count} additional iterations")
+        self.output.add_line("  \\[c] Continue workflow past loop block")
+        self.output.add_line("  \\[a] Abort workflow run")
+        self.output.add_line("")
+        return self._read_loop_decision()
+
+    def _read_loop_decision(self) -> LoopPromptDecision:
+        while True:
+            try:
+                raw = input("Select option [g/c/a]: ")
+            except EOFError:
+                raw = ""
+            choice = str(raw).strip().lower()
+            decision = _LOOP_CHOICE_MAP.get(choice)
+            if decision is not None:
+                return decision
+            self.output.add_line("Invalid option. Enter g, c, or a (grant/continue/abort).")

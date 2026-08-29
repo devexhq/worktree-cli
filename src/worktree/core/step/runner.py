@@ -8,7 +8,7 @@ import subprocess
 import sys
 import threading
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from pathlib import Path
 from typing import IO, Any
 
@@ -16,12 +16,12 @@ from worktree.core.agents.factory import get_agent_adapter
 from worktree.core.inputs import interpolate_step_fields
 from worktree.core.step.assertions import evaluate_assertions
 from worktree.core.step.models import (
-    ExecutionIdentity,
     ExecutionMetadata,
     FailurePolicy,
     PreviousStepMetadata,
     StepDefinition,
     StepDispatchOutcome,
+    StepExecutionContext,
     StepResult,
     StepType,
 )
@@ -45,42 +45,31 @@ def _failed_dispatch(
     )
 
 
+def _int_from_context_or_default(context: dict[str, Any], key: str, default: int) -> int:
+    if default != 1 or key not in context:
+        return default
+    return int(context[key])
+
+
 class StepExecution:
     """Synchronous executor for a single StepDefinition within a sandbox directory."""
 
-    def __init__(
-        self,
-        step: StepDefinition,
-        sandbox_path: Path,
-        context: dict[str, Any] | None = None,
-        on_output: Callable[[str, str], None] | None = None,
-        *,
-        step_index: int = 1,
-        initial_attempt: int = 1,
-        identity: ExecutionIdentity | None = None,
-        previous_step: PreviousStepMetadata | None = None,
-        steps: Sequence[PreviousStepMetadata] | None = None,
-    ) -> None:
-        self.step = step
-        self.sandbox_path = sandbox_path.resolve()
-        self.context = context or {}
-        self.on_output = on_output
-        self.step_index = (
-            step_index if step_index != 1 or "step_index" not in self.context else int(self.context["step_index"])
-        )
-        self.initial_attempt = (
-            initial_attempt
-            if initial_attempt != 1 or "initial_attempt" not in self.context
-            else int(self.context["initial_attempt"])
-        )
-        self.identity = identity or self.context.get("identity")
-        raw_steps = steps or self.context.get("steps")
+    def __init__(self, metadata: StepExecutionContext) -> None:
+        self.step = metadata.step
+        self.sandbox_path = metadata.sandbox_path.resolve()
+        self.context = metadata.context or {}
+        self.on_output = metadata.on_output
+        self.step_index = _int_from_context_or_default(self.context, "step_index", metadata.step_index)
+        self.initial_attempt = _int_from_context_or_default(self.context, "initial_attempt", metadata.initial_attempt)
+        self.iteration_index = _int_from_context_or_default(self.context, "iteration_index", metadata.iteration_index)
+        self.identity = metadata.identity or self.context.get("identity")
+        raw_steps = metadata.steps or self.context.get("steps")
         self.steps: Sequence[PreviousStepMetadata] = list(raw_steps) if raw_steps else []
         self.previous_step = (
-            previous_step or self.context.get("previous_step") or (self.steps[-1] if self.steps else None)
+            metadata.previous_step or self.context.get("previous_step") or (self.steps[-1] if self.steps else None)
         )
         self.max_attempts = 1
-        self._uninterpolated_step = step
+        self._uninterpolated_step = metadata.step
 
     def run(self) -> StepResult:
         """Execute the step definition within sandbox_path and return its StepResult."""
@@ -116,6 +105,7 @@ class StepExecution:
                 self._uninterpolated_step,
                 step_index=self.step_index,
                 attempt=attempt,
+                iteration_index=self.iteration_index,
                 identity=self.identity,
                 previous_step=self.previous_step,
                 steps=self.steps,

@@ -13,6 +13,7 @@ from worktree.core.runtime.failure import (
     mark_continued_after_prompt,
     step_failure_diagnostic,
 )
+from worktree.core.runtime.loop_runner import LoopBlockRunner
 from worktree.core.runtime.models import (
     FailurePromptDecision,
     RunCheckpoint,
@@ -22,9 +23,11 @@ from worktree.core.runtime.models import (
 )
 from worktree.core.step import (
     FailurePolicy,
+    LoopStepBlock,
     PreviousStepMetadata,
     StepDefinition,
     StepExecution,
+    StepExecutionContext,
     StepResult,
     previous_step_metadata_from_result,
 )
@@ -312,15 +315,17 @@ def _execute_one_step(
             else None
         )
         result = StepExecution(
-            step=step,
-            sandbox_path=state.target_dir,
-            context=step_context,
-            on_output=on_output,
-            step_index=idx,
-            initial_attempt=current_attempt,
-            identity=context.identity,
-            previous_step=previous_step,
-            steps=steps,
+            StepExecutionContext(
+                step=step,
+                sandbox_path=state.target_dir,
+                context=step_context,
+                on_output=on_output,
+                step_index=idx,
+                initial_attempt=current_attempt,
+                identity=context.identity,
+                previous_step=previous_step,
+                steps=steps,
+            )
         ).run()
         _notify_step_done(context, idx, total, result)
         if result.ok:
@@ -374,10 +379,21 @@ def _resume_pending_gate(
     )
 
 
-def _find_step_name_by_id(steps: list[StepDefinition], step_id: str) -> str:
+def _find_loop_sub_step_name(loop: LoopStepBlock, step_id: str) -> str:
+    for sub_step in loop.do:
+        if sub_step.id == step_id:
+            return sub_step.name or ""
+    return ""
+
+
+def _find_step_name_by_id(steps: Sequence[StepDefinition | LoopStepBlock], step_id: str) -> str:
     for candidate_step in steps:
         if candidate_step.id == step_id:
-            return candidate_step.name or ""
+            return getattr(candidate_step, "name", None) or ""
+        if isinstance(candidate_step, LoopStepBlock):
+            found = _find_loop_sub_step_name(candidate_step, step_id)
+            if found:
+                return found
     return ""
 
 
@@ -393,7 +409,7 @@ def _resolve_historical_steps_metadata(
     for idx, result in enumerate(state.step_results):
         step_index = idx + 1
         if idx < len(context.steps) and context.steps[idx].id == result.step_id:
-            step_name = context.steps[idx].name or ""
+            step_name = getattr(context.steps[idx], "name", None) or ""
         else:
             step_name = _find_step_name_by_id(context.steps, result.step_id)
         historical.append(
@@ -421,11 +437,26 @@ def _resolve_previous_step_metadata(
 def _dispatch_step(
     context: RunContext,
     state: StepLoopState,
-    step: StepDefinition,
+    step: StepDefinition | LoopStepBlock,
     step_index: int,
     step_context: dict[str, object] | None,
 ) -> tuple[str, StepResult | None, str | None]:
-    """Run or re-prompt a step depending on whether this is the resume gate."""
+    """Run or re-prompt a step or loop block depending on whether this is the resume gate."""
+    if isinstance(step, LoopStepBlock):
+        runner = LoopBlockRunner(
+            loop=step,
+            sandbox_path=state.target_dir,
+            context=step_context,
+            observer=context.observer,
+            failure_prompter=context.failure_prompter,
+            non_interactive=context.non_interactive,
+            pause_store=context.pause_store,
+            step_index=step_index + 1,
+            identity=context.identity,
+            resume_from=context.resume_from,
+        )
+        return runner.run(state)
+
     historical_steps = _resolve_historical_steps_metadata(context, state)
     previous_step = historical_steps[-1] if historical_steps else PreviousStepMetadata()
     resume = context.resume_from

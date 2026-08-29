@@ -1,6 +1,8 @@
 import copy
 import re
+from collections.abc import Callable, Sequence
 from enum import StrEnum
+from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -237,6 +239,18 @@ class StepDefinition(BaseModel):
         return self
 
 
+class ConditionEvaluationResult(BaseModel):
+    """Result of evaluating a single until condition expression."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    expression: str
+    passed: bool
+    actual: Any = None
+    expected: Any = None
+    detail: str = ""
+
+
 class LoopStepBlock(BaseModel):
     """Loop block step execution definition."""
 
@@ -321,6 +335,14 @@ class ExecutionIdentity(BaseModel):
     workflow_sha: str = ""
 
 
+class IterationMetadata(BaseModel):
+    """Execution metadata for the current loop iteration."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    index: int = Field(default=1, ge=1)
+
+
 class ExecutionMetadata(BaseModel):
     """Structured metadata exposed to step execution (env + interpolation)."""
 
@@ -331,6 +353,24 @@ class ExecutionMetadata(BaseModel):
     workflow: WorkflowMetadata = Field(default_factory=WorkflowMetadata)
     previous_step: PreviousStepMetadata = Field(default_factory=PreviousStepMetadata)
     steps: list[PreviousStepMetadata] = Field(default_factory=list)
+    iteration: IterationMetadata = Field(default_factory=IterationMetadata)
+
+
+class StepExecutionContext(BaseModel):
+    """Structured metadata for a step execution."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    step: StepDefinition
+    sandbox_path: Path
+    context: dict[str, Any] | None = None
+    on_output: Callable[[str, str], None] | None = None
+    step_index: int = 1
+    initial_attempt: int = 1
+    iteration_index: int = 1
+    identity: ExecutionIdentity | None = None
+    previous_step: PreviousStepMetadata | None = None
+    steps: Sequence[PreviousStepMetadata] | None = None
 
 
 class StepDispatchOutcome(BaseModel):

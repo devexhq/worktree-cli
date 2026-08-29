@@ -5,6 +5,7 @@ from worktree.core.step import (
     StepAssert,
     StepDefinition,
     StepExecution,
+    StepExecutionContext,
     StepResult,
     StepType,
 )
@@ -55,7 +56,7 @@ class StepRunnerExecutionTests:
             command="echo 'hello world'",
         )
 
-        res = StepExecution(step, sandbox_path=fs.base_path).run()
+        res = StepExecution(StepExecutionContext(step=step, sandbox_path=fs.base_path)).run()
         assert res.ok is True
         assert res.status == "completed"
         assert res.exit_code == 0
@@ -70,7 +71,7 @@ class StepRunnerExecutionTests:
             on_failure="abort",
         )
 
-        res = StepExecution(step, sandbox_path=fs.base_path).run()
+        res = StepExecution(StepExecutionContext(step=step, sandbox_path=fs.base_path)).run()
         assert res.ok is False
         assert res.status == "failed"
         assert res.exit_code == 42
@@ -85,7 +86,7 @@ class StepRunnerExecutionTests:
             on_failure="continue",
         )
 
-        res = StepExecution(step, sandbox_path=fs.base_path).run()
+        res = StepExecution(StepExecutionContext(step=step, sandbox_path=fs.base_path)).run()
         assert res.ok is True
         assert res.status == "ignored"
         assert res.exit_code == 0
@@ -99,7 +100,7 @@ class StepRunnerExecutionTests:
             timeout_seconds=1,
         )
 
-        res = StepExecution(step, sandbox_path=fs.base_path).run()
+        res = StepExecution(StepExecutionContext(step=step, sandbox_path=fs.base_path)).run()
         assert res.ok is False
         assert res.status == "failed"
         assert "timed out" in (res.error_message or "").lower()
@@ -113,7 +114,7 @@ class StepRunnerExecutionTests:
             script_path="test_script.py",
         )
 
-        res = StepExecution(step, sandbox_path=fs.base_path).run()
+        res = StepExecution(StepExecutionContext(step=step, sandbox_path=fs.base_path)).run()
         assert res.ok is True
         assert res.status == "completed"
         assert "script output" in res.stdout
@@ -125,7 +126,7 @@ class StepRunnerExecutionTests:
             script_path="nonexistent.sh",
         )
 
-        res = StepExecution(step, sandbox_path=fs.base_path).run()
+        res = StepExecution(StepExecutionContext(step=step, sandbox_path=fs.base_path)).run()
         assert res.ok is False
         assert res.status == "failed"
         assert "not found" in (res.error_message or "").lower()
@@ -133,14 +134,16 @@ class StepRunnerExecutionTests:
     def test_execute_agent_step_defaults_to_local_provider(self, fs: FileSystem) -> None:
         step = StepDefinition(id="agent_step", type=StepType.AGENT, prompt="Fix bugs")
 
-        res = StepExecution(step, sandbox_path=fs.base_path).run()
+        res = StepExecution(StepExecutionContext(step=step, sandbox_path=fs.base_path)).run()
         assert res.ok is True
         assert res.status == "completed"
 
     def test_execute_agent_step_uses_context_provider_override(self, fs: FileSystem) -> None:
         step = StepDefinition(id="agent_step", type=StepType.AGENT, prompt="Fix bugs")
 
-        res = StepExecution(step, sandbox_path=fs.base_path, context={"agent": "ollama"}).run()
+        res = StepExecution(
+            StepExecutionContext(step=step, sandbox_path=fs.base_path, context={"agent": "ollama"})
+        ).run()
         assert res.ok is True
 
     def test_execute_step_invalid_sandbox_path(self, fs: FileSystem) -> None:
@@ -151,7 +154,7 @@ class StepRunnerExecutionTests:
             command="echo 1",
         )
 
-        res = StepExecution(step, sandbox_path=nonexistent).run()
+        res = StepExecution(StepExecutionContext(step=step, sandbox_path=nonexistent)).run()
         assert res.ok is False
         assert res.status == "failed"
         assert "does not exist" in (res.error_message or "").lower()
@@ -159,7 +162,7 @@ class StepRunnerExecutionTests:
     def test_execute_step_resolves_run_shorthand(self, fs: FileSystem) -> None:
         step = StepDefinition(id="run-step", run="echo from-run")
 
-        res = StepExecution(step, sandbox_path=fs.base_path).run()
+        res = StepExecution(StepExecutionContext(step=step, sandbox_path=fs.base_path)).run()
         assert res.ok is True
         assert "from-run" in res.stdout
 
@@ -168,7 +171,7 @@ class StepRunnerExecutionTests:
 
         step = StepDefinition(id="uses-step", uses="greet")
 
-        res = StepExecution(step, sandbox_path=fs.base_path).run()
+        res = StepExecution(StepExecutionContext(step=step, sandbox_path=fs.base_path)).run()
         assert res.ok is True
         assert "from-uses" in res.stdout
 
@@ -180,9 +183,11 @@ class StepRunnerExecutionTests:
         )
 
         res = StepExecution(
-            step,
-            sandbox_path=fs.base_path,
-            context={"inputs": {"message": "interpolated-value"}},
+            StepExecutionContext(
+                step=step,
+                sandbox_path=fs.base_path,
+                context={"inputs": {"message": "interpolated-value"}},
+            )
         ).run()
         assert res.ok is True
         assert "interpolated-value" in res.stdout
@@ -199,7 +204,7 @@ class StepRunnerRetryTests:
             on_failure={"action": "retry", "max_retries": 2},
         )
 
-        res = StepExecution(step, sandbox_path=fs.base_path).run()
+        res = StepExecution(StepExecutionContext(step=step, sandbox_path=fs.base_path)).run()
         assert res.ok is False
         assert res.status == "failed"
         assert res.attempts == 2
@@ -212,7 +217,7 @@ class StepRunnerRetryTests:
             on_failure={"action": "retry", "max_retries": 2, "on_max_retries": "continue"},
         )
 
-        res = StepExecution(step, sandbox_path=fs.base_path).run()
+        res = StepExecution(StepExecutionContext(step=step, sandbox_path=fs.base_path)).run()
         assert res.ok is True
         assert res.status == "ignored"
         assert res.attempts == 2
@@ -240,7 +245,7 @@ class StepRunnerRetryTests:
             on_failure={"action": "retry", "max_retries": 3, "backoff_ms": 250},
         )
 
-        res = StepExecution(step, sandbox_path=fs.base_path).run()
+        res = StepExecution(StepExecutionContext(step=step, sandbox_path=fs.base_path)).run()
         assert res.attempts == 3
         assert sleep_calls == [0.25, 0.25]
 
@@ -260,7 +265,7 @@ class StepRunnerRetryTests:
             on_failure="retry",
         )
 
-        res = StepExecution(step, sandbox_path=fs.base_path).run()
+        res = StepExecution(StepExecutionContext(step=step, sandbox_path=fs.base_path)).run()
         assert res.ok is True
         assert res.status == "completed"
         assert res.exit_code == 0
@@ -281,7 +286,7 @@ class StepRunnerAssertionTests:
             assert_=StepAssert(file_exists="dist/app.bin"),
         )
 
-        res = StepExecution(step, sandbox_path=fs.base_path).run()
+        res = StepExecution(StepExecutionContext(step=step, sandbox_path=fs.base_path)).run()
         assert res.ok is False
         assert res.status == "failed"
         assert res.exit_code == 0
@@ -308,7 +313,7 @@ class StepRunnerAssertionTests:
             on_failure={"action": "retry", "max_retries": 3, "backoff_ms": 0},
         )
 
-        res = StepExecution(step, sandbox_path=fs.base_path).run()
+        res = StepExecution(StepExecutionContext(step=step, sandbox_path=fs.base_path)).run()
         assert res.ok is True
         assert res.status == "completed"
         assert res.exit_code == 0
@@ -325,7 +330,7 @@ class StepRunnerAssertionTests:
             on_failure="continue",
         )
 
-        res = StepExecution(step, sandbox_path=fs.base_path).run()
+        res = StepExecution(StepExecutionContext(step=step, sandbox_path=fs.base_path)).run()
         assert res.ok is True
         assert res.status == "ignored"
         assert res.exit_code == 0
@@ -341,7 +346,7 @@ class StepRunnerAssertionTests:
             assert_=StepAssert(file_exists="dist/app.bin"),
         )
 
-        res = StepExecution(step, sandbox_path=fs.base_path).run()
+        res = StepExecution(StepExecutionContext(step=step, sandbox_path=fs.base_path)).run()
         assert res.ok is True
         assert res.status == "completed"
         assert res.exit_code == 0
@@ -355,7 +360,7 @@ class StepRunnerAssertionTests:
             assert_=StepAssert(output_contains="never-present-token"),
         )
 
-        res = StepExecution(step, sandbox_path=fs.base_path).run()
+        res = StepExecution(StepExecutionContext(step=step, sandbox_path=fs.base_path)).run()
         assert res.ok is False
         assert res.status == "failed"
         assert res.exit_code == 0
@@ -375,9 +380,11 @@ class StepRunnerStreamingOutputTests:
         streamed: list[tuple[str, str]] = []
 
         res = StepExecution(
-            step,
-            sandbox_path=fs.base_path,
-            on_output=lambda stream, line: streamed.append((stream, line)),
+            StepExecutionContext(
+                step=step,
+                sandbox_path=fs.base_path,
+                on_output=lambda stream, line: streamed.append((stream, line)),
+            )
         ).run()
 
         assert res.ok is True
@@ -399,9 +406,11 @@ class StepRunnerStreamingOutputTests:
         streamed: list[tuple[str, str]] = []
 
         res = StepExecution(
-            step,
-            sandbox_path=fs.base_path,
-            on_output=lambda stream, line: streamed.append((stream, line)),
+            StepExecutionContext(
+                step=step,
+                sandbox_path=fs.base_path,
+                on_output=lambda stream, line: streamed.append((stream, line)),
+            )
         ).run()
 
         assert res.ok is True
@@ -426,9 +435,11 @@ class StepRunnerStreamingOutputTests:
         streamed: list[tuple[str, str]] = []
 
         res = StepExecution(
-            step,
-            sandbox_path=fs.base_path,
-            on_output=lambda stream, line: streamed.append((stream, line)),
+            StepExecutionContext(
+                step=step,
+                sandbox_path=fs.base_path,
+                on_output=lambda stream, line: streamed.append((stream, line)),
+            )
         ).run()
 
         assert res.ok is True
@@ -452,9 +463,11 @@ class StepRunnerStreamingOutputTests:
         lines_received: list[str] = []
 
         res = StepExecution(
-            step,
-            sandbox_path=fs.base_path,
-            on_output=lambda stream, line: lines_received.append(line),
+            StepExecutionContext(
+                step=step,
+                sandbox_path=fs.base_path,
+                on_output=lambda stream, line: lines_received.append(line),
+            )
         ).run()
 
         assert res.ok is True
@@ -475,9 +488,11 @@ class StepRunnerStreamingOutputTests:
         streamed: list[tuple[str, str]] = []
 
         res = StepExecution(
-            step,
-            sandbox_path=fs.base_path,
-            on_output=lambda stream, line: streamed.append((stream, line)),
+            StepExecutionContext(
+                step=step,
+                sandbox_path=fs.base_path,
+                on_output=lambda stream, line: streamed.append((stream, line)),
+            )
         ).run()
 
         assert res.ok is False
@@ -494,7 +509,7 @@ class StepRunnerStreamingOutputTests:
         cmd = f"python3 -c \"import time, pathlib; pathlib.Path('{marker}').write_text('running'); time.sleep(10)\""
         step = StepDefinition(id="tree-timeout", type=StepType.COMMAND, command=cmd, timeout_seconds=1)
 
-        res = StepExecution(step, sandbox_path=fs.base_path).run()
+        res = StepExecution(StepExecutionContext(step=step, sandbox_path=fs.base_path)).run()
         assert res.ok is False
         assert res.exit_code == 124
         assert marker.read_text() == "running"
@@ -512,9 +527,11 @@ class StepRunnerStreamingOutputTests:
         streamed: list[tuple[str, str]] = []
 
         res = StepExecution(
-            step,
-            sandbox_path=fs.base_path,
-            on_output=lambda stream, line: streamed.append((stream, line)),
+            StepExecutionContext(
+                step=step,
+                sandbox_path=fs.base_path,
+                on_output=lambda stream, line: streamed.append((stream, line)),
+            )
         ).run()
 
         assert res.ok is True
@@ -533,7 +550,9 @@ class StepRunnerStreamingOutputTests:
         def failing_callback(stream: str, line: str) -> None:
             raise RuntimeError("callback crashed")
 
-        res = StepExecution(step, sandbox_path=fs.base_path, on_output=failing_callback).run()
+        res = StepExecution(
+            StepExecutionContext(step=step, sandbox_path=fs.base_path, on_output=failing_callback)
+        ).run()
         assert res.ok is False
         assert res.status == "failed"
         assert "callback crashed" in (res.error_message or "")
@@ -549,7 +568,9 @@ class StepRunnerStreamingOutputTests:
         def failing_callback(stream: str, line: str) -> None:
             raise ValueError("agent callback fail")
 
-        res = StepExecution(step, sandbox_path=fs.base_path, on_output=failing_callback).run()
+        res = StepExecution(
+            StepExecutionContext(step=step, sandbox_path=fs.base_path, on_output=failing_callback)
+        ).run()
         assert res.ok is False
         assert res.status == "failed"
         assert "agent callback fail" in (res.error_message or "")

@@ -10,8 +10,9 @@ import pytest
 
 from tests.helpers import FileSystem, make_cmd_step
 from worktree.core.blueprint import Blueprint, BlueprintDefinition, BlueprintKind
-from worktree.core.db import RunStatus, WorktreeDb
-from worktree.core.engine import Engine, EngineInputError, EngineRuntimeError, RunRequest
+from worktree.core.catalog import Catalog
+from worktree.core.db import RunsRepository, RunStatus, WorktreeDb
+from worktree.core.engine import Engine, EngineInputError, RunRequest
 from worktree.core.inputs import InputType, ParameterInput
 from worktree.core.runtime import RunContext, RunOutcome
 from worktree.core.step import LoopStepBlock, StepDefinition
@@ -42,7 +43,7 @@ def _workflow_blueprint(*, name: str = "ship", loop: bool = False) -> Blueprint:
                     "id": "retry",
                     "type": "loop",
                     "until": ["steps.unit.exit_code == 0"],
-                    "do": [{"id": "unit", "run": "pytest"}],
+                    "do": [make_cmd_step(step_id="unit", command="echo hi").model_dump()],
                 }
             )
         )
@@ -74,10 +75,12 @@ def _input_blueprint() -> Blueprint:
 class EngineConstructTests:
     """Unit tests for Engine initialization and contracts."""
 
-    def test_construct_resolves_cwd(self, tmp_path: Path) -> None:
-        engine = Engine(tmp_path)
+    def test_construct_resolves_path(self, tmp_path: Path) -> None:
+        db = RunsRepository(tmp_path)
+        catalog = Catalog(tmp_path)
+        engine = Engine(tmp_path, db=db, catalog=catalog)
 
-        assert engine.cwd == tmp_path.resolve()
+        assert engine.path == tmp_path.resolve()
         assert not hasattr(Engine, "spec")
 
 
@@ -85,10 +88,12 @@ class EngineRunDelegationTests:
     """Unit tests for Engine.run execution, persistence, and error handling."""
 
     db: WorktreeDb
+    catalog: Catalog
 
     @pytest.fixture(autouse=True)
     def setup_method(self, fs: FileSystem) -> None:
         self.db = WorktreeDb(path=fs.base_path)
+        self.catalog = Catalog(path=fs.base_path, db=self.db.catalog)
 
     def test_run_delegates_to_run_steps(self, monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
         steps = [make_cmd_step(step_id="one"), make_cmd_step(step_id="two")]
@@ -103,7 +108,7 @@ class EngineRunDelegationTests:
 
         monkeypatch.setattr("worktree.core.engine.engine.run_steps", fake_run_steps)
 
-        outcome = Engine(fs.base_path).run(
+        outcome = Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).run(
             blueprint,
             RunRequest(
                 use_sandbox=True,
@@ -158,7 +163,7 @@ class EngineRunDelegationTests:
 
         monkeypatch.setattr("worktree.core.engine.engine.run_steps", fake_run_steps)
 
-        Engine(fs.base_path).run(
+        Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).run(
             _task_blueprint(use_sandbox=definition_use_sandbox),
             RunRequest(use_sandbox=caller_use_sandbox, session_id="task_sandbox"),
         )
@@ -166,7 +171,7 @@ class EngineRunDelegationTests:
         assert captured["context"].use_sandbox is expected
 
     def test_run_persists_completed_task_row(self, fs: FileSystem) -> None:
-        outcome = Engine(fs.base_path).run(
+        outcome = Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).run(
             _task_blueprint(use_sandbox=False),
             RunRequest(use_sandbox=False, session_id="task_persist"),
         )
@@ -180,7 +185,7 @@ class EngineRunDelegationTests:
         assert record.completed_at is not None
 
     def test_run_persists_workflow_row_with_empty_branch(self, fs: FileSystem) -> None:
-        outcome = Engine(fs.base_path).run(
+        outcome = Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).run(
             _workflow_blueprint(),
             RunRequest(use_sandbox=False, session_id="workflow_persist"),
         )
@@ -193,11 +198,15 @@ class EngineRunDelegationTests:
         assert record.branch_name == ""
         assert record.status is RunStatus.COMPLETED
 
-    def test_run_rejects_loop_steps_before_insert(self, fs: FileSystem) -> None:
-        with pytest.raises(EngineRuntimeError, match=r"Engine\.run does not execute loop steps\."):
-            Engine(fs.base_path).run(_workflow_blueprint(loop=True), RunRequest(session_id="workflow_loop"))
+    def test_run_accepts_loop_steps_in_workflow(self, fs: FileSystem) -> None:
+        outcome = Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).run(
+            _workflow_blueprint(loop=True), RunRequest(session_id="workflow_loop")
+        )
 
-        assert self.db.runs.get("workflow_loop") is None
+        assert outcome.status is RunStatus.COMPLETED
+        record = self.db.runs.get("workflow_loop")
+        assert record is not None
+        assert record.status is RunStatus.COMPLETED
 
     def test_insert_failure_warns_and_still_runs(self, monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
         captured: dict[str, RunContext] = {}
@@ -212,7 +221,9 @@ class EngineRunDelegationTests:
         monkeypatch.setattr("worktree.core.engine.engine.run_steps", fake_run_steps)
         monkeypatch.setattr("worktree.core.db.repositories.runs.RunsRepository.create", boom)
 
-        outcome = Engine(fs.base_path).run(_task_blueprint(), RunRequest(session_id="task_insert_fail"))
+        outcome = Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).run(
+            _task_blueprint(), RunRequest(session_id="task_insert_fail")
+        )
 
         assert captured["context"].pause_store is None
         assert any(warning.startswith("Failed to record run start in database:") for warning in outcome.warnings)
@@ -230,7 +241,9 @@ class EngineRunDelegationTests:
             lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("locked")),
         )
 
-        outcome = Engine(fs.base_path).run(_task_blueprint(), RunRequest(session_id="task_update_fail"))
+        outcome = Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).run(
+            _task_blueprint(), RunRequest(session_id="task_update_fail")
+        )
 
         assert outcome is not expected
         assert outcome.warnings[0] == "step note"
@@ -245,7 +258,9 @@ class EngineRunDelegationTests:
             lambda _context: RunOutcome(status=RunStatus.COMPLETED, sandbox_path=fs.base_path),
         )
 
-        outcome = Engine(fs.base_path).run(_task_blueprint(use_sandbox=False), RunRequest(use_sandbox=False))
+        outcome = Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).run(
+            _task_blueprint(use_sandbox=False), RunRequest(use_sandbox=False)
+        )
 
         records = self.db.runs.list()
         assert len(records) == 1
@@ -258,10 +273,12 @@ class EngineRunInputsTests:
     """Unit tests for Engine.run parameter inputs resolution and validation."""
 
     db: WorktreeDb
+    catalog: Catalog
 
     @pytest.fixture(autouse=True)
     def setup_method(self, fs: FileSystem) -> None:
         self.db = WorktreeDb(path=fs.base_path)
+        self.catalog = Catalog(path=fs.base_path, db=self.db.catalog)
 
     def test_run_without_request_uses_defaults(self, monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
         captured: dict[str, RunContext] = {}
@@ -272,7 +289,7 @@ class EngineRunInputsTests:
 
         monkeypatch.setattr("worktree.core.engine.engine.run_steps", fake_run_steps)
 
-        outcome = Engine(fs.base_path).run(_task_blueprint(use_sandbox=False))
+        outcome = Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).run(_task_blueprint(use_sandbox=False))
 
         assert captured["context"].inputs == {}
         assert outcome.session_id is not None
@@ -287,7 +304,9 @@ class EngineRunInputsTests:
 
         monkeypatch.setattr("worktree.core.engine.engine.run_steps", fake_run_steps)
 
-        Engine(fs.base_path).run(_input_blueprint(), RunRequest(inputs={"message": "ship it"}))
+        Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).run(
+            _input_blueprint(), RunRequest(inputs={"message": "ship it"})
+        )
 
         assert captured["context"].inputs == {"message": "ship it", "allow_empty": False}
 
@@ -300,20 +319,22 @@ class EngineRunInputsTests:
 
         monkeypatch.setattr("worktree.core.engine.engine.run_steps", fake_run_steps)
 
-        Engine(fs.base_path).run(_input_blueprint(), RunRequest(cli_args=["-m", "from argv"]))
+        Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).run(
+            _input_blueprint(), RunRequest(cli_args=["-m", "from argv"])
+        )
 
         assert captured["context"].inputs == {"message": "from argv", "allow_empty": False}
 
     def test_run_missing_required_input_raises_before_insert(self, fs: FileSystem) -> None:
         with pytest.raises(EngineInputError, match="Missing required input 'message'") as exc_info:
-            Engine(fs.base_path).run(_input_blueprint())
+            Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).run(_input_blueprint())
 
         assert exc_info.value.result.missing == ["message"]
         assert self.db.runs.list() == []
 
     def test_run_invalid_input_raises_before_insert(self, fs: FileSystem) -> None:
         with pytest.raises(EngineInputError, match="expects an integer") as exc_info:
-            Engine(fs.base_path).run(
+            Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).run(
                 Blueprint(
                     BlueprintDefinition(
                         kind=BlueprintKind.TASK,

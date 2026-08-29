@@ -10,6 +10,16 @@ _INTERPOLATED_FIELDS = ("command", "prompt", "script_path", "run")
 _STEP_ENTRY_FIELDS = {"id", "name", "index", "status", "exit_code"}
 _STEPS_BRACKET_RE = re.compile(r"^steps\s*\[\s*(['\"]?)(.*?)\1\s*\]\s*\.\s*([A-Za-z0-9_]+)$")
 
+
+def _extract_iteration_index(meta: Any) -> str:
+    iteration = getattr(meta, "iteration", None)
+    if iteration is not None:
+        idx = getattr(iteration, "index", None)
+        if idx is not None:
+            return str(idx)
+    return "1"
+
+
 _METADATA_EXTRACTORS: dict[str, Any] = {
     "step.id": lambda meta: str(meta.step.id),
     "step.name": lambda meta: str(meta.step.name),
@@ -24,6 +34,8 @@ _METADATA_EXTRACTORS: dict[str, Any] = {
     "previous_step.index": lambda meta: str(meta.previous_step.index),
     "previous_step.status": lambda meta: str(meta.previous_step.status),
     "previous_step.exit_code": lambda meta: str(meta.previous_step.exit_code),
+    "iteration.index": _extract_iteration_index,
+    "iteration.attempt": _extract_iteration_index,
 }
 
 

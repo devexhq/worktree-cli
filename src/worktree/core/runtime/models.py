@@ -11,7 +11,13 @@ from pydantic import BaseModel, Field
 
 from worktree.core.db import RunStatus
 from worktree.core.git_sandbox import SandboxSession
-from worktree.core.step import ExecutionIdentity, StepDefinition, StepResult
+from worktree.core.step import (
+    ConditionEvaluationResult,
+    ExecutionIdentity,
+    LoopStepBlock,
+    StepDefinition,
+    StepResult,
+)
 
 
 class FailurePromptDecision(StrEnum):
@@ -22,8 +28,16 @@ class FailurePromptDecision(StrEnum):
     ABORT = "abort"
 
 
+class LoopPromptDecision(StrEnum):
+    """User (or adapter) decision when loop reaches max_iterations."""
+
+    GRANT = "grant"
+    CONTINUE = "continue"
+    ABORT = "abort"
+
+
 class FailurePrompter(Protocol):
-    """Injectable decision entrypoint for interactive step-failure handling."""
+    """Injectable decision entrypoint for interactive step-failure and loop-handling."""
 
     def prompt_step_failure(
         self,
@@ -33,6 +47,17 @@ class FailurePrompter(Protocol):
         diagnostic: str,
     ) -> FailurePromptDecision:
         """Return the caller's decision. Must not block for non-interactive callers."""
+        ...
+
+    def prompt_loop_max_iterations(
+        self,
+        *,
+        loop: LoopStepBlock,
+        iteration: int,
+        diagnostic: str,
+        grant_count: int = 3,  # @TODO: Make this configurable
+    ) -> LoopPromptDecision:
+        """Return the caller's decision when a loop reaches max_iterations."""
         ...
 
 
@@ -95,7 +120,7 @@ class StepLoopState:
 class RunContext:
     """Immutable inputs for a multi-step run."""
 
-    steps: list[StepDefinition]
+    steps: list[StepDefinition | LoopStepBlock]
     cwd: Path
     use_sandbox: bool = True
     keep: bool = False
@@ -111,7 +136,7 @@ class RunContext:
 
 @runtime_checkable
 class RunObserver(Protocol):
-    """Optional progress hooks for sandbox and step lifecycle events."""
+    """Optional progress hooks for sandbox, step, and loop lifecycle events."""
 
     def on_sandbox_ready(self, path: Path, active: bool) -> None:
         """Called after the execution directory is chosen."""
@@ -134,6 +159,28 @@ class RunObserver(Protocol):
 
     def on_step_done(self, idx: int, total: int, result: StepResult) -> None:
         """Called immediately after a step finishes."""
+        ...
+
+    def on_loop_start(self, loop_id: str, max_iterations: int) -> None:
+        """Called when a loop block begins execution."""
+        ...
+
+    def on_loop_turn_start(self, loop_id: str, turn: int, max_iterations: int) -> None:
+        """Called at the start of a loop turn."""
+        ...
+
+    def on_loop_conditions_evaluated(
+        self,
+        loop_id: str,
+        results: list[ConditionEvaluationResult],
+        all_passed: bool,
+        next_turn: int | None = None,
+    ) -> None:
+        """Called after loop until conditions are evaluated for a turn."""
+        ...
+
+    def on_loop_done(self, loop_id: str, status: str, turns: int) -> None:
+        """Called when a loop block finishes."""
         ...
 
     def on_sandbox_cleanup(self, kept: bool, path: Path) -> None:

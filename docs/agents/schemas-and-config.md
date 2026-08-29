@@ -406,13 +406,9 @@ Registration: `wt config set <key> <value>` under `config_app` in
   - `Engine.run` mints `session_id` as `req.session_id or
     f"{blueprint.kind.value}_{uuid4().hex[:8]}"` when the caller doesn't supply
     one.
-  - **Both** `.run` and `.resume` reject any `LoopStepBlock` in the blueprint's
-    steps outright (`EngineRuntimeError`, `"Engine.run/resume does not execute
-    loop steps"`) — `Engine` only ever builds a flat `RunContext.steps:
-    list[StepDefinition]`. Loop-step execution is not wired into the live path at
-    all yet, independent of the `kind=task` restriction above (a `kind=workflow`
-    blueprint with a loop step is schema/model-valid but cannot currently be run
-    by `Engine`).
+  - `.run` and `.resume` pass `LoopStepBlock` items through in workflow blueprints to
+    `run_steps` and `LoopBlockRunner`, while `kind=task` blueprints continue to reject loop
+    steps at validation time.
   - `Engine` always stamps `session_id` onto the returned `RunOutcome` via
     `model_copy` after `run_steps` returns — this is what makes
     `RunOutcome.session_id` non-`None` in practice, even though `run_steps` itself
@@ -674,7 +670,10 @@ steps load the referenced step definition as-is. `command` / `prompt` /
 for the exact field list (`id`, `type: Literal["loop"]`, `max_iterations`,
 `until`, `do`, `on_max_iterations`). Non-obvious: `on_max_iterations` is
 restricted to `FailurePolicy.context("terminal")` just like `FailureSpec.
-on_max_retries` — a value of `retry` raises a validation error.
+on_max_retries` — a value of `retry` raises a validation error. `until`
+conditions use `<operand> <operator> <operand>` format with operators
+`==`, `!=`, `<`, `<=`, `>`, `>=`, `contains`, supporting step references
+(`steps.<id>.<field>`), `iteration.index`, and literals on either side.
 
 ### Step Loader & Resolver
 
@@ -686,7 +685,7 @@ Functions in `core/step/services/` (re-exported from `worktree.core.step`):
 
 ### Step Execution Engine
 
-`StepExecution(step: StepDefinition, sandbox_path: Path, context: dict | None = None, on_output: Callable[[str, str], None] | None = None).run() -> StepResult`:
+`StepExecution(metadata: StepExecutionContext).run() -> StepResult` (also `StepRunner`):
 
 - Resolves `uses`/`run` steps via `resolve_step_definition()` before dispatch, then
   interpolates `${{ inputs.* }}` placeholders when `context["inputs"]` is set.
