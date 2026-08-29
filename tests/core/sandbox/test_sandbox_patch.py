@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+from unittest.mock import patch as mock_patch
 
 import pytest
 
@@ -96,6 +97,7 @@ class TestSandboxPatch:
         result = patch.apply(session.session_id, delete=True)
         assert result.ok
         assert result.cleaned_up
+        assert result.warnings == []
         assert not session.sandbox_path.exists()
 
         branch_proc = subprocess.run(
@@ -106,6 +108,41 @@ class TestSandboxPatch:
             check=True,
         )
         assert session.target_branch not in branch_proc.stdout
+
+    def test_apply_sandbox_with_delete_cleanup_propagates_warnings(self, git_fs: GitFileSystem) -> None:
+        git_fs.init_repo()
+        lifecycle = SandboxLifecycle(path=git_fs.base_path, db=self.db.sandboxes)
+        patch = SandboxPatch(path=git_fs.base_path, db=self.db.sandboxes, lifecycle=lifecycle)
+
+        res = lifecycle.create(session_id="sbx_del_warn")
+        assert res.ok and res.session is not None
+        session = res.session
+
+        (session.sandbox_path / "del_warn.txt").write_text("abc\n", encoding="utf-8")
+
+        with mock_patch.object(lifecycle, "cleanup", return_value=["partial cleanup warning"]):
+            result = patch.apply(session.session_id, delete=True)
+        assert result.ok
+        assert result.cleaned_up
+        assert "partial cleanup warning" in result.warnings
+        lifecycle.cleanup(session)
+
+    def test_apply_sandbox_merged_status_update_failure_warning(self, git_fs: GitFileSystem) -> None:
+        git_fs.init_repo()
+        lifecycle = SandboxLifecycle(path=git_fs.base_path, db=self.db.sandboxes)
+        patch = SandboxPatch(path=git_fs.base_path, db=self.db.sandboxes)
+
+        res = lifecycle.create(session_id="sbx_merged_fail")
+        assert res.ok and res.session is not None
+        session = res.session
+
+        (session.sandbox_path / "f.txt").write_text("apply without db\n", encoding="utf-8")
+
+        with mock_patch.object(self.db.sandboxes, "update_status", side_effect=RuntimeError("db lock")):
+            result = patch.apply(session.session_id)
+        assert result.ok
+        assert any("Failed to update database status to 'merged'" in w for w in result.warnings)
+        lifecycle.cleanup(session)
 
     def test_apply_sandbox_main_repo_dirty_aborts(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
