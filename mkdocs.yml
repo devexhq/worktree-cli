@@ -50,6 +50,7 @@ nav:
   - CLI Reference:
       - Workspace Init (wt init): cli/init.md
       - Status (wt status): cli/status.md
+      - Diff (wt diff): cli/diff.md
       - Config (wt config): cli/config.md
       - Run (wt run): cli/run.md
       - Resume (wt resume): cli/resume.md
