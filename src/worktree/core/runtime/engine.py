@@ -6,6 +6,8 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from worktree.core.db import RunStatus, SandboxesRepository
+from worktree.core.diff import get_session_dir, write_session_diff
+from worktree.core.git.runner import GitRunner
 from worktree.core.runtime.exceptions import PromptUserInterruptedError
 from worktree.core.runtime.failure import (
     effective_terminal_policy,
@@ -118,7 +120,10 @@ def _setup_sandbox(
         return target_dir, None, None, None
 
     manager = GitSandboxManager(context.cwd.resolve(), db=SandboxesRepository(context.cwd.resolve()))
-    create_result = manager.create_sandbox()
+    session_id = None
+    if context.identity is not None:
+        session_id = context.identity.task_sha or context.identity.workflow_sha
+    create_result = manager.create_sandbox(session_id=session_id)
     if not create_result.ok or create_result.session is None:
         detail = create_result.errors[0] if create_result.errors else "Sandbox creation failed."
         return context.cwd.resolve(), None, None, f"Git sandbox creation failed: {detail}"
@@ -549,6 +554,25 @@ def _handle_auto_apply(
     return None, False
 
 
+def _capture_and_persist_diff(
+    context: RunContext,
+    session: SandboxSession | None,
+    warnings: list[str],
+) -> None:
+    """Capture cumulative unified diff from sandbox and persist diff.patch."""
+    if session is None or not Path(session.sandbox_path).is_dir():
+        return
+
+    session_id = session.session_id
+    try:
+        GitRunner.add_intent_to_add(session.sandbox_path, target=".")
+        diff_text = GitRunner.diff(session.sandbox_path, base_commit=session.base_commit, binary=True)
+        session_dir = get_session_dir(context.cwd, session_id)
+        write_session_diff(session_dir, diff_text)
+    except Exception as exc:
+        warnings.append(f"Failed to persist session diff artifact: {exc}")
+
+
 def _finalize_sandbox_cleanup(
     context: RunContext,
     manager: GitSandboxManager | None,
@@ -601,6 +625,7 @@ def run_steps(context: RunContext) -> RunOutcome:
             if new_status is not None:
                 status = new_status
     finally:
+        _capture_and_persist_diff(context, session, warnings)
         sandbox_kept = _finalize_sandbox_cleanup(context, manager, session, target_dir, status, apply_failed)
 
     return RunOutcome(
