@@ -144,7 +144,7 @@ class LoopBlockRunner:
         if self.non_interactive or self.failure_prompter is None:
             warning = f"Warning: step '{sub_step.id}' requested prompt_user but run is non-interactive; aborting."
             state.warnings.append(warning)
-            return "abort", result, f"Step '{sub_step.id}' failed in loop '{self.loop.id}'."
+            return LoopPromptDecision.ABORT, result, f"Step '{sub_step.id}' failed in loop '{self.loop.id}'."
 
         diagnostic = step_failure_diagnostic(result)
         decision = self.failure_prompter.prompt_step_failure(
@@ -153,10 +153,10 @@ class LoopBlockRunner:
             diagnostic=diagnostic,
         )
         if decision == FailurePromptDecision.RETRY:
-            return "retry", None, None
+            return FailurePromptDecision.RETRY, None, None
         if decision == FailurePromptDecision.CONTINUE:
-            return "continue", mark_continued_after_prompt(result), None
-        return "abort", result, f"Step '{sub_step.id}' aborted by user in loop '{self.loop.id}'."
+            return LoopPromptDecision.CONTINUE, mark_continued_after_prompt(result), None
+        return LoopPromptDecision.ABORT, result, f"Step '{sub_step.id}' aborted by user in loop '{self.loop.id}'."
 
     def _handle_sub_step_result(
         self,
@@ -165,14 +165,14 @@ class LoopBlockRunner:
         state: StepLoopState,
     ) -> tuple[str, StepResult | None, str | None]:
         if result.ok:
-            return "continue", result, None
+            return LoopPromptDecision.CONTINUE, result, None
 
         policy = effective_terminal_policy(sub_step.on_failure)
         if policy == FailurePolicy.CONTINUE:
-            return "continue", mark_continued_after_prompt(result), None
+            return LoopPromptDecision.CONTINUE, mark_continued_after_prompt(result), None
         if policy == FailurePolicy.PROMPT_USER:
             return self._prompt_sub_step_failure(sub_step, result, state)
-        return "abort", result, f"Step '{sub_step.id}' failed in loop '{self.loop.id}'."
+        return LoopPromptDecision.ABORT, result, f"Step '{sub_step.id}' failed in loop '{self.loop.id}'."
 
     def _run_sub_step_with_retries(
         self,
@@ -193,7 +193,7 @@ class LoopBlockRunner:
                 historical_steps=historical_steps,
             )
             action, recorded, error = self._handle_sub_step_result(sub_step, result, state)
-            if action == "retry":
+            if action == FailurePromptDecision.RETRY:
                 attempt = result.attempts + 1
                 continue
             return action, recorded, error
@@ -219,8 +219,8 @@ class LoopBlockRunner:
                 state.step_results.append(result)
                 turn_map[sub_step.id] = result
                 historical.append(previous_step_metadata_from_result(result, step_index=len(historical) + 1))
-            if action == "abort":
-                return "abort", turn_map, error
+            if action == LoopPromptDecision.ABORT:
+                return LoopPromptDecision.ABORT, turn_map, error
         return "ok", turn_map, None
 
     def _evaluate_until_conditions(
@@ -239,7 +239,7 @@ class LoopBlockRunner:
     ) -> tuple[str, int, str | None]:
         if self.non_interactive or self.failure_prompter is None:
             msg = f"Loop '{self.loop.id}' reached max_iterations ({max_iterations}) and run is non-interactive."
-            return "abort", max_iterations, msg
+            return LoopPromptDecision.ABORT, max_iterations, msg
 
         decision = self.failure_prompter.prompt_loop_max_iterations(
             loop=self.loop,
@@ -248,10 +248,10 @@ class LoopBlockRunner:
             grant_count=3,
         )
         if decision == LoopPromptDecision.GRANT:
-            return "grant", max_iterations + 3, None
+            return LoopPromptDecision.GRANT, max_iterations + 3, None
         if decision == LoopPromptDecision.CONTINUE:
-            return "continue", max_iterations, None
-        return "abort", max_iterations, f"Loop '{self.loop.id}' aborted by user after max_iterations."
+            return LoopPromptDecision.CONTINUE, max_iterations, None
+        return LoopPromptDecision.ABORT, max_iterations, f"Loop '{self.loop.id}' aborted by user after max_iterations."
 
     def _handle_max_iterations(
         self,
@@ -261,9 +261,9 @@ class LoopBlockRunner:
         policy = self.loop.on_max_iterations
         if policy == FailurePolicy.ABORT:
             err = f"Loop '{self.loop.id}' reached max_iterations ({max_iterations}) without meeting 'until' conditions."
-            return "abort", max_iterations, err
+            return LoopPromptDecision.ABORT, max_iterations, err
         if policy == FailurePolicy.CONTINUE:
-            return "continue", max_iterations, None
+            return LoopPromptDecision.CONTINUE, max_iterations, None
         return self._prompt_max_iterations_decision(turn, max_iterations)
 
     def _run_turn_cycle(
@@ -274,17 +274,17 @@ class LoopBlockRunner:
     ) -> tuple[str, bool, str | None]:
         self._notify_turn(turn, max_iterations)
         status, turn_map, error = self._execute_turn(turn, state)
-        if status == "abort":
+        if status == LoopPromptDecision.ABORT:
             self._notify_done("failed", turn)
-            return "abort", False, error
+            return LoopPromptDecision.ABORT, False, error
 
         all_passed, condition_results = self._evaluate_until_conditions(turn, turn_map)
         next_turn = turn + 1 if (not all_passed and turn < max_iterations) else None
         self._notify_conditions(condition_results, all_passed, next_turn)
         if all_passed:
             self._notify_done("completed", turn)
-            return "continue", True, None
-        return "continue", False, None
+            return LoopPromptDecision.CONTINUE, True, None
+        return LoopPromptDecision.CONTINUE, False, None
 
     def _process_max_iteration_ceiling(
         self,
@@ -293,15 +293,15 @@ class LoopBlockRunner:
         state: StepLoopState,
     ) -> tuple[str, int, str | None]:
         action, new_max, max_error = self._handle_max_iterations(turn, max_iterations)
-        if action == "grant":
-            return "grant", new_max, None
-        if action == "continue":
+        if action == LoopPromptDecision.GRANT:
+            return LoopPromptDecision.GRANT, new_max, None
+        if action == LoopPromptDecision.CONTINUE:
             warning = f"Loop '{self.loop.id}' reached max_iterations ({max_iterations}) without meeting 'until' conditions; continuing."
             state.warnings.append(warning)
             self._notify_done("completed", turn)
-            return "continue", max_iterations, None
+            return LoopPromptDecision.CONTINUE, max_iterations, None
         self._notify_done("failed", turn)
-        return "abort", max_iterations, max_error
+        return LoopPromptDecision.ABORT, max_iterations, max_error
 
     def run(self, state: StepLoopState) -> tuple[str, StepResult | None, str | None]:
         """Execute all turns of the loop block until until conditions pass or ceiling is hit."""
@@ -311,7 +311,7 @@ class LoopBlockRunner:
 
         while turn <= max_iterations:
             status, passed, error = self._run_turn_cycle(turn, max_iterations, state)
-            if status == "abort" or passed:
+            if status == LoopPromptDecision.ABORT or passed:
                 return status, None, error
 
             if turn < max_iterations:
@@ -319,10 +319,10 @@ class LoopBlockRunner:
                 continue
 
             action, new_max, max_error = self._process_max_iteration_ceiling(turn, max_iterations, state)
-            if action == "grant":
+            if action == LoopPromptDecision.GRANT:
                 max_iterations = new_max
                 turn += 1
                 continue
             return action, None, max_error
 
-        return "continue", None, None
+        return LoopPromptDecision.CONTINUE, None, None

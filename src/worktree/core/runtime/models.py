@@ -55,7 +55,7 @@ class FailurePrompter(Protocol):
         loop: LoopStepBlock,
         iteration: int,
         diagnostic: str,
-        grant_count: int = 3,
+        grant_count: int = 3,  # @TODO: Make this configurable
     ) -> LoopPromptDecision:
         """Return the caller's decision when a loop reaches max_iterations."""
         ...
