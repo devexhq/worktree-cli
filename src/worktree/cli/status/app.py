@@ -5,6 +5,7 @@ from pathlib import Path
 import typer
 
 from worktree.cli.context import CliContext
+from worktree.common.fs import find_worktree_root
 from worktree.common.utils import RichOutput
 from worktree.core.db.facade import WorktreeDb
 
@@ -22,7 +23,7 @@ def status_callback(ctx: typer.Context) -> None:
     """Display configuration status for Worktree CLI."""
     context: CliContext | None = ctx.obj.get("context") if ctx.obj else None
     if context is None:
-        cwd = Path.cwd()
+        cwd = find_worktree_root(Path.cwd())
         context = CliContext(cwd=cwd, db=WorktreeDb(path=cwd), output=RichOutput())
     outcome = status_command(context)
     context.output.print()

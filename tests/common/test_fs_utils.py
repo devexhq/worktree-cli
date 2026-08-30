@@ -5,10 +5,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from tests.helpers import FileSystem
 from worktree.common.fs import (
     atomic_write_json,
     atomic_write_text,
+    find_worktree_root,
     get_session_dir,
     is_git_repository,
     update_gitignore,
@@ -110,3 +113,59 @@ class IsGitRepositoryTests:
     def test_detects_git_file(self, fs: FileSystem) -> None:
         (fs.base_path / ".git").write_text("gitdir: ../.git/worktrees/feature\n", encoding="utf-8")
         assert is_git_repository(fs.base_path) is True
+
+
+class FindWorktreeRootTests:
+    """Tests for find_worktree_root."""
+
+    def test_find_worktree_root_at_workspace_root(self, fs: FileSystem) -> None:
+        fs.create_config_file()
+        assert find_worktree_root(fs.base_path) == fs.base_path.resolve()
+
+    def test_find_worktree_root_from_deep_subdirectory(self, fs: FileSystem) -> None:
+        fs.create_config_file()
+        deep_sub = fs.base_path / "src" / "pkg" / "module"
+        deep_sub.mkdir(parents=True)
+        assert find_worktree_root(deep_sub) == fs.base_path.resolve()
+
+    def test_find_worktree_root_from_deep_subdirectory_worktree_dir_only(self, fs: FileSystem) -> None:
+        (fs.base_path / ".worktree").mkdir(parents=True)
+        deep_sub = fs.base_path / "a" / "b" / "c"
+        deep_sub.mkdir(parents=True)
+        assert find_worktree_root(deep_sub) == fs.base_path.resolve()
+
+    def test_find_worktree_root_uninitialized_git_repo(self, fs: FileSystem) -> None:
+        (fs.base_path / ".git").mkdir(parents=True)
+        deep_sub = fs.base_path / "packages" / "frontend" / "src"
+        deep_sub.mkdir(parents=True)
+        assert find_worktree_root(deep_sub) == fs.base_path.resolve()
+
+    def test_find_worktree_root_git_worktree_file(self, fs: FileSystem) -> None:
+        (fs.base_path / ".git").write_text("gitdir: /somewhere/main/.git/worktrees/sbx\n", encoding="utf-8")
+        deep_sub = fs.base_path / "packages" / "frontend" / "src"
+        deep_sub.mkdir(parents=True)
+        assert find_worktree_root(deep_sub) == fs.base_path.resolve()
+
+    def test_find_worktree_root_nested_worktree_precedence(self, fs: FileSystem) -> None:
+        # Root workspace
+        fs.create_config_file()
+        # Nested package workspace
+        nested_pkg = fs.base_path / "packages" / "subpkg"
+        (nested_pkg / ".worktree").mkdir(parents=True)
+        (nested_pkg / ".worktree" / "config.json").write_text("{}", encoding="utf-8")
+        deep_sub = nested_pkg / "src" / "components"
+        deep_sub.mkdir(parents=True)
+
+        assert find_worktree_root(deep_sub) == nested_pkg.resolve()
+
+    def test_find_worktree_root_non_git_uninitialized(self, fs: FileSystem) -> None:
+        deep_sub = fs.base_path / "some" / "random" / "path"
+        deep_sub.mkdir(parents=True)
+        assert find_worktree_root(deep_sub) == deep_sub.resolve()
+
+    def test_find_worktree_root_default_to_cwd(self, monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
+        fs.create_config_file()
+        sub = fs.base_path / "sub"
+        sub.mkdir(parents=True)
+        monkeypatch.chdir(sub)
+        assert find_worktree_root() == fs.base_path.resolve()

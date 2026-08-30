@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Self
 
+from worktree.common.fs import find_worktree_root
 from worktree.common.utils import RichOutput
 from worktree.core.config.loader import load_config_result
 from worktree.core.db.facade import WorktreeDb
@@ -21,7 +22,7 @@ class CliContext:
     @classmethod
     def build(cls, cwd: Path | None = None) -> Self | None:
         """Factory to build and validate the global CLI state."""
-        effective_cwd = cwd or Path.cwd()
+        effective_cwd = find_worktree_root(cwd or Path.cwd())
         output = RichOutput()
 
         # Config validation
