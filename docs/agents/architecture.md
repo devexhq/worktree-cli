@@ -25,6 +25,7 @@ src/worktree/core/                   Business logic (no Typer)
   blueprint/                         models.py, exceptions.py, renderers.py,
                                      services/blueprint.py
   diff/                              models.py, renderers.py, services.py
+  status/                            models.py, services/collector.py
   history/                           models.py, renderers.py, services.py
   step/                              models.py, exceptions.py, runner.py (entrypoint),
                                      assertions/, services/{loader,resolver}.py
@@ -100,6 +101,8 @@ Single-step execution: `core/step/` (`runner.py`). Multi-step orchestration:
   result models, and table/panel renderers.
 - **Diff** (`core/diff/`): `DiffService`, session diff resolution, artifact loading,
   result models, and terminal renderers.
+- **Status** (`core/status/`): workspace health and runtime telemetry collection
+  (`collect_status`), result models (`WorktreeStatusResult`), and warning aggregation.
 - **Shared core infra**: `config/`, `db/`, `git/`, `sandbox/`, `bootstrap.py`,
   plus foundational domains above.
 
@@ -111,7 +114,7 @@ business logic, database queries, or execution algorithms.
 Dependencies flow one way; do not import "up" the stack:
 
 ```
-common/  ->  core/{db,git,sandbox,catalog,inputs,patch,history}/  ->  core/agents/  ->  core/step/  ->  {core/runtime/, core/blueprint/}  ->  core/engine/  ->  cli/
+common/  ->  core/{db,git,sandbox,catalog,inputs,patch,history,diff,status}/  ->  core/agents/  ->  core/step/  ->  {core/runtime/, core/blueprint/}  ->  core/engine/  ->  cli/
 ```
 
 - `common/` never depends on `core/`.
