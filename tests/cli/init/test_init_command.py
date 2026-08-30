@@ -1,4 +1,4 @@
-"""Integration tests for `worktree.cli.init.command.init_command`."""
+"""Integration tests for `worktree.cli.init.commands.root.init_command`."""
 
 from __future__ import annotations
 

@@ -143,10 +143,7 @@ is allowed to import both `blueprint/` and `runtime/`.
 
 1. Create `src/worktree/cli/<name>/` with lean `app.py` and `commands/<subcommand>.py` (or
    `commands/root.py` for root commands). Use this `commands/` shape for **every**
-   new or touched CLI package — `history`, `resume`, and `run` already match it;
-   a singular `command.py` is legacy from before this convention landed and is
-   not a second valid option. If you touch an existing `command.py` package,
-   migrate it to `commands/` in the same change rather than adding to the older shape.
+   CLI package; a singular `command.py` is obsolete and not a valid option.
 2. Wire command logic directly to underlying domain services (e.g. `BlueprintRunService`,
    `HistoryListService`). The CLI package should not contain actual logic — it is
    simply a wrapper around the domain being executed. Concretely: no
