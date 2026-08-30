@@ -109,7 +109,7 @@ def main(
         console.print("[dim yellow][TELEMETRY] Global verbose tracking layer active.[/dim yellow]")
 
     # 2. Edge validation & exclusion list
-    excluded_commands = {"init", "install"}
+    excluded_commands = {"init", "install", "status"}
     if ctx.invoked_subcommand not in excluded_commands and not ctx.obj.get("is_help", False):
         context = CliContext.build()
         if context is None:

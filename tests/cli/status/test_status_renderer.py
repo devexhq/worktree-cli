@@ -176,9 +176,11 @@ class TestStatusRenderer:
         rich_output.print()
         rendered = buffer.getvalue()
 
-        assert "unnamed_project" in rendered
+        assert "Worktree Workspace Status (Uninitialized)" in rendered
+        assert "Uninitialized" in rendered
         assert "Not Configured" in rendered
-        assert "not_found (.worktree/config.json)" in rendered
+        assert "CONFIG_NOT_FOUND" in rendered
+        assert "Run 'wt init' to initialize Worktree in this repository." in rendered
 
     def test_render_status_summary_empty_catalog(self) -> None:
         rich_output, buffer = make_rich_output()
