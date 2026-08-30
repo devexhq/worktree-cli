@@ -258,6 +258,7 @@ user data):
 ```
 .worktree/
   .meta/bootstrap.json
+  .lock                       # cross-process advisory lock
   config.json                 # schemas/v1/config.json
   catalog/                    # workflows/, tasks/, steps/ + seeded wt/ templates
   workflows/                  # legacy bootstrap dir

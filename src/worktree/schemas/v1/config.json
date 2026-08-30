@@ -13,7 +13,8 @@
     "history",
     "doctor",
     "prune",
-    "telemetry"
+    "telemetry",
+    "concurrency"
   ],
   "properties": {
     "version": {
@@ -146,6 +147,14 @@
       "required": ["enabled"],
       "properties": {
         "enabled": { "type": "boolean" }
+      }
+    },
+    "concurrency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lock_timeout_seconds"],
+      "properties": {
+        "lock_timeout_seconds": { "type": "number", "minimum": 0.1 }
       }
     }
   }

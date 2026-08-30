@@ -60,6 +60,9 @@ CANONICAL_V1_DEFAULTS: dict[str, Any] = {
     "telemetry": {
         "enabled": False,
     },
+    "concurrency": {
+        "lock_timeout_seconds": 30.0,
+    },
 }
 
 

@@ -6,6 +6,7 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
+from worktree.common.lock import WorkspaceLock
 from worktree.core.blueprint.services.blueprint import Blueprint
 from worktree.core.catalog import Catalog
 from worktree.core.db import BlueprintKind, RunsRepository, RunStatus
@@ -173,11 +174,12 @@ class Engine:
         warnings: list[str],
     ) -> _DbPauseStore | None:
         """Insert a RUNNING row and return a pause store, or warn and skip persistence."""
-        try:
-            self._insert_running(blueprint, session_id)
-        except Exception as exc:
-            warnings.append(f"Failed to record run start in database: {exc}")
-            return None
+        with WorkspaceLock(self.path):
+            try:
+                self._insert_running(blueprint, session_id)
+            except Exception as exc:
+                warnings.append(f"Failed to record run start in database: {exc}")
+                return None
 
         return _DbPauseStore(self.db, session_id)
 
@@ -217,20 +219,21 @@ class Engine:
         started_at: str | None = None,
     ) -> None:
         """Persist the outcome status when the start insert succeeded."""
-        try:
-            error_message = outcome.errors[0] if outcome.errors else None
-            pause_store.finalize(outcome.status, error_message)
-        except Exception as exc:
-            warnings.append(f"Failed to update run status in database: {exc}")
+        with WorkspaceLock(self.path):
+            try:
+                error_message = outcome.errors[0] if outcome.errors else None
+                pause_store.finalize(outcome.status, error_message)
+            except Exception as exc:
+                warnings.append(f"Failed to update run status in database: {exc}")
 
-        if blueprint is not None and started_at is not None:
-            self._persist_session_run_json(
-                pause_store._session_id,
-                blueprint,
-                outcome,
-                started_at,
-                warnings,
-            )
+            if blueprint is not None and started_at is not None:
+                self._persist_session_run_json(
+                    pause_store._session_id,
+                    blueprint,
+                    outcome,
+                    started_at,
+                    warnings,
+                )
 
     def _insert_running(self, blueprint: Blueprint, session_id: str) -> None:
         """Insert a RUNNING row for the bound repository."""
@@ -258,7 +261,8 @@ class Engine:
 
     def _mark_running(self, pause_store: _DbPauseStore, warnings: list[str]) -> None:
         """Set the paused row back to running, or record a persistence warning."""
-        try:
-            pause_store.clear_pause()
-        except Exception as exc:
-            warnings.append(f"Failed to update run status in database: {exc}")
+        with WorkspaceLock(self.path):
+            try:
+                pause_store.clear_pause()
+            except Exception as exc:
+                warnings.append(f"Failed to update run status in database: {exc}")

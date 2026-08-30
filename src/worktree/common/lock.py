@@ -1,0 +1,288 @@
+"""Cross-process advisory file lock for mutual exclusion on .worktree mutating operations."""
+
+from __future__ import annotations
+
+import atexit
+import os
+import signal
+import sys
+import threading
+import time
+from pathlib import Path
+from types import FrameType, TracebackType
+from typing import ClassVar
+
+from rich.console import Console
+from rich.panel import Panel
+
+# Optional imports based on platform
+if sys.platform != "win32":
+    import fcntl
+
+    msvcrt = None  # pyright: ignore[reportConstantRedefinition]
+else:
+    import msvcrt  # pyright: ignore[reportMissingImports]
+
+    fcntl = None  # pyright: ignore[reportConstantRedefinition]
+
+POLL_INTERVAL_SECONDS = 0.2
+DEFAULT_LOCK_TIMEOUT_SECONDS = 30.0
+
+_LOCK_REGISTRY: dict[Path, int] = {}
+_FD_REGISTRY: dict[Path, int] = {}
+_REGISTRY_LOCK = threading.Lock()
+_signal_handlers_installed = False
+
+
+class LockTimeoutError(RuntimeError):
+    """Raised when acquiring the workspace lock exceeds the timeout."""
+
+
+def _cleanup_registered_locks() -> None:
+    """Close and unlock all active file descriptors registered in this process."""
+    with _REGISTRY_LOCK:
+        for fd in list(_FD_REGISTRY.values()):
+            try:
+                _unlock_fd(fd)
+                os.close(fd)
+            except Exception:
+                pass
+        _LOCK_REGISTRY.clear()
+        _FD_REGISTRY.clear()
+
+
+def _signal_handler(signum: int, frame: FrameType | None) -> None:
+    """Emergency signal handler releasing held file locks before exit."""
+    _cleanup_registered_locks()
+    sys.exit(128 + signum)
+
+
+def _ensure_signal_handlers() -> None:
+    """Register exit and signal handlers once per process."""
+    global _signal_handlers_installed
+    with _REGISTRY_LOCK:
+        if _signal_handlers_installed:
+            return
+        atexit.register(_cleanup_registered_locks)
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            try:
+                signal.signal(sig, _signal_handler)
+            except (ValueError, OSError, AttributeError):
+                # Signals might not be interceptable in non-main threads or some environments
+                pass
+        _signal_handlers_installed = True
+
+
+def _try_flock_posix(fd: int) -> bool:
+    """Attempt non-blocking flock acquisition on POSIX systems."""
+    if fcntl is None:
+        return False
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return True
+    except (BlockingIOError, OSError, PermissionError):
+        return False
+
+
+def _try_lock_windows(fd: int) -> bool:
+    """Attempt non-blocking byte lock on Windows systems."""
+    if msvcrt is None:
+        return False
+    try:
+        os.lseek(fd, 0, os.SEEK_SET)
+        msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+        return True
+    except (BlockingIOError, OSError, PermissionError):
+        return False
+
+
+def _try_acquire_fd_lock(fd: int) -> bool:
+    """Attempt non-blocking platform-specific file lock."""
+    if sys.platform != "win32":
+        return _try_flock_posix(fd)
+    return _try_lock_windows(fd)
+
+
+def _unlock_fd(fd: int) -> None:
+    """Release platform-specific file lock on fd."""
+    if sys.platform != "win32":
+        if fcntl is not None:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_UN)
+            except Exception:
+                pass
+    elif msvcrt is not None:
+        try:
+            os.lseek(fd, 0, os.SEEK_SET)
+            msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+        except Exception:
+            pass
+
+
+def _read_holder_pid(lock_path: Path) -> str | None:
+    """Read holder process ID from the lock file if present."""
+    if not lock_path.exists():
+        return None
+    try:
+        content = lock_path.read_text(encoding="utf-8").strip()
+        return content if content.isdigit() else None
+    except Exception:
+        return None
+
+
+def _write_holder_pid(fd: int) -> None:
+    """Write current process PID into the lock file and flush."""
+    try:
+        os.lseek(fd, 0, os.SEEK_SET)
+        os.ftruncate(fd, 0)
+        pid_payload = f"{os.getpid()}\n".encode()
+        os.write(fd, pid_payload)
+        os.fsync(fd)
+    except Exception:
+        pass
+
+
+def _render_lock_waiting(lock_path: Path, holder_pid: str | None, timeout_seconds: float) -> None:
+    """Render a Rich notification panel when waiting on an active lock."""
+    try:
+        console = Console(stderr=True)
+        pid_info = f" (PID: {holder_pid})" if holder_pid else ""
+        panel = Panel.fit(
+            f"[yellow]Workspace lock is currently held by another process{pid_info}.[/yellow]\n"
+            f"[dim]Waiting for lock release on '{lock_path.name}' (timeout: {timeout_seconds:.1f}s)...[/dim]",
+            title="[bold yellow]Lock Held[/bold yellow]",
+            border_style="yellow",
+        )
+        console.print(panel)
+    except Exception:
+        pass
+
+
+def _check_lock_timeout(
+    start_time: float,
+    timeout_seconds: float,
+    lock_path: Path,
+    holder_pid: str | None,
+) -> None:
+    """Raise LockTimeoutError if the elapsed polling time has exceeded timeout_seconds."""
+    elapsed = time.monotonic() - start_time
+    if elapsed + POLL_INTERVAL_SECONDS >= timeout_seconds:
+        pid_desc = f"process {holder_pid}" if holder_pid else "unknown process"
+        raise LockTimeoutError(
+            f"Timed out waiting for workspace lock on '{lock_path}' after "
+            f"{timeout_seconds:.1f}s (held by {pid_desc}).\n"
+            f"Fix:\n- check if another `wt` command is running, or remove '{lock_path}' if the process terminated."
+        )
+
+
+def resolve_lock_file_path(root_dir: Path) -> Path:
+    """Determine the canonical .worktree/.lock path for root_dir."""
+    canonical_root = root_dir.expanduser().resolve()
+    if canonical_root.name == ".worktree":
+        return canonical_root / ".lock"
+    return canonical_root / ".worktree" / ".lock"
+
+
+class WorkspaceLock:
+    """Cross-process advisory file lock context manager for .worktree/."""
+
+    _CONSOLE: ClassVar[Console | None] = None
+
+    def __init__(self, root_dir: Path, timeout_seconds: float = DEFAULT_LOCK_TIMEOUT_SECONDS) -> None:
+        """Initialize workspace lock bound to root_dir.
+
+        Args:
+            root_dir: Repository root or .worktree directory.
+            timeout_seconds: Maximum seconds to wait for lock acquisition.
+        """
+        self.lock_path = resolve_lock_file_path(root_dir)
+        self.timeout_seconds = max(0.1, float(timeout_seconds))
+        self._fd: int | None = None
+        self._is_nested: bool = False
+
+    def _open_lock_file(self) -> int:
+        """Ensure parent directory exists and open lock file descriptor."""
+        self.lock_path.parent.mkdir(parents=True, exist_ok=True)
+        return os.open(str(self.lock_path), os.O_RDWR | os.O_CREAT, 0o644)
+
+    def _poll_lock(self, fd: int) -> bool:
+        """Poll for lock acquisition up to timeout_seconds."""
+        start_time = time.monotonic()
+        announced = False
+
+        while True:
+            if _try_acquire_fd_lock(fd):
+                _write_holder_pid(fd)
+                return True
+
+            holder_pid = _read_holder_pid(self.lock_path)
+            if not announced:
+                _render_lock_waiting(self.lock_path, holder_pid, self.timeout_seconds)
+                announced = True
+
+            _check_lock_timeout(start_time, self.timeout_seconds, self.lock_path, holder_pid)
+            time.sleep(POLL_INTERVAL_SECONDS)
+
+    def acquire(self) -> WorkspaceLock:
+        """Acquire the file lock, supporting in-process re-entrancy."""
+        _ensure_signal_handlers()
+
+        with _REGISTRY_LOCK:
+            depth = _LOCK_REGISTRY.get(self.lock_path, 0)
+            if depth > 0:
+                _LOCK_REGISTRY[self.lock_path] = depth + 1
+                self._fd = _FD_REGISTRY.get(self.lock_path)
+                self._is_nested = True
+                return self
+
+        fd = self._open_lock_file()
+        try:
+            self._poll_lock(fd)
+        except Exception:
+            try:
+                os.close(fd)
+            except Exception:
+                pass
+            raise
+
+        with _REGISTRY_LOCK:
+            _LOCK_REGISTRY[self.lock_path] = 1
+            _FD_REGISTRY[self.lock_path] = fd
+            self._fd = fd
+            self._is_nested = False
+
+        return self
+
+    def release(self) -> None:
+        """Release the file lock, decrementing re-entrancy depth."""
+        with _REGISTRY_LOCK:
+            depth = _LOCK_REGISTRY.get(self.lock_path, 0)
+            if depth > 1:
+                _LOCK_REGISTRY[self.lock_path] = depth - 1
+                return
+
+            _LOCK_REGISTRY.pop(self.lock_path, None)
+            fd = _FD_REGISTRY.pop(self.lock_path, None)
+
+        if fd is not None:
+            try:
+                _unlock_fd(fd)
+            finally:
+                try:
+                    os.close(fd)
+                except Exception:
+                    pass
+        self._fd = None
+
+    def __enter__(self) -> WorkspaceLock:
+        """Context manager entry point acquiring workspace lock."""
+        return self.acquire()
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        """Context manager exit point releasing workspace lock."""
+        self.release()

@@ -19,6 +19,7 @@ from worktree.cli.resume.app import resume_app
 from worktree.cli.run.app import run_app
 from worktree.cli.sandbox.app import sandbox_app
 from worktree.cli.status.app import status_app
+from worktree.common.lock import LockTimeoutError
 from worktree.common.utils import RichOutput
 from worktree.common.version import get_version
 
@@ -125,6 +126,11 @@ def run_cli() -> None:
     except typer.Exit:
         # Allow intentional Typer exits (like version_callback or help) to pass through normally
         raise
+    except LockTimeoutError as exc:
+        output = RichOutput()
+        output.add_error_panel("Workspace Lock Timeout", str(exc))
+        output.print()
+        sys.exit(1)
     except Exception as exc:
         # Global Catch-All for unexpected bugs (e.g., missing record.id)
         output = RichOutput()

@@ -14,6 +14,7 @@ from worktree.common.fs import (
     read_yaml_file,
     scan_yaml_directory,
 )
+from worktree.common.lock import WorkspaceLock
 from worktree.common.models import (
     DefinitionResolutionResult,
     DefinitionResolutionStatus,
@@ -136,29 +137,30 @@ def scan_and_index_catalog(
     db: CatalogRepository | None = None,
 ) -> CatalogScanResult:
     """Scan `.worktree/catalog/` subdirectories, compute SHA checksums, and sync SQLite database."""
-    catalog_dir = ensure_catalog_dirs(path)
-    database = db if db is not None else CatalogRepository(path)
+    with WorkspaceLock(path):
+        catalog_dir = ensure_catalog_dirs(path)
+        database = db if db is not None else CatalogRepository(path)
 
-    subdirs: list[tuple[CatalogItemType, Path]] = [
-        (CatalogItemType.WORKFLOW, catalog_dir / "workflows"),
-        (CatalogItemType.TASK, catalog_dir / "tasks"),
-        (CatalogItemType.STEP, catalog_dir / "steps"),
-    ]
-    scan_result = _scan_catalog_subdirectories(db=database, catalog_dir=catalog_dir, subdirs=subdirs)
-    errors = scan_result.errors
+        subdirs: list[tuple[CatalogItemType, Path]] = [
+            (CatalogItemType.WORKFLOW, catalog_dir / "workflows"),
+            (CatalogItemType.TASK, catalog_dir / "tasks"),
+            (CatalogItemType.STEP, catalog_dir / "steps"),
+        ]
+        scan_result = _scan_catalog_subdirectories(db=database, catalog_dir=catalog_dir, subdirs=subdirs)
+        errors = scan_result.errors
 
-    # Remove stale DB records for files no longer on disk
-    try:
-        db_items = database.list()
-        for record in db_items:
-            if record.sha not in scan_result.scanned_shas:
-                disk_file = catalog_dir / record.path
-                if not disk_file.exists():
-                    database.delete(record.sha)
-    except Exception as exc:
-        errors.append(f"Error purging stale catalog DB records: {exc}")
+        # Remove stale DB records for files no longer on disk
+        try:
+            db_items = database.list()
+            for record in db_items:
+                if record.sha not in scan_result.scanned_shas:
+                    disk_file = catalog_dir / record.path
+                    if not disk_file.exists():
+                        database.delete(record.sha)
+        except Exception as exc:
+            errors.append(f"Error purging stale catalog DB records: {exc}")
 
-    return CatalogScanResult(items=scan_result.scanned_records, errors=errors)
+        return CatalogScanResult(items=scan_result.scanned_records, errors=errors)
 
 
 def _get_initial_template_content(type_enum: CatalogItemType, stem: str) -> str:
@@ -182,35 +184,36 @@ def create_catalog_item(
     db: CatalogRepository | None = None,
 ) -> CatalogRecord:
     """Create a new catalog blueprint under `.worktree/catalog/<type>s/<name>.yml` and sync database."""
-    database = db if db is not None else CatalogRepository(path)
-    try:
-        type_enum = item_type if isinstance(item_type, CatalogItemType) else CatalogItemType(str(item_type).lower())
-    except ValueError as exc:
-        allowed = ", ".join([t.value for t in CatalogItemType])
-        raise ValueError(f"Invalid item_type '{item_type}'. Allowed choices: {allowed}") from exc
+    with WorkspaceLock(path):
+        database = db if db is not None else CatalogRepository(path)
+        try:
+            type_enum = item_type if isinstance(item_type, CatalogItemType) else CatalogItemType(str(item_type).lower())
+        except ValueError as exc:
+            allowed = ", ".join([t.value for t in CatalogItemType])
+            raise ValueError(f"Invalid item_type '{item_type}'. Allowed choices: {allowed}") from exc
 
-    catalog_dir = ensure_catalog_dirs(path)
-    stem = name[:-4] if name.endswith(".yml") or name.endswith(".yaml") else name
-    filename = f"{stem}.yml"
-    target_path = catalog_dir / f"{type_enum.value}s" / filename
+        catalog_dir = ensure_catalog_dirs(path)
+        stem = name[:-4] if name.endswith(".yml") or name.endswith(".yaml") else name
+        filename = f"{stem}.yml"
+        target_path = catalog_dir / f"{type_enum.value}s" / filename
 
-    if target_path.exists():
+        if target_path.exists():
+            rel_path = target_path.relative_to(catalog_dir)
+            raise FileExistsError(f"Catalog blueprint collision at path '{rel_path}'")
+
+        content = _get_initial_template_content(type_enum, stem)
+        atomic_write_text(target_path, content)
+
+        sha, checksum = compute_catalog_sha(type_enum, content)
         rel_path = target_path.relative_to(catalog_dir)
-        raise FileExistsError(f"Catalog blueprint collision at path '{rel_path}'")
 
-    content = _get_initial_template_content(type_enum, stem)
-    atomic_write_text(target_path, content)
-
-    sha, checksum = compute_catalog_sha(type_enum, content)
-    rel_path = target_path.relative_to(catalog_dir)
-
-    return database.upsert(
-        sha=sha,
-        item_type=type_enum,
-        name=stem,
-        path=rel_path,
-        checksum=checksum,
-    )
+        return database.upsert(
+            sha=sha,
+            item_type=type_enum,
+            name=stem,
+            path=rel_path,
+            checksum=checksum,
+        )
 
 
 def _find_catalog_matches(

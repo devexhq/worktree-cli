@@ -103,6 +103,14 @@ class TelemetryConfig(BaseModel):
     enabled: bool = False
 
 
+class ConcurrencyConfig(BaseModel):
+    """Concurrency and locking settings."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    lock_timeout_seconds: float = Field(default=30.0, ge=0.1)
+
+
 class WorktreeConfig(BaseModel):
     """Parsed `.worktree/config.json` V1 payload."""
 
@@ -117,6 +125,7 @@ class WorktreeConfig(BaseModel):
     doctor: DoctorConfig = Field(default_factory=DoctorConfig)
     prune: PruneConfig = Field(default_factory=PruneConfig)
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig)
+    concurrency: ConcurrencyConfig = Field(default_factory=ConcurrencyConfig)
 
     @property
     def project_name(self) -> str:

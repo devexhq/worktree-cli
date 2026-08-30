@@ -8,6 +8,7 @@ from typing import Any, ClassVar
 import yaml
 
 from worktree.common.fs import atomic_write_text, read_yaml_file
+from worktree.common.lock import WorkspaceLock
 from worktree.core.catalog.exceptions import (
     CatalogFileNotFoundError,
     CatalogWriteError,
@@ -58,23 +59,24 @@ class Catalog:
         item_type: CatalogItemType | str,
     ) -> CatalogRecord:
         """Write YAML under the type folder and reindex. Overwrites an existing file."""
-        type_enum = self._coerce_item_type(item_type)
-        catalog_dir = ensure_catalog_dirs(self.path)
-        stem = self._strip_yaml_suffix(name)
-        rel_path = Path(f"{type_enum.value}s") / f"{stem}.yml"
-        target_path = catalog_dir / rel_path
-        text = yaml.safe_dump(payload, sort_keys=False, allow_unicode=True, default_flow_style=False)
-        if not text.endswith("\n"):
-            text += "\n"
-        try:
-            atomic_write_text(target_path, text)
-        except OSError as exc:
-            raise CatalogWriteError(f"Failed to write catalog blueprint '{target_path}': {exc}") from exc
-        scan_and_index_catalog(self.path, db=self.db)
-        record = self._record_for_rel_path(rel_path)
-        if record is None:
-            raise CatalogWriteError(f"Failed to reindex catalog blueprint '{rel_path.as_posix()}'.")
-        return record
+        with WorkspaceLock(self.path):
+            type_enum = self._coerce_item_type(item_type)
+            catalog_dir = ensure_catalog_dirs(self.path)
+            stem = self._strip_yaml_suffix(name)
+            rel_path = Path(f"{type_enum.value}s") / f"{stem}.yml"
+            target_path = catalog_dir / rel_path
+            text = yaml.safe_dump(payload, sort_keys=False, allow_unicode=True, default_flow_style=False)
+            if not text.endswith("\n"):
+                text += "\n"
+            try:
+                atomic_write_text(target_path, text)
+            except OSError as exc:
+                raise CatalogWriteError(f"Failed to write catalog blueprint '{target_path}': {exc}") from exc
+            scan_and_index_catalog(self.path, db=self.db)
+            record = self._record_for_rel_path(rel_path)
+            if record is None:
+                raise CatalogWriteError(f"Failed to reindex catalog blueprint '{rel_path.as_posix()}'.")
+            return record
 
     @staticmethod
     def read_yaml(path: Path) -> dict[str, Any]:
