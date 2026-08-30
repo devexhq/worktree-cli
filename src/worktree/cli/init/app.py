@@ -3,6 +3,7 @@ from pathlib import Path
 import typer
 
 from worktree.cli.context import CliContext
+from worktree.common.fs import find_worktree_root
 from worktree.common.utils import RichOutput
 from worktree.common.version import get_version
 from worktree.core.db.facade import WorktreeDb
@@ -27,7 +28,7 @@ def init_callback(
     ),
 ):
     """Provision a secure local hidden folder path and tracking schemas."""
-    cwd = Path.cwd()
+    cwd = find_worktree_root(Path.cwd())
     context = CliContext(cwd=cwd, db=WorktreeDb(path=cwd), output=RichOutput())
     outcome = init_command(context, tool_version=get_version(), overwrite=overwrite, repair=repair)
     context.output.print()

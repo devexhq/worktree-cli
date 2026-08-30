@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from worktree.common.fs import scan_yaml_directory
+from worktree.common.fs import find_worktree_root, scan_yaml_directory
 from worktree.core.config.loader import ConfigLoadStatus, load_config_result
 from worktree.core.db import (
     RunsRepository,
@@ -230,7 +230,7 @@ def _collect_warnings(
 
 def collect_status(cwd: Path | None = None) -> WorktreeStatusResult:
     """Collect workspace health and runtime status without side effects."""
-    root_dir = (cwd or Path.cwd()).resolve()
+    root_dir = find_worktree_root(cwd or Path.cwd())
 
     git_status = _collect_git_status(root_dir)
     config_status = _collect_config_status(root_dir)
