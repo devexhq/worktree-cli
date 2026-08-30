@@ -25,7 +25,7 @@ wt status
 wt status
 ```
 
-Sample output:
+### Healthy workspace output
 
 ```text
 Worktree Workspace Status
@@ -43,4 +43,53 @@ Worktree Workspace Status
 ⚠️ Configuration & Context Warnings:
   • max_active_sandboxes (10) is unusually high.
 ```
+
+### Uninitialized workspace output
+
+When `.worktree/config.json` is missing or the workspace is uninitialized:
+
+```text
+Worktree Workspace Status (Uninitialized)
+┌──────────────────────┬────────────────────────────────────────┐
+│ Property             │ Value                                  │
+├──────────────────────┼────────────────────────────────────────┤
+│ Project Name         │ [dim]Uninitialized[/dim]               │
+│ Config Status        │ [yellow]CONFIG_NOT_FOUND[/yellow]         │
+│ Active Git Branch    │ main                                   │
+│ Agent Model          │ [dim]Not Configured[/dim]               │
+│ Active Sandboxes     │ [dim]N/A[/dim]                         │
+│ Catalog Items        │ [dim]N/A[/dim]                         │
+└──────────────────────┴────────────────────────────────────────┘
+
+⚠️ Configuration & Context Warnings:
+  • Worktree workspace is not initialized. Run 'wt init' to configure.
+
+Next Steps & Remediation:
+  • Run 'wt init' to initialize Worktree in this repository.
+```
+
+### Degraded workspace output
+
+When `config.json` is malformed, invalid, or run outside a Git repository:
+
+```text
+Worktree Workspace Status (Degraded)
+┌──────────────────────┬────────────────────────────────────────┐
+│ Property             │ Value                                  │
+├──────────────────────┼────────────────────────────────────────┤
+│ Project Name         │ [dim]Uninitialized[/dim]               │
+│ Config Status        │ [red]CONFIG_MALFORMED_JSON[/red]       │
+│ Active Git Branch    │ main                                   │
+│ Agent Model          │ [dim]Not Configured[/dim]               │
+│ Active Sandboxes     │ [dim]N/A[/dim]                         │
+│ Catalog Items        │ [dim]N/A[/dim]                         │
+└──────────────────────┴────────────────────────────────────────┘
+
+⚠️ Configuration & Context Warnings:
+  • Malformed config.json: Expecting property name enclosed in double quotes (line 2 col 1)
+
+Next Steps & Remediation:
+  • Repair JSON syntax in .worktree/config.json or restore from backup.
+```
+
 

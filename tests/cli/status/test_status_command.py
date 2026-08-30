@@ -57,8 +57,10 @@ class StatusCommandTests:
         ctx.output.print()
         out = capsys.readouterr().out
         assert "Worktree Workspace Status" in out
-        assert "not_found" in out
+        assert "Uninitialized" in out
+        assert "CONFIG_NOT_FOUND" in out
         assert "Worktree workspace is not initialized" in out
+        assert "Run 'wt init' to initialize Worktree in this repository." in out
 
     def test_status_handles_exception(
         self,
