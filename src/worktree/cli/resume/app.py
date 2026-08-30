@@ -1,13 +1,41 @@
 """Typer application registration for ``wt resume``."""
 
+from __future__ import annotations
+
 import typer
 
-from .commands.root import resume_root
+from worktree.cli.context import CliContext
+
+from .commands.root import resume_command
+
+resume_app = typer.Typer(
+    name="resume",
+    help="Resume a paused blueprint execution session (task or workflow).",
+    invoke_without_command=True,
+    context_settings={"allow_interspersed_args": True},
+)
 
 
-def register_resume_command(app: typer.Typer) -> None:
-    """Register the top-level ``resume`` command on the root Typer application."""
-    app.command(
-        name="resume",
-        help="Resume a paused blueprint execution session (task or workflow).",
-    )(resume_root)
+@resume_app.callback(invoke_without_command=True)
+def resume_callback(
+    ctx: typer.Context,
+    session_id: str | None = typer.Argument(
+        None,
+        help="Session identifier to resume. If omitted, the latest paused session is resumed.",
+    ),
+    non_interactive: bool = typer.Option(
+        False,
+        "--non-interactive",
+        help="Disable interactive prompts; prompt_user failures abort the run.",
+    ),
+) -> None:
+    """Resume a paused blueprint execution session (task or workflow)."""
+    context: CliContext = ctx.obj["context"]
+    outcome = resume_command(
+        context,
+        session_id=session_id,
+        non_interactive=non_interactive,
+    )
+    context.output.print()
+    if not outcome.ok:
+        raise typer.Exit(code=1)

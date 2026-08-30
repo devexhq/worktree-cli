@@ -15,8 +15,8 @@ from worktree.cli.context import CliContext
 from worktree.cli.diff.app import register_diff_command
 from worktree.cli.history.app import history_app
 from worktree.cli.init.app import init_app
-from worktree.cli.resume.app import register_resume_command
-from worktree.cli.run.app import register_run_command
+from worktree.cli.resume.app import resume_app
+from worktree.cli.run.app import run_app
 from worktree.cli.sandbox.app import sandbox_app
 from worktree.cli.status.app import status_app
 from worktree.common.utils import RichOutput
@@ -55,8 +55,8 @@ app.add_typer(config_app, name="config")
 register_diff_command(app)
 app.add_typer(history_app, name="history")
 app.add_typer(init_app, name="init")
-register_resume_command(app)
-register_run_command(app)
+app.add_typer(resume_app, name="resume")
+app.add_typer(run_app, name="run")
 app.add_typer(sandbox_app, name="sandbox")
 app.add_typer(status_app, name="status")
 

@@ -7,6 +7,7 @@ from typer.testing import CliRunner
 
 from tests.helpers import FileSystem, GitFileSystem, make_cli_context
 from worktree.cli import app
+from worktree.cli.run.commands.root import run_command
 from worktree.core.blueprint import BlueprintKind
 from worktree.core.catalog.services.inventory import scan_and_index_catalog
 from worktree.core.db import RunStatus, WorktreeDb
@@ -250,3 +251,27 @@ class RunCliTests:
         ).execute()
         assert outcome.run_record is not None
         assert outcome.run_record.status == RunStatus.PAUSED
+
+
+class RunCommandDirectTests:
+    """Unit tests for run_command Typer-unaware handler."""
+
+    def test_run_command_executes_blueprint(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Verify run_command executes a blueprint via context."""
+        monkeypatch.chdir(fs.base_path)
+        fs.create_task_file(
+            "direct-task",
+            use_sandbox=False,
+            steps=[{"id": "step-1", "run": "echo direct"}],
+        )
+
+        ctx = make_cli_context(cwd=fs.base_path)
+        outcome = run_command(
+            ctx,
+            name="direct-task",
+            no_sandbox=True,
+            session_id="direct_run_1",
+        )
+        assert outcome.ok
+        assert outcome.run_record is not None
+        assert outcome.run_record.status == RunStatus.COMPLETED
