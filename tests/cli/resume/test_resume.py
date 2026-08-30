@@ -12,6 +12,7 @@ from tests.helpers import (
     make_cli_context,
 )
 from worktree.cli import app
+from worktree.cli.resume.commands.root import resume_command
 from worktree.core.blueprint import BlueprintKind
 from worktree.core.catalog.services.inventory import scan_and_index_catalog
 from worktree.core.db import RunsRepository, RunStatus, WorktreeDb
@@ -450,3 +451,32 @@ class ResumeCliTests:
         result = runner.invoke(app, ["resume", "task-cancel"])
         assert result.exit_code == 1
         assert "Resume Cancelled" in result.output
+
+
+class ResumeCommandDirectTests:
+    """Unit tests for resume_command Typer-unaware handler."""
+
+    def test_resume_command_resumes_paused_session(
+        self,
+        fs: FileSystem,
+        monkeypatch: pytest.MonkeyPatch,
+        mock_interactive_prompter: None,
+    ) -> None:
+        """Verify resume_command resumes a paused session via context."""
+        monkeypatch.chdir(fs.base_path)
+        fs.create_task_file(
+            "direct-res-task",
+            use_sandbox=False,
+            steps=[
+                {"id": "step-1", "run": "echo 1"},
+                {"id": "step-2", "run": "echo 2", "on_failure": "prompt_user"},
+            ],
+        )
+        db = WorktreeDb(path=fs.base_path)
+        _seed_paused_run(db.runs, "direct-res-1", "direct-res-task", BlueprintKind.TASK)
+
+        ctx = make_cli_context(cwd=fs.base_path)
+        outcome = resume_command(ctx, session_id="direct-res-1")
+        assert outcome.ok
+        assert outcome.run_record is not None
+        assert outcome.run_record.status == RunStatus.COMPLETED

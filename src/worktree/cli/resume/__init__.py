@@ -1,6 +1,5 @@
 """The ``wt resume`` CLI command package."""
 
-from worktree.cli.resume.app import register_resume_command
-from worktree.cli.resume.commands.root import resume_root
+from .app import resume_app
 
-__all__ = ["register_resume_command", "resume_root"]
+__all__ = ["resume_app"]

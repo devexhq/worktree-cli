@@ -1,5 +1,5 @@
 """Command implementations for ``wt run``."""
 
-from worktree.cli.run.commands.root import run_root
+from .root import run_command
 
-__all__ = ["run_root"]
+__all__ = ["run_command"]
