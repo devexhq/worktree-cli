@@ -11,6 +11,8 @@ def diff_command(
     session_id: str | None = None,
     *,
     raw: bool = False,
+    full: bool = False,
+    max_lines: int | None = None,
 ) -> DiffResult:
     """Execute session diff query and render results to console.
 
@@ -18,6 +20,8 @@ def diff_command(
         context: CLI execution context holding cwd and Rich output builder.
         session_id: Optional session identifier. When omitted, latest session is resolved.
         raw: When True, outputs unformatted plain text patch directly to stdout.
+        full: When True, bypasses truncation in interactive terminals.
+        max_lines: Optional custom line truncation threshold for testing or programmatic overrides.
 
     Returns:
         Structured DiffResult with status, diff text, and artifact path.
@@ -27,4 +31,6 @@ def diff_command(
         output=context.output,
         session_id=session_id,
         raw=raw,
+        full=full,
+        max_lines=max_lines,
     ).execute()

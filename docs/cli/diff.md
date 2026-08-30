@@ -18,7 +18,8 @@ wt diff [session_id] [OPTIONS]
 
 | Flag | Description |
 | --- | --- |
-| `--raw` | Output unformatted plain text diff directly to stdout without headers, Rich panels, or ANSI codes. |
+| `--raw` | Output unformatted plain text diff directly to stdout without headers, Rich panels, or ANSI codes. Truncation limits are completely bypassed. |
+| `--full` / `--no-full` | Bypass line truncation limits in interactive terminals (TTY) and render complete formatted diff. |
 
 ## Behavior
 
@@ -30,8 +31,11 @@ wt diff [session_id] [OPTIONS]
 3. **Artifact Loading**:
    - If `diff.patch` is missing: displays a **Diff Not Found** error panel and exits with code `1`.
    - If `diff.patch` is empty (0 bytes or whitespace-only): prints `No changes recorded for session <session_id>.` and exits with code `0`.
-4. **Rendering**:
+4. **Rendering & Truncation**:
    - Interactive formatted output renders a header with the session ID and artifact path, followed by syntax-highlighted diff text.
+   - In an interactive terminal (TTY), if formatted diff output exceeds 500 lines (and `--full` is not provided), output is truncated at line 500 followed by a dim notice banner with hints to view the complete diff, page with `less -R`, or view raw/artifact contents.
+   - Passing `--full` renders all formatted lines without truncation.
+   - Non-TTY stdout (e.g. piped to `cat` or redirected to a file) and `--raw` mode automatically bypass truncation limits.
    - When `--raw` is passed, outputs the exact patch content directly to stdout for redirection or piping into `git apply` / `patch`.
 5. **Exit Codes**:
    - `0`: Diff successfully displayed, or empty diff.

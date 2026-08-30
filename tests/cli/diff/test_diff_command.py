@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 
 import pytest
+from rich.console import Console
 from typer.testing import CliRunner
 
 from tests.helpers import FileSystem, make_cli_context
@@ -51,6 +52,18 @@ class DiffCommandDirectTests:
 
         context = make_cli_context(cwd=fs.base_path)
         result = diff_command(context, "sbx_raw_1", raw=True)
+        assert result.ok
+        assert result.status == DiffStatus.OK
+
+    def test_diff_command_direct_full(self, fs: FileSystem) -> None:
+        """Verify diff_command with full=True executes cleanly."""
+        fs.create_config_file()
+        patch_file = fs.base_path / ".worktree" / "sessions" / "sbx_full_1" / "diff.patch"
+        patch_file.parent.mkdir(parents=True, exist_ok=True)
+        patch_file.write_text(_SAMPLE_DIFF, encoding="utf-8")
+
+        context = make_cli_context(cwd=fs.base_path)
+        result = diff_command(context, "sbx_full_1", full=True)
         assert result.ok
         assert result.status == DiffStatus.OK
 
@@ -99,6 +112,71 @@ class DiffCliIntegrationTests:
         assert result.exit_code == 0
         assert "Session: sbx_raw" not in result.output
         assert _SAMPLE_DIFF.strip() in result.output
+
+    def test_cli_diff_full_flag(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Verify 'wt diff <session_id> --full' renders formatted output with session header."""
+        fs.create_config_file()
+        monkeypatch.chdir(fs.base_path)
+
+        patch_file = fs.base_path / ".worktree" / "sessions" / "sbx_full" / "diff.patch"
+        patch_file.parent.mkdir(parents=True, exist_ok=True)
+        patch_file.write_text(_SAMPLE_DIFF, encoding="utf-8")
+
+        result = runner.invoke(app, ["diff", "sbx_full", "--full"])
+        assert result.exit_code == 0
+        assert "Session: sbx_full" in result.output
+        assert "def old(): pass" in result.output
+        assert "def new(): pass" in result.output
+
+    def test_cli_diff_raw_precedence_over_full(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Verify passing both --raw and --full cleanly outputs raw text."""
+        fs.create_config_file()
+        monkeypatch.chdir(fs.base_path)
+
+        patch_file = fs.base_path / ".worktree" / "sessions" / "sbx_both" / "diff.patch"
+        patch_file.parent.mkdir(parents=True, exist_ok=True)
+        patch_file.write_text(_SAMPLE_DIFF, encoding="utf-8")
+
+        result = runner.invoke(app, ["diff", "sbx_both", "--raw", "--full"])
+        assert result.exit_code == 0
+        assert "Session: sbx_both" not in result.output
+        assert _SAMPLE_DIFF.strip() in result.output
+
+    def test_cli_diff_large_patch_tty_truncation(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Verify 'wt diff <session_id>' truncates when running in simulated TTY."""
+        fs.create_config_file()
+        monkeypatch.chdir(fs.base_path)
+        monkeypatch.setattr(Console, "is_terminal", property(lambda self: True))
+
+        large_diff = "\n".join([f"+line {i}" for i in range(1, 550)])
+        patch_file = fs.base_path / ".worktree" / "sessions" / "sbx_large" / "diff.patch"
+        patch_file.parent.mkdir(parents=True, exist_ok=True)
+        patch_file.write_text(large_diff, encoding="utf-8")
+
+        result = runner.invoke(app, ["diff", "sbx_large"])
+        assert result.exit_code == 0
+        assert "Session: sbx_large" in result.output
+        assert "+line 500" in result.output
+        assert "+line 501" not in result.output
+        assert "... [diff truncated: showing 500 of 549 lines]" in result.output
+        assert "run `wt diff sbx_large --full` to view complete formatted output" in result.output
+        assert "run `wt diff sbx_large --full | less -R` to page through formatted diff" in result.output
+
+    def test_cli_diff_large_patch_non_tty_full(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Verify 'wt diff <session_id>' in non-TTY (default runner) outputs entire diff without truncation."""
+        fs.create_config_file()
+        monkeypatch.chdir(fs.base_path)
+
+        large_diff = "\n".join([f"+line {i}" for i in range(1, 550)])
+        patch_file = fs.base_path / ".worktree" / "sessions" / "sbx_large_non_tty" / "diff.patch"
+        patch_file.parent.mkdir(parents=True, exist_ok=True)
+        patch_file.write_text(large_diff, encoding="utf-8")
+
+        result = runner.invoke(app, ["diff", "sbx_large_non_tty"])
+        assert result.exit_code == 0
+        assert "Session: sbx_large_non_tty" in result.output
+        assert "+line 549" in result.output
+        assert "diff truncated" not in result.output
 
     def test_cli_diff_auto_picks_latest_session(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify 'wt diff' with no args selects the latest session directory."""
