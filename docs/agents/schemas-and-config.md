@@ -216,7 +216,7 @@ workflows.
 
 ## `wt config validate` CLI
 
-Command entry: `worktree.cli.config.command.config_validate_command`.
+Command entry: `worktree.cli.config.commands.config_validate.config_validate_command`.
 Registration: `wt config validate` under `config_app` in
 [src/worktree/cli/cli.py](../../src/worktree/cli/cli.py).
 
@@ -313,7 +313,7 @@ On non-ok load it prints `ConfigLoadResult.errors` (error panel) and exits `1`
 with **no** success header and **no** partial JSON. Show never creates or
 mutates config files.
 
-Command entry: `worktree.cli.config.command.config_show_command`.
+Command entry: `worktree.cli.config.commands.config_show.config_show_command`.
 
 ## Config set API and `wt config set`
 
@@ -365,7 +365,7 @@ schema validation error, or invalid path, the on-disk file is left unchanged.
 
 ### CLI (`wt config set`)
 
-Command entry: `worktree.cli.config.command.config_set_command`.
+Command entry: `worktree.cli.config.commands.config_set.config_set_command`.
 Registration: `wt config set <key> <value>` under `config_app` in
 [src/worktree/cli/cli.py](../../src/worktree/cli/cli.py).
 
