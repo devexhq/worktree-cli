@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import signal
 import subprocess
 import sys
 import threading
@@ -12,6 +11,11 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import IO, Any
 
+from worktree.common.process import (
+    get_isolated_process_kwargs,
+    process_registry,
+    terminate_process_tree,
+)
 from worktree.core.agents.factory import get_agent_adapter
 from worktree.core.inputs import interpolate_step_fields
 from worktree.core.step.assertions import evaluate_assertions
@@ -226,21 +230,15 @@ class StepExecution:
                 # Best-effort cleanup: closing stream pipe during termination.
                 pass
 
-    def _terminate_process_tree(self, proc: subprocess.Popen[str]) -> None:
+    def _terminate_process_tree(
+        self,
+        proc: subprocess.Popen[str],
+        *,
+        pgid: int | None = None,
+        grace_seconds: float = 2.0,
+    ) -> None:
         """Terminate or kill a subprocess and its child process tree."""
-        try:
-            if hasattr(os, "killpg"):
-                try:
-                    pgid = os.getpgid(proc.pid)
-                    os.killpg(pgid, signal.SIGKILL)
-                    return
-                except (ProcessLookupError, PermissionError, OSError):
-                    # Best-effort fallback: process group already terminated or inaccessible.
-                    pass
-            proc.kill()
-        except (ProcessLookupError, PermissionError, OSError):
-            # Best-effort cleanup: process already exited or PID not found.
-            pass
+        terminate_process_tree(proc, grace_seconds=grace_seconds, pgid=pgid)
 
     def _run_process(
         self,
@@ -253,6 +251,7 @@ class StepExecution:
         metadata: ExecutionMetadata,
     ) -> StepDispatchOutcome:
         env = self._build_process_env(metadata)
+        isolation_kwargs = get_isolated_process_kwargs()
         try:
             proc = subprocess.Popen(
                 cmd,
@@ -262,11 +261,14 @@ class StepExecution:
                 stderr=subprocess.PIPE,
                 text=True,
                 bufsize=1,
-                start_new_session=(sys.platform != "win32"),
                 env=env,
+                **isolation_kwargs,
             )
         except Exception as exc:
             return _failed_dispatch(f"{failure_label} execution error: {exc}")
+
+        pgid = proc.pid
+        process_registry.register(proc, pgid=pgid)
 
         stdout_lines: list[str] = []
         stderr_lines: list[str] = []
@@ -288,18 +290,25 @@ class StepExecution:
         timed_out = False
         exit_code = 0
         try:
-            exit_code = proc.wait(timeout=timeout_seconds)
-        except subprocess.TimeoutExpired:
-            timed_out = True
-            self._terminate_process_tree(proc)
             try:
-                exit_code = proc.wait(timeout=5)
-            except Exception:
-                # Best-effort wait: process tree was killed; exit code defaults to 124.
-                pass
-
-        t_out.join(timeout=2)
-        t_err.join(timeout=2)
+                exit_code = proc.wait(timeout=timeout_seconds)
+            except subprocess.TimeoutExpired:
+                timed_out = True
+                self._terminate_process_tree(proc, pgid=pgid, grace_seconds=2.0)
+                try:
+                    exit_code = proc.wait(timeout=5)
+                except Exception:
+                    # Best-effort wait: process tree was killed; exit code defaults to 124.
+                    pass
+            except BaseException:
+                self._terminate_process_tree(proc, pgid=pgid, grace_seconds=0.5)
+                raise
+        finally:
+            process_registry.unregister(proc)
+            if proc.poll() is None:
+                self._terminate_process_tree(proc, pgid=pgid, grace_seconds=0.5)
+            t_out.join(timeout=2)
+            t_err.join(timeout=2)
 
         stdout = "".join(stdout_lines)
         stderr = "".join(stderr_lines)

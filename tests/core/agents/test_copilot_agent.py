@@ -92,11 +92,11 @@ class CopilotRunTests:
     def test_default_run_parses_jsonl(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         captured: dict[str, object] = {}
 
-        def fake_run(cmd, cwd, env, input, capture_output, text, shell, timeout, check):
+        def fake_run(cmd, *, cwd, env, input_data, timeout_seconds, **kwargs):
             captured["cmd"] = cmd
-            captured["cwd"] = cwd
-            captured["input"] = input
-            captured["timeout"] = timeout
+            captured["cwd"] = str(cwd)
+            captured["input"] = input_data
+            captured["timeout"] = timeout_seconds
 
             class Result:
                 returncode = 0
@@ -105,7 +105,7 @@ class CopilotRunTests:
 
             return Result()
 
-        monkeypatch.setattr(subprocess, "run", fake_run)
+        monkeypatch.setattr("worktree.core.agents.copilot.run_isolated_process", fake_run)
 
         outcome = default_copilot_run(
             CliMutationRunRequest(sandbox_path=sandbox, prompt="hi", model=None, timeout_seconds=3)
@@ -123,7 +123,7 @@ class CopilotRunTests:
         def fake_run(*args, **kwargs):
             raise FileNotFoundError("gh")
 
-        monkeypatch.setattr(subprocess, "run", fake_run)
+        monkeypatch.setattr("worktree.core.agents.copilot.run_isolated_process", fake_run)
         outcome = default_copilot_run(
             CliMutationRunRequest(sandbox_path=sandbox, prompt="hi", model=None, timeout_seconds=3)
         )
@@ -134,7 +134,7 @@ class CopilotRunTests:
         def fake_run(*args, **kwargs):
             raise subprocess.TimeoutExpired(cmd="gh", timeout=3)
 
-        monkeypatch.setattr(subprocess, "run", fake_run)
+        monkeypatch.setattr("worktree.core.agents.copilot.run_isolated_process", fake_run)
         outcome = default_copilot_run(
             CliMutationRunRequest(sandbox_path=sandbox, prompt="hi", model=None, timeout_seconds=3)
         )

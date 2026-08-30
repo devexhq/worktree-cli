@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+from typing import Any
 
+from worktree.common.process import run_isolated_process
 from worktree.core.agents.base import AgentRequest
 from worktree.core.agents.cli_mutation import (
     CliDirectMutationAdapter,
@@ -29,19 +31,41 @@ def resolve_copilot_token(env: dict[str, str] | None = None) -> str | None:
 def _extract_text(value: object) -> str | None:
     if isinstance(value, str):
         return value
-    if isinstance(value, dict):
-        content = value.get("content")
-        if isinstance(content, str):
-            return content
-        response = value.get("response")
-        if isinstance(response, str):
-            return response
-        message = value.get("message")
-        if isinstance(message, dict):
-            nested = message.get("content")
-            if isinstance(nested, str):
-                return nested
+    if not isinstance(value, dict):
+        return None
+    for key in ("content", "response"):
+        val = value.get(key)
+        if isinstance(val, str):
+            return val
+    message = value.get("message")
+    if isinstance(message, dict) and isinstance(message.get("content"), str):
+        return message["content"]
     return None
+
+
+def _extract_exit_code(payload: dict[str, Any]) -> int | None:
+    raw_exit = payload.get("exitCode") if "exitCode" in payload else payload.get("exit_code")
+    if isinstance(raw_exit, int):
+        return raw_exit
+    if isinstance(raw_exit, str) and raw_exit.isdigit():
+        return int(raw_exit)
+    return None
+
+
+def _process_copilot_event(data: dict[str, Any], current_text: str | None) -> tuple[str | None, int | None]:
+    event_type = data.get("type")
+    payload = data.get("data")
+    if not isinstance(payload, dict):
+        return current_text, None
+    if event_type == "assistant.message":
+        text = _extract_text(payload)
+        return (text if text is not None else current_text), None
+    if event_type == "result":
+        exit_code = _extract_exit_code(payload)
+        text = _extract_text(payload)
+        new_text = text if (text is not None and current_text is None) else current_text
+        return new_text, exit_code
+    return current_text, None
 
 
 def _parse_jsonl(stdout_text: str) -> tuple[str | None, int | None, str | None]:
@@ -55,28 +79,30 @@ def _parse_jsonl(stdout_text: str) -> tuple[str | None, int | None, str | None]:
             data = json.loads(line)
         except json.JSONDecodeError as exc:
             return None, None, f"invalid JSONL from Copilot CLI: {exc}"
-        if not isinstance(data, dict):
-            continue
-        event_type = data.get("type")
-        if event_type == "assistant.message":
-            payload = data.get("data")
-            text = _extract_text(payload)
-            if text is not None:
-                assistant_text = text
-        elif event_type == "result":
-            payload = data.get("data")
-            if isinstance(payload, dict):
-                raw_exit = payload.get("exitCode")
-                if raw_exit is None:
-                    raw_exit = payload.get("exit_code")
-                if isinstance(raw_exit, int):
-                    result_exit_code = raw_exit
-                elif isinstance(raw_exit, str) and raw_exit.isdigit():
-                    result_exit_code = int(raw_exit)
-                text = _extract_text(payload)
-                if text is not None:
-                    assistant_text = assistant_text or text
+        if isinstance(data, dict):
+            assistant_text, code = _process_copilot_event(data, assistant_text)
+            if code is not None:
+                result_exit_code = code
     return assistant_text, result_exit_code, None
+
+
+def _classify_copilot_output(completed_code: int, stdout_text: str, stderr_text: str) -> CliMutationOutcome:
+    if completed_code != 0:
+        detail = stderr_text.strip() or stdout_text.strip() or f"exit {completed_code}"
+        return CliMutationOutcome(status="error", error_detail=detail)
+
+    assistant_text, exit_code, parse_error = _parse_jsonl(stdout_text)
+    if parse_error is not None:
+        return CliMutationOutcome(status="error", error_detail=parse_error)
+    if exit_code is not None and exit_code != 0:
+        return CliMutationOutcome(
+            status="error",
+            error_detail=f"Copilot CLI result exit code {exit_code}",
+            result_text=assistant_text,
+        )
+    if assistant_text is None and not stdout_text.strip():
+        return CliMutationOutcome(status="error", error_detail="empty Copilot CLI output")
+    return CliMutationOutcome(status="finished", result_text=assistant_text or stdout_text.strip() or None)
 
 
 def default_copilot_run(request: CliMutationRunRequest) -> CliMutationOutcome:
@@ -109,16 +135,12 @@ def default_copilot_run(request: CliMutationRunRequest) -> CliMutationOutcome:
         env["COPILOT_MODEL"] = request.model
 
     try:
-        completed = subprocess.run(
+        completed = run_isolated_process(
             cmd,
-            cwd=str(request.sandbox_path),
+            cwd=request.sandbox_path,
             env=env,
-            input=request.prompt.encode("utf-8"),
-            capture_output=True,
-            text=False,
-            shell=False,
-            timeout=request.timeout_seconds,
-            check=False,
+            input_data=request.prompt.encode("utf-8"),
+            timeout_seconds=request.timeout_seconds,
         )
     except subprocess.TimeoutExpired:
         return CliMutationOutcome(status="timeout")
@@ -134,24 +156,7 @@ def default_copilot_run(request: CliMutationRunRequest) -> CliMutationOutcome:
 
     stdout_text = (completed.stdout or b"").decode("utf-8", errors="replace")
     stderr_text = (completed.stderr or b"").decode("utf-8", errors="replace")
-    if completed.returncode != 0:
-        detail = stderr_text.strip() or stdout_text.strip() or f"exit {completed.returncode}"
-        return CliMutationOutcome(status="error", error_detail=detail)
-
-    assistant_text, exit_code, parse_error = _parse_jsonl(stdout_text)
-    if parse_error is not None:
-        return CliMutationOutcome(status="error", error_detail=parse_error)
-    if exit_code is not None and exit_code != 0:
-        return CliMutationOutcome(
-            status="error",
-            error_detail=f"Copilot CLI result exit code {exit_code}",
-            result_text=assistant_text,
-        )
-    if assistant_text is None and not stdout_text.strip():
-        return CliMutationOutcome(status="error", error_detail="empty Copilot CLI output")
-    if assistant_text is None:
-        assistant_text = stdout_text.strip() or None
-    return CliMutationOutcome(status="finished", result_text=assistant_text)
+    return _classify_copilot_output(int(completed.returncode), stdout_text, stderr_text)
 
 
 class CopilotAgentAdapter(CliDirectMutationAdapter):

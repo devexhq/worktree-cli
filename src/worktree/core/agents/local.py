@@ -7,9 +7,12 @@ import os
 import shlex
 import subprocess
 import time
+from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
+from worktree.common.process import run_isolated_process
 from worktree.core.agents.base import (
     AgentRequest,
     AgentResponse,
@@ -81,6 +84,110 @@ def _map_local_stdout(parsed: LocalAgentStdout, *, raw_text: str, duration_ms: i
     )
 
 
+def _validate_local_request(request: AgentRequest, sandbox_cwd: Path, started: float) -> AgentResponse | None:
+    if request.timeout_seconds < 1:
+        duration_ms = int((time.monotonic() - started) * 1000)
+        return AgentResponse(
+            status=AgentResponseStatus.PROVIDER_ERROR,
+            duration_ms=duration_ms,
+            errors=["Agent provider error (AGENT_PROVIDER_ERROR): timeout_seconds must be an integer >= 1"],
+        )
+    if not sandbox_cwd.is_dir():
+        duration_ms = int((time.monotonic() - started) * 1000)
+        return AgentResponse(
+            status=AgentResponseStatus.PROVIDER_ERROR,
+            duration_ms=duration_ms,
+            errors=[
+                "Agent provider error (AGENT_PROVIDER_ERROR): "
+                f"sandbox path does not exist or is not a directory: "
+                f"'{sandbox_cwd}'"
+            ],
+        )
+    return None
+
+
+def _dispatch_local_command(
+    argv: list[str],
+    sandbox_cwd: Path,
+    request: AgentRequest,
+    started: float,
+) -> tuple[subprocess.CompletedProcess[Any] | None, AgentResponse | None]:
+    stdin_bytes = _request_json_bytes(request)
+    try:
+        completed = run_isolated_process(
+            argv,
+            cwd=sandbox_cwd,
+            input_data=stdin_bytes,
+            timeout_seconds=float(request.timeout_seconds),
+        )
+        return completed, None
+    except subprocess.TimeoutExpired:
+        duration_ms = int((time.monotonic() - started) * 1000)
+        return None, AgentResponse(
+            status=AgentResponseStatus.TIMEOUT,
+            duration_ms=duration_ms,
+            errors=[
+                f"Agent timed out after {request.timeout_seconds}s "
+                f"(provider=local).\n"
+                "Fix:\n"
+                "- raise agent.timeout_seconds on the workflow"
+            ],
+        )
+    except (FileNotFoundError, OSError) as exc:
+        duration_ms = int((time.monotonic() - started) * 1000)
+        return None, AgentResponse(
+            status=AgentResponseStatus.PROVIDER_ERROR,
+            duration_ms=duration_ms,
+            errors=[f"Agent provider error (AGENT_PROVIDER_ERROR): failed to start '{argv[0]}': {exc}"],
+        )
+
+
+def _parse_and_map_local_output(
+    completed: subprocess.CompletedProcess[Any],
+    started: float,
+) -> AgentResponse:
+    duration_ms = int((time.monotonic() - started) * 1000)
+    stdout_text = (completed.stdout or b"").decode("utf-8", errors="replace")
+    stderr_text = (completed.stderr or b"").decode("utf-8", errors="replace")
+    exit_code = int(completed.returncode)
+
+    try:
+        data = json.loads(stdout_text) if stdout_text.strip() else None
+    except json.JSONDecodeError as exc:
+        detail = f"invalid JSON on stdout (exit {exit_code}): {exc}"
+        if stderr_text.strip():
+            detail = f"{detail}; stderr: {stderr_text.strip()[:500]}"
+        return AgentResponse(
+            status=AgentResponseStatus.PROVIDER_ERROR,
+            raw_text=stdout_text or None,
+            duration_ms=duration_ms,
+            errors=[f"Agent provider error (AGENT_PROVIDER_ERROR): {detail}"],
+        )
+
+    if data is None:
+        detail = f"empty stdout (exit {exit_code})"
+        if stderr_text.strip():
+            detail = f"{detail}; stderr: {stderr_text.strip()[:500]}"
+        return AgentResponse(
+            status=AgentResponseStatus.PROVIDER_ERROR,
+            raw_text=stdout_text or None,
+            duration_ms=duration_ms,
+            errors=[f"Agent provider error (AGENT_PROVIDER_ERROR): {detail}"],
+        )
+
+    try:
+        parsed = LocalAgentStdout.model_validate(data)
+    except ValidationError as exc:
+        return AgentResponse(
+            status=AgentResponseStatus.PROVIDER_ERROR,
+            raw_text=stdout_text,
+            duration_ms=duration_ms,
+            errors=[f"Agent provider error (AGENT_PROVIDER_ERROR): stdout JSON failed schema validation: {exc}"],
+        )
+
+    return _map_local_stdout(parsed, raw_text=stdout_text, duration_ms=duration_ms)
+
+
 class LocalAgentAdapter:
     """Invoke a local agent executable over JSON stdin/stdout."""
 
@@ -94,107 +201,21 @@ class LocalAgentAdapter:
         except OSError:
             sandbox_cwd = sandbox
 
-        if request.timeout_seconds < 1:
-            duration_ms = int((time.monotonic() - started) * 1000)
+        error_response = _validate_local_request(request, sandbox_cwd, started)
+        if error_response is not None:
+            return error_response
+
+        completed, dispatch_error = _dispatch_local_command(argv, sandbox_cwd, request, started)
+        if dispatch_error is not None:
+            return dispatch_error
+        if completed is None:
             return AgentResponse(
                 status=AgentResponseStatus.PROVIDER_ERROR,
-                duration_ms=duration_ms,
-                errors=["Agent provider error (AGENT_PROVIDER_ERROR): timeout_seconds must be an integer >= 1"],
+                duration_ms=int((time.monotonic() - started) * 1000),
+                errors=["Agent provider error (AGENT_PROVIDER_ERROR): subprocess execution failed"],
             )
 
-        if not sandbox_cwd.is_dir():
-            duration_ms = int((time.monotonic() - started) * 1000)
-            return AgentResponse(
-                status=AgentResponseStatus.PROVIDER_ERROR,
-                duration_ms=duration_ms,
-                errors=[
-                    "Agent provider error (AGENT_PROVIDER_ERROR): "
-                    f"sandbox path does not exist or is not a directory: "
-                    f"'{sandbox_cwd}'"
-                ],
-            )
-
-        stdin_bytes = _request_json_bytes(request)
-        try:
-            completed = subprocess.run(
-                argv,
-                cwd=sandbox_cwd,
-                input=stdin_bytes,
-                capture_output=True,
-                text=False,
-                shell=False,
-                timeout=request.timeout_seconds,
-                check=False,
-            )
-        except subprocess.TimeoutExpired:
-            duration_ms = int((time.monotonic() - started) * 1000)
-            return AgentResponse(
-                status=AgentResponseStatus.TIMEOUT,
-                duration_ms=duration_ms,
-                errors=[
-                    f"Agent timed out after {request.timeout_seconds}s "
-                    f"(provider=local).\n"
-                    "Fix:\n"
-                    "- raise agent.timeout_seconds on the workflow"
-                ],
-            )
-        except FileNotFoundError as exc:
-            duration_ms = int((time.monotonic() - started) * 1000)
-            return AgentResponse(
-                status=AgentResponseStatus.PROVIDER_ERROR,
-                duration_ms=duration_ms,
-                errors=[f"Agent provider error (AGENT_PROVIDER_ERROR): failed to start '{argv[0]}': {exc}"],
-            )
-        except OSError as exc:
-            duration_ms = int((time.monotonic() - started) * 1000)
-            return AgentResponse(
-                status=AgentResponseStatus.PROVIDER_ERROR,
-                duration_ms=duration_ms,
-                errors=[f"Agent provider error (AGENT_PROVIDER_ERROR): failed to start '{argv[0]}': {exc}"],
-            )
-
-        duration_ms = int((time.monotonic() - started) * 1000)
-        stdout_text = (completed.stdout or b"").decode("utf-8", errors="replace")
-        stderr_text = (completed.stderr or b"").decode("utf-8", errors="replace")
-        exit_code = int(completed.returncode)
-
-        try:
-            data = json.loads(stdout_text) if stdout_text.strip() else None
-        except json.JSONDecodeError as exc:
-            detail = f"invalid JSON on stdout (exit {exit_code}): {exc}"
-            if stderr_text.strip():
-                detail = f"{detail}; stderr: {stderr_text.strip()[:500]}"
-            return AgentResponse(
-                status=AgentResponseStatus.PROVIDER_ERROR,
-                raw_text=stdout_text or None,
-                duration_ms=duration_ms,
-                errors=[f"Agent provider error (AGENT_PROVIDER_ERROR): {detail}"],
-            )
-
-        if data is None:
-            detail = f"empty stdout (exit {exit_code})"
-            if stderr_text.strip():
-                detail = f"{detail}; stderr: {stderr_text.strip()[:500]}"
-            return AgentResponse(
-                status=AgentResponseStatus.PROVIDER_ERROR,
-                raw_text=stdout_text or None,
-                duration_ms=duration_ms,
-                errors=[f"Agent provider error (AGENT_PROVIDER_ERROR): {detail}"],
-            )
-
-        try:
-            parsed = LocalAgentStdout.model_validate(data)
-        except ValidationError as exc:
-            return AgentResponse(
-                status=AgentResponseStatus.PROVIDER_ERROR,
-                raw_text=stdout_text,
-                duration_ms=duration_ms,
-                errors=[f"Agent provider error (AGENT_PROVIDER_ERROR): stdout JSON failed schema validation: {exc}"],
-            )
-
-        # Valid LocalAgentStdout maps regardless of process exit code.
-        _ = exit_code
-        return _map_local_stdout(parsed, raw_text=stdout_text, duration_ms=duration_ms)
+        return _parse_and_map_local_output(completed, started)
 
 
 def resolve_local_agent_argv_for_tests() -> list[str]:
