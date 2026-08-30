@@ -9,8 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.helpers import FileSystem, GitFileSystem
-from worktree.cli.status.context import load_context
+from tests.helpers import FileSystem
 from worktree.core.config.generator import (
     build_default_config,
     generate_default_config,
@@ -204,24 +203,3 @@ class LoadConfigRaisingHelpersTests:
         path.write_text("{bad", encoding="utf-8")
         with pytest.raises(ValueError, match="Malformed"):
             load_raw_config(path)
-
-
-class LoadContextTests:
-    """Tests for load_context and warnings."""
-
-    def test_missing_config_raises(self, fs: FileSystem) -> None:
-        with pytest.raises(FileNotFoundError):
-            load_context(fs.base_path)
-
-    def test_invalid_json_raises(self, git_fs: GitFileSystem) -> None:
-        config_path = git_fs.base_path / ".worktree" / "config.json"
-        config_path.parent.mkdir(parents=True)
-        config_path.write_text("{not-json", encoding="utf-8")
-        with pytest.raises(ValueError, match="Malformed"):
-            load_context(git_fs.base_path)
-
-    def test_warnings_for_main_and_missing_model(self, git_fs: GitFileSystem) -> None:
-        git_fs.init_repo()
-        ctx = load_context(git_fs.base_path)
-        assert any("agent.model" in w for w in ctx.warnings)
-        assert any("main" in w for w in ctx.warnings)

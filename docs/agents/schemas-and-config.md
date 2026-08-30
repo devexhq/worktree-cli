@@ -139,13 +139,16 @@ They raise `FileNotFoundError` for `not_found`, `OSError` for `unreadable`, and
 
 ### Context warnings
 
-`load_context` in `cli/status/context.py` builds `WorktreeContext` (config +
-current branch + warnings) via `load_config`. Current warning rules, in order: missing
-`agent.model`, active branch is `main`/`master`, `sandbox.max_active_sandboxes > 5`.
-This is a separate, narrower rule set from `wt config validate`'s semantic warnings
-below (different threshold for the sandbox limit — 5 here vs. 10 there — because one
-is a "you're probably about to do something risky on this branch" nudge and the other
-is a schema-adjacent config check; that's intentional, not drift).
+`collect_status` in `core/status/services/collector.py` aggregates actionable
+developer warnings on `WorktreeStatusResult.warnings`. Current warning rules,
+in order: workspace not initialized, active branch is `main`/`master`, working
+tree dirty, missing `agent.model`, `sandbox.max_active_sandboxes > 5`, invalid
+catalog items. This is a separate, broader rule set from `wt config validate`'s
+semantic warnings below (different threshold for the sandbox limit — 5 here vs.
+10 there — because one is a "you're probably about to do something risky on this
+branch" nudge and the other is a schema-adjacent config check; that's intentional,
+not drift).
+
 
 ## Config validate API
 
