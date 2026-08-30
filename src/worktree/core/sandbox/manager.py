@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from worktree.common.lock import WorkspaceLock
 from worktree.core.config.models import WorktreeConfig
 from worktree.core.db import SandboxesRepository, SandboxRecord
 from worktree.core.sandbox.models import (
@@ -51,12 +52,13 @@ class GitSandboxManager:
         base_ref: str | None = None,
     ) -> SandboxCreateResult:
         """Create an isolated sandbox worktree and return structured result."""
-        return self.lifecycle.create(
-            session_id=session_id,
-            include_wip=include_wip,
-            name=name,
-            base_ref=base_ref,
-        )
+        with WorkspaceLock(self.path):
+            return self.lifecycle.create(
+                session_id=session_id,
+                include_wip=include_wip,
+                name=name,
+                base_ref=base_ref,
+            )
 
     def cleanup_sandbox(
         self,
@@ -65,11 +67,13 @@ class GitSandboxManager:
         force: bool = True,
     ) -> list[str]:
         """Remove worktree, delete throwaway branch, and prune."""
-        return self.lifecycle.cleanup(session, force=force)
+        with WorkspaceLock(self.path):
+            return self.lifecycle.cleanup(session, force=force)
 
     def prune(self) -> None:
         """Prune stale Git worktree registrations."""
-        self.lifecycle.prune()
+        with WorkspaceLock(self.path):
+            self.lifecycle.prune()
 
     def get_active_sandboxes(self) -> list[Path]:
         """List active sandbox directories."""
@@ -86,14 +90,15 @@ class GitSandboxManager:
         message: str | None = None,
     ) -> SandboxApplyResult:
         """Apply sandbox changes back to main workspace."""
-        return self.patch.apply(
-            sandbox_id=sandbox_id,
-            strategy=strategy,
-            allow_dirty=allow_dirty,
-            dry_run=dry_run,
-            delete=delete,
-            message=message,
-        )
+        with WorkspaceLock(self.path):
+            return self.patch.apply(
+                sandbox_id=sandbox_id,
+                strategy=strategy,
+                allow_dirty=allow_dirty,
+                dry_run=dry_run,
+                delete=delete,
+                message=message,
+            )
 
     def diff_sandbox(
         self,

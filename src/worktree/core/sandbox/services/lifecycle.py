@@ -7,6 +7,7 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
+from worktree.common.lock import WorkspaceLock
 from worktree.core.config.loader import ConfigLoadStatus, load_config_result
 from worktree.core.config.models import WorktreeConfig
 from worktree.core.db import SandboxesRepository, SandboxRecord, SandboxStatus
@@ -252,57 +253,58 @@ class SandboxLifecycle:
         Returns:
             Structured SandboxCreateResult containing session on success.
         """
-        resolved_name = _clean_opt_str(name)
-        override_base_ref = _clean_opt_str(base_ref)
+        with WorkspaceLock(self.path):
+            resolved_name = _clean_opt_str(name)
+            override_base_ref = _clean_opt_str(base_ref)
 
-        config_err, config = self._load_config()
-        if config_err is not None or config is None:
-            return config_err or SandboxCreateResult(
-                status=SandboxCreateStatus.NOT_INITIALIZED,
-                errors=["Configuration not loaded"],
+            config_err, config = self._load_config()
+            if config_err is not None or config is None:
+                return config_err or SandboxCreateResult(
+                    status=SandboxCreateStatus.NOT_INITIALIZED,
+                    errors=["Configuration not loaded"],
+                )
+
+            self._ensure_sandbox_dir()
+            capacity_err = self._check_capacity(config)
+            if capacity_err is not None:
+                return capacity_err
+
+            sid = session_id or f"sbx_{uuid.uuid4().hex[:8]}"
+            sandbox_path = (self.sandbox_base_dir / sid).resolve()
+            temp_branch = f"worktree/sandbox-{sid}"
+            resolved_base = self._resolve_base_ref(override_base_ref, config)
+
+            worktree_err = self._create_worktree(sandbox_path, temp_branch, resolved_base)
+            if worktree_err is not None:
+                return worktree_err
+
+            base_commit, commit_err = self._resolve_base_commit(sandbox_path, temp_branch)
+            if commit_err is not None:
+                return commit_err
+
+            wip_paths: list[str] = []
+            if include_wip:
+                wip_paths, wip_err = self._overlay_wip(sandbox_path, temp_branch)
+                if wip_err is not None:
+                    return wip_err
+
+            session = SandboxSession(
+                session_id=sid,
+                target_branch=temp_branch,
+                sandbox_path=sandbox_path,
+                base_commit=base_commit,
+                name=resolved_name,
+                created_at=datetime.now(UTC).isoformat(),
+                wip_applied=bool(include_wip),
+                wip_paths=wip_paths,
             )
 
-        self._ensure_sandbox_dir()
-        capacity_err = self._check_capacity(config)
-        if capacity_err is not None:
-            return capacity_err
-
-        sid = session_id or f"sbx_{uuid.uuid4().hex[:8]}"
-        sandbox_path = (self.sandbox_base_dir / sid).resolve()
-        temp_branch = f"worktree/sandbox-{sid}"
-        resolved_base = self._resolve_base_ref(override_base_ref, config)
-
-        worktree_err = self._create_worktree(sandbox_path, temp_branch, resolved_base)
-        if worktree_err is not None:
-            return worktree_err
-
-        base_commit, commit_err = self._resolve_base_commit(sandbox_path, temp_branch)
-        if commit_err is not None:
-            return commit_err
-
-        wip_paths: list[str] = []
-        if include_wip:
-            wip_paths, wip_err = self._overlay_wip(sandbox_path, temp_branch)
-            if wip_err is not None:
-                return wip_err
-
-        session = SandboxSession(
-            session_id=sid,
-            target_branch=temp_branch,
-            sandbox_path=sandbox_path,
-            base_commit=base_commit,
-            name=resolved_name,
-            created_at=datetime.now(UTC).isoformat(),
-            wip_applied=bool(include_wip),
-            wip_paths=wip_paths,
-        )
-
-        warnings = self._persist_session(session)
-        return SandboxCreateResult(
-            status=SandboxCreateStatus.OK,
-            session=session,
-            warnings=warnings,
-        )
+            warnings = self._persist_session(session)
+            return SandboxCreateResult(
+                status=SandboxCreateStatus.OK,
+                session=session,
+                warnings=warnings,
+            )
 
     def _remove_worktree_dir(self, sandbox_path: Path, *, force: bool) -> str | None:
         """Remove worktree directory with git worktree remove and rmtree fallback."""
@@ -344,28 +346,29 @@ class SandboxLifecycle:
         Returns:
             List of warning messages encountered during cleanup steps.
         """
-        sandbox_path, session_id, branch_name = _extract_target_metadata(target)
-        warnings: list[str] = []
+        with WorkspaceLock(self.path):
+            sandbox_path, session_id, branch_name = _extract_target_metadata(target)
+            warnings: list[str] = []
 
-        dir_warning = self._remove_worktree_dir(sandbox_path, force=force)
-        if dir_warning:
-            warnings.append(dir_warning)
+            dir_warning = self._remove_worktree_dir(sandbox_path, force=force)
+            if dir_warning:
+                warnings.append(dir_warning)
 
-        try:
-            self.db.update_status(session_id, SandboxStatus.CLEANED)
-        except Exception as exc:
-            warnings.append(f"Failed to update database status to 'cleaned' for sandbox '{session_id}': {exc}")
+            try:
+                self.db.update_status(session_id, SandboxStatus.CLEANED)
+            except Exception as exc:
+                warnings.append(f"Failed to update database status to 'cleaned' for sandbox '{session_id}': {exc}")
 
-        branch_warning = self._delete_branch(branch_name)
-        if branch_warning:
-            warnings.append(branch_warning)
+            branch_warning = self._delete_branch(branch_name)
+            if branch_warning:
+                warnings.append(branch_warning)
 
-        try:
-            self.prune()
-        except Exception as exc:
-            warnings.append(f"Failed to prune git worktrees: {exc}")
+            try:
+                self.prune()
+            except Exception as exc:
+                warnings.append(f"Failed to prune git worktrees: {exc}")
 
-        return warnings
+            return warnings
 
     def prune(self) -> None:
         """Prune stale Git worktree administrative records."""

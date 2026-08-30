@@ -23,6 +23,7 @@ _TOP_LEVEL = (
     "doctor",
     "prune",
     "telemetry",
+    "concurrency",
 )
 
 

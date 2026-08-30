@@ -26,7 +26,7 @@ Strictness:
 - Root and every nested object use `additionalProperties: false` (unknown keys
   fail validation).
 - Top-level `required`: `version`, `project`, `paths`, `sandbox`,
-  `agent`, `history`, `doctor`, `prune`, `telemetry`.
+  `agent`, `history`, `doctor`, `prune`, `telemetry`, `concurrency`.
 - `version` is integer `const: 1`.
 
 Enums (exact tokens):
@@ -86,7 +86,8 @@ All runtime reads of `.worktree/config.json` go through
 Typed config lives in
 [src/worktree/core/config/models.py](../../src/worktree/core/config/models.py)
 (`WorktreeConfig` and its nested `ProjectConfig` / `PathsConfig` / `SandboxConfig` /
-`AgentConfig` / `HistoryConfig` / `DoctorConfig` / `PruneConfig` / `TelemetryConfig`
+`AgentConfig` / `HistoryConfig` / `DoctorConfig` / `PruneConfig` / `TelemetryConfig` /
+`ConcurrencyConfig`
 sections — read that file for the exact field list, all `extra: "forbid", strict: True`).
 Repo context/warnings live in
 [src/worktree/cli/status/context.py](../../src/worktree/cli/status/context.py).

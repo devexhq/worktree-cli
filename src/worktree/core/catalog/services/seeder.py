@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from worktree.common.fs import atomic_write_text, get_catalog_templates_dir
+from worktree.common.lock import WorkspaceLock
 from worktree.common.utils import display_path
 from worktree.core.catalog.models import SeedResult
 from worktree.core.db import CatalogItemType
@@ -44,21 +45,22 @@ def seed_catalog_templates(
     force: bool = False,
 ) -> SeedResult:
     """Copy curated `wt/` seed files for `item_type` into `.worktree/catalog/<type>s/wt/`."""
-    result = SeedResult()
+    with WorkspaceLock(path):
+        result = SeedResult()
 
-    source_dir = get_catalog_templates_dir() / f"{item_type.value}s" / "wt"
-    if not source_dir.is_dir():
+        source_dir = get_catalog_templates_dir() / f"{item_type.value}s" / "wt"
+        if not source_dir.is_dir():
+            return result
+
+        base_dir = path.resolve()
+        target_dir = base_dir / ".worktree" / "catalog" / f"{item_type.value}s" / "wt"
+
+        for source_file in _iter_source_files(Path(str(source_dir))):
+            rel_name = source_file.relative_to(Path(str(source_dir)))
+            target_path = target_dir / rel_name
+            _seed_one_file(source_file, target_path, force=force, result=result)
+
         return result
-
-    base_dir = path.resolve()
-    target_dir = base_dir / ".worktree" / "catalog" / f"{item_type.value}s" / "wt"
-
-    for source_file in _iter_source_files(Path(str(source_dir))):
-        rel_name = source_file.relative_to(Path(str(source_dir)))
-        target_path = target_dir / rel_name
-        _seed_one_file(source_file, target_path, force=force, result=result)
-
-    return result
 
 
 def seed_all_catalog_templates(
@@ -67,14 +69,15 @@ def seed_all_catalog_templates(
     force: bool = False,
 ) -> SeedResult:
     """Seed curated `wt/` templates for workflows, tasks, and steps; aggregate the results."""
-    aggregate = SeedResult()
+    with WorkspaceLock(path):
+        aggregate = SeedResult()
 
-    for item_type in (CatalogItemType.WORKFLOW, CatalogItemType.TASK, CatalogItemType.STEP):
-        result = seed_catalog_templates(item_type, path=path, force=force)
-        aggregate.created_files.extend(result.created_files)
-        aggregate.skipped_existing_files.extend(result.skipped_existing_files)
-        aggregate.overwritten_files.extend(result.overwritten_files)
-        aggregate.warnings.extend(result.warnings)
-        aggregate.errors.extend(result.errors)
+        for item_type in (CatalogItemType.WORKFLOW, CatalogItemType.TASK, CatalogItemType.STEP):
+            result = seed_catalog_templates(item_type, path=path, force=force)
+            aggregate.created_files.extend(result.created_files)
+            aggregate.skipped_existing_files.extend(result.skipped_existing_files)
+            aggregate.overwritten_files.extend(result.overwritten_files)
+            aggregate.warnings.extend(result.warnings)
+            aggregate.errors.extend(result.errors)
 
-    return aggregate
+        return aggregate
