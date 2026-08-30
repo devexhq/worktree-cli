@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import typer
 
 from worktree.cli.context import CliContext
@@ -12,7 +14,7 @@ status_app = typer.Typer(
 
 
 @status_app.callback(invoke_without_command=True)
-def status_callback(ctx: typer.Context):
+def status_callback(ctx: typer.Context) -> None:
     """Display configuration status for Worktree CLI."""
     context: CliContext = ctx.obj["context"]
     outcome = status_command(context)

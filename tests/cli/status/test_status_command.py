@@ -20,20 +20,65 @@ class StatusCommandTests:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
-        subprocess.run(["git", "checkout", "feature"], cwd=git_fs.base_path, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "checkout", "-b", "feature-cmd"],
+            cwd=git_fs.base_path,
+            check=True,
+            capture_output=True,
+        )
         git_fs.init_repo()
 
         ctx = make_cli_context(cwd=git_fs.base_path)
         outcome = status_command(ctx)
         assert outcome.ok
+        assert outcome.result is not None
+        assert outcome.errors == []
+
         ctx.output.print()
         out = capsys.readouterr().out
-        assert "Worktree Local Workspace Status" in out
+        assert "Worktree Workspace Status" in out
         assert git_fs.base_path.name in out
-        assert "feature" in out
+        assert "feature-cmd" in out
 
-    def test_status_without_init_exits(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_status_without_init(
+        self,
+        fs: FileSystem,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
         monkeypatch.chdir(fs.base_path)
         ctx = make_cli_context(cwd=fs.base_path)
         outcome = status_command(ctx)
+
+        assert outcome.ok
+        assert outcome.result is not None
+        assert not outcome.result.is_initialized
+
+        ctx.output.print()
+        out = capsys.readouterr().out
+        assert "Worktree Workspace Status" in out
+        assert "not_found" in out
+        assert "Worktree workspace is not initialized" in out
+
+    def test_status_handles_exception(
+        self,
+        fs: FileSystem,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        def _failing_collector(*args: object, **kwargs: object) -> None:
+            raise RuntimeError("collector boom")
+
+        monkeypatch.setattr("worktree.cli.status.commands.root.collect_status", _failing_collector)
+
+        ctx = make_cli_context(cwd=fs.base_path)
+        outcome = status_command(ctx)
+
         assert not outcome.ok
+        assert outcome.result is None
+        assert "collector boom" in outcome.errors
+
+        ctx.output.print()
+        out = capsys.readouterr().out
+        assert "Status Error" in out
+        assert "collector boom" in out
