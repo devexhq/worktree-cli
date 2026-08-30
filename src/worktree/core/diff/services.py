@@ -19,6 +19,8 @@ class DiffService:
     output: RichOutput
     session_id: str | None = None
     raw: bool = False
+    full: bool = False
+    max_lines: int | None = None
 
     def _discover_latest_session(self, sessions_dir: Path) -> Path | None:
         """Discover the most recently modified session directory under sessions_dir."""
@@ -121,5 +123,12 @@ class DiffService:
     def execute(self) -> DiffResult:
         """Collect diff artifact and render results to Rich output."""
         result = self.collect()
-        render_diff(result, raw=self.raw, output=self.output, cwd=self.path)
+        render_diff(
+            result,
+            raw=self.raw,
+            full=self.full,
+            max_lines=self.max_lines,
+            output=self.output,
+            cwd=self.path,
+        )
         return result

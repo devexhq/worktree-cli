@@ -27,10 +27,15 @@ def register_diff_command(app: typer.Typer) -> None:
             "--raw",
             help="Output unformatted plain text diff directly to stdout.",
         ),
+        full: bool = typer.Option(
+            False,
+            "--full/--no-full",
+            help="Bypass line truncation limits in interactive terminals.",
+        ),
     ) -> None:
         """View syntax-highlighted unified diff for a session."""
         context: CliContext = ctx.obj["context"]
-        outcome = diff_command(context, session_id=session_id, raw=raw)
+        outcome = diff_command(context, session_id=session_id, raw=raw, full=full)
         context.output.print()
         if not outcome.ok:
             raise typer.Exit(code=1)

@@ -17,3 +17,6 @@ REQUIRED_SUBDIRS = (
     "tmp",
     "logs",
 )
+
+# Maximum diff lines rendered before truncation in interactive terminals
+DEFAULT_MAX_DIFF_LINES = 500

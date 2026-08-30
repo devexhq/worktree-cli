@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import os
 import time
+from io import StringIO
 from pathlib import Path
 
 import pytest
+from rich.console import Console
 
 from tests.helpers import FileSystem, make_rich_output
 from worktree.common.utils import RichOutput
@@ -118,6 +120,127 @@ class DiffRenderersTests:
         text = buffer.getvalue()
         assert "Session: sbx_ok_123" not in text
         assert _SAMPLE_DIFF.strip() in text
+
+    def test_render_diff_truncation_in_tty(self) -> None:
+        """Verify diff > 500 lines in TTY is truncated at line 500 with notice banner."""
+        buffer = StringIO()
+        tty_console = Console(file=buffer, force_terminal=True, color_system=None, width=120)
+        output = RichOutput(console=tty_console)
+
+        lines = [f"+line {i}" for i in range(1, 601)]
+        diff_text = "\n".join(lines)
+        result = DiffResult(
+            status=DiffStatus.OK,
+            session_id="sbx_large_1",
+            artifact_path=Path("/repo/.worktree/sessions/sbx_large_1/diff.patch"),
+            diff_text=diff_text,
+        )
+
+        render_diff_success(result, output=output, cwd=Path("/repo"))
+        output.print()
+        text = buffer.getvalue()
+
+        assert "+line 1" in text
+        assert "+line 500" in text
+        assert "+line 501" not in text
+        assert "... [diff truncated: showing 500 of 600 lines]" in text
+        assert "Hint:" in text
+        assert "run `wt diff sbx_large_1 --full` to view complete formatted output" in text
+        assert "run `wt diff sbx_large_1 --full | less -R` to page through formatted diff" in text
+        assert "run `wt diff sbx_large_1 --raw` to output unformatted patch text" in text
+        assert "inspect artifact at .worktree/sessions/sbx_large_1/diff.patch" in text
+
+    def test_render_diff_full_override_in_tty(self) -> None:
+        """Verify diff > 500 lines with full=True renders complete output without notice banner."""
+        buffer = StringIO()
+        tty_console = Console(file=buffer, force_terminal=True, color_system=None, width=120)
+        output = RichOutput(console=tty_console)
+
+        lines = [f"+line {i}" for i in range(1, 601)]
+        diff_text = "\n".join(lines)
+        result = DiffResult(
+            status=DiffStatus.OK,
+            session_id="sbx_large_2",
+            artifact_path=Path("/repo/.worktree/sessions/sbx_large_2/diff.patch"),
+            diff_text=diff_text,
+        )
+
+        render_diff_success(result, full=True, output=output, cwd=Path("/repo"))
+        output.print()
+        text = buffer.getvalue()
+
+        assert "+line 1" in text
+        assert "+line 500" in text
+        assert "+line 600" in text
+        assert "diff truncated" not in text
+
+    def test_render_diff_non_tty_bypass_truncation(self) -> None:
+        """Verify non-TTY environments bypass truncation completely."""
+        output, buffer = make_rich_output()  # force_terminal=False
+
+        lines = [f"+line {i}" for i in range(1, 601)]
+        diff_text = "\n".join(lines)
+        result = DiffResult(
+            status=DiffStatus.OK,
+            session_id="sbx_large_3",
+            artifact_path=Path("/repo/.worktree/sessions/sbx_large_3/diff.patch"),
+            diff_text=diff_text,
+        )
+
+        render_diff_success(result, output=output, cwd=Path("/repo"))
+        output.print()
+        text = buffer.getvalue()
+
+        assert "+line 1" in text
+        assert "+line 600" in text
+        assert "diff truncated" not in text
+
+    def test_render_diff_custom_max_lines(self) -> None:
+        """Verify custom max_lines threshold is respected in TTY."""
+        buffer = StringIO()
+        tty_console = Console(file=buffer, force_terminal=True, color_system=None, width=120)
+        output = RichOutput(console=tty_console)
+
+        lines = [f"+line {i}" for i in range(1, 50)]
+        diff_text = "\n".join(lines)
+        result = DiffResult(
+            status=DiffStatus.OK,
+            session_id="sbx_custom_max",
+            artifact_path=Path("/repo/.worktree/sessions/sbx_custom_max/diff.patch"),
+            diff_text=diff_text,
+        )
+
+        render_diff_success(result, max_lines=10, output=output, cwd=Path("/repo"))
+        output.print()
+        text = buffer.getvalue()
+
+        assert "+line 10" in text
+        assert "+line 11" not in text
+        assert "... [diff truncated: showing 10 of 49 lines]" in text
+
+    def test_render_diff_invalid_max_lines_fallback(self) -> None:
+        """Verify non-positive or invalid max_lines falls back to DEFAULT_MAX_DIFF_LINES."""
+        buffer = StringIO()
+        tty_console = Console(file=buffer, force_terminal=True, color_system=None, width=120)
+        output = RichOutput(console=tty_console)
+
+        lines = [f"+line {i}" for i in range(1, 601)]
+        diff_text = "\n".join(lines)
+        result = DiffResult(
+            status=DiffStatus.OK,
+            session_id="sbx_fallback",
+            artifact_path=Path("/repo/.worktree/sessions/sbx_fallback/diff.patch"),
+            diff_text=diff_text,
+        )
+
+        render_diff_success(result, max_lines=-10, output=output, cwd=Path("/repo"))
+
+        output.print()
+        text = buffer.getvalue()
+
+        assert "+line 500" in text
+        assert "+line 501" not in text
+        assert "... [diff truncated: showing 500 of 600 lines]" in text
 
     def test_render_diff_dispatcher(self) -> None:
         """Verify render_diff routes each DiffStatus correctly."""
