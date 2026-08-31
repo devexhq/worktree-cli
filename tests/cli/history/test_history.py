@@ -306,6 +306,26 @@ class HistoryCliTests:
         assert "completed" in result.output
         assert "10.00s" in result.output
 
+    def test_cli_history_reconciles_stale_run(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Verify 'wt history' automatically reconciles dead RUNNING sessions to FAILED."""
+        fs.create_config_file()
+        monkeypatch.chdir(fs.base_path)
+
+        make_run(
+            self.db.runs,
+            session_id="sess-stale-test",
+            blueprint_name="abrupt-task",
+            kind=BlueprintKind.TASK,
+            status=RunStatus.RUNNING,
+            pid=9999999,
+        )
+
+        result = runner.invoke(app, ["history"])
+        assert result.exit_code == 0
+        assert "Reconciled 1 interrupted session" in result.output
+        assert "sess-stale-test" in result.output
+        assert "failed" in result.output
+
     def test_cli_history_filtering_options(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify 'wt history' options --status, --kind, and --limit."""
         fs.create_config_file()

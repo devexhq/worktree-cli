@@ -34,7 +34,7 @@ src/worktree/core/                   Business logic (no Typer)
                                      failure + pause helpers
   engine/                            models.py, engine.py (entrypoint: `Engine` class,
                                      DB-persisted run/resume process facade),
-                                     resumable.py, services/{run,resume}.py
+                                     resumable.py, services/{run,resume,reconcile}.py
   task/                              [status: unused by the live CLI — see note below]
                                      models.py, exceptions.py, services/{loader,runner,renderer}.py
   agents/                            models.py, exceptions.py + adapters (base, factory,
@@ -93,7 +93,8 @@ Single-step execution: `core/step/` (`runner.py`). Multi-step orchestration:
   it. Runtime must not import `cli/`.
 - **Engine** (`core/engine/`): `RunRequest`, persist run row, mint session id,
   resolve inputs before `run_steps`, stamp `session_id` on `RunOutcome`,
-  and run/resume execution services (`BlueprintRunService`, `BlueprintResumeService`).
+  and run/resume/reconcile services (`BlueprintRunService`, `BlueprintResumeService`,
+  `reconcile_stale_runs`).
   Must not import `cli/`.
 - **Catalog** (`core/catalog/`): blueprint scan/index, `CatalogDb` sync hooks,
   packaged seeds under `templates/`.

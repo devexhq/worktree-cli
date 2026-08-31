@@ -15,6 +15,7 @@ from worktree.core.db.connection import (
 from worktree.core.db.facade import WorktreeDb
 from worktree.core.db.migrations import (
     INITIAL_SCHEMA_REVISION,
+    LATEST_SCHEMA_REVISION,
     init_database,
 )
 from worktree.core.db.models import (
@@ -38,6 +39,7 @@ from worktree.core.db.repositories import (
 __all__ = [
     "DEFAULT_DB_REL_PATH",
     "INITIAL_SCHEMA_REVISION",
+    "LATEST_SCHEMA_REVISION",
     "BaseRepository",
     "BlueprintKind",
     "CatalogItemType",

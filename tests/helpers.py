@@ -219,6 +219,7 @@ def make_run(
     kind: BlueprintKind = BlueprintKind.TASK,
     status: RunStatus = RunStatus.COMPLETED,
     branch_name: str = "main",
+    pid: int | None = None,
     started_at: str = "2026-08-19 01:00:00",
     completed_at: str | None = "2026-08-19 01:00:15",
     error_message: str | None = None,
@@ -235,6 +236,7 @@ def make_run(
         kind=kind,
         branch_name=branch_name,
         status=RunStatus.RUNNING,
+        pid=pid,
     )
     with db.session() as session:
         from sqlmodel import select
@@ -242,6 +244,7 @@ def make_run(
         item = session.exec(select(RunRecord).where(RunRecord.session_id == session_id)).first()
         if item is not None:
             item.status = status
+            item.pid = pid
             item.started_at = started_at
             item.completed_at = completed_at
             item.error_message = error_message

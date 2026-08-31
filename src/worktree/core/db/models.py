@@ -199,6 +199,7 @@ class RunRecord(SQLModel, table=True):
     kind: BlueprintKind = Field(sa_type=BlueprintKindType)
     branch_name: str = Field(default="")
     status: RunStatus = Field(default=RunStatus.RUNNING, sa_type=RunStatusType, index=True)
+    pid: int | None = Field(default=None)
     started_at: str = Field(default_factory=_now_utc_str, index=True)
     completed_at: str | None = Field(default=None)
     error_message: str | None = Field(default=None)

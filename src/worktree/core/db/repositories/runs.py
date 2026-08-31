@@ -34,6 +34,7 @@ class RunsRepository(BaseRepository):
         kind: BlueprintKind | str,
         branch_name: str = "",
         status: RunStatus | str = RunStatus.RUNNING,
+        pid: int | None = None,
     ) -> RunRecord:
         """Insert a new run record and return the committed instance."""
         kind_enum = BlueprintKind(kind) if isinstance(kind, str) else kind
@@ -45,6 +46,7 @@ class RunsRepository(BaseRepository):
             kind=kind_enum,
             branch_name=branch_name,
             status=status_enum,
+            pid=pid,
         )
 
         with self.session() as session:
@@ -67,8 +69,9 @@ class RunsRepository(BaseRepository):
         error_message: str | None = None,
         checkpoint_json: str | None = None,
         completed_at: str | None = None,
+        pid: int | None = None,
     ) -> RunRecord | None:
-        """Update status, optional timestamps, error message, and checkpoint JSON."""
+        """Update status, optional timestamps, error message, checkpoint JSON, and PID."""
         status_enum = _coerce_status(status)
         if not isinstance(status_enum, RunStatus):
             raise ValueError(f"Invalid status constraint: {status}")
@@ -89,6 +92,8 @@ class RunsRepository(BaseRepository):
             record.status = status_enum
             record.completed_at = completed_at
             record.error_message = error_message
+            if pid is not None:
+                record.pid = pid
             if checkpoint_json is not None:
                 record.checkpoint_json = checkpoint_json
 

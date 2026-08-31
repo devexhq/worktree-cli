@@ -8,6 +8,10 @@ from pathlib import Path
 from worktree.common.utils import RichOutput
 from worktree.core.config.loader import load_config_result
 from worktree.core.db import BlueprintKind, RunsRepository, RunStatus
+from worktree.core.engine.services.reconcile import (
+    format_reconciliation_warning,
+    reconcile_stale_runs,
+)
 
 from .models import (
     HistoryListResult,
@@ -42,6 +46,14 @@ class HistoryListService:
                 status=HistoryListStatus.NOT_INITIALIZED,
                 errors=list(load.errors),
             )
+
+        try:
+            reconciled = reconcile_stale_runs(self.db, path=self.path)
+            warning_message = format_reconciliation_warning(reconciled)
+            if warning_message:
+                self.output.add_warning(warning_message)
+        except Exception:
+            pass
 
         status_filter: RunStatus | str | None = None
         if self.status is not None:
