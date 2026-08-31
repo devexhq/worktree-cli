@@ -69,6 +69,7 @@ def _collect_config_status(root_dir: Path) -> ConfigStatusInfo:
         status=result.status,
         config_path=result.config_path,
         is_valid=result.ok,
+        raw=result.raw,
         config=result.config,
         errors=result.errors,
     )

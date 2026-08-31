@@ -391,7 +391,7 @@ class HistoryCliTests:
         monkeypatch.chdir(tmp_path)
         result = runner.invoke(app, ["history"])
         assert result.exit_code == 1
-        assert "Not initialized or invalid config" in result.output or "Worktree Not Initialized" in result.output
+        assert "Worktree workspace is not initialized" in result.output or "Worktree Not Initialized" in result.output
 
 
 class HistoryShowCliTests:
@@ -517,4 +517,4 @@ class HistoryShowCliTests:
         monkeypatch.chdir(tmp_path)
         result = runner.invoke(app, ["history", "show", "any-sess"])
         assert result.exit_code == 1
-        assert "Not initialized or invalid config" in result.output or "Worktree Not Initialized" in result.output
+        assert "Worktree workspace is not initialized" in result.output or "Worktree Not Initialized" in result.output

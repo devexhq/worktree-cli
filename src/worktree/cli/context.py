@@ -7,7 +7,7 @@ from typing import Self
 
 from worktree.common.fs import find_worktree_root
 from worktree.common.utils import RichOutput
-from worktree.core.config.loader import load_config_result
+from worktree.core.config.loader import ConfigLoadStatus, load_config_result
 from worktree.core.db.facade import WorktreeDb
 
 
@@ -28,8 +28,16 @@ class CliContext:
         # Config validation
         load_result = load_config_result(path=effective_cwd)
         if not load_result.ok:
-            output.add_error("Not initialized or invalid config.")
-            output.add_line("Hint: Run wt init")
+            if load_result.status == ConfigLoadStatus.NOT_FOUND:
+                output.add_error("Worktree workspace is not initialized.")
+                output.add_line("Hint: Run 'wt init' to initialize Worktree in this repository.")
+            else:
+                message = (
+                    "\n\n".join(load_result.errors)
+                    if load_result.errors
+                    else f"Configuration failed to load ({load_result.status.value.upper()})."
+                )
+                output.add_error_panel("Invalid Worktree Configuration", message)
             output.print()
             return None
 

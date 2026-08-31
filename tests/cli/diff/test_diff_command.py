@@ -252,4 +252,4 @@ class DiffCliIntegrationTests:
 
         result = runner.invoke(app, ["diff"])
         assert result.exit_code == 1
-        assert "Not initialized or invalid config" in result.output or "Worktree Not Initialized" in result.output
+        assert "Worktree workspace is not initialized" in result.output or "Worktree Not Initialized" in result.output

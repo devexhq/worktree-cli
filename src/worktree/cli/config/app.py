@@ -1,6 +1,11 @@
+from pathlib import Path
+
 import typer
 
 from worktree.cli.context import CliContext
+from worktree.common.fs import find_worktree_root
+from worktree.common.utils import RichOutput
+from worktree.core.db.facade import WorktreeDb
 
 from .commands.config_set import config_set_command
 from .commands.config_show import config_show_command
@@ -12,10 +17,19 @@ config_app = typer.Typer(
 )
 
 
+def _get_or_build_context(ctx: typer.Context) -> CliContext:
+    """Retrieve existing context or build a direct context without strict config gating."""
+    context: CliContext | None = ctx.obj.get("context") if ctx.obj else None
+    if context is not None:
+        return context
+    cwd = find_worktree_root(Path.cwd())
+    return CliContext(cwd=cwd, db=WorktreeDb(path=cwd), output=RichOutput())
+
+
 @config_app.command("show")
 def config_show(ctx: typer.Context):
     """Display the full normalized effective configuration as JSON."""
-    context: CliContext = ctx.obj["context"]
+    context = _get_or_build_context(ctx)
     outcome = config_show_command(context)
     context.output.print()
     if not outcome.ok:
@@ -35,7 +49,7 @@ def config_set(
     ),
 ):
     """Set a configuration value by key or nested dot-path."""
-    context: CliContext = ctx.obj["context"]
+    context = _get_or_build_context(ctx)
     outcome = config_set_command(context, key, value)
     context.output.print()
     if not outcome.ok:
@@ -45,7 +59,7 @@ def config_set(
 @config_app.command("validate")
 def config_validate(ctx: typer.Context):
     """Validate .worktree/config.json against the V1 schema and semantic rules."""
-    context: CliContext = ctx.obj["context"]
+    context = _get_or_build_context(ctx)
     outcome = config_validate_command(context)
     context.output.print()
     if not outcome.ok:

@@ -63,9 +63,21 @@ class RichOutput:
         self._items.append(table)
 
     def render_not_initialized(self, errors: list[str], *, fix_hint: str) -> None:
-        """Add standardized not-initialized error panel."""
-        message = "\n\n".join(errors) if errors else f".worktree/config.json not found.\nFix:\n- {fix_hint}"
-        self.add_error_panel("Worktree Not Initialized", message)
+        """Add standardized not-initialized or invalid-config error panel."""
+        invalid_indicators = (
+            "CONFIG_SCHEMA_INVALID",
+            "CONFIG_MALFORMED_JSON",
+            "CONFIG_ROOT_NOT_OBJECT",
+            "PATH_IS_DIRECTORY",
+            "CONFIG_UNREADABLE",
+            "Config schema validation failed",
+            "Malformed config.json",
+        )
+        if errors and any(any(ind in e for ind in invalid_indicators) for e in errors):
+            self.add_error_panel("Invalid Worktree Configuration", "\n\n".join(errors))
+        else:
+            message = "\n\n".join(errors) if errors else f".worktree/config.json not found.\nFix:\n- {fix_hint}"
+            self.add_error_panel("Worktree Not Initialized", message)
 
     def print(self) -> None:
         """Flush and print all accumulated renderables to the console."""

@@ -172,8 +172,37 @@ class TestStatusDegraded:
 
         assert "Worktree Workspace Status (Degraded)" in rendered
         assert "CONFIG_SCHEMA_INVALID" in rendered
+        assert "unknown (invalid config)" in rendered
+        assert "Uninitialized" not in rendered
         assert "Next Steps & Remediation:" in rendered
         assert "Run 'wt config validate' to inspect schema errors or 'wt init --repair'" in rendered
+
+    def test_schema_invalid_with_raw_project_name_rendering(self) -> None:
+        """Verify degraded table renders raw project name from unvalidated config dict."""
+        rich_output, buffer = make_rich_output()
+        root = Path("/workspace/schema-invalid-repo")
+        config_info = ConfigStatusInfo(
+            status=ConfigLoadStatus.SCHEMA_INVALID,
+            config_path=root / ".worktree" / "config.json",
+            is_valid=False,
+            raw={"version": 1, "project": {"name": "my-broken-app"}},
+            config=None,
+            errors=["Config schema validation failed (CONFIG_SCHEMA_INVALID):\n- 'concurrency' is a required property"],
+        )
+        result = _make_status_result(
+            root_dir=root,
+            is_initialized=True,
+            config=config_info,
+        )
+
+        render_status_summary(result, output=rich_output)
+        rich_output.print()
+        rendered = buffer.getvalue()
+
+        assert "Worktree Workspace Status (Degraded)" in rendered
+        assert "my-broken-app" in rendered
+        assert "CONFIG_SCHEMA_INVALID" in rendered
+        assert "Uninitialized" not in rendered
 
     def test_root_not_object_degraded_rendering(self) -> None:
         """Verify degraded table and object root remediation when config is not a JSON object."""
