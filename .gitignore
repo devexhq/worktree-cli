@@ -177,3 +177,5 @@ pyrightconfig.json
 
 # Worktree CLI cache and local databases
 /.worktree/
+
+scratch/
