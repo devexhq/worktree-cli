@@ -63,3 +63,10 @@ class TestGitSandboxManager:
         warnings = manager.cleanup_sandbox(row)
         assert warnings == []
         assert not create_res.session.sandbox_path.exists()
+
+    def test_detect_stale_sandboxes(self, git_fs: GitFileSystem) -> None:
+        git_fs.init_repo()
+        manager = GitSandboxManager(path=git_fs.base_path, db=self.db.sandboxes)
+        detect_res = manager.detect_stale_sandboxes()
+        assert detect_res.ok
+        assert detect_res.total_stale_count == 0

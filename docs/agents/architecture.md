@@ -16,8 +16,8 @@ src/worktree/cli/<name>/             One package per CLI subcommand (thin wrappe
 
 src/worktree/core/                   Business logic (no Typer)
   bootstrap.py                       .worktree/ create/repair
-  git/                               runner.py (stateless GitRunner), exceptions.py
-  sandbox/                           models.py, exceptions.py, manager.py, services/{lifecycle,patch,wip}.py
+  git/                               models.py, runner.py (stateless GitRunner), exceptions.py
+  sandbox/                           models.py, exceptions.py, manager.py, services/{detector,lifecycle,patch,wip}.py
   config/                            Legacy flat infra (loader/mutate/validate/…)
   db/                                models.py, connection.py, migrations.py, repositories/, alembic/
   inputs/                            models.py + services/ (resolve, interpolate, renderer)

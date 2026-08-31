@@ -12,10 +12,15 @@ from .models import (
     SandboxApplyStrategy,
     SandboxCreateResult,
     SandboxCreateStatus,
+    SandboxDetectionResult,
+    SandboxDetectionStatus,
     SandboxDiffResult,
     SandboxDiffStatus,
     SandboxSession,
+    StaleSandboxCategory,
+    StaleSandboxItem,
 )
+from .services.detector import SandboxDetector, detect_stale_sandboxes
 from .services.lifecycle import SandboxLifecycle
 from .services.patch import SandboxPatch
 from .services.wip import apply_wip_to_sandbox
@@ -29,11 +34,17 @@ __all__ = [
     "SandboxConfigError",
     "SandboxCreateResult",
     "SandboxCreateStatus",
+    "SandboxDetectionResult",
+    "SandboxDetectionStatus",
+    "SandboxDetector",
     "SandboxDiffResult",
     "SandboxDiffStatus",
     "SandboxError",
     "SandboxLifecycle",
     "SandboxPatch",
     "SandboxSession",
+    "StaleSandboxCategory",
+    "StaleSandboxItem",
     "apply_wip_to_sandbox",
+    "detect_stale_sandboxes",
 ]

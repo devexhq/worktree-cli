@@ -6,6 +6,7 @@ from .exceptions import (
     GitNotFoundError,
     GitPlumbingTimeoutError,
 )
+from .models import GitWorktreeEntry
 from .runner import GitRunner
 
 __all__ = [
@@ -14,4 +15,5 @@ __all__ = [
     "GitNotFoundError",
     "GitPlumbingTimeoutError",
     "GitRunner",
+    "GitWorktreeEntry",
 ]

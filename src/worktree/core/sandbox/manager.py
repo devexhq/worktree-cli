@@ -6,14 +6,16 @@ from pathlib import Path
 
 from worktree.common.lock import WorkspaceLock
 from worktree.core.config.models import WorktreeConfig
-from worktree.core.db import SandboxesRepository, SandboxRecord
+from worktree.core.db import RunsRepository, SandboxesRepository, SandboxRecord
 from worktree.core.sandbox.models import (
     SandboxApplyResult,
     SandboxApplyStrategy,
     SandboxCreateResult,
+    SandboxDetectionResult,
     SandboxDiffResult,
     SandboxSession,
 )
+from worktree.core.sandbox.services.detector import SandboxDetector
 from worktree.core.sandbox.services.lifecycle import SandboxLifecycle
 from worktree.core.sandbox.services.patch import SandboxPatch
 
@@ -108,3 +110,11 @@ class GitSandboxManager:
     ) -> SandboxDiffResult:
         """Inspect unified diff or diffstat for a sandbox."""
         return self.patch.diff(sandbox_id=sandbox_id, stat=stat)
+
+    def detect_stale_sandboxes(
+        self,
+        runs_db: RunsRepository | None = None,
+    ) -> SandboxDetectionResult:
+        """Scan repository for stale sandboxes, orphaned directories, and dead refs."""
+        detector = SandboxDetector(self.path, self.db, runs_db=runs_db)
+        return detector.detect()
