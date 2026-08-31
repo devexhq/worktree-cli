@@ -40,6 +40,36 @@ class StatusCommandTests:
         assert git_fs.base_path.name in out
         assert "feature-cmd" in out
 
+    def test_status_reconciles_stale_run(
+        self,
+        git_fs: GitFileSystem,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
+
+        ctx = make_cli_context(cwd=git_fs.base_path)
+        ctx.db.runs.create(
+            session_id="sbx_status_stale",
+            blueprint_name="my_task",
+            kind="task",
+            pid=9999999,
+        )
+
+        outcome = status_command(ctx)
+        assert outcome.ok
+
+        ctx.output.print()
+        out = capsys.readouterr().out
+        assert "Reconciled 1 interrupted session (session_id: sbx_status_stale)." in out
+        assert "Worktree Workspace Status" in out
+
+        # Re-query db to verify status became failed
+        persisted = ctx.db.runs.get("sbx_status_stale")
+        assert persisted is not None
+        assert persisted.status.value == "failed"
+
     def test_status_without_init(
         self,
         fs: FileSystem,

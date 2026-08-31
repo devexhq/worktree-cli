@@ -11,7 +11,7 @@ from sqlmodel import select
 
 from tests.helpers import FileSystem
 from worktree.core.db import (
-    INITIAL_SCHEMA_REVISION,
+    LATEST_SCHEMA_REVISION,
     BaseRepository,
     BlueprintKind,
     RunRecord,
@@ -83,11 +83,14 @@ class TestProgrammaticMigrations:
         try:
             cursor = conn.execute("SELECT version_num FROM alembic_version")
             version_row = cursor.fetchone()
+            cursor = conn.execute("PRAGMA table_info(runs);")
+            columns = [row[1] for row in cursor.fetchall()]
         finally:
             conn.close()
 
         assert version_row is not None
-        assert version_row[0] == INITIAL_SCHEMA_REVISION
+        assert version_row[0] == LATEST_SCHEMA_REVISION
+        assert "pid" in columns
 
     def test_resolve_db_path_helper(self, tmp_path: Path) -> None:
         resolved = resolve_db_path(path=tmp_path, db_rel_path=".custom/my.db")

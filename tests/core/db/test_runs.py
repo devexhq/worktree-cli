@@ -39,9 +39,27 @@ class TestRunsRepository:
         assert rec.completed_at is None
         assert rec.error_message is None
         assert rec.checkpoint_json is None
+        assert rec.pid is None
 
         fetched = self.db.runs.get("run_1")
         assert fetched == rec
+
+    def test_create_with_pid(self, fs: FileSystem) -> None:
+        rec = self.db.runs.create(
+            session_id="run_pid",
+            blueprint_name="test_bp",
+            kind=BlueprintKind.TASK,
+            pid=12345,
+        )
+        assert rec.pid == 12345
+
+        fetched = self.db.runs.get("run_pid")
+        assert fetched is not None
+        assert fetched.pid == 12345
+
+        updated = self.db.runs.update_status("run_pid", status=RunStatus.RUNNING, pid=67890)
+        assert updated is not None
+        assert updated.pid == 67890
 
     def test_create_with_defaults_and_string_enums(self, fs: FileSystem) -> None:
         rec = self.db.runs.create(

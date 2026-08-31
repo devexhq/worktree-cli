@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -43,7 +44,7 @@ class _DbPauseStore:
 
     def clear_pause(self) -> None:
         """Mark the tracked run running again after an in-process prompt returns."""
-        self._db.update_status(self._session_id, RunStatus.RUNNING)
+        self._db.update_status(self._session_id, RunStatus.RUNNING, pid=os.getpid())
 
     def finalize(self, status: RunStatus, error_message: str | None) -> None:
         """Write the terminal (or paused) status after ``run_steps`` returns."""
@@ -243,6 +244,7 @@ class Engine:
             kind=blueprint.kind,
             branch_name="",
             status=RunStatus.RUNNING,
+            pid=os.getpid(),
         )
 
     def _resolve_run_inputs(self, blueprint: Blueprint, request: RunRequest) -> InputResolveResult:

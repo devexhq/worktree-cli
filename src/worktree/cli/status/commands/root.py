@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from worktree.cli.context import CliContext
+from worktree.core.engine import format_reconciliation_warning, reconcile_stale_runs
 from worktree.core.status import collect_status
 
 from ..models import StatusCommandOutcome
@@ -11,6 +12,14 @@ from ..renderers import render_status_summary
 
 def status_command(context: CliContext) -> StatusCommandOutcome:
     """Inspect active worktree configuration and repository context."""
+    try:
+        reconciled = reconcile_stale_runs(context.db)
+        warning_message = format_reconciliation_warning(reconciled)
+        if warning_message:
+            context.output.add_warning(warning_message)
+    except Exception:
+        pass
+
     try:
         result = collect_status(context.cwd)
     except Exception as exc:

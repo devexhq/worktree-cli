@@ -90,6 +90,39 @@ class BlueprintRunServiceTests:
         assert record.status == RunStatus.COMPLETED
         assert record.kind == BlueprintKind.WORKFLOW
 
+    def test_blueprint_run_service_reconciles_stale_runs(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Verify BlueprintRunService reconciles dead running runs before starting execution."""
+        monkeypatch.chdir(fs.base_path)
+        fs.create_task_file(
+            "quick-task",
+            description="Quick task",
+            summary="Quick task",
+            use_sandbox=False,
+            steps=[{"id": "step-1", "run": "echo done"}],
+        )
+
+        self.db.runs.create(
+            session_id="dead_prior_run",
+            blueprint_name="old_task",
+            kind="task",
+            pid=9999999,
+        )
+
+        ctx = make_cli_context(cwd=fs.base_path)
+        res = BlueprintRunService(
+            name="quick-task",
+            path=ctx.cwd,
+            runs_db=ctx.db.runs,
+            catalog_db=ctx.db.catalog,
+            output=ctx.output,
+            session_id="new_run_1",
+        ).execute()
+        assert res.ok
+
+        stale_rec = self.db.runs.get("dead_prior_run")
+        assert stale_rec is not None
+        assert stale_rec.status == RunStatus.FAILED
+
 
 class RunCliTests:
     """CLI integration tests for wt run command."""
