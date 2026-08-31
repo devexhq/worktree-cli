@@ -274,18 +274,18 @@ class StepExecution:
         stderr_lines: list[str] = []
         pipe_errors: list[str] = []
 
-        t_out = threading.Thread(
+        stdout_thread = threading.Thread(
             target=self._stream_pipe,
             args=(proc.stdout, "stdout", stdout_lines, pipe_errors),
             daemon=True,
         )
-        t_err = threading.Thread(
+        stderr_thread = threading.Thread(
             target=self._stream_pipe,
             args=(proc.stderr, "stderr", stderr_lines, pipe_errors),
             daemon=True,
         )
-        t_out.start()
-        t_err.start()
+        stdout_thread.start()
+        stderr_thread.start()
 
         timed_out = False
         exit_code = 0
@@ -307,8 +307,8 @@ class StepExecution:
             process_registry.unregister(proc)
             if proc.poll() is None:
                 self._terminate_process_tree(proc, pgid=pgid, grace_seconds=0.5)
-            t_out.join(timeout=2)
-            t_err.join(timeout=2)
+            stdout_thread.join(timeout=2)
+            stderr_thread.join(timeout=2)
 
         stdout = "".join(stdout_lines)
         stderr = "".join(stderr_lines)

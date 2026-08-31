@@ -171,7 +171,33 @@ def run_isolated_process(
     text: bool = False,
     grace_seconds: float = DEFAULT_GRACE_PERIOD_SECONDS,
 ) -> subprocess.CompletedProcess[Any]:
-    """Execute a subprocess inside an isolated process group with cascading termination."""
+    """Execute a subprocess inside an isolated process group with cascading termination.
+
+    Spawns the subprocess in a dedicated session/process group (via `start_new_session=True`
+    on POSIX or `CREATE_NEW_PROCESS_GROUP` on Windows) and registers it in `ProcessRegistry`.
+    If execution exceeds `timeout_seconds`, cascading termination is sent to the entire
+    process tree (`SIGTERM` followed by `grace_seconds` before escalating to `SIGKILL`).
+    Upon any unexpected exception or interrupt, active child processes are reaped before
+    re-raising.
+
+    Args:
+        cmd: Command string or list of argument strings to execute.
+        cwd: Optional working directory for the subprocess.
+        env: Optional environment variables dictionary.
+        input_data: Optional bytes or string input to pass to standard input.
+        timeout_seconds: Subprocess execution timeout in seconds.
+        shell: When True, executes the command through the system shell.
+        text: When True, stdout and stderr streams are decoded as strings.
+        grace_seconds: Grace period duration between SIGTERM and SIGKILL on timeout.
+
+    Returns:
+        A CompletedProcess instance containing stdout, stderr, and returncode.
+
+    Raises:
+        subprocess.TimeoutExpired: When execution exceeds `timeout_seconds`.
+        FileNotFoundError: When the executable command cannot be found.
+        OSError: When process spawning fails.
+    """
     isolation_kwargs = get_isolated_process_kwargs()
     effective_cwd = str(cwd) if cwd is not None else None
 
