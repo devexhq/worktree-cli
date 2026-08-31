@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from pathlib import Path
 
+from worktree.common.process import process_registry
 from worktree.core.db import RunStatus, SandboxesRepository
 from worktree.core.diff import get_session_dir, write_session_diff
 from worktree.core.git.runner import GitRunner
@@ -523,6 +524,7 @@ def _run_step_loop(
         errors = [str(exc)] if str(exc) else []
         return RunStatus.PAUSED, state.step_results, errors, state.warnings
     except KeyboardInterrupt:
+        process_registry.terminate_all(grace_seconds=0.5)
         return RunStatus.CANCELLED, state.step_results, ["Execution cancelled by user."], state.warnings
     return status, state.step_results, errors, state.warnings
 
@@ -625,6 +627,7 @@ def run_steps(context: RunContext) -> RunOutcome:
             if new_status is not None:
                 status = new_status
     finally:
+        process_registry.terminate_all(grace_seconds=0.5)
         _capture_and_persist_diff(context, session, warnings)
         sandbox_kept = _finalize_sandbox_cleanup(context, manager, session, target_dir, status, apply_failed)
 

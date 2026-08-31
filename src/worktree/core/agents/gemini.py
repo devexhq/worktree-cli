@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 
+from worktree.common.process import run_isolated_process
 from worktree.core.agents.base import AgentRequest
 from worktree.core.agents.cli_mutation import (
     CliDirectMutationAdapter,
@@ -61,16 +62,12 @@ def default_gemini_run(request: CliMutationRunRequest) -> CliMutationOutcome:
     env[GEMINI_API_KEY_ENV] = api_key
 
     try:
-        completed = subprocess.run(
+        completed = run_isolated_process(
             cmd,
-            cwd=str(request.sandbox_path),
+            cwd=request.sandbox_path,
             env=env,
-            input=request.prompt.encode("utf-8"),
-            capture_output=True,
-            text=False,
-            shell=False,
-            timeout=request.timeout_seconds,
-            check=False,
+            input_data=request.prompt.encode("utf-8"),
+            timeout_seconds=request.timeout_seconds,
         )
     except subprocess.TimeoutExpired:
         return CliMutationOutcome(status="timeout")
