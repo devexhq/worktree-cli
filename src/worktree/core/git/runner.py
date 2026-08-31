@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+from typing import Any
 
 from worktree.common.constants import GIT_SUBPROCESS_TIMEOUT_SECONDS
 from worktree.core.git.exceptions import (
@@ -11,6 +12,88 @@ from worktree.core.git.exceptions import (
     GitNotFoundError,
     GitPlumbingTimeoutError,
 )
+from worktree.core.git.models import GitWorktreeEntry
+
+
+def _extract_branch_name(raw_branch: str) -> str:
+    """Strip refs/heads/ prefix from git branch name."""
+    return raw_branch.removeprefix("refs/heads/").strip()
+
+
+def _parse_flag_attribute(entry_data: dict[str, Any], line: str) -> bool:
+    """Parse boolean and status flags from porcelain line."""
+    if line == "bare":
+        entry_data["is_bare"] = True
+        return True
+    if line == "detached":
+        entry_data["is_detached"] = True
+        return True
+    if line.startswith("locked"):
+        entry_data["is_locked"] = True
+        return True
+    if line.startswith("prunable"):
+        entry_data["is_prunable"] = True
+        reason = line.removeprefix("prunable").strip()
+        entry_data["prunable_reason"] = reason if reason else None
+        return True
+    return False
+
+
+def _parse_worktree_attribute(entry_data: dict[str, Any], line: str) -> None:
+    """Extract a single porcelain attribute line into entry dictionary."""
+    if _parse_flag_attribute(entry_data, line):
+        return
+    if line.startswith("worktree "):
+        entry_data["path"] = Path(line.removeprefix("worktree ").strip())
+    elif line.startswith("HEAD "):
+        entry_data["head_sha"] = line.removeprefix("HEAD ").strip()
+    elif line.startswith("branch "):
+        entry_data["branch"] = _extract_branch_name(line.removeprefix("branch "))
+
+
+def _parse_worktree_stanza(lines: list[str]) -> GitWorktreeEntry | None:
+    """Convert accumulated lines of one worktree block into GitWorktreeEntry."""
+    data: dict[str, Any] = {
+        "head_sha": "",
+        "branch": None,
+        "is_bare": False,
+        "is_detached": False,
+        "is_locked": False,
+        "is_prunable": False,
+        "prunable_reason": None,
+    }
+    for line in lines:
+        _parse_worktree_attribute(data, line)
+    if "path" not in data or data["path"] is None:
+        return None
+    return GitWorktreeEntry(**data)
+
+
+def _collect_stanzas(output: str) -> list[list[str]]:
+    """Split porcelain text into lists of lines per stanza."""
+    stanzas: list[list[str]] = []
+    current: list[str] = []
+    for line in output.splitlines():
+        trimmed = line.strip()
+        if not trimmed:
+            if current:
+                stanzas.append(current)
+                current = []
+        else:
+            current.append(trimmed)
+    if current:
+        stanzas.append(current)
+    return stanzas
+
+
+def _parse_worktree_porcelain(output: str) -> list[GitWorktreeEntry]:
+    """Parse output from `git worktree list --porcelain` into GitWorktreeEntry list."""
+    entries: list[GitWorktreeEntry] = []
+    for stanza in _collect_stanzas(output):
+        entry = _parse_worktree_stanza(stanza)
+        if entry is not None:
+            entries.append(entry)
+    return entries
 
 
 class GitRunner:
@@ -117,6 +200,12 @@ class GitRunner:
         GitRunner.run(["worktree", "prune"], path=path)
 
     @staticmethod
+    def worktree_list(path: Path) -> list[GitWorktreeEntry]:
+        """Parse and return all registered worktrees via `git worktree list --porcelain`."""
+        output = GitRunner.run(["worktree", "list", "--porcelain"], path=path)
+        return _parse_worktree_porcelain(output)
+
+    @staticmethod
     def branch_delete(
         path: Path,
         branch: str,
@@ -126,6 +215,16 @@ class GitRunner:
         """Delete a git branch."""
         flag = "-D" if force else "-d"
         GitRunner.run(["branch", flag, branch], path=path)
+
+    @staticmethod
+    def list_branches(path: Path, pattern: str | None = None) -> list[str]:
+        """List local branch names matching optional pattern."""
+        ref_pattern = f"refs/heads/{pattern}" if pattern else "refs/heads/"
+        output = GitRunner.run(
+            ["for-each-ref", "--format=%(refname:short)", ref_pattern],
+            path=path,
+        )
+        return [line.strip() for line in output.splitlines() if line.strip()]
 
     @staticmethod
     def rev_parse(path: Path, rev: str = "HEAD") -> str:

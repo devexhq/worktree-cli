@@ -118,3 +118,88 @@ class SandboxDiffResult(BaseModel):
     def ok(self) -> bool:
         """Return True when diff was generated successfully without errors."""
         return self.status == SandboxDiffStatus.OK and not self.errors
+
+
+class StaleSandboxCategory(StrEnum):
+    """Classification category for stale sandbox resources."""
+
+    STALE_WORKTREE_REF = "stale_worktree_ref"
+    ORPHANED_DIRECTORY = "orphaned_directory"
+    STALE_DB_RECORD = "stale_db_record"
+    STALE_BRANCH = "stale_branch"
+
+
+class StaleSandboxItem(BaseModel):
+    """Detailed metadata for a detected stale or orphaned sandbox resource."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    category: StaleSandboxCategory
+    identifier: str
+    path: Path | None = None
+    branch_name: str | None = None
+    session_id: str | None = None
+    is_dirty: bool = False
+    dirty_file_count: int = 0
+    reason: str = ""
+
+
+class SandboxDetectionStatus(StrEnum):
+    """Outcome status for stale sandbox scanning."""
+
+    OK = "ok"
+    GIT_FAILED = "git_failed"
+    UNREADABLE_CONFIG = "unreadable_config"
+    ERROR = "error"
+
+
+class SandboxDetectionResult(BaseModel):
+    """Structured, non-raising result of stale sandbox detection."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    status: SandboxDetectionStatus = SandboxDetectionStatus.OK
+    items: list[StaleSandboxItem] = Field(default_factory=list)
+    active_sandbox_count: int = 0
+    errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        """Return True when detection completed without classified errors."""
+        return self.status == SandboxDetectionStatus.OK and not self.errors
+
+    @property
+    def total_stale_count(self) -> int:
+        """Return total count of stale items detected."""
+        return len(self.items)
+
+    @property
+    def has_stale_items(self) -> bool:
+        """Return True if any stale items were detected."""
+        return len(self.items) > 0
+
+    @property
+    def has_dirty_orphans(self) -> bool:
+        """Return True if any orphaned directory has uncommitted changes."""
+        return any(item.is_dirty for item in self.items)
+
+    @property
+    def stale_worktrees(self) -> list[StaleSandboxItem]:
+        """Return stale Git worktree registration items."""
+        return [i for i in self.items if i.category == StaleSandboxCategory.STALE_WORKTREE_REF]
+
+    @property
+    def orphaned_directories(self) -> list[StaleSandboxItem]:
+        """Return unindexed or non-active sandbox directory items."""
+        return [i for i in self.items if i.category == StaleSandboxCategory.ORPHANED_DIRECTORY]
+
+    @property
+    def stale_db_records(self) -> list[StaleSandboxItem]:
+        """Return active database records missing on disk."""
+        return [i for i in self.items if i.category == StaleSandboxCategory.STALE_DB_RECORD]
+
+    @property
+    def stale_branches(self) -> list[StaleSandboxItem]:
+        """Return unlinked sandbox branch items."""
+        return [i for i in self.items if i.category == StaleSandboxCategory.STALE_BRANCH]

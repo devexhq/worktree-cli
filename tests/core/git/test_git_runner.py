@@ -128,3 +128,51 @@ def test_git_runner_diff_and_apply(tmp_path: Path) -> None:
     GitRunner.add_all(dest)
     GitRunner.commit(dest, "squash commit")
     assert GitRunner.rev_parse(dest, rev="HEAD") != base_commit
+
+
+def test_git_runner_worktree_list(tmp_path: Path) -> None:
+    _init_git_repo(tmp_path)
+    entries = GitRunner.worktree_list(tmp_path)
+    assert len(entries) == 1
+    assert entries[0].path.resolve() == tmp_path.resolve()
+    assert entries[0].branch == "main"
+    assert not entries[0].is_bare
+    assert not entries[0].is_prunable
+
+    target = tmp_path / "wt2"
+    GitRunner.worktree_add(tmp_path, target_path=target, branch="branch2", base_ref="main")
+    entries = GitRunner.worktree_list(tmp_path)
+    assert len(entries) == 2
+    paths = [e.path.resolve() for e in entries]
+    assert target.resolve() in paths
+
+    # Remove target directory directly to test prunable detection
+    import shutil
+
+    shutil.rmtree(target)
+    entries = GitRunner.worktree_list(tmp_path)
+    # The removed worktree is either marked prunable or path missing
+    wt2_entry = next((e for e in entries if e.path.resolve() == target.resolve()), None)
+    assert wt2_entry is not None
+    assert not wt2_entry.path.exists()
+
+    GitRunner.worktree_prune(tmp_path)
+    entries_after_prune = GitRunner.worktree_list(tmp_path)
+    assert len(entries_after_prune) == 1
+
+
+def test_git_runner_list_branches(tmp_path: Path) -> None:
+    _init_git_repo(tmp_path)
+    branches = GitRunner.list_branches(tmp_path)
+    assert "main" in branches
+
+    subprocess.run(["git", "branch", "worktree/sandbox-sbx1"], cwd=str(tmp_path), check=True, capture_output=True)
+    subprocess.run(["git", "branch", "feature/test"], cwd=str(tmp_path), check=True, capture_output=True)
+
+    all_branches = GitRunner.list_branches(tmp_path)
+    assert "worktree/sandbox-sbx1" in all_branches
+    assert "feature/test" in all_branches
+
+    sandbox_branches = GitRunner.list_branches(tmp_path, pattern="worktree/*")
+    assert "worktree/sandbox-sbx1" in sandbox_branches
+    assert "feature/test" not in sandbox_branches
