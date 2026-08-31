@@ -146,7 +146,7 @@ class ConfigSetCliTests:
         result = runner.invoke(app, ["config", "set", "agent.model", "qwen2.5-coder"])
         assert result.exit_code == 1
         combined = result.stdout + result.stderr
-        assert "Not initialized or invalid config" in combined
+        assert "Config Error" in combined
         assert _read_config(config_path)["agent"] == "scalar-value"
 
     def test_set_missing_config(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -154,7 +154,8 @@ class ConfigSetCliTests:
         result = runner.invoke(app, ["config", "set", "agent.model", "x"])
         assert result.exit_code == 1
         combined = result.stdout + result.stderr
-        assert "Not initialized or invalid config" in combined
+        assert "Config Error" in combined
+        assert "not found" in combined
 
     def test_help_lists_config_set(self) -> None:
         result = runner.invoke(app, ["config", "set", "--help"])

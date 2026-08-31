@@ -92,6 +92,31 @@ class StatusCommandTests:
         assert "Worktree workspace is not initialized" in out
         assert "Run 'wt init' to initialize Worktree in this repository." in out
 
+    def test_status_with_broken_config_does_not_report_uninitialized(
+        self,
+        git_fs: GitFileSystem,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
+        # Corrupt config by writing an incomplete JSON
+        config_path = git_fs.base_path / ".worktree" / "config.json"
+        config_path.write_text('{"version": 1, "project": {"name": "test-broken-proj"}}\n', encoding="utf-8")
+
+        ctx = make_cli_context(cwd=git_fs.base_path)
+        outcome = status_command(ctx)
+        assert outcome.ok
+        assert outcome.result is not None
+        assert outcome.result.is_initialized
+
+        ctx.output.print()
+        out = capsys.readouterr().out
+        assert "Worktree Workspace Status (Degraded)" in out
+        assert "test-broken-proj" in out
+        assert "CONFIG_SCHEMA_INVALID" in out
+        assert "Uninitialized" not in out
+
     def test_status_handles_exception(
         self,
         fs: FileSystem,

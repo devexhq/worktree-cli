@@ -115,7 +115,8 @@ class ConfigShowCliTests:
         result = runner.invoke(app, ["config", "show"])
         assert result.exit_code == 1
         combined = result.stdout + result.stderr
-        assert "Not initialized or invalid config" in combined
+        assert "Config Error" in combined
+        assert "not found" in combined
         _assert_no_success_header(result.stdout)
         # Must not look like a successful effective JSON object dump.
         with pytest.raises(json.JSONDecodeError):
@@ -130,7 +131,8 @@ class ConfigShowCliTests:
         result = runner.invoke(app, ["config", "show"])
         assert result.exit_code == 1
         combined = result.stdout + result.stderr
-        assert "Not initialized or invalid config" in combined
+        assert "Config Error" in combined
+        assert "CONFIG_SCHEMA_INVALID" in combined
         _assert_no_success_header(result.stdout)
         with pytest.raises(json.JSONDecodeError):
             json.loads(result.stdout)

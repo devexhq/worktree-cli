@@ -342,7 +342,7 @@ class SandboxCreateCliTests:
         monkeypatch.chdir(git_fs.base_path)
         result = runner.invoke(app, ["sandbox", "create"])
         assert result.exit_code == 1
-        assert "Not initialized or invalid config" in result.stdout or "Sandbox Create Failed" in result.stdout
+        assert "Worktree workspace is not initialized" in result.stdout or "Sandbox Create Failed" in result.stdout
 
     def test_create_invalid_base_ref_via_cli(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_fs.base_path)

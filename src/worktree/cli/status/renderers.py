@@ -43,8 +43,14 @@ def _format_project_name(result: WorktreeStatusResult) -> str:
     """Format project name with uninitialized fallback."""
     if result.config.config is not None and result.config.config.project.name:
         return result.config.config.project.name
+    if result.config.raw is not None:
+        raw_project = result.config.raw.get("project")
+        if isinstance(raw_project, dict) and raw_project.get("name"):
+            return str(raw_project["name"])
     if result.config.status == ConfigLoadStatus.OK:
         return "[dim]unnamed_project[/dim]"
+    if result.is_initialized and result.config.status != ConfigLoadStatus.NOT_FOUND:
+        return "[dim]unknown (invalid config)[/dim]"
     return "[dim]Uninitialized[/dim]"
 
 

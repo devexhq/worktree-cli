@@ -309,9 +309,8 @@ class ConfigValidateCliTests:
         monkeypatch.chdir(git_fs.base_path)
         result = runner.invoke(app, ["config", "validate"])
         assert result.exit_code == 1
-        combined = result.stdout + result.stderr
-        assert "Not initialized or invalid config" in combined
-        assert "wt init" in combined
+        combined = _assert_failure_output(result.stdout, result.stderr)
+        assert "not found" in combined
 
     def test_validate_schema_invalid(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_fs.base_path)
@@ -321,8 +320,8 @@ class ConfigValidateCliTests:
 
         result = runner.invoke(app, ["config", "validate"])
         assert result.exit_code == 1
-        combined = result.stdout + result.stderr
-        assert "Not initialized or invalid config" in combined
+        combined = _assert_failure_output(result.stdout, result.stderr)
+        assert "CONFIG_SCHEMA_INVALID" in combined
 
     def test_validate_semantic_invalid(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_fs.base_path)
