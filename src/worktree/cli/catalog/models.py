@@ -4,7 +4,20 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from worktree.core.catalog.models import (
+    CatalogCreateResult,
+    CatalogDeleteResult,
+    CatalogListResult,
+    CatalogShowResult,
+)
 from worktree.core.db import CatalogItemType, CatalogRecord
+
+__all__ = [
+    "CatalogCreateCommandOutcome",
+    "CatalogDeleteCommandOutcome",
+    "CatalogListCommandOutcome",
+    "CatalogShowCommandOutcome",
+]
 
 
 class CatalogListCommandOutcome(BaseModel):
@@ -12,8 +25,9 @@ class CatalogListCommandOutcome(BaseModel):
 
     model_config = {"extra": "forbid", "strict": True}
 
+    result: CatalogListResult | None = None
     items: list[CatalogRecord] = Field(default_factory=list)
-    type_filter: CatalogItemType | None = None
+    type_filter: CatalogItemType | str | None = None
     errors: list[str] = Field(default_factory=list)
 
     @property
@@ -27,13 +41,14 @@ class CatalogCreateCommandOutcome(BaseModel):
 
     model_config = {"extra": "forbid", "strict": True}
 
+    result: CatalogCreateResult | None = None
     item: CatalogRecord | None = None
     errors: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:
         """Return True if item creation succeeded."""
-        return not self.errors and self.item is not None
+        return not self.errors and (self.item is not None or (self.result is not None and self.result.ok))
 
 
 class CatalogShowCommandOutcome(BaseModel):
@@ -41,6 +56,7 @@ class CatalogShowCommandOutcome(BaseModel):
 
     model_config = {"extra": "forbid", "strict": True}
 
+    result: CatalogShowResult | None = None
     item: CatalogRecord | None = None
     content: str | None = None
     errors: list[str] = Field(default_factory=list)
@@ -48,7 +64,9 @@ class CatalogShowCommandOutcome(BaseModel):
     @property
     def ok(self) -> bool:
         """Return True if a catalog item or packaged template was found and rendered."""
-        return not self.errors and (self.item is not None or self.content is not None)
+        return not self.errors and (
+            self.item is not None or self.content is not None or (self.result is not None and self.result.ok)
+        )
 
 
 class CatalogDeleteCommandOutcome(BaseModel):
@@ -56,6 +74,7 @@ class CatalogDeleteCommandOutcome(BaseModel):
 
     model_config = {"extra": "forbid", "strict": True}
 
+    result: CatalogDeleteResult | None = None
     item: CatalogRecord | None = None
     deleted: bool = False
     errors: list[str] = Field(default_factory=list)
@@ -63,4 +82,4 @@ class CatalogDeleteCommandOutcome(BaseModel):
     @property
     def ok(self) -> bool:
         """Return True if item deletion succeeded."""
-        return not self.errors and self.deleted
+        return not self.errors and (self.deleted or (self.result is not None and self.result.ok))

@@ -4,30 +4,30 @@ from __future__ import annotations
 
 import typer
 
+from worktree.cli.catalog.models import CatalogDeleteCommandOutcome
 from worktree.cli.context import CliContext
+from worktree.cli.ui.dispatcher import ui_dispatcher
 from worktree.core.catalog import Catalog
-
-from ..models import CatalogDeleteCommandOutcome
-from ..renderers import render_catalog_delete_success
+from worktree.core.catalog.models import CatalogDeleteResult
 
 
 def catalog_delete_command(
     context: CliContext,
     sha_or_name: str,
     force: bool = False,
+    output_format: str = "terminal",
 ) -> CatalogDeleteCommandOutcome:
     """Delete a catalog blueprint file and its database index record.
 
     Args:
+        context: CLI context instance.
         sha_or_name: SHA identifier or name of the blueprint to delete.
         force: When True, skip the confirmation prompt.
-        context: CLI context instance.
+        output_format: Presentation format ("terminal" or "json").
 
     Returns:
         CatalogDeleteCommandOutcome indicating deletion status.
     """
-    output = context.output
-
     if not force:
         try:
             confirmed = typer.confirm(
@@ -37,15 +37,18 @@ def catalog_delete_command(
         except typer.Abort:
             confirmed = False
         if not confirmed:
-            output.add_line("Deletion cancelled.")
-            return CatalogDeleteCommandOutcome(item=None, deleted=False, errors=["Deletion cancelled."])
+            result = CatalogDeleteResult(cancelled=True, errors=["Deletion cancelled."])
+            ui_dispatcher.dispatch(result, output_format=output_format)
+            return CatalogDeleteCommandOutcome(result=result, item=None, deleted=False, errors=["Deletion cancelled."])
 
     catalog = Catalog(path=context.cwd, db=context.db.catalog)
     deleted_item = catalog.delete(sha_or_name)
     if deleted_item is None:
         error_message = f"Catalog blueprint '{sha_or_name}' not found."
-        output.add_error_panel("Catalog Delete Failed", error_message)
-        return CatalogDeleteCommandOutcome(item=None, deleted=False, errors=[error_message])
+        result = CatalogDeleteResult(errors=[error_message])
+        ui_dispatcher.dispatch(result, output_format=output_format)
+        return CatalogDeleteCommandOutcome(result=result, item=None, deleted=False, errors=[error_message])
 
-    render_catalog_delete_success(deleted_item, output=output)
-    return CatalogDeleteCommandOutcome(item=deleted_item, deleted=True)
+    result = CatalogDeleteResult(item=deleted_item, deleted=True)
+    ui_dispatcher.dispatch(result, output_format=output_format)
+    return CatalogDeleteCommandOutcome(result=result, item=deleted_item, deleted=True)

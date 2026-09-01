@@ -7,14 +7,25 @@ from worktree.core.catalog.exceptions import (
     CatalogYamlError,
 )
 from worktree.core.catalog.facade import Catalog
-from worktree.core.catalog.models import CatalogResolveResult, CatalogResolveStatus
+from worktree.core.catalog.models import (
+    CatalogCreateResult,
+    CatalogDeleteResult,
+    CatalogListResult,
+    CatalogResolveResult,
+    CatalogResolveStatus,
+    CatalogShowResult,
+)
 
 __all__ = [
     "Catalog",
+    "CatalogCreateResult",
+    "CatalogDeleteResult",
     "CatalogError",
     "CatalogFileNotFoundError",
+    "CatalogListResult",
     "CatalogResolveResult",
     "CatalogResolveStatus",
+    "CatalogShowResult",
     "CatalogWriteError",
     "CatalogYamlError",
 ]

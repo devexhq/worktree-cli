@@ -230,3 +230,42 @@ class CatalogCliTests:
         # wt catalog delete non-existent
         res_del_fail = runner.invoke(app, ["catalog", "delete", "non-existent", "--force"])
         assert res_del_fail.exit_code == 1
+
+    def test_cli_catalog_commands_json_format(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        import json
+
+        fs.create_config_file()
+        monkeypatch.chdir(fs.base_path)
+
+        # wt catalog create --format json
+        res_create = runner.invoke(app, ["catalog", "create", "workflow", "--name", "json-wf", "--format", "json"])
+        assert res_create.exit_code == 0
+        lines = [line for line in res_create.output.strip().split("\n") if line]
+        payload = json.loads(lines[-1])
+        assert payload["event_type"] == "CatalogCreateResult"
+        assert payload["payload"]["item"]["name"] == "json-wf"
+
+        # wt catalog list --format json
+        res_list = runner.invoke(app, ["catalog", "list", "--format", "json"])
+        assert res_list.exit_code == 0
+        lines = [line for line in res_list.output.strip().split("\n") if line]
+        payload = json.loads(lines[-1])
+        assert payload["event_type"] == "CatalogListResult"
+        assert len(payload["payload"]["items"]) == 1
+        assert payload["payload"]["items"][0]["name"] == "json-wf"
+
+        # wt catalog show --format json
+        res_show = runner.invoke(app, ["catalog", "show", "json-wf", "--format", "json"])
+        assert res_show.exit_code == 0
+        lines = [line for line in res_show.output.strip().split("\n") if line]
+        payload = json.loads(lines[-1])
+        assert payload["event_type"] == "CatalogShowResult"
+        assert payload["payload"]["item"]["name"] == "json-wf"
+
+        # wt catalog delete --format json
+        res_del = runner.invoke(app, ["catalog", "delete", "json-wf", "--force", "--format", "json"])
+        assert res_del.exit_code == 0
+        lines = [line for line in res_del.output.strip().split("\n") if line]
+        payload = json.loads(lines[-1])
+        assert payload["event_type"] == "CatalogDeleteResult"
+        assert payload["payload"]["deleted"] is True

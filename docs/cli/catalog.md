@@ -23,12 +23,13 @@ The `wt catalog` command manages project blueprint templates for workflows, task
 Lists catalog blueprints indexed in `.worktree/data.db`. Executing `wt catalog` without subcommands defaults to listing blueprints.
 
 ```bash
-wt catalog
+wt catalog [--type <type>] [--format terminal|json]
 ```
 
 #### Options
 
 * `--type [workflow|task|step|template]`: Filter blueprints by item type. `--type template` lists the packaged `default.yml` blueprint scaffolds instead of querying the database.
+* `--format [terminal|json]`: Presentation format (`terminal` or `json`).
 
 ```bash
 # List workflow blueprints
@@ -42,6 +43,9 @@ wt catalog list --type step
 
 # List packaged default.yml templates
 wt catalog list --type template
+
+# Output structured NDJSON envelope
+wt catalog list --format json
 ```
 
 ### `wt catalog create`
@@ -49,7 +53,7 @@ wt catalog list --type template
 Creates a new blueprint template file in `.worktree/catalog/<type>s/<name>.yml` and registers it in SQLite:
 
 ```bash
-wt catalog create <type> --name <name> [OPTIONS]
+wt catalog create <type> --name <name> [--format terminal|json]
 ```
 
 #### Arguments
@@ -59,6 +63,7 @@ wt catalog create <type> --name <name> [OPTIONS]
 #### Options
 
 - `--name TEXT`: Unique blueprint name (required).
+- `--format [terminal|json]`: Presentation format (`terminal` or `json`).
 
 #### Examples
 
@@ -75,8 +80,12 @@ wt catalog create task --name format-code
 Displays definition content and metadata for a specific catalog blueprint. If `<sha_or_name>` is not indexed in the database, falls back to packaged templates under `core/catalog/templates/` (e.g. `default`, or curated names like `fix-tests`):
 
 ```bash
-wt catalog show <sha_or_name>
+wt catalog show <sha_or_name> [--format terminal|json]
 ```
+
+#### Options
+
+- `--format [terminal|json]`: Presentation format (`terminal` or `json`).
 
 ### `wt catalog delete`
 
@@ -89,6 +98,7 @@ wt catalog delete <sha_or_name> [OPTIONS]
 #### Options
 
 - `--force`: Skip confirmation prompt.
+- `--format [terminal|json]`: Presentation format (`terminal` or `json`).
 
 ```bash
 wt catalog delete my-feature --force
