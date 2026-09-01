@@ -1,6 +1,6 @@
-"""Filesystem bootstrap for the local Worktree home directory (`.worktree/`).
+"""Filesystem bootstrap service for the local Worktree directory (.worktree/).
 
-Symlink policy: the `.worktree` root may be a symlink to a directory; required
+Symlink policy: the .worktree root may be a symlink to a directory; required
 subdirectories must be real directories (not symlinks).
 """
 
@@ -9,10 +9,7 @@ from __future__ import annotations
 import json
 import os
 from datetime import UTC, datetime
-from enum import Enum
 from pathlib import Path
-
-from pydantic import BaseModel, Field
 
 from worktree.common.constants import (
     BOOTSTRAP_META_REL,
@@ -21,37 +18,11 @@ from worktree.common.constants import (
 )
 from worktree.common.fs import atomic_write_json
 from worktree.common.utils import display_path
+from worktree.core.bootstrap.models import (
+    BootstrapResult,
+    DirEnsureOutcome,
+)
 from worktree.core.catalog.models import SeedResult
-
-
-class DirEnsureOutcome(Enum):
-    """Result of attempting to ensure a directory exists."""
-
-    CREATED = "created"
-    EXISTING = "existing"
-
-
-class BootstrapResult(BaseModel):
-    """Outcome of bootstrapping the `.worktree/` directory tree."""
-
-    model_config = {
-        "extra": "forbid",
-        "strict": True,
-    }
-
-    root_path: Path
-    root_created: bool = False
-    dirs_created: list[Path] = Field(default_factory=list)
-    dirs_existing: list[Path] = Field(default_factory=list)
-    repaired: bool = False
-    warnings: list[str] = Field(default_factory=list)
-    errors: list[str] = Field(default_factory=list)
-    seed_result: SeedResult = Field(default_factory=SeedResult)
-
-    @property
-    def ok(self) -> bool:
-        """True when bootstrap completed without errors."""
-        return not self.errors
 
 
 def _validate_existing_dir(path: Path, *, allow_symlink: bool) -> None:
@@ -95,7 +66,7 @@ def assert_writable(path: Path) -> None:
 
 
 def load_existing_bootstrap_metadata(meta_path: Path) -> dict[str, object] | None:
-    """Load `.meta/bootstrap.json` if present and valid."""
+    """Load .meta/bootstrap.json if present and valid."""
     if not meta_path.is_file():
         return None
     try:
@@ -171,12 +142,30 @@ def _bootstrap_status(
     return "initialized"
 
 
+def _is_repair(
+    *,
+    root_created: bool,
+    dirs_created: list[Path],
+    dirs_existing: list[Path],
+    prior_meta: dict[str, object] | None,
+) -> bool:
+    """True when missing pieces were added to an already-present worktree layout."""
+    if not dirs_created:
+        return False
+    # Partial tree, re-init after prior bootstrap, or root already existed.
+    return bool(dirs_existing) or prior_meta is not None or not root_created
+
+
+def _ensure_worktree_root(root_path: Path) -> DirEnsureOutcome:
+    return ensure_dir(root_path, allow_symlink=True)
+
+
 def bootstrap_worktree(
     root_path: Path,
     *,
     tool_version: str | None = None,
 ) -> BootstrapResult:
-    """Create and validate the Worktree home layout under ``root_path`` (typically ``.worktree``).
+    """Create and validate the Worktree home layout under root_path (typically .worktree).
 
     Idempotent: safe to run multiple times; never deletes user data.
     """
@@ -234,21 +223,3 @@ def bootstrap_worktree(
 
     result.seed_result = SeedResult()
     return result
-
-
-def _is_repair(
-    *,
-    root_created: bool,
-    dirs_created: list[Path],
-    dirs_existing: list[Path],
-    prior_meta: dict[str, object] | None,
-) -> bool:
-    """True when missing pieces were added to an already-present worktree layout."""
-    if not dirs_created:
-        return False
-    # Partial tree, re-init after prior bootstrap, or root already existed.
-    return bool(dirs_existing) or prior_meta is not None or not root_created
-
-
-def _ensure_worktree_root(root_path: Path) -> DirEnsureOutcome:
-    return ensure_dir(root_path, allow_symlink=True)

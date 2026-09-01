@@ -1,4 +1,4 @@
-"""Tests for `worktree.core.bootstrap`."""
+"""Tests for `worktree.core.bootstrap.services.bootstrap`."""
 
 import json
 import os

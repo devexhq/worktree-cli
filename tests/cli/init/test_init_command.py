@@ -208,7 +208,7 @@ class InitCommandFailureTests:
                 errors=["simulated bootstrap failure"],
             )
 
-        monkeypatch.setattr("worktree.cli.init.commands.root.bootstrap_worktree", boom)
+        monkeypatch.setattr("worktree.core.bootstrap.services.initialize.bootstrap_worktree", boom)
         outcome = init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
         assert not outcome.ok
 
@@ -218,7 +218,7 @@ class InitCommandFailureTests:
         def bad_config(*args, **kwargs):
             return ConfigGenerationResult(errors=["CONFIG_WRITE_FAILED"])
 
-        monkeypatch.setattr("worktree.cli.init.commands.root.generate_default_config", bad_config)
+        monkeypatch.setattr("worktree.core.bootstrap.services.initialize.generate_default_config", bad_config)
         outcome = init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
         assert not outcome.ok
 
@@ -228,7 +228,7 @@ class InitCommandFailureTests:
         def bad_seed(*args, **kwargs):
             return SeedResult(errors=["seed failed"])
 
-        monkeypatch.setattr("worktree.cli.init.commands.root.seed_all_catalog_templates", bad_seed)
+        monkeypatch.setattr("worktree.core.bootstrap.services.initialize.seed_all_catalog_templates", bad_seed)
         outcome = init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
         assert not outcome.ok
 
@@ -246,23 +246,92 @@ class InitCommandFailureTests:
             recorded.append(db_rel_path)
             return Path(path or cwd or ".") / db_rel_path
 
-        monkeypatch.setattr("worktree.cli.init.commands.root.init_database", capture_init_database)
+        monkeypatch.setattr("worktree.core.bootstrap.services.initialize.init_database", capture_init_database)
         monkeypatch.setattr(
-            "worktree.cli.init.commands.root.generate_default_config",
+            "worktree.core.bootstrap.services.initialize.generate_default_config",
             lambda *a, **k: ConfigGenerationResult(
                 skipped_existing=True,
                 config_path=config_path,
             ),
         )
         monkeypatch.setattr(
-            "worktree.cli.init.commands.root.seed_all_catalog_templates",
+            "worktree.core.bootstrap.services.initialize.seed_all_catalog_templates",
             lambda *a, **k: SeedResult(),
         )
         monkeypatch.setattr(
-            "worktree.cli.init.commands.root.bootstrap_worktree",
+            "worktree.core.bootstrap.services.initialize.bootstrap_worktree",
             lambda root_path, *, tool_version=None: BootstrapResult(root_path=root_path, root_created=False),
         )
 
         init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
         assert recorded
         assert recorded[-1] == PathsConfig().db_path
+
+    def test_init_json_format(
+        self,
+        git_fs: GitFileSystem,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+
+        outcome = init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1", output_format="json")
+        assert outcome.ok
+
+        out = capsys.readouterr().out
+        lines = [line for line in out.strip().split("\n") if line]
+        assert len(lines) == 1
+        envelope = json.loads(lines[0])
+        assert envelope["event_type"] == "WorkspaceInitResult"
+        assert envelope["payload"]["bootstrap_result"]["root_created"] is True
+        assert envelope["payload"]["config_result"]["created"] is True
+
+
+class InitCliTests:
+    """CliRunner coverage for `wt init`."""
+
+    def test_init_help_includes_format_option(self) -> None:
+        from typer.main import get_command
+        from typer.testing import CliRunner
+
+        from worktree.cli import app
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["init", "--help"])
+        assert result.exit_code == 0
+
+        cmd = get_command(app).get_command(None, "init")
+        opts: set[str] = set()
+        for param in cmd.params:
+            opts.update(param.opts)
+            secondary = getattr(param, "secondary_opts", None) or ()
+            opts.update(secondary)
+        assert "--format" in opts
+
+    def test_init_cli_terminal(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        from typer.testing import CliRunner
+
+        from worktree.cli import app
+
+        monkeypatch.chdir(git_fs.base_path)
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["init"])
+        assert result.exit_code == 0
+        assert "Initialized Worktree" in result.stdout
+
+    def test_init_cli_json(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        from typer.testing import CliRunner
+
+        from worktree.cli import app
+
+        monkeypatch.chdir(git_fs.base_path)
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["init", "--format", "json"])
+        assert result.exit_code == 0
+        lines = [line for line in result.stdout.strip().split("\n") if line]
+        assert len(lines) == 1
+        payload = json.loads(lines[0])
+        assert payload["event_type"] == "WorkspaceInitResult"
+        assert payload["payload"]["bootstrap_result"]["root_created"] is True
