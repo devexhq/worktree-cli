@@ -90,3 +90,6 @@ class UiDispatcher:
         else:
             rich_renderable = formatter.to_rich(data)
             self._console.print(rich_renderable)
+
+
+default_dispatcher = UiDispatcher()

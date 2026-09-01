@@ -18,7 +18,6 @@ from ..models import (
 from ..renderers import (
     render_not_initialized,
     render_sandbox_not_found,
-    render_sandbox_show,
 )
 
 
@@ -67,6 +66,7 @@ def collect_sandbox_show(
 def sandbox_show_command(
     context: CliContext,
     sandbox_id: str,
+    output_format: str = "terminal",
 ) -> SandboxShowCommandOutcome:
     """Show detail for one tracked sandbox.
 
@@ -76,19 +76,22 @@ def sandbox_show_command(
     Args:
         context: CLI context instance.
         sandbox_id: Sandbox primary key to show.
+        output_format: Presentation format ("terminal" or "json").
     """
     result = collect_sandbox_show(context, sandbox_id)
     if result.status is SandboxShowStatus.NOT_INITIALIZED:
-        render_not_initialized(result.errors, output=context.output)
+        if output_format == "json":
+            context.dispatcher.dispatch(result, output_format="json")
+        else:
+            render_not_initialized(result.errors, output=context.output)
         return SandboxShowCommandOutcome(errors=list(result.errors))
+
     if result.status is SandboxShowStatus.NOT_FOUND or result.sandbox is None:
-        render_sandbox_not_found(sandbox_id, output=context.output)
+        if output_format == "json":
+            context.dispatcher.dispatch(result, output_format="json")
+        else:
+            render_sandbox_not_found(sandbox_id, output=context.output)
         return SandboxShowCommandOutcome(errors=[f"Sandbox '{sandbox_id}' not found."])
 
-    render_sandbox_show(
-        result.sandbox,
-        disk_present=result.disk_present,
-        reconciled=result.reconciled,
-        output=context.output,
-    )
+    context.dispatcher.dispatch(result, output_format=output_format)
     return SandboxShowCommandOutcome(sandbox=result.sandbox)

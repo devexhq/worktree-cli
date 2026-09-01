@@ -25,7 +25,15 @@ wt sandbox create my-feature
 Inspect sandbox details, path, branch, and status:
 
 ```bash
-wt sandbox show my-feature
+wt sandbox show my-feature [--format terminal|json]
+```
+
+### `wt sandbox prune`
+
+Safely prune stale sandboxes, orphaned directories, and temporary branches:
+
+```bash
+wt sandbox prune [--dry-run] [--force] [--format terminal|json]
 ```
 
 ### `wt sandbox delete`

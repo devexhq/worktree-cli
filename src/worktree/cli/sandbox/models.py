@@ -11,6 +11,7 @@ from worktree.core.sandbox.models import (
     SandboxApplyResult,
     SandboxDiffResult,
     SandboxDiffStatus,
+    SandboxPruneResult,
 )
 
 
@@ -180,3 +181,18 @@ class SandboxDiffCommandOutcome(BaseModel):
         return not self.errors and (
             self.result is not None and (self.result.ok or self.result.status == SandboxDiffStatus.EMPTY_DIFF)
         )
+
+
+class SandboxPruneCommandOutcome(BaseModel):
+    """Outcome for wt sandbox prune command."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    result: SandboxPruneResult | None = None
+    errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        """Return True if sandbox prune completed without errors."""
+        return not self.errors and (self.result is not None and self.result.ok)

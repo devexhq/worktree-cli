@@ -1,10 +1,10 @@
 from worktree.cli.context import CliContext
+from worktree.cli.sandbox.formatters import SandboxCreateFormatter  # noqa: F401
 from worktree.core.sandbox import GitSandboxManager
 
 from ..models import SandboxCreateCommandOutcome
 from ..renderers import (
     render_sandbox_create_failed,
-    render_sandbox_create_success,
 )
 
 
@@ -13,6 +13,7 @@ def sandbox_create_command(
     name: str | None = None,
     base_ref: str | None = None,
     wip: bool = False,
+    output_format: str = "terminal",
 ) -> SandboxCreateCommandOutcome:
     """Create an isolated git worktree sandbox.
 
@@ -20,10 +21,11 @@ def sandbox_create_command(
     classified failure panel.
 
     Args:
+        context: CLI context instance.
         name: Optional human-readable sandbox name.
         base_ref: Optional git ref override for worktree creation.
         wip: When True, overlay uncommitted working-tree changes.
-        context: CLI context instance.
+        output_format: Presentation format ("terminal" or "json").
     """
     result = GitSandboxManager(path=context.cwd, db=context.db.sandboxes).create_sandbox(
         name=name,
@@ -31,15 +33,13 @@ def sandbox_create_command(
         include_wip=wip,
     )
     if not result.ok or result.session is None:
-        render_sandbox_create_failed(result.errors, output=context.output)
+        if output_format == "json":
+            context.dispatcher.dispatch(result, output_format="json")
+        else:
+            render_sandbox_create_failed(result.errors, output=context.output)
         return SandboxCreateCommandOutcome(errors=list(result.errors), warnings=list(result.warnings))
 
-    render_sandbox_create_success(
-        result.session,
-        warnings=result.warnings,
-        cwd=context.cwd,
-        output=context.output,
-    )
+    context.dispatcher.dispatch(result, output_format=output_format)
     return SandboxCreateCommandOutcome(
         session_id=result.session.session_id,
         warnings=list(result.warnings),

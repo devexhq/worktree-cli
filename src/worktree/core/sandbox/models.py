@@ -238,6 +238,9 @@ class PrunedItem(BaseModel):
     error: str | None = None
 
 
+PrunedItemResult = PrunedItem
+
+
 class SandboxPruneResult(BaseModel):
     """Structured result of sandbox pruning execution."""
 

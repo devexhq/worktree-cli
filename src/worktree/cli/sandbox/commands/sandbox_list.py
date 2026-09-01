@@ -18,7 +18,6 @@ from ..models import (
 )
 from ..renderers import (
     render_not_initialized,
-    render_sandbox_list,
 )
 
 
@@ -66,6 +65,7 @@ def collect_sandbox_list(
 def sandbox_list_command(
     context: CliContext,
     status: str | None = None,
+    output_format: str = "terminal",
 ) -> SandboxListCommandOutcome:
     """List tracked sandboxes with lifecycle status.
 
@@ -75,11 +75,15 @@ def sandbox_list_command(
     Args:
         context: CLI context instance.
         status: Optional status filter validated by Typer at the CLI layer.
+        output_format: Presentation format ("terminal" or "json").
     """
     result = collect_sandbox_list(context, status)
     if result.status is SandboxListStatus.NOT_INITIALIZED:
-        render_not_initialized(result.errors, output=context.output)
+        if output_format == "json":
+            context.dispatcher.dispatch(result, output_format="json")
+        else:
+            render_not_initialized(result.errors, output=context.output)
         return SandboxListCommandOutcome(errors=list(result.errors))
 
-    render_sandbox_list(result.sandboxes, output=context.output)
+    context.dispatcher.dispatch(result, output_format=output_format)
     return SandboxListCommandOutcome(sandboxes=result.sandboxes)

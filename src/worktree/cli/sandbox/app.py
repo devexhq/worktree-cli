@@ -11,6 +11,7 @@ from .commands.sandbox_create import sandbox_create_command
 from .commands.sandbox_delete import sandbox_delete_command
 from .commands.sandbox_diff import sandbox_diff_command
 from .commands.sandbox_list import sandbox_list_command
+from .commands.sandbox_prune import sandbox_prune_command
 from .commands.sandbox_show import sandbox_show_command
 
 sandbox_app = typer.Typer(
@@ -37,10 +38,15 @@ def sandbox_create(
         "--wip/--no-wip",
         help=("Include uncommitted working-tree changes in the sandbox (tracked + untracked; not ignored)."),
     ),
+    format: str = typer.Option(
+        "terminal",
+        "--format",
+        help="Presentation format ('terminal' or 'json').",
+    ),
 ):
     """Create an isolated git worktree sandbox."""
     context: CliContext = ctx.obj["context"]
-    outcome = sandbox_create_command(context, name=name, base_ref=base_ref, wip=wip)
+    outcome = sandbox_create_command(context, name=name, base_ref=base_ref, wip=wip, output_format=format)
     context.output.print()
     if not outcome.ok:
         raise typer.Exit(code=1)
@@ -57,10 +63,19 @@ def sandbox_list(
             case_sensitive=False,
         ),
     ] = None,
+    format: str = typer.Option(
+        "terminal",
+        "--format",
+        help="Presentation format ('terminal' or 'json').",
+    ),
 ):
     """List tracked sandboxes and their lifecycle status."""
     context: CliContext = ctx.obj["context"]
-    outcome = sandbox_list_command(context, status=status.value if status is not None else None)
+    outcome = sandbox_list_command(
+        context,
+        status=status.value if status is not None else None,
+        output_format=format,
+    )
     context.output.print()
     if not outcome.ok:
         raise typer.Exit(code=1)
@@ -70,10 +85,42 @@ def sandbox_list(
 def sandbox_show(
     ctx: typer.Context,
     sandbox_id: str = typer.Argument(..., help="Sandbox id to show."),
+    format: str = typer.Option(
+        "terminal",
+        "--format",
+        help="Presentation format ('terminal' or 'json').",
+    ),
 ):
     """Show full detail for one tracked sandbox."""
     context: CliContext = ctx.obj["context"]
-    outcome = sandbox_show_command(context, sandbox_id)
+    outcome = sandbox_show_command(context, sandbox_id, output_format=format)
+    context.output.print()
+    if not outcome.ok:
+        raise typer.Exit(code=1)
+
+
+@sandbox_app.command("prune")
+def sandbox_prune(
+    ctx: typer.Context,
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Simulate pruning without mutating filesystem or DB.",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Force deletion of dirty orphaned directories.",
+    ),
+    format: str = typer.Option(
+        "terminal",
+        "--format",
+        help="Presentation format ('terminal' or 'json').",
+    ),
+):
+    """Safely prune stale sandboxes, orphaned directories, and temporary branches."""
+    context: CliContext = ctx.obj["context"]
+    outcome = sandbox_prune_command(context, dry_run=dry_run, force=force, output_format=format)
     context.output.print()
     if not outcome.ok:
         raise typer.Exit(code=1)
