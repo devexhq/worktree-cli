@@ -203,3 +203,84 @@ class SandboxDetectionResult(BaseModel):
     def stale_branches(self) -> list[StaleSandboxItem]:
         """Return unlinked sandbox branch items."""
         return [i for i in self.items if i.category == StaleSandboxCategory.STALE_BRANCH]
+
+
+class PruneAction(StrEnum):
+    """Action taken on a detected stale resource during pruning."""
+
+    PRUNED = "pruned"
+    SKIPPED = "skipped"
+    FAILED = "failed"
+
+
+class SandboxPruneStatus(StrEnum):
+    """Outcome status for sandbox prune execution."""
+
+    OK = "ok"
+    PARTIAL_SUCCESS = "partial_success"
+    GIT_FAILED = "git_failed"
+    LOCKED = "locked"
+    ERROR = "error"
+
+
+class PrunedItem(BaseModel):
+    """Details of a single resource processed during prune execution."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    category: StaleSandboxCategory
+    identifier: str
+    action: PruneAction
+    path: Path | None = None
+    branch_name: str | None = None
+    session_id: str | None = None
+    reason: str = ""
+    error: str | None = None
+
+
+class SandboxPruneResult(BaseModel):
+    """Structured result of sandbox pruning execution."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    status: SandboxPruneStatus = SandboxPruneStatus.OK
+    dry_run: bool = False
+    force: bool = False
+    items: list[PrunedItem] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        """Return True if prune completed cleanly without failures."""
+        return self.status == SandboxPruneStatus.OK and not self.errors
+
+    @property
+    def pruned_items(self) -> list[PrunedItem]:
+        """Return items that were successfully pruned."""
+        return [i for i in self.items if i.action == PruneAction.PRUNED]
+
+    @property
+    def skipped_items(self) -> list[PrunedItem]:
+        """Return items that were skipped (e.g. dirty orphans)."""
+        return [i for i in self.items if i.action == PruneAction.SKIPPED]
+
+    @property
+    def failed_items(self) -> list[PrunedItem]:
+        """Return items that failed during pruning."""
+        return [i for i in self.items if i.action == PruneAction.FAILED]
+
+    @property
+    def pruned_count(self) -> int:
+        """Total number of resources pruned."""
+        return len(self.pruned_items)
+
+    @property
+    def skipped_count(self) -> int:
+        """Total number of resources skipped."""
+        return len(self.skipped_items)
+
+    @property
+    def failed_count(self) -> int:
+        """Total number of resources that failed to prune."""
+        return len(self.failed_items)

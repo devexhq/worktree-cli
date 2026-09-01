@@ -13,11 +13,13 @@ from worktree.core.sandbox.models import (
     SandboxCreateResult,
     SandboxDetectionResult,
     SandboxDiffResult,
+    SandboxPruneResult,
     SandboxSession,
 )
 from worktree.core.sandbox.services.detector import SandboxDetector
 from worktree.core.sandbox.services.lifecycle import SandboxLifecycle
 from worktree.core.sandbox.services.patch import SandboxPatch
+from worktree.core.sandbox.services.pruner import SandboxPruner
 
 
 class GitSandboxManager:
@@ -118,3 +120,14 @@ class GitSandboxManager:
         """Scan repository for stale sandboxes, orphaned directories, and dead refs."""
         detector = SandboxDetector(self.path, self.db, runs_db=runs_db)
         return detector.detect()
+
+    def prune_sandboxes(
+        self,
+        *,
+        dry_run: bool = False,
+        force: bool = False,
+        runs_db: RunsRepository | None = None,
+    ) -> SandboxPruneResult:
+        """Safely prune stale sandboxes, orphaned directories, and temporary branches."""
+        pruner = SandboxPruner(self.path, self.db, runs_db=runs_db)
+        return pruner.prune(dry_run=dry_run, force=force)
