@@ -73,6 +73,7 @@ wt history
 - `wt sandbox create`
 - `wt sandbox list`
 - `wt sandbox show <sandbox-id>`
+- `wt sandbox prune` — safely prune stale sandboxes, orphaned directories, and temporary branches
 - `wt sandbox delete <sandbox-id>`
 - `wt sandbox apply <sandbox-id>` — apply sandbox changes back to workspace
 - `wt sandbox diff <sandbox-id>` — inspect differences from base commit

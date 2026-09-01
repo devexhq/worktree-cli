@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from worktree.cli.context import CliContext
+from worktree.cli.ui.dispatcher import ui_dispatcher
 from worktree.core.sandbox import GitSandboxManager
 
 from ..models import SandboxDiffCommandOutcome
-from ..renderers import render_sandbox_diff
 
 
 def sandbox_diff_command(
@@ -14,6 +14,7 @@ def sandbox_diff_command(
     sandbox_id: str,
     *,
     stat: bool = False,
+    output_format: str = "terminal",
 ) -> SandboxDiffCommandOutcome:
     """Inspect unified diff or file summary statistics for a sandbox.
 
@@ -21,11 +22,12 @@ def sandbox_diff_command(
         context: CLI context instance.
         sandbox_id: Sandbox primary key to diff.
         stat: When True, show diffstat summary instead of full unified diff.
+        output_format: Presentation format ("terminal" or "json").
     """
     manager = GitSandboxManager(path=context.cwd, db=context.db.sandboxes)
     result = manager.diff_sandbox(sandbox_id, stat=stat)
 
-    render_sandbox_diff(result, stat=stat, output=context.output)
+    ui_dispatcher.dispatch(result, output_format=output_format)
     return SandboxDiffCommandOutcome(
         result=result,
         errors=list(result.errors),

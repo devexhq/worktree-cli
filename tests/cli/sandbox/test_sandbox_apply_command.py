@@ -6,10 +6,7 @@ from typer.testing import CliRunner
 from tests.helpers import GitFileSystem, make_cli_context, make_rich_output
 from worktree.cli import app
 from worktree.cli.sandbox.commands.sandbox_apply import sandbox_apply_command
-from worktree.cli.sandbox.renderers import (
-    render_sandbox_apply_failed,
-    render_sandbox_apply_success,
-)
+from worktree.cli.sandbox.formatters import SandboxApplyFormatter
 from worktree.core.db import WorktreeDb
 from worktree.core.sandbox import (
     GitSandboxManager,
@@ -31,8 +28,10 @@ class SandboxApplyRenderTests:
             strategy=SandboxApplyStrategy.PATCH,
             touched_files=["src/app.py", "tests/test_app.py"],
         )
+        formatter = SandboxApplyFormatter()
+        renderable = formatter.to_rich(result)
         rich_output, buffer = make_rich_output()
-        render_sandbox_apply_success(result, output=rich_output)
+        rich_output.add_line(renderable)
         rich_output.print()
         out = buffer.getvalue()
         assert "Applied sandbox sbx_8f2a1b9c to workspace (patch)" in out
@@ -46,8 +45,10 @@ class SandboxApplyRenderTests:
             strategy=SandboxApplyStrategy.SQUASH,
             commit_sha="a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
         )
+        formatter = SandboxApplyFormatter()
+        renderable = formatter.to_rich(result)
         rich_output, buffer = make_rich_output()
-        render_sandbox_apply_success(result, output=rich_output)
+        rich_output.add_line(renderable)
         rich_output.print()
         out = buffer.getvalue()
         assert "Applied sandbox sbx_8f2a1b9c to workspace (squash)" in out
@@ -62,8 +63,10 @@ class SandboxApplyRenderTests:
             touched_files=["file.txt"],
             cleaned_up=True,
         )
+        formatter = SandboxApplyFormatter()
+        renderable = formatter.to_rich(result)
         rich_output, buffer = make_rich_output()
-        render_sandbox_apply_success(result, output=rich_output)
+        rich_output.add_line(renderable)
         rich_output.print()
         out = buffer.getvalue()
         assert "Sandbox worktree and branch deleted" in out
@@ -74,8 +77,10 @@ class SandboxApplyRenderTests:
             sandbox_id="sbx_8f2a1b9c",
             errors=["conflicts detected in src/app.py"],
         )
+        formatter = SandboxApplyFormatter()
+        renderable = formatter.to_rich(result)
         rich_output, buffer = make_rich_output()
-        render_sandbox_apply_failed(result, output=rich_output)
+        rich_output.add_line(renderable)
         rich_output.print()
         out = buffer.getvalue()
         assert "Sandbox Apply Failed" in out

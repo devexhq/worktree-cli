@@ -6,7 +6,7 @@ from typer.testing import CliRunner
 from tests.helpers import GitFileSystem, make_cli_context, make_rich_output
 from worktree.cli import app
 from worktree.cli.sandbox.commands.sandbox_diff import sandbox_diff_command
-from worktree.cli.sandbox.renderers import render_sandbox_diff
+from worktree.cli.sandbox.formatters import SandboxDiffFormatter
 from worktree.core.db import WorktreeDb
 from worktree.core.sandbox import (
     GitSandboxManager,
@@ -25,11 +25,12 @@ class SandboxDiffRenderTests:
             status=SandboxDiffStatus.OK,
             sandbox_id="sbx_8f2a1b9c",
             diff_text="diff --git a/f.txt b/f.txt\n--- a/f.txt\n+++ b/f.txt\n@@ -1 +1 @@\n-old\n+new",
-            stat_text="f.txt | 2 +-\n 1 file changed, 1 insertion(+), 1 deletion(-)",
             files_changed=["f.txt"],
         )
+        formatter = SandboxDiffFormatter()
+        renderable = formatter.to_rich(result)
         rich_output, buffer = make_rich_output()
-        render_sandbox_diff(result, stat=False, output=rich_output)
+        rich_output.add_line(renderable)
         rich_output.print()
         out = buffer.getvalue()
         assert "diff --git a/f.txt b/f.txt" in out
@@ -38,12 +39,13 @@ class SandboxDiffRenderTests:
         result = SandboxDiffResult(
             status=SandboxDiffStatus.OK,
             sandbox_id="sbx_8f2a1b9c",
-            diff_text="diff --git a/f.txt b/f.txt\n",
             stat_text="f.txt | 2 +-\n 1 file changed, 1 insertion(+), 1 deletion(-)",
             files_changed=["f.txt"],
         )
+        formatter = SandboxDiffFormatter()
+        renderable = formatter.to_rich(result)
         rich_output, buffer = make_rich_output()
-        render_sandbox_diff(result, stat=True, output=rich_output)
+        rich_output.add_line(renderable)
         rich_output.print()
         out = buffer.getvalue()
         assert "f.txt | 2 +-" in out
@@ -53,8 +55,10 @@ class SandboxDiffRenderTests:
             status=SandboxDiffStatus.EMPTY_DIFF,
             sandbox_id="sbx_8f2a1b9c",
         )
+        formatter = SandboxDiffFormatter()
+        renderable = formatter.to_rich(result)
         rich_output, buffer = make_rich_output()
-        render_sandbox_diff(result, stat=False, output=rich_output)
+        rich_output.add_line(renderable)
         rich_output.print()
         out = buffer.getvalue()
         assert "Sandbox 'sbx_8f2a1b9c' has no changes compared to base commit." in out
@@ -65,8 +69,10 @@ class SandboxDiffRenderTests:
             sandbox_id="sbx_8f2a1b9c",
             errors=["Sandbox 'sbx_8f2a1b9c' not found."],
         )
+        formatter = SandboxDiffFormatter()
+        renderable = formatter.to_rich(result)
         rich_output, buffer = make_rich_output()
-        render_sandbox_diff(result, stat=False, output=rich_output)
+        rich_output.add_line(renderable)
         rich_output.print()
         out = buffer.getvalue()
         assert "Sandbox Diff Failed" in out

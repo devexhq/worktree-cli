@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from worktree.cli.context import CliContext
+from worktree.cli.ui.dispatcher import ui_dispatcher
 from worktree.core.config.loader import load_config_result
 from worktree.core.db import (
     SandboxesRepository,
@@ -15,10 +16,6 @@ from ..models import (
     SandboxListCommandOutcome,
     SandboxListResult,
     SandboxListStatus,
-)
-from ..renderers import (
-    render_not_initialized,
-    render_sandbox_list,
 )
 
 
@@ -66,6 +63,7 @@ def collect_sandbox_list(
 def sandbox_list_command(
     context: CliContext,
     status: str | None = None,
+    output_format: str = "terminal",
 ) -> SandboxListCommandOutcome:
     """List tracked sandboxes with lifecycle status.
 
@@ -75,11 +73,11 @@ def sandbox_list_command(
     Args:
         context: CLI context instance.
         status: Optional status filter validated by Typer at the CLI layer.
+        output_format: Presentation format ("terminal" or "json").
     """
     result = collect_sandbox_list(context, status)
+    ui_dispatcher.dispatch(result, output_format=output_format)
     if result.status is SandboxListStatus.NOT_INITIALIZED:
-        render_not_initialized(result.errors, output=context.output)
         return SandboxListCommandOutcome(errors=list(result.errors))
 
-    render_sandbox_list(result.sandboxes, output=context.output)
     return SandboxListCommandOutcome(sandboxes=result.sandboxes)

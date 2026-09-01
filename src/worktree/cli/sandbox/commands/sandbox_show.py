@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from worktree.cli.context import CliContext
+from worktree.cli.ui.dispatcher import ui_dispatcher
 from worktree.core.config.loader import load_config_result
 from worktree.core.db import (
     SandboxStatus,
@@ -14,11 +15,6 @@ from ..models import (
     SandboxShowCommandOutcome,
     SandboxShowResult,
     SandboxShowStatus,
-)
-from ..renderers import (
-    render_not_initialized,
-    render_sandbox_not_found,
-    render_sandbox_show,
 )
 
 
@@ -67,6 +63,7 @@ def collect_sandbox_show(
 def sandbox_show_command(
     context: CliContext,
     sandbox_id: str,
+    output_format: str = "terminal",
 ) -> SandboxShowCommandOutcome:
     """Show detail for one tracked sandbox.
 
@@ -76,19 +73,13 @@ def sandbox_show_command(
     Args:
         context: CLI context instance.
         sandbox_id: Sandbox primary key to show.
+        output_format: Presentation format ("terminal" or "json").
     """
     result = collect_sandbox_show(context, sandbox_id)
+    ui_dispatcher.dispatch(result, output_format=output_format)
     if result.status is SandboxShowStatus.NOT_INITIALIZED:
-        render_not_initialized(result.errors, output=context.output)
         return SandboxShowCommandOutcome(errors=list(result.errors))
     if result.status is SandboxShowStatus.NOT_FOUND or result.sandbox is None:
-        render_sandbox_not_found(sandbox_id, output=context.output)
         return SandboxShowCommandOutcome(errors=[f"Sandbox '{sandbox_id}' not found."])
 
-    render_sandbox_show(
-        result.sandbox,
-        disk_present=result.disk_present,
-        reconciled=result.reconciled,
-        output=context.output,
-    )
     return SandboxShowCommandOutcome(sandbox=result.sandbox)

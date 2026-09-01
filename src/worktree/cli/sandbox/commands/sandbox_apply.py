@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from worktree.cli.context import CliContext
+from worktree.cli.ui.dispatcher import ui_dispatcher
 from worktree.core.sandbox import GitSandboxManager, SandboxApplyStrategy
 
 from ..models import SandboxApplyCommandOutcome
-from ..renderers import render_sandbox_apply_failed, render_sandbox_apply_success
 
 
 def sandbox_apply_command(
@@ -18,6 +18,7 @@ def sandbox_apply_command(
     dry_run: bool = False,
     delete: bool = False,
     message: str | None = None,
+    output_format: str = "terminal",
 ) -> SandboxApplyCommandOutcome:
     """Apply sandbox changes back to main workspace.
 
@@ -29,6 +30,7 @@ def sandbox_apply_command(
         dry_run: Perform conflict check without mutating workspace.
         delete: Clean up sandbox upon successful application.
         message: Optional commit message for squash strategy.
+        output_format: Presentation format ("terminal" or "json").
     """
     manager = GitSandboxManager(path=context.cwd, db=context.db.sandboxes)
     result = manager.apply_sandbox(
@@ -40,13 +42,12 @@ def sandbox_apply_command(
         message=message,
     )
 
+    ui_dispatcher.dispatch(result, output_format=output_format)
     if not result.ok:
-        render_sandbox_apply_failed(result, output=context.output)
         return SandboxApplyCommandOutcome(
             result=result,
             errors=list(result.errors),
             warnings=list(result.warnings),
         )
 
-    render_sandbox_apply_success(result, output=context.output)
     return SandboxApplyCommandOutcome(result=result, warnings=list(result.warnings))

@@ -11,7 +11,11 @@ from .commands.sandbox_create import sandbox_create_command
 from .commands.sandbox_delete import sandbox_delete_command
 from .commands.sandbox_diff import sandbox_diff_command
 from .commands.sandbox_list import sandbox_list_command
+from .commands.sandbox_prune import sandbox_prune_command
 from .commands.sandbox_show import sandbox_show_command
+from .formatters import register_sandbox_formatters
+
+register_sandbox_formatters()
 
 sandbox_app = typer.Typer(
     name="sandbox",
@@ -37,11 +41,15 @@ def sandbox_create(
         "--wip/--no-wip",
         help=("Include uncommitted working-tree changes in the sandbox (tracked + untracked; not ignored)."),
     ),
+    format: str = typer.Option(
+        "terminal",
+        "--format",
+        help="Presentation format ('terminal' or 'json').",
+    ),
 ):
     """Create an isolated git worktree sandbox."""
     context: CliContext = ctx.obj["context"]
-    outcome = sandbox_create_command(context, name=name, base_ref=base_ref, wip=wip)
-    context.output.print()
+    outcome = sandbox_create_command(context, name=name, base_ref=base_ref, wip=wip, output_format=format)
     if not outcome.ok:
         raise typer.Exit(code=1)
 
@@ -57,11 +65,19 @@ def sandbox_list(
             case_sensitive=False,
         ),
     ] = None,
+    format: str = typer.Option(
+        "terminal",
+        "--format",
+        help="Presentation format ('terminal' or 'json').",
+    ),
 ):
     """List tracked sandboxes and their lifecycle status."""
     context: CliContext = ctx.obj["context"]
-    outcome = sandbox_list_command(context, status=status.value if status is not None else None)
-    context.output.print()
+    outcome = sandbox_list_command(
+        context,
+        status=status.value if status is not None else None,
+        output_format=format,
+    )
     if not outcome.ok:
         raise typer.Exit(code=1)
 
@@ -70,11 +86,41 @@ def sandbox_list(
 def sandbox_show(
     ctx: typer.Context,
     sandbox_id: str = typer.Argument(..., help="Sandbox id to show."),
+    format: str = typer.Option(
+        "terminal",
+        "--format",
+        help="Presentation format ('terminal' or 'json').",
+    ),
 ):
     """Show full detail for one tracked sandbox."""
     context: CliContext = ctx.obj["context"]
-    outcome = sandbox_show_command(context, sandbox_id)
-    context.output.print()
+    outcome = sandbox_show_command(context, sandbox_id, output_format=format)
+    if not outcome.ok:
+        raise typer.Exit(code=1)
+
+
+@sandbox_app.command("prune")
+def sandbox_prune(
+    ctx: typer.Context,
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Simulate pruning without mutating filesystem or DB.",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Force deletion of dirty orphaned directories.",
+    ),
+    format: str = typer.Option(
+        "terminal",
+        "--format",
+        help="Presentation format ('terminal' or 'json').",
+    ),
+):
+    """Safely prune stale sandboxes, orphaned directories, and temporary branches."""
+    context: CliContext = ctx.obj["context"]
+    outcome = sandbox_prune_command(context, dry_run=dry_run, force=force, output_format=format)
     if not outcome.ok:
         raise typer.Exit(code=1)
 
@@ -88,11 +134,15 @@ def sandbox_delete(
         "--force",
         help="Skip the confirmation prompt and delete immediately.",
     ),
+    format: str = typer.Option(
+        "terminal",
+        "--format",
+        help="Presentation format ('terminal' or 'json').",
+    ),
 ):
     """Delete a sandbox worktree and branch after confirmation."""
     context: CliContext = ctx.obj["context"]
-    outcome = sandbox_delete_command(context, sandbox_id, force=force)
-    context.output.print()
+    outcome = sandbox_delete_command(context, sandbox_id, force=force, output_format=format)
     if not outcome.ok:
         raise typer.Exit(code=1)
 
@@ -131,6 +181,11 @@ def sandbox_apply(
         "-m",
         help="Commit message when using squash strategy.",
     ),
+    format: str = typer.Option(
+        "terminal",
+        "--format",
+        help="Presentation format ('terminal' or 'json').",
+    ),
 ):
     """Apply changes from an isolated sandbox back into the main workspace."""
     context: CliContext = ctx.obj["context"]
@@ -142,8 +197,8 @@ def sandbox_apply(
         dry_run=dry_run,
         delete=delete,
         message=message,
+        output_format=format,
     )
-    context.output.print()
     if not outcome.ok:
         raise typer.Exit(code=1)
 
@@ -157,10 +212,14 @@ def sandbox_diff(
         "--stat",
         help="Show diffstat summary instead of full unified diff.",
     ),
+    format: str = typer.Option(
+        "terminal",
+        "--format",
+        help="Presentation format ('terminal' or 'json').",
+    ),
 ):
     """Inspect differences between sandbox worktree and base commit."""
     context: CliContext = ctx.obj["context"]
-    outcome = sandbox_diff_command(context, sandbox_id, stat=stat)
-    context.output.print()
+    outcome = sandbox_diff_command(context, sandbox_id, stat=stat, output_format=format)
     if not outcome.ok:
         raise typer.Exit(code=1)
