@@ -13,8 +13,10 @@ from worktree.core.git.runner import GitRunner
 from worktree.core.sandbox import (
     Sandbox,
     SandboxDetectionStatus,
-    SandboxDetector,
     StaleSandboxCategory,
+)
+from worktree.core.sandbox.services.detector import (
+    SandboxDetector,
     detect_stale_sandboxes,
 )
 

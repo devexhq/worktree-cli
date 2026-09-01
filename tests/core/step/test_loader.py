@@ -13,6 +13,8 @@ from worktree.core.step import (
     StepNotFoundError,
     StepType,
     StepValidationError,
+)
+from worktree.core.step.services.loader import (
     load_step_by_id,
     load_step_definition,
 )

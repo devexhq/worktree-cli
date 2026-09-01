@@ -48,7 +48,7 @@ class InputModelTests:
         assert errored.ok is False
 
     def test_format_input_spec(self) -> None:
-        from worktree.core.inputs import format_input_spec
+        from worktree.core.inputs.services.renderer import format_input_spec
 
         line = format_input_spec(
             "message",

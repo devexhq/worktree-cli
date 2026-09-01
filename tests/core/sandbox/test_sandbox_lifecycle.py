@@ -15,11 +15,10 @@ from worktree.core.db import SandboxStatus, WorktreeDb
 from worktree.core.git.exceptions import GitPlumbingTimeoutError
 from worktree.core.sandbox import (
     SandboxCreateStatus,
-    SandboxLifecycle,
     SandboxSession,
-    apply_wip_to_sandbox,
 )
-from worktree.core.sandbox.services.wip import copy_wip_file, list_wip_paths
+from worktree.core.sandbox.services.lifecycle import SandboxLifecycle
+from worktree.core.sandbox.services.wip import apply_wip_to_sandbox, copy_wip_file, list_wip_paths
 
 
 def _init_git_repo(path: Path, branch: str = "feature") -> None:

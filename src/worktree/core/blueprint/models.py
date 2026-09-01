@@ -16,8 +16,8 @@ from worktree.core.step import (
     StepDefinition,
     apply_on_failure_default,
     extract_defaults_on_failure,
-    validate_condition_expression,
 )
+from worktree.core.step.services.conditions import validate_condition_expression
 
 _SLUG_RE = re.compile(r"[^\w-]+")
 

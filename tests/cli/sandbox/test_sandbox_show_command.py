@@ -22,8 +22,8 @@ from worktree.core.db import (
 from worktree.core.sandbox import (
     SandboxShowResult,
     SandboxShowStatus,
-    collect_sandbox_show,
 )
+from worktree.core.sandbox.services.show import collect_sandbox_show
 
 runner = CliRunner()
 DB_REL = ".worktree/data.db"

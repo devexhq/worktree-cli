@@ -9,7 +9,6 @@ from worktree.core.status.models import (
     SandboxStatusInfo,
     WorktreeStatusResult,
 )
-from worktree.core.status.services.collector import collect_status
 
 __all__ = [
     "CatalogStatusInfo",
@@ -19,5 +18,4 @@ __all__ = [
     "SandboxStatusInfo",
     "Status",
     "WorktreeStatusResult",
-    "collect_status",
 ]

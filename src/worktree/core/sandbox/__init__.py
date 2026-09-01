@@ -30,14 +30,6 @@ from worktree.core.sandbox.models import (
     StaleSandboxCategory,
     StaleSandboxItem,
 )
-from worktree.core.sandbox.services.delete import collect_sandbox_delete
-from worktree.core.sandbox.services.detector import SandboxDetector, detect_stale_sandboxes
-from worktree.core.sandbox.services.lifecycle import SandboxLifecycle
-from worktree.core.sandbox.services.list import collect_sandbox_list
-from worktree.core.sandbox.services.patch import SandboxPatch
-from worktree.core.sandbox.services.pruner import SandboxPruner, prune_stale_sandboxes
-from worktree.core.sandbox.services.show import collect_sandbox_show
-from worktree.core.sandbox.services.wip import apply_wip_to_sandbox
 
 __all__ = [
     "PruneAction",
@@ -54,26 +46,16 @@ __all__ = [
     "SandboxDeleteStatus",
     "SandboxDetectionResult",
     "SandboxDetectionStatus",
-    "SandboxDetector",
     "SandboxDiffResult",
     "SandboxDiffStatus",
     "SandboxError",
-    "SandboxLifecycle",
     "SandboxListResult",
     "SandboxListStatus",
-    "SandboxPatch",
     "SandboxPruneResult",
     "SandboxPruneStatus",
-    "SandboxPruner",
     "SandboxSession",
     "SandboxShowResult",
     "SandboxShowStatus",
     "StaleSandboxCategory",
     "StaleSandboxItem",
-    "apply_wip_to_sandbox",
-    "collect_sandbox_delete",
-    "collect_sandbox_list",
-    "collect_sandbox_show",
-    "detect_stale_sandboxes",
-    "prune_stale_sandboxes",
 ]

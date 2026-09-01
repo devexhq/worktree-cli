@@ -14,9 +14,9 @@ from worktree.core.sandbox import (
     SandboxApplyStatus,
     SandboxApplyStrategy,
     SandboxDiffStatus,
-    SandboxLifecycle,
-    SandboxPatch,
 )
+from worktree.core.sandbox.services.lifecycle import SandboxLifecycle
+from worktree.core.sandbox.services.patch import SandboxPatch
 
 
 class TestSandboxPatch:

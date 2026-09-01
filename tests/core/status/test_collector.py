@@ -19,7 +19,7 @@ from worktree.core.git import (
     GitPlumbingTimeoutError,
     GitRunner,
 )
-from worktree.core.status import collect_status
+from worktree.core.status.services.collector import collect_status
 
 
 class TestStatusCollector:

@@ -14,6 +14,8 @@ from worktree.core.step import (
     StepType,
     TaskMetadata,
     WorkflowMetadata,
+)
+from worktree.core.step.services.metadata import (
     build_execution_metadata,
     metadata_to_env,
     previous_step_metadata_from_result,

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from tests.helpers import FileSystem
-from worktree.core.diff import get_session_dir, write_session_diff
+from worktree.core.diff.writer import get_session_dir, write_session_diff
 from worktree.core.engine.models import SessionRunPayload
 from worktree.core.engine.writer import (
     load_session_run,

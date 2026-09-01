@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from worktree.core.inputs import interpolate_step_fields, interpolate_string
+from worktree.core.inputs.services.interpolate import interpolate_step_fields, interpolate_string
 from worktree.core.step import (
     ExecutionIdentity,
     ExecutionMetadata,
@@ -12,8 +12,8 @@ from worktree.core.step import (
     StepType,
     TaskMetadata,
     WorkflowMetadata,
-    build_execution_metadata,
 )
+from worktree.core.step.services.metadata import build_execution_metadata
 
 
 class InputInterpolateTests:

@@ -6,6 +6,8 @@ from worktree.core.inputs import (
     InputResolveResult,
     InputType,
     ParameterInput,
+)
+from worktree.core.inputs.services.resolve import (
     format_input_error_message,
     format_missing_inputs_error,
     resolve_inputs,
