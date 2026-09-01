@@ -17,7 +17,7 @@ from worktree.common.process import (
     terminate_process_tree,
 )
 from worktree.core.agents.factory import get_agent_adapter
-from worktree.core.inputs import interpolate_step_fields
+from worktree.core.inputs.services.interpolate import interpolate_step_fields
 from worktree.core.step.assertions import evaluate_assertions
 from worktree.core.step.models import (
     ExecutionMetadata,

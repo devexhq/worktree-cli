@@ -7,7 +7,7 @@ from pathlib import Path
 
 from worktree.common.process import process_registry
 from worktree.core.db import RunStatus, SandboxesRepository
-from worktree.core.diff import get_session_dir, write_session_diff
+from worktree.core.diff.writer import get_session_dir, write_session_diff
 from worktree.core.git.runner import GitRunner
 from worktree.core.runtime.exceptions import PromptUserInterruptedError
 from worktree.core.runtime.failure import (
@@ -36,8 +36,8 @@ from worktree.core.step import (
     StepExecution,
     StepExecutionContext,
     StepResult,
-    previous_step_metadata_from_result,
 )
+from worktree.core.step.services.metadata import previous_step_metadata_from_result
 
 
 def _notify_sandbox_ready(context: RunContext, path: Path, *, active: bool) -> None:

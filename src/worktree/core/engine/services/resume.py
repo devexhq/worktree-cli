@@ -9,8 +9,8 @@ from worktree.common.utils import RichOutput
 from worktree.core.blueprint import (
     BlueprintKind,
     BlueprintRunCommandOutcome,
-    render_blueprint_run_success,
 )
+from worktree.core.blueprint.renderers import render_blueprint_run_success
 from worktree.core.catalog import Catalog
 from worktree.core.db import CatalogRepository, RunRecord, RunsRepository, RunStatus
 from worktree.core.engine.engine import Engine

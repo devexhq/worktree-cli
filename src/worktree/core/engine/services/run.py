@@ -11,9 +11,11 @@ from worktree.core.blueprint import (
     BlueprintKind,
     BlueprintLoadError,
     BlueprintNotFoundError,
-    BlueprintRenderer,
     BlueprintRunCommandOutcome,
     BlueprintValidationError,
+)
+from worktree.core.blueprint.renderers import (
+    BlueprintRenderer,
     render_blueprint_run_success,
 )
 from worktree.core.catalog import Catalog
@@ -25,7 +27,7 @@ from worktree.core.engine.services.reconcile import (
     format_reconciliation_warning,
     reconcile_stale_runs,
 )
-from worktree.core.inputs import format_input_error_message
+from worktree.core.inputs.services.resolve import format_input_error_message
 from worktree.core.runtime import (
     CliFailurePrompter,
     FailurePrompter,

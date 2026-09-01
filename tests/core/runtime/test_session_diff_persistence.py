@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from tests.helpers import GitFileSystem
 from worktree.core.db import RunStatus
-from worktree.core.diff import DiffService, DiffStatus
+from worktree.core.diff import DiffStatus
+from worktree.core.diff.services import DiffService
 from worktree.core.runtime import ExecutionIdentity, RunContext, run_steps
 from worktree.core.step import StepDefinition
 

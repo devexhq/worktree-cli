@@ -15,10 +15,12 @@ from worktree.core.sandbox import (
     Sandbox,
     SandboxDetectionResult,
     SandboxDetectionStatus,
-    SandboxPruner,
     SandboxPruneResult,
     SandboxPruneStatus,
     StaleSandboxCategory,
+)
+from worktree.core.sandbox.services.pruner import (
+    SandboxPruner,
     prune_stale_sandboxes,
 )
 

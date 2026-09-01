@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from worktree.cli.context import CliContext
-from worktree.core.diff import DiffResult, DiffService
+from worktree.core.diff import DiffResult
+from worktree.core.diff.services import DiffService
 
 
 def diff_command(

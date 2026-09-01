@@ -1,5 +1,6 @@
 from worktree.cli.context import CliContext
-from worktree.core.history import HistoryShowResult, HistoryShowService
+from worktree.core.history import HistoryShowResult
+from worktree.core.history.services import HistoryShowService
 
 
 def history_show_command(

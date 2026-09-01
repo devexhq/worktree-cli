@@ -1,6 +1,5 @@
 """Core step package for loading, resolving, and executing step primitives."""
 
-from worktree.core.step.assertions import evaluate_assertions
 from worktree.core.step.exceptions import StepNotFoundError, StepValidationError
 from worktree.core.step.facade import Step
 from worktree.core.step.models import (
@@ -26,17 +25,6 @@ from worktree.core.step.models import (
     extract_defaults_on_failure,
 )
 from worktree.core.step.runner import StepExecution, StepResult
-from worktree.core.step.services import (
-    build_execution_metadata,
-    evaluate_condition,
-    load_step_by_id,
-    load_step_definition,
-    metadata_to_env,
-    parse_condition_expression,
-    previous_step_metadata_from_result,
-    resolve_step_definition,
-    validate_condition_expression,
-)
 
 __all__ = [
     "DEFAULT_STEP_TIMEOUT_SECONDS",
@@ -63,15 +51,5 @@ __all__ = [
     "TaskMetadata",
     "WorkflowMetadata",
     "apply_on_failure_default",
-    "build_execution_metadata",
-    "evaluate_assertions",
-    "evaluate_condition",
     "extract_defaults_on_failure",
-    "load_step_by_id",
-    "load_step_definition",
-    "metadata_to_env",
-    "parse_condition_expression",
-    "previous_step_metadata_from_result",
-    "resolve_step_definition",
-    "validate_condition_expression",
 ]

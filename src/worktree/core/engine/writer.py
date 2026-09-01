@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from worktree.core.diff import get_session_dir, write_session_diff
+from worktree.core.diff.writer import get_session_dir, write_session_diff
 from worktree.core.engine.models import SessionRunPayload
 
 
