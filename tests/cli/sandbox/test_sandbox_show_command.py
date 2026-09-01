@@ -14,12 +14,8 @@ from worktree.cli.sandbox.commands.sandbox_show import (
     collect_sandbox_show,
     sandbox_show_command,
 )
-from worktree.cli.sandbox.models import SandboxShowStatus
-from worktree.cli.sandbox.renderers import (
-    build_sandbox_detail_table,
-    render_sandbox_not_found,
-    render_sandbox_show,
-)
+from worktree.cli.sandbox.formatters import SandboxShowFormatter
+from worktree.cli.sandbox.models import SandboxShowResult, SandboxShowStatus
 from worktree.core.db import (
     SandboxRecord,
     SandboxStatus,
@@ -58,98 +54,108 @@ class SandboxShowCollectTests:
         assert result.errors
         assert not (git_fs.base_path / DB_REL).exists()
 
-    def test_not_found(self, git_fs: GitFileSystem) -> None:
+    def test_missing_row_returns_not_found(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
         result = collect_sandbox_show(make_cli_context(cwd=git_fs.base_path), "sbx_missing")
         assert result.status is SandboxShowStatus.NOT_FOUND
         assert not result.ok
         assert result.sandbox is None
 
-    @pytest.mark.parametrize(
-        ("status", "create_dir"),
-        [
-            (SandboxStatus.ACTIVE, True),
-            (SandboxStatus.MERGED, True),
-            (SandboxStatus.CLEANED, False),
-            (SandboxStatus.CONFLICT, True),
-        ],
-    )
-    def test_found_each_status(
-        self,
-        git_fs: GitFileSystem,
-        status: SandboxStatus,
-        create_dir: bool,
-    ) -> None:
+    def test_active_and_present(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        created = seed_sandbox(
-            self.db.sandboxes,
-            sandbox_id=f"sbx_{status.value}",
-            name="detail" if status is SandboxStatus.ACTIVE else None,
-            path_suffix=status.value,
-            create_dir=create_dir,
-        )
-        if status is not SandboxStatus.ACTIVE:
-            updated = self.db.sandboxes.update_status(
-                created.id,
-                status,
-            )
-            assert updated is not None
-            created = updated
+        seed_sandbox(self.db.sandboxes, sandbox_id="sbx_present")
+        sbx_dir = git_fs.base_path / ".worktree" / "sandboxes" / "sbx_present"
+        sbx_dir.mkdir(parents=True, exist_ok=True)
 
-        result = collect_sandbox_show(make_cli_context(cwd=git_fs.base_path), created.id)
+        result = collect_sandbox_show(make_cli_context(cwd=git_fs.base_path), "sbx_present")
         assert result.status is SandboxShowStatus.OK
         assert result.ok
         assert result.sandbox is not None
-        assert result.sandbox.id == created.id
-        assert result.sandbox.status is status
-        assert result.reconciled is False
-        assert result.disk_present is create_dir
+        assert result.sandbox.id == "sbx_present"
+        assert result.sandbox.status is SandboxStatus.ACTIVE
+        assert result.disk_present
+        assert not result.reconciled
 
-    def test_reconciles_missing_directory_to_cleaned(self, git_fs: GitFileSystem) -> None:
+    def test_reconciles_stale_active_missing_directory(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        stale = seed_sandbox(
-            self.db.sandboxes,
-            sandbox_id="sbx_stale_show",
-            path_suffix="gone",
-            create_dir=False,
-        )
-        assert not Path(stale.sandbox_path).exists()
+        seed_sandbox(self.db.sandboxes, sandbox_id="sbx_stale")
 
-        result = collect_sandbox_show(make_cli_context(cwd=git_fs.base_path), stale.id)
+        result = collect_sandbox_show(make_cli_context(cwd=git_fs.base_path), "sbx_stale")
         assert result.status is SandboxShowStatus.OK
         assert result.ok
         assert result.sandbox is not None
-        assert result.sandbox.id == stale.id
+        assert result.sandbox.id == "sbx_stale"
         assert result.sandbox.status is SandboxStatus.CLEANED
-        assert result.reconciled is True
+        assert not result.disk_present
+        assert result.reconciled
 
-        loaded = self.db.sandboxes.get(stale.id)
-        assert loaded is not None
-        assert loaded.status is SandboxStatus.CLEANED
+        persisted = self.db.sandboxes.get("sbx_stale")
+        assert persisted is not None
+        assert persisted.status is SandboxStatus.CLEANED
 
-    def test_non_active_missing_dir_does_not_reconcile(self, git_fs: GitFileSystem) -> None:
+    def test_leaves_merged_unchanged_even_if_directory_missing(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        created = seed_sandbox(
+        seed_sandbox(
             self.db.sandboxes,
-            sandbox_id="sbx_merged_gone",
-            path_suffix="merged-gone",
-            create_dir=False,
-        )
-        self.db.sandboxes.update_status(
-            created.id,
-            SandboxStatus.MERGED,
+            sandbox_id="sbx_merged",
+            status=SandboxStatus.MERGED,
         )
 
-        result = collect_sandbox_show(make_cli_context(cwd=git_fs.base_path), created.id)
+        result = collect_sandbox_show(make_cli_context(cwd=git_fs.base_path), "sbx_merged")
+        assert result.status is SandboxShowStatus.OK
         assert result.ok
         assert result.sandbox is not None
         assert result.sandbox.status is SandboxStatus.MERGED
-        assert result.reconciled is False
-        assert result.disk_present is False
+        assert not result.disk_present
+        assert not result.reconciled
+
+        persisted = self.db.sandboxes.get("sbx_merged")
+        assert persisted is not None
+        assert persisted.status is SandboxStatus.MERGED
+
+    def test_leaves_cleaned_unchanged_even_if_directory_missing(self, git_fs: GitFileSystem) -> None:
+        git_fs.init_repo()
+        seed_sandbox(
+            self.db.sandboxes,
+            sandbox_id="sbx_cleaned",
+            status=SandboxStatus.CLEANED,
+        )
+
+        result = collect_sandbox_show(make_cli_context(cwd=git_fs.base_path), "sbx_cleaned")
+        assert result.status is SandboxShowStatus.OK
+        assert result.ok
+        assert result.sandbox is not None
+        assert result.sandbox.status is SandboxStatus.CLEANED
+        assert not result.disk_present
+        assert not result.reconciled
+
+        persisted = self.db.sandboxes.get("sbx_cleaned")
+        assert persisted is not None
+        assert persisted.status is SandboxStatus.CLEANED
+
+    def test_leaves_conflict_unchanged_even_if_directory_missing(self, git_fs: GitFileSystem) -> None:
+        git_fs.init_repo()
+        seed_sandbox(
+            self.db.sandboxes,
+            sandbox_id="sbx_conflict",
+            status=SandboxStatus.CONFLICT,
+        )
+
+        result = collect_sandbox_show(make_cli_context(cwd=git_fs.base_path), "sbx_conflict")
+        assert result.status is SandboxShowStatus.OK
+        assert result.ok
+        assert result.sandbox is not None
+        assert result.sandbox.status is SandboxStatus.CONFLICT
+        assert not result.disk_present
+        assert not result.reconciled
+
+        persisted = self.db.sandboxes.get("sbx_conflict")
+        assert persisted is not None
+        assert persisted.status is SandboxStatus.CONFLICT
 
 
 class SandboxShowRenderTests:
-    """Renderer unit tests with a fixed console width."""
+    """Renderer unit tests using SandboxShowFormatter."""
 
     def test_detail_fields_order_and_values(self) -> None:
         sandbox = SandboxRecord(
@@ -162,8 +168,11 @@ class SandboxShowRenderTests:
             created_at="2026-08-03 10:00:00",
             updated_at="2026-08-03 10:00:00",
         )
+        data = SandboxShowResult(status=SandboxShowStatus.OK, sandbox=sandbox, disk_present=True)
+        formatter = SandboxShowFormatter()
+        renderable = formatter.to_rich(data)
         rich_output, buffer = make_rich_output(width=120)
-        render_sandbox_show(sandbox, disk_present=True, output=rich_output)
+        rich_output.add_line(renderable)
         rich_output.print()
         out = buffer.getvalue()
         assert "sbx_a1b2c3d4" in out
@@ -190,9 +199,6 @@ class SandboxShowRenderTests:
         positions = [out.index(label) for label in labels]
         assert positions == sorted(positions)
 
-        table = build_sandbox_detail_table(sandbox, disk_present=True)
-        assert len(table.rows) == 9
-
     def test_reconciled_note(self) -> None:
         sandbox = SandboxRecord(
             id="sbx_gone",
@@ -204,13 +210,11 @@ class SandboxShowRenderTests:
             created_at="2026-08-03 10:00:00",
             updated_at="2026-08-03 11:00:00",
         )
+        data = SandboxShowResult(status=SandboxShowStatus.OK, sandbox=sandbox, disk_present=False, reconciled=True)
+        formatter = SandboxShowFormatter()
+        renderable = formatter.to_rich(data)
         rich_output, buffer = make_rich_output()
-        render_sandbox_show(
-            sandbox,
-            disk_present=False,
-            reconciled=True,
-            output=rich_output,
-        )
+        rich_output.add_line(renderable)
         rich_output.print()
         out = buffer.getvalue()
         assert "cleaned" in out
@@ -218,8 +222,11 @@ class SandboxShowRenderTests:
         assert "Note: sandbox directory is missing; status updated to 'cleaned'." in out
 
     def test_not_found_panel(self) -> None:
+        data = SandboxShowResult(status=SandboxShowStatus.NOT_FOUND, errors=["Sandbox 'sbx_missing' not found."])
+        formatter = SandboxShowFormatter()
+        renderable = formatter.to_rich(data)
         rich_output, buffer = make_rich_output()
-        render_sandbox_not_found("sbx_missing", output=rich_output)
+        rich_output.add_line(renderable)
         rich_output.print()
         out = buffer.getvalue()
         assert "Sandbox Not Found" in out

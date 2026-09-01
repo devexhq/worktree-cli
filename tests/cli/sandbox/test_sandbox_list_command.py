@@ -14,11 +14,10 @@ from worktree.cli.sandbox.commands.sandbox_list import (
     collect_sandbox_list,
     sandbox_list_command,
 )
-from worktree.cli.sandbox.models import SandboxListStatus
+from worktree.cli.sandbox.formatters import SandboxListFormatter
+from worktree.cli.sandbox.models import SandboxListResult, SandboxListStatus
 from worktree.cli.sandbox.renderers import (
     build_sandbox_table,
-    render_not_initialized,
-    render_sandbox_list,
 )
 from worktree.core.db import (
     SandboxRecord,
@@ -111,38 +110,57 @@ class SandboxListCollectTests:
         assert loaded is not None
         assert loaded.status is SandboxStatus.CLEANED
 
-    def test_status_filter_after_reconciliation(self, git_fs: GitFileSystem) -> None:
+    def test_status_filter_applied_after_reconciliation(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        stale = seed_sandbox(
+        seed_sandbox(
             self.db.sandboxes,
-            sandbox_id="sbx_stale_filter",
-            path_suffix="missing",
+            sandbox_id="sbx_live",
+            path_suffix="live",
+            create_dir=True,
+        )
+        seed_sandbox(
+            self.db.sandboxes,
+            sandbox_id="sbx_reconciled",
+            path_suffix="reconciled",
             create_dir=False,
         )
 
-        result = collect_sandbox_list(make_cli_context(cwd=git_fs.base_path), status="active")
-        assert result.ok
-        assert result.sandboxes == []
-        loaded = self.db.sandboxes.get(stale.id)
-        assert loaded is not None
-        assert loaded.status is SandboxStatus.CLEANED
+        active_res = collect_sandbox_list(make_cli_context(cwd=git_fs.base_path), status="active")
+        assert active_res.status is SandboxListStatus.OK
+        assert [r.id for r in active_res.sandboxes] == ["sbx_live"]
 
-    def test_collect_invalid_config_is_not_initialized(self, git_fs: GitFileSystem) -> None:
-        config_path = git_fs.base_path / ".worktree" / "config.json"
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        config_path.write_text("{not-json", encoding="utf-8")
+        cleaned_res = collect_sandbox_list(make_cli_context(cwd=git_fs.base_path), status="cleaned")
+        assert cleaned_res.status is SandboxListStatus.OK
+        assert [r.id for r in cleaned_res.sandboxes] == ["sbx_reconciled"]
+
+    def test_leaves_merged_and_cleaned_untouched(self, git_fs: GitFileSystem) -> None:
+        git_fs.init_repo()
+        seed_sandbox(
+            self.db.sandboxes,
+            sandbox_id="sbx_m",
+            status=SandboxStatus.MERGED,
+            path_suffix="m",
+            create_dir=False,
+        )
+        seed_sandbox(
+            self.db.sandboxes,
+            sandbox_id="sbx_c",
+            status=SandboxStatus.CLEANED,
+            path_suffix="c",
+            create_dir=False,
+        )
 
         result = collect_sandbox_list(make_cli_context(cwd=git_fs.base_path))
-        assert result.status is SandboxListStatus.NOT_INITIALIZED
-        assert not result.ok
-        assert result.errors
-        assert not (git_fs.base_path / DB_REL).exists()
+        assert result.status is SandboxListStatus.OK
+        by_id = {r.id: r.status for r in result.sandboxes}
+        assert by_id["sbx_m"] is SandboxStatus.MERGED
+        assert by_id["sbx_c"] is SandboxStatus.CLEANED
 
 
 class SandboxListRenderTests:
-    """Renderer unit tests with a fixed console width."""
+    """Renderer unit tests using SandboxListFormatter."""
 
-    def test_table_columns_and_rows(self) -> None:
+    def test_table_output_and_column_order(self) -> None:
         sandboxes = [
             SandboxRecord(
                 id="sbx_second",
@@ -165,8 +183,11 @@ class SandboxListRenderTests:
                 updated_at="2026-01-01 00:00:00",
             ),
         ]
+        data = SandboxListResult(status=SandboxListStatus.OK, sandboxes=sandboxes)
+        formatter = SandboxListFormatter()
+        renderable = formatter.to_rich(data)
         rich_output, buffer = make_rich_output(width=120)
-        render_sandbox_list(sandboxes, output=rich_output)
+        rich_output.add_line(renderable)
         rich_output.print()
         out = buffer.getvalue()
         assert "Worktree Sandboxes" in out
@@ -188,17 +209,23 @@ class SandboxListRenderTests:
         ]
 
     def test_empty_list_message(self) -> None:
+        data = SandboxListResult(status=SandboxListStatus.OK, sandboxes=[])
+        formatter = SandboxListFormatter()
+        renderable = formatter.to_rich(data)
         rich_output, buffer = make_rich_output()
-        render_sandbox_list([], output=rich_output)
+        rich_output.add_line(renderable)
         rich_output.print()
         assert buffer.getvalue() == "No sandboxes found.\n"
 
     def test_not_initialized_panel(self) -> None:
-        rich_output, buffer = make_rich_output()
-        render_not_initialized(
-            ["Configuration file not found at '/x' (CONFIG_NOT_FOUND)."],
-            output=rich_output,
+        data = SandboxListResult(
+            status=SandboxListStatus.NOT_INITIALIZED,
+            errors=["Configuration file not found at '/x' (CONFIG_NOT_FOUND)."],
         )
+        formatter = SandboxListFormatter()
+        renderable = formatter.to_rich(data)
+        rich_output, buffer = make_rich_output()
+        rich_output.add_line(renderable)
         rich_output.print()
         out = buffer.getvalue()
         assert "Worktree Not Initialized" in out

@@ -9,7 +9,11 @@ from rich.console import Group
 from rich.panel import Panel
 from rich.text import Text
 
-from worktree.cli.sandbox.models import SandboxListResult, SandboxShowResult, SandboxShowStatus
+from worktree.cli.sandbox.models import (
+    SandboxListResult,
+    SandboxShowResult,
+    SandboxShowStatus,
+)
 from worktree.cli.sandbox.renderers import build_sandbox_detail_table, build_sandbox_table
 from worktree.cli.ui.dispatcher import UiDispatcher, default_dispatcher
 from worktree.common.types import ComponentFormatter
@@ -75,6 +79,28 @@ class PrunedItemFormatter(ComponentFormatter[PrunedItemResult]):
         return data.model_dump(mode="json")
 
 
+def _format_show_error_panel(data: SandboxShowResult) -> Panel:
+    """Format error panel for non-ok sandbox show results."""
+    if data.status == SandboxShowStatus.NOT_INITIALIZED:
+        err_msg = "\n\n".join(data.errors) if data.errors else "Worktree workspace is not initialized."
+        return Panel(
+            f"{err_msg}\n\nHint: run `wt init` to create `.worktree/config.json`",
+            title="Worktree Not Initialized",
+            border_style="red",
+        )
+
+    if data.status == SandboxShowStatus.NOT_FOUND:
+        msg = data.errors[0] if data.errors else "Sandbox not found."
+        return Panel(
+            f"{msg}\nFix:\n- run `wt sandbox list` to see known sandboxes",
+            title="Sandbox Not Found",
+            border_style="red",
+        )
+
+    err_msg = "\n\n".join(data.errors) if data.errors else "Failed to show sandbox."
+    return Panel(err_msg, title="Sandbox Show Failed", border_style="red")
+
+
 class SandboxShowFormatter(ComponentFormatter[SandboxShowResult]):
     """Formatter for sandbox show command results."""
 
@@ -96,16 +122,7 @@ class SandboxShowFormatter(ComponentFormatter[SandboxShowResult]):
                 )
             return table
 
-        if data.status == SandboxShowStatus.NOT_FOUND:
-            msg = data.errors[0] if data.errors else "Sandbox not found."
-            return Panel(
-                f"{msg}\nFix:\n- run `wt sandbox list` to see known sandboxes",
-                title="Sandbox Not Found",
-                border_style="red",
-            )
-
-        err_msg = "\n\n".join(data.errors) if data.errors else "Failed to show sandbox."
-        return Panel(err_msg, title="Sandbox Show Failed", border_style="red")
+        return _format_show_error_panel(data)
 
     def to_json_serializable(self, data: SandboxShowResult) -> dict[str, Any]:
         """Convert SandboxShowResult to primitive dictionary for JSON serialization.
@@ -132,8 +149,12 @@ class SandboxListFormatter(ComponentFormatter[SandboxListResult]):
             Rich renderable object (Table, Panel, or Text).
         """
         if not data.ok:
-            err_msg = "\n\n".join(data.errors) if data.errors else "Failed to list sandboxes."
-            return Panel(err_msg, title="Sandbox List Failed", border_style="red")
+            err_msg = "\n\n".join(data.errors) if data.errors else "Worktree workspace is not initialized."
+            return Panel(
+                f"{err_msg}\n\nFix:\n- run `wt init` to create `.worktree/config.json`",
+                title="Worktree Not Initialized",
+                border_style="red",
+            )
 
         if not data.sandboxes:
             return Text("No sandboxes found.")

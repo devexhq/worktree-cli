@@ -16,9 +16,6 @@ from ..models import (
     SandboxListResult,
     SandboxListStatus,
 )
-from ..renderers import (
-    render_not_initialized,
-)
 
 
 def _reconcile_stale_active_sandboxes(*, db: SandboxesRepository) -> None:
@@ -78,12 +75,8 @@ def sandbox_list_command(
         output_format: Presentation format ("terminal" or "json").
     """
     result = collect_sandbox_list(context, status)
+    context.dispatcher.dispatch(result, output_format=output_format)
     if result.status is SandboxListStatus.NOT_INITIALIZED:
-        if output_format == "json":
-            context.dispatcher.dispatch(result, output_format="json")
-        else:
-            render_not_initialized(result.errors, output=context.output)
         return SandboxListCommandOutcome(errors=list(result.errors))
 
-    context.dispatcher.dispatch(result, output_format=output_format)
     return SandboxListCommandOutcome(sandboxes=result.sandboxes)

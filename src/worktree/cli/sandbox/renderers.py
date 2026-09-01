@@ -2,19 +2,16 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from rich.syntax import Syntax
 from rich.table import Table
 
-from worktree.common.utils import RichOutput, display_path
+from worktree.common.utils import RichOutput
 from worktree.core.db import SandboxRecord
 from worktree.core.sandbox.models import (
     SandboxApplyResult,
     SandboxApplyStrategy,
     SandboxDiffResult,
     SandboxDiffStatus,
-    SandboxSession,
 )
 
 _SANDBOX_SHOW_FIELDS = (
@@ -38,38 +35,10 @@ def render_not_initialized(errors: list[str], *, output: RichOutput) -> None:
     )
 
 
-def render_sandbox_create_failed(errors: list[str], *, output: RichOutput) -> None:
-    """Render the create-failed error panel for ``wt sandbox create``."""
-    message = "\n\n".join(errors) if errors else "Sandbox creation failed."
-    output.add_error_panel("Sandbox Create Failed", message)
-
-
-def render_sandbox_create_success(
-    session: SandboxSession,
-    *,
-    output: RichOutput,
-    warnings: list[str] | None = None,
-    cwd: Path | None = None,
-) -> None:
-    """Render success block and optional non-fatal warnings for create."""
-    root = (cwd or Path.cwd()).resolve()
-    path_label = display_path(session.sandbox_path, root)
-    output.add_success(f"Sandbox created: {session.session_id}")
-    output.add_line(f"   Branch: {session.target_branch}")
-    output.add_line(f"   Path: {path_label}")
-    for warning in warnings or []:
-        output.add_dim_bullet(warning)
-
-
 def render_sandbox_not_found(sandbox_id: str, *, output: RichOutput) -> None:
-    """Render the not-found error panel for ``wt sandbox show``."""
+    """Render the not-found error panel for ``wt sandbox show`` / ``wt sandbox delete``."""
     message = f"Sandbox '{sandbox_id}' not found.\nFix:\n- run `wt sandbox list` to see known sandboxes"
     output.add_error_panel("Sandbox Not Found", message)
-
-
-def render_empty_list(*, output: RichOutput) -> None:
-    """Render the empty-state line when no sandboxes match."""
-    output.add_line("No sandboxes found.")
 
 
 def build_sandbox_table(sandboxes: list[SandboxRecord]) -> Table:
@@ -98,14 +67,6 @@ def build_sandbox_table(sandboxes: list[SandboxRecord]) -> Table:
             row.created_at,
         )
     return table
-
-
-def render_sandbox_list(sandboxes: list[SandboxRecord], *, output: RichOutput) -> None:
-    """Render empty state or the sandboxes table."""
-    if not sandboxes:
-        render_empty_list(output=output)
-        return
-    output.add_line(build_sandbox_table(sandboxes))
 
 
 def build_sandbox_detail_table(sandbox: SandboxRecord, *, disk_present: bool) -> Table:
@@ -138,32 +99,6 @@ def build_sandbox_detail_table(sandbox: SandboxRecord, *, disk_present: bool) ->
     for field in _SANDBOX_SHOW_FIELDS:
         table.add_row(f"{field}:", values[field])
     return table
-
-
-def render_sandbox_show(
-    sandbox: SandboxRecord,
-    *,
-    disk_present: bool,
-    reconciled: bool = False,
-    output: RichOutput,
-) -> None:
-    """Render sandbox detail fields and an optional reconciliation note."""
-    name = sandbox.name if sandbox.name is not None else "-"
-    disk = "present" if disk_present else "missing"
-    values = {
-        "ID": sandbox.id,
-        "Name": name,
-        "Branch": sandbox.branch_name,
-        "Base Commit": sandbox.base_commit,
-        "Path": str(sandbox.sandbox_path),
-        "Status": sandbox.status.value,
-        "Disk": disk,
-        "Created": sandbox.created_at,
-        "Updated": sandbox.updated_at,
-    }
-    output.add_kv_table([(f"{field}", values[field]) for field in _SANDBOX_SHOW_FIELDS])
-    if reconciled:
-        output.add_line("Note: sandbox directory is missing; status updated to 'cleaned'.")
 
 
 def render_sandbox_already_cleaned(sandbox_id: str, *, output: RichOutput) -> None:

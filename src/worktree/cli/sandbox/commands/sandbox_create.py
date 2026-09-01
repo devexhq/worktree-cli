@@ -2,9 +2,6 @@ from worktree.cli.context import CliContext
 from worktree.core.sandbox import GitSandboxManager
 
 from ..models import SandboxCreateCommandOutcome
-from ..renderers import (
-    render_sandbox_create_failed,
-)
 
 
 def sandbox_create_command(
@@ -16,8 +13,7 @@ def sandbox_create_command(
 ) -> SandboxCreateCommandOutcome:
     """Create an isolated git worktree sandbox.
 
-    Calls ``GitSandboxManager.create_sandbox`` and renders success or a
-    classified failure panel.
+    Calls ``GitSandboxManager.create_sandbox`` and dispatches outcome formatting.
 
     Args:
         context: CLI context instance.
@@ -31,14 +27,10 @@ def sandbox_create_command(
         base_ref=base_ref,
         include_wip=wip,
     )
+    context.dispatcher.dispatch(result, output_format=output_format)
     if not result.ok or result.session is None:
-        if output_format == "json":
-            context.dispatcher.dispatch(result, output_format="json")
-        else:
-            render_sandbox_create_failed(result.errors, output=context.output)
         return SandboxCreateCommandOutcome(errors=list(result.errors), warnings=list(result.warnings))
 
-    context.dispatcher.dispatch(result, output_format=output_format)
     return SandboxCreateCommandOutcome(
         session_id=result.session.session_id,
         warnings=list(result.warnings),
