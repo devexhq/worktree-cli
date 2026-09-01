@@ -5,7 +5,6 @@ from __future__ import annotations
 import typer
 
 from worktree.cli.context import CliContext
-from worktree.common.utils import RichOutput
 from worktree.core.config.loader import load_config_result
 from worktree.core.db import (
     SandboxStatus,
@@ -18,10 +17,6 @@ from ..models import (
     SandboxDeleteStatus,
 )
 from ..renderers import (
-    render_not_initialized,
-    render_sandbox_already_cleaned,
-    render_sandbox_delete_success,
-    render_sandbox_not_found,
     sandbox_delete_confirm_prompt,
 )
 
@@ -43,23 +38,32 @@ def collect_sandbox_delete(
     if not load.ok:
         return SandboxDeleteResult(
             status=SandboxDeleteStatus.NOT_INITIALIZED,
+            sandbox_id=sandbox_id,
             errors=list(load.errors),
         )
 
     row = context.db.sandboxes.get(sandbox_id)
     if row is None:
-        return SandboxDeleteResult(status=SandboxDeleteStatus.NOT_FOUND)
+        return SandboxDeleteResult(
+            status=SandboxDeleteStatus.NOT_FOUND,
+            sandbox_id=sandbox_id,
+        )
 
     if row.status is SandboxStatus.CLEANED:
         return SandboxDeleteResult(
             status=SandboxDeleteStatus.ALREADY_CLEANED,
+            sandbox_id=sandbox_id,
             sandbox=row,
         )
 
-    return SandboxDeleteResult(status=SandboxDeleteStatus.READY, sandbox=row)
+    return SandboxDeleteResult(
+        status=SandboxDeleteStatus.READY,
+        sandbox_id=sandbox_id,
+        sandbox=row,
+    )
 
 
-def _confirm_or_abort(row: object, output: RichOutput) -> bool:
+def _confirm_or_abort(row: object) -> bool:
     """Prompt user for confirmation; return True if confirmed."""
     try:
         confirmed = typer.confirm(
@@ -68,8 +72,6 @@ def _confirm_or_abort(row: object, output: RichOutput) -> bool:
         )
     except typer.Abort:
         confirmed = False
-    if not confirmed:
-        output.add_line("Aborted.")
     return confirmed
 
 
@@ -77,6 +79,7 @@ def sandbox_delete_command(
     context: CliContext,
     sandbox_id: str,
     force: bool = False,
+    output_format: str = "terminal",
 ) -> SandboxDeleteCommandOutcome:
     """Delete a tracked sandbox worktree and branch.
 
@@ -87,26 +90,25 @@ def sandbox_delete_command(
         context: CLI context instance.
         sandbox_id: Sandbox primary key to delete.
         force: When True, skip the confirmation prompt.
+        output_format: Presentation format ("terminal" or "json").
     """
-    output = context.output
     result = collect_sandbox_delete(context, sandbox_id)
 
     if result.status is SandboxDeleteStatus.NOT_INITIALIZED:
-        render_not_initialized(result.errors, output=output)
+        context.dispatcher.dispatch(result, output_format=output_format)
         return SandboxDeleteCommandOutcome(errors=list(result.errors))
-    if result.status is SandboxDeleteStatus.NOT_FOUND:
-        render_sandbox_not_found(sandbox_id, output=output)
+    if result.status is SandboxDeleteStatus.NOT_FOUND or result.sandbox is None:
+        context.dispatcher.dispatch(result, output_format=output_format)
         return SandboxDeleteCommandOutcome(errors=[f"Sandbox '{sandbox_id}' not found."])
     if result.status is SandboxDeleteStatus.ALREADY_CLEANED:
-        render_sandbox_already_cleaned(sandbox_id, output=output)
+        context.dispatcher.dispatch(result, output_format=output_format)
         return SandboxDeleteCommandOutcome(already_cleaned=True)
-    if result.sandbox is None:
-        render_sandbox_not_found(sandbox_id, output=output)
-        return SandboxDeleteCommandOutcome(errors=[f"Sandbox '{sandbox_id}' not found."])
 
     row = result.sandbox
 
-    if not force and not _confirm_or_abort(row, output):
+    if not force and not _confirm_or_abort(row):
+        aborted = result.model_copy(update={"status": SandboxDeleteStatus.ABORTED, "errors": ["Aborted."]})
+        context.dispatcher.dispatch(aborted, output_format=output_format)
         return SandboxDeleteCommandOutcome(errors=["Aborted."])
 
     session = SandboxSession(
@@ -118,5 +120,6 @@ def sandbox_delete_command(
         created_at=row.created_at,
     )
     GitSandboxManager(path=context.cwd, db=context.db.sandboxes).cleanup_sandbox(session)
-    render_sandbox_delete_success(sandbox_id, output=output)
+    deleted = result.model_copy(update={"status": SandboxDeleteStatus.DELETED, "deleted": True})
+    context.dispatcher.dispatch(deleted, output_format=output_format)
     return SandboxDeleteCommandOutcome(deleted=True)

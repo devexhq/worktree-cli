@@ -63,30 +63,35 @@ class SandboxShowResult(BaseModel):
 
 
 class SandboxDeleteStatus(StrEnum):
-    """Classified outcome for ``wt sandbox delete`` before confirmation."""
+    """Classified outcome for ``wt sandbox delete``."""
 
     READY = "ready"
+    DELETED = "deleted"
     ALREADY_CLEANED = "already_cleaned"
+    ABORTED = "aborted"
     NOT_INITIALIZED = "not_initialized"
     NOT_FOUND = "not_found"
 
 
 class SandboxDeleteResult(BaseModel):
-    """Structured result for ``wt sandbox delete`` before confirm/cleanup."""
+    """Structured result for ``wt sandbox delete``."""
 
     model_config = {"extra": "forbid", "strict": True}
 
     status: SandboxDeleteStatus
+    sandbox_id: str = ""
     sandbox: SandboxRecord | None = None
+    deleted: bool = False
     errors: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:
-        """True when delete may proceed (ready) or is an already-cleaned no-op."""
+        """True when delete succeeded (deleted), ready, or already-cleaned."""
         return (
             self.status
             in {
                 SandboxDeleteStatus.READY,
+                SandboxDeleteStatus.DELETED,
                 SandboxDeleteStatus.ALREADY_CLEANED,
             }
             and not self.errors

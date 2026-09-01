@@ -134,11 +134,15 @@ def sandbox_delete(
         "--force",
         help="Skip the confirmation prompt and delete immediately.",
     ),
+    format: str = typer.Option(
+        "terminal",
+        "--format",
+        help="Presentation format ('terminal' or 'json').",
+    ),
 ):
     """Delete a sandbox worktree and branch after confirmation."""
     context: CliContext = ctx.obj["context"]
-    outcome = sandbox_delete_command(context, sandbox_id, force=force)
-    context.output.print()
+    outcome = sandbox_delete_command(context, sandbox_id, force=force, output_format=format)
     if not outcome.ok:
         raise typer.Exit(code=1)
 
@@ -177,6 +181,11 @@ def sandbox_apply(
         "-m",
         help="Commit message when using squash strategy.",
     ),
+    format: str = typer.Option(
+        "terminal",
+        "--format",
+        help="Presentation format ('terminal' or 'json').",
+    ),
 ):
     """Apply changes from an isolated sandbox back into the main workspace."""
     context: CliContext = ctx.obj["context"]
@@ -188,8 +197,8 @@ def sandbox_apply(
         dry_run=dry_run,
         delete=delete,
         message=message,
+        output_format=format,
     )
-    context.output.print()
     if not outcome.ok:
         raise typer.Exit(code=1)
 
@@ -203,10 +212,14 @@ def sandbox_diff(
         "--stat",
         help="Show diffstat summary instead of full unified diff.",
     ),
+    format: str = typer.Option(
+        "terminal",
+        "--format",
+        help="Presentation format ('terminal' or 'json').",
+    ),
 ):
     """Inspect differences between sandbox worktree and base commit."""
     context: CliContext = ctx.obj["context"]
-    outcome = sandbox_diff_command(context, sandbox_id, stat=stat)
-    context.output.print()
+    outcome = sandbox_diff_command(context, sandbox_id, stat=stat, output_format=format)
     if not outcome.ok:
         raise typer.Exit(code=1)
