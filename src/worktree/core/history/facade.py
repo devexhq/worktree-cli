@@ -38,10 +38,7 @@ class History:
                 errors=list(load.errors),
             )
 
-        try:
-            reconcile_stale_runs(self.db, path=self.path)
-        except Exception:
-            pass
+        reconcile_stale_runs(self.db, path=self.path)
 
         status_filter: RunStatus | str | None = None
         if status is not None:

@@ -15,16 +15,6 @@ from worktree.core.sandbox.models import (
 )
 
 
-def _reconcile_stale_active_sandboxes(*, db: SandboxesRepository) -> None:
-    """Mark active rows whose sandbox directory is gone as cleaned."""
-    for row in db.list():
-        if row.status is not SandboxStatus.ACTIVE:
-            continue
-        if Path(row.sandbox_path).is_dir():
-            continue
-        db.update_status(row.id, SandboxStatus.CLEANED)
-
-
 def collect_sandbox_list(
     path: Path,
     db: SandboxesRepository,
@@ -48,7 +38,7 @@ def collect_sandbox_list(
             errors=list(load.errors),
         )
 
-    _reconcile_stale_active_sandboxes(db=db)
+    db.reconcile_stale_active()
 
     status_filter: SandboxStatus | None = None
     if status is not None:
