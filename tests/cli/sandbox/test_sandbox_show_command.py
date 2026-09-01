@@ -11,15 +11,18 @@ from typer.testing import CliRunner
 from tests.helpers import GitFileSystem, make_cli_context, make_rich_output, seed_sandbox
 from worktree.cli import app
 from worktree.cli.sandbox.commands.sandbox_show import (
-    collect_sandbox_show,
     sandbox_show_command,
 )
 from worktree.cli.sandbox.formatters import SandboxShowFormatter
-from worktree.cli.sandbox.models import SandboxShowResult, SandboxShowStatus
 from worktree.core.db import (
     SandboxRecord,
     SandboxStatus,
     WorktreeDb,
+)
+from worktree.core.sandbox import (
+    SandboxShowResult,
+    SandboxShowStatus,
+    collect_sandbox_show,
 )
 
 runner = CliRunner()
@@ -36,7 +39,7 @@ class SandboxShowCollectTests:
         self.db = WorktreeDb(path=git_fs.base_path, db_rel_path=DB_REL)
 
     def test_not_initialized(self, git_fs: GitFileSystem) -> None:
-        result = collect_sandbox_show(make_cli_context(cwd=git_fs.base_path), "sbx_any")
+        result = collect_sandbox_show(git_fs.base_path, self.db.sandboxes, "sbx_any")
         assert result.status is SandboxShowStatus.NOT_INITIALIZED
         assert not result.ok
         assert result.errors
@@ -48,7 +51,7 @@ class SandboxShowCollectTests:
         config_path.parent.mkdir(parents=True, exist_ok=True)
         config_path.write_text("{not-json", encoding="utf-8")
 
-        result = collect_sandbox_show(make_cli_context(cwd=git_fs.base_path), "sbx_any")
+        result = collect_sandbox_show(git_fs.base_path, self.db.sandboxes, "sbx_any")
         assert result.status is SandboxShowStatus.NOT_INITIALIZED
         assert not result.ok
         assert result.errors
@@ -56,7 +59,7 @@ class SandboxShowCollectTests:
 
     def test_missing_row_returns_not_found(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        result = collect_sandbox_show(make_cli_context(cwd=git_fs.base_path), "sbx_missing")
+        result = collect_sandbox_show(git_fs.base_path, self.db.sandboxes, "sbx_missing")
         assert result.status is SandboxShowStatus.NOT_FOUND
         assert not result.ok
         assert result.sandbox is None
@@ -67,7 +70,7 @@ class SandboxShowCollectTests:
         sbx_dir = git_fs.base_path / ".worktree" / "sandboxes" / "sbx_present"
         sbx_dir.mkdir(parents=True, exist_ok=True)
 
-        result = collect_sandbox_show(make_cli_context(cwd=git_fs.base_path), "sbx_present")
+        result = collect_sandbox_show(git_fs.base_path, self.db.sandboxes, "sbx_present")
         assert result.status is SandboxShowStatus.OK
         assert result.ok
         assert result.sandbox is not None
@@ -80,7 +83,7 @@ class SandboxShowCollectTests:
         git_fs.init_repo()
         seed_sandbox(self.db.sandboxes, sandbox_id="sbx_stale", create_dir=False)
 
-        result = collect_sandbox_show(make_cli_context(cwd=git_fs.base_path), "sbx_stale")
+        result = collect_sandbox_show(git_fs.base_path, self.db.sandboxes, "sbx_stale")
         assert result.status is SandboxShowStatus.OK
         assert result.ok
         assert result.sandbox is not None
@@ -102,7 +105,7 @@ class SandboxShowCollectTests:
         )
         self.db.sandboxes.update_status(row.id, SandboxStatus.MERGED)
 
-        result = collect_sandbox_show(make_cli_context(cwd=git_fs.base_path), "sbx_merged")
+        result = collect_sandbox_show(git_fs.base_path, self.db.sandboxes, "sbx_merged")
         assert result.status is SandboxShowStatus.OK
         assert result.ok
         assert result.sandbox is not None
@@ -123,7 +126,7 @@ class SandboxShowCollectTests:
         )
         self.db.sandboxes.update_status(row.id, SandboxStatus.CLEANED)
 
-        result = collect_sandbox_show(make_cli_context(cwd=git_fs.base_path), "sbx_cleaned")
+        result = collect_sandbox_show(git_fs.base_path, self.db.sandboxes, "sbx_cleaned")
         assert result.status is SandboxShowStatus.OK
         assert result.ok
         assert result.sandbox is not None
@@ -144,7 +147,7 @@ class SandboxShowCollectTests:
         )
         self.db.sandboxes.update_status(row.id, SandboxStatus.CONFLICT)
 
-        result = collect_sandbox_show(make_cli_context(cwd=git_fs.base_path), "sbx_conflict")
+        result = collect_sandbox_show(git_fs.base_path, self.db.sandboxes, "sbx_conflict")
         assert result.status is SandboxShowStatus.OK
         assert result.ok
         assert result.sandbox is not None

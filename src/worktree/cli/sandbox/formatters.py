@@ -13,9 +13,6 @@ from rich.text import Text
 from worktree.cli.sandbox.models import (
     SandboxDeleteResult,
     SandboxDeleteStatus,
-    SandboxListResult,
-    SandboxShowResult,
-    SandboxShowStatus,
 )
 from worktree.cli.sandbox.renderers import build_sandbox_detail_table, build_sandbox_table
 from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
@@ -29,7 +26,10 @@ from worktree.core.sandbox.models import (
     SandboxCreateResult,
     SandboxDiffResult,
     SandboxDiffStatus,
+    SandboxListResult,
     SandboxPruneResult,
+    SandboxShowResult,
+    SandboxShowStatus,
     StaleSandboxCategory,
 )
 
