@@ -23,10 +23,7 @@ from worktree.core.db import CatalogRepository, RunRecord, RunsRepository, RunSt
 from worktree.core.engine.engine import Engine
 from worktree.core.engine.exceptions import EngineInputError, EngineRuntimeError
 from worktree.core.engine.models import RunRequest
-from worktree.core.engine.services.reconcile import (
-    format_reconciliation_warning,
-    reconcile_stale_runs,
-)
+from worktree.core.engine.services.reconcile import reconcile_stale_runs
 from worktree.core.inputs.services.resolve import format_input_error_message
 from worktree.core.runtime import (
     CliFailurePrompter,
@@ -65,13 +62,9 @@ class BlueprintRunService:
 
     def execute(self) -> BlueprintRunCommandOutcome:
         """Run the full execution pipeline and return the outcome."""
-        try:
-            reconciled = reconcile_stale_runs(self.runs_db, path=self.path)
-            warning_message = format_reconciliation_warning(reconciled)
-            if warning_message:
-                self.output.add_warning(warning_message)
-        except Exception:
-            pass
+        reconciliation_result = reconcile_stale_runs(self.runs_db, path=self.path)
+        if reconciliation_result.warning:
+            self.output.add_warning(reconciliation_result.warning)
 
         catalog = Catalog(path=self.path, db=self.catalog_db)
         blueprint, fail_outcome = self._load_blueprint(catalog)

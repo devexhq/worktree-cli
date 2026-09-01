@@ -154,12 +154,13 @@ class TestReconcileStaleRuns:
             pid=DEAD_PID,
         )
 
-        reconciled = reconcile_stale_runs(self.db)
-        assert len(reconciled) == 1
-        assert reconciled[0].session_id == "stale_1"
-        assert reconciled[0].status == RunStatus.FAILED
-        assert reconciled[0].error_message == STALE_RUN_ERROR_MESSAGE
-        assert reconciled[0].completed_at is not None
+        reconciliation_result = reconcile_stale_runs(self.db)
+        assert len(reconciliation_result.reconciled) == 1
+        assert reconciliation_result.reconciled[0].session_id == "stale_1"
+        assert reconciliation_result.reconciled[0].status == RunStatus.FAILED
+        assert reconciliation_result.reconciled[0].error_message == STALE_RUN_ERROR_MESSAGE
+        assert reconciliation_result.reconciled[0].completed_at is not None
+        assert reconciliation_result.warning == "Reconciled 1 interrupted session (session_id: stale_1)."
 
         persisted = self.db.runs.get("stale_1")
         assert persisted is not None
@@ -175,10 +176,11 @@ class TestReconcileStaleRuns:
             pid=DEAD_PID,
         )
 
-        reconciled = reconcile_stale_runs(self.db.runs, path=fs.base_path)
-        assert len(reconciled) == 1
-        assert reconciled[0].session_id == "stale_repo"
-        assert reconciled[0].status == RunStatus.FAILED
+        reconciliation_result = reconcile_stale_runs(self.db.runs, path=fs.base_path)
+        assert len(reconciliation_result.reconciled) == 1
+        assert reconciliation_result.reconciled[0].session_id == "stale_repo"
+        assert reconciliation_result.reconciled[0].status == RunStatus.FAILED
+        assert reconciliation_result.warning is not None
 
     def test_reconcile_leaves_active_and_completed_runs_intact(self) -> None:
         self.db.runs.create(
@@ -196,8 +198,9 @@ class TestReconcileStaleRuns:
             pid=os.getpid(),
         )
 
-        reconciled = reconcile_stale_runs(self.db)
-        assert len(reconciled) == 0
+        reconciliation_result = reconcile_stale_runs(self.db)
+        assert len(reconciliation_result.reconciled) == 0
+        assert reconciliation_result.warning is None
 
         comp_rec = self.db.runs.get("run_comp")
         active_rec = self.db.runs.get("run_active")
@@ -222,10 +225,19 @@ class TestReconcileStaleRuns:
             pid=None,
         )
 
-        reconciled = reconcile_stale_runs(self.db)
-        assert len(reconciled) == 2
-        reconciled_ids = {r.session_id for r in reconciled}
+        reconciliation_result = reconcile_stale_runs(self.db)
+        assert len(reconciliation_result.reconciled) == 2
+        reconciled_ids = {r.session_id for r in reconciliation_result.reconciled}
         assert reconciled_ids == {"stale_a", "stale_b"}
+        assert reconciliation_result.warning is not None
+        assert "stale_a" in reconciliation_result.warning
+        assert "stale_b" in reconciliation_result.warning
+
+    def test_reconcile_handles_exceptions_gracefully(self) -> None:
+        with patch.object(self.db.runs, "list", side_effect=RuntimeError("DB query failed")):
+            reconciliation_result = reconcile_stale_runs(self.db)
+            assert reconciliation_result.reconciled == []
+            assert reconciliation_result.warning is None
 
     def test_format_reconciliation_warning(self) -> None:
         assert format_reconciliation_warning([]) is None

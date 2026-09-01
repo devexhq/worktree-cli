@@ -2,7 +2,7 @@
 
 from worktree.core.engine.engine import Engine
 from worktree.core.engine.exceptions import EngineError, EngineInputError, EngineResumeError, EngineRuntimeError
-from worktree.core.engine.models import EngineResumeStatus, RunRequest, SessionRunPayload
+from worktree.core.engine.models import EngineResumeStatus, ReconciliationResult, RunRequest, SessionRunPayload
 from worktree.core.engine.resumable import ResumableRun
 from worktree.core.engine.services import (
     STALE_RUN_ERROR_MESSAGE,
@@ -31,6 +31,7 @@ __all__ = [
     "EngineResumeError",
     "EngineResumeStatus",
     "EngineRuntimeError",
+    "ReconciliationResult",
     "ResumableRun",
     "RunRequest",
     "SessionRunPayload",
