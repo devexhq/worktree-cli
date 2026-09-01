@@ -135,20 +135,20 @@ class SandboxListCollectTests:
 
     def test_leaves_merged_and_cleaned_untouched(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        seed_sandbox(
+        row_m = seed_sandbox(
             self.db.sandboxes,
             sandbox_id="sbx_m",
-            status=SandboxStatus.MERGED,
             path_suffix="m",
             create_dir=False,
         )
-        seed_sandbox(
+        self.db.sandboxes.update_status(row_m.id, SandboxStatus.MERGED)
+        row_c = seed_sandbox(
             self.db.sandboxes,
             sandbox_id="sbx_c",
-            status=SandboxStatus.CLEANED,
             path_suffix="c",
             create_dir=False,
         )
+        self.db.sandboxes.update_status(row_c.id, SandboxStatus.CLEANED)
 
         result = collect_sandbox_list(make_cli_context(cwd=git_fs.base_path))
         assert result.status is SandboxListStatus.OK

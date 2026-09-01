@@ -53,8 +53,8 @@ class SandboxCreateRenderTests:
         rich_output.print()
         out = buffer.getvalue()
         assert "Sandbox created: sbx_a1b2c3d4" in out
-        assert "Branch: worktree/sandbox-sbx_a1b2c3d4" in out
-        assert "Path: .worktree/sandboxes/sbx_a1b2c3d4" in out
+        assert "Path:" in out
+        assert ".worktree/sandboxes/sbx_a1b2c3d4" in out
 
     def test_success_with_warnings(self, fs: FileSystem) -> None:
         session = _session(

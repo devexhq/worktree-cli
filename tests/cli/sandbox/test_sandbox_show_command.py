@@ -78,7 +78,7 @@ class SandboxShowCollectTests:
 
     def test_reconciles_stale_active_missing_directory(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        seed_sandbox(self.db.sandboxes, sandbox_id="sbx_stale")
+        seed_sandbox(self.db.sandboxes, sandbox_id="sbx_stale", create_dir=False)
 
         result = collect_sandbox_show(make_cli_context(cwd=git_fs.base_path), "sbx_stale")
         assert result.status is SandboxShowStatus.OK
@@ -95,11 +95,12 @@ class SandboxShowCollectTests:
 
     def test_leaves_merged_unchanged_even_if_directory_missing(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        seed_sandbox(
+        row = seed_sandbox(
             self.db.sandboxes,
             sandbox_id="sbx_merged",
-            status=SandboxStatus.MERGED,
+            create_dir=False,
         )
+        self.db.sandboxes.update_status(row.id, SandboxStatus.MERGED)
 
         result = collect_sandbox_show(make_cli_context(cwd=git_fs.base_path), "sbx_merged")
         assert result.status is SandboxShowStatus.OK
@@ -115,11 +116,12 @@ class SandboxShowCollectTests:
 
     def test_leaves_cleaned_unchanged_even_if_directory_missing(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        seed_sandbox(
+        row = seed_sandbox(
             self.db.sandboxes,
             sandbox_id="sbx_cleaned",
-            status=SandboxStatus.CLEANED,
+            create_dir=False,
         )
+        self.db.sandboxes.update_status(row.id, SandboxStatus.CLEANED)
 
         result = collect_sandbox_show(make_cli_context(cwd=git_fs.base_path), "sbx_cleaned")
         assert result.status is SandboxShowStatus.OK
@@ -135,11 +137,12 @@ class SandboxShowCollectTests:
 
     def test_leaves_conflict_unchanged_even_if_directory_missing(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        seed_sandbox(
+        row = seed_sandbox(
             self.db.sandboxes,
             sandbox_id="sbx_conflict",
-            status=SandboxStatus.CONFLICT,
+            create_dir=False,
         )
+        self.db.sandboxes.update_status(row.id, SandboxStatus.CONFLICT)
 
         result = collect_sandbox_show(make_cli_context(cwd=git_fs.base_path), "sbx_conflict")
         assert result.status is SandboxShowStatus.OK
