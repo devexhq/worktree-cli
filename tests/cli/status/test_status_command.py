@@ -126,7 +126,7 @@ class StatusCommandTests:
         def _failing_collector(*args: object, **kwargs: object) -> None:
             raise RuntimeError("collector boom")
 
-        monkeypatch.setattr("worktree.cli.status.commands.root.collect_status", _failing_collector)
+        monkeypatch.setattr("worktree.core.status.services.collector.collect_status", _failing_collector)
 
         ctx = make_cli_context(cwd=fs.base_path)
         outcome = status_command(ctx)

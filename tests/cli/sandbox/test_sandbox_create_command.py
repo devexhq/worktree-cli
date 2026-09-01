@@ -226,12 +226,12 @@ class SandboxCreateCommandDirectTests:
         monkeypatch.chdir(git_fs.base_path)
 
         mock_manager = MagicMock()
-        mock_manager.create_sandbox.return_value = SandboxCreateResult(
+        mock_manager.create.return_value = SandboxCreateResult(
             status=status,
             errors=errors,
         )
         monkeypatch.setattr(
-            "worktree.cli.sandbox.commands.sandbox_create.GitSandboxManager",
+            "worktree.cli.sandbox.commands.sandbox_create.Sandbox",
             lambda cwd=None, **_kwargs: mock_manager,
         )
 
@@ -254,13 +254,13 @@ class SandboxCreateCommandDirectTests:
             sandbox_path=git_fs.base_path / ".worktree" / "sandboxes" / "sbx_warnok",
         )
         mock_manager = MagicMock()
-        mock_manager.create_sandbox.return_value = SandboxCreateResult(
+        mock_manager.create.return_value = SandboxCreateResult(
             status=SandboxCreateStatus.OK,
             session=session,
             warnings=["Failed to persist sandbox metadata to the local database: boom"],
         )
         monkeypatch.setattr(
-            "worktree.cli.sandbox.commands.sandbox_create.GitSandboxManager",
+            "worktree.cli.sandbox.commands.sandbox_create.Sandbox",
             lambda cwd=None, **_kwargs: mock_manager,
         )
 

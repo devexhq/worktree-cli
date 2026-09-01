@@ -1,4 +1,4 @@
-"""Unified coordinator facade for Git worktree sandboxes."""
+"""Sandbox domain facade."""
 
 from __future__ import annotations
 
@@ -6,34 +6,41 @@ from pathlib import Path
 
 from worktree.common.lock import WorkspaceLock
 from worktree.core.config.models import WorktreeConfig
-from worktree.core.db import RunsRepository, SandboxesRepository, SandboxRecord
+from worktree.core.db import RunsRepository, SandboxesRepository, SandboxRecord, SandboxStatus
 from worktree.core.sandbox.models import (
     SandboxApplyResult,
     SandboxApplyStrategy,
     SandboxCreateResult,
+    SandboxDeleteResult,
     SandboxDetectionResult,
     SandboxDiffResult,
+    SandboxListResult,
     SandboxPruneResult,
     SandboxSession,
+    SandboxShowResult,
 )
+from worktree.core.sandbox.services.delete import collect_sandbox_delete
 from worktree.core.sandbox.services.detector import SandboxDetector
 from worktree.core.sandbox.services.lifecycle import SandboxLifecycle
+from worktree.core.sandbox.services.list import collect_sandbox_list
 from worktree.core.sandbox.services.patch import SandboxPatch
 from worktree.core.sandbox.services.pruner import SandboxPruner
+from worktree.core.sandbox.services.show import collect_sandbox_show
 
 
-class GitSandboxManager:
-    """Coordinator facade orchestrating sandbox lifecycle and patch services."""
+class Sandbox:
+    """Unified entrypoint for Git worktree sandboxes, lifecycle, and diff/patch application."""
 
-    def __init__(self, path: Path, db: SandboxesRepository) -> None:
-        """Bind to repository root with an explicit database repository.
-
-        Args:
-            path: Repository root directory.
-            db: Explicit SandboxesRepository instance.
-        """
+    def __init__(
+        self,
+        path: Path = Path("."),
+        db: SandboxesRepository | None = None,
+        runs_db: RunsRepository | None = None,
+    ) -> None:
         self.path = path.expanduser().resolve()
-        self.db = db
+        self.cwd = self.path
+        self.db = db if db is not None else SandboxesRepository(self.path)
+        self.runs_db = runs_db
         self.lifecycle = SandboxLifecycle(self.path, self.db)
         self.patch = SandboxPatch(self.path, self.db, lifecycle=self.lifecycle)
 
@@ -47,7 +54,19 @@ class GitSandboxManager:
         """Base storage directory for created sandboxes."""
         return self.lifecycle.sandbox_base_dir
 
-    def create_sandbox(
+    def list(self, status: SandboxStatus | str | None = None) -> SandboxListResult:
+        """List tracked sandboxes with lifecycle status, reconciling stale directories."""
+        return collect_sandbox_list(self.path, self.db, status)
+
+    def show(self, sandbox_id: str) -> SandboxShowResult:
+        """Show details for one tracked sandbox, reconciling stale active rows."""
+        return collect_sandbox_show(self.path, self.db, sandbox_id)
+
+    def delete(self, sandbox_id: str) -> SandboxDeleteResult:
+        """Inspect sandbox row and disk state for deletion without mutating."""
+        return collect_sandbox_delete(self.path, self.db, sandbox_id=sandbox_id)
+
+    def create(
         self,
         session_id: str | None = None,
         *,
@@ -64,7 +83,7 @@ class GitSandboxManager:
                 base_ref=base_ref,
             )
 
-    def cleanup_sandbox(
+    def cleanup(
         self,
         session: SandboxSession | SandboxRecord,
         *,
@@ -74,16 +93,26 @@ class GitSandboxManager:
         with WorkspaceLock(self.path):
             return self.lifecycle.cleanup(session, force=force)
 
-    def prune(self) -> None:
+    def prune(
+        self,
+        *,
+        dry_run: bool = False,
+        force: bool = False,
+    ) -> SandboxPruneResult:
+        """Safely prune stale sandboxes, orphaned directories, and temporary branches."""
+        pruner = SandboxPruner(self.path, self.db, runs_db=self.runs_db)
+        return pruner.prune(dry_run=dry_run, force=force)
+
+    def prune_git_worktrees(self) -> None:
         """Prune stale Git worktree registrations."""
         with WorkspaceLock(self.path):
             self.lifecycle.prune()
 
-    def get_active_sandboxes(self) -> list[Path]:
+    def get_active(self) -> list[Path]:
         """List active sandbox directories."""
         return self.lifecycle.get_active()
 
-    def apply_sandbox(
+    def apply(
         self,
         sandbox_id: str,
         *,
@@ -104,7 +133,7 @@ class GitSandboxManager:
                 message=message,
             )
 
-    def diff_sandbox(
+    def diff(
         self,
         sandbox_id: str,
         *,
@@ -113,21 +142,7 @@ class GitSandboxManager:
         """Inspect unified diff or diffstat for a sandbox."""
         return self.patch.diff(sandbox_id=sandbox_id, stat=stat)
 
-    def detect_stale_sandboxes(
-        self,
-        runs_db: RunsRepository | None = None,
-    ) -> SandboxDetectionResult:
+    def detect(self) -> SandboxDetectionResult:
         """Scan repository for stale sandboxes, orphaned directories, and dead refs."""
-        detector = SandboxDetector(self.path, self.db, runs_db=runs_db)
+        detector = SandboxDetector(self.path, self.db, runs_db=self.runs_db)
         return detector.detect()
-
-    def prune_sandboxes(
-        self,
-        *,
-        dry_run: bool = False,
-        force: bool = False,
-        runs_db: RunsRepository | None = None,
-    ) -> SandboxPruneResult:
-        """Safely prune stale sandboxes, orphaned directories, and temporary branches."""
-        pruner = SandboxPruner(self.path, self.db, runs_db=runs_db)
-        return pruner.prune(dry_run=dry_run, force=force)

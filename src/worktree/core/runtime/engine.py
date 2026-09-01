@@ -24,7 +24,7 @@ from worktree.core.runtime.models import (
     StepLoopState,
 )
 from worktree.core.sandbox import (
-    GitSandboxManager,
+    Sandbox,
     SandboxApplyStrategy,
     SandboxSession,
 )
@@ -87,7 +87,7 @@ def _session_from_checkpoint(checkpoint: RunCheckpoint, path: Path) -> SandboxSe
 def _setup_resumed_sandbox(
     context: RunContext,
     checkpoint: RunCheckpoint,
-) -> tuple[Path, GitSandboxManager | None, SandboxSession | None, str | None]:
+) -> tuple[Path, Sandbox | None, SandboxSession | None, str | None]:
     if not checkpoint.use_sandbox:
         target_dir = context.cwd.resolve()
         _notify_sandbox_ready(context, target_dir, active=False)
@@ -98,14 +98,14 @@ def _setup_resumed_sandbox(
         return context.cwd.resolve(), None, None, f"Git sandbox is missing: {path}"
 
     session = _session_from_checkpoint(checkpoint, path)
-    manager = GitSandboxManager(context.cwd.resolve(), db=SandboxesRepository(context.cwd.resolve()))
+    manager = Sandbox(context.cwd.resolve(), db=SandboxesRepository(context.cwd.resolve()))
     _notify_sandbox_ready(context, path, active=True)
     return path, manager, session, None
 
 
 def _setup_sandbox(
     context: RunContext,
-) -> tuple[Path, GitSandboxManager | None, SandboxSession | None, str | None]:
+) -> tuple[Path, Sandbox | None, SandboxSession | None, str | None]:
     """Create an optional sandbox and return the execution directory.
 
     Returns:
@@ -120,11 +120,11 @@ def _setup_sandbox(
         _notify_sandbox_ready(context, target_dir, active=False)
         return target_dir, None, None, None
 
-    manager = GitSandboxManager(context.cwd.resolve(), db=SandboxesRepository(context.cwd.resolve()))
+    manager = Sandbox(context.cwd.resolve(), db=SandboxesRepository(context.cwd.resolve()))
     session_id = None
     if context.identity is not None:
         session_id = context.identity.task_sha or context.identity.workflow_sha
-    create_result = manager.create_sandbox(session_id=session_id)
+    create_result = manager.create(session_id=session_id)
     if not create_result.ok or create_result.session is None:
         detail = create_result.errors[0] if create_result.errors else "Sandbox creation failed."
         return context.cwd.resolve(), None, None, f"Git sandbox creation failed: {detail}"
@@ -137,7 +137,7 @@ def _setup_sandbox(
 
 def _cleanup_sandbox(
     context: RunContext,
-    manager: GitSandboxManager | None,
+    manager: Sandbox | None,
     session: SandboxSession | None,
     target_dir: Path,
 ) -> bool:
@@ -151,7 +151,7 @@ def _cleanup_sandbox(
         return True
 
     try:
-        manager.cleanup_sandbox(session)
+        manager.cleanup(session)
     except Exception:
         # Best-effort cleanup: worktree removal is independent of run outcome.
         pass
@@ -531,7 +531,7 @@ def _run_step_loop(
 
 def _handle_auto_apply(
     context: RunContext,
-    manager: GitSandboxManager | None,
+    manager: Sandbox | None,
     session: SandboxSession | None,
     errors: list[str],
     warnings: list[str],
@@ -544,7 +544,7 @@ def _handle_auto_apply(
     if not (context.auto_apply and session is not None and manager is not None):
         return None, False
 
-    apply_result = manager.apply_sandbox(
+    apply_result = manager.apply(
         session.session_id,
         strategy=SandboxApplyStrategy.PATCH,
     )
@@ -577,7 +577,7 @@ def _capture_and_persist_diff(
 
 def _finalize_sandbox_cleanup(
     context: RunContext,
-    manager: GitSandboxManager | None,
+    manager: Sandbox | None,
     session: SandboxSession | None,
     target_dir: Path,
     status: RunStatus,

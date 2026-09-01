@@ -1,9 +1,9 @@
-"""Class handle that loads and inspects a task or workflow blueprint."""
+"""Blueprint domain facade."""
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from worktree.core.blueprint.exceptions import (
     BlueprintLoadError,
@@ -11,9 +11,18 @@ from worktree.core.blueprint.exceptions import (
     BlueprintValidationError,
 )
 from worktree.core.blueprint.models import BlueprintDefinition, BlueprintKind
-from worktree.core.catalog import Catalog, CatalogFileNotFoundError, CatalogResolveStatus, CatalogYamlError
+from worktree.core.catalog import (
+    Catalog,
+    CatalogFileNotFoundError,
+    CatalogResolveStatus,
+    CatalogYamlError,
+)
 from worktree.core.db import CatalogItemType
-from worktree.core.inputs import InputResolveResult, ParameterInput, resolve_inputs
+from worktree.core.inputs import (
+    InputResolveResult,
+    Inputs,
+    ParameterInput,
+)
 from worktree.core.step import LoopStepBlock, StepDefinition
 
 
@@ -33,10 +42,22 @@ class Blueprint:
     def __init__(self, instance: BlueprintDefinition) -> None:
         self._instance = instance
 
+    @property
+    def definition(self) -> BlueprintDefinition:
+        """Return the underlying wrapped BlueprintDefinition instance."""
+        return self._instance
+
     @classmethod
-    def load(cls, name: str, catalog: Catalog | None = None) -> Blueprint:
+    def load(
+        cls,
+        name: str,
+        catalog: Catalog | None = None,
+        *,
+        path: Path | None = None,
+    ) -> Blueprint:
         """Build a handle from a catalog task/workflow name or SHA."""
-        result = (catalog or Catalog()).resolve(name)
+        cat = catalog if catalog is not None else (Catalog(path) if path is not None else Catalog())
+        result = cat.resolve(name)
         if result.status == CatalogResolveStatus.NOT_FOUND:
             raise BlueprintNotFoundError(f"Blueprint '{name}' not found in catalog.")
         if result.status == CatalogResolveStatus.LOAD_ERROR or result.raw is None or result.record is None:
@@ -55,6 +76,12 @@ class Blueprint:
         except (CatalogFileNotFoundError, CatalogYamlError) as exc:
             raise BlueprintLoadError(f"Failed to load blueprint from '{resolved}': {exc}") from exc
         return cls(cls.spec.from_document(raw, kind=kind))
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any], kind: BlueprintKind | str) -> Blueprint:
+        """Build a handle from an in-memory dictionary and explicit kind."""
+        blueprint_kind = BlueprintKind(kind) if isinstance(kind, str) else kind
+        return cls(cls.spec.from_document(data, kind=blueprint_kind))
 
     @property
     def kind(self) -> BlueprintKind:
@@ -81,7 +108,7 @@ class Blueprint:
         """Return whether the document requests a git sandbox."""
         return self._instance.use_sandbox
 
-    def dump(self) -> dict[str, object]:
+    def dump(self) -> dict[str, Any]:
         """Return the in-memory document as a JSON-mode dict, including derived kind."""
         return self._instance.model_dump(mode="json")
 
@@ -92,7 +119,7 @@ class Blueprint:
         overrides: dict[str, str | int | bool] | None = None,
     ) -> InputResolveResult:
         """Parse CLI args against this blueprint's declared inputs."""
-        return resolve_inputs(self.inputs, cli_args=cli_args, overrides=overrides)
+        return Inputs.resolve(self.inputs, cli_args=cli_args, overrides=overrides)
 
     @classmethod
     def _kind_from_item_type(cls, item_type: CatalogItemType) -> BlueprintKind:

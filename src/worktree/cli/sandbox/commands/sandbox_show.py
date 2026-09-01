@@ -5,8 +5,8 @@ from __future__ import annotations
 from worktree.cli.context import CliContext
 from worktree.cli.ui.dispatcher import ui_dispatcher
 from worktree.core.sandbox import (
+    Sandbox,
     SandboxShowStatus,
-    collect_sandbox_show,
 )
 
 from ..models import (
@@ -29,7 +29,7 @@ def sandbox_show_command(
         sandbox_id: Sandbox primary key to show.
         output_format: Presentation format ("terminal" or "json").
     """
-    result = collect_sandbox_show(context.cwd, context.db.sandboxes, sandbox_id)
+    result = Sandbox(path=context.cwd, db=context.db.sandboxes).show(sandbox_id)
     ui_dispatcher.dispatch(result, output_format=output_format)
     if result.status is SandboxShowStatus.NOT_INITIALIZED:
         return SandboxShowCommandOutcome(errors=list(result.errors))

@@ -1,7 +1,7 @@
 """Handles `wt config show` command."""
 
 from worktree.cli.context import CliContext
-from worktree.core.config.loader import load_config_result
+from worktree.core.config import Config
 
 from ..models import ConfigShowCommandOutcome
 from ..renderers import render_config_show
@@ -19,7 +19,7 @@ def config_show_command(
         context: CLI context instance.
     """
     output = context.output
-    result = load_config_result(path=context.cwd)
+    result = Config(context.cwd).load()
 
     if not result.ok or result.config is None:
         message = "\n\n".join(result.errors) if result.errors else "Failed to load configuration."

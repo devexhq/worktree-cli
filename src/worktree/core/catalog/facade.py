@@ -1,4 +1,4 @@
-"""Inventory facade over local `.worktree/catalog/` YAML documents."""
+"""Catalog domain facade."""
 
 from __future__ import annotations
 
@@ -9,22 +9,40 @@ import yaml
 
 from worktree.common.fs import atomic_write_text, read_yaml_file
 from worktree.common.lock import WorkspaceLock
+from worktree.common.models import DefinitionResolutionResult
 from worktree.core.catalog.exceptions import (
     CatalogFileNotFoundError,
     CatalogWriteError,
     CatalogYamlError,
 )
-from worktree.core.catalog.models import CatalogResolveResult, CatalogResolveStatus
+from worktree.core.catalog.models import (
+    CatalogResolveResult,
+    CatalogResolveStatus,
+    CatalogScanResult,
+)
 from worktree.core.catalog.services.inventory import (
+    create_catalog_item,
+    delete_catalog_item_by_sha_or_name,
     ensure_catalog_dirs,
+    find_packaged_templates,
     get_catalog_dir,
+    get_catalog_item,
+    list_packaged_template_defaults,
     scan_and_index_catalog,
 )
-from worktree.core.db import CatalogItemType, CatalogRecord, CatalogRepository
+from worktree.core.catalog.services.seeder import (
+    SeedResult,
+    seed_all_catalog_templates,
+)
+from worktree.core.db import (
+    CatalogItemType,
+    CatalogRecord,
+    CatalogRepository,
+)
 
 
 class Catalog:
-    """Inventory only. Returns raw YAML / records — never Blueprint or Step."""
+    """Unified entrypoint for blueprint catalog inventory and management."""
 
     _TASK_AND_WORKFLOW: ClassVar[frozenset[CatalogItemType]] = frozenset(
         {CatalogItemType.TASK, CatalogItemType.WORKFLOW}
@@ -36,6 +54,13 @@ class Catalog:
         self.cwd = self.path
         self.db = db if db is not None else CatalogRepository(self.path)
 
+    def list(self, kind: CatalogItemType | str | None = None) -> list[CatalogRecord]:
+        """Return indexed catalog records, optionally filtered by item type."""
+        scan_and_index_catalog(self.path, db=self.db)
+        if kind is None:
+            return self.db.list()
+        return self.db.list(item_type=self._coerce_item_type(kind))
+
     def resolve(self, name: str) -> CatalogResolveResult:
         """Load a task or workflow YAML by SHA or catalog name."""
         return self._resolve(name, self._TASK_AND_WORKFLOW)
@@ -44,12 +69,35 @@ class Catalog:
         """Load a reusable step YAML by SHA or catalog name."""
         return self._resolve(name, self._STEP_ONLY)
 
-    def list(self, kind: CatalogItemType | str | None = None) -> list[CatalogRecord]:
-        """Return indexed catalog records, optionally filtered by item type."""
-        scan_and_index_catalog(self.path, db=self.db)
-        if kind is None:
-            return self.db.list()
-        return self.db.list(item_type=self._coerce_item_type(kind))
+    def get(
+        self,
+        sha_or_name: str,
+        item_type: CatalogItemType | str | None = None,
+    ) -> DefinitionResolutionResult[CatalogRecord]:
+        """Retrieve indexed catalog record by SHA or name."""
+        return get_catalog_item(
+            sha_or_name,
+            type_filter=item_type,
+            path=self.path,
+            db=self.db,
+        )
+
+    def create(
+        self,
+        item_type: CatalogItemType | str,
+        name: str,
+    ) -> CatalogRecord:
+        """Create a new catalog blueprint file and reindex."""
+        return create_catalog_item(
+            item_type=self._coerce_item_type(item_type),
+            name=name,
+            path=self.path,
+            db=self.db,
+        )
+
+    def delete(self, sha_or_name: str) -> CatalogRecord | None:
+        """Delete catalog blueprint file and its database index record."""
+        return delete_catalog_item_by_sha_or_name(sha_or_name, path=self.path, db=self.db)
 
     def save(
         self,
@@ -78,9 +126,27 @@ class Catalog:
                 raise CatalogWriteError(f"Failed to reindex catalog blueprint '{rel_path.as_posix()}'.")
             return record
 
+    def seed(self, *, force: bool = False) -> SeedResult:
+        """Seed packaged catalog templates into the workspace."""
+        return seed_all_catalog_templates(self.path, force=force)
+
+    def sync(self) -> CatalogScanResult:
+        """Synchronize database index with on-disk YAML blueprints."""
+        return scan_and_index_catalog(self.path, db=self.db)
+
+    @staticmethod
+    def list_packaged_templates() -> list[tuple[str, str]]:
+        """Return (type, relative_path) pairs for the packaged default templates."""
+        return list_packaged_template_defaults()
+
+    @staticmethod
+    def find_packaged_templates(sha_or_name: str) -> list[tuple[str, str]]:
+        """Return (relative_path, content) pairs for packaged templates matching sha_or_name."""
+        return find_packaged_templates(sha_or_name)
+
     @staticmethod
     def read_yaml(path: Path) -> dict[str, Any]:
-        """Load a YAML object from ``path`` or raise a classified catalog error."""
+        """Load a YAML object from path or raise a classified catalog error."""
         if not path.exists():
             raise CatalogFileNotFoundError(f"Catalog file not found at '{path}'.")
         yaml_file = read_yaml_file(path)

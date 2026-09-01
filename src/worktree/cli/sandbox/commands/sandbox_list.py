@@ -5,8 +5,8 @@ from __future__ import annotations
 from worktree.cli.context import CliContext
 from worktree.cli.ui.dispatcher import ui_dispatcher
 from worktree.core.sandbox import (
+    Sandbox,
     SandboxListStatus,
-    collect_sandbox_list,
 )
 
 from ..models import (
@@ -29,7 +29,7 @@ def sandbox_list_command(
         status: Optional status filter validated by Typer at the CLI layer.
         output_format: Presentation format ("terminal" or "json").
     """
-    result = collect_sandbox_list(context.cwd, context.db.sandboxes, status)
+    result = Sandbox(path=context.cwd, db=context.db.sandboxes).list(status=status)
     ui_dispatcher.dispatch(result, output_format=output_format)
     if result.status is SandboxListStatus.NOT_INITIALIZED:
         return SandboxListCommandOutcome(errors=list(result.errors))

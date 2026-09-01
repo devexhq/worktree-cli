@@ -8,7 +8,7 @@ from typing import Any
 
 from tests.helpers import GitFileSystem
 from worktree.core.db import SandboxesRepository, SandboxStatus
-from worktree.core.sandbox import GitSandboxManager
+from worktree.core.sandbox import Sandbox
 
 
 def _worker_create_sandbox(
@@ -19,8 +19,8 @@ def _worker_create_sandbox(
     """Worker process that instantiates a repository/manager and creates a sandbox."""
     try:
         db = SandboxesRepository(repo_path)
-        manager = GitSandboxManager(path=repo_path, db=db)
-        result = manager.create_sandbox(name=name)
+        sandbox = Sandbox(path=repo_path, db=db)
+        result = sandbox.create(name=name)
         if result.ok and result.session is not None:
             result_queue.put(
                 {
@@ -49,8 +49,8 @@ def _worker_cleanup_sandbox(
             result_queue.put({"ok": False, "errors": [f"Record {session_id} not found"]})
             return
 
-        manager = GitSandboxManager(path=repo_path, db=db)
-        warnings = manager.cleanup_sandbox(record)
+        sandbox = Sandbox(path=repo_path, db=db)
+        warnings = sandbox.cleanup(record)
         result_queue.put({"ok": True, "warnings": warnings})
     except Exception as exc:
         result_queue.put({"ok": False, "errors": [str(exc)]})

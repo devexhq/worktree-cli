@@ -3,33 +3,14 @@
 from __future__ import annotations
 
 from worktree.cli.context import CliContext
-from worktree.common.fs import get_catalog_templates_dir
-from worktree.core.catalog.services.inventory import (
-    get_catalog_dir,
-    get_catalog_item,
-)
+from worktree.core.catalog import Catalog
+from worktree.core.catalog.services.inventory import get_catalog_dir
 
 from ..models import CatalogShowCommandOutcome
 from ..renderers import (
     render_catalog_show,
     render_template_show_content,
 )
-
-
-def _find_packaged_templates(sha_or_name: str) -> list[tuple[str, str]]:
-    """Return (relative_path, content) pairs for packaged templates matching `sha_or_name`."""
-    root = get_catalog_templates_dir()
-    found: list[tuple[str, str]] = []
-    for type_dir in ("workflows", "tasks", "steps"):
-        candidate = (
-            (root / type_dir / "default.yml")
-            if sha_or_name == "default"
-            else (root / type_dir / "wt" / f"{sha_or_name}.yml")
-        )
-        if candidate.is_file():
-            rel_path = f"{type_dir}/default.yml" if sha_or_name == "default" else f"{type_dir}/wt/{sha_or_name}.yml"
-            found.append((rel_path, candidate.read_text(encoding="utf-8")))
-    return found
 
 
 def catalog_show_command(
@@ -46,11 +27,12 @@ def catalog_show_command(
         CatalogShowCommandOutcome containing record and content or errors.
     """
     output = context.output
+    catalog = Catalog(path=context.cwd, db=context.db.catalog)
 
-    resolution_result = get_catalog_item(sha_or_name, path=context.cwd, db=context.db.catalog)
+    resolution_result = catalog.get(sha_or_name)
     item = resolution_result.resolved
     if not resolution_result.ok or item is None:
-        found = _find_packaged_templates(sha_or_name)
+        found = Catalog.find_packaged_templates(sha_or_name)
         if found:
             for rel_path, content in found:
                 render_template_show_content(rel_path, content, output=output)

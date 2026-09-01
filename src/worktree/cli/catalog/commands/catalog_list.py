@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from worktree.cli.context import CliContext
-from worktree.common.fs import get_catalog_templates_dir
 from worktree.common.utils import RichOutput
-from worktree.core.catalog.services.inventory import scan_and_index_catalog
+from worktree.core.catalog import Catalog
 from worktree.core.db import CatalogItemType
 
 from ..models import CatalogListCommandOutcome
@@ -13,17 +12,6 @@ from ..renderers import (
     render_catalog_list,
     render_catalog_template_list,
 )
-
-
-def _packaged_template_defaults() -> list[tuple[str, str]]:
-    """Return (type, relative_path) pairs for the three packaged `default.yml` templates."""
-    root = get_catalog_templates_dir()
-    rows: list[tuple[str, str]] = []
-    for item_type in (CatalogItemType.WORKFLOW, CatalogItemType.TASK, CatalogItemType.STEP):
-        rel_path = f"{item_type.value}s/default.yml"
-        if (root / rel_path).is_file():
-            rows.append((item_type.value, rel_path))
-    return rows
 
 
 def _parse_catalog_type_filter(
@@ -60,9 +48,10 @@ def catalog_list_command(
         CatalogListCommandOutcome containing listed records and errors.
     """
     output = context.output
+    catalog = Catalog(path=context.cwd, db=context.db.catalog)
 
     if type_filter is not None and str(type_filter).lower() == "template":
-        render_catalog_template_list(_packaged_template_defaults(), output=output)
+        render_catalog_template_list(Catalog.list_packaged_templates(), output=output)
         return CatalogListCommandOutcome(items=[], type_filter=None, errors=[])
 
     parsed_type, type_error = _parse_catalog_type_filter(type_filter)
@@ -70,10 +59,10 @@ def catalog_list_command(
         output.add_error_panel("Catalog Filter Error", type_error)
         return CatalogListCommandOutcome(items=[], type_filter=None, errors=[type_error])
 
-    scan_result = scan_and_index_catalog(path=context.cwd, db=context.db.catalog)
+    scan_result = catalog.sync()
     if not scan_result.ok:
         _render_scan_warnings(scan_result.errors, output=output)
 
-    items = [i for i in scan_result.items if parsed_type is None or i.item_type == parsed_type]
+    items = catalog.list(kind=parsed_type)
     render_catalog_list(items, output=output)
     return CatalogListCommandOutcome(items=items, type_filter=parsed_type, errors=list(scan_result.errors))

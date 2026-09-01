@@ -2,53 +2,29 @@
 
 from __future__ import annotations
 
-from enum import StrEnum
-
 from pydantic import BaseModel, Field
 
 from worktree.core.db import SandboxRecord
 from worktree.core.sandbox.models import (
     SandboxApplyResult,
+    SandboxDeleteResult,
+    SandboxDeleteStatus,
     SandboxDiffResult,
     SandboxDiffStatus,
     SandboxPruneResult,
 )
 
-
-class SandboxDeleteStatus(StrEnum):
-    """Classified outcome for ``wt sandbox delete``."""
-
-    READY = "ready"
-    DELETED = "deleted"
-    ALREADY_CLEANED = "already_cleaned"
-    ABORTED = "aborted"
-    NOT_INITIALIZED = "not_initialized"
-    NOT_FOUND = "not_found"
-
-
-class SandboxDeleteResult(BaseModel):
-    """Structured result for ``wt sandbox delete``."""
-
-    model_config = {"extra": "forbid", "strict": True}
-
-    status: SandboxDeleteStatus
-    sandbox_id: str = ""
-    sandbox: SandboxRecord | None = None
-    deleted: bool = False
-    errors: list[str] = Field(default_factory=list)
-
-    @property
-    def ok(self) -> bool:
-        """True when delete succeeded (deleted), ready, or already-cleaned."""
-        return (
-            self.status
-            in {
-                SandboxDeleteStatus.READY,
-                SandboxDeleteStatus.DELETED,
-                SandboxDeleteStatus.ALREADY_CLEANED,
-            }
-            and not self.errors
-        )
+__all__ = [
+    "SandboxApplyCommandOutcome",
+    "SandboxCreateCommandOutcome",
+    "SandboxDeleteCommandOutcome",
+    "SandboxDeleteResult",
+    "SandboxDeleteStatus",
+    "SandboxDiffCommandOutcome",
+    "SandboxListCommandOutcome",
+    "SandboxPruneCommandOutcome",
+    "SandboxShowCommandOutcome",
+]
 
 
 class SandboxCreateCommandOutcome(BaseModel):
@@ -62,36 +38,8 @@ class SandboxCreateCommandOutcome(BaseModel):
 
     @property
     def ok(self) -> bool:
-        """Return True if sandbox session was created without errors."""
-        return not self.errors and self.session_id is not None
-
-
-class SandboxListCommandOutcome(BaseModel):
-    """Outcome for wt sandbox list command."""
-
-    model_config = {"extra": "forbid", "strict": True}
-
-    sandboxes: list[SandboxRecord] = Field(default_factory=list)
-    errors: list[str] = Field(default_factory=list)
-
-    @property
-    def ok(self) -> bool:
-        """Return True if sandboxes were listed without errors."""
-        return not self.errors
-
-
-class SandboxShowCommandOutcome(BaseModel):
-    """Outcome for wt sandbox show command."""
-
-    model_config = {"extra": "forbid", "strict": True}
-
-    sandbox: SandboxRecord | None = None
-    errors: list[str] = Field(default_factory=list)
-
-    @property
-    def ok(self) -> bool:
-        """Return True if sandbox was found without errors."""
-        return not self.errors and self.sandbox is not None
+        """True when creation succeeded."""
+        return self.session_id is not None and not self.errors
 
 
 class SandboxDeleteCommandOutcome(BaseModel):
@@ -105,8 +53,8 @@ class SandboxDeleteCommandOutcome(BaseModel):
 
     @property
     def ok(self) -> bool:
-        """Return True if sandbox was deleted or already cleaned without errors."""
-        return not self.errors and (self.deleted or self.already_cleaned)
+        """True when delete succeeded or was an idempotent no-op."""
+        return (self.deleted or self.already_cleaned) and not self.errors
 
 
 class SandboxApplyCommandOutcome(BaseModel):
@@ -115,13 +63,13 @@ class SandboxApplyCommandOutcome(BaseModel):
     model_config = {"extra": "forbid", "strict": True}
 
     result: SandboxApplyResult | None = None
-    errors: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:
-        """Return True if sandbox apply completed without errors."""
-        return not self.errors and (self.result is not None and self.result.ok)
+        """True when patch application succeeded."""
+        return self.result is not None and self.result.ok and not self.errors
 
 
 class SandboxDiffCommandOutcome(BaseModel):
@@ -130,15 +78,41 @@ class SandboxDiffCommandOutcome(BaseModel):
     model_config = {"extra": "forbid", "strict": True}
 
     result: SandboxDiffResult | None = None
-    errors: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:
-        """Return True if sandbox diff completed without errors."""
-        return not self.errors and (
-            self.result is not None and (self.result.ok or self.result.status == SandboxDiffStatus.EMPTY_DIFF)
-        )
+        """True when diff inspection succeeded."""
+        return self.result is not None and self.result.status == SandboxDiffStatus.OK and not self.errors
+
+
+class SandboxListCommandOutcome(BaseModel):
+    """Outcome for wt sandbox list command."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    sandboxes: list[SandboxRecord] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        """True when listing succeeded."""
+        return not self.errors
+
+
+class SandboxShowCommandOutcome(BaseModel):
+    """Outcome for wt sandbox show command."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    sandbox: SandboxRecord | None = None
+    errors: list[str] = Field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        """True when a sandbox row was found."""
+        return self.sandbox is not None and not self.errors
 
 
 class SandboxPruneCommandOutcome(BaseModel):
@@ -152,5 +126,5 @@ class SandboxPruneCommandOutcome(BaseModel):
 
     @property
     def ok(self) -> bool:
-        """Return True if sandbox prune completed without errors."""
-        return not self.errors and (self.result is not None and self.result.ok)
+        """True when pruning completed without errors."""
+        return self.result is not None and self.result.ok and not self.errors

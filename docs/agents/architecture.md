@@ -17,18 +17,17 @@ src/worktree/cli/<name>/             One package per CLI subcommand (thin wrappe
 src/worktree/core/                   Business logic (no Typer)
   bootstrap.py                       .worktree/ create/repair
   git/                               models.py, runner.py (stateless GitRunner), exceptions.py
-  sandbox/                           models.py, exceptions.py, manager.py, services/{detector,lifecycle,list,patch,pruner,show,wip}.py
-  config/                            Legacy flat infra (loader/mutate/validate/…)
-  db/                                models.py, connection.py, migrations.py, repositories/, alembic/
-  inputs/                            models.py + services/ (resolve, interpolate, renderer)
-  catalog/                           models.py + services/ + templates/
-  blueprint/                         models.py, exceptions.py, renderers.py,
-                                     services/blueprint.py
-  diff/                              models.py, renderers.py, services.py
-  status/                            models.py, services/collector.py
-  history/                           models.py, renderers.py, services.py
-  step/                              models.py, exceptions.py, runner.py (entrypoint),
-                                     assertions/, services/{loader,resolver}.py
+  sandbox/                           models.py, exceptions.py, facade.py (`Sandbox`), services/{delete,detector,lifecycle,list,patch,pruner,show,wip}.py
+  config/                            facade.py (`Config`), generator.py, loader.py, mutate.py, parser.py, serialize.py, validate.py, models.py
+  db/                                facade.py (`WorktreeDb`), models.py, connection.py, migrations.py, repositories/, alembic/
+  inputs/                            facade.py (`Inputs`), models.py + services/ (resolve, interpolate, renderer)
+  catalog/                           facade.py (`Catalog`), models.py + services/ + templates/
+  blueprint/                         facade.py (`Blueprint`), models.py, exceptions.py, renderers.py
+  diff/                              facade.py (`Diff`), models.py, renderers.py, services.py, writer.py
+  status/                            facade.py (`Status`), models.py, services/collector.py
+  history/                           facade.py (`History`), models.py, renderers.py, services.py
+  step/                              facade.py (`Step`), models.py, exceptions.py, runner.py,
+                                     assertions/, services/{conditions,loader,metadata,resolver}.py
   runtime/                           models.py, exceptions.py, engine.py (entrypoint:
                                      `run_steps`, in-process step-loop orchestration),
                                      failure + pause helpers

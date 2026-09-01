@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from worktree.cli.context import CliContext
 from worktree.cli.ui.dispatcher import ui_dispatcher
-from worktree.core.sandbox import GitSandboxManager
+from worktree.core.sandbox import Sandbox
 
 from ..models import SandboxDiffCommandOutcome
 
@@ -24,8 +24,8 @@ def sandbox_diff_command(
         stat: When True, show diffstat summary instead of full unified diff.
         output_format: Presentation format ("terminal" or "json").
     """
-    manager = GitSandboxManager(path=context.cwd, db=context.db.sandboxes)
-    result = manager.diff_sandbox(sandbox_id, stat=stat)
+    sandbox = Sandbox(path=context.cwd, db=context.db.sandboxes)
+    result = sandbox.diff(sandbox_id, stat=stat)
 
     ui_dispatcher.dispatch(result, output_format=output_format)
     return SandboxDiffCommandOutcome(
