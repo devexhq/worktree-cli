@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 from rich.text import Text
 
+from tests.helpers import render_rich
 from worktree.cli.sandbox.formatters import (
     PrunedItemFormatter,
     SandboxCreateFormatter,
@@ -108,6 +109,8 @@ def test_sandbox_show_formatter_to_rich() -> None:
     )
     rich_out = formatter.to_rich(res)
     assert rich_out is not None
+    out = render_rich(rich_out)
+    assert "sbx_test1234" in out
 
     # Not found case
     not_found_res = SandboxShowResult(
@@ -116,6 +119,8 @@ def test_sandbox_show_formatter_to_rich() -> None:
     )
     not_found_rich = formatter.to_rich(not_found_res)
     assert not_found_rich is not None
+    out_missing = render_rich(not_found_rich)
+    assert "Sandbox Not Found" in out_missing
 
 
 def test_sandbox_show_formatter_to_json_serializable() -> None:
@@ -157,6 +162,8 @@ def test_sandbox_list_formatter_to_rich() -> None:
     res_items = SandboxListResult(status=SandboxListStatus.OK, sandboxes=[record])
     rich_items = formatter.to_rich(res_items)
     assert rich_items is not None
+    out_items = render_rich(rich_items)
+    assert "sbx_list1234" in out_items
 
     # Empty list
     res_empty = SandboxListResult(status=SandboxListStatus.OK, sandboxes=[])
@@ -187,6 +194,8 @@ def test_sandbox_create_formatter_to_rich() -> None:
     res_ok = SandboxCreateResult(status=SandboxCreateStatus.OK, session=session)
     rich_ok = formatter.to_rich(res_ok)
     assert rich_ok is not None
+    out_ok = render_rich(rich_ok)
+    assert "sbx_create123" in out_ok
 
     # Failure case
     res_fail = SandboxCreateResult(
@@ -195,6 +204,8 @@ def test_sandbox_create_formatter_to_rich() -> None:
     )
     rich_fail = formatter.to_rich(res_fail)
     assert rich_fail is not None
+    out_fail = render_rich(rich_fail)
+    assert "Git checkout failed." in out_fail
 
 
 def test_sandbox_create_formatter_to_json_serializable() -> None:

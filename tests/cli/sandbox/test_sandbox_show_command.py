@@ -8,7 +8,7 @@ import pytest
 from typer.main import get_command
 from typer.testing import CliRunner
 
-from tests.helpers import GitFileSystem, make_cli_context, make_rich_output, seed_sandbox
+from tests.helpers import GitFileSystem, make_cli_context, render_rich, seed_sandbox
 from worktree.cli import app
 from worktree.cli.sandbox.commands.sandbox_show import (
     sandbox_show_command,
@@ -177,10 +177,7 @@ class SandboxShowRenderTests:
         data = SandboxShowResult(status=SandboxShowStatus.OK, sandbox=sandbox, disk_present=True)
         formatter = SandboxShowFormatter()
         renderable = formatter.to_rich(data)
-        rich_output, buffer = make_rich_output(width=120)
-        rich_output.add_line(renderable)
-        rich_output.print()
-        out = buffer.getvalue()
+        out = render_rich(renderable, width=120)
         assert "sbx_a1b2c3d4" in out
         assert "worktree/sandbox-sbx_a1b2c3d4" in out
         assert "4f2c9a1e8b3d6f0a2c5e7b1d9a3f6c8e0b2d4f6a" in out
@@ -219,10 +216,7 @@ class SandboxShowRenderTests:
         data = SandboxShowResult(status=SandboxShowStatus.OK, sandbox=sandbox, disk_present=False, reconciled=True)
         formatter = SandboxShowFormatter()
         renderable = formatter.to_rich(data)
-        rich_output, buffer = make_rich_output()
-        rich_output.add_line(renderable)
-        rich_output.print()
-        out = buffer.getvalue()
+        out = render_rich(renderable)
         assert "cleaned" in out
         assert "missing" in out
         assert "Note: sandbox directory is missing; status updated to 'cleaned'." in out
@@ -231,10 +225,7 @@ class SandboxShowRenderTests:
         data = SandboxShowResult(status=SandboxShowStatus.NOT_FOUND, errors=["Sandbox 'sbx_missing' not found."])
         formatter = SandboxShowFormatter()
         renderable = formatter.to_rich(data)
-        rich_output, buffer = make_rich_output()
-        rich_output.add_line(renderable)
-        rich_output.print()
-        out = buffer.getvalue()
+        out = render_rich(renderable)
         assert "Sandbox Not Found" in out
         assert "Sandbox 'sbx_missing' not found." in out
         assert "wt sandbox list" in out

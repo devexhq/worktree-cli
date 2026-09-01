@@ -9,7 +9,7 @@ import pytest
 from rich.console import Console, Group
 from rich.table import Table
 
-from tests.helpers import make_rich_output
+from tests.helpers import render_rich
 from worktree.cli.status.formatters import (
     WorktreeStatusFormatter,
     register_status_formatters,
@@ -95,11 +95,7 @@ def test_worktree_status_formatter_to_rich_healthy() -> None:
     rich_renderable = formatter.to_rich(result)
     assert isinstance(rich_renderable, Table)
 
-    rich_output, buffer = make_rich_output()
-    rich_output.add_line(rich_renderable)
-    rich_output.print()
-    out = buffer.getvalue()
-
+    out = render_rich(rich_renderable)
     assert "Worktree Workspace Status" in out
     assert "Project Name" in out
     assert "worktree-cli" in out
@@ -128,11 +124,7 @@ def test_worktree_status_formatter_to_rich_with_warnings() -> None:
     rich_renderable = formatter.to_rich(result)
     assert isinstance(rich_renderable, Group)
 
-    rich_output, buffer = make_rich_output()
-    rich_output.add_line(rich_renderable)
-    rich_output.print()
-    out = buffer.getvalue()
-
+    out = render_rich(rich_renderable)
     assert "Worktree Workspace Status" in out
     assert "⚠️ Configuration & Context Warnings:" in out
     assert "max_active_sandboxes (10) is unusually high." in out
@@ -158,11 +150,7 @@ def test_worktree_status_formatter_to_rich_uninitialized() -> None:
     rich_renderable = formatter.to_rich(result)
     assert isinstance(rich_renderable, Group)
 
-    rich_output, buffer = make_rich_output()
-    rich_output.add_line(rich_renderable)
-    rich_output.print()
-    out = buffer.getvalue()
-
+    out = render_rich(rich_renderable)
     assert "Worktree Workspace Status (Uninitialized)" in out
     assert "Uninitialized" in out
     assert "CONFIG_NOT_FOUND" in out
@@ -195,11 +183,7 @@ def test_worktree_status_formatter_to_rich_degraded() -> None:
     rich_renderable = formatter.to_rich(result)
     assert isinstance(rich_renderable, Group)
 
-    rich_output, buffer = make_rich_output()
-    rich_output.add_line(rich_renderable)
-    rich_output.print()
-    out = buffer.getvalue()
-
+    out = render_rich(rich_renderable)
     assert "Worktree Workspace Status (Degraded)" in out
     assert "CONFIG_MALFORMED_JSON" in out
     assert "⚠️ Configuration & Context Warnings:" in out
@@ -219,10 +203,7 @@ def test_worktree_status_formatter_to_rich_dirty_branch() -> None:
     result = _make_status_result(git=git_info)
 
     rich_renderable = formatter.to_rich(result)
-    rich_output, buffer = make_rich_output()
-    rich_output.add_line(rich_renderable)
-    rich_output.print()
-    out = buffer.getvalue()
+    out = render_rich(rich_renderable)
 
     assert "feature/dirty-branch (dirty)" in out
 

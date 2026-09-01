@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from typer.testing import CliRunner
 
-from tests.helpers import GitFileSystem, make_cli_context, make_rich_output
+from tests.helpers import GitFileSystem, make_cli_context, render_rich
 from worktree.cli import app
 from worktree.cli.sandbox.commands.sandbox_apply import sandbox_apply_command
 from worktree.cli.sandbox.formatters import SandboxApplyFormatter
@@ -30,10 +30,7 @@ class SandboxApplyRenderTests:
         )
         formatter = SandboxApplyFormatter()
         renderable = formatter.to_rich(result)
-        rich_output, buffer = make_rich_output()
-        rich_output.add_line(renderable)
-        rich_output.print()
-        out = buffer.getvalue()
+        out = render_rich(renderable)
         assert "Applied sandbox sbx_8f2a1b9c to workspace (patch)" in out
         assert "2 files changed" in out
         assert "Status updated: merged" in out
@@ -47,10 +44,7 @@ class SandboxApplyRenderTests:
         )
         formatter = SandboxApplyFormatter()
         renderable = formatter.to_rich(result)
-        rich_output, buffer = make_rich_output()
-        rich_output.add_line(renderable)
-        rich_output.print()
-        out = buffer.getvalue()
+        out = render_rich(renderable)
         assert "Applied sandbox sbx_8f2a1b9c to workspace (squash)" in out
         assert "Commit: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2" in out
         assert "Status updated: merged" in out
@@ -65,10 +59,7 @@ class SandboxApplyRenderTests:
         )
         formatter = SandboxApplyFormatter()
         renderable = formatter.to_rich(result)
-        rich_output, buffer = make_rich_output()
-        rich_output.add_line(renderable)
-        rich_output.print()
-        out = buffer.getvalue()
+        out = render_rich(renderable)
         assert "Sandbox worktree and branch deleted" in out
 
     def test_render_apply_failed(self) -> None:
@@ -79,10 +70,7 @@ class SandboxApplyRenderTests:
         )
         formatter = SandboxApplyFormatter()
         renderable = formatter.to_rich(result)
-        rich_output, buffer = make_rich_output()
-        rich_output.add_line(renderable)
-        rich_output.print()
-        out = buffer.getvalue()
+        out = render_rich(renderable)
         assert "Sandbox Apply Failed" in out
         assert "conflicts detected in src/app.py" in out
 
