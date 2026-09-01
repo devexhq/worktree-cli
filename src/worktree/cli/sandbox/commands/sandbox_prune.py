@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from worktree.cli.context import CliContext
-from worktree.cli.ui.dispatcher import default_dispatcher
+from worktree.cli.ui.dispatcher import ui_dispatcher
 from worktree.core.sandbox import GitSandboxManager
 
 from ..models import (
@@ -35,7 +35,7 @@ def sandbox_prune_command(
         runs_db=context.db.runs,
     )
 
-    default_dispatcher.dispatch(result, output_format=output_format)
+    ui_dispatcher.dispatch(result, output_format=output_format)
 
     return SandboxPruneCommandOutcome(
         result=result,

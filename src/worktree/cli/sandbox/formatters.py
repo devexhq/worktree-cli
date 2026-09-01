@@ -18,7 +18,7 @@ from worktree.cli.sandbox.models import (
     SandboxShowStatus,
 )
 from worktree.cli.sandbox.renderers import build_sandbox_detail_table, build_sandbox_table
-from worktree.cli.ui.dispatcher import UiDispatcher, default_dispatcher
+from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
 from worktree.common.types import ComponentFormatter
 from worktree.common.utils import display_path
 from worktree.core.sandbox.models import (
@@ -405,9 +405,9 @@ def register_sandbox_formatters(dispatcher: UiDispatcher | None = None) -> None:
     """Register all sandbox ComponentFormatter instances on a UiDispatcher.
 
     Args:
-        dispatcher: UiDispatcher instance to register on. Defaults to default_dispatcher.
+        dispatcher: UiDispatcher instance to register on. Defaults to ui_dispatcher.
     """
-    target = dispatcher if dispatcher is not None else default_dispatcher
+    target = dispatcher if dispatcher is not None else ui_dispatcher
     target.register(PrunedItem, PrunedItemFormatter())
     target.register(SandboxPruneResult, SandboxPruneFormatter())
     target.register(SandboxShowResult, SandboxShowFormatter())
@@ -418,5 +418,5 @@ def register_sandbox_formatters(dispatcher: UiDispatcher | None = None) -> None:
     target.register(SandboxDiffResult, SandboxDiffFormatter())
 
 
-# Register default sandbox formatters on the central default_dispatcher
+# Register default sandbox formatters on the central ui_dispatcher
 register_sandbox_formatters()

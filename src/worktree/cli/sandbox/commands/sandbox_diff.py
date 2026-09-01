@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from worktree.cli.context import CliContext
-from worktree.cli.ui.dispatcher import default_dispatcher
+from worktree.cli.ui.dispatcher import ui_dispatcher
 from worktree.core.sandbox import GitSandboxManager
 
 from ..models import SandboxDiffCommandOutcome
@@ -27,7 +27,7 @@ def sandbox_diff_command(
     manager = GitSandboxManager(path=context.cwd, db=context.db.sandboxes)
     result = manager.diff_sandbox(sandbox_id, stat=stat)
 
-    default_dispatcher.dispatch(result, output_format=output_format)
+    ui_dispatcher.dispatch(result, output_format=output_format)
     return SandboxDiffCommandOutcome(
         result=result,
         errors=list(result.errors),

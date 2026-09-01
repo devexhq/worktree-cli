@@ -92,4 +92,4 @@ class UiDispatcher:
             self._console.print(rich_renderable)
 
 
-default_dispatcher = UiDispatcher()
+ui_dispatcher = UiDispatcher()

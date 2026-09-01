@@ -21,7 +21,7 @@ from worktree.cli.sandbox.models import (
     SandboxShowResult,
     SandboxShowStatus,
 )
-from worktree.cli.ui.dispatcher import UiDispatcher, default_dispatcher
+from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
 from worktree.core.db import SandboxRecord, SandboxStatus
 from worktree.core.sandbox.models import (
     PruneAction,
@@ -222,8 +222,8 @@ def test_sandbox_create_formatter_to_json_serializable() -> None:
     assert dumped["session"]["session_id"] == "sbx_create123"
 
 
-def test_default_dispatcher_registrations() -> None:
-    """Verify default_dispatcher has all 8 sandbox formatters registered."""
+def test_ui_dispatcher_registrations() -> None:
+    """Verify ui_dispatcher has all 8 sandbox formatters registered."""
     from worktree.cli.sandbox.models import SandboxDeleteResult
     from worktree.core.sandbox.models import (
         SandboxApplyResult,
@@ -231,14 +231,14 @@ def test_default_dispatcher_registrations() -> None:
         SandboxPruneResult,
     )
 
-    assert PrunedItem in default_dispatcher._registry
-    assert SandboxPruneResult in default_dispatcher._registry
-    assert SandboxShowResult in default_dispatcher._registry
-    assert SandboxListResult in default_dispatcher._registry
-    assert SandboxCreateResult in default_dispatcher._registry
-    assert SandboxApplyResult in default_dispatcher._registry
-    assert SandboxDeleteResult in default_dispatcher._registry
-    assert SandboxDiffResult in default_dispatcher._registry
+    assert PrunedItem in ui_dispatcher._registry
+    assert SandboxPruneResult in ui_dispatcher._registry
+    assert SandboxShowResult in ui_dispatcher._registry
+    assert SandboxListResult in ui_dispatcher._registry
+    assert SandboxCreateResult in ui_dispatcher._registry
+    assert SandboxApplyResult in ui_dispatcher._registry
+    assert SandboxDeleteResult in ui_dispatcher._registry
+    assert SandboxDiffResult in ui_dispatcher._registry
 
 
 def test_sandbox_prune_formatter_empty() -> None:

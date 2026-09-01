@@ -1,5 +1,5 @@
-"""UI presentation and dispatch infrastructure."""
+"""UI domain module for formatted CLI rendering."""
 
-from worktree.cli.ui.dispatcher import UiDispatcher, default_dispatcher
+from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
 
-__all__ = ["UiDispatcher", "default_dispatcher"]
+__all__ = ["UiDispatcher", "ui_dispatcher"]

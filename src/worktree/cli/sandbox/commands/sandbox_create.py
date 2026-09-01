@@ -1,5 +1,5 @@
 from worktree.cli.context import CliContext
-from worktree.cli.ui.dispatcher import default_dispatcher
+from worktree.cli.ui.dispatcher import ui_dispatcher
 from worktree.core.sandbox import GitSandboxManager
 
 from ..models import SandboxCreateCommandOutcome
@@ -28,7 +28,7 @@ def sandbox_create_command(
         base_ref=base_ref,
         include_wip=wip,
     )
-    default_dispatcher.dispatch(result, output_format=output_format)
+    ui_dispatcher.dispatch(result, output_format=output_format)
     if not result.ok or result.session is None:
         return SandboxCreateCommandOutcome(errors=list(result.errors), warnings=list(result.warnings))
 
