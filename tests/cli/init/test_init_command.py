@@ -266,3 +266,72 @@ class InitCommandFailureTests:
         init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
         assert recorded
         assert recorded[-1] == PathsConfig().db_path
+
+    def test_init_json_format(
+        self,
+        git_fs: GitFileSystem,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+
+        outcome = init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1", output_format="json")
+        assert outcome.ok
+
+        out = capsys.readouterr().out
+        lines = [line for line in out.strip().split("\n") if line]
+        assert len(lines) == 1
+        envelope = json.loads(lines[0])
+        assert envelope["event_type"] == "InitCommandOutcome"
+        assert envelope["payload"]["bootstrap_result"]["root_created"] is True
+        assert envelope["payload"]["config_result"]["created"] is True
+
+
+class InitCliTests:
+    """CliRunner coverage for `wt init`."""
+
+    def test_init_help_includes_format_option(self) -> None:
+        from typer.main import get_command
+        from typer.testing import CliRunner
+
+        from worktree.cli import app
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["init", "--help"])
+        assert result.exit_code == 0
+
+        cmd = get_command(app).get_command(None, "init")
+        opts: set[str] = set()
+        for param in cmd.params:
+            opts.update(param.opts)
+            secondary = getattr(param, "secondary_opts", None) or ()
+            opts.update(secondary)
+        assert "--format" in opts
+
+    def test_init_cli_terminal(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        from typer.testing import CliRunner
+
+        from worktree.cli import app
+
+        monkeypatch.chdir(git_fs.base_path)
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["init"])
+        assert result.exit_code == 0
+        assert "Initialized Worktree" in result.stdout
+
+    def test_init_cli_json(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        from typer.testing import CliRunner
+
+        from worktree.cli import app
+
+        monkeypatch.chdir(git_fs.base_path)
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["init", "--format", "json"])
+        assert result.exit_code == 0
+        lines = [line for line in result.stdout.strip().split("\n") if line]
+        assert len(lines) == 1
+        payload = json.loads(lines[0])
+        assert payload["event_type"] == "InitCommandOutcome"
+        assert payload["payload"]["bootstrap_result"]["root_created"] is True

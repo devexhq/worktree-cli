@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from worktree.cli.context import CliContext
+from worktree.cli.ui.dispatcher import ui_dispatcher
 from worktree.common.fs import (
     get_gitignore_file,
     get_worktree_config_file,
@@ -18,11 +19,6 @@ from worktree.core.config.models import PathsConfig
 from worktree.core.db import init_database
 
 from ..models import InitCommandOutcome
-from ..renderers import (
-    render_init_bootstrap_failure,
-    render_init_config_failure,
-    render_init_outcome,
-)
 
 
 def init_command(
@@ -30,9 +26,9 @@ def init_command(
     tool_version: str | None = None,
     overwrite: bool = False,
     repair: bool = False,
+    output_format: str = "terminal",
 ) -> InitCommandOutcome:
     """Initialize a local project workspace for Worktree CLI and desktop sync."""
-    output = context.output
     root = context.cwd
 
     if not is_git_repository(root):
@@ -40,13 +36,15 @@ def init_command(
             "The current directory is not a valid Git repository.\n"
             "Run [bold cyan]git init[/bold cyan] before running [bold cyan]wt init[/bold cyan]."
         )
-        output.add_error_panel("Initialization Failed!", err)
-        return InitCommandOutcome(errors=[err])
+        outcome = InitCommandOutcome(errors=[err])
+        ui_dispatcher.dispatch(outcome, output_format=output_format)
+        return outcome
 
     result = bootstrap_worktree(get_worktree_dir(root), tool_version=tool_version)
     if not result.ok:
-        render_init_bootstrap_failure(root, result.errors, output=output)
-        return InitCommandOutcome(bootstrap_result=result, errors=list(result.errors))
+        outcome = InitCommandOutcome(bootstrap_result=result, errors=list(result.errors))
+        ui_dispatcher.dispatch(outcome, output_format=output_format)
+        return outcome
 
     if result.root_created:
         update_gitignore(get_gitignore_file(root))
@@ -58,10 +56,13 @@ def init_command(
         repair=repair,
     )
     if not config_result.ok:
-        render_init_config_failure(config_result.errors, output=output)
-        return InitCommandOutcome(
-            bootstrap_result=result, config_result=config_result, errors=list(config_result.errors)
+        outcome = InitCommandOutcome(
+            bootstrap_result=result,
+            config_result=config_result,
+            errors=list(config_result.errors),
         )
+        ui_dispatcher.dispatch(outcome, output_format=output_format)
+        return outcome
 
     db_rel = PathsConfig().db_path
     loaded = load_config_result(path=root)
@@ -76,5 +77,5 @@ def init_command(
         seed_result=seed_result,
         errors=list(seed_result.errors),
     )
-    render_init_outcome(root, outcome, output=output)
+    ui_dispatcher.dispatch(outcome, output_format=output_format)
     return outcome
