@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from worktree.cli.context import CliContext
 from worktree.cli.ui.dispatcher import ui_dispatcher
-from worktree.core.sandbox import GitSandboxManager
+from worktree.core.sandbox import Sandbox
 
 from ..models import (
     SandboxPruneCommandOutcome,
@@ -29,10 +29,13 @@ def sandbox_prune_command(
     Returns:
         Structured prune outcome.
     """
-    result = GitSandboxManager(path=context.cwd, db=context.db.sandboxes).prune_sandboxes(
+    result = Sandbox(
+        path=context.cwd,
+        db=context.db.sandboxes,
+        runs_db=context.db.runs,
+    ).prune(
         dry_run=dry_run,
         force=force,
-        runs_db=context.db.runs,
     )
 
     ui_dispatcher.dispatch(result, output_format=output_format)

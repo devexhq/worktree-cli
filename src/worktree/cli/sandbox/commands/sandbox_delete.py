@@ -6,16 +6,15 @@ import typer
 
 from worktree.cli.context import CliContext
 from worktree.cli.ui.dispatcher import ui_dispatcher
-from worktree.core.config.loader import load_config_result
-from worktree.core.db import (
-    SandboxStatus,
+from worktree.core.sandbox import (
+    Sandbox,
+    SandboxDeleteResult,
+    SandboxDeleteStatus,
+    SandboxSession,
 )
-from worktree.core.sandbox import GitSandboxManager, SandboxSession
 
 from ..models import (
     SandboxDeleteCommandOutcome,
-    SandboxDeleteResult,
-    SandboxDeleteStatus,
 )
 from ..renderers import (
     sandbox_delete_confirm_prompt,
@@ -26,42 +25,8 @@ def collect_sandbox_delete(
     context: CliContext,
     sandbox_id: str,
 ) -> SandboxDeleteResult:
-    """Load config and look up one sandbox for delete (no mutation).
-
-    Args:
-        context: CLI context instance.
-        sandbox_id: Sandbox primary key to delete.
-
-    Returns:
-        Structured delete result. Does not print, confirm, or clean up.
-    """
-    load = load_config_result(path=context.cwd)
-    if not load.ok:
-        return SandboxDeleteResult(
-            status=SandboxDeleteStatus.NOT_INITIALIZED,
-            sandbox_id=sandbox_id,
-            errors=list(load.errors),
-        )
-
-    row = context.db.sandboxes.get(sandbox_id)
-    if row is None:
-        return SandboxDeleteResult(
-            status=SandboxDeleteStatus.NOT_FOUND,
-            sandbox_id=sandbox_id,
-        )
-
-    if row.status is SandboxStatus.CLEANED:
-        return SandboxDeleteResult(
-            status=SandboxDeleteStatus.ALREADY_CLEANED,
-            sandbox_id=sandbox_id,
-            sandbox=row,
-        )
-
-    return SandboxDeleteResult(
-        status=SandboxDeleteStatus.READY,
-        sandbox_id=sandbox_id,
-        sandbox=row,
-    )
+    """Load config and look up one sandbox for delete (no mutation)."""
+    return Sandbox(path=context.cwd, db=context.db.sandboxes).delete(sandbox_id)
 
 
 def _confirm_or_abort(row: object) -> bool:
@@ -93,7 +58,8 @@ def sandbox_delete_command(
         force: When True, skip the confirmation prompt.
         output_format: Presentation format ("terminal" or "json").
     """
-    result = collect_sandbox_delete(context, sandbox_id)
+    sandbox = Sandbox(path=context.cwd, db=context.db.sandboxes)
+    result = sandbox.delete(sandbox_id)
 
     if result.status is SandboxDeleteStatus.NOT_INITIALIZED:
         ui_dispatcher.dispatch(result, output_format=output_format)
@@ -120,7 +86,7 @@ def sandbox_delete_command(
         name=row.name,
         created_at=row.created_at,
     )
-    GitSandboxManager(path=context.cwd, db=context.db.sandboxes).cleanup_sandbox(session)
+    sandbox.cleanup(session)
     deleted = result.model_copy(update={"status": SandboxDeleteStatus.DELETED, "deleted": True})
     ui_dispatcher.dispatch(deleted, output_format=output_format)
     return SandboxDeleteCommandOutcome(deleted=True)

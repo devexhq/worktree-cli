@@ -11,8 +11,8 @@ from worktree.common.lock import LockTimeoutError
 from worktree.core.db import SandboxStatus, WorktreeDb
 from worktree.core.git.runner import GitRunner
 from worktree.core.sandbox import (
-    GitSandboxManager,
     PruneAction,
+    Sandbox,
     SandboxDetectionResult,
     SandboxDetectionStatus,
     SandboxPruner,
@@ -245,36 +245,36 @@ def test_prune_combined_and_idempotency(git_fs: GitFileSystem) -> None:
     )
 
     # 3. Active valid sandbox (must NOT be pruned)
-    manager = GitSandboxManager(path, db.sandboxes)
-    create_res = manager.create_sandbox(session_id="sbx_protected")
+    manager = Sandbox(path, db.sandboxes)
+    create_res = manager.create(session_id="sbx_protected")
     assert create_res.ok
 
     # First prune run
-    result1 = manager.prune_sandboxes()
+    result1 = manager.prune()
     assert result1.ok
     assert result1.pruned_count == 2
     assert not dir1.exists()
     assert (sandboxes_dir / "sbx_protected").exists()
 
     # Second prune run (idempotent no-op)
-    result2 = manager.prune_sandboxes()
+    result2 = manager.prune()
     assert result2.ok
     assert result2.pruned_count == 0
     assert result2.total_stale_count == 0 if hasattr(result2, "total_stale_count") else len(result2.items) == 0
 
 
 def test_prune_manager_facade_and_helper(git_fs: GitFileSystem) -> None:
-    """Verify prune_stale_sandboxes helper and GitSandboxManager facade method."""
+    """Verify prune_stale_sandboxes helper and Sandbox facade method."""
     git_fs.init_repo()
     path = git_fs.base_path
     db = WorktreeDb(path=path)
-    manager = GitSandboxManager(path, db.sandboxes)
+    manager = Sandbox(path, db.sandboxes)
 
     res_helper = prune_stale_sandboxes(path, db.sandboxes, dry_run=True)
     assert isinstance(res_helper, SandboxPruneResult)
     assert res_helper.ok
 
-    res_manager = manager.prune_sandboxes(dry_run=True)
+    res_manager = manager.prune(dry_run=True)
     assert isinstance(res_manager, SandboxPruneResult)
     assert res_manager.ok
 

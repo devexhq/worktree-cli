@@ -25,7 +25,7 @@ from worktree.core.db import (
     SandboxStatus,
     WorktreeDb,
 )
-from worktree.core.sandbox import GitSandboxManager
+from worktree.core.sandbox import Sandbox
 
 runner = CliRunner()
 DB_REL = ".worktree/data.db"
@@ -216,7 +216,7 @@ class SandboxDeleteCommandDirectTests:
         )
 
         with (
-            patch.object(GitSandboxManager, "cleanup_sandbox") as cleanup,
+            patch.object(Sandbox, "cleanup") as cleanup,
             patch("worktree.cli.sandbox.commands.sandbox_delete.typer.confirm") as confirm,
         ):
             ctx = make_cli_context(cwd=git_fs.base_path)
@@ -239,7 +239,7 @@ class SandboxDeleteCommandDirectTests:
         sandbox_path = Path(created.sandbox_path)
 
         with (
-            patch.object(GitSandboxManager, "cleanup_sandbox") as cleanup,
+            patch.object(Sandbox, "cleanup") as cleanup,
             patch(
                 "worktree.cli.sandbox.commands.sandbox_delete.typer.confirm",
                 return_value=False,
@@ -267,7 +267,7 @@ class SandboxDeleteCommandDirectTests:
         created = seed_sandbox(self.db.sandboxes, sandbox_id="sbx_eof")
 
         with (
-            patch.object(GitSandboxManager, "cleanup_sandbox") as cleanup,
+            patch.object(Sandbox, "cleanup") as cleanup,
             patch(
                 "worktree.cli.sandbox.commands.sandbox_delete.typer.confirm",
                 side_effect=typer.Abort(),
@@ -290,7 +290,7 @@ class SandboxDeleteCommandDirectTests:
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
-        res = GitSandboxManager(path=git_fs.base_path, db=self.db.sandboxes).create_sandbox(name="force-me")
+        res = Sandbox(path=git_fs.base_path, db=self.db.sandboxes).create(name="force-me")
         assert res.ok and res.session is not None
         session = res.session
         assert Path(session.sandbox_path).is_dir()
@@ -316,7 +316,7 @@ class SandboxDeleteCommandDirectTests:
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
-        res = GitSandboxManager(path=git_fs.base_path, db=self.db.sandboxes).create_sandbox()
+        res = Sandbox(path=git_fs.base_path, db=self.db.sandboxes).create()
         assert res.ok and res.session is not None
         session = res.session
 
@@ -374,7 +374,7 @@ class SandboxDeleteCommandDirectTests:
         )
 
         with (
-            patch.object(GitSandboxManager, "cleanup_sandbox") as cleanup,
+            patch.object(Sandbox, "cleanup") as cleanup,
         ):
             ctx = make_cli_context(cwd=git_fs.base_path)
             outcome = sandbox_delete_command(ctx, created.id, force=True)
@@ -429,7 +429,7 @@ class SandboxDeleteCliTests:
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
-        res = GitSandboxManager(path=git_fs.base_path, db=self.db.sandboxes).create_sandbox()
+        res = Sandbox(path=git_fs.base_path, db=self.db.sandboxes).create()
         assert res.ok and res.session is not None
         session = res.session
 

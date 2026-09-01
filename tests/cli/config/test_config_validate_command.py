@@ -208,7 +208,7 @@ class ConfigValidateCommandTests:
             warnings=[],
         )
         with patch(
-            "worktree.cli.config.commands.config_validate.validate_config_result",
+            "worktree.core.config.validate.validate_config_result",
             return_value=fake,
         ):
             ctx = make_cli_context(cwd=git_fs.base_path)
@@ -237,7 +237,7 @@ class ConfigValidateCommandTests:
             ],
         )
         with patch(
-            "worktree.cli.config.commands.config_validate.validate_config_result",
+            "worktree.core.config.validate.validate_config_result",
             return_value=fake,
         ):
             ctx = make_cli_context(cwd=git_fs.base_path)

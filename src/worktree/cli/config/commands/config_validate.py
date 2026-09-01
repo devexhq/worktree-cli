@@ -1,7 +1,7 @@
 """Handles `wt config validate` command."""
 
 from worktree.cli.context import CliContext
-from worktree.core.config.validate import validate_config_result
+from worktree.core.config import Config
 
 from ..models import ConfigValidateCommandOutcome
 from ..renderers import (
@@ -24,7 +24,7 @@ def config_validate_command(
         context: CLI context instance.
     """
     output = context.output
-    result = validate_config_result(path=context.cwd)
+    result = Config(context.cwd).validate()
 
     if result.ok:
         render_config_validate_success(result.config_path, list(result.warnings), output=output)

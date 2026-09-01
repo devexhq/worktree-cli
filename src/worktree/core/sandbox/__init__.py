@@ -1,12 +1,12 @@
-"""Sandbox domain package."""
+"""Git worktree sandbox management and lifecycle."""
 
-from .exceptions import (
+from worktree.core.sandbox.exceptions import (
     SandboxCapacityError,
     SandboxConfigError,
     SandboxError,
 )
-from .manager import GitSandboxManager
-from .models import (
+from worktree.core.sandbox.facade import Sandbox
+from worktree.core.sandbox.models import (
     PruneAction,
     PrunedItem,
     SandboxApplyResult,
@@ -14,6 +14,8 @@ from .models import (
     SandboxApplyStrategy,
     SandboxCreateResult,
     SandboxCreateStatus,
+    SandboxDeleteResult,
+    SandboxDeleteStatus,
     SandboxDetectionResult,
     SandboxDetectionStatus,
     SandboxDiffResult,
@@ -28,18 +30,19 @@ from .models import (
     StaleSandboxCategory,
     StaleSandboxItem,
 )
-from .services.detector import SandboxDetector, detect_stale_sandboxes
-from .services.lifecycle import SandboxLifecycle
-from .services.list import collect_sandbox_list
-from .services.patch import SandboxPatch
-from .services.pruner import SandboxPruner, prune_stale_sandboxes
-from .services.show import collect_sandbox_show
-from .services.wip import apply_wip_to_sandbox
+from worktree.core.sandbox.services.delete import collect_sandbox_delete
+from worktree.core.sandbox.services.detector import SandboxDetector, detect_stale_sandboxes
+from worktree.core.sandbox.services.lifecycle import SandboxLifecycle
+from worktree.core.sandbox.services.list import collect_sandbox_list
+from worktree.core.sandbox.services.patch import SandboxPatch
+from worktree.core.sandbox.services.pruner import SandboxPruner, prune_stale_sandboxes
+from worktree.core.sandbox.services.show import collect_sandbox_show
+from worktree.core.sandbox.services.wip import apply_wip_to_sandbox
 
 __all__ = [
-    "GitSandboxManager",
     "PruneAction",
     "PrunedItem",
+    "Sandbox",
     "SandboxApplyResult",
     "SandboxApplyStatus",
     "SandboxApplyStrategy",
@@ -47,6 +50,8 @@ __all__ = [
     "SandboxConfigError",
     "SandboxCreateResult",
     "SandboxCreateStatus",
+    "SandboxDeleteResult",
+    "SandboxDeleteStatus",
     "SandboxDetectionResult",
     "SandboxDetectionStatus",
     "SandboxDetector",
@@ -66,6 +71,7 @@ __all__ = [
     "StaleSandboxCategory",
     "StaleSandboxItem",
     "apply_wip_to_sandbox",
+    "collect_sandbox_delete",
     "collect_sandbox_list",
     "collect_sandbox_show",
     "detect_stale_sandboxes",

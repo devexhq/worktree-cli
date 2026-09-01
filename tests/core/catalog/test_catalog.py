@@ -228,7 +228,7 @@ class CatalogFileOperationsTests:
 
     def test_save_os_error_raises_write_error(self, fs: FileSystem) -> None:
         catalog = Catalog(fs.base_path)
-        with patch("worktree.core.catalog.catalog.atomic_write_text", side_effect=OSError("permission denied")):
+        with patch("worktree.core.catalog.facade.atomic_write_text", side_effect=OSError("permission denied")):
             with pytest.raises(CatalogWriteError, match="permission denied"):
                 catalog.save("lint", {"name": "lint"}, item_type=CatalogItemType.TASK)
 
@@ -259,7 +259,7 @@ class CatalogFileOperationsTests:
         assert found.sha == record.sha
 
     def test_catalog_module_does_not_import_higher_domains(self) -> None:
-        import worktree.core.catalog.catalog as catalog_mod
+        import worktree.core.catalog.facade as catalog_mod
 
         source = Path(catalog_mod.__file__).read_text(encoding="utf-8")
         for forbidden in (

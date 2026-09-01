@@ -2,6 +2,7 @@
 
 from worktree.core.step.assertions import evaluate_assertions
 from worktree.core.step.exceptions import StepNotFoundError, StepValidationError
+from worktree.core.step.facade import Step
 from worktree.core.step.models import (
     DEFAULT_STEP_TIMEOUT_SECONDS,
     AssertionResult,
@@ -49,6 +50,7 @@ __all__ = [
     "IterationMetadata",
     "LoopStepBlock",
     "PreviousStepMetadata",
+    "Step",
     "StepAssert",
     "StepDefinition",
     "StepExecution",

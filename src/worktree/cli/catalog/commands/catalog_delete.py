@@ -5,7 +5,7 @@ from __future__ import annotations
 import typer
 
 from worktree.cli.context import CliContext
-from worktree.core.catalog.services.inventory import delete_catalog_item_by_sha_or_name
+from worktree.core.catalog import Catalog
 
 from ..models import CatalogDeleteCommandOutcome
 from ..renderers import render_catalog_delete_success
@@ -40,7 +40,8 @@ def catalog_delete_command(
             output.add_line("Deletion cancelled.")
             return CatalogDeleteCommandOutcome(item=None, deleted=False, errors=["Deletion cancelled."])
 
-    deleted_item = delete_catalog_item_by_sha_or_name(sha_or_name, path=context.cwd, db=context.db.catalog)
+    catalog = Catalog(path=context.cwd, db=context.db.catalog)
+    deleted_item = catalog.delete(sha_or_name)
     if deleted_item is None:
         error_message = f"Catalog blueprint '{sha_or_name}' not found."
         output.add_error_panel("Catalog Delete Failed", error_message)

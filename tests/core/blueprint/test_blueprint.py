@@ -109,7 +109,7 @@ class BlueprintHandleTests:
         assert list(fs.base_path.iterdir()) == []
 
     def test_handle_module_does_not_import_side_channel_types(self) -> None:
-        source = Path("src/worktree/core/blueprint/services/blueprint.py").read_text(encoding="utf-8")
+        source = Path("src/worktree/core/blueprint/facade.py").read_text(encoding="utf-8")
         models = Path("src/worktree/core/blueprint/models.py").read_text(encoding="utf-8")
 
         for forbidden in ("worktree.core.engine",):

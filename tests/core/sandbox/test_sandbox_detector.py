@@ -11,7 +11,7 @@ from worktree.core.db import SandboxStatus, WorktreeDb
 from worktree.core.git.exceptions import GitCommandError
 from worktree.core.git.runner import GitRunner
 from worktree.core.sandbox import (
-    GitSandboxManager,
+    Sandbox,
     SandboxDetectionStatus,
     SandboxDetector,
     StaleSandboxCategory,
@@ -154,9 +154,9 @@ def test_active_sandboxes_are_protected(git_fs: GitFileSystem) -> None:
     git_fs.init_repo()
     path = git_fs.base_path
     db = WorktreeDb(path=path)
-    manager = GitSandboxManager(path, db.sandboxes)
+    manager = Sandbox(path, db.sandboxes)
 
-    create_res = manager.create_sandbox(session_id="sbx_active_123")
+    create_res = manager.create(session_id="sbx_active_123")
     assert create_res.ok
     assert create_res.session is not None
 
@@ -169,18 +169,18 @@ def test_active_sandboxes_are_protected(git_fs: GitFileSystem) -> None:
 
 
 def test_detect_helper_and_manager_facade(git_fs: GitFileSystem) -> None:
-    """Verify helper function and GitSandboxManager facade methods."""
+    """Verify helper function and Sandbox facade methods."""
     git_fs.init_repo()
     path = git_fs.base_path
     db = WorktreeDb(path=path)
-    manager = GitSandboxManager(path, db.sandboxes)
+    manager = Sandbox(path, db.sandboxes)
 
     # Calling via detect_stale_sandboxes helper
     res1 = detect_stale_sandboxes(path, db.sandboxes)
     assert res1.ok
 
     # Calling via manager facade
-    res2 = manager.detect_stale_sandboxes()
+    res2 = manager.detect()
     assert res2.ok
     assert res2.total_stale_count == res1.total_stale_count
 

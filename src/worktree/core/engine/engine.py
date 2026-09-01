@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from worktree.common.lock import WorkspaceLock
-from worktree.core.blueprint.services.blueprint import Blueprint
+from worktree.core.blueprint import Blueprint
 from worktree.core.catalog import Catalog
 from worktree.core.db import BlueprintKind, RunsRepository, RunStatus
 from worktree.core.engine.exceptions import EngineInputError

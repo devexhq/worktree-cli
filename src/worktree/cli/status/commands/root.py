@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from worktree.cli.context import CliContext
 from worktree.core.engine import format_reconciliation_warning, reconcile_stale_runs
-from worktree.core.status import collect_status
+from worktree.core.status import Status
 
 from ..models import StatusCommandOutcome
 from ..renderers import render_status_summary
@@ -21,7 +21,7 @@ def status_command(context: CliContext) -> StatusCommandOutcome:
         pass
 
     try:
-        result = collect_status(context.cwd)
+        result = Status(context.cwd).collect()
     except Exception as exc:
         context.output.add_error_panel("Status Error", str(exc))
         return StatusCommandOutcome(errors=[str(exc)])

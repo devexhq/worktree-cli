@@ -1,8 +1,7 @@
 """Handles `wt config set` command."""
 
 from worktree.cli.context import CliContext
-from worktree.core.config.mutate import set_config_value_result
-from worktree.core.config.parser import parse_config_value
+from worktree.core.config import Config
 
 from ..models import ConfigSetCommandOutcome
 from ..renderers import format_config_value
@@ -26,8 +25,7 @@ def config_set_command(
         context: CLI context instance.
     """
     output = context.output
-    parsed_value = parse_config_value(value)
-    result = set_config_value_result(key, parsed_value, path=context.cwd)
+    result = Config(context.cwd).set(key, value)
 
     if not result.ok:
         message = "\n\n".join(result.errors) if result.errors else "Failed to update configuration."

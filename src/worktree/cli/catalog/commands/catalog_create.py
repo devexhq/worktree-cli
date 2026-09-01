@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from worktree.cli.context import CliContext
-from worktree.core.catalog.services.inventory import create_catalog_item
+from worktree.core.catalog import Catalog
 from worktree.core.db import CatalogItemType
 
 from ..models import CatalogCreateCommandOutcome
@@ -26,13 +26,12 @@ def catalog_create_command(
         CatalogCreateCommandOutcome containing created record or errors.
     """
     output = context.output
+    catalog = Catalog(path=context.cwd, db=context.db.catalog)
 
     try:
-        record = create_catalog_item(
+        record = catalog.create(
             item_type=item_type,
             name=name,
-            path=context.cwd,
-            db=context.db.catalog,
         )
     except Exception as exc:
         error_message = str(exc)
