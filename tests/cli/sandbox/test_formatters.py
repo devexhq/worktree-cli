@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 
 import pytest
-from rich.console import Console
 from rich.text import Text
 
 from worktree.cli.sandbox.formatters import (
@@ -31,13 +30,6 @@ from worktree.core.sandbox.models import (
     SandboxSession,
     StaleSandboxCategory,
 )
-
-
-@pytest.fixture
-def test_console() -> tuple[Console, list[str]]:
-    outputs: list[str] = []
-    console = Console(file=None, record=True)
-    return console, outputs
 
 
 def test_pruned_item_formatter_to_rich() -> None:
