@@ -14,12 +14,6 @@ from worktree.cli.sandbox.formatters import (
     SandboxListFormatter,
     SandboxShowFormatter,
 )
-from worktree.cli.sandbox.models import (
-    SandboxListResult,
-    SandboxListStatus,
-    SandboxShowResult,
-    SandboxShowStatus,
-)
 from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
 from worktree.core.db import SandboxRecord, SandboxStatus
 from worktree.core.sandbox.models import (
@@ -27,7 +21,11 @@ from worktree.core.sandbox.models import (
     PrunedItem,
     SandboxCreateResult,
     SandboxCreateStatus,
+    SandboxListResult,
+    SandboxListStatus,
     SandboxSession,
+    SandboxShowResult,
+    SandboxShowStatus,
     StaleSandboxCategory,
 )
 

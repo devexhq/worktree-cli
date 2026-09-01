@@ -2,62 +2,16 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from worktree.cli.context import CliContext
 from worktree.cli.ui.dispatcher import ui_dispatcher
-from worktree.core.config.loader import load_config_result
-from worktree.core.db import (
-    SandboxesRepository,
-    SandboxStatus,
+from worktree.core.sandbox import (
+    SandboxListStatus,
+    collect_sandbox_list,
 )
 
 from ..models import (
     SandboxListCommandOutcome,
-    SandboxListResult,
-    SandboxListStatus,
 )
-
-
-def _reconcile_stale_active_sandboxes(*, db: SandboxesRepository) -> None:
-    """Mark active rows whose sandbox directory is gone as cleaned."""
-    for row in db.list():
-        if row.status is not SandboxStatus.ACTIVE:
-            continue
-        if Path(row.sandbox_path).is_dir():
-            continue
-        db.update_status(row.id, SandboxStatus.CLEANED)
-
-
-def collect_sandbox_list(
-    context: CliContext,
-    status: str | None = None,
-) -> SandboxListResult:
-    """Load config, reconcile stale active rows, and return list data.
-
-    Args:
-        context: CLI context instance.
-        status: Optional status filter (``active``, ``merged``, ``cleaned``,
-            ``conflict``). Reconciliation always runs on the full row set first.
-
-    Returns:
-        Structured list result. Does not print or exit.
-    """
-    load = load_config_result(path=context.cwd)
-    if not load.ok:
-        return SandboxListResult(
-            status=SandboxListStatus.NOT_INITIALIZED,
-            errors=list(load.errors),
-        )
-
-    _reconcile_stale_active_sandboxes(db=context.db.sandboxes)
-
-    status_filter: SandboxStatus | None = None
-    if status is not None:
-        status_filter = SandboxStatus(status)
-
-    rows = context.db.sandboxes.list(status=status_filter)
-    return SandboxListResult(status=SandboxListStatus.OK, sandboxes=rows)
 
 
 def sandbox_list_command(
@@ -75,7 +29,7 @@ def sandbox_list_command(
         status: Optional status filter validated by Typer at the CLI layer.
         output_format: Presentation format ("terminal" or "json").
     """
-    result = collect_sandbox_list(context, status)
+    result = collect_sandbox_list(context.cwd, context.db.sandboxes, status)
     ui_dispatcher.dispatch(result, output_format=output_format)
     if result.status is SandboxListStatus.NOT_INITIALIZED:
         return SandboxListCommandOutcome(errors=list(result.errors))

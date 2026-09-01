@@ -11,11 +11,9 @@ from typer.testing import CliRunner
 from tests.helpers import GitFileSystem, make_cli_context, make_rich_output, seed_sandbox
 from worktree.cli import app
 from worktree.cli.sandbox.commands.sandbox_list import (
-    collect_sandbox_list,
     sandbox_list_command,
 )
 from worktree.cli.sandbox.formatters import SandboxListFormatter
-from worktree.cli.sandbox.models import SandboxListResult, SandboxListStatus
 from worktree.cli.sandbox.renderers import (
     build_sandbox_table,
 )
@@ -23,6 +21,11 @@ from worktree.core.db import (
     SandboxRecord,
     SandboxStatus,
     WorktreeDb,
+)
+from worktree.core.sandbox import (
+    SandboxListResult,
+    SandboxListStatus,
+    collect_sandbox_list,
 )
 
 runner = CliRunner()
@@ -39,7 +42,7 @@ class SandboxListCollectTests:
         self.db = WorktreeDb(path=git_fs.base_path, db_rel_path=DB_REL)
 
     def test_not_initialized(self, git_fs: GitFileSystem) -> None:
-        result = collect_sandbox_list(make_cli_context(cwd=git_fs.base_path))
+        result = collect_sandbox_list(git_fs.base_path, self.db.sandboxes)
         assert result.status is SandboxListStatus.NOT_INITIALIZED
         assert not result.ok
         assert result.errors
@@ -47,7 +50,7 @@ class SandboxListCollectTests:
 
     def test_empty_state(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
-        result = collect_sandbox_list(make_cli_context(cwd=git_fs.base_path))
+        result = collect_sandbox_list(git_fs.base_path, self.db.sandboxes)
         assert result.status is SandboxListStatus.OK
         assert result.ok
         assert result.sandboxes == []
@@ -69,7 +72,7 @@ class SandboxListCollectTests:
         first = db.get(first.id)
         second = db.get(second.id)
 
-        result = collect_sandbox_list(make_cli_context(cwd=git_fs.base_path))
+        result = collect_sandbox_list(git_fs.base_path, self.db.sandboxes)
         assert result.ok
         assert [row.id for row in result.sandboxes] == [second.id, first.id]
         assert result.sandboxes[0].name == "beta"
@@ -86,7 +89,7 @@ class SandboxListCollectTests:
             SandboxStatus.CLEANED,
         )
 
-        result = collect_sandbox_list(make_cli_context(cwd=git_fs.base_path), status="cleaned")
+        result = collect_sandbox_list(git_fs.base_path, self.db.sandboxes, status="cleaned")
         assert result.ok
         assert [row.id for row in result.sandboxes] == [cleaned.id]
         assert active.id not in {row.id for row in result.sandboxes}
@@ -101,7 +104,7 @@ class SandboxListCollectTests:
         )
         assert not Path(stale.sandbox_path).exists()
 
-        result = collect_sandbox_list(make_cli_context(cwd=git_fs.base_path))
+        result = collect_sandbox_list(git_fs.base_path, self.db.sandboxes)
         assert result.ok
         assert len(result.sandboxes) == 1
         assert result.sandboxes[0].id == stale.id
@@ -125,11 +128,11 @@ class SandboxListCollectTests:
             create_dir=False,
         )
 
-        active_res = collect_sandbox_list(make_cli_context(cwd=git_fs.base_path), status="active")
+        active_res = collect_sandbox_list(git_fs.base_path, self.db.sandboxes, status="active")
         assert active_res.status is SandboxListStatus.OK
         assert [r.id for r in active_res.sandboxes] == ["sbx_live"]
 
-        cleaned_res = collect_sandbox_list(make_cli_context(cwd=git_fs.base_path), status="cleaned")
+        cleaned_res = collect_sandbox_list(git_fs.base_path, self.db.sandboxes, status="cleaned")
         assert cleaned_res.status is SandboxListStatus.OK
         assert [r.id for r in cleaned_res.sandboxes] == ["sbx_reconciled"]
 
@@ -150,7 +153,7 @@ class SandboxListCollectTests:
         )
         self.db.sandboxes.update_status(row_c.id, SandboxStatus.CLEANED)
 
-        result = collect_sandbox_list(make_cli_context(cwd=git_fs.base_path))
+        result = collect_sandbox_list(git_fs.base_path, self.db.sandboxes)
         assert result.status is SandboxListStatus.OK
         by_id = {r.id: r.status for r in result.sandboxes}
         assert by_id["sbx_m"] is SandboxStatus.MERGED
