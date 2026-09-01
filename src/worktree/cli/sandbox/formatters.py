@@ -11,7 +11,7 @@ from rich.text import Text
 
 from worktree.cli.sandbox.models import SandboxListResult, SandboxShowResult, SandboxShowStatus
 from worktree.cli.sandbox.renderers import build_sandbox_detail_table, build_sandbox_table
-from worktree.cli.ui.dispatcher import default_dispatcher
+from worktree.cli.ui.dispatcher import UiDispatcher, default_dispatcher
 from worktree.common.types import ComponentFormatter
 from worktree.common.utils import display_path
 from worktree.core.sandbox.models import (
@@ -192,8 +192,18 @@ class SandboxCreateFormatter(ComponentFormatter[SandboxCreateResult]):
         return data.model_dump(mode="json")
 
 
-# Register all sandbox formatters on the central default_dispatcher
-default_dispatcher.register(PrunedItemResult, PrunedItemFormatter())
-default_dispatcher.register(SandboxShowResult, SandboxShowFormatter())
-default_dispatcher.register(SandboxListResult, SandboxListFormatter())
-default_dispatcher.register(SandboxCreateResult, SandboxCreateFormatter())
+def register_sandbox_formatters(dispatcher: UiDispatcher | None = None) -> None:
+    """Register all sandbox ComponentFormatter instances on a UiDispatcher.
+
+    Args:
+        dispatcher: UiDispatcher instance to register on. Defaults to default_dispatcher.
+    """
+    target = dispatcher if dispatcher is not None else default_dispatcher
+    target.register(PrunedItemResult, PrunedItemFormatter())
+    target.register(SandboxShowResult, SandboxShowFormatter())
+    target.register(SandboxListResult, SandboxListFormatter())
+    target.register(SandboxCreateResult, SandboxCreateFormatter())
+
+
+# Register default sandbox formatters on the central default_dispatcher
+register_sandbox_formatters()

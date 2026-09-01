@@ -6,7 +6,6 @@ from worktree.cli.context import CliContext
 from worktree.core.db import SandboxStatus
 from worktree.core.sandbox.models import SandboxApplyStrategy
 
-from . import formatters as _formatters  # noqa: F401
 from .commands.sandbox_apply import sandbox_apply_command
 from .commands.sandbox_create import sandbox_create_command
 from .commands.sandbox_delete import sandbox_delete_command
@@ -14,6 +13,9 @@ from .commands.sandbox_diff import sandbox_diff_command
 from .commands.sandbox_list import sandbox_list_command
 from .commands.sandbox_prune import sandbox_prune_command
 from .commands.sandbox_show import sandbox_show_command
+from .formatters import register_sandbox_formatters
+
+register_sandbox_formatters()
 
 sandbox_app = typer.Typer(
     name="sandbox",
