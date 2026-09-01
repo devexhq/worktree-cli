@@ -11,9 +11,11 @@ def test_catalog_facade_create_get_delete(fs: FileSystem):
     catalog = Catalog(fs.base_path)
 
     # create
-    record = catalog.create(CatalogItemType.TASK, "my-new-task")
-    assert record.name == "my-new-task"
-    assert record.item_type == CatalogItemType.TASK
+    create_res = catalog.create(CatalogItemType.TASK, "my-new-task")
+    assert create_res.ok
+    assert create_res.item is not None
+    assert create_res.item.name == "my-new-task"
+    assert create_res.item.item_type == CatalogItemType.TASK
 
     # get
     res = catalog.get("my-new-task")
@@ -21,14 +23,24 @@ def test_catalog_facade_create_get_delete(fs: FileSystem):
     assert res.resolved is not None
     assert res.resolved.name == "my-new-task"
 
+    # show
+    show_res = catalog.show("my-new-task")
+    assert show_res.ok
+    assert show_res.item is not None
+    assert show_res.item.name == "my-new-task"
+    assert show_res.content is not None
+
     # list
-    items = catalog.list(kind=CatalogItemType.TASK)
-    assert any(i.name == "my-new-task" for i in items)
+    list_res = catalog.list(kind=CatalogItemType.TASK)
+    assert list_res.ok
+    assert any(i.name == "my-new-task" for i in list_res.items)
 
     # delete
-    deleted = catalog.delete("my-new-task")
-    assert deleted is not None
-    assert deleted.name == "my-new-task"
+    del_res = catalog.delete("my-new-task")
+    assert del_res.ok
+    assert del_res.deleted
+    assert del_res.item is not None
+    assert del_res.item.name == "my-new-task"
 
     # get after delete
     res_after = catalog.get("my-new-task")
