@@ -22,6 +22,7 @@ class CliContextBuildTests:
         context = CliContext.build()
         assert context is not None
         assert context.cwd == git_fs.base_path.resolve()
+        assert context.dispatcher is not None
 
     def test_build_reports_uninitialized_when_config_not_found(
         self,
