@@ -31,11 +31,8 @@ def init_command(
         overwrite=overwrite,
         repair=repair,
     )
-    outcome = InitCommandOutcome(
-        bootstrap_result=result.bootstrap_result,
-        config_result=result.config_result,
-        seed_result=result.seed_result,
-        errors=list(result.errors),
-    )
-    ui_dispatcher.dispatch(outcome, output_format=output_format)
-    return outcome
+    ui_dispatcher.dispatch(result, output_format=output_format)
+    if not result.ok:
+        return InitCommandOutcome(result=result, errors=list(result.errors))
+
+    return InitCommandOutcome(result=result)

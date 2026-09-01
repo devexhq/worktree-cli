@@ -9,11 +9,13 @@ from rich.console import Group
 from rich.panel import Panel
 from rich.text import Text
 
-from worktree.cli.init.models import InitCommandOutcome
 from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
 from worktree.common.types import ComponentFormatter
 from worktree.common.utils import display_path
-from worktree.core.bootstrap import BootstrapResult
+from worktree.core.bootstrap import (
+    BootstrapResult,
+    WorkspaceInitResult,
+)
 from worktree.core.catalog.models import SeedResult
 from worktree.core.config.generator import ConfigGenerationResult
 
@@ -88,7 +90,7 @@ def _render_seed_lines(result: SeedResult, cwd: Path) -> list[Any]:
     return renderables
 
 
-def _render_failure_panel(data: InitCommandOutcome) -> Panel | None:
+def _render_failure_panel(data: WorkspaceInitResult) -> Panel | None:
     if data.bootstrap_result is None and data.errors:
         lines = "\n".join(data.errors)
         return Panel.fit(f"[bold red]Initialization Failed![/bold red]\n{lines}", border_style="red")
@@ -104,14 +106,14 @@ def _render_failure_panel(data: InitCommandOutcome) -> Panel | None:
     return None
 
 
-class InitOutcomeFormatter(ComponentFormatter[InitCommandOutcome]):
-    """Formatter for workspace initialization command outcomes."""
+class WorkspaceInitFormatter(ComponentFormatter[WorkspaceInitResult]):
+    """Formatter for workspace initialization results."""
 
-    def to_rich(self, data: InitCommandOutcome) -> Any:
+    def to_rich(self, data: WorkspaceInitResult) -> Any:
         """Render initialization summary, repair details, or failure panels.
 
         Args:
-            data: Structured initialization outcome.
+            data: Structured workspace initialization result.
 
         Returns:
             Rich renderable object (Group or Panel).
@@ -141,16 +143,19 @@ class InitOutcomeFormatter(ComponentFormatter[InitCommandOutcome]):
         )
         return Group(*renderables)
 
-    def to_json_serializable(self, data: InitCommandOutcome) -> dict[str, Any]:
-        """Convert InitCommandOutcome to primitive dictionary for JSON serialization.
+    def to_json_serializable(self, data: WorkspaceInitResult) -> dict[str, Any]:
+        """Convert WorkspaceInitResult to primitive dictionary for JSON serialization.
 
         Args:
-            data: Structured initialization outcome.
+            data: Structured workspace initialization result.
 
         Returns:
             JSON-serializable dictionary.
         """
         return data.model_dump(mode="json")
+
+
+InitOutcomeFormatter = WorkspaceInitFormatter
 
 
 def register_init_formatters(dispatcher: UiDispatcher | None = None) -> None:
@@ -160,7 +165,7 @@ def register_init_formatters(dispatcher: UiDispatcher | None = None) -> None:
         dispatcher: UiDispatcher instance to register on. Defaults to ui_dispatcher.
     """
     target = dispatcher if dispatcher is not None else ui_dispatcher
-    target.register(InitCommandOutcome, InitOutcomeFormatter())
+    target.register(WorkspaceInitResult, WorkspaceInitFormatter())
 
 
 # Register default init formatters on the central ui_dispatcher

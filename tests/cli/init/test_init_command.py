@@ -282,7 +282,7 @@ class InitCommandFailureTests:
         lines = [line for line in out.strip().split("\n") if line]
         assert len(lines) == 1
         envelope = json.loads(lines[0])
-        assert envelope["event_type"] == "InitCommandOutcome"
+        assert envelope["event_type"] == "WorkspaceInitResult"
         assert envelope["payload"]["bootstrap_result"]["root_created"] is True
         assert envelope["payload"]["config_result"]["created"] is True
 
@@ -333,5 +333,5 @@ class InitCliTests:
         lines = [line for line in result.stdout.strip().split("\n") if line]
         assert len(lines) == 1
         payload = json.loads(lines[0])
-        assert payload["event_type"] == "InitCommandOutcome"
+        assert payload["event_type"] == "WorkspaceInitResult"
         assert payload["payload"]["bootstrap_result"]["root_created"] is True

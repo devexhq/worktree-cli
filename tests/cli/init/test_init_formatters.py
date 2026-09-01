@@ -1,4 +1,4 @@
-"""Unit tests for InitOutcomeFormatter and init UI dispatching."""
+"""Unit tests for WorkspaceInitFormatter and init UI dispatching."""
 
 from __future__ import annotations
 
@@ -11,18 +11,21 @@ from rich.panel import Panel
 from tests.helpers import FileSystem, render_rich
 from worktree.cli.init.formatters import (
     InitOutcomeFormatter,
+    WorkspaceInitFormatter,
     register_init_formatters,
 )
-from worktree.cli.init.models import InitCommandOutcome
 from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
-from worktree.core.bootstrap import BootstrapResult
+from worktree.core.bootstrap import (
+    BootstrapResult,
+    WorkspaceInitResult,
+)
 from worktree.core.catalog.models import SeedResult
 from worktree.core.config.generator import ConfigGenerationResult
 
 
 def test_init_outcome_formatter_to_rich_success(fs: FileSystem) -> None:
-    formatter = InitOutcomeFormatter()
-    outcome = InitCommandOutcome(
+    formatter = WorkspaceInitFormatter()
+    result = WorkspaceInitResult(
         bootstrap_result=BootstrapResult(root_path=fs.base_path / ".worktree"),
         config_result=ConfigGenerationResult(
             config_path=fs.base_path / ".worktree" / "config.json",
@@ -31,7 +34,7 @@ def test_init_outcome_formatter_to_rich_success(fs: FileSystem) -> None:
         seed_result=SeedResult(created_files=[fs.base_path / ".worktree" / "workflows" / "fix-tests.yml"]),
     )
 
-    rich_renderable = formatter.to_rich(outcome)
+    rich_renderable = formatter.to_rich(result)
     assert isinstance(rich_renderable, Group)
 
     rendered = render_rich(rich_renderable)
@@ -42,9 +45,9 @@ def test_init_outcome_formatter_to_rich_success(fs: FileSystem) -> None:
 
 
 def test_init_outcome_formatter_to_rich_repaired(fs: FileSystem) -> None:
-    formatter = InitOutcomeFormatter()
+    formatter = WorkspaceInitFormatter()
     root = fs.base_path / ".worktree"
-    outcome = InitCommandOutcome(
+    result = WorkspaceInitResult(
         bootstrap_result=BootstrapResult(
             root_path=root,
             repaired=True,
@@ -60,7 +63,7 @@ def test_init_outcome_formatter_to_rich_repaired(fs: FileSystem) -> None:
         ),
     )
 
-    rich_renderable = formatter.to_rich(outcome)
+    rich_renderable = formatter.to_rich(result)
     assert isinstance(rich_renderable, Group)
 
     rendered = render_rich(rich_renderable)
@@ -71,9 +74,9 @@ def test_init_outcome_formatter_to_rich_repaired(fs: FileSystem) -> None:
 
 
 def test_init_outcome_formatter_to_rich_created_and_overwritten(fs: FileSystem) -> None:
-    formatter = InitOutcomeFormatter()
+    formatter = WorkspaceInitFormatter()
     root = fs.base_path / ".worktree"
-    outcome = InitCommandOutcome(
+    result = WorkspaceInitResult(
         bootstrap_result=BootstrapResult(
             root_path=root,
             root_created=True,
@@ -86,7 +89,7 @@ def test_init_outcome_formatter_to_rich_created_and_overwritten(fs: FileSystem) 
         seed_result=SeedResult(overwritten_files=[root / "workflows" / "x.yml"]),
     )
 
-    rich_renderable = formatter.to_rich(outcome)
+    rich_renderable = formatter.to_rich(result)
     assert isinstance(rich_renderable, Group)
 
     rendered = render_rich(rich_renderable)
@@ -96,9 +99,9 @@ def test_init_outcome_formatter_to_rich_created_and_overwritten(fs: FileSystem) 
 
 
 def test_init_outcome_formatter_to_rich_generated_and_seeding_errors(fs: FileSystem) -> None:
-    formatter = InitOutcomeFormatter()
+    formatter = WorkspaceInitFormatter()
     root = fs.base_path / ".worktree"
-    outcome = InitCommandOutcome(
+    result = WorkspaceInitResult(
         bootstrap_result=BootstrapResult(root_path=root),
         config_result=ConfigGenerationResult(
             config_path=root / "config.json",
@@ -107,7 +110,7 @@ def test_init_outcome_formatter_to_rich_generated_and_seeding_errors(fs: FileSys
         seed_result=SeedResult(errors=["could not seed"]),
     )
 
-    rich_renderable = formatter.to_rich(outcome)
+    rich_renderable = formatter.to_rich(result)
     assert isinstance(rich_renderable, Group)
 
     rendered = render_rich(rich_renderable)
@@ -117,14 +120,14 @@ def test_init_outcome_formatter_to_rich_generated_and_seeding_errors(fs: FileSys
 
 
 def test_init_outcome_formatter_to_rich_skips_config_without_path(fs: FileSystem) -> None:
-    formatter = InitOutcomeFormatter()
-    outcome = InitCommandOutcome(
+    formatter = WorkspaceInitFormatter()
+    result = WorkspaceInitResult(
         bootstrap_result=BootstrapResult(root_path=fs.base_path / ".worktree"),
         config_result=ConfigGenerationResult(config_path=None),
         seed_result=SeedResult(),
     )
 
-    rich_renderable = formatter.to_rich(outcome)
+    rich_renderable = formatter.to_rich(result)
     assert isinstance(rich_renderable, Group)
 
     rendered = render_rich(rich_renderable)
@@ -133,11 +136,11 @@ def test_init_outcome_formatter_to_rich_skips_config_without_path(fs: FileSystem
 
 
 def test_init_outcome_formatter_to_rich_preflight_failure() -> None:
-    formatter = InitOutcomeFormatter()
+    formatter = WorkspaceInitFormatter()
     err = "The current directory is not a valid Git repository."
-    outcome = InitCommandOutcome(errors=[err])
+    result = WorkspaceInitResult(errors=[err])
 
-    rich_renderable = formatter.to_rich(outcome)
+    rich_renderable = formatter.to_rich(result)
     assert isinstance(rich_renderable, Panel)
 
     rendered = render_rich(rich_renderable)
@@ -146,14 +149,14 @@ def test_init_outcome_formatter_to_rich_preflight_failure() -> None:
 
 
 def test_init_outcome_formatter_to_rich_bootstrap_failure(fs: FileSystem) -> None:
-    formatter = InitOutcomeFormatter()
+    formatter = WorkspaceInitFormatter()
     bootstrap = BootstrapResult(
         root_path=fs.base_path / ".worktree",
         errors=["path conflict: .worktree is a file"],
     )
-    outcome = InitCommandOutcome(bootstrap_result=bootstrap, errors=list(bootstrap.errors))
+    result = WorkspaceInitResult(bootstrap_result=bootstrap, errors=list(bootstrap.errors))
 
-    rich_renderable = formatter.to_rich(outcome)
+    rich_renderable = formatter.to_rich(result)
     assert isinstance(rich_renderable, Panel)
 
     rendered = render_rich(rich_renderable)
@@ -163,16 +166,16 @@ def test_init_outcome_formatter_to_rich_bootstrap_failure(fs: FileSystem) -> Non
 
 
 def test_init_outcome_formatter_to_rich_config_failure(fs: FileSystem) -> None:
-    formatter = InitOutcomeFormatter()
+    formatter = WorkspaceInitFormatter()
     bootstrap = BootstrapResult(root_path=fs.base_path / ".worktree")
     config = ConfigGenerationResult(errors=["CONFIG_WRITE_FAILED: permission denied"])
-    outcome = InitCommandOutcome(
+    result = WorkspaceInitResult(
         bootstrap_result=bootstrap,
         config_result=config,
         errors=list(config.errors),
     )
 
-    rich_renderable = formatter.to_rich(outcome)
+    rich_renderable = formatter.to_rich(result)
     assert isinstance(rich_renderable, Panel)
 
     rendered = render_rich(rich_renderable)
@@ -181,9 +184,9 @@ def test_init_outcome_formatter_to_rich_config_failure(fs: FileSystem) -> None:
 
 
 def test_init_outcome_formatter_to_json_serializable(fs: FileSystem) -> None:
-    formatter = InitOutcomeFormatter()
+    formatter = WorkspaceInitFormatter()
     root = fs.base_path / ".worktree"
-    outcome = InitCommandOutcome(
+    result = WorkspaceInitResult(
         bootstrap_result=BootstrapResult(
             root_path=root,
             root_created=True,
@@ -198,7 +201,7 @@ def test_init_outcome_formatter_to_json_serializable(fs: FileSystem) -> None:
         ),
     )
 
-    dumped = formatter.to_json_serializable(outcome)
+    dumped = formatter.to_json_serializable(result)
     assert isinstance(dumped, dict)
     assert dumped["bootstrap_result"]["root_created"] is True
     assert dumped["bootstrap_result"]["root_path"] == str(root)
@@ -217,32 +220,33 @@ def test_register_init_formatters_custom_dispatcher() -> None:
     dispatcher = UiDispatcher()
     register_init_formatters(dispatcher)
 
-    assert InitCommandOutcome in dispatcher._registry
-    assert isinstance(dispatcher._registry[InitCommandOutcome], InitOutcomeFormatter)
+    assert WorkspaceInitResult in dispatcher._registry
+    assert isinstance(dispatcher._registry[WorkspaceInitResult], WorkspaceInitFormatter)
 
 
 def test_ui_dispatcher_registration() -> None:
-    assert InitCommandOutcome in ui_dispatcher._registry
-    assert isinstance(ui_dispatcher._registry[InitCommandOutcome], InitOutcomeFormatter)
+    assert WorkspaceInitResult in ui_dispatcher._registry
+    assert isinstance(ui_dispatcher._registry[WorkspaceInitResult], WorkspaceInitFormatter)
+    assert InitOutcomeFormatter is WorkspaceInitFormatter
 
 
 def test_dispatcher_json_format_ndjson(fs: FileSystem, capsys: pytest.CaptureFixture[str]) -> None:
     dispatcher = UiDispatcher()
     register_init_formatters(dispatcher)
-    outcome = InitCommandOutcome(
+    result = WorkspaceInitResult(
         bootstrap_result=BootstrapResult(root_path=fs.base_path / ".worktree", root_created=True),
         config_result=ConfigGenerationResult(config_path=fs.base_path / ".worktree" / "config.json", created=True),
         seed_result=SeedResult(),
     )
 
-    dispatcher.dispatch(outcome, output_format="json")
+    dispatcher.dispatch(result, output_format="json")
 
     captured = capsys.readouterr()
     lines = [line for line in captured.out.strip().split("\n") if line]
     assert len(lines) == 1
 
     payload = json.loads(lines[0])
-    assert payload["event_type"] == "InitCommandOutcome"
+    assert payload["event_type"] == "WorkspaceInitResult"
     assert payload["payload"]["bootstrap_result"]["root_created"] is True
     assert payload["payload"]["config_result"]["created"] is True
 
@@ -251,13 +255,13 @@ def test_dispatcher_terminal_format(fs: FileSystem, capsys: pytest.CaptureFixtur
     console = Console(force_terminal=True, width=120)
     dispatcher = UiDispatcher(console=console)
     register_init_formatters(dispatcher)
-    outcome = InitCommandOutcome(
+    result = WorkspaceInitResult(
         bootstrap_result=BootstrapResult(root_path=fs.base_path / ".worktree", root_created=True),
         config_result=ConfigGenerationResult(config_path=fs.base_path / ".worktree" / "config.json", created=True),
         seed_result=SeedResult(),
     )
 
-    dispatcher.dispatch(outcome, output_format="terminal")
+    dispatcher.dispatch(result, output_format="terminal")
 
     captured = capsys.readouterr()
     assert "Initialized Worktree" in captured.out
