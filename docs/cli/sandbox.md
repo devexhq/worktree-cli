@@ -9,7 +9,7 @@ The `wt sandbox` command provisions and manages isolated Git worktrees to allow 
 List all active sandboxes associated with the current project repository:
 
 ```bash
-wt sandbox list
+wt sandbox list [--format terminal|json]
 ```
 
 ### `wt sandbox create`
@@ -17,7 +17,7 @@ wt sandbox list
 Create a new isolated Git worktree:
 
 ```bash
-wt sandbox create my-feature
+wt sandbox create [--name <name>] [--base-ref <ref>] [--wip/--no-wip] [--format terminal|json]
 ```
 
 ### `wt sandbox show`
@@ -25,7 +25,7 @@ wt sandbox create my-feature
 Inspect sandbox details, path, branch, and status:
 
 ```bash
-wt sandbox show my-feature [--format terminal|json]
+wt sandbox show <sandbox-id> [--format terminal|json]
 ```
 
 ### `wt sandbox prune`
@@ -41,7 +41,7 @@ wt sandbox prune [--dry-run] [--force] [--format terminal|json]
 Remove an isolated worktree sandbox when work is complete:
 
 ```bash
-wt sandbox delete my-feature
+wt sandbox delete <sandbox-id> [--force] [--format terminal|json]
 ```
 
 ### `wt sandbox apply`
@@ -61,6 +61,7 @@ wt sandbox apply <sandbox-id> [OPTIONS]
 | `--dry-run` | Perform pre-apply conflict checks without modifying the workspace. |
 | `--delete`, `-d` | Delete the sandbox worktree and branch upon successful application. |
 | `--message <msg>`, `-m <msg>` | Custom commit message when using `--strategy squash`. |
+| `--format <terminal\|json>` | Presentation format (`terminal` or `json`). |
 
 #### Examples
 
@@ -87,6 +88,7 @@ wt sandbox diff <sandbox-id> [OPTIONS]
 | Flag | Description |
 | --- | --- |
 | `--stat` | Output summary diffstat statistics (files changed, insertions, deletions) instead of the full unified diff. |
+| `--format <terminal\|json>` | Presentation format (`terminal` or `json`). |
 
 #### Examples
 
@@ -99,4 +101,5 @@ View diffstat summary:
 ```bash
 wt sandbox diff sbx_8f2a1b9c --stat
 ```
+
 
