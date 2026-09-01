@@ -17,43 +17,6 @@ from worktree.common.types import ComponentFormatter
 from worktree.core.status.models import WorktreeStatusResult
 
 
-def _format_status_rich(data: WorktreeStatusResult) -> Any:
-    """Render workspace status table, warnings, and remediations.
-
-    Args:
-        data: Unified workspace status collection result.
-
-    Returns:
-        Rich renderable object (Table or Group).
-    """
-    table = build_status_table(data)
-    warnings = _collect_all_warnings(data)
-    remediations = _collect_remediations(data)
-
-    if not warnings and not remediations:
-        return table
-
-    renderables: list[Any] = [table]
-
-    if warnings:
-        renderables.append(Text(""))
-        renderables.append(Text.from_markup("[yellow]⚠️ Configuration & Context Warnings:[/yellow]"))
-        for warning in warnings:
-            bullet = Text("  • ", style="dim")
-            bullet.append(warning)
-            renderables.append(bullet)
-
-    if remediations:
-        renderables.append(Text(""))
-        renderables.append(Text("Next Steps & Remediation:"))
-        for remediation in remediations:
-            bullet = Text("  • ", style="dim")
-            bullet.append(remediation)
-            renderables.append(bullet)
-
-    return Group(*renderables)
-
-
 class WorktreeStatusFormatter(ComponentFormatter[WorktreeStatusResult]):
     """Formatter for workspace status results."""
 
@@ -66,7 +29,32 @@ class WorktreeStatusFormatter(ComponentFormatter[WorktreeStatusResult]):
         Returns:
             Rich renderable object (Table or Group).
         """
-        return _format_status_rich(data)
+        table = build_status_table(data)
+        warnings = _collect_all_warnings(data)
+        remediations = _collect_remediations(data)
+
+        if not warnings and not remediations:
+            return table
+
+        renderables: list[Any] = [table]
+
+        if warnings:
+            renderables.append(Text(""))
+            renderables.append(Text.from_markup("[yellow]⚠️ Configuration & Context Warnings:[/yellow]"))
+            for warning in warnings:
+                bullet = Text("  • ", style="dim")
+                bullet.append(warning)
+                renderables.append(bullet)
+
+        if remediations:
+            renderables.append(Text(""))
+            renderables.append(Text("Next Steps & Remediation:"))
+            for remediation in remediations:
+                bullet = Text("  • ", style="dim")
+                bullet.append(remediation)
+                renderables.append(bullet)
+
+        return Group(*renderables)
 
     def to_json_serializable(self, data: WorktreeStatusResult) -> dict[str, Any]:
         """Convert WorktreeStatusResult to primitive dictionary for JSON serialization.

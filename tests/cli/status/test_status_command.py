@@ -117,29 +117,6 @@ class StatusCommandTests:
         assert "CONFIG_SCHEMA_INVALID" in out
         assert "Uninitialized" not in out
 
-    def test_status_handles_exception(
-        self,
-        fs: FileSystem,
-        monkeypatch: pytest.MonkeyPatch,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        def _failing_collector(*args: object, **kwargs: object) -> None:
-            raise RuntimeError("collector boom")
-
-        monkeypatch.setattr("worktree.core.status.services.collector.collect_status", _failing_collector)
-
-        ctx = make_cli_context(cwd=fs.base_path)
-        outcome = status_command(ctx)
-
-        assert not outcome.ok
-        assert outcome.result is None
-        assert "collector boom" in outcome.errors
-
-        ctx.output.print()
-        out = capsys.readouterr().out
-        assert "Status Error" in out
-        assert "collector boom" in out
-
     def test_status_json_format(
         self,
         git_fs: GitFileSystem,

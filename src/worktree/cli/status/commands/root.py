@@ -26,12 +26,7 @@ def status_command(
     except Exception:
         warning_message = None
 
-    try:
-        result = Status(context.cwd).collect()
-    except Exception as exc:
-        context.output.add_error_panel("Status Error", str(exc))
-        context.output.print()
-        return StatusCommandOutcome(errors=[str(exc)])
+    result = Status(context.cwd).collect()
 
     if warning_message and warning_message not in result.warnings:
         result.warnings.insert(0, warning_message)
