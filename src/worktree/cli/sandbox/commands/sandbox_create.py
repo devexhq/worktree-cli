@@ -1,5 +1,4 @@
 from worktree.cli.context import CliContext
-from worktree.cli.sandbox.formatters import SandboxCreateFormatter  # noqa: F401
 from worktree.core.sandbox import GitSandboxManager
 
 from ..models import SandboxCreateCommandOutcome

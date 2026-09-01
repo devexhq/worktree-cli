@@ -6,6 +6,7 @@ from worktree.cli.context import CliContext
 from worktree.core.db import SandboxStatus
 from worktree.core.sandbox.models import SandboxApplyStrategy
 
+from . import formatters as _formatters  # noqa: F401
 from .commands.sandbox_apply import sandbox_apply_command
 from .commands.sandbox_create import sandbox_create_command
 from .commands.sandbox_delete import sandbox_delete_command

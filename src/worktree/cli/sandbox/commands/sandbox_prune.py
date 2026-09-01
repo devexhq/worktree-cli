@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from worktree.cli.context import CliContext
-from worktree.cli.sandbox.formatters import PrunedItemFormatter  # noqa: F401
 from worktree.core.sandbox import GitSandboxManager
 
 from ..models import (
