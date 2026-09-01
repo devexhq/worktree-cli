@@ -289,3 +289,11 @@ def make_rich_output(*, width: int = 120) -> tuple[RichOutput, StringIO]:
         width=width,
     )
     return RichOutput(console=console), buffer
+
+
+def render_rich(renderable: Any, *, width: int = 120) -> str:
+    """Render a Rich renderable directly to a plain text string for assertions."""
+    rich_output, buffer = make_rich_output(width=width)
+    rich_output.add_line(renderable)
+    rich_output.print()
+    return buffer.getvalue()

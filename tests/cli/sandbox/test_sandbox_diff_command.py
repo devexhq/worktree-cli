@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from typer.testing import CliRunner
 
-from tests.helpers import GitFileSystem, make_cli_context, make_rich_output
+from tests.helpers import GitFileSystem, make_cli_context, render_rich
 from worktree.cli import app
 from worktree.cli.sandbox.commands.sandbox_diff import sandbox_diff_command
 from worktree.cli.sandbox.formatters import SandboxDiffFormatter
@@ -29,10 +29,7 @@ class SandboxDiffRenderTests:
         )
         formatter = SandboxDiffFormatter()
         renderable = formatter.to_rich(result)
-        rich_output, buffer = make_rich_output()
-        rich_output.add_line(renderable)
-        rich_output.print()
-        out = buffer.getvalue()
+        out = render_rich(renderable)
         assert "diff --git a/f.txt b/f.txt" in out
 
     def test_render_diff_stat(self) -> None:
@@ -44,10 +41,7 @@ class SandboxDiffRenderTests:
         )
         formatter = SandboxDiffFormatter()
         renderable = formatter.to_rich(result)
-        rich_output, buffer = make_rich_output()
-        rich_output.add_line(renderable)
-        rich_output.print()
-        out = buffer.getvalue()
+        out = render_rich(renderable)
         assert "f.txt | 2 +-" in out
 
     def test_render_diff_empty(self) -> None:
@@ -57,10 +51,7 @@ class SandboxDiffRenderTests:
         )
         formatter = SandboxDiffFormatter()
         renderable = formatter.to_rich(result)
-        rich_output, buffer = make_rich_output()
-        rich_output.add_line(renderable)
-        rich_output.print()
-        out = buffer.getvalue()
+        out = render_rich(renderable)
         assert "Sandbox 'sbx_8f2a1b9c' has no changes compared to base commit." in out
 
     def test_render_diff_failed(self) -> None:
@@ -71,10 +62,7 @@ class SandboxDiffRenderTests:
         )
         formatter = SandboxDiffFormatter()
         renderable = formatter.to_rich(result)
-        rich_output, buffer = make_rich_output()
-        rich_output.add_line(renderable)
-        rich_output.print()
-        out = buffer.getvalue()
+        out = render_rich(renderable)
         assert "Sandbox Diff Failed" in out
         assert "Sandbox 'sbx_8f2a1b9c' not found." in out
 

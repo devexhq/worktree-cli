@@ -8,7 +8,7 @@ import pytest
 from typer.main import get_command
 from typer.testing import CliRunner
 
-from tests.helpers import GitFileSystem, make_cli_context, make_rich_output, seed_sandbox
+from tests.helpers import GitFileSystem, make_cli_context, render_rich, seed_sandbox
 from worktree.cli import app
 from worktree.cli.sandbox.commands.sandbox_list import (
     sandbox_list_command,
@@ -189,10 +189,7 @@ class SandboxListRenderTests:
         data = SandboxListResult(status=SandboxListStatus.OK, sandboxes=sandboxes)
         formatter = SandboxListFormatter()
         renderable = formatter.to_rich(data)
-        rich_output, buffer = make_rich_output(width=120)
-        rich_output.add_line(renderable)
-        rich_output.print()
-        out = buffer.getvalue()
+        out = render_rich(renderable, width=120)
         assert "Worktree Sandboxes" in out
         for header in ("ID", "Name", "Branch", "Status", "Created"):
             assert header in out
@@ -215,10 +212,8 @@ class SandboxListRenderTests:
         data = SandboxListResult(status=SandboxListStatus.OK, sandboxes=[])
         formatter = SandboxListFormatter()
         renderable = formatter.to_rich(data)
-        rich_output, buffer = make_rich_output()
-        rich_output.add_line(renderable)
-        rich_output.print()
-        assert buffer.getvalue() == "No sandboxes found.\n"
+        out = render_rich(renderable)
+        assert out == "No sandboxes found.\n"
 
     def test_not_initialized_panel(self) -> None:
         data = SandboxListResult(
@@ -227,10 +222,7 @@ class SandboxListRenderTests:
         )
         formatter = SandboxListFormatter()
         renderable = formatter.to_rich(data)
-        rich_output, buffer = make_rich_output()
-        rich_output.add_line(renderable)
-        rich_output.print()
-        out = buffer.getvalue()
+        out = render_rich(renderable)
         assert "Worktree Not Initialized" in out
         assert "CONFIG_NOT_FOUND" in out
 

@@ -10,7 +10,7 @@ import typer
 from typer.main import get_command
 from typer.testing import CliRunner
 
-from tests.helpers import GitFileSystem, make_cli_context, make_rich_output, seed_sandbox
+from tests.helpers import GitFileSystem, make_cli_context, render_rich, seed_sandbox
 from worktree.cli import app
 from worktree.cli.sandbox.commands.sandbox_delete import (
     collect_sandbox_delete,
@@ -129,10 +129,7 @@ class SandboxDeleteRenderTests:
         )
         formatter = SandboxDeleteFormatter()
         renderable = formatter.to_rich(result)
-        rich_output, buffer = make_rich_output()
-        rich_output.add_line(renderable)
-        rich_output.print()
-        out = buffer.getvalue()
+        out = render_rich(renderable)
         assert "Sandbox 'sbx_done' is already cleaned; nothing to remove." in out
 
     def test_delete_success(self) -> None:
@@ -143,10 +140,7 @@ class SandboxDeleteRenderTests:
         )
         formatter = SandboxDeleteFormatter()
         renderable = formatter.to_rich(result)
-        rich_output, buffer = make_rich_output()
-        rich_output.add_line(renderable)
-        rich_output.print()
-        out = buffer.getvalue()
+        out = render_rich(renderable)
         assert "Sandbox deleted: sbx_gone" in out
 
     def test_confirm_prompt_text(self, git_fs: GitFileSystem) -> None:

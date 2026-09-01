@@ -11,7 +11,7 @@ import pytest
 from typer.main import get_command
 from typer.testing import CliRunner
 
-from tests.helpers import FileSystem, GitFileSystem, make_cli_context, make_rich_output
+from tests.helpers import FileSystem, GitFileSystem, make_cli_context, render_rich
 from worktree.cli import app
 from worktree.cli.sandbox.commands.sandbox_create import sandbox_create_command
 from worktree.cli.sandbox.formatters import SandboxCreateFormatter
@@ -29,14 +29,16 @@ DB_REL = ".worktree/data.db"
 def _session(
     *,
     session_id: str = "sbx_a1b2c3d4",
-    sandbox_path: Path | None = None,
+    target_branch: str = "worktree/sandbox-sbx_a1b2c3d4",
+    sandbox_path: Path = Path("/tmp/sandboxes/sbx_a1b2c3d4"),
+    base_commit: str = "4f2c9a1e8b3d6f0a2c5e7b1d9a3f6c8e0b2d4f6a",
 ) -> SandboxSession:
     return SandboxSession(
         session_id=session_id,
-        target_branch=f"worktree/sandbox-{session_id}",
-        sandbox_path=sandbox_path or Path(".worktree/sandboxes") / session_id,
-        base_commit="4f2c9a1e8b3d6f0a2c5e7b1d9a3f6c8e0b2d4f6a",
-        created_at="2026-08-03T10:00:00+00:00",
+        target_branch=target_branch,
+        sandbox_path=sandbox_path,
+        base_commit=base_commit,
+        created_at="2026-08-03 10:00:00",
     )
 
 
@@ -48,10 +50,7 @@ class SandboxCreateRenderTests:
         data = SandboxCreateResult(status=SandboxCreateStatus.OK, session=session)
         formatter = SandboxCreateFormatter()
         renderable = formatter.to_rich(data)
-        rich_output, buffer = make_rich_output()
-        rich_output.add_line(renderable)
-        rich_output.print()
-        out = buffer.getvalue()
+        out = render_rich(renderable)
         assert "Sandbox created: sbx_a1b2c3d4" in out
         assert "Path:" in out
         assert ".worktree/sandboxes/sbx_a1b2c3d4" in out
@@ -64,10 +63,7 @@ class SandboxCreateRenderTests:
         data = SandboxCreateResult(status=SandboxCreateStatus.OK, session=session, warnings=["db write failed"])
         formatter = SandboxCreateFormatter()
         renderable = formatter.to_rich(data)
-        rich_output, buffer = make_rich_output()
-        rich_output.add_line(renderable)
-        rich_output.print()
-        out = buffer.getvalue()
+        out = render_rich(renderable)
         assert "Sandbox created: sbx_warn" in out
         assert "db write failed" in out
         assert "•" in out
@@ -76,10 +72,7 @@ class SandboxCreateRenderTests:
         data = SandboxCreateResult(status=SandboxCreateStatus.CAPACITY_EXCEEDED, errors=["capacity exceeded detail"])
         formatter = SandboxCreateFormatter()
         renderable = formatter.to_rich(data)
-        rich_output, buffer = make_rich_output()
-        rich_output.add_line(renderable)
-        rich_output.print()
-        out = buffer.getvalue()
+        out = render_rich(renderable)
         assert "Sandbox Create Failed" in out
         assert "capacity exceeded detail" in out
 
@@ -87,10 +80,7 @@ class SandboxCreateRenderTests:
         data = SandboxCreateResult(status=SandboxCreateStatus.GIT_FAILED, errors=[])
         formatter = SandboxCreateFormatter()
         renderable = formatter.to_rich(data)
-        rich_output, buffer = make_rich_output()
-        rich_output.add_line(renderable)
-        rich_output.print()
-        out = buffer.getvalue()
+        out = render_rich(renderable)
         assert "Sandbox Create Failed" in out
         assert "Sandbox creation failed." in out
 
