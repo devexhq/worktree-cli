@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from worktree.cli.context import CliContext
+from worktree.cli.ui.dispatcher import default_dispatcher
 from worktree.core.sandbox import GitSandboxManager
 
 from ..models import (
@@ -34,17 +35,7 @@ def sandbox_prune_command(
         runs_db=context.db.runs,
     )
 
-    if not result.items and not result.errors:
-        if output_format == "terminal":
-            context.dispatcher.console.print("No stale sandboxes found.")
-        return SandboxPruneCommandOutcome(result=result)
-
-    for item in result.items:
-        context.dispatcher.dispatch(item, output_format=output_format)
-
-    if result.errors:
-        for err in result.errors:
-            context.dispatcher.console.print(f"[red]Error: {err}[/red]")
+    default_dispatcher.dispatch(result, output_format=output_format)
 
     return SandboxPruneCommandOutcome(
         result=result,

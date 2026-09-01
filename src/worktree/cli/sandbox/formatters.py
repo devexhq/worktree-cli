@@ -23,12 +23,13 @@ from worktree.common.types import ComponentFormatter
 from worktree.common.utils import display_path
 from worktree.core.sandbox.models import (
     PruneAction,
-    PrunedItemResult,
+    PrunedItem,
     SandboxApplyResult,
     SandboxApplyStrategy,
     SandboxCreateResult,
     SandboxDiffResult,
     SandboxDiffStatus,
+    SandboxPruneResult,
     StaleSandboxCategory,
 )
 
@@ -40,10 +41,10 @@ _CATEGORY_LABELS: dict[StaleSandboxCategory, str] = {
 }
 
 
-class PrunedItemFormatter(ComponentFormatter[PrunedItemResult]):
+class PrunedItemFormatter(ComponentFormatter[PrunedItem]):
     """Formatter for single pruned resource items."""
 
-    def to_rich(self, data: PrunedItemResult) -> Text:
+    def to_rich(self, data: PrunedItem) -> Text:
         """Render a styled action line for a pruned resource.
 
         Args:
@@ -74,8 +75,8 @@ class PrunedItemFormatter(ComponentFormatter[PrunedItemResult]):
 
         return Text(content, style=style)
 
-    def to_json_serializable(self, data: PrunedItemResult) -> dict[str, Any]:
-        """Convert PrunedItemResult to primitive dictionary for JSON serialization.
+    def to_json_serializable(self, data: PrunedItem) -> dict[str, Any]:
+        """Convert PrunedItem to primitive dictionary for JSON serialization.
 
         Args:
             data: Pruned resource item metadata.
@@ -357,6 +358,49 @@ class SandboxDiffFormatter(ComponentFormatter[SandboxDiffResult]):
         return data.model_dump(mode="json")
 
 
+def _format_prune_rich(data: SandboxPruneResult) -> Any:
+    """Render rich group or text for sandbox prune result."""
+    if not data.items and not data.errors:
+        return Text("No stale sandboxes found.")
+
+    renderables: list[Any] = []
+    item_formatter = PrunedItemFormatter()
+    for item in data.items:
+        renderables.append(item_formatter.to_rich(item))
+
+    if data.errors:
+        for err in data.errors:
+            renderables.append(Text(f"Error: {err}", style="red"))
+
+    return Group(*renderables)
+
+
+class SandboxPruneFormatter(ComponentFormatter[SandboxPruneResult]):
+    """Formatter for sandbox prune command results."""
+
+    def to_rich(self, data: SandboxPruneResult) -> Any:
+        """Render sandbox prune action lines, empty state, or errors.
+
+        Args:
+            data: Structured result of sandbox prune operation.
+
+        Returns:
+            Rich renderable object (Group, Text).
+        """
+        return _format_prune_rich(data)
+
+    def to_json_serializable(self, data: SandboxPruneResult) -> dict[str, Any]:
+        """Convert SandboxPruneResult to primitive dictionary for JSON serialization.
+
+        Args:
+            data: Structured result of sandbox prune operation.
+
+        Returns:
+            JSON-serializable dictionary.
+        """
+        return data.model_dump(mode="json")
+
+
 def register_sandbox_formatters(dispatcher: UiDispatcher | None = None) -> None:
     """Register all sandbox ComponentFormatter instances on a UiDispatcher.
 
@@ -364,7 +408,8 @@ def register_sandbox_formatters(dispatcher: UiDispatcher | None = None) -> None:
         dispatcher: UiDispatcher instance to register on. Defaults to default_dispatcher.
     """
     target = dispatcher if dispatcher is not None else default_dispatcher
-    target.register(PrunedItemResult, PrunedItemFormatter())
+    target.register(PrunedItem, PrunedItemFormatter())
+    target.register(SandboxPruneResult, SandboxPruneFormatter())
     target.register(SandboxShowResult, SandboxShowFormatter())
     target.register(SandboxListResult, SandboxListFormatter())
     target.register(SandboxCreateResult, SandboxCreateFormatter())

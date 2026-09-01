@@ -25,11 +25,6 @@ class UiDispatcher:
         self._console: Console = console if console is not None else Console()
         self._registry: dict[type[Any], ComponentFormatter[Any]] = {}
 
-    @property
-    def console(self) -> Console:
-        """Return the Rich Console instance used by this dispatcher."""
-        return self._console
-
     @overload
     def register(
         self,

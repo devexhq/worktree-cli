@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from worktree.cli.context import CliContext
+from worktree.cli.ui.dispatcher import default_dispatcher
 from worktree.core.sandbox import GitSandboxManager, SandboxApplyStrategy
 
 from ..models import SandboxApplyCommandOutcome
@@ -41,7 +42,7 @@ def sandbox_apply_command(
         message=message,
     )
 
-    context.dispatcher.dispatch(result, output_format=output_format)
+    default_dispatcher.dispatch(result, output_format=output_format)
     if not result.ok:
         return SandboxApplyCommandOutcome(
             result=result,

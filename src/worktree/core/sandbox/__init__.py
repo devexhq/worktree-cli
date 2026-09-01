@@ -9,7 +9,6 @@ from .manager import GitSandboxManager
 from .models import (
     PruneAction,
     PrunedItem,
-    PrunedItemResult,
     SandboxApplyResult,
     SandboxApplyStatus,
     SandboxApplyStrategy,
@@ -35,7 +34,6 @@ __all__ = [
     "GitSandboxManager",
     "PruneAction",
     "PrunedItem",
-    "PrunedItemResult",
     "SandboxApplyResult",
     "SandboxApplyStatus",
     "SandboxApplyStrategy",

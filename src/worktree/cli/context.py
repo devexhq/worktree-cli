@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Self
 
-from worktree.cli.ui.dispatcher import UiDispatcher, default_dispatcher
 from worktree.common.fs import find_worktree_root
 from worktree.common.utils import RichOutput
 from worktree.core.config.loader import ConfigLoadStatus, load_config_result
@@ -18,7 +17,6 @@ class CliContext:
     cwd: Path
     db: WorktreeDb
     output: RichOutput
-    dispatcher: UiDispatcher = field(default_factory=lambda: default_dispatcher)
 
     @classmethod
     def build(cls, cwd: Path | None = None) -> Self | None:
@@ -43,4 +41,4 @@ class CliContext:
             return None
 
         db = WorktreeDb(path=effective_cwd)
-        return cls(cwd=effective_cwd, db=db, output=output, dispatcher=default_dispatcher)
+        return cls(cwd=effective_cwd, db=db, output=output)

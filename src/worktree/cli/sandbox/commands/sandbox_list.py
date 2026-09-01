@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from worktree.cli.context import CliContext
+from worktree.cli.ui.dispatcher import default_dispatcher
 from worktree.core.config.loader import load_config_result
 from worktree.core.db import (
     SandboxesRepository,
@@ -75,7 +76,7 @@ def sandbox_list_command(
         output_format: Presentation format ("terminal" or "json").
     """
     result = collect_sandbox_list(context, status)
-    context.dispatcher.dispatch(result, output_format=output_format)
+    default_dispatcher.dispatch(result, output_format=output_format)
     if result.status is SandboxListStatus.NOT_INITIALIZED:
         return SandboxListCommandOutcome(errors=list(result.errors))
 

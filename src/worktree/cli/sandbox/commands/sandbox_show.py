@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from worktree.cli.context import CliContext
+from worktree.cli.ui.dispatcher import default_dispatcher
 from worktree.core.config.loader import load_config_result
 from worktree.core.db import (
     SandboxStatus,
@@ -75,7 +76,7 @@ def sandbox_show_command(
         output_format: Presentation format ("terminal" or "json").
     """
     result = collect_sandbox_show(context, sandbox_id)
-    context.dispatcher.dispatch(result, output_format=output_format)
+    default_dispatcher.dispatch(result, output_format=output_format)
     if result.status is SandboxShowStatus.NOT_INITIALIZED:
         return SandboxShowCommandOutcome(errors=list(result.errors))
     if result.status is SandboxShowStatus.NOT_FOUND or result.sandbox is None:

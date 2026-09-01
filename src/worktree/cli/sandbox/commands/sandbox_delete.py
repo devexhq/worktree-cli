@@ -5,6 +5,7 @@ from __future__ import annotations
 import typer
 
 from worktree.cli.context import CliContext
+from worktree.cli.ui.dispatcher import default_dispatcher
 from worktree.core.config.loader import load_config_result
 from worktree.core.db import (
     SandboxStatus,
@@ -95,20 +96,20 @@ def sandbox_delete_command(
     result = collect_sandbox_delete(context, sandbox_id)
 
     if result.status is SandboxDeleteStatus.NOT_INITIALIZED:
-        context.dispatcher.dispatch(result, output_format=output_format)
+        default_dispatcher.dispatch(result, output_format=output_format)
         return SandboxDeleteCommandOutcome(errors=list(result.errors))
     if result.status is SandboxDeleteStatus.NOT_FOUND or result.sandbox is None:
-        context.dispatcher.dispatch(result, output_format=output_format)
+        default_dispatcher.dispatch(result, output_format=output_format)
         return SandboxDeleteCommandOutcome(errors=[f"Sandbox '{sandbox_id}' not found."])
     if result.status is SandboxDeleteStatus.ALREADY_CLEANED:
-        context.dispatcher.dispatch(result, output_format=output_format)
+        default_dispatcher.dispatch(result, output_format=output_format)
         return SandboxDeleteCommandOutcome(already_cleaned=True)
 
     row = result.sandbox
 
     if not force and not _confirm_or_abort(row):
         aborted = result.model_copy(update={"status": SandboxDeleteStatus.ABORTED, "errors": ["Aborted."]})
-        context.dispatcher.dispatch(aborted, output_format=output_format)
+        default_dispatcher.dispatch(aborted, output_format=output_format)
         return SandboxDeleteCommandOutcome(errors=["Aborted."])
 
     session = SandboxSession(
@@ -121,5 +122,5 @@ def sandbox_delete_command(
     )
     GitSandboxManager(path=context.cwd, db=context.db.sandboxes).cleanup_sandbox(session)
     deleted = result.model_copy(update={"status": SandboxDeleteStatus.DELETED, "deleted": True})
-    context.dispatcher.dispatch(deleted, output_format=output_format)
+    default_dispatcher.dispatch(deleted, output_format=output_format)
     return SandboxDeleteCommandOutcome(deleted=True)

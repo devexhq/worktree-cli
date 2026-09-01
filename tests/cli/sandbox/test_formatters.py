@@ -26,7 +26,6 @@ from worktree.core.db import SandboxRecord, SandboxStatus
 from worktree.core.sandbox.models import (
     PruneAction,
     PrunedItem,
-    PrunedItemResult,
     SandboxCreateResult,
     SandboxCreateStatus,
     SandboxSession,
@@ -224,21 +223,59 @@ def test_sandbox_create_formatter_to_json_serializable() -> None:
 
 
 def test_default_dispatcher_registrations() -> None:
-    """Verify default_dispatcher has all 4 sandbox formatters registered."""
-    # Check registration by dispatching NDJSON output
-    item = PrunedItemResult(
+    """Verify default_dispatcher has all 8 sandbox formatters registered."""
+    from worktree.cli.sandbox.models import SandboxDeleteResult
+    from worktree.core.sandbox.models import (
+        SandboxApplyResult,
+        SandboxDiffResult,
+        SandboxPruneResult,
+    )
+
+    assert PrunedItem in default_dispatcher._registry
+    assert SandboxPruneResult in default_dispatcher._registry
+    assert SandboxShowResult in default_dispatcher._registry
+    assert SandboxListResult in default_dispatcher._registry
+    assert SandboxCreateResult in default_dispatcher._registry
+    assert SandboxApplyResult in default_dispatcher._registry
+    assert SandboxDeleteResult in default_dispatcher._registry
+    assert SandboxDiffResult in default_dispatcher._registry
+
+
+def test_sandbox_prune_formatter_empty() -> None:
+    from worktree.cli.sandbox.formatters import SandboxPruneFormatter
+    from worktree.core.sandbox.models import SandboxPruneResult
+
+    formatter = SandboxPruneFormatter()
+    res = SandboxPruneResult()
+    rich_out = formatter.to_rich(res)
+    assert isinstance(rich_out, Text)
+    assert "No stale sandboxes found." in rich_out.plain
+
+    dumped = formatter.to_json_serializable(res)
+    assert dumped["status"] == "ok"
+    assert dumped["items"] == []
+
+
+def test_sandbox_prune_formatter_with_items() -> None:
+    from worktree.cli.sandbox.formatters import SandboxPruneFormatter
+    from worktree.core.sandbox.models import SandboxPruneResult
+
+    formatter = SandboxPruneFormatter()
+    item = PrunedItem(
         category=StaleSandboxCategory.STALE_BRANCH,
-        identifier="branch-1",
+        identifier="feature/1",
         action=PruneAction.PRUNED,
     )
-    assert type(item) in default_dispatcher._registry
+    res = SandboxPruneResult(items=[item], errors=["some error"])
+    rich_out = formatter.to_rich(res)
+    assert rich_out is not None
 
 
 def test_dispatcher_json_format_ndjson(capsys: pytest.CaptureFixture[str]) -> None:
     dispatcher = UiDispatcher()
-    dispatcher.register(PrunedItemResult, PrunedItemFormatter())
+    dispatcher.register(PrunedItem, PrunedItemFormatter())
 
-    item = PrunedItemResult(
+    item = PrunedItem(
         category=StaleSandboxCategory.STALE_BRANCH,
         identifier="branch-abc",
         action=PruneAction.PRUNED,
