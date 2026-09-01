@@ -32,7 +32,4 @@ def init_command(
         repair=repair,
     )
     ui_dispatcher.dispatch(result, output_format=output_format)
-    if not result.ok:
-        return InitCommandOutcome(result=result, errors=list(result.errors))
-
-    return InitCommandOutcome(result=result)
+    return InitCommandOutcome(result=result, errors=list(result.errors))
