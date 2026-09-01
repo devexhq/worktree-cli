@@ -19,9 +19,21 @@ from worktree.common.constants import (
     BOOTSTRAP_SCHEMA_VERSION,
     REQUIRED_SUBDIRS,
 )
-from worktree.common.fs import atomic_write_json
+from worktree.common.fs import (
+    atomic_write_json,
+    get_gitignore_file,
+    get_worktree_config_file,
+    get_worktree_dir,
+    is_git_repository,
+    update_gitignore,
+)
 from worktree.common.utils import display_path
 from worktree.core.catalog.models import SeedResult
+from worktree.core.catalog.services.seeder import seed_all_catalog_templates
+from worktree.core.config.generator import ConfigGenerationResult, generate_default_config
+from worktree.core.config.loader import load_config_result
+from worktree.core.config.models import PathsConfig
+from worktree.core.db import init_database
 
 
 class DirEnsureOutcome(Enum):
@@ -52,6 +64,33 @@ class BootstrapResult(BaseModel):
     def ok(self) -> bool:
         """True when bootstrap completed without errors."""
         return not self.errors
+
+
+class WorkspaceInitResult(BaseModel):
+    """Structured outcome of initializing a project workspace."""
+
+    model_config = {
+        "extra": "forbid",
+        "strict": True,
+    }
+
+    bootstrap_result: BootstrapResult | None = None
+    config_result: ConfigGenerationResult | None = None
+    seed_result: SeedResult | None = None
+    errors: list[str] = Field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        """True when bootstrap, config, and catalog seeding all succeed with no errors."""
+        return (
+            not self.errors
+            and self.bootstrap_result is not None
+            and self.bootstrap_result.ok
+            and self.config_result is not None
+            and self.config_result.ok
+            and self.seed_result is not None
+            and self.seed_result.ok
+        )
 
 
 def _validate_existing_dir(path: Path, *, allow_symlink: bool) -> None:
@@ -252,3 +291,60 @@ def _is_repair(
 
 def _ensure_worktree_root(root_path: Path) -> DirEnsureOutcome:
     return ensure_dir(root_path, allow_symlink=True)
+
+
+def initialize_workspace(
+    root: Path,
+    *,
+    tool_version: str | None = None,
+    overwrite: bool = False,
+    repair: bool = False,
+) -> WorkspaceInitResult:
+    """Initialize a local project workspace for Worktree CLI and desktop sync.
+
+    Performs git preflight, bootstraps the `.worktree/` directory tree, updates
+    `.gitignore`, generates canonical default configuration, initializes the SQLite
+    state database, and seeds starter catalog templates.
+    """
+    root = root.resolve()
+
+    if not is_git_repository(root):
+        err = (
+            "The current directory is not a valid Git repository.\n"
+            "Run [bold cyan]git init[/bold cyan] before running [bold cyan]wt init[/bold cyan]."
+        )
+        return WorkspaceInitResult(errors=[err])
+
+    result = bootstrap_worktree(get_worktree_dir(root), tool_version=tool_version)
+    if not result.ok:
+        return WorkspaceInitResult(bootstrap_result=result, errors=list(result.errors))
+
+    if result.root_created:
+        update_gitignore(get_gitignore_file(root))
+
+    config_result = generate_default_config(
+        get_worktree_config_file(root),
+        project_name=root.name,
+        overwrite=overwrite,
+        repair=repair,
+    )
+    if not config_result.ok:
+        return WorkspaceInitResult(
+            bootstrap_result=result,
+            config_result=config_result,
+            errors=list(config_result.errors),
+        )
+
+    db_rel = PathsConfig().db_path
+    loaded = load_config_result(path=root)
+    if loaded.ok and loaded.config is not None:
+        db_rel = loaded.config.paths.db_path
+    init_database(path=root, db_rel_path=db_rel)
+
+    seed_result = seed_all_catalog_templates(path=root)
+    return WorkspaceInitResult(
+        bootstrap_result=result,
+        config_result=config_result,
+        seed_result=seed_result,
+        errors=list(seed_result.errors),
+    )
