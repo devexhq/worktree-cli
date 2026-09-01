@@ -15,7 +15,7 @@ src/worktree/cli/<name>/             One package per CLI subcommand (thin wrappe
   commands/                          Command handlers (e.g. root.py, show.py)
 
 src/worktree/core/                   Business logic (no Typer)
-  bootstrap.py                       .worktree/ create/repair
+  bootstrap/                         models.py, facade.py (`Bootstrap`), services/{bootstrap,initialize}.py
   git/                               models.py, runner.py (stateless GitRunner), exceptions.py
   sandbox/                           models.py, exceptions.py, facade.py (`Sandbox`), services/{delete,detector,lifecycle,list,patch,pruner,show,wip}.py
   config/                            facade.py (`Config`), generator.py, loader.py, mutate.py, parser.py, serialize.py, validate.py, models.py
@@ -103,7 +103,7 @@ Single-step execution: `core/step/` (`runner.py`). Multi-step orchestration:
   result models, and terminal renderers.
 - **Status** (`core/status/`): workspace health and runtime telemetry collection
   (`collect_status`), result models (`WorktreeStatusResult`), and warning aggregation.
-- **Shared core infra**: `config/`, `db/`, `git/`, `sandbox/`, `bootstrap.py`,
+- **Shared core infra**: `config/`, `db/`, `git/`, `sandbox/`, `bootstrap/`,
   plus foundational domains above.
 
 CLI: packages are thin wrappers over core domain services and contain no
@@ -252,7 +252,7 @@ docstring rather than leaving it to be discovered later.
 ## The `.worktree/` directory
 
 Created/repaired by
-[bootstrap.py](../../src/worktree/core/bootstrap.py) (idempotent; never deletes
+[core/bootstrap](../../src/worktree/core/bootstrap/) (idempotent; never deletes
 user data):
 
 ```

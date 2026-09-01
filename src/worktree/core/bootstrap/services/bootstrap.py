@@ -1,6 +1,6 @@
-"""Filesystem bootstrap for the local Worktree home directory (`.worktree/`).
+"""Filesystem bootstrap service for the local Worktree directory (.worktree/).
 
-Symlink policy: the `.worktree` root may be a symlink to a directory; required
+Symlink policy: the .worktree root may be a symlink to a directory; required
 subdirectories must be real directories (not symlinks).
 """
 
@@ -9,88 +9,20 @@ from __future__ import annotations
 import json
 import os
 from datetime import UTC, datetime
-from enum import Enum
 from pathlib import Path
-
-from pydantic import BaseModel, Field
 
 from worktree.common.constants import (
     BOOTSTRAP_META_REL,
     BOOTSTRAP_SCHEMA_VERSION,
     REQUIRED_SUBDIRS,
 )
-from worktree.common.fs import (
-    atomic_write_json,
-    get_gitignore_file,
-    get_worktree_config_file,
-    get_worktree_dir,
-    is_git_repository,
-    update_gitignore,
-)
+from worktree.common.fs import atomic_write_json
 from worktree.common.utils import display_path
+from worktree.core.bootstrap.models import (
+    BootstrapResult,
+    DirEnsureOutcome,
+)
 from worktree.core.catalog.models import SeedResult
-from worktree.core.catalog.services.seeder import seed_all_catalog_templates
-from worktree.core.config.generator import ConfigGenerationResult, generate_default_config
-from worktree.core.config.loader import load_config_result
-from worktree.core.config.models import PathsConfig
-from worktree.core.db import init_database
-
-
-class DirEnsureOutcome(Enum):
-    """Result of attempting to ensure a directory exists."""
-
-    CREATED = "created"
-    EXISTING = "existing"
-
-
-class BootstrapResult(BaseModel):
-    """Outcome of bootstrapping the `.worktree/` directory tree."""
-
-    model_config = {
-        "extra": "forbid",
-        "strict": True,
-    }
-
-    root_path: Path
-    root_created: bool = False
-    dirs_created: list[Path] = Field(default_factory=list)
-    dirs_existing: list[Path] = Field(default_factory=list)
-    repaired: bool = False
-    warnings: list[str] = Field(default_factory=list)
-    errors: list[str] = Field(default_factory=list)
-    seed_result: SeedResult = Field(default_factory=SeedResult)
-
-    @property
-    def ok(self) -> bool:
-        """True when bootstrap completed without errors."""
-        return not self.errors
-
-
-class WorkspaceInitResult(BaseModel):
-    """Structured outcome of initializing a project workspace."""
-
-    model_config = {
-        "extra": "forbid",
-        "strict": True,
-    }
-
-    bootstrap_result: BootstrapResult | None = None
-    config_result: ConfigGenerationResult | None = None
-    seed_result: SeedResult | None = None
-    errors: list[str] = Field(default_factory=list)
-
-    @property
-    def ok(self) -> bool:
-        """True when bootstrap, config, and catalog seeding all succeed with no errors."""
-        return (
-            not self.errors
-            and self.bootstrap_result is not None
-            and self.bootstrap_result.ok
-            and self.config_result is not None
-            and self.config_result.ok
-            and self.seed_result is not None
-            and self.seed_result.ok
-        )
 
 
 def _validate_existing_dir(path: Path, *, allow_symlink: bool) -> None:
@@ -134,7 +66,7 @@ def assert_writable(path: Path) -> None:
 
 
 def load_existing_bootstrap_metadata(meta_path: Path) -> dict[str, object] | None:
-    """Load `.meta/bootstrap.json` if present and valid."""
+    """Load .meta/bootstrap.json if present and valid."""
     if not meta_path.is_file():
         return None
     try:
@@ -210,12 +142,30 @@ def _bootstrap_status(
     return "initialized"
 
 
+def _is_repair(
+    *,
+    root_created: bool,
+    dirs_created: list[Path],
+    dirs_existing: list[Path],
+    prior_meta: dict[str, object] | None,
+) -> bool:
+    """True when missing pieces were added to an already-present worktree layout."""
+    if not dirs_created:
+        return False
+    # Partial tree, re-init after prior bootstrap, or root already existed.
+    return bool(dirs_existing) or prior_meta is not None or not root_created
+
+
+def _ensure_worktree_root(root_path: Path) -> DirEnsureOutcome:
+    return ensure_dir(root_path, allow_symlink=True)
+
+
 def bootstrap_worktree(
     root_path: Path,
     *,
     tool_version: str | None = None,
 ) -> BootstrapResult:
-    """Create and validate the Worktree home layout under ``root_path`` (typically ``.worktree``).
+    """Create and validate the Worktree home layout under root_path (typically .worktree).
 
     Idempotent: safe to run multiple times; never deletes user data.
     """
@@ -273,78 +223,3 @@ def bootstrap_worktree(
 
     result.seed_result = SeedResult()
     return result
-
-
-def _is_repair(
-    *,
-    root_created: bool,
-    dirs_created: list[Path],
-    dirs_existing: list[Path],
-    prior_meta: dict[str, object] | None,
-) -> bool:
-    """True when missing pieces were added to an already-present worktree layout."""
-    if not dirs_created:
-        return False
-    # Partial tree, re-init after prior bootstrap, or root already existed.
-    return bool(dirs_existing) or prior_meta is not None or not root_created
-
-
-def _ensure_worktree_root(root_path: Path) -> DirEnsureOutcome:
-    return ensure_dir(root_path, allow_symlink=True)
-
-
-def initialize_workspace(
-    root: Path,
-    *,
-    tool_version: str | None = None,
-    overwrite: bool = False,
-    repair: bool = False,
-) -> WorkspaceInitResult:
-    """Initialize a local project workspace for Worktree CLI and desktop sync.
-
-    Performs git preflight, bootstraps the `.worktree/` directory tree, updates
-    `.gitignore`, generates canonical default configuration, initializes the SQLite
-    state database, and seeds starter catalog templates.
-    """
-    root = root.resolve()
-
-    if not is_git_repository(root):
-        err = (
-            "The current directory is not a valid Git repository.\n"
-            "Run [bold cyan]git init[/bold cyan] before running [bold cyan]wt init[/bold cyan]."
-        )
-        return WorkspaceInitResult(errors=[err])
-
-    result = bootstrap_worktree(get_worktree_dir(root), tool_version=tool_version)
-    if not result.ok:
-        return WorkspaceInitResult(bootstrap_result=result, errors=list(result.errors))
-
-    if result.root_created:
-        update_gitignore(get_gitignore_file(root))
-
-    config_result = generate_default_config(
-        get_worktree_config_file(root),
-        project_name=root.name,
-        overwrite=overwrite,
-        repair=repair,
-    )
-    if not config_result.ok:
-        return WorkspaceInitResult(
-            bootstrap_result=result,
-            config_result=config_result,
-            errors=list(config_result.errors),
-        )
-
-    db_rel = PathsConfig().db_path
-    loaded = load_config_result(path=root)
-    if loaded.ok and loaded.config is not None:
-        db_rel = loaded.config.paths.db_path
-    init_database(path=root, db_rel_path=db_rel)
-
-    seed_result = seed_all_catalog_templates(path=root)
-    return WorkspaceInitResult(
-        bootstrap_result=result,
-        config_result=config_result,
-        seed_result=seed_result,
-        errors=list(seed_result.errors),
-    )
