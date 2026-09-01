@@ -5,8 +5,14 @@ The `wt status` command displays the health and status of the current Worktree w
 ## Usage
 
 ```bash
-wt status
+wt status [--format terminal|json]
 ```
+
+## Options
+
+| Flag | Description |
+| --- | --- |
+| `--format <terminal\|json>` | Presentation format (`terminal` or `json`). Defaults to `terminal`. |
 
 ## Description
 
@@ -91,5 +97,18 @@ Worktree Workspace Status (Degraded)
 Next Steps & Remediation:
   • Repair JSON syntax in .worktree/config.json or restore from backup.
 ```
+
+### JSON structured output
+
+```bash
+wt status --format json
+```
+
+Emits a structured NDJSON payload suitable for automation and GUI integrations:
+
+```json
+{"event_type": "WorktreeStatusResult", "payload": {"root_dir": "/path/to/project", "is_initialized": true, "git": {"is_git_repo": true, "branch": "main", "is_dirty": false, "uncommitted_files": 0}, "config": {"status": "ok", "config_path": "/path/to/project/.worktree/config.json", "is_valid": true, "raw": {...}, "config": {...}, "errors": []}, "catalog": {"exists": true, "catalog_dir": "/path/to/project/.worktree/catalog", "total_items": 2, "workflows_count": 1, "tasks_count": 1, "steps_count": 0, "invalid_items": 0, "item_names": ["deploy", "test"]}, "database": {"exists": true, "db_path": "/path/to/project/.worktree/data.db", "is_accessible": true, "total_runs": 3}, "sandboxes": {"active_sandboxes": 1, "total_sandboxes": 1, "max_active_sandboxes": 5}, "warnings": []}}
+```
+
 
 

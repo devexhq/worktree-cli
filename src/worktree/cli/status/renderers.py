@@ -129,12 +129,15 @@ def _collect_all_warnings(result: WorktreeStatusResult) -> list[str]:
     return warnings
 
 
-def render_status_summary(
-    result: WorktreeStatusResult,
-    *,
-    output: RichOutput,
-) -> None:
-    """Render Rich terminal summary for WorktreeStatusResult."""
+def build_status_table(result: WorktreeStatusResult) -> Table:
+    """Build Rich Table representing workspace status summary.
+
+    Args:
+        result: Unified workspace status collection result.
+
+    Returns:
+        A Rich table with Property and Value columns.
+    """
     table = Table(title=_get_table_title(result), title_justify="left", show_header=True)
     table.add_column("Property", style="cyan")
     table.add_column("Value", style="bold green")
@@ -145,7 +148,16 @@ def render_status_summary(
     table.add_row("Agent Model", _format_agent_model(result))
     table.add_row("Active Sandboxes", _format_sandboxes_status(result))
     table.add_row("Catalog Items", _format_catalog_status(result))
+    return table
 
+
+def render_status_summary(
+    result: WorktreeStatusResult,
+    *,
+    output: RichOutput,
+) -> None:
+    """Render Rich terminal summary for WorktreeStatusResult."""
+    table = build_status_table(result)
     output.add_line(table)
 
     warnings = _collect_all_warnings(result)

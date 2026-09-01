@@ -139,3 +139,80 @@ class StatusCommandTests:
         out = capsys.readouterr().out
         assert "Status Error" in out
         assert "collector boom" in out
+
+    def test_status_json_format(
+        self,
+        git_fs: GitFileSystem,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
+
+        ctx = make_cli_context(cwd=git_fs.base_path)
+        outcome = status_command(ctx, output_format="json")
+        assert outcome.ok
+
+        out = capsys.readouterr().out
+        import json
+
+        lines = [line for line in out.strip().split("\n") if line]
+        assert len(lines) == 1
+        envelope = json.loads(lines[0])
+        assert envelope["event_type"] == "WorktreeStatusResult"
+        assert envelope["payload"]["git"]["is_git_repo"] is True
+        assert envelope["payload"]["config"]["status"] == "ok"
+
+
+class StatusCliTests:
+    """CliRunner coverage for `wt status`."""
+
+    def test_status_help_includes_format_option(self) -> None:
+        from typer.main import get_command
+        from typer.testing import CliRunner
+
+        from worktree.cli import app
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["status", "--help"])
+        assert result.exit_code == 0
+
+        cmd = get_command(app).get_command(None, "status")
+        opts: set[str] = set()
+        for param in cmd.params:
+            opts.update(param.opts)
+            secondary = getattr(param, "secondary_opts", None) or ()
+            opts.update(secondary)
+        assert "--format" in opts
+
+    def test_status_cli_terminal(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        from typer.testing import CliRunner
+
+        from worktree.cli import app
+
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["status"])
+        assert result.exit_code == 0
+        assert "Worktree Workspace Status" in result.stdout
+
+    def test_status_cli_json(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        import json
+
+        from typer.testing import CliRunner
+
+        from worktree.cli import app
+
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["status", "--format", "json"])
+        assert result.exit_code == 0
+        lines = [line for line in result.stdout.strip().split("\n") if line]
+        assert len(lines) == 1
+        payload = json.loads(lines[0])
+        assert payload["event_type"] == "WorktreeStatusResult"
+        assert payload["payload"]["config"]["is_valid"] is True
