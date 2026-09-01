@@ -50,7 +50,6 @@ def sandbox_create(
     """Create an isolated git worktree sandbox."""
     context: CliContext = ctx.obj["context"]
     outcome = sandbox_create_command(context, name=name, base_ref=base_ref, wip=wip, output_format=format)
-    context.output.print()
     if not outcome.ok:
         raise typer.Exit(code=1)
 
@@ -79,7 +78,6 @@ def sandbox_list(
         status=status.value if status is not None else None,
         output_format=format,
     )
-    context.output.print()
     if not outcome.ok:
         raise typer.Exit(code=1)
 
@@ -97,7 +95,6 @@ def sandbox_show(
     """Show full detail for one tracked sandbox."""
     context: CliContext = ctx.obj["context"]
     outcome = sandbox_show_command(context, sandbox_id, output_format=format)
-    context.output.print()
     if not outcome.ok:
         raise typer.Exit(code=1)
 
@@ -124,7 +121,6 @@ def sandbox_prune(
     """Safely prune stale sandboxes, orphaned directories, and temporary branches."""
     context: CliContext = ctx.obj["context"]
     outcome = sandbox_prune_command(context, dry_run=dry_run, force=force, output_format=format)
-    context.output.print()
     if not outcome.ok:
         raise typer.Exit(code=1)
 

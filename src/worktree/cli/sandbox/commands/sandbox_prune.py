@@ -36,7 +36,7 @@ def sandbox_prune_command(
 
     if not result.items and not result.errors:
         if output_format == "terminal":
-            context.output.add_line("No stale sandboxes found.")
+            context.dispatcher.console.print("No stale sandboxes found.")
         return SandboxPruneCommandOutcome(result=result)
 
     for item in result.items:
@@ -44,7 +44,7 @@ def sandbox_prune_command(
 
     if result.errors:
         for err in result.errors:
-            context.output.add_error(err)
+            context.dispatcher.console.print(f"[red]Error: {err}[/red]")
 
     return SandboxPruneCommandOutcome(
         result=result,

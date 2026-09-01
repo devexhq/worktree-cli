@@ -116,7 +116,6 @@ class SandboxCreateCommandDirectTests:
         ctx = make_cli_context(cwd=git_fs.base_path)
         outcome = sandbox_create_command(ctx)
         assert outcome.ok
-        ctx.output.print()
         out = capsys.readouterr().out
         assert "Sandbox created:" in out
         assert "Branch: worktree/sandbox-" in out
@@ -138,7 +137,6 @@ class SandboxCreateCommandDirectTests:
         ctx = make_cli_context(cwd=git_fs.base_path)
         outcome = sandbox_create_command(ctx, name="  demo  ")
         assert outcome.ok
-        ctx.output.print()
         rows = self.db.sandboxes.list()
         assert len(rows) == 1
         assert rows[0].name == "demo"
@@ -240,7 +238,6 @@ class SandboxCreateCommandDirectTests:
         ctx = make_cli_context(cwd=git_fs.base_path)
         outcome = sandbox_create_command(ctx)
         assert not outcome.ok
-        ctx.output.print()
         out = capsys.readouterr().out
         assert "Sandbox Create Failed" in out
         assert errors[0] in out
@@ -270,7 +267,6 @@ class SandboxCreateCommandDirectTests:
         ctx = make_cli_context(cwd=git_fs.base_path)
         outcome = sandbox_create_command(ctx)
         assert outcome.ok
-        ctx.output.print()
         out = capsys.readouterr().out
         assert "Sandbox created: sbx_warnok" in out
         assert "Failed to persist sandbox metadata" in out

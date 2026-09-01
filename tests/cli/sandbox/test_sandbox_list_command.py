@@ -252,7 +252,6 @@ class SandboxListCommandDirectTests:
         ctx = make_cli_context(cwd=git_fs.base_path)
         outcome = sandbox_list_command(ctx)
         assert not outcome.ok
-        ctx.output.print()
 
         out = capsys.readouterr().out
         assert "Worktree Not Initialized" in out
@@ -270,7 +269,6 @@ class SandboxListCommandDirectTests:
         ctx = make_cli_context(cwd=git_fs.base_path)
         outcome = sandbox_list_command(ctx)
         assert outcome.ok
-        ctx.output.print()
         assert "No sandboxes found." in capsys.readouterr().out
 
     def test_populated_exits_zero(
@@ -286,7 +284,6 @@ class SandboxListCommandDirectTests:
         ctx = make_cli_context(cwd=git_fs.base_path)
         outcome = sandbox_list_command(ctx)
         assert outcome.ok
-        ctx.output.print()
         assert "Worktree Sandboxes" in capsys.readouterr().out
 
 

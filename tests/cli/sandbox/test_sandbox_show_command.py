@@ -257,7 +257,6 @@ class SandboxShowCommandDirectTests:
         ctx = make_cli_context(cwd=git_fs.base_path)
         outcome = sandbox_show_command(ctx, "sbx_any")
         assert not outcome.ok
-        ctx.output.print()
 
         out = capsys.readouterr().out
         assert "Worktree Not Initialized" in out
@@ -275,7 +274,6 @@ class SandboxShowCommandDirectTests:
         ctx = make_cli_context(cwd=git_fs.base_path)
         outcome = sandbox_show_command(ctx, "sbx_missing")
         assert not outcome.ok
-        ctx.output.print()
         out = capsys.readouterr().out
         assert "Sandbox Not Found" in out
 
@@ -292,7 +290,6 @@ class SandboxShowCommandDirectTests:
         ctx = make_cli_context(cwd=git_fs.base_path)
         outcome = sandbox_show_command(ctx, created.id)
         assert outcome.ok
-        ctx.output.print()
         out = capsys.readouterr().out
         assert created.id in out
         assert "active" in out
@@ -316,7 +313,6 @@ class SandboxShowCommandDirectTests:
         ctx = make_cli_context(cwd=git_fs.base_path)
         outcome = sandbox_show_command(ctx, stale.id)
         assert outcome.ok
-        ctx.output.print()
         out = capsys.readouterr().out
         assert "cleaned" in out
         assert "missing" in out
