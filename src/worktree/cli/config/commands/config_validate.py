@@ -24,7 +24,7 @@ def config_validate_command(
         context: CLI context instance.
     """
     output = context.output
-    result = Config(context.cwd).validate()
+    result = Config().validate()
 
     if result.ok:
         render_config_validate_success(result.config_path, list(result.warnings), output=output)

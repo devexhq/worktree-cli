@@ -135,3 +135,48 @@ class TestFilesystemFacade:
         cs2 = Filesystem.compute_checksum("hello")
         assert cs1 == cs2
         assert len(cs1) == 64
+
+
+class TestFilesystemSingleton:
+    """Unit tests for Filesystem singleton lifecycle and configuration."""
+
+    def test_singleton_identity(self, fs: FileSystem) -> None:
+        Filesystem.configure(fs.base_path)
+        fs1 = Filesystem()
+        fs2 = Filesystem()
+        assert fs1 is fs2
+        assert fs1.root_dir == fs.base_path.resolve()
+
+    def test_configure_changes_root(self, fs: FileSystem) -> None:
+        p1 = fs.base_path / "ws1"
+        p2 = fs.base_path / "ws2"
+        p1.mkdir()
+        p2.mkdir()
+
+        fs1 = Filesystem.configure(p1)
+        assert fs1.root_dir == p1.resolve()
+
+        fs2 = Filesystem.configure(p2)
+        assert fs2.root_dir == p2.resolve()
+        assert Filesystem() is fs2
+
+    def test_reset_clears_singleton(self, fs: FileSystem) -> None:
+        Filesystem.configure(fs.base_path)
+        fs1 = Filesystem()
+        Filesystem.reset()
+        fs2 = Filesystem()
+        assert fs1 is not fs2
+
+    def test_explicit_path_returns_distinct_instance(self, fs: FileSystem) -> None:
+        p1 = fs.base_path / "ws1"
+        p2 = fs.base_path / "ws2"
+        p1.mkdir()
+        p2.mkdir()
+
+        Filesystem.configure(p1)
+        singleton = Filesystem()
+        explicit = Filesystem(p2)
+
+        assert singleton is not explicit
+        assert explicit.root_dir == p2.resolve()
+        assert Filesystem() is singleton

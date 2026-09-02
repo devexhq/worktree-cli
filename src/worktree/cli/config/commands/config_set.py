@@ -25,7 +25,7 @@ def config_set_command(
         context: CLI context instance.
     """
     output = context.output
-    result = Config(context.cwd).set(key, value)
+    result = Config().set(key, value)
 
     if not result.ok:
         message = "\n\n".join(result.errors) if result.errors else "Failed to update configuration."

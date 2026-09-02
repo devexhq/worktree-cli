@@ -8,14 +8,20 @@ from pathlib import Path
 import pytest
 
 from tests.helpers import FileSystem, GitFileSystem
+from worktree.common.filesystem import Filesystem
+from worktree.core.config import Config
 from worktree.core.config.loader import clear_config_cache
 
 
 @pytest.fixture(autouse=True)
 def _reset_config_cache() -> None:
-    """Reset the in-memory config cache between tests."""
+    """Reset the in-memory config cache and singletons between tests."""
+    Filesystem.reset()
+    Config.reset()
     clear_config_cache()
     yield
+    Filesystem.reset()
+    Config.reset()
     clear_config_cache()
 
 

@@ -24,9 +24,49 @@ from worktree.common.filesystem.services.yaml import (
 class Filesystem:
     """Unified entrypoint for workspace filesystem paths, caching, and atomic I/O."""
 
-    def __init__(self, path: Path | str | None = None) -> None:
+    _instance: Filesystem | None = None
+    _configured_root: Path | None = None
+    _raw_path: Path | None = None
+    _cached_paths: FilesystemPaths | None = None
+
+    def __new__(cls, path: Path | str | None = None) -> Filesystem:
+        """Return singleton instance when path is omitted, or create a specific instance when path is provided."""
+        if path is None:
+            if cls._instance is None:
+                instance = super().__new__(cls)
+                instance._initialize(cls._configured_root)
+                cls._instance = instance
+            return cls._instance
+
+        instance = super().__new__(cls)
+        instance._initialize(path)
+        return instance
+
+    def _initialize(self, path: Path | str | None = None) -> None:
         self._raw_path: Path | None = Path(path) if path is not None else None
         self._cached_paths: FilesystemPaths | None = None
+
+    @classmethod
+    def configure(cls, root: Path | str | None = None) -> Filesystem:
+        """Configure the process-level workspace root and return the active Filesystem singleton."""
+        if root is not None:
+            resolved = Path(root).expanduser().resolve()
+            cls._configured_root = _find_worktree_root(resolved)
+        else:
+            cls._configured_root = None
+        cls._instance = None
+        return cls()
+
+    @classmethod
+    def reset(cls) -> None:
+        """Reset the process-level singleton and configured root."""
+        cls._instance = None
+        cls._configured_root = None
+
+    @classmethod
+    def instance(cls) -> Filesystem:
+        """Return the active singleton instance."""
+        return cls()
 
     @property
     def paths(self) -> FilesystemPaths:

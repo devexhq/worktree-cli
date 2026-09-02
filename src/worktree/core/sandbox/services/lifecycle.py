@@ -7,6 +7,7 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
+from worktree.common.filesystem import Filesystem
 from worktree.common.lock import WorkspaceLock
 from worktree.core.config import Config
 from worktree.core.config.models import SandboxConfig, WorktreeConfig
@@ -64,7 +65,7 @@ class SandboxLifecycle:
     @property
     def sandbox_base_dir(self) -> Path:
         """Base storage directory for created sandboxes."""
-        return self.path / Config(self.path).paths.root_dir / "sandboxes"
+        return Filesystem(self.path).sandboxes_dir
 
     def _get_sandbox_config(self) -> SandboxConfig:
         """Return active sandbox configuration."""

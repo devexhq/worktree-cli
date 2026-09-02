@@ -30,8 +30,8 @@ class CliContext:
     ) -> Self:
         """Factory to build the global CLI state."""
         target_path = path if path is not None else cwd
-        fs = Filesystem(target_path)
+        fs = Filesystem.configure(target_path)
+        config = Config.configure(target_path)
         effective_cwd = fs.root_dir
-        config = Config(effective_cwd)
         db = WorktreeDb(path=effective_cwd, db_rel_path=config.paths.db_path)
         return cls(cwd=effective_cwd, db=db, output=RichOutput(), config=config._loaded_config, fs=fs)

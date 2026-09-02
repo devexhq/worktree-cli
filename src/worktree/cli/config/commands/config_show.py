@@ -19,7 +19,7 @@ def config_show_command(
         context: CLI context instance.
     """
     output = context.output
-    result = Config(context.cwd).load()
+    result = Config().load()
 
     if not result.ok or result.config is None:
         message = "\n\n".join(result.errors) if result.errors else "Failed to load configuration."

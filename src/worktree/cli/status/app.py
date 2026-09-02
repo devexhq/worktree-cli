@@ -5,6 +5,7 @@ import typer
 from worktree.cli.context import CliContext
 from worktree.common.filesystem import Filesystem
 from worktree.common.utils import RichOutput
+from worktree.core.config import Config
 from worktree.core.db.facade import WorktreeDb
 
 from .commands.root import status_command
@@ -32,7 +33,8 @@ def status_callback(
     context: CliContext | None = ctx.obj.get("context") if ctx.obj else None
     if context is None:
         target_path = ctx.obj.get("path") if ctx.obj else None
-        fs = Filesystem(target_path)
+        fs = Filesystem.configure(target_path)
+        Config.configure(target_path)
         cwd = fs.root_dir
         context = CliContext(cwd=cwd, db=WorktreeDb(path=cwd), output=RichOutput(), fs=fs)
     outcome = status_command(context, output_format=format)

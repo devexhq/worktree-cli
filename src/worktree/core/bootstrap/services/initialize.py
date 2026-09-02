@@ -14,7 +14,7 @@ from worktree.core.db import init_database
 
 
 def initialize_workspace(
-    root: Path,
+    root: Path | None = None,
     *,
     tool_version: str | None = None,
     overwrite: bool = False,
@@ -56,10 +56,10 @@ def initialize_workspace(
             errors=list(config_result.errors),
         )
 
-    config = Config(root)
-    init_database(path=root, db_rel_path=config.paths.db_path)
+    config = Config(resolved_root)
+    init_database(path=resolved_root, db_rel_path=config.paths.db_path)
 
-    seed_result = seed_all_catalog_templates(path=root)
+    seed_result = seed_all_catalog_templates(path=resolved_root)
     return WorkspaceInitResult(
         bootstrap_result=result,
         config_result=config_result,
