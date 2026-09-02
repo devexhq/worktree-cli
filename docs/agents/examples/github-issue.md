@@ -112,7 +112,7 @@ Normalization:
 - `project.name` of `null` maps to `"unnamed_project"`
 
 ### FR-9: Primary API is result-oriented
-Implement the API in Pre-determined data. `load_config_result` is the primary surface for commands.
+Implement the API in Pre-determined data. `load_config` is the primary surface for commands.
 
 Raising helpers are thin wrappers over the same internals and raise only after a non-`ok` result (for call sites that prefer exceptions). They must not print or exit.
 
@@ -200,7 +200,7 @@ def resolve_config_path(
     """Return absolute path to config.json."""
 
 
-def load_config_result(
+def load_config(
     cwd: Path | None = None,
     *,
     config_path: Path | None = None,
@@ -280,8 +280,8 @@ Fix:
 
 ## Definition of done
 
-- After `wt init`, `load_config_result` succeeds on the generated file
-- Before init, `load_config_result` reports `not_found`
+- After `wt init`, `load_config` succeeds on the generated file
+- Before init, `load_config` reports `not_found`
 - Tests cover every `ConfigLoadStatus` value
 - In-tree callers use the new load API; superseded dual load paths are removed
 - `docs/agents/schemas-and-config.md` documents the load API and error codes

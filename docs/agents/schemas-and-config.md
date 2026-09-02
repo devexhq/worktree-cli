@@ -100,7 +100,7 @@ explicit `config_path` wins when provided.
 ### Primary API
 
 `load_config(path=None, *, config_path=None, bypass_cache=False) -> ConfigLoadResult` is the
-primary surface (`load_config_result` is provided as an alias). It does not print, call `sys.exit`, or create/mutate files.
+primary surface. It does not print, call `sys.exit`, or create/mutate files.
 It uses an in-memory cache validated against file modification time and size (`st_mtime_ns`, `st_size`) to eliminate
 redundant disk reads and parsing overhead while immediately reflecting changes from direct user edits.
 
@@ -152,7 +152,7 @@ not drift).
 
 Validate-oriented reads go through
 [src/worktree/core/config/validate.py](../../src/worktree/core/config/validate.py).
-The engine reuses `load_config_result` for path resolution, IO/parse/schema
+The engine reuses `load_config` for path resolution, IO/parse/schema
 classification, and typed mapping, then applies semantic rules that are not
 expressed in `v1/config.json`. It does not print, call `sys.exit`, or mutate
 files.
@@ -293,7 +293,7 @@ Helpers in
 
 ### CLI success layout (`wt config show`)
 
-`wt config show` loads via `load_config_result`. On success (`status=ok`, exit
+`wt config show` loads via `load_config`. On success (`status=ok`, exit
 `0`) stdout is exactly:
 
 1. Source-metadata header (fixed labels, this order):
@@ -335,7 +335,7 @@ key allow-lists / V1 schema validation are enforced before persisting.
 ### Primary API
 
 `set_config_value_result(key, value, *, cwd=None, config_path=None) -> ConfigSetResult`
-loads raw JSON from disk (not via schema-validated `load_config_result`, so
+loads raw JSON from disk (not via schema-validated `load_config`, so
 already-invalid files can still be patched), deep-copies, applies
 `set_nested_value`, validates the resulting object against the V1 JSON schema
 and `WorktreeConfig` model, and writes with `atomic_write_json` only on success.

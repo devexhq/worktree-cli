@@ -259,9 +259,6 @@ def load_config(
     return result
 
 
-load_config_result = load_config
-
-
 def _map_worktree_config(raw: dict[str, Any]) -> WorktreeConfig:
     """Map a schema-valid raw dict into ``WorktreeConfig``."""
     project_raw = raw.get("project") or {}
