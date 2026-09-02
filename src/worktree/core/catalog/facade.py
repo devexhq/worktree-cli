@@ -16,9 +16,13 @@ from worktree.core.catalog.exceptions import (
     CatalogYamlError,
 )
 from worktree.core.catalog.models import (
+    CatalogCreateResult,
+    CatalogDeleteResult,
+    CatalogListResult,
     CatalogResolveResult,
     CatalogResolveStatus,
     CatalogScanResult,
+    CatalogShowResult,
 )
 from worktree.core.catalog.services.inventory import (
     create_catalog_item,
@@ -54,12 +58,64 @@ class Catalog:
         self.cwd = self.path
         self.db = db if db is not None else CatalogRepository(self.path)
 
-    def list(self, kind: CatalogItemType | str | None = None) -> list[CatalogRecord]:
+    def list(
+        self,
+        kind: CatalogItemType | str | None = None,
+        *,
+        type_filter: CatalogItemType | str | None = None,
+    ) -> CatalogListResult:
         """Return indexed catalog records, optionally filtered by item type."""
-        scan_and_index_catalog(self.path, db=self.db)
-        if kind is None:
-            return self.db.list()
-        return self.db.list(item_type=self._coerce_item_type(kind))
+        filter_value = type_filter if type_filter is not None else kind
+        if filter_value is not None and str(filter_value).lower() == "template":
+            return CatalogListResult(templates=self.list_packaged_templates(), type_filter="template")
+
+        parsed_type, error = self._parse_filter_type(filter_value)
+        if error is not None:
+            return CatalogListResult(errors=[error])
+
+        scan_result = self.sync()
+        items = self.db.list() if parsed_type is None else self.db.list(item_type=parsed_type)
+        return CatalogListResult(
+            items=items,
+            type_filter=parsed_type,
+            warnings=list(scan_result.errors),
+        )
+
+    def _parse_filter_type(
+        self, filter_value: CatalogItemType | str | None
+    ) -> tuple[CatalogItemType | None, str | None]:
+        """Parse optional type filter, returning (item_type, error_message)."""
+        if filter_value is None:
+            return None, None
+        try:
+            return self._coerce_item_type(filter_value), None
+        except ValueError:
+            allowed = ", ".join(t.value for t in CatalogItemType)
+            return None, f"Invalid --type argument '{filter_value}'. Allowed choices: {allowed}"
+
+    def show(self, sha_or_name: str) -> CatalogShowResult:
+        """Show details and definition content of a catalog blueprint or template."""
+        resolution_result = self.get(sha_or_name)
+        item = resolution_result.resolved
+        if not resolution_result.ok or item is None:
+            found = self.find_packaged_templates(sha_or_name)
+            if found:
+                return CatalogShowResult(template_matches=found, content=found[0][1] if found else None)
+
+            return CatalogShowResult(errors=[f"Catalog blueprint or template '{sha_or_name}' not found."])
+
+        catalog_dir = get_catalog_dir(self.path)
+        file_path = catalog_dir / item.path
+
+        try:
+            content = file_path.read_text(encoding="utf-8")
+        except OSError as exc:
+            return CatalogShowResult(
+                item=item,
+                errors=[f"Failed to read file for catalog blueprint '{sha_or_name}': {exc}"],
+            )
+
+        return CatalogShowResult(item=item, content=content)
 
     def resolve(self, name: str) -> CatalogResolveResult:
         """Load a task or workflow YAML by SHA or catalog name."""
@@ -86,18 +142,28 @@ class Catalog:
         self,
         item_type: CatalogItemType | str,
         name: str,
-    ) -> CatalogRecord:
+    ) -> CatalogCreateResult:
         """Create a new catalog blueprint file and reindex."""
-        return create_catalog_item(
-            item_type=self._coerce_item_type(item_type),
-            name=name,
-            path=self.path,
-            db=self.db,
-        )
+        try:
+            record = create_catalog_item(
+                item_type=self._coerce_item_type(item_type),
+                name=name,
+                path=self.path,
+                db=self.db,
+            )
+            return CatalogCreateResult(item=record)
+        except Exception as exc:
+            return CatalogCreateResult(errors=[str(exc)])
 
-    def delete(self, sha_or_name: str) -> CatalogRecord | None:
+    def delete(self, sha_or_name: str) -> CatalogDeleteResult:
         """Delete catalog blueprint file and its database index record."""
-        return delete_catalog_item_by_sha_or_name(sha_or_name, path=self.path, db=self.db)
+        try:
+            deleted_item = delete_catalog_item_by_sha_or_name(sha_or_name, path=self.path, db=self.db)
+            if deleted_item is None:
+                return CatalogDeleteResult(errors=[f"Catalog blueprint '{sha_or_name}' not found."])
+            return CatalogDeleteResult(item=deleted_item, deleted=True)
+        except Exception as exc:
+            return CatalogDeleteResult(errors=[str(exc)])
 
     def save(
         self,

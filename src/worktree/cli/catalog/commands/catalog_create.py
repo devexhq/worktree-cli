@@ -6,7 +6,6 @@ from worktree.cli.catalog.models import CatalogCreateCommandOutcome
 from worktree.cli.context import CliContext
 from worktree.cli.ui.dispatcher import ui_dispatcher
 from worktree.core.catalog import Catalog
-from worktree.core.catalog.models import CatalogCreateResult
 from worktree.core.db import CatalogItemType
 
 
@@ -27,19 +26,13 @@ def catalog_create_command(
     Returns:
         CatalogCreateCommandOutcome containing created record or errors.
     """
-    catalog = Catalog(path=context.cwd, db=context.db.catalog)
-
-    try:
-        record = catalog.create(
-            item_type=item_type,
-            name=name,
-        )
-    except Exception as exc:
-        error_message = str(exc)
-        result = CatalogCreateResult(errors=[error_message])
-        ui_dispatcher.dispatch(result, output_format=output_format)
-        return CatalogCreateCommandOutcome(result=result, item=None, errors=[error_message])
-
-    result = CatalogCreateResult(item=record)
+    result = Catalog(path=context.cwd, db=context.db.catalog).create(
+        item_type=item_type,
+        name=name,
+    )
     ui_dispatcher.dispatch(result, output_format=output_format)
-    return CatalogCreateCommandOutcome(result=result, item=record)
+    return CatalogCreateCommandOutcome(
+        result=result,
+        item=result.item,
+        errors=list(result.errors),
+    )

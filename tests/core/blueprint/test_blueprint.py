@@ -136,7 +136,7 @@ class BlueprintLoadCatalogTests:
     def test_load_workflow_from_catalog_sha(self, fs: FileSystem) -> None:
         fs.write_file(".worktree/catalog/workflows/ship.yml", _workflow_payload())
         catalog = Catalog(fs.base_path)
-        sha = catalog.list(kind="workflow")[0].sha
+        sha = catalog.list(kind="workflow").items[0].sha
         blueprint = Blueprint.load(sha, catalog=catalog)
 
         assert blueprint.kind is BlueprintKind.WORKFLOW

@@ -40,7 +40,7 @@ class CatalogResolveTests:
         fs.write_file(".worktree/catalog/workflows/ship.yml", "name: ship\nsteps: []\n")
         catalog = Catalog(fs.base_path)
         listed = catalog.list(kind="workflow")
-        result = catalog.resolve(listed[0].sha)
+        result = catalog.resolve(listed.items[0].sha)
 
         assert result.ok
         assert result.record is not None
@@ -74,7 +74,7 @@ class CatalogResolveTests:
     def test_resolve_ignores_step_only_name(self, fs: FileSystem) -> None:
         fs.write_file(".worktree/catalog/steps/git-check.yml", "name: git-check\naction: run\n")
         catalog = Catalog(fs.base_path)
-        step = catalog.list(kind="step")[0]
+        step = catalog.list(kind="step").items[0]
         by_name = catalog.resolve("git-check")
         by_sha = catalog.resolve(step.sha)
 
@@ -127,7 +127,8 @@ class CatalogListTests:
         fs.write_file(".worktree/catalog/workflows/ship.yml", "name: ship\n")
         fs.write_file(".worktree/catalog/tasks/lint.yml", "name: lint\n")
         fs.write_file(".worktree/catalog/steps/git-check.yml", "name: git-check\n")
-        records = Catalog(fs.base_path).list()
+        result = Catalog(fs.base_path).list()
+        records = result.items
 
         assert {record.item_type for record in records} == {
             CatalogItemType.WORKFLOW,
@@ -139,17 +140,18 @@ class CatalogListTests:
     def test_list_filters_by_kind(self, fs: FileSystem) -> None:
         fs.write_file(".worktree/catalog/workflows/ship.yml", "name: ship\n")
         fs.write_file(".worktree/catalog/tasks/lint.yml", "name: lint\n")
-        records = Catalog(fs.base_path).list(kind=CatalogItemType.TASK)
+        result = Catalog(fs.base_path).list(kind=CatalogItemType.TASK)
 
-        assert len(records) == 1
-        assert records[0].name == "lint"
+        assert len(result.items) == 1
+        assert result.items[0].name == "lint"
 
     def test_list_empty_catalog_returns_empty_list(self, fs: FileSystem) -> None:
-        assert Catalog(fs.base_path).list() == []
+        assert Catalog(fs.base_path).list().items == []
 
-    def test_list_invalid_kind_raises(self, fs: FileSystem) -> None:
-        with pytest.raises(ValueError, match="Allowed choices"):
-            Catalog(fs.base_path).list(kind="invalid_type")
+    def test_list_invalid_kind_returns_error(self, fs: FileSystem) -> None:
+        result = Catalog(fs.base_path).list(kind="invalid_type")
+        assert not result.ok
+        assert "Invalid --type argument" in result.errors[0]
 
     def test_list_packaged_template_defaults(self) -> None:
         from worktree.core.catalog.services.inventory import list_packaged_template_defaults

@@ -11,6 +11,17 @@ from worktree.core.catalog import Catalog
 from worktree.core.catalog.models import CatalogDeleteResult
 
 
+def _confirm_delete(sha_or_name: str) -> bool:
+    """Prompt user for deletion confirmation."""
+    try:
+        return typer.confirm(
+            f"Are you sure you want to delete catalog blueprint '{sha_or_name}'?",
+            default=False,
+        )
+    except typer.Abort:
+        return False
+
+
 def catalog_delete_command(
     context: CliContext,
     sha_or_name: str,
@@ -28,27 +39,21 @@ def catalog_delete_command(
     Returns:
         CatalogDeleteCommandOutcome indicating deletion status.
     """
-    if not force:
-        try:
-            confirmed = typer.confirm(
-                f"Are you sure you want to delete catalog blueprint '{sha_or_name}'?",
-                default=False,
-            )
-        except typer.Abort:
-            confirmed = False
-        if not confirmed:
-            result = CatalogDeleteResult(cancelled=True, errors=["Deletion cancelled."])
-            ui_dispatcher.dispatch(result, output_format=output_format)
-            return CatalogDeleteCommandOutcome(result=result, item=None, deleted=False, errors=["Deletion cancelled."])
-
-    catalog = Catalog(path=context.cwd, db=context.db.catalog)
-    deleted_item = catalog.delete(sha_or_name)
-    if deleted_item is None:
-        error_message = f"Catalog blueprint '{sha_or_name}' not found."
-        result = CatalogDeleteResult(errors=[error_message])
+    if not force and not _confirm_delete(sha_or_name):
+        result = CatalogDeleteResult(cancelled=True, errors=["Deletion cancelled."])
         ui_dispatcher.dispatch(result, output_format=output_format)
-        return CatalogDeleteCommandOutcome(result=result, item=None, deleted=False, errors=[error_message])
+        return CatalogDeleteCommandOutcome(
+            result=result,
+            item=None,
+            deleted=False,
+            errors=list(result.errors),
+        )
 
-    result = CatalogDeleteResult(item=deleted_item, deleted=True)
+    result = Catalog(path=context.cwd, db=context.db.catalog).delete(sha_or_name)
     ui_dispatcher.dispatch(result, output_format=output_format)
-    return CatalogDeleteCommandOutcome(result=result, item=deleted_item, deleted=True)
+    return CatalogDeleteCommandOutcome(
+        result=result,
+        item=result.item,
+        deleted=result.deleted,
+        errors=list(result.errors),
+    )
