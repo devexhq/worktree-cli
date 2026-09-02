@@ -1,118 +1,72 @@
 # Architecture
 
-Structural map for agents. **File placement rules** (where models vs services
-live) are in
-[code-conventions.md — Core package layout](code-conventions.md#core-package-layout).
-User-facing command behavior lives under [docs/cli/](../cli/). YAML/config field
-detail lives in [schemas-and-config.md](schemas-and-config.md).
+Structural map for agents. **File placement rules** (where models vs services live) are in
+[code-conventions.md](code-conventions.md#core-package-layout).
+User-facing command behavior lives under [docs/cli/](../cli/). Entity shapes and schemas live in [schemas.md](schemas.md).
 
 ## Layers
 
+**Relevant sources:** `src/worktree/cli/`, `src/worktree/core/`, `src/worktree/common/`, `src/worktree/schemas/`.
+
 ```
-src/worktree/cli/cli.py              Typer entrypoint
-src/worktree/cli/<name>/             One package per CLI subcommand (thin wrappers over domain)
-  app.py                             Typer app / command registration
-  commands/                          Command handlers (e.g. root.py, show.py)
+src/worktree/cli/                    Typer CLI entrypoint and subcommand wrappers (no domain logic)
+  cli.py                             Application definition, global options, top-level exception handling
+  <name>/                            Subcommand packages (catalog, config, diff, history, init, resume, run, sandbox, status)
 
-src/worktree/core/                   Business logic (no Typer)
-  bootstrap/                         models.py, facade.py (`Bootstrap`), services/{bootstrap,initialize}.py
-  git/                               models.py, runner.py (stateless GitRunner), exceptions.py
-  sandbox/                           models.py, exceptions.py, facade.py (`Sandbox`), services/{delete,detector,lifecycle,list,patch,pruner,show,wip}.py
-  config/                            facade.py (`Config`), generator.py, loader.py, mutate.py, parser.py, serialize.py, validate.py, models.py
-  db/                                facade.py (`WorktreeDb`), models.py, connection.py, migrations.py, repositories/, alembic/
-  inputs/                            facade.py (`Inputs`), models.py + services/ (resolve, interpolate, renderer)
-  catalog/                           facade.py (`Catalog`), models.py + services/ + templates/
-  blueprint/                         facade.py (`Blueprint`), models.py, exceptions.py, renderers.py
-  diff/                              facade.py (`Diff`), models.py, renderers.py, services.py, writer.py
-  status/                            facade.py (`Status`), models.py, services/collector.py
-  history/                           facade.py (`History`), models.py, renderers.py, services.py
-  step/                              facade.py (`Step`), models.py, exceptions.py, runner.py,
-                                     assertions/, services/{conditions,loader,metadata,resolver}.py
-  runtime/                           models.py, exceptions.py, engine.py (entrypoint:
-                                     `run_steps`, in-process step-loop orchestration),
-                                     failure + pause helpers
-  engine/                            models.py, engine.py (entrypoint: `Engine` class,
-                                     DB-persisted run/resume process facade),
-                                     resumable.py, services/{run,resume,reconcile}.py
-  task/                              [status: unused by the live CLI — see note below]
-                                     models.py, exceptions.py, services/{loader,runner,renderer}.py
-  agents/                            models.py, exceptions.py + adapters (base, factory,
-                                     providers) — documented layout exception, see
-                                     code-conventions.md#core-package-layout
-  patch/                             models.py, exceptions.py, patch.py (entrypoint)
-  workflows/                         [status: unused by the live CLI — see note below]
-                                     models.py, exceptions.py, services/
+src/worktree/core/                   Domain business logic and orchestration (no Typer imports)
+  bootstrap/                         Workspace directory structure initialization and repair
+  git/                               Low-level Git CLI subprocess invocation and plumbing
+  sandbox/                           Isolated git worktree sandbox lifecycle (create, delete, list, prune, apply, diff)
+  config/                            Workspace configuration loading, validation, generation, and mutation
+  db/                                SQLite persistence, connection management, Alembic migrations, and repositories
+  inputs/                            Parameter input declaration, CLI flag resolution, and placeholder interpolation
+  catalog/                           Workflow/task/step template discovery, indexing, seeding, and inventory
+  blueprint/                         Unified task and workflow document loading and inspection
+  diff/                              Session unified diff computation and artifact retrieval
+  status/                            Workspace health diagnostics and telemetry collection
+  history/                           Execution run queries and history presentation
+  step/                              Single-step execution, assertions evaluation, and step-local failure recovery
+  runtime/                           In-process step-loop orchestration (run_steps), failure prompter, and pause checkpoints
+  engine/                            Process facade (Engine), DB run persistence, session minting, and run/resume services
+  agents/                            AI agent adapter protocol and provider integrations (local, ollama, cursor, gemini, copilot)
+  patch/                             Unified-diff parsing and validation
 
-src/worktree/common/                 Shared helpers (no core/ imports)
-  filesystem/                        models.py, facade.py (`Filesystem`), services/{git,operations,paths,yaml}.py
-src/worktree/schemas/v1/             Versioned JSON Schemas
+src/worktree/common/                 Shared foundational utilities (never imports core/ or cli/)
+  filesystem/                        Atomic file operations, path helpers, safe YAML I/O
+  schema_validation.py               JSON Schema Draft 2020-12 validation wrapper
+  lock.py, process.py, utils.py      Cross-process advisory locks, subprocess helpers, and console formatters
+
+src/worktree/schemas/v1/             Packaged, versioned JSON Schemas (config.json, workflow.json)
 ```
 
-Default for **new** domain code: `models.py` + `services/<verb>.py`. Do not
-extend the flat `config/` / `db/` pattern to new domains. See
-[code-conventions.md](code-conventions.md#core-package-layout).
+- Default for **new** domain code: `models.py` + `services/<verb>.py`. Do not extend the flat `config/` / `db/` pattern to new domains.
+- Single-step execution: `core/step/` (`runner.py`).
+- Multi-step orchestration: `core/runtime/` (`engine.py` -> `run_steps`).
+- Process facade: `core/engine/` (`Engine.run` / `Engine.resume`, `BlueprintRunService` / `BlueprintResumeService`).
 
-Single-step execution: `core/step/` (`runner.py`). Multi-step orchestration:
-`core/runtime/` (`engine.py` → `run_steps`). Process facade: `core/engine/`
-(`Engine.run` / `Engine.resume`, `BlueprintRunService` / `BlueprintResumeService`).
-
-> **Naming hazard:** `core/runtime/engine.py` and `core/engine/engine.py` are
-> two unrelated modules that share the literal filename `engine.py` in
-> sibling-ish packages. They are architecturally distinct (see above), and an
-> `import worktree.core.engine` reaching for "the engine" has, in practice,
-> been mistaken for `worktree.core.runtime`'s helpers and vice versa. When
-> importing either, double-check which package you actually meant before
-> adding the import.
+> **Naming hazard:** `core/runtime/engine.py` (`run_steps`) and `core/engine/engine.py` (`Engine` class) are two distinct modules sharing the filename `engine.py`. When importing, double-check which package you intend.
 
 ### Domain ownership
 
-- **Inputs** (`core/inputs/`): `ParameterInput`, CLI resolve, `${{ inputs.* }}`
-  interpolation. Must not import step/runtime/agents/patch.
-- **Step** (`core/step/`): `StepDefinition`, `StepAssert` / assertions,
-  `StepExecution`, failure policy types used by blueprints. Must not import
-  runtime.
-- **Agents** (`core/agents/`): adapter protocol, provider implementations,
-  and failure payload models. Must not import step/runtime.
-  `config/models.py`'s `AgentProvider` enum is intentionally broader than
-  `agents/factory.py`'s implemented providers (schema-valid placeholders for
-  providers not built yet — see
-  [schemas-and-config.md](schemas-and-config.md#config-v1-contract)); the
-  factory is still the single source of truth for *which* providers actually
-  run, and any config-valid-but-unimplemented provider must fail with a clear,
-  typed error at adapter-resolution time, not a bare `ValueError` surfacing
-  mid-run.
-- **Patch** (`core/patch/`): unified-diff parse/validate (no git apply).
-  Must not import agents/step/runtime.
-- **Blueprint** (`core/blueprint/`): unified task/workflow document handle,
-  catalog/path load, and `resolve_inputs` against declared parameters.
-- **Runtime** (`core/runtime/`): `run_steps`, `RunContext` / `RunObserver` /
-  `RunOutcome`, in-process failure orchestration after a failed step
-  (stop / `prompt_user` / retry-or-continue), and durable pause via
-  `RunPauseStore` / `RunCheckpoint` hooks. Step-local retry stays in step.
-  `RunOutcome.session_id` may be stamped by Engine; `run_steps` does not mint
-  it. Runtime must not import `cli/`.
-- **Engine** (`core/engine/`): `RunRequest`, persist run row, mint session id,
-  resolve inputs before `run_steps`, stamp `session_id` on `RunOutcome`,
-  and run/resume/reconcile services (`BlueprintRunService`, `BlueprintResumeService`,
-  `reconcile_stale_runs`).
-  Must not import `cli/`.
-- **Catalog** (`core/catalog/`): blueprint scan/index, `CatalogDb` sync hooks,
-  packaged seeds under `templates/`.
-- **History** (`core/history/`): `HistoryListService`, `HistoryShowService`,
-  result models, and table/panel renderers.
-- **Diff** (`core/diff/`): `DiffService`, session diff resolution, artifact loading,
-  result models, and terminal renderers.
-- **Status** (`core/status/`): workspace health and runtime telemetry collection
-  (`collect_status`), result models (`WorktreeStatusResult`), and warning aggregation.
-- **Shared core infra**: `config/`, `db/`, `git/`, `sandbox/`, `bootstrap/`,
-  plus foundational domains above.
+**Relevant sources:** `src/worktree/core/`
 
-CLI: packages are thin wrappers over core domain services and contain no
-business logic, database queries, or execution algorithms.
+- **Inputs** (`core/inputs/`): `ParameterInput`, CLI flag resolution, `${{ inputs.* }}` placeholder interpolation. Must not import step, runtime, agents, or patch.
+- **Step** (`core/step/`): `StepDefinition`, `StepAssert` / assertions, `StepExecution`, step-local failure recovery. Must not import runtime.
+- **Agents** (`core/agents/`): Adapter protocol (`AgentAdapter`), provider implementations (`local`, `ollama`, `cursor`, `gemini`, `copilot`), failure payload models. Must not import step or runtime.
+- **Patch** (`core/patch/`): Unified-diff parsing and validation. Must not import agents, step, or runtime.
+- **Blueprint** (`core/blueprint/`): Unified task/workflow document handle (`Blueprint`), catalog/path loader, input declaration schema. Must not import runtime, engine, or cli.
+- **Runtime** (`core/runtime/`): Step-loop execution (`run_steps`), `RunContext` / `RunObserver` / `RunOutcome`, failure orchestration (abort / continue / `prompt_user`), and pause checkpoint persistence. Runtime must not import cli.
+- **Engine** (`core/engine/`): Process-level run persistence, session ID minting (`RunRequest`), DB run records, run/resume services (`BlueprintRunService`, `BlueprintResumeService`, `reconcile_stale_runs`). Must not import cli.
+- **Catalog** (`core/catalog/`): Template scanning, indexing, `CatalogDb` sync hooks, packaged seeds under `templates/`.
+- **History** (`core/history/`): `HistoryListService`, `HistoryShowService`, result models, and table/panel renderers.
+- **Diff** (`core/diff/`): `DiffService`, session diff resolution, artifact loading, result models, and terminal renderers.
+- **Status** (`core/status/`): Workspace health and runtime telemetry collection (`collect_status`), result models (`WorktreeStatusResult`), warning aggregation.
+- **Sandbox** (`core/sandbox/`): Isolated git worktree checkout creation, deletion, listing, show, prune, and patch application (`Sandbox` facade, `services/lifecycle.py`).
+- **Shared core infra**: `config/`, `db/`, `git/`, `bootstrap/`.
 
 ### Package boundaries (import direction)
 
-Dependencies flow one way; do not import "up" the stack:
+Dependencies flow one way down the stack; do not import upward:
 
 ```
 common/  ->  core/{db,git,sandbox,catalog,inputs,patch,history,diff,status}/  ->  core/agents/  ->  core/step/  ->  {core/runtime/, core/blueprint/}  ->  core/engine/  ->  cli/
@@ -122,139 +76,51 @@ common/  ->  core/{db,git,sandbox,catalog,inputs,patch,history,diff,status}/  ->
 - `core/inputs/` must not import `step`, `runtime`, `agents`, or `patch`.
 - `core/patch/` must not import `agents`, `step`, or `runtime`.
 - `core/agents/` may use `patch/` and `config/`; must not import `step` or `runtime`.
-- `core/step/` must not import `runtime` for shared vocabulary — put shared types in `common/` or `step/`. Agent dispatch uses `core.agents` from the step runner.
-- `core/runtime/` may use `step/`, `db/`, `sandbox/`; must not import
-  `blueprint/`, `engine/`, or `cli/`.
-- `core/blueprint/` may use `catalog/`, `inputs/`, `step/`; must not import
-  `runtime/`, `engine/`, or `cli/`.
+- `core/step/` must not import `runtime`.
+- `core/runtime/` may use `step/`, `db/`, `sandbox/`; must not import `blueprint/`, `engine/`, or `cli/`.
+- `core/blueprint/` may use `catalog/`, `inputs/`, `step/`; must not import `runtime/`, `engine/`, or `cli/`.
 - `core/engine/` may use `runtime/`, `blueprint/`, `db/`; must not import `cli/`.
-- `cli/` may import `core/` and `common/`; those layers never import `cli/`.
-
-If a lower package needs a type from a higher one, **move the type down**
-instead of adding an upward import.
-
-**Watch for prompter/observer construction reaching past `Engine`.**
-`engine/services/{run,resume}.py` (`BlueprintRunService` / `BlueprintResumeService`)
-own the CLI-facing run/resume flow and delegate to `Engine` / `run_steps`.
-`core/blueprint/` is a pure definition/document domain and must not import
-`runtime/` or `engine/`. `core/engine/` is the orchestrating process layer that
-is allowed to import both `blueprint/` and `runtime/`.
+- `cli/` may import `core/` and `common/`; lower layers never import `cli/`.
 
 ## Adding a new command
 
-1. Create `src/worktree/cli/<name>/` with lean `app.py` and `commands/<subcommand>.py` (or
-   `commands/root.py` for root commands). Use this `commands/` shape for **every**
-   CLI package; a singular `command.py` is obsolete and not a valid option.
-2. Wire command logic directly to underlying domain services (e.g. `BlueprintRunService`,
-   `HistoryListService`). The CLI package should not contain actual logic — it is
-   simply a wrapper around the domain being executed. Concretely: no
-   `SomeRepository(...)` construction, no filesystem scans of catalog/template
-   directories, and no reconciliation/detection algorithms in `cli/`. If a CLI
-   handler needs a query or an algorithm that doesn't exist in `core/` yet, add it
-   as a `core/<domain>/services/` function and call that — don't write it inline
-   in the command module just because it's currently only needed by one command.
-3. Register in [src/worktree/cli/cli.py](../../src/worktree/cli/cli.py).
-4. Tests under `tests/cli/<name>/`.
+**Relevant sources:** `src/worktree/cli/`, `src/worktree/cli/cli.py`
+
+1. Create `src/worktree/cli/<name>/` with `app.py`, `commands/<action>.py` (or `commands/root.py`), `models.py`, `renderers.py`.
+2. Wire command logic directly to underlying domain services or facades (e.g. `BlueprintRunService`, `HistoryListService`). Keep CLI packages free of business logic, DB queries, or direct filesystem scans.
+3. Register the command in [src/worktree/cli/cli.py](../../src/worktree/cli/cli.py).
+4. Add tests under `tests/cli/<name>/`.
 
 ## Adding a new catalog-backed domain
 
-When creating or refactoring a blueprint domain (e.g. `task`, `workflow`, `step`):
-
 1. **Models**: `<X>Definition` in `core/<x>/models.py`.
-2. **Exceptions**: `<X>LoadError` / `<X>ValidationError` subclassing the common
-   definition errors in `core/<x>/exceptions.py`.
-3. **Loader**: `core/<x>/services/loader.py` → thin
-   `get_catalog_item(..., definition_cls=...)`.
-4. **Execution**: if it runs steps, build `RunContext` and call
-   `run_steps` in `core.runtime.engine` — no duplicate step loops/sandbox
-   lifecycle.
-5. **CLI**: thin `commands/root.py` (or `commands/<subcommand>.py`); Rich in
-   `cli/<x>/renderers.py`; plain-text formatters in
-   `core/<x>/services/renderer.py`. No production test-seam parameters
-   (`execute_fn=...`).
+2. **Exceptions**: `<X>LoadError` / `<X>ValidationError` subclassing definition errors in `core/<x>/exceptions.py`.
+3. **Loader**: `core/<x>/services/loader.py` -> `get_catalog_item(..., definition_cls=...)`.
+4. **Execution**: If executing steps, build `RunContext` and delegate to `run_steps` in `core.runtime.engine`.
+5. **CLI**: Thin `commands/root.py`, Rich renderers in `cli/<x>/renderers.py`, plain-text formatters in `core/<x>/services/renderer.py`.
 
 ## Adding a new agent provider
 
-Every provider implements `AgentAdapter.propose_fix(request: AgentRequest) ->
-AgentResponse` (`core/agents/base.py`). Before writing a sixth adapter from
-scratch, check whether it fits the shared direct-mutation base — most do.
+**Relevant sources:** `src/worktree/core/agents/`, `src/worktree/core/config/models.py`
 
-1. Add the provider's token to `AgentProvider` in `core/config/models.py` if it
-   isn't already a schema-valid placeholder (`openai`, `anthropic`,
-   `azure_openai`, and `custom` are currently reserved-but-unimplemented — see
-   [schemas-and-config.md](schemas-and-config.md#config-v1-contract)). One of
-   these is likely already the token you want.
-2. Pick a shape:
-   - **Direct-mutation** (the provider's SDK/CLI edits files in the sandbox
-     itself — `cursor`, `gemini`, `copilot` today): subclass
-     `CliDirectMutationAdapter` (`core/agents/cli_mutation.py`) and implement
-     only `_preflight(request) -> str | None` (env/key/model checks; return an
-     error string or `None`), `_provider_name() -> str`, and
-     `_default_run(request: CliMutationRunRequest) -> CliMutationOutcome` (the
-     actual subprocess/SDK call). The base class already owns baseline capture,
-     timeout/error classification, diff capture, and patch-safety validation
-     (`max_files`, `max_patch_kb`, binary rejection) — reimplementing any of
-     that in the new adapter is the duplication this recipe exists to prevent.
-   - **Diff-returning** (the provider only proposes a diff without touching the
-     sandbox — `local`, `ollama` today): implement `propose_fix` directly; you
-     own the full `no_op` / `unfixable` / `timeout` / `provider_error` /
-     `proposed_patch` classification yourself. See `local.py` / `ollama.py`.
-3. Resolve the provider's secret the way every existing adapter does: a
-   module-level `resolve_<provider>_api_key()` (or equivalent) that reads one
-   well-known env var and returns `None` (never raises) when unset — see
-   `cursor.py`'s `resolve_cursor_api_key`. The key must never be accepted as a
-   `config.json` field or adapter constructor argument. See **Secrets
-   handling** below.
-4. Register in `get_agent_adapter` (`core/agents/factory.py`): one
-   `if provider == "<name>":` branch. If the token from step 1 isn't wired up
-   yet, leave it falling through to the existing
-   `ValueError(... AGENT_PROVIDER_UNSUPPORTED ...)` rather than adding a
-   placeholder branch that returns something for a provider you haven't built.
-5. Tests under `tests/core/agents/test_<provider>.py`, injecting a fake
-   `run_fn` (direct-mutation) or fake transport (diff-returning). Never hit a
-   real network/SDK from a test.
-
-If you catch yourself copy-pasting a preflight check, timeout-handling block, or
-prompt-building step from an existing provider for the second time (not the
-first — some duplication across exactly two providers is normal while a
-pattern is still forming), that's the signal to extract it into
-`cli_mutation.py` rather than pasting a third copy.
+1. Add provider token to `AgentProvider` in `core/config/models.py` if not already present.
+2. Select adapter pattern:
+   - **Direct-mutation** (provider CLI/SDK directly edits files in sandbox — `cursor`, `gemini`, `copilot`): Subclass `CliDirectMutationAdapter` (`core/agents/cli_mutation.py`) and implement `_preflight`, `_provider_name`, and `_default_run`.
+   - **Diff-returning** (provider returns diff text — `local`, `ollama`): Implement `AgentAdapter.propose_fix` directly (`core/agents/base.py`).
+3. Resolve secrets via module-level `resolve_<provider>_api_key()` from environment variables (never from `config.json`).
+4. Register in `get_agent_adapter` (`core/agents/factory.py`).
+5. Add tests under `tests/core/agents/test_<provider>.py` with fake execution functions or transports.
 
 ## Secrets handling
 
-Provider API keys/tokens (`CURSOR_API_KEY`, `GEMINI_API_KEY`, `GH_TOKEN` /
-`GITHUB_TOKEN`) are read directly from the process environment by a
-provider-specific `resolve_*` function at call time and passed straight into
-the SDK/subprocess invocation. They are never:
+**Relevant sources:** `src/worktree/core/agents/`
 
-- accepted as a `config.json` field (`config/models.py`'s `AgentConfig` has no
-  key/token/secret field — only `provider`, `model`, `endpoint`, `temperature`,
-  `max_tokens`),
-- stored on `AgentRequest`, `CliMutationRunRequest`, `RunCheckpoint`, or any
-  other Pydantic model that gets `model_dump`'d, persisted to `data.db`
-  (history, checkpoints), or written to a sandbox file, or
-- included in `build_mutation_prompt`'s prompt body (`core/agents/models.py`'s
-  `AgentFailurePayload` carries command output and file contents, not
-  environment state).
-
-Keep it that way: if you're adding a field to any model in this chain (`
-AgentRequest`, `CliMutationRunRequest`, `RunCheckpoint`, `AgentFailurePayload`),
-don't let a secret leak into it just because it's convenient to thread through
-- resolve it again at the point of use instead. Command/agent **stdout and
-stderr** are captured into `StepResult` and, depending on `history.
-save_attempt_logs` / `save_agent_payloads` (see
-[schemas-and-config.md](schemas-and-config.md#config-load-api)), persisted to
-`data.db` or written under `.worktree/sessions/` — a provider or script that
-echoes a secret to stdout will have that secret persisted, and this layer has
-no redaction step today. If that's a real risk for a provider you're adding
-(e.g. one that logs its auth flow to stdout), say so in that provider's
-docstring rather than leaving it to be discovered later.
+- API keys (`CURSOR_API_KEY`, `GEMINI_API_KEY`, `GH_TOKEN`, `GITHUB_TOKEN`) are resolved from the environment at call time.
+- Secrets are never accepted as `config.json` fields, never persisted to `data.db`, and never passed into prompt builders.
 
 ## The `.worktree/` directory
 
-Created/repaired by
-[core/bootstrap](../../src/worktree/core/bootstrap/) (idempotent; never deletes
-user data):
+Created and repaired idempotently by [core/bootstrap](../../src/worktree/core/bootstrap/):
 
 ```
 .worktree/
@@ -262,65 +128,28 @@ user data):
   .lock                       # cross-process advisory lock
   config.json                 # schemas/v1/config.json
   catalog/                    # workflows/, tasks/, steps/ + seeded wt/ templates
-  workflows/                  # legacy bootstrap dir
   sessions/                   # per-session artifacts (e.g. diff.patch)
   artifacts/, tmp/, logs/
   sandboxes/                  # git worktree checkouts
-  data.db                     # SQLite (core/db)
+  data.db                     # SQLite database (core/db)
 ```
-
-Catalog dirs/seeds: `core/catalog` (`ensure_catalog_dirs`,
-`scan_and_index_catalog`, `seed_all_catalog_templates`).
 
 ### Local SQLite (`data.db`)
 
-Migrated by `init_database` in [core/db](../../src/worktree/core/db/__init__.py).
-Typed surface: `DbBase`, `BaseRepository`, repos (`SandboxesDb`, `RunsRepository`,
-`CatalogDb`, `CostsDb`), facade `WorktreeDb` (`.sandboxes`, `.runs`, …).
+**Relevant sources:** `src/worktree/core/db/`
 
-Primary tables include sandbox metadata, catalog index rows, run tracking, and
-workflow cost rows. Schema evolution stays in `core/db` migrations — do not
-document every column here; read models in `core/db/models.py`.
-
-**Construct one repository/facade per command invocation, not one per call.**
-`BaseRepository.session()` lazily runs `init_db()` (a full Alembic upgrade
-check) the first time a given instance is used.
-Constructing `SomeRepository(cwd)` fresh at every call site defeats that
-lazy-init entirely — every `.list()`/`.get()`/`.upsert()`/`.delete()` reruns
-the migration check, and a loop that constructs a new repository per
-iteration turns this into an N+1. Build the repository/facade once per Typer
-command invocation (e.g. in the command's entry function or a shared context
-object) and pass it down or reuse it across calls in the same command.
-
-Before adding a new table, column, or repository, see the migration hygiene
-checklist in
-[ci-and-tooling.md](ci-and-tooling.md#migration-hygiene).
+- Migrated by `init_database` in `core/db/connection.py`.
+- Repositories: `SandboxesDb`, `RunsRepository`, `CatalogDb`, `CostsDb` accessed via `WorktreeDb` facade.
+- Construct repositories/facades once per command invocation rather than per query.
 
 ## Sandboxes (core)
 
-[GitSandboxManager](../../src/worktree/core/sandbox/manager.py) owns create/cleanup
-and best-effort `SandboxesDb` writes.
+**Relevant sources:** `src/worktree/core/sandbox/`, `src/worktree/core/sandbox/facade.py`
 
-- On-disk: `.worktree/sandboxes/<session_id>/`, branch `worktree/sandbox-<id>`.
-- Result API: `create_sandbox` → `SandboxCreateResult` (warnings do not
-  flip `ok`). `cleanup_sandbox` is idempotent.
-- CLI UX (`wt sandbox create|list|show|delete`): [docs/cli/sandbox.md](../cli/sandbox.md).
-
-## Workflows, agents, patches
-
-| Concern | Where |
-|---------|--------|
-| Blueprint schema (v1) | `schemas/v1/workflow.json`, [schemas-and-config.md](schemas-and-config.md) |
-| Blueprint execution (`wt run`) | [docs/cli/run.md](../cli/run.md), `core/blueprint/` |
-| Patch validation | `core/patch/` (`validate_patch_text`) |
-| Agent failure payload DTOs | `core/agents/models.py` |
-| Agent adapters | `core/agents/` — protocol + `local` / `ollama` / `cursor` / `gemini` / `copilot` |
-
-Provider-specific env vars and stdout contracts belong in code docstrings or
-CLI docs when user-visible — not as growing appendices in this file.
+- Handled by `Sandbox` facade (`core/sandbox/facade.py`) and `core/sandbox/services/lifecycle.py`.
+- On-disk location: `.worktree/sandboxes/<session_id>/`, branch `worktree/sandbox-<id>`.
+- Operations: `create`, `list`, `show`, `delete`, `prune`, `apply`, `diff`.
 
 ## Packaged resources
 
-Schemas and catalog templates ship in the wheel and are loaded via
-`importlib.resources` (see `common/schema_validation.py`, workflow validators,
-`core/catalog/templates/`), not repo-relative paths at runtime.
+Schemas (`schemas/v1/`) and catalog templates (`core/catalog/templates/`) ship inside the package and are loaded via `importlib.resources` at runtime.
