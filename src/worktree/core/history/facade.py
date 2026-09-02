@@ -38,7 +38,10 @@ class History:
                 errors=list(load.errors),
             )
 
-        reconcile_stale_runs(self.db, path=self.path)
+        warnings: list[str] = []
+        reconciliation_result = reconcile_stale_runs(self.db, path=self.path)
+        if reconciliation_result.warning:
+            warnings.append(reconciliation_result.warning)
 
         status_filter: RunStatus | str | None = None
         if status is not None:
@@ -55,7 +58,7 @@ class History:
                 kind_filter = kind
 
         runs = self.db.list(limit=limit, status=status_filter, kind=kind_filter)
-        return HistoryListResult(status=HistoryListStatus.OK, runs=runs)
+        return HistoryListResult(status=HistoryListStatus.OK, runs=runs, warnings=warnings)
 
     def show(self, session_id: str) -> HistoryShowResult:
         """Look up execution session metadata and run details."""
@@ -63,11 +66,12 @@ class History:
         if not load.ok:
             return HistoryShowResult(
                 status=HistoryShowStatus.NOT_INITIALIZED,
+                session_id=session_id,
                 errors=list(load.errors),
             )
 
         row = self.db.get(session_id)
         if row is None:
-            return HistoryShowResult(status=HistoryShowStatus.NOT_FOUND)
+            return HistoryShowResult(status=HistoryShowStatus.NOT_FOUND, session_id=session_id)
 
-        return HistoryShowResult(status=HistoryShowStatus.OK, run=row)
+        return HistoryShowResult(status=HistoryShowStatus.OK, session_id=session_id, run=row)

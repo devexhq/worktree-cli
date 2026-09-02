@@ -9,8 +9,11 @@ import typer
 from worktree.cli.context import CliContext
 from worktree.core.db import BlueprintKind, RunStatus
 
-from .commands.root import history_root_command
+from .commands.root import history_list_command, history_root_command
 from .commands.show import history_show_command
+from .formatters import register_history_formatters
+
+register_history_formatters()
 
 history_app = typer.Typer(
     name="history",
@@ -46,6 +49,11 @@ def history_callback(
             case_sensitive=False,
         ),
     ] = None,
+    format: str = typer.Option(
+        "terminal",
+        "--format",
+        help="Presentation format ('terminal' or 'json').",
+    ),
 ) -> None:
     """Inspect past blueprint execution sessions, step details, and checkpoints."""
     if ctx.invoked_subcommand is None:
@@ -55,23 +63,74 @@ def history_callback(
             limit=limit,
             status=status.value if status is not None else None,
             kind=kind.value if kind is not None else None,
+            output_format=format,
         )
-        context.output.print()
         if not outcome.ok:
             raise typer.Exit(code=1)
+
+
+@history_app.command("list")
+def history_list(
+    ctx: typer.Context,
+    limit: int = typer.Option(
+        20,
+        "--limit",
+        "-l",
+        help="Maximum number of execution runs to display (defaults to 20).",
+    ),
+    status: Annotated[
+        RunStatus | None,
+        typer.Option(
+            "--status",
+            "-s",
+            help="Filter by run status (running, completed, failed, cancelled, paused).",
+            case_sensitive=False,
+        ),
+    ] = None,
+    kind: Annotated[
+        BlueprintKind | None,
+        typer.Option(
+            "--kind",
+            "-k",
+            help="Filter by blueprint kind (task, workflow).",
+            case_sensitive=False,
+        ),
+    ] = None,
+    format: str = typer.Option(
+        "terminal",
+        "--format",
+        help="Presentation format ('terminal' or 'json').",
+    ),
+) -> None:
+    """List past blueprint execution sessions."""
+    context: CliContext = ctx.obj["context"]
+    outcome = history_list_command(
+        context,
+        limit=limit,
+        status=status.value if status is not None else None,
+        kind=kind.value if kind is not None else None,
+        output_format=format,
+    )
+    if not outcome.ok:
+        raise typer.Exit(code=1)
 
 
 @history_app.command("show")
 def history_show(
     ctx: typer.Context,
     session_id: str = typer.Argument(..., help="Session ID to inspect."),
+    format: str = typer.Option(
+        "terminal",
+        "--format",
+        help="Presentation format ('terminal' or 'json').",
+    ),
 ) -> None:
     """Show detailed metadata, error messages, and checkpoint state for a session."""
     context: CliContext = ctx.obj["context"]
     outcome = history_show_command(
         context,
         session_id,
+        output_format=format,
     )
-    context.output.print()
     if not outcome.ok:
         raise typer.Exit(code=1)

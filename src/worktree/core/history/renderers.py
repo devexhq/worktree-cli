@@ -129,7 +129,7 @@ def render_history_not_found(session_id: str, *, output: RichOutput) -> None:
     output.add_error_panel("Session Not Found", message)
 
 
-def _build_metadata_table(run: RunRecord) -> Table:
+def build_metadata_table(run: RunRecord) -> Table:
     """Build key/value table for session metadata."""
     duration = format_run_duration(run.started_at, run.completed_at)
     values = {
@@ -151,7 +151,10 @@ def _build_metadata_table(run: RunRecord) -> Table:
     return table
 
 
-def _build_step_results_table(checkpoint: RunCheckpoint) -> Table | None:
+_build_metadata_table = build_metadata_table
+
+
+def build_step_results_table(checkpoint: RunCheckpoint) -> Table | None:
     """Build a sub-table summarizing recorded step results in a checkpoint."""
     if not checkpoint.step_results:
         return None
@@ -170,16 +173,18 @@ def _build_step_results_table(checkpoint: RunCheckpoint) -> Table | None:
     return table
 
 
-def _render_checkpoint_panel(checkpoint_json: str, *, output: RichOutput) -> None:
-    """Render checkpoint metadata and step details or pretty JSON fallback."""
+_build_step_results_table = build_step_results_table
+
+
+def build_checkpoint_renderables(checkpoint_json: str) -> list[Panel | Table]:
+    """Build checkpoint metadata and step details renderables or pretty JSON fallback."""
     checkpoint = parse_checkpoint(checkpoint_json)
     if checkpoint is None:
         try:
             formatted_json = json.dumps(json.loads(checkpoint_json), indent=2)
-            output.add_line(Panel(Syntax(formatted_json, "json"), title="Checkpoint JSON", border_style="cyan"))
+            return [Panel(Syntax(formatted_json, "json"), title="Checkpoint JSON", border_style="cyan")]
         except Exception:
-            output.add_line(Panel(checkpoint_json, title="Checkpoint Data", border_style="cyan"))
-        return
+            return [Panel(checkpoint_json, title="Checkpoint Data", border_style="cyan")]
 
     checkpoint_table = Table(show_header=False, box=None, padding=(0, 2, 0, 0))
     checkpoint_table.add_column(style="bold")
@@ -189,16 +194,22 @@ def _render_checkpoint_panel(checkpoint_json: str, *, output: RichOutput) -> Non
     if checkpoint.diagnostic:
         checkpoint_table.add_row("Diagnostic:", checkpoint.diagnostic)
 
-    output.add_line(Panel(checkpoint_table, title="Checkpoint Details", border_style="cyan"))
-
-    step_table = _build_step_results_table(checkpoint)
+    renderables: list[Panel | Table] = [Panel(checkpoint_table, title="Checkpoint Details", border_style="cyan")]
+    step_table = build_step_results_table(checkpoint)
     if step_table is not None:
-        output.add_line(step_table)
+        renderables.append(step_table)
+    return renderables
+
+
+def _render_checkpoint_panel(checkpoint_json: str, *, output: RichOutput) -> None:
+    """Render checkpoint metadata and step details or pretty JSON fallback."""
+    for renderable in build_checkpoint_renderables(checkpoint_json):
+        output.add_line(renderable)
 
 
 def render_history_show(run: RunRecord, *, output: RichOutput) -> None:
     """Render granular session metadata, errors, and checkpoint contents."""
-    metadata_table = _build_metadata_table(run)
+    metadata_table = build_metadata_table(run)
     output.add_line(Panel(metadata_table, title=f"Session Metadata: {run.session_id}", border_style="blue"))
 
     if run.error_message:

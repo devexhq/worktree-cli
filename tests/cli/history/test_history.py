@@ -386,6 +386,54 @@ class HistoryCliTests:
         res_limit_short = runner.invoke(app, ["history", "-l", "1"])
         assert res_limit_short.exit_code == 0
 
+    def test_cli_history_format_json(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Verify 'wt history --format json' produces structured NDJSON envelopes."""
+        fs.create_config_file()
+        monkeypatch.chdir(fs.base_path)
+        make_run(
+            self.db.runs,
+            session_id="sess-json-1",
+            blueprint_name="json-task",
+            kind=BlueprintKind.TASK,
+            status=RunStatus.COMPLETED,
+        )
+
+        result = runner.invoke(app, ["history", "--format", "json"])
+        assert result.exit_code == 0
+        lines = [line for line in result.output.strip().split("\n") if line]
+        assert len(lines) == 1
+        payload = json.loads(lines[0])
+        assert payload["event_type"] == "HistoryListResult"
+        assert payload["payload"]["status"] == "ok"
+        assert payload["payload"]["runs"][0]["session_id"] == "sess-json-1"
+
+    def test_cli_history_list_command(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Verify 'wt history list' subcommand renders table and supports --format json."""
+        fs.create_config_file()
+        monkeypatch.chdir(fs.base_path)
+        make_run(
+            self.db.runs,
+            session_id="sess-list-1",
+            blueprint_name="list-task",
+            kind=BlueprintKind.TASK,
+            status=RunStatus.COMPLETED,
+        )
+
+        # Terminal format
+        result = runner.invoke(app, ["history", "list"])
+        assert result.exit_code == 0
+        assert "Execution History" in result.output
+        assert "sess-list-1" in result.output
+
+        # JSON format
+        json_result = runner.invoke(app, ["history", "list", "--format", "json"])
+        assert json_result.exit_code == 0
+        lines = [line for line in json_result.output.strip().split("\n") if line]
+        assert len(lines) == 1
+        payload = json.loads(lines[0])
+        assert payload["event_type"] == "HistoryListResult"
+        assert payload["payload"]["runs"][0]["session_id"] == "sess-list-1"
+
     def test_cli_history_uninitialized_exits_1(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify 'wt history' exits 1 when Worktree is not initialized."""
         monkeypatch.chdir(tmp_path)
@@ -402,6 +450,28 @@ class HistoryShowCliTests:
     @pytest.fixture(autouse=True)
     def setup_method(self, fs: FileSystem) -> None:
         self.db = WorktreeDb(path=fs.base_path)
+
+    def test_cli_history_show_format_json(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Verify 'wt history show <session_id> --format json' produces NDJSON envelope."""
+        fs.create_config_file()
+        monkeypatch.chdir(fs.base_path)
+        make_run(
+            self.db.runs,
+            session_id="show-json-1",
+            blueprint_name="json-task",
+            kind=BlueprintKind.TASK,
+            status=RunStatus.COMPLETED,
+        )
+
+        result = runner.invoke(app, ["history", "show", "show-json-1", "--format", "json"])
+        assert result.exit_code == 0
+        lines = [line for line in result.output.strip().split("\n") if line]
+        assert len(lines) == 1
+        payload = json.loads(lines[0])
+        assert payload["event_type"] == "HistoryShowResult"
+        assert payload["payload"]["status"] == "ok"
+        assert payload["payload"]["session_id"] == "show-json-1"
+        assert payload["payload"]["run"]["blueprint_name"] == "json-task"
 
     def test_cli_history_show_success(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify 'wt history show <session_id>' displays session metadata panel."""

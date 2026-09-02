@@ -1,20 +1,43 @@
+"""Orchestration logic for ``wt history`` list CLI command."""
+
+from __future__ import annotations
+
 from worktree.cli.context import CliContext
-from worktree.core.history import HistoryListResult
-from worktree.core.history.services import HistoryListService
+from worktree.cli.history.models import HistoryListCommandOutcome
+from worktree.cli.ui.dispatcher import ui_dispatcher
+from worktree.core.history import History
 
 
 def history_root_command(
     context: CliContext,
-    limit: int = 20,
+    limit: int | None = 20,
     status: str | None = None,
     kind: str | None = None,
-) -> HistoryListResult:
-    """Execute history list query and render results to console."""
-    return HistoryListService(
-        path=context.cwd,
-        db=context.db.runs,
-        output=context.output,
+    output_format: str = "terminal",
+) -> HistoryListCommandOutcome:
+    """Execute history list query and dispatch results via UiDispatcher.
+
+    Args:
+        context: CLI context instance.
+        limit: Maximum number of execution runs to display.
+        status: Filter by run status.
+        kind: Filter by blueprint kind.
+        output_format: Presentation format ("terminal" or "json").
+
+    Returns:
+        HistoryListCommandOutcome containing listed runs and errors.
+    """
+    result = History(path=context.cwd, db=context.db.runs).list(
         limit=limit,
         status=status,
         kind=kind,
-    ).execute()
+    )
+    ui_dispatcher.dispatch(result, output_format=output_format)
+    return HistoryListCommandOutcome(
+        result=result,
+        runs=result.runs,
+        errors=list(result.errors),
+    )
+
+
+history_list_command = history_root_command
