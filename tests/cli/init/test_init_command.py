@@ -13,8 +13,8 @@ from worktree.cli.init.commands.root import init_command
 from worktree.common.schema_validation import SchemaValidator
 from worktree.core.bootstrap import BootstrapResult
 from worktree.core.catalog.models import SeedResult
+from worktree.core.config import ConfigLoadError
 from worktree.core.config.generator import ConfigGenerationResult
-from worktree.core.config.models import PathsConfig
 
 CONFIG_VALIDATOR = SchemaValidator(resources.files("worktree.schemas.v1") / "config.json")
 
@@ -263,9 +263,8 @@ class InitCommandFailureTests:
             lambda root_path, *, tool_version=None: BootstrapResult(root_path=root_path, root_created=False),
         )
 
-        init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
-        assert recorded
-        assert recorded[-1] == PathsConfig().db_path
+        with pytest.raises(ConfigLoadError):
+            init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
 
     def test_init_json_format(
         self,

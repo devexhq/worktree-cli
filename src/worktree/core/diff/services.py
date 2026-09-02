@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from worktree.common.utils import RichOutput
-from worktree.core.config.loader import load_config
+from worktree.core.config import Config
 from worktree.core.diff.models import DiffResult, DiffStatus
 from worktree.core.diff.renderers import render_diff
 
@@ -103,11 +103,8 @@ class DiffService:
 
     def collect(self) -> DiffResult:
         """Collect and validate the diff artifact without side effects."""
-        load = load_config(path=self.path)
-        if load.ok and load.config is not None:
-            sessions_dir = self.path / load.config.paths.sessions_dir
-        else:
-            sessions_dir = self.path / ".worktree" / "sessions"
+        config = Config(self.path)
+        sessions_dir = self.path / config.paths.sessions_dir
 
         target_dir, resolved_session_id, error_result = self._resolve_session_target(sessions_dir)
         if error_result is not None or target_dir is None or resolved_session_id is None:

@@ -10,7 +10,7 @@ from pathlib import Path
 from worktree.common.lock import WorkspaceLock
 from worktree.core.blueprint import Blueprint
 from worktree.core.catalog import Catalog
-from worktree.core.config.loader import load_config
+from worktree.core.config import Config
 from worktree.core.db import BlueprintKind, RunsRepository, RunStatus
 from worktree.core.engine.exceptions import EngineInputError
 from worktree.core.engine.models import RunRequest, SessionRunPayload
@@ -95,7 +95,7 @@ class Engine:
                 failure_prompter=req.failure_prompter,
                 pause_store=pause_store,
                 auto_apply=req.auto_apply,
-                config=load_config(self.path).config,
+                config=Config(self.path)._loaded_config,
             )
         )
 
@@ -157,7 +157,7 @@ class Engine:
                 failure_prompter=failure_prompter,
                 pause_store=pause_store,
                 resume_from=checkpoint,
-                config=load_config(self.path).config,
+                config=Config(self.path)._loaded_config,
             )
         )
 

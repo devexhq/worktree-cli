@@ -23,6 +23,7 @@ class BlueprintRunServiceTests:
 
     @pytest.fixture(autouse=True)
     def setup_method(self, fs: FileSystem) -> None:
+        fs.create_config_file()
         self.db = WorktreeDb(path=fs.base_path)
 
     def test_blueprint_run_service_executes_task(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -291,6 +292,7 @@ class RunCommandDirectTests:
 
     def test_run_command_executes_blueprint(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify run_command executes a blueprint via context."""
+        fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
         fs.create_task_file(
             "direct-task",

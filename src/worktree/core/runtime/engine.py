@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from worktree.common.process import process_registry
+from worktree.core.config import ConfigLoadError
 from worktree.core.db import RunStatus, SandboxesRepository
 from worktree.core.diff.writer import get_session_dir, write_session_diff
 from worktree.core.git.runner import GitRunner
@@ -124,7 +125,10 @@ def _setup_sandbox(
     session_id = None
     if context.identity is not None:
         session_id = context.identity.task_sha or context.identity.workflow_sha
-    create_result = manager.create(session_id=session_id)
+    try:
+        create_result = manager.create(session_id=session_id)
+    except ConfigLoadError as exc:
+        return context.cwd.resolve(), None, None, f"Git sandbox creation failed: {exc}"
     if not create_result.ok or create_result.session is None:
         detail = create_result.errors[0] if create_result.errors else "Sandbox creation failed."
         return context.cwd.resolve(), None, None, f"Git sandbox creation failed: {detail}"

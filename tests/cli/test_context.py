@@ -6,6 +6,7 @@ import pytest
 
 from tests.helpers import GitFileSystem
 from worktree.cli.context import CliContext
+from worktree.core.config import ConfigLoadError
 
 
 class CliContextBuildTests:
@@ -25,27 +26,23 @@ class CliContextBuildTests:
         assert context.config is not None
         assert context.config.project.name == git_fs.base_path.name
 
-    def test_build_reports_uninitialized_when_config_not_found(
+    def test_build_raises_when_config_not_found(
         self,
         git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
-        capsys: pytest.CaptureFixture[str],
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
 
-        context = CliContext.build()
-        assert context is None
+        with pytest.raises(ConfigLoadError) as exc_info:
+            CliContext.build()
 
-        out = capsys.readouterr().out
-        assert "Worktree workspace is not initialized." in out
-        assert "Hint: Run 'wt init' to initialize Worktree in this repository." in out
-        assert "Invalid Worktree Configuration" not in out
+        assert "CONFIG_NOT_FOUND" in str(exc_info.value)
+        assert "wt init" in str(exc_info.value)
 
-    def test_build_reports_invalid_config_when_schema_invalid(
+    def test_build_raises_when_schema_invalid(
         self,
         git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
-        capsys: pytest.CaptureFixture[str],
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
         git_fs.init_repo()
@@ -53,29 +50,22 @@ class CliContextBuildTests:
         config_path = git_fs.base_path / ".worktree" / "config.json"
         config_path.write_text('{"version": 1}\n', encoding="utf-8")
 
-        context = CliContext.build()
-        assert context is None
+        with pytest.raises(ConfigLoadError) as exc_info:
+            CliContext.build()
 
-        out = capsys.readouterr().out
-        assert "Invalid Worktree Configuration" in out
-        assert "CONFIG_SCHEMA_INVALID" in out
-        assert "Worktree workspace is not initialized." not in out
+        assert "CONFIG_SCHEMA_INVALID" in str(exc_info.value)
 
-    def test_build_reports_invalid_config_when_json_malformed(
+    def test_build_raises_when_json_malformed(
         self,
         git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
-        capsys: pytest.CaptureFixture[str],
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
         config_dir = git_fs.base_path / ".worktree"
         config_dir.mkdir(parents=True, exist_ok=True)
         (config_dir / "config.json").write_text("{ broken json", encoding="utf-8")
 
-        context = CliContext.build()
-        assert context is None
+        with pytest.raises(ConfigLoadError) as exc_info:
+            CliContext.build()
 
-        out = capsys.readouterr().out
-        assert "Invalid Worktree Configuration" in out
-        assert "CONFIG_MALFORMED_JSON" in out
-        assert "Worktree workspace is not initialized." not in out
+        assert "CONFIG_MALFORMED_JSON" in str(exc_info.value)

@@ -89,6 +89,7 @@ class EngineResumeExecutionTests:
 
     @pytest.fixture(autouse=True)
     def setup_method(self, fs: FileSystem) -> None:
+        fs.create_config_file()
         self.db = WorktreeDb(path=fs.base_path)
         self.catalog = Catalog(path=fs.base_path, db=self.db.catalog)
 
@@ -239,6 +240,7 @@ class EngineResumeValidationTests:
 
     @pytest.fixture(autouse=True)
     def setup_method(self, fs: FileSystem) -> None:
+        fs.create_config_file()
         self.db = WorktreeDb(path=fs.base_path)
         self.catalog = Catalog(path=fs.base_path, db=self.db.catalog)
 
@@ -333,6 +335,7 @@ class ResumableRunHandleTests:
 
     @pytest.fixture(autouse=True)
     def setup_method(self, fs: FileSystem) -> None:
+        fs.create_config_file()
         self.db = WorktreeDb(path=fs.base_path)
 
     def test_resumable_run_load_is_resumable(self, fs: FileSystem) -> None:
