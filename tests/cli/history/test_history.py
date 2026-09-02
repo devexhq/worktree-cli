@@ -14,7 +14,7 @@ from worktree.common.utils import RichOutput
 from worktree.core.blueprint import BlueprintKind
 from worktree.core.config.generator import generate_default_config
 from worktree.core.db import RunStatus, WorktreeDb
-from worktree.core.history.models import HistoryListStatus, HistoryShowStatus
+from worktree.core.history.models import HistoryShowStatus
 from worktree.core.history.renderers import (
     _parse_timestamp,
     format_run_duration,
@@ -137,13 +137,6 @@ class HistoryServiceDirectTests:
     def setup_method(self, fs: FileSystem) -> None:
         self.db = WorktreeDb(path=fs.base_path)
 
-    def test_collect_history_list_not_initialized(self, fs: FileSystem) -> None:
-        """Verify HistoryListService returns NOT_INITIALIZED when config is missing."""
-        path = fs.base_path / "nonexistent"
-        result = HistoryListService(path=path, db=WorktreeDb(path=path).runs, output=RichOutput()).collect()
-        assert not result.ok
-        assert result.status is HistoryListStatus.NOT_INITIALIZED
-
     def test_collect_history_list_filters(self, fs: FileSystem) -> None:
         """Verify HistoryListService filters by status, kind, and limit."""
         make_run(
@@ -214,15 +207,6 @@ class HistoryServiceDirectTests:
         assert not missing.ok
         assert missing.status is HistoryShowStatus.NOT_FOUND
 
-    def test_collect_history_show_not_initialized(self, fs: FileSystem) -> None:
-        """Verify HistoryShowService returns NOT_INITIALIZED when uninitialized."""
-        path = fs.base_path / "nonexistent"
-        result = HistoryShowService(
-            session_id="session-1", path=path, db=WorktreeDb(path=path).runs, output=RichOutput()
-        ).collect()
-        assert not result.ok
-        assert result.status is HistoryShowStatus.NOT_INITIALIZED
-
     def test_history_services_execute(self, fs: FileSystem) -> None:
         """Verify HistoryListService and HistoryShowService execute methods."""
         make_run(
@@ -251,19 +235,6 @@ class HistoryServiceDirectTests:
         ).execute()
         assert not show_missing.ok
         assert show_missing.status is HistoryShowStatus.NOT_FOUND
-
-        # Show uninitialized
-        path_missing = fs.base_path / "nonexistent"
-        show_uninit = HistoryShowService(
-            session_id="svc-run-1", path=path_missing, db=WorktreeDb(path=path_missing).runs, output=out
-        ).execute()
-        assert not show_uninit.ok
-        assert show_uninit.status is HistoryShowStatus.NOT_INITIALIZED
-
-        # List uninitialized
-        list_uninit = HistoryListService(path=path_missing, db=WorktreeDb(path=path_missing).runs, output=out).execute()
-        assert not list_uninit.ok
-        assert list_uninit.status is HistoryListStatus.NOT_INITIALIZED
 
 
 class HistoryCliTests:

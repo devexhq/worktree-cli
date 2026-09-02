@@ -36,14 +36,6 @@ class HistoryListServiceTests:
     def setup_method(self, fs: FileSystem) -> None:
         self.db = WorktreeDb(path=fs.base_path)
 
-    def test_collect_uninitialized(self, fs: FileSystem) -> None:
-        path = fs.base_path / "missing"
-        service = HistoryListService(path=path, db=WorktreeDb(path=path).runs, output=RichOutput())
-        result = service.collect()
-        assert not result.ok
-        assert result.status is HistoryListStatus.NOT_INITIALIZED
-        assert len(result.errors) > 0
-
     def test_collect_all_runs(self, fs: FileSystem) -> None:
         make_run(
             self.db.runs,
@@ -161,15 +153,6 @@ class HistoryListServiceTests:
         assert "Execution History" in output
         assert "run-exec" in output
 
-    def test_execute_uninitialized_renders_error(self, fs: FileSystem) -> None:
-        rich_output, buffer = make_rich_output(width=160)
-        path = fs.base_path / "missing"
-        service = HistoryListService(path=path, db=WorktreeDb(path=path).runs, output=rich_output)
-        result = service.execute()
-        assert not result.ok
-        rich_output.print()
-        assert "Worktree Not Initialized" in buffer.getvalue()
-
 
 class HistoryShowServiceTests:
     """Direct unit tests for HistoryShowService data collection and execution."""
@@ -179,14 +162,6 @@ class HistoryShowServiceTests:
     @pytest.fixture(autouse=True)
     def setup_method(self, fs: FileSystem) -> None:
         self.db = WorktreeDb(path=fs.base_path)
-
-    def test_collect_uninitialized(self, fs: FileSystem) -> None:
-        path = fs.base_path / "missing"
-        service = HistoryShowService(session_id="run-1", path=path, db=WorktreeDb(path=path).runs, output=RichOutput())
-        result = service.collect()
-        assert not result.ok
-        assert result.status is HistoryShowStatus.NOT_INITIALIZED
-        assert len(result.errors) > 0
 
     def test_collect_found(self, fs: FileSystem) -> None:
         make_run(
@@ -243,12 +218,3 @@ class HistoryShowServiceTests:
         output = buffer.getvalue()
         assert "Session Not Found" in output
         assert "missing-exec" in output
-
-    def test_execute_uninitialized_renders_panel(self, fs: FileSystem) -> None:
-        rich_output, buffer = make_rich_output(width=160)
-        path = fs.base_path / "missing"
-        service = HistoryShowService(session_id="any", path=path, db=WorktreeDb(path=path).runs, output=rich_output)
-        result = service.execute()
-        assert not result.ok
-        rich_output.print()
-        assert "Worktree Not Initialized" in buffer.getvalue()

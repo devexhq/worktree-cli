@@ -7,6 +7,7 @@ from pathlib import Path
 
 from worktree.common.utils import RichOutput
 from worktree.core.config.loader import load_config_result
+from worktree.core.config.models import WorktreeConfig
 from worktree.core.diff.models import DiffResult, DiffStatus
 from worktree.core.diff.renderers import render_diff
 
@@ -21,6 +22,7 @@ class DiffService:
     raw: bool = False
     full: bool = False
     max_lines: int | None = None
+    config: WorktreeConfig | None = None
 
     def _discover_latest_session(self, sessions_dir: Path) -> Path | None:
         """Discover the most recently modified session directory under sessions_dir."""
@@ -103,14 +105,17 @@ class DiffService:
 
     def collect(self) -> DiffResult:
         """Collect and validate the diff artifact without side effects."""
-        config_load = load_config_result(path=self.path)
-        if not config_load.ok or config_load.config is None:
-            return DiffResult(
-                status=DiffStatus.NOT_INITIALIZED,
-                errors=list(config_load.errors),
-            )
+        if self.config is not None:
+            sessions_dir = self.path / self.config.paths.sessions_dir
+        else:
+            config_load = load_config_result(path=self.path)
+            if not config_load.ok or config_load.config is None:
+                return DiffResult(
+                    status=DiffStatus.NOT_INITIALIZED,
+                    errors=list(config_load.errors),
+                )
+            sessions_dir = self.path / config_load.config.paths.sessions_dir
 
-        sessions_dir = self.path / config_load.config.paths.sessions_dir
         target_dir, resolved_session_id, error_result = self._resolve_session_target(sessions_dir)
         if error_result is not None or target_dir is None or resolved_session_id is None:
             return error_result or DiffResult(

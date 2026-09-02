@@ -13,7 +13,6 @@ from worktree.common.types import ComponentFormatter
 from worktree.core.db import RunRecord
 from worktree.core.history.models import (
     HistoryListResult,
-    HistoryListStatus,
     HistoryShowResult,
     HistoryShowStatus,
 )
@@ -22,29 +21,6 @@ from worktree.core.history.renderers import (
     build_history_table,
     build_metadata_table,
 )
-
-_INVALID_CONFIG_INDICATORS = (
-    "CONFIG_SCHEMA_INVALID",
-    "CONFIG_MALFORMED_JSON",
-    "CONFIG_ROOT_NOT_OBJECT",
-    "PATH_IS_DIRECTORY",
-    "CONFIG_UNREADABLE",
-    "Config schema validation failed",
-    "Malformed config.json",
-)
-
-
-def _render_history_not_initialized(errors: list[str]) -> Panel:
-    """Render standardized not-initialized or invalid-config error panel."""
-    if errors and any(any(indicator in error for indicator in _INVALID_CONFIG_INDICATORS) for error in errors):
-        return Panel("\n\n".join(errors), title="Invalid Worktree Configuration", border_style="red")
-
-    message = (
-        "\n\n".join(errors)
-        if errors
-        else ".worktree/config.json not found.\nFix:\n- run `wt init` to initialize the workspace"
-    )
-    return Panel(message, title="Worktree Not Initialized", border_style="red")
 
 
 def _render_list_runs(data: HistoryListResult) -> Any:
@@ -72,8 +48,8 @@ class HistoryListFormatter(ComponentFormatter[HistoryListResult]):
         Returns:
             Rich renderable object (Table, Group, Panel, or Text).
         """
-        if data.status == HistoryListStatus.NOT_INITIALIZED or (not data.ok and data.errors):
-            return _render_history_not_initialized(data.errors)
+        if not data.ok and data.errors:
+            return Panel("\n\n".join(data.errors), title="History List Failed", border_style="red")
 
         return _render_list_runs(data)
 
@@ -103,9 +79,6 @@ def _render_show_error(errors: list[str]) -> Panel:
 
 def _render_show_error_panel(data: HistoryShowResult) -> Panel | None:
     """Check and render error panels for session show operation."""
-    if data.status == HistoryShowStatus.NOT_INITIALIZED:
-        return _render_history_not_initialized(data.errors)
-
     if data.status == HistoryShowStatus.NOT_FOUND or (data.run is None and not data.errors):
         return _render_show_not_found(data.session_id)
 

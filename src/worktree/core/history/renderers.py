@@ -115,14 +115,6 @@ def render_history_list(runs: list[RunRecord], *, output: RichOutput) -> None:
     output.add_line(build_history_table(runs))
 
 
-def render_not_initialized(errors: list[str], *, output: RichOutput) -> None:
-    """Render the not-initialized error panel for history commands."""
-    output.render_not_initialized(
-        errors,
-        fix_hint="run `wt init` to initialize the workspace",
-    )
-
-
 def render_history_not_found(session_id: str, *, output: RichOutput) -> None:
     """Render the not-found error panel for history show."""
     message = f"Session '{session_id}' not found.\nFix:\n- run `wt history` to view past sessions"

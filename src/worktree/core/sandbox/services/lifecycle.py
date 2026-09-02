@@ -42,17 +42,26 @@ def _extract_target_metadata(target: SandboxSession | SandboxRecord) -> tuple[Pa
 class SandboxLifecycle:
     """Orchestrates sandbox creation, validation, cleanup, and pruning."""
 
-    def __init__(self, path: Path, db: SandboxesRepository) -> None:
-        """Initialize lifecycle service bound to repository root.
+    def __init__(
+        self,
+        path: Path,
+        db: SandboxesRepository,
+        config: WorktreeConfig | None = None,
+    ) -> None:
+        """Initialize lifecycle manager.
 
         Args:
-            path: Repository root directory.
+            path: Target repository root path.
             db: Explicit SandboxesRepository instance.
+            config: Optional pre-loaded WorktreeConfig instance.
         """
         self.path = path.expanduser().resolve()
-        self.sandbox_base_dir = self.path / ".worktree" / "sandboxes"
         self.db = db
-        self._config: WorktreeConfig | None = None
+        self._config: WorktreeConfig | None = config
+        if config is not None:
+            self.sandbox_base_dir = self.path / config.paths.root_dir / "sandboxes"
+        else:
+            self.sandbox_base_dir = self.path / ".worktree" / "sandboxes"
 
     @property
     def config(self) -> WorktreeConfig | None:
@@ -90,6 +99,8 @@ class SandboxLifecycle:
 
     def _load_config(self) -> tuple[SandboxCreateResult | None, WorktreeConfig | None]:
         """Load and validate worktree configuration."""
+        if self._config is not None:
+            return None, self._config
         load = load_config_result(path=self.path)
         if load.status == ConfigLoadStatus.NOT_FOUND:
             return (

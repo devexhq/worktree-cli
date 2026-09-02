@@ -94,31 +94,18 @@ class HistoryListFormatterTests:
         assert "Reconciled 1 interrupted session" in rendered
         assert "sess-12345678" in rendered
 
-    def test_to_rich_not_initialized(self) -> None:
+    def test_to_rich_errors(self) -> None:
         formatter = HistoryListFormatter()
         result = HistoryListResult(
-            status=HistoryListStatus.NOT_INITIALIZED,
-            errors=[".worktree/config.json not found."],
+            status=HistoryListStatus.OK,
+            errors=["Database query failed."],
         )
 
         rich_renderable = formatter.to_rich(result)
         assert isinstance(rich_renderable, Panel)
         rendered = render_rich(rich_renderable)
-        assert "Worktree Not Initialized" in rendered
-        assert ".worktree/config.json not found." in rendered
-
-    def test_to_rich_invalid_config_schema(self) -> None:
-        formatter = HistoryListFormatter()
-        result = HistoryListResult(
-            status=HistoryListStatus.NOT_INITIALIZED,
-            errors=["Malformed config.json (CONFIG_MALFORMED_JSON)"],
-        )
-
-        rich_renderable = formatter.to_rich(result)
-        assert isinstance(rich_renderable, Panel)
-        rendered = render_rich(rich_renderable)
-        assert "Invalid Worktree Configuration" in rendered
-        assert "CONFIG_MALFORMED_JSON" in rendered
+        assert "History List Failed" in rendered
+        assert "Database query failed." in rendered
 
     def test_to_json_serializable(self) -> None:
         formatter = HistoryListFormatter()
@@ -241,19 +228,6 @@ class HistoryShowFormatterTests:
         rendered = render_rich(rich_renderable)
         assert "Session Not Found" in rendered
         assert "Session 'nonexistent-sess' not found." in rendered
-
-    def test_to_rich_not_initialized(self) -> None:
-        formatter = HistoryShowFormatter()
-        result = HistoryShowResult(
-            status=HistoryShowStatus.NOT_INITIALIZED,
-            session_id="sess-1",
-            errors=[".worktree/config.json not found."],
-        )
-
-        rich_renderable = formatter.to_rich(result)
-        assert isinstance(rich_renderable, Panel)
-        rendered = render_rich(rich_renderable)
-        assert "Worktree Not Initialized" in rendered
 
     def test_to_rich_errors(self) -> None:
         formatter = HistoryShowFormatter()

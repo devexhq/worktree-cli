@@ -13,7 +13,6 @@ class HistoryListStatus(StrEnum):
     """Classified outcome for listing execution history."""
 
     OK = "ok"
-    NOT_INITIALIZED = "not_initialized"
 
 
 class HistoryListResult(BaseModel):
@@ -21,7 +20,7 @@ class HistoryListResult(BaseModel):
 
     model_config = {"extra": "forbid", "strict": True}
 
-    status: HistoryListStatus
+    status: HistoryListStatus = HistoryListStatus.OK
     runs: list[RunRecord] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
@@ -36,7 +35,6 @@ class HistoryShowStatus(StrEnum):
     """Classified outcome for showing history session detail."""
 
     OK = "ok"
-    NOT_INITIALIZED = "not_initialized"
     NOT_FOUND = "not_found"
 
 

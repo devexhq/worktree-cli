@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from worktree.core.config.loader import load_config_result
 from worktree.core.db import BlueprintKind, RunsRepository, RunStatus
 from worktree.core.engine.services.reconcile import reconcile_stale_runs
 from worktree.core.history.models import (
@@ -30,14 +29,7 @@ class History:
         status: str | None = None,
         kind: str | None = None,
     ) -> HistoryListResult:
-        """Load configuration and retrieve filtered execution runs from database."""
-        load = load_config_result(path=self.path)
-        if not load.ok:
-            return HistoryListResult(
-                status=HistoryListStatus.NOT_INITIALIZED,
-                errors=list(load.errors),
-            )
-
+        """Retrieve filtered execution runs from database."""
         warnings: list[str] = []
         reconciliation_result = reconcile_stale_runs(self.db, path=self.path)
         if reconciliation_result.warning:
@@ -62,14 +54,6 @@ class History:
 
     def show(self, session_id: str) -> HistoryShowResult:
         """Look up execution session metadata and run details."""
-        load = load_config_result(path=self.path)
-        if not load.ok:
-            return HistoryShowResult(
-                status=HistoryShowStatus.NOT_INITIALIZED,
-                session_id=session_id,
-                errors=list(load.errors),
-            )
-
         row = self.db.get(session_id)
         if row is None:
             return HistoryShowResult(status=HistoryShowStatus.NOT_FOUND, session_id=session_id)
