@@ -13,7 +13,6 @@ class DiffStatus(StrEnum):
 
     OK = "ok"
     EMPTY_DIFF = "empty_diff"
-    NOT_INITIALIZED = "not_initialized"
     SESSION_NOT_FOUND = "session_not_found"
     DIFF_NOT_FOUND = "diff_not_found"
     READ_FAILURE = "read_failure"

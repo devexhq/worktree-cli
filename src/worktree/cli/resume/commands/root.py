@@ -21,4 +21,5 @@ def resume_command(
         output=context.output,
         session_id=session_id,
         non_interactive=non_interactive,
+        config=context.config,
     ).execute()
