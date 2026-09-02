@@ -95,23 +95,26 @@ class TestSandboxLifecycle:
         assert not (lifecycle.sandbox_base_dir / "sbx_b").exists()
         lifecycle.cleanup(first.session)
 
-    def test_not_initialized(self, fs: FileSystem) -> None:
+    def test_create_succeeds_with_defaults_when_uninitialized(self, fs: FileSystem) -> None:
         _init_git_repo(fs.base_path)
         db = WorktreeDb(path=fs.base_path)
         lifecycle = SandboxLifecycle(path=fs.base_path, db=db.sandboxes)
         result = lifecycle.create(session_id="sbx_x")
-        assert result.status == SandboxCreateStatus.NOT_INITIALIZED
-        assert "SANDBOX_NOT_INITIALIZED" in result.errors[0]
-        assert "wt init" in result.errors[0]
+        assert result.ok
+        assert result.status == SandboxCreateStatus.OK
+        assert result.session is not None
+        lifecycle.cleanup(result.session)
 
-    def test_unreadable_config(self, git_fs: GitFileSystem) -> None:
+    def test_create_falls_back_to_defaults_on_unreadable_config(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
         config_path = git_fs.base_path / ".worktree" / "config.json"
         config_path.write_text("{ not-json\n", encoding="utf-8")
         lifecycle = SandboxLifecycle(path=git_fs.base_path, db=self.db.sandboxes)
         result = lifecycle.create(session_id="sbx_badcfg")
-        assert result.status == SandboxCreateStatus.UNREADABLE_CONFIG
-        assert "SANDBOX_CONFIG_UNREADABLE" in result.errors[0]
+        assert result.ok
+        assert result.status == SandboxCreateStatus.OK
+        assert result.session is not None
+        lifecycle.cleanup(result.session)
 
     def test_git_failed_invalid_base_ref(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
@@ -147,13 +150,13 @@ class TestSandboxLifecycle:
         lifecycle.cleanup(res.session)
         lifecycle.cleanup(res.session)  # must not raise
 
-    def test_config_property_none_until_create_loads(self, git_fs: GitFileSystem) -> None:
+    def test_config_property(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
         lifecycle = SandboxLifecycle(path=git_fs.base_path, db=self.db.sandboxes)
-        assert lifecycle.config is None
+        assert lifecycle.config is not None
+        assert lifecycle.config.project.name == "repo"
         res = lifecycle.create(session_id="sbx_cfg")
         assert res.ok and res.session is not None
-        assert lifecycle.config is not None
         lifecycle.cleanup(res.session)
 
     def test_cleanup_missing_path_and_branch(self, git_fs: GitFileSystem) -> None:

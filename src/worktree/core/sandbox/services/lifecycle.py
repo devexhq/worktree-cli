@@ -8,8 +8,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from worktree.common.lock import WorkspaceLock
-from worktree.core.config.loader import ConfigLoadStatus, load_config
-from worktree.core.config.models import WorktreeConfig
+from worktree.core.config.loader import load_config
+from worktree.core.config.models import SandboxConfig, WorktreeConfig
 from worktree.core.db import SandboxesRepository, SandboxRecord, SandboxStatus
 from worktree.core.git.exceptions import (
     GitCommandError,
@@ -55,20 +55,25 @@ class SandboxLifecycle:
         """
         self.path = path.expanduser().resolve()
         self.db = db
-        self._config: WorktreeConfig | None = None
 
     @property
     def config(self) -> WorktreeConfig | None:
-        """Return the config last loaded by a successful create attempt."""
-        return self._config
+        """Return the loaded workspace config, if valid."""
+        load = load_config(path=self.path)
+        return load.config if (load.ok and load.config is not None) else None
 
     @property
     def sandbox_base_dir(self) -> Path:
         """Base storage directory for created sandboxes."""
-        cfg = self._config or load_config(path=self.path).config
-        if cfg is not None:
-            return self.path / cfg.paths.root_dir / "sandboxes"
+        load = load_config(path=self.path)
+        if load.ok and load.config is not None:
+            return self.path / load.config.paths.root_dir / "sandboxes"
         return self.path / ".worktree" / "sandboxes"
+
+    def _get_sandbox_config(self) -> SandboxConfig:
+        """Return active sandbox configuration or default values."""
+        cfg = self.config
+        return cfg.sandbox if cfg is not None else SandboxConfig()
 
     def _ensure_sandbox_dir(self) -> None:
         """Create the parent sandbox storage directory if missing."""
@@ -99,39 +104,9 @@ class SandboxLifecycle:
             # Best-effort cleanup: ignore errors during worktree prune.
             pass
 
-    def _load_config(self) -> tuple[SandboxCreateResult | None, WorktreeConfig | None]:
-        """Load and validate worktree configuration."""
-        load = load_config(path=self.path)
-        if load.status == ConfigLoadStatus.NOT_FOUND:
-            return (
-                SandboxCreateResult(
-                    status=SandboxCreateStatus.NOT_INITIALIZED,
-                    errors=[
-                        f"Worktree is not initialized; config missing at '{load.config_path}' (SANDBOX_NOT_INITIALIZED).\n"
-                        "Fix:\n- run `wt init` to create `.worktree/config.json`"
-                    ],
-                ),
-                None,
-            )
-        if not load.ok or load.config is None:
-            detail = load.errors[0] if load.errors else str(load.status)
-            return (
-                SandboxCreateResult(
-                    status=SandboxCreateStatus.UNREADABLE_CONFIG,
-                    errors=[
-                        f"Unable to load Worktree config for sandbox create (SANDBOX_CONFIG_UNREADABLE): {detail}\n"
-                        "Fix:\n- repair `.worktree/config.json` or run `wt init --repair`"
-                    ],
-                ),
-                None,
-            )
-        self._config = load.config
-        return None, load.config
-
-    def _check_capacity(self, config: WorktreeConfig) -> SandboxCreateResult | None:
+    def _check_capacity(self, max_allowed: int = 3) -> SandboxCreateResult | None:
         """Return an error result when active sandboxes reach configured capacity."""
         active = self.get_active()
-        max_allowed = config.sandbox.max_active_sandboxes
         if len(active) >= max_allowed:
             return SandboxCreateResult(
                 status=SandboxCreateStatus.CAPACITY_EXCEEDED,
@@ -143,14 +118,14 @@ class SandboxLifecycle:
             )
         return None
 
-    def _resolve_base_ref(self, override_base_ref: str | None, config: WorktreeConfig) -> str:
+    def _resolve_base_ref(self, override_base_ref: str | None, default_base_ref: str = "HEAD") -> str:
         """Return the git ref to branch the sandbox from."""
         if override_base_ref is not None:
             return override_base_ref
         source_branch = GitRunner.get_current_branch(self.path)
         if source_branch not in ("unknown", "HEAD (detached)"):
             return source_branch
-        return config.sandbox.base_ref
+        return default_base_ref
 
     def _create_worktree(
         self,
@@ -267,24 +242,17 @@ class SandboxLifecycle:
         with WorkspaceLock(self.path):
             resolved_name = _clean_opt_str(name)
             override_base_ref = _clean_opt_str(base_ref)
+            sandbox_cfg = self._get_sandbox_config()
 
-            config_err, config = self._load_config()
-            if config_err is not None or config is None:
-                return config_err or SandboxCreateResult(
-                    status=SandboxCreateStatus.NOT_INITIALIZED,
-                    errors=["Configuration not loaded"],
-                )
-
-            self._config = config
             self._ensure_sandbox_dir()
-            capacity_err = self._check_capacity(config)
+            capacity_err = self._check_capacity(sandbox_cfg.max_active_sandboxes)
             if capacity_err is not None:
                 return capacity_err
 
             sid = session_id or f"sbx_{uuid.uuid4().hex[:8]}"
             sandbox_path = (self.sandbox_base_dir / sid).resolve()
             temp_branch = f"worktree/sandbox-{sid}"
-            resolved_base = self._resolve_base_ref(override_base_ref, config)
+            resolved_base = self._resolve_base_ref(override_base_ref, sandbox_cfg.base_ref)
 
             worktree_err = self._create_worktree(sandbox_path, temp_branch, resolved_base)
             if worktree_err is not None:

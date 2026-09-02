@@ -27,7 +27,8 @@ class TestSandboxFacade:
         git_fs.init_repo()
         sandbox = Sandbox(path=git_fs.base_path, db=self.db.sandboxes)
 
-        assert sandbox.config is None
+        assert sandbox.config is not None
+        assert sandbox.config.project.name == "repo"
         assert sandbox.sandbox_base_dir == (git_fs.base_path / ".worktree" / "sandboxes").resolve()
         assert sandbox.get_active() == []
 
@@ -35,7 +36,6 @@ class TestSandboxFacade:
         assert create_res.ok
         assert create_res.status == SandboxCreateStatus.OK
         assert create_res.session is not None
-        assert sandbox.config is not None
         assert sandbox.get_active() == [create_res.session.sandbox_path]
 
         (create_res.session.sandbox_path / "hello.py").write_text("print(1)\n", encoding="utf-8")
