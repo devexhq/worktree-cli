@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from worktree.common.fs import get_worktree_dir
+from worktree.common.filesystem import Filesystem
 from worktree.core.bootstrap.models import BootstrapResult, WorkspaceInitResult
 from worktree.core.bootstrap.services.bootstrap import bootstrap_worktree
 from worktree.core.bootstrap.services.initialize import initialize_workspace
@@ -18,7 +18,7 @@ class Bootstrap:
 
     def bootstrap(self, *, tool_version: str | None = None) -> BootstrapResult:
         """Bootstrap the .worktree/ directory structure at self.path."""
-        worktree_dir = self.path if self.path.name == ".worktree" else get_worktree_dir(self.path)
+        worktree_dir = Filesystem(self.path).worktree_dir
         return bootstrap_worktree(worktree_dir, tool_version=tool_version)
 
     def initialize(

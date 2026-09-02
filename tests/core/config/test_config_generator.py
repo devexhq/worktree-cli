@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from tests.helpers import FileSystem
-from worktree.common.fs import atomic_write_json
+from worktree.common.filesystem import Filesystem
 from worktree.common.schema_validation import SchemaValidator
 from worktree.core.config.generator import (
     CANONICAL_V1_DEFAULTS,
@@ -65,7 +65,7 @@ class GenerateDefaultConfigTests:
         config_path = project_tmp / ".worktree" / "config.json"
         config_path.parent.mkdir(parents=True)
         original = build_default_config("first")
-        atomic_write_json(config_path, original)
+        Filesystem.atomic_write_json(config_path, original)
 
         result = generate_default_config(config_path, "second")
         assert result.ok
@@ -88,7 +88,7 @@ class GenerateDefaultConfigTests:
         config_path.parent.mkdir(parents=True)
         stale = build_default_config("old")
         stale["custom_key"] = True
-        atomic_write_json(config_path, stale)
+        Filesystem.atomic_write_json(config_path, stale)
 
         result = generate_default_config(config_path, "new", overwrite=True)
         assert result.ok
@@ -109,7 +109,7 @@ class GenerateDefaultConfigTests:
             "paths": CANONICAL_V1_DEFAULTS["paths"],
             "sandbox": {"base_ref": "refs/heads/keep", "max_active_sandboxes": 2},
         }
-        atomic_write_json(config_path, partial)
+        Filesystem.atomic_write_json(config_path, partial)
 
         result = generate_default_config(config_path, "ignored", repair=True)
         assert result.ok
@@ -160,7 +160,7 @@ class GenerateDefaultConfigTests:
     def test_overwrite_ignores_repair_with_warning(self, project_tmp: Path):
         config_path = project_tmp / ".worktree" / "config.json"
         config_path.parent.mkdir(parents=True)
-        atomic_write_json(config_path, build_default_config("old"))
+        Filesystem.atomic_write_json(config_path, build_default_config("old"))
 
         result = generate_default_config(config_path, "new", overwrite=True, repair=True)
         assert result.ok
@@ -184,7 +184,7 @@ class AtomicWriteJsonTests:
 
     def test_atomic_write_no_temp_file(self, project_tmp: Path):
         target = project_tmp / "config.json"
-        atomic_write_json(target, build_default_config("x"))
+        Filesystem.atomic_write_json(target, build_default_config("x"))
         assert target.is_file()
         assert not (project_tmp / "config.json.tmp").exists()
         assert target.read_text(encoding="utf-8").endswith("\n")

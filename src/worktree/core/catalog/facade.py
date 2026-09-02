@@ -7,7 +7,7 @@ from typing import Any, ClassVar
 
 import yaml
 
-from worktree.common.fs import atomic_write_text, read_yaml_file
+from worktree.common.filesystem import Filesystem
 from worktree.common.lock import WorkspaceLock
 from worktree.common.models import DefinitionResolutionResult
 from worktree.core.catalog.exceptions import (
@@ -183,7 +183,7 @@ class Catalog:
             if not text.endswith("\n"):
                 text += "\n"
             try:
-                atomic_write_text(target_path, text)
+                Filesystem.atomic_write_text(target_path, text)
             except OSError as exc:
                 raise CatalogWriteError(f"Failed to write catalog blueprint '{target_path}': {exc}") from exc
             scan_and_index_catalog(self.path, db=self.db)
@@ -215,7 +215,7 @@ class Catalog:
         """Load a YAML object from path or raise a classified catalog error."""
         if not path.exists():
             raise CatalogFileNotFoundError(f"Catalog file not found at '{path}'.")
-        yaml_file = read_yaml_file(path)
+        yaml_file = Filesystem.read_yaml_file(path)
         if yaml_file.error or yaml_file.parsed is None or not isinstance(yaml_file.parsed, dict):
             detail = yaml_file.error or "invalid or non-object YAML content."
             raise CatalogYamlError(f"Failed to load catalog blueprint '{path}': {detail}")
@@ -293,7 +293,7 @@ class Catalog:
     @staticmethod
     def _parse_catalog_yaml(file_path: Path, rel_path: Path) -> tuple[dict[str, Any] | None, list[str]]:
         """Read ``file_path`` as a YAML object, using ``rel_path`` in fallback errors."""
-        yaml_file = read_yaml_file(file_path)
+        yaml_file = Filesystem.read_yaml_file(file_path)
         if yaml_file.error or yaml_file.parsed is None or not isinstance(yaml_file.parsed, dict):
             error_message = (
                 yaml_file.error or f"Failed to load catalog blueprint '{rel_path}': invalid or non-object YAML content."

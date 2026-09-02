@@ -11,7 +11,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from worktree.common.fs import atomic_write_json
+from worktree.common.filesystem import Filesystem
 from worktree.common.schema_validation import CONFIG_VALIDATOR
 from worktree.core.config.loader import clear_config_cache
 
@@ -146,7 +146,7 @@ def _write_fresh_config(
         result.errors.extend([f"CONFIG_VALIDATION_FAILED: {e}" for e in validation.errors])
         return result
     try:
-        atomic_write_json(config_path, payload)
+        Filesystem.atomic_write_json(config_path, payload)
     except OSError as exc:
         result.errors.append(f"CONFIG_WRITE_FAILED at {config_path.as_posix()}: {exc}")
         return result
@@ -189,7 +189,7 @@ def _repair_existing_config(
         result.errors.extend([f"CONFIG_VALIDATION_FAILED: {e}" for e in validation.errors])
         return result
     try:
-        atomic_write_json(config_path, existing)
+        Filesystem.atomic_write_json(config_path, existing)
     except OSError as exc:
         result.errors.append(f"CONFIG_WRITE_FAILED at {config_path.as_posix()}: {exc}")
         return result

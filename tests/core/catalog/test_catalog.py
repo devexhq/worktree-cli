@@ -230,7 +230,9 @@ class CatalogFileOperationsTests:
 
     def test_save_os_error_raises_write_error(self, fs: FileSystem) -> None:
         catalog = Catalog(fs.base_path)
-        with patch("worktree.core.catalog.facade.atomic_write_text", side_effect=OSError("permission denied")):
+        with patch(
+            "worktree.core.catalog.facade.Filesystem.atomic_write_text", side_effect=OSError("permission denied")
+        ):
             with pytest.raises(CatalogWriteError, match="permission denied"):
                 catalog.save("lint", {"name": "lint"}, item_type=CatalogItemType.TASK)
 

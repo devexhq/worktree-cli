@@ -6,19 +6,11 @@ from pathlib import Path
 from typing import Any, Protocol, cast
 
 from worktree.common.exceptions import DefinitionLoadError, DefinitionValidationError
-from worktree.common.fs import (
-    atomic_write_text,
-    compute_content_checksum,
-    delete_file,
-    get_catalog_templates_dir,
-    read_yaml_file,
-    scan_yaml_directory,
-)
+from worktree.common.filesystem import Filesystem, YamlFile
 from worktree.common.lock import WorkspaceLock
 from worktree.common.models import (
     DefinitionResolutionResult,
     DefinitionResolutionStatus,
-    YamlFile,
 )
 from worktree.core.catalog.models import (
     CatalogScanResult,
@@ -42,8 +34,7 @@ class _PydanticModel(Protocol):
 
 def get_catalog_dir(path: Path) -> Path:
     """Return absolute path to local `.worktree/catalog/` blueprint directory."""
-    base_dir = path.resolve()
-    return base_dir / ".worktree" / "catalog"
+    return Filesystem(path).catalog_dir
 
 
 def ensure_catalog_dirs(path: Path) -> Path:
@@ -58,7 +49,7 @@ def ensure_catalog_dirs(path: Path) -> Path:
 def compute_catalog_sha(item_type: CatalogItemType | str, content: str) -> tuple[str, str]:
     """Compute SHA-256 checksum and formatted SHA string (e.g. `workflow_a1b2c3d`)."""
     type_str = item_type.value if isinstance(item_type, CatalogItemType) else str(item_type)
-    checksum = compute_content_checksum(content)
+    checksum = Filesystem.compute_checksum(content)
     sha = f"{type_str}_{checksum[:7]}"
     return sha, checksum
 
@@ -125,7 +116,7 @@ def _scan_catalog_subdirectories(
     for item_type, sub_dir in subdirs:
         if not sub_dir.exists():
             continue
-        for file_entry in scan_yaml_directory(sub_dir):
+        for file_entry in Filesystem.scan_yaml_directory(sub_dir):
             record, error = _index_scanned_entry(db, item_type, catalog_dir, file_entry)
             _append_scan_result(result, record=record, error=error)
 
@@ -164,7 +155,7 @@ def scan_and_index_catalog(
 
 
 def _get_initial_template_content(type_enum: CatalogItemType, stem: str) -> str:
-    template_path = get_catalog_templates_dir() / f"{type_enum.value}s" / "default.yml"
+    template_path = Filesystem().catalog_templates_dir / f"{type_enum.value}s" / "default.yml"
     try:
         content = template_path.read_text(encoding="utf-8")
         return content.replace("my-workflow", stem).replace("my-task", stem).replace("my-step", stem)
@@ -202,7 +193,7 @@ def create_catalog_item(
             raise FileExistsError(f"Catalog blueprint collision at path '{rel_path}'")
 
         content = _get_initial_template_content(type_enum, stem)
-        atomic_write_text(target_path, content)
+        Filesystem.atomic_write_text(target_path, content)
 
         sha, checksum = compute_catalog_sha(type_enum, content)
         rel_path = target_path.relative_to(catalog_dir)
@@ -236,7 +227,7 @@ def _find_catalog_matches(
 
 
 def _read_and_parse_yaml(file_path: Path, rel_path: Path) -> YamlParseOutcome:
-    yaml_file = read_yaml_file(file_path)
+    yaml_file = Filesystem.read_yaml_file(file_path)
     if yaml_file.error or yaml_file.parsed is None or not isinstance(yaml_file.parsed, dict):
         error_message = (
             yaml_file.error or f"Failed to load catalog blueprint '{rel_path}': invalid or non-object YAML content."
@@ -354,7 +345,7 @@ def delete_catalog_item_by_sha_or_name(
 
     catalog_dir = get_catalog_dir(path)
     file_path = catalog_dir / item.path
-    delete_file(file_path)
+    Filesystem().delete_file(file_path)
 
     database.delete(item.sha)
     return item
@@ -362,7 +353,7 @@ def delete_catalog_item_by_sha_or_name(
 
 def list_packaged_template_defaults() -> list[tuple[str, str]]:
     """Return (type, relative_path) pairs for the three packaged `default.yml` templates."""
-    root = get_catalog_templates_dir()
+    root = Filesystem().catalog_templates_dir
     rows: list[tuple[str, str]] = []
     for item_type in (CatalogItemType.WORKFLOW, CatalogItemType.TASK, CatalogItemType.STEP):
         rel_path = f"{item_type.value}s/default.yml"
@@ -373,7 +364,7 @@ def list_packaged_template_defaults() -> list[tuple[str, str]]:
 
 def find_packaged_templates(sha_or_name: str) -> list[tuple[str, str]]:
     """Return (relative_path, content) pairs for packaged templates matching `sha_or_name`."""
-    root = get_catalog_templates_dir()
+    root = Filesystem().catalog_templates_dir
     found: list[tuple[str, str]] = []
     for type_dir in ("workflows", "tasks", "steps"):
         candidate = (
