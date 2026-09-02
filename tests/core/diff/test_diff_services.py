@@ -12,7 +12,6 @@ from rich.console import Console
 
 from tests.helpers import FileSystem, make_rich_output
 from worktree.common.utils import RichOutput
-from worktree.core.config.models import ProjectConfig, WorktreeConfig
 from worktree.core.diff.models import DiffResult, DiffStatus
 from worktree.core.diff.renderers import (
     render_diff,
@@ -269,15 +268,15 @@ class DiffServiceTests:
         # No config and no sessions directory: SESSION_NOT_FOUND (not NOT_INITIALIZED)
         assert result.status == DiffStatus.SESSION_NOT_FOUND
 
-    def test_collect_uses_injected_config_sessions_dir(self, fs: FileSystem) -> None:
-        """Verify collect uses config.paths.sessions_dir from the injected WorktreeConfig."""
-        config = WorktreeConfig(version=1, project=ProjectConfig(name="test"))
-        patch_file = fs.base_path / config.paths.sessions_dir / "sbx_cfg" / "diff.patch"
+    def test_collect_uses_config_sessions_dir(self, fs: FileSystem) -> None:
+        """Verify collect uses config.paths.sessions_dir from loaded configuration."""
+        fs.create_config_file()
+        patch_file = fs.base_path / ".worktree" / "sessions" / "sbx_cfg" / "diff.patch"
         patch_file.parent.mkdir(parents=True, exist_ok=True)
         patch_file.write_text(_SAMPLE_DIFF, encoding="utf-8")
 
         output = RichOutput()
-        service = DiffService(path=fs.base_path, output=output, session_id="sbx_cfg", config=config)
+        service = DiffService(path=fs.base_path, output=output, session_id="sbx_cfg")
         result = service.collect()
         assert result.ok
         assert result.status == DiffStatus.OK

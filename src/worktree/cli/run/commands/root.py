@@ -34,5 +34,4 @@ def run_command(
         cli_args=cli_args,
         non_interactive=non_interactive,
         auto_apply=auto_apply,
-        config=context.config,
     ).execute()

@@ -29,9 +29,9 @@ class Config:
 
     def load(self, *, config_path: Path | None = None) -> ConfigLoadResult:
         """Load and parse ``config.json`` returning a structured result."""
-        from worktree.core.config.loader import load_config_result
+        from worktree.core.config.loader import load_config
 
-        return load_config_result(path=self.path, config_path=config_path)
+        return load_config(path=self.path, config_path=config_path)
 
     def validate(self, *, config_path: Path | None = None) -> ConfigValidationResult:
         """Validate ``config.json`` against schema constraints and return structured report."""

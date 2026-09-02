@@ -226,7 +226,7 @@ def make_run(
     checkpoint_json: str | None = None,
 ) -> RunRecord:
     """Helper to insert a run row directly into RunsRepository with test defaults."""
-    config_file = db.path / ".worktree" / "config.json"
+    config_file = Path(str(db.path)) / ".worktree" / "config.json"
     if not config_file.exists():
         config_file.parent.mkdir(parents=True, exist_ok=True)
         generate_default_config(config_file, project_name="test")
@@ -267,7 +267,7 @@ def seed_sandbox(
 ) -> SandboxRecord:
     """Helper to create a sandbox record in SandboxesRepository for tests."""
     suffix = path_suffix if path_suffix is not None else sandbox_id
-    sandbox_path = db.path / ".worktree" / "sandboxes" / suffix
+    sandbox_path = Path(str(db.path)) / ".worktree" / "sandboxes" / suffix
     if create_dir:
         sandbox_path.mkdir(parents=True, exist_ok=True)
     return db.create(

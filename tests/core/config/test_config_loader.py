@@ -16,9 +16,8 @@ from worktree.core.config.generator import (
 )
 from worktree.core.config.loader import (
     ConfigLoadStatus,
+    clear_config_cache,
     load_config,
-    load_config_result,
-    load_raw_config,
     parse_and_validate_config,
     resolve_config_path,
 )
@@ -45,6 +44,11 @@ class ResolveConfigPathTests:
         explicit = fs.base_path / "custom" / "cfg.json"
         resolved = resolve_config_path(path=fs.base_path, config_path=explicit)
         assert resolved == explicit.resolve()
+
+    def test_omitted_path_does_not_raise(self) -> None:
+        resolved = resolve_config_path()
+        assert resolved.is_absolute()
+        assert resolved.name == "config.json"
 
 
 class ParseAndValidateConfigTests:
@@ -74,15 +78,15 @@ class ParseAndValidateConfigTests:
             parse_and_validate_config({"version": 1})
 
 
-class LoadConfigResultTests:
-    """Tests for load_config_result status classification."""
+class LoadConfigTests:
+    """Tests for load_config status classification and caching."""
 
     def test_ok_after_init(self, fs: FileSystem) -> None:
         config_path = fs.base_path / ".worktree" / "config.json"
         config_path.parent.mkdir(parents=True)
         result_gen = generate_default_config(config_path, "demo")
         assert result_gen.ok
-        result = load_config_result(path=fs.base_path)
+        result = load_config(path=fs.base_path)
         assert result.status == ConfigLoadStatus.OK
         assert result.ok
         assert result.config_path == config_path.resolve()
@@ -95,7 +99,7 @@ class LoadConfigResultTests:
         assert on_disk == result.raw
 
     def test_not_found(self, fs: FileSystem) -> None:
-        result = load_config_result(path=fs.base_path)
+        result = load_config(path=fs.base_path)
         assert result.status == ConfigLoadStatus.NOT_FOUND
         assert not result.ok
         assert result.config is None
@@ -104,26 +108,31 @@ class LoadConfigResultTests:
         assert str(result.config_path) in joined
         assert "CONFIG_NOT_FOUND" in joined
 
+    def test_zero_arguments_does_not_raise(self) -> None:
+        result = load_config()
+        assert result.status in (ConfigLoadStatus.OK, ConfigLoadStatus.NOT_FOUND)
+        assert result.config_path.name == "config.json"
+
     def test_not_found_missing_parent(self, fs: FileSystem) -> None:
-        result = load_config_result(path=fs.base_path)
+        result = load_config(path=fs.base_path)
         assert result.status == ConfigLoadStatus.NOT_FOUND
 
     def test_malformed_json(self, fs: FileSystem) -> None:
         path = _write_config(fs.base_path / ".worktree" / "config.json", "{not-json")
-        result = load_config_result(path=fs.base_path)
+        result = load_config(path=fs.base_path)
         assert result.status == ConfigLoadStatus.MALFORMED_JSON
         assert any("Malformed" in e for e in result.errors)
         assert any(str(path.resolve()) in e for e in result.errors)
 
     def test_root_not_object(self, fs: FileSystem) -> None:
         _write_config(fs.base_path / ".worktree" / "config.json", [])
-        result = load_config_result(path=fs.base_path)
+        result = load_config(path=fs.base_path)
         assert result.status == ConfigLoadStatus.ROOT_NOT_OBJECT
         assert any("CONFIG_ROOT_NOT_OBJECT" in e for e in result.errors)
 
     def test_schema_invalid_missing_keys(self, fs: FileSystem) -> None:
         _write_config(fs.base_path / ".worktree" / "config.json", {"version": 1})
-        result = load_config_result(path=fs.base_path)
+        result = load_config(path=fs.base_path)
         assert result.status == ConfigLoadStatus.SCHEMA_INVALID
         assert result.raw == {"version": 1}
         assert result.config is None
@@ -134,20 +143,20 @@ class LoadConfigResultTests:
         raw = build_default_config("demo")
         raw["sandbox"]["max_active_sandboxes"] = "five"
         _write_config(fs.base_path / ".worktree" / "config.json", raw)
-        result = load_config_result(path=fs.base_path)
+        result = load_config(path=fs.base_path)
         assert result.status == ConfigLoadStatus.SCHEMA_INVALID
 
     def test_schema_invalid_wrong_version(self, fs: FileSystem) -> None:
         raw = build_default_config("demo")
         raw["version"] = 2
         _write_config(fs.base_path / ".worktree" / "config.json", raw)
-        result = load_config_result(path=fs.base_path)
+        result = load_config(path=fs.base_path)
         assert result.status == ConfigLoadStatus.SCHEMA_INVALID
 
     def test_path_is_directory(self, fs: FileSystem) -> None:
         path = fs.base_path / ".worktree" / "config.json"
         path.mkdir(parents=True)
-        result = load_config_result(path=fs.base_path)
+        result = load_config(path=fs.base_path)
         assert result.status == ConfigLoadStatus.PATH_IS_DIRECTORY
         assert any("CONFIG_PATH_IS_DIRECTORY" in e for e in result.errors)
 
@@ -158,7 +167,7 @@ class LoadConfigResultTests:
         )
         path.chmod(0)
         try:
-            result = load_config_result(path=fs.base_path)
+            result = load_config(path=fs.base_path)
             # Some environments (e.g. root) may still read the file.
             if os.access(path, os.R_OK):
                 pytest.skip("filesystem still allows reading unreadable mode")
@@ -171,35 +180,44 @@ class LoadConfigResultTests:
         alt = fs.base_path / "elsewhere" / "config.json"
         alt.parent.mkdir(parents=True)
         assert generate_default_config(alt, "alt-demo").ok
-        result = load_config_result(path=fs.base_path, config_path=alt)
+        result = load_config(path=fs.base_path, config_path=alt)
         assert result.ok
         assert result.config is not None
         assert result.config.project.name == "alt-demo"
         assert result.config_path == alt.resolve()
 
-
-class LoadConfigRaisingHelpersTests:
-    """Tests for raising wrappers over load_config_result."""
-
-    def test_load_config_ok(self, fs: FileSystem) -> None:
+    def test_cache_hit_on_unmodified_file(self, fs: FileSystem) -> None:
         config_path = fs.base_path / ".worktree" / "config.json"
         config_path.parent.mkdir(parents=True)
-        assert generate_default_config(config_path, "demo").ok
-        config = load_config(path=fs.base_path)
-        assert config.project.name == "demo"
+        assert generate_default_config(config_path, "cache-demo").ok
+        res1 = load_config(path=fs.base_path)
+        res2 = load_config(path=fs.base_path)
+        assert res1 is res2
 
-    def test_load_config_missing_raises(self, fs: FileSystem) -> None:
-        with pytest.raises(FileNotFoundError, match="wt init"):
-            load_config(path=fs.base_path)
+    def test_cache_invalidated_on_file_edit(self, fs: FileSystem) -> None:
+        config_path = fs.base_path / ".worktree" / "config.json"
+        config_path.parent.mkdir(parents=True)
+        assert generate_default_config(config_path, "cache-demo").ok
+        res1 = load_config(path=fs.base_path)
+        assert res1.config is not None
+        assert res1.config.project.name == "cache-demo"
 
-    def test_load_raw_config_object_required(self, fs: FileSystem) -> None:
-        path = fs.base_path / "config.json"
-        path.write_text("[]\n", encoding="utf-8")
-        with pytest.raises(ValueError, match="object"):
-            load_raw_config(path)
+        # Modify file on disk with a new project name and new timestamp
+        raw = build_default_config("modified-demo")
+        _write_config(config_path, raw)
 
-    def test_load_raw_config_malformed_raises(self, fs: FileSystem) -> None:
-        path = fs.base_path / "config.json"
-        path.write_text("{bad", encoding="utf-8")
-        with pytest.raises(ValueError, match="Malformed"):
-            load_raw_config(path)
+        res2 = load_config(path=fs.base_path)
+        assert res2.config is not None
+        assert res2.config.project.name == "modified-demo"
+        assert res2 is not res1
+
+    def test_clear_config_cache(self, fs: FileSystem) -> None:
+        config_path = fs.base_path / ".worktree" / "config.json"
+        config_path.parent.mkdir(parents=True)
+        assert generate_default_config(config_path, "cache-demo").ok
+        res1 = load_config(path=fs.base_path)
+        clear_config_cache(fs.base_path)
+        res2 = load_config(path=fs.base_path)
+        assert res1 is not res2
+        assert res2.config is not None
+        assert res2.config.project.name == "cache-demo"

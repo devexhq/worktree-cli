@@ -12,7 +12,11 @@ from pydantic import BaseModel, Field
 
 from worktree.common.fs import atomic_write_json
 from worktree.common.schema_validation import CONFIG_VALIDATOR
-from worktree.core.config.loader import _map_worktree_config, resolve_config_path
+from worktree.core.config.loader import (
+    _map_worktree_config,
+    clear_config_cache,
+    resolve_config_path,
+)
 
 
 class ConfigSetStatus(StrEnum):
@@ -266,6 +270,7 @@ def set_config_value_result(
             ],
         )
 
+    clear_config_cache(resolved_path)
     return ConfigSetResult(
         status=ConfigSetStatus.OK,
         config_path=resolved_path,

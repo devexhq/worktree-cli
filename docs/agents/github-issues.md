@@ -285,9 +285,9 @@ Example shape:
 ```markdown
 ## Definition of done
 
-- After `wt init`, `load_config_result` succeeds on the generated file
+- After `wt init`, `load_config` succeeds on the generated file
 - Tests cover every `ConfigLoadStatus` value
-- In-tree callers use `load_config_result`; old dual load paths are removed
+- In-tree callers use `load_config`; old dual load paths are removed
 - `docs/agents/schemas-and-config.md` documents the load API and error codes
 - No `wt config` CLI subcommand is added in this change
 ```

@@ -34,5 +34,4 @@ def diff_command(
         raw=raw,
         full=full,
         max_lines=max_lines,
-        config=context.config,
     ).execute()

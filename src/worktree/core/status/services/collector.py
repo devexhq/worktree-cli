@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from worktree.common.fs import find_worktree_root, scan_yaml_directory
-from worktree.core.config.loader import ConfigLoadStatus, load_config_result
+from worktree.core.config.loader import ConfigLoadStatus, load_config
 from worktree.core.db import (
     RunsRepository,
     SandboxesRepository,
@@ -64,7 +64,7 @@ def _collect_git_status(root_dir: Path) -> GitStatusInfo:
 
 def _collect_config_status(root_dir: Path) -> ConfigStatusInfo:
     """Collect configuration file status without mutations."""
-    result = load_config_result(path=root_dir)
+    result = load_config(path=root_dir)
     return ConfigStatusInfo(
         status=result.status,
         config_path=result.config_path,

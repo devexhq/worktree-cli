@@ -8,6 +8,15 @@ from pathlib import Path
 import pytest
 
 from tests.helpers import FileSystem, GitFileSystem
+from worktree.core.config.loader import clear_config_cache
+
+
+@pytest.fixture(autouse=True)
+def _reset_config_cache() -> None:
+    """Reset the in-memory config cache between tests."""
+    clear_config_cache()
+    yield
+    clear_config_cache()
 
 
 @pytest.fixture(autouse=True, scope="session")

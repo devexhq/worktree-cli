@@ -98,7 +98,7 @@ def _setup_resumed_sandbox(
         return context.cwd.resolve(), None, None, f"Git sandbox is missing: {path}"
 
     session = _session_from_checkpoint(checkpoint, path)
-    manager = Sandbox(context.cwd.resolve(), db=SandboxesRepository(context.cwd.resolve()), config=context.config)
+    manager = Sandbox(context.cwd.resolve(), db=SandboxesRepository(context.cwd.resolve()))
     _notify_sandbox_ready(context, path, active=True)
     return path, manager, session, None
 
@@ -120,7 +120,7 @@ def _setup_sandbox(
         _notify_sandbox_ready(context, target_dir, active=False)
         return target_dir, None, None, None
 
-    manager = Sandbox(context.cwd.resolve(), db=SandboxesRepository(context.cwd.resolve()), config=context.config)
+    manager = Sandbox(context.cwd.resolve(), db=SandboxesRepository(context.cwd.resolve()))
     session_id = None
     if context.identity is not None:
         session_id = context.identity.task_sha or context.identity.workflow_sha

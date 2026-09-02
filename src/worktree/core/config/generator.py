@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from worktree.common.fs import atomic_write_json
 from worktree.common.schema_validation import CONFIG_VALIDATOR
+from worktree.core.config.loader import clear_config_cache
 
 CANONICAL_V1_DEFAULTS: dict[str, Any] = {
     "version": 1,
@@ -149,6 +150,7 @@ def _write_fresh_config(
     except OSError as exc:
         result.errors.append(f"CONFIG_WRITE_FAILED at {config_path.as_posix()}: {exc}")
         return result
+    clear_config_cache(config_path)
     if existed_before and overwrite:
         result.overwritten = True
     else:
@@ -192,6 +194,7 @@ def _repair_existing_config(
         result.errors.append(f"CONFIG_WRITE_FAILED at {config_path.as_posix()}: {exc}")
         return result
 
+    clear_config_cache(config_path)
     result.repaired = True
     result.inserted_keys = inserted
     return result

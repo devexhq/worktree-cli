@@ -18,7 +18,7 @@ from worktree.core.config.generator import (
 )
 from worktree.core.config.loader import (
     ConfigLoadStatus,
-    load_config_result,
+    load_config,
     parse_and_validate_config,
 )
 from worktree.core.config.models import WorktreeConfig
@@ -216,7 +216,7 @@ class ConfigV1LoaderCompatibilityTests:
         config_path = fs.base_path / ".worktree" / "config.json"
         config_path.parent.mkdir(parents=True)
         assert generate_default_config(config_path, "demo").ok
-        result = load_config_result(path=fs.base_path)
+        result = load_config(path=fs.base_path)
         assert result.status == ConfigLoadStatus.OK
         assert result.config is not None
 
@@ -229,7 +229,7 @@ class ConfigV1LoaderCompatibilityTests:
             json.dumps(data, indent=2) + "\n",
             encoding="utf-8",
         )
-        result = load_config_result(path=fs.base_path)
+        result = load_config(path=fs.base_path)
         assert result.status == ConfigLoadStatus.SCHEMA_INVALID
         joined = "\n".join(result.errors)
         assert "CONFIG_SCHEMA_INVALID" in joined

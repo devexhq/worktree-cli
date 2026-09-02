@@ -21,7 +21,7 @@ def sandbox_create_command(
         wip: When True, overlay uncommitted working-tree changes.
         output_format: Presentation format ("terminal" or "json").
     """
-    result = Sandbox(path=context.cwd, db=context.db.sandboxes, config=context.config).create(
+    result = Sandbox(path=context.cwd, db=context.db.sandboxes).create(
         name=name,
         base_ref=base_ref,
         include_wip=wip,
