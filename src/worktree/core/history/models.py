@@ -23,6 +23,7 @@ class HistoryListResult(BaseModel):
 
     status: HistoryListStatus
     runs: list[RunRecord] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
 
     @property
@@ -45,6 +46,7 @@ class HistoryShowResult(BaseModel):
     model_config = {"extra": "forbid", "strict": True}
 
     status: HistoryShowStatus
+    session_id: str | None = None
     run: RunRecord | None = None
     errors: list[str] = Field(default_factory=list)
 

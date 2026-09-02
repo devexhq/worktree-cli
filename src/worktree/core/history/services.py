@@ -44,8 +44,10 @@ class HistoryListService:
                 errors=list(load.errors),
             )
 
+        warnings: list[str] = []
         reconciliation_result = reconcile_stale_runs(self.db, path=self.path)
         if reconciliation_result.warning:
+            warnings.append(reconciliation_result.warning)
             self.output.add_warning(reconciliation_result.warning)
 
         status_filter: RunStatus | str | None = None
@@ -63,7 +65,7 @@ class HistoryListService:
                 kind_filter = self.kind
 
         runs = self.db.list(limit=self.limit, status=status_filter, kind=kind_filter)
-        return HistoryListResult(status=HistoryListStatus.OK, runs=runs)
+        return HistoryListResult(status=HistoryListStatus.OK, runs=runs, warnings=warnings)
 
     def execute(self) -> HistoryListResult:
         """Execute history list query and render results to console."""
@@ -91,15 +93,16 @@ class HistoryShowService:
         if not load.ok:
             return HistoryShowResult(
                 status=HistoryShowStatus.NOT_INITIALIZED,
+                session_id=self.session_id,
                 errors=list(load.errors),
             )
 
         row = self.db.get(self.session_id)
 
         if row is None:
-            return HistoryShowResult(status=HistoryShowStatus.NOT_FOUND)
+            return HistoryShowResult(status=HistoryShowStatus.NOT_FOUND, session_id=self.session_id)
 
-        return HistoryShowResult(status=HistoryShowStatus.OK, run=row)
+        return HistoryShowResult(status=HistoryShowStatus.OK, session_id=self.session_id, run=row)
 
     def execute(self) -> HistoryShowResult:
         """Execute session show query and render results to console."""

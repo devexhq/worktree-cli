@@ -6,6 +6,7 @@ The `wt history` command inspects past blueprint executions (tasks and workflows
 
 ```bash
 wt history [OPTIONS]
+wt history list [OPTIONS]
 ```
 
 ### Options
@@ -15,15 +16,25 @@ wt history [OPTIONS]
 | `--limit, -l <int>` | Maximum number of history records to display (default: 20). |
 | `--status, -s <status>` | Filter runs by lifecycle status (`running`, `completed`, `failed`, `cancelled`, `paused`). |
 | `--kind, -k <kind>` | Filter runs by blueprint kind (`task`, `workflow`). |
+| `--format [terminal\|json]` | Presentation format (`terminal` or `json`). |
 
 ## Subcommands
+
+### `wt history` / `wt history list` (Default)
+
+Lists execution history runs recorded in `.worktree/data.db`. Executing `wt history` without subcommands defaults to listing runs.
+
+```bash
+wt history [OPTIONS]
+wt history list [OPTIONS]
+```
 
 ### `wt history show`
 
 Show granular metadata, error details, and checkpoint contents for a specific execution session.
 
 ```bash
-wt history show <session_id>
+wt history show <session_id> [OPTIONS]
 ```
 
 #### Arguments
@@ -31,6 +42,12 @@ wt history show <session_id>
 | Argument | Description |
 | --- | --- |
 | `session_id` | Required session identifier to inspect. |
+
+#### Options
+
+| Flag | Description |
+| --- | --- |
+| `--format [terminal\|json]` | Presentation format (`terminal` or `json`). |
 
 ## Examples
 
@@ -52,8 +69,20 @@ List workflow executions only:
 wt history --kind workflow
 ```
 
+Output history list as structured NDJSON envelopes:
+
+```bash
+wt history list --format json
+```
+
 Inspect details for a specific session:
 
 ```bash
 wt history show task_a1b2c3d4
+```
+
+Inspect session details in JSON format:
+
+```bash
+wt history show task_a1b2c3d4 --format json
 ```
