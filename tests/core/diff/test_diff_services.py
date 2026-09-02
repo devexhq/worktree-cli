@@ -12,6 +12,7 @@ from rich.console import Console
 
 from tests.helpers import FileSystem, make_rich_output
 from worktree.common.utils import RichOutput
+from worktree.core.config import ConfigLoadError
 from worktree.core.diff.models import DiffResult, DiffStatus
 from worktree.core.diff.renderers import (
     render_diff,
@@ -259,14 +260,12 @@ class DiffRenderersTests:
 class DiffServiceTests:
     """Unit tests for DiffService data collection and execution."""
 
-    def test_collect_no_config_falls_back_to_default_path(self, fs: FileSystem) -> None:
-        """Verify collect without config uses .worktree/sessions as the default sessions path."""
+    def test_collect_no_config_raises_on_missing_config(self, fs: FileSystem) -> None:
+        """Verify collect without config raises ConfigLoadError."""
         output = RichOutput()
         service = DiffService(path=fs.base_path, output=output)
-        result = service.collect()
-        assert not result.ok
-        # No config and no sessions directory: SESSION_NOT_FOUND (not NOT_INITIALIZED)
-        assert result.status == DiffStatus.SESSION_NOT_FOUND
+        with pytest.raises(ConfigLoadError):
+            service.collect()
 
     def test_collect_uses_config_sessions_dir(self, fs: FileSystem) -> None:
         """Verify collect uses config.paths.sessions_dir from loaded configuration."""

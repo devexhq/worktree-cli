@@ -14,6 +14,7 @@ class EngineExecutionMetadataTests:
     """Tests verifying WT_TASK_* and WT_WORKFLOW_* env variables populated by Engine."""
 
     def test_engine_run_task_populates_task_metadata(self, fs: FileSystem) -> None:
+        fs.create_config_file()
         step = StepDefinition(
             id="task_step",
             type=StepType.COMMAND,
@@ -41,6 +42,7 @@ class EngineExecutionMetadataTests:
         assert "FLOW=" in output
 
     def test_engine_run_workflow_populates_workflow_metadata(self, fs: FileSystem) -> None:
+        fs.create_config_file()
         step = StepDefinition(
             id="flow_step",
             type=StepType.COMMAND,

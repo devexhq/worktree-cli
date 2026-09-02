@@ -252,5 +252,5 @@ class DiffCliIntegrationTests:
 
         result = runner.invoke(app, ["diff"])
         assert result.exit_code == 1
-        # Error comes from CliContext.build() via ConfigLoadFormatter, not DiffService
-        assert "Worktree workspace is not initialized" in result.output or "not initialized" in result.output.lower()
+        assert "Config Error" in result.output
+        assert "CONFIG_NOT_FOUND" in result.output

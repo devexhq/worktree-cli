@@ -11,6 +11,7 @@ from unittest.mock import patch
 import pytest
 
 from tests.helpers import FileSystem, GitFileSystem
+from worktree.core.config import ConfigLoadError
 from worktree.core.db import SandboxStatus, WorktreeDb
 from worktree.core.git.exceptions import GitPlumbingTimeoutError
 from worktree.core.sandbox import (
@@ -95,26 +96,20 @@ class TestSandboxLifecycle:
         assert not (lifecycle.sandbox_base_dir / "sbx_b").exists()
         lifecycle.cleanup(first.session)
 
-    def test_create_succeeds_with_defaults_when_uninitialized(self, fs: FileSystem) -> None:
+    def test_create_raises_when_uninitialized(self, fs: FileSystem) -> None:
         _init_git_repo(fs.base_path)
         db = WorktreeDb(path=fs.base_path)
         lifecycle = SandboxLifecycle(path=fs.base_path, db=db.sandboxes)
-        result = lifecycle.create(session_id="sbx_x")
-        assert result.ok
-        assert result.status == SandboxCreateStatus.OK
-        assert result.session is not None
-        lifecycle.cleanup(result.session)
+        with pytest.raises(ConfigLoadError):
+            lifecycle.create(session_id="sbx_x")
 
-    def test_create_falls_back_to_defaults_on_unreadable_config(self, git_fs: GitFileSystem) -> None:
+    def test_create_raises_on_unreadable_config(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
         config_path = git_fs.base_path / ".worktree" / "config.json"
         config_path.write_text("{ not-json\n", encoding="utf-8")
         lifecycle = SandboxLifecycle(path=git_fs.base_path, db=self.db.sandboxes)
-        result = lifecycle.create(session_id="sbx_badcfg")
-        assert result.ok
-        assert result.status == SandboxCreateStatus.OK
-        assert result.session is not None
-        lifecycle.cleanup(result.session)
+        with pytest.raises(ConfigLoadError):
+            lifecycle.create(session_id="sbx_badcfg")
 
     def test_git_failed_invalid_base_ref(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()

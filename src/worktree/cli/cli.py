@@ -22,6 +22,7 @@ from worktree.cli.status.app import status_app
 from worktree.common.lock import LockTimeoutError
 from worktree.common.utils import RichOutput
 from worktree.common.version import get_version
+from worktree.core.config import ConfigLoadError
 
 # Initialize a central styling console for high-utility layout parsing
 console = Console()
@@ -112,11 +113,13 @@ def main(
     # 2. Edge validation & exclusion list
     excluded_commands = {"config", "init", "install", "status"}
     if ctx.invoked_subcommand not in excluded_commands and not ctx.obj.get("is_help", False):
-        context = CliContext.build()
-        if context is None:
-            # Output already handled in CliContext.build
-            raise typer.Exit(code=1)
-        ctx.obj["context"] = context
+        try:
+            ctx.obj["context"] = CliContext.build()
+        except ConfigLoadError as exc:
+            output = RichOutput()
+            output.add_error_panel("Config Error", str(exc))
+            output.print()
+            raise typer.Exit(code=1) from exc
 
 
 def run_cli() -> None:
@@ -129,6 +132,11 @@ def run_cli() -> None:
     except LockTimeoutError as exc:
         output = RichOutput()
         output.add_error_panel("Workspace Lock Timeout", str(exc))
+        output.print()
+        sys.exit(1)
+    except ConfigLoadError as exc:
+        output = RichOutput()
+        output.add_error_panel("Config Error", str(exc))
         output.print()
         sys.exit(1)
     except Exception as exc:

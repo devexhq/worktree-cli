@@ -14,9 +14,8 @@ from worktree.common.fs import (
 from worktree.core.bootstrap.models import WorkspaceInitResult
 from worktree.core.bootstrap.services.bootstrap import bootstrap_worktree
 from worktree.core.catalog.services.seeder import seed_all_catalog_templates
+from worktree.core.config import Config
 from worktree.core.config.generator import generate_default_config
-from worktree.core.config.loader import load_config
-from worktree.core.config.models import PathsConfig
 from worktree.core.db import init_database
 
 
@@ -62,11 +61,8 @@ def initialize_workspace(
             errors=list(config_result.errors),
         )
 
-    db_rel = PathsConfig().db_path
-    loaded = load_config(path=root)
-    if loaded.ok and loaded.config is not None:
-        db_rel = loaded.config.paths.db_path
-    init_database(path=root, db_rel_path=db_rel)
+    config = Config(root)
+    init_database(path=root, db_rel_path=config.paths.db_path)
 
     seed_result = seed_all_catalog_templates(path=root)
     return WorkspaceInitResult(

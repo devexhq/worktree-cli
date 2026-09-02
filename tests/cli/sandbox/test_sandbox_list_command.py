@@ -315,4 +315,4 @@ class SandboxListCliTests:
         monkeypatch.chdir(git_fs.base_path)
         result = runner.invoke(app, ["sandbox", "list"])
         assert result.exit_code == 1
-        assert "Worktree workspace is not initialized." in result.stdout
+        assert "CONFIG_NOT_FOUND" in result.stdout or "Config Error" in result.stdout

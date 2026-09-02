@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from worktree.common.lock import WorkspaceLock
-from worktree.core.config.loader import load_config
+from worktree.core.config import Config
 from worktree.core.config.models import SandboxConfig, WorktreeConfig
 from worktree.core.db import SandboxesRepository, SandboxRecord, SandboxStatus
 from worktree.core.git.exceptions import (
@@ -57,23 +57,18 @@ class SandboxLifecycle:
         self.db = db
 
     @property
-    def config(self) -> WorktreeConfig | None:
-        """Return the loaded workspace config, if valid."""
-        load = load_config(path=self.path)
-        return load.config if (load.ok and load.config is not None) else None
+    def config(self) -> WorktreeConfig:
+        """Return the loaded workspace config."""
+        return Config(self.path)._loaded_config
 
     @property
     def sandbox_base_dir(self) -> Path:
         """Base storage directory for created sandboxes."""
-        load = load_config(path=self.path)
-        if load.ok and load.config is not None:
-            return self.path / load.config.paths.root_dir / "sandboxes"
-        return self.path / ".worktree" / "sandboxes"
+        return self.path / Config(self.path).paths.root_dir / "sandboxes"
 
     def _get_sandbox_config(self) -> SandboxConfig:
-        """Return active sandbox configuration or default values."""
-        cfg = self.config
-        return cfg.sandbox if cfg is not None else SandboxConfig()
+        """Return active sandbox configuration."""
+        return Config(self.path).sandbox
 
     def _ensure_sandbox_dir(self) -> None:
         """Create the parent sandbox storage directory if missing."""

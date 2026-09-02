@@ -8,6 +8,7 @@ from typer.testing import CliRunner
 from tests.helpers import FileSystem, GitFileSystem
 from worktree.cli.cli import app
 from worktree.cli.context import CliContext
+from worktree.core.config import ConfigLoadError
 
 runner = CliRunner()
 
@@ -104,7 +105,7 @@ class SubdirectoryDiscoveryTests:
         assert result.exit_code == 0
         assert "Uninitialized" in result.stdout or "not initialized" in result.stdout.lower()
 
-    def test_cli_context_build_non_git_uninitialized_returns_none(
+    def test_cli_context_build_non_git_uninitialized_raises_config_load_error(
         self,
         fs: FileSystem,
         monkeypatch: pytest.MonkeyPatch,
@@ -113,5 +114,5 @@ class SubdirectoryDiscoveryTests:
         sub.mkdir(parents=True)
         monkeypatch.chdir(sub)
 
-        context = CliContext.build()
-        assert context is None
+        with pytest.raises(ConfigLoadError):
+            CliContext.build()

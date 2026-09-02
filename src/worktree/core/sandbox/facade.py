@@ -45,8 +45,8 @@ class Sandbox:
         self.patch = SandboxPatch(self.path, self.db, lifecycle=self.lifecycle)
 
     @property
-    def config(self) -> WorktreeConfig | None:
-        """Return the config last loaded by a successful create attempt."""
+    def config(self) -> WorktreeConfig:
+        """Return the loaded workspace config."""
         return self.lifecycle.config
 
     @property

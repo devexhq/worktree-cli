@@ -65,6 +65,7 @@ class BlueprintResumeServiceTests:
 
     @pytest.fixture(autouse=True)
     def setup_method(self, fs: FileSystem) -> None:
+        fs.create_config_file()
         self.db = WorktreeDb(path=fs.base_path)
 
     def test_blueprint_resume_service_resumes_task(
@@ -463,6 +464,7 @@ class ResumeCommandDirectTests:
         mock_interactive_prompter: None,
     ) -> None:
         """Verify resume_command resumes a paused session via context."""
+        fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
         fs.create_task_file(
             "direct-res-task",
