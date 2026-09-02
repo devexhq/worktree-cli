@@ -8,17 +8,6 @@ from worktree.core.history import History, HistoryListStatus, HistoryShowStatus
 
 
 def test_history_facade_list_and_show(git_fs: GitFileSystem):
-    # Before init
-    uninit_history = History(git_fs.base_path)
-    uninit_list = uninit_history.list()
-    assert not uninit_list.ok
-    assert uninit_list.status == HistoryListStatus.NOT_INITIALIZED
-
-    uninit_show = uninit_history.show("sess-1")
-    assert not uninit_show.ok
-    assert uninit_show.status == HistoryShowStatus.NOT_INITIALIZED
-
-    # After init
     git_fs.init_repo()
     db = RunsRepository(git_fs.base_path)
     history = History(git_fs.base_path, db=db)

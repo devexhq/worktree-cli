@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from worktree.common.utils import RichOutput
-from worktree.core.config.loader import load_config_result
 from worktree.core.db import BlueprintKind, RunsRepository, RunStatus
 from worktree.core.engine.services.reconcile import reconcile_stale_runs
 
@@ -20,7 +19,6 @@ from .renderers import (
     render_history_list,
     render_history_not_found,
     render_history_show,
-    render_not_initialized,
 )
 
 
@@ -36,14 +34,7 @@ class HistoryListService:
     kind: str | None = None
 
     def collect(self) -> HistoryListResult:
-        """Load configuration and retrieve filtered execution runs from database."""
-        load = load_config_result(path=self.path)
-        if not load.ok:
-            return HistoryListResult(
-                status=HistoryListStatus.NOT_INITIALIZED,
-                errors=list(load.errors),
-            )
-
+        """Retrieve filtered execution runs from database."""
         warnings: list[str] = []
         reconciliation_result = reconcile_stale_runs(self.db, path=self.path)
         if reconciliation_result.warning:
@@ -70,10 +61,6 @@ class HistoryListService:
     def execute(self) -> HistoryListResult:
         """Execute history list query and render results to console."""
         result = self.collect()
-        if result.status is HistoryListStatus.NOT_INITIALIZED:
-            render_not_initialized(result.errors, output=self.output)
-            return result
-
         render_history_list(result.runs, output=self.output)
         return result
 
@@ -89,14 +76,6 @@ class HistoryShowService:
 
     def collect(self) -> HistoryShowResult:
         """Look up execution session metadata, errors, and checkpoint contents."""
-        load = load_config_result(path=self.path)
-        if not load.ok:
-            return HistoryShowResult(
-                status=HistoryShowStatus.NOT_INITIALIZED,
-                session_id=self.session_id,
-                errors=list(load.errors),
-            )
-
         row = self.db.get(self.session_id)
 
         if row is None:
@@ -107,10 +86,6 @@ class HistoryShowService:
     def execute(self) -> HistoryShowResult:
         """Execute session show query and render results to console."""
         result = self.collect()
-        if result.status is HistoryShowStatus.NOT_INITIALIZED:
-            render_not_initialized(result.errors, output=self.output)
-            return result
-
         if result.status is HistoryShowStatus.NOT_FOUND or result.run is None:
             render_history_not_found(self.session_id, output=self.output)
             return result

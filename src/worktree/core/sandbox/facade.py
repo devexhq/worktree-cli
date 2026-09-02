@@ -36,12 +36,13 @@ class Sandbox:
         path: Path = Path("."),
         db: SandboxesRepository | None = None,
         runs_db: RunsRepository | None = None,
+        config: WorktreeConfig | None = None,
     ) -> None:
         self.path = path.expanduser().resolve()
         self.cwd = self.path
         self.db = db if db is not None else SandboxesRepository(self.path)
         self.runs_db = runs_db
-        self.lifecycle = SandboxLifecycle(self.path, self.db)
+        self.lifecycle = SandboxLifecycle(self.path, self.db, config=config)
         self.patch = SandboxPatch(self.path, self.db, lifecycle=self.lifecycle)
 
     @property

@@ -41,13 +41,6 @@ class SandboxListCollectTests:
     def setup_method(self, git_fs: GitFileSystem) -> None:
         self.db = WorktreeDb(path=git_fs.base_path, db_rel_path=DB_REL)
 
-    def test_not_initialized(self, git_fs: GitFileSystem) -> None:
-        result = collect_sandbox_list(git_fs.base_path, self.db.sandboxes)
-        assert result.status is SandboxListStatus.NOT_INITIALIZED
-        assert not result.ok
-        assert result.errors
-        assert not (git_fs.base_path / DB_REL).exists()
-
     def test_empty_state(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
         result = collect_sandbox_list(git_fs.base_path, self.db.sandboxes)
@@ -236,22 +229,6 @@ class SandboxListCommandDirectTests:
     def setup_method(self, git_fs: GitFileSystem) -> None:
         self.db = WorktreeDb(path=git_fs.base_path, db_rel_path=DB_REL)
 
-    def test_not_initialized_exits_one(
-        self,
-        git_fs: GitFileSystem,
-        monkeypatch: pytest.MonkeyPatch,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        monkeypatch.chdir(git_fs.base_path)
-
-        ctx = make_cli_context(cwd=git_fs.base_path)
-        outcome = sandbox_list_command(ctx)
-        assert not outcome.ok
-
-        out = capsys.readouterr().out
-        assert "Worktree Not Initialized" in out
-        assert not (git_fs.base_path / DB_REL).exists()
-
     def test_empty_state_exits_zero(
         self,
         git_fs: GitFileSystem,
@@ -330,3 +307,9 @@ class SandboxListCliTests:
         result = runner.invoke(app, ["sandbox", "list"])
         assert result.exit_code == 0
         assert "No sandboxes found." in result.stdout
+
+    def test_list_via_cli_uninitialized(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+        result = runner.invoke(app, ["sandbox", "list"])
+        assert result.exit_code == 1
+        assert "Worktree workspace is not initialized." in result.stdout

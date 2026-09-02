@@ -40,25 +40,6 @@ class SandboxDeleteCollectTests:
     def setup_method(self, git_fs: GitFileSystem) -> None:
         self.db = WorktreeDb(path=git_fs.base_path, db_rel_path=DB_REL)
 
-    def test_not_initialized(self, git_fs: GitFileSystem) -> None:
-        result = collect_sandbox_delete(make_cli_context(cwd=git_fs.base_path), "sbx_any")
-        assert result.status is SandboxDeleteStatus.NOT_INITIALIZED
-        assert not result.ok
-        assert result.errors
-        assert result.sandbox is None
-        assert not (git_fs.base_path / DB_REL).exists()
-
-    def test_invalid_config_is_not_initialized(self, git_fs: GitFileSystem) -> None:
-        config_path = git_fs.base_path / ".worktree" / "config.json"
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        config_path.write_text("{not-json", encoding="utf-8")
-
-        result = collect_sandbox_delete(make_cli_context(cwd=git_fs.base_path), "sbx_any")
-        assert result.status is SandboxDeleteStatus.NOT_INITIALIZED
-        assert not result.ok
-        assert result.errors
-        assert not (git_fs.base_path / DB_REL).exists()
-
     def test_not_found(self, git_fs: GitFileSystem) -> None:
         git_fs.init_repo()
         result = collect_sandbox_delete(make_cli_context(cwd=git_fs.base_path), "sbx_missing")
@@ -162,22 +143,6 @@ class SandboxDeleteCommandDirectTests:
     @pytest.fixture(autouse=True)
     def setup_method(self, git_fs: GitFileSystem) -> None:
         self.db = WorktreeDb(path=git_fs.base_path, db_rel_path=DB_REL)
-
-    def test_not_initialized_exits_one(
-        self,
-        git_fs: GitFileSystem,
-        monkeypatch: pytest.MonkeyPatch,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        monkeypatch.chdir(git_fs.base_path)
-
-        ctx = make_cli_context(cwd=git_fs.base_path)
-        outcome = sandbox_delete_command(ctx, "sbx_any")
-        assert not outcome.ok
-
-        out = capsys.readouterr().out
-        assert "Worktree Not Initialized" in out
-        assert not (git_fs.base_path / DB_REL).exists()
 
     def test_not_found_exits_one(
         self,
@@ -456,3 +421,9 @@ class SandboxDeleteCliTests:
         loaded = self.db.sandboxes.get(created.id)
         assert loaded is not None
         assert loaded.status is SandboxStatus.ACTIVE
+
+    def test_delete_via_cli_uninitialized(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+        result = runner.invoke(app, ["sandbox", "delete", "sbx_any", "--force"])
+        assert result.exit_code == 1
+        assert "Worktree workspace is not initialized." in result.stdout

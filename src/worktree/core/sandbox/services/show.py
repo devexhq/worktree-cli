@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from worktree.core.config.loader import load_config_result
 from worktree.core.db import (
     SandboxesRepository,
     SandboxStatus,
@@ -20,7 +19,7 @@ def collect_sandbox_show(
     db: SandboxesRepository,
     sandbox_id: str,
 ) -> SandboxShowResult:
-    """Load config, look up one sandbox, and reconcile a stale active row.
+    """Look up one sandbox, and reconcile a stale active row.
 
     Args:
         path: Repository root directory.
@@ -30,13 +29,6 @@ def collect_sandbox_show(
     Returns:
         Structured show result. Does not print or exit.
     """
-    load = load_config_result(path=path)
-    if not load.ok:
-        return SandboxShowResult(
-            status=SandboxShowStatus.NOT_INITIALIZED,
-            errors=list(load.errors),
-        )
-
     row = db.get(sandbox_id)
     if row is None:
         return SandboxShowResult(status=SandboxShowStatus.NOT_FOUND)
