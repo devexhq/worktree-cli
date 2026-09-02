@@ -31,7 +31,7 @@ This issue owns the shared load foundation for the V1 `wt config` surface descri
 - No console output, no `sys.exit`, no file creation or mutation inside the loader
 - Unit tests for the success path and every load status
 - Update in-tree callers and tests to the new API in the same change
-- Document the public load API and error codes in `docs/agents/schemas-and-config.md`
+- Document the public load API and error codes in `docs/agents/schemas.md`
 
 ### Out of scope
 - CLI subcommands (`wt config show`, `wt config set`, `wt config unset`, `wt config validate`)
@@ -284,5 +284,5 @@ Fix:
 - Before init, `load_config` reports `not_found`
 - Tests cover every `ConfigLoadStatus` value
 - In-tree callers use the new load API; superseded dual load paths are removed
-- `docs/agents/schemas-and-config.md` documents the load API and error codes
+- `docs/agents/schemas.md` documents the load API and error codes
 - No `wt config` CLI subcommand is added in this change

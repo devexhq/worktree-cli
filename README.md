@@ -114,7 +114,7 @@ ruff check .
 
 ## Documentation
 
-- Schemas and config: [docs/agents/schemas-and-config.md](docs/agents/schemas-and-config.md)
+- Schemas and entities: [docs/agents/schemas.md](docs/agents/schemas.md)
 - Architecture: [docs/agents/architecture.md](docs/agents/architecture.md)
 
 ## Project status

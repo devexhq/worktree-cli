@@ -4,6 +4,19 @@
 developer workflows and AI agent workspaces, backed by a local `.worktree/` state
 directory.
 
+## Always-on docs
+There are a subset of docs that must always be read for context before starting a task. **Open these files, read the docs  for context and treat their directives as authority**.
+- docs/agents/architecture.md
+- docs/agents/code-conventions.md
+- docs/agents/schemas.md
+- docs/agents/glossary.md
+
+## Agentic process
+
+Before executing commands or editing files, state:
+    1. The specific directive/doc governing this action.
+    2. The target scope (e.g. specific test package or module).
+
 ## Essential commands
 
 ```bash
@@ -59,8 +72,8 @@ Update docs in the same PR only when the change matches one of these gates:
 - **How to write Python in this repo** (models placement, Result/Outcome, DRY,
   errors): update [docs/agents/code-conventions.md](docs/agents/code-conventions.md).
 - **User-visible CLI behavior**: update [docs/cli/](docs/cli/) (not architecture).
-- **config.json / blueprint YAML fields**: update
- [docs/agents/schemas-and-config.md](docs/agents/schemas-and-config.md).
+- **config.json / blueprint YAML fields / entity shapes**: update
+ [docs/agents/schemas.md](docs/agents/schemas.md).
 - **`core/db/` schema, tables, or migrations**: follow the migration hygiene
  checklist in
  [docs/agents/ci-and-tooling.md](docs/agents/ci-and-tooling.md#migration-hygiene)
@@ -83,7 +96,7 @@ Docs go stale in a specific, avoidable way: a field table, model signature, or e
 list gets hand-copied from source, then the source changes and the doc doesn't
 (there's no gate that would catch it — it's not covered by `ruff`/`basedpyright`/
 tests). This has actually happened more than once (see
-[schemas-and-config.md](docs/agents/schemas-and-config.md)'s history). Two rules
+[schemas.md](docs/agents/schemas.md)'s history). Two rules
 that prevent it, in priority order:
 
 1. **Don't duplicate what a `Read` of the source already gives you unambiguously.**
@@ -111,7 +124,7 @@ the source is trust, and that only holds if the doc holds up.
 | [docs/agents/architecture.md](docs/agents/architecture.md) | Module layout, domain ownership, import boundaries, `.worktree/` layout (structure only) |
 | [docs/agents/code-conventions.md](docs/agents/code-conventions.md) | Python style **and file placement** (`models.py` vs `services/`), Result/Outcome, writes, console output |
 | [docs/agents/testing.md](docs/agents/testing.md) | Adding or running tests |
-| [docs/agents/schemas-and-config.md](docs/agents/schemas-and-config.md) | Changing `config.json` or workflow YAML schemas/defaults |
+| [docs/agents/schemas.md](docs/agents/schemas.md) | Entity shapes (exceptions, DTOs, facades, commands), config & blueprint schemas |
 | [docs/agents/glossary.md](docs/agents/glossary.md) | Disambiguating task / workflow / blueprint / step / run / session / sandbox / checkpoint |
 | [docs/agents/troubleshooting.md](docs/agents/troubleshooting.md) | Diagnosing agent-provider setup failures (missing keys, missing CLIs, timeouts) |
 | [docs/agents/git-and-pr-conventions.md](docs/agents/git-and-pr-conventions.md) | Committing changes or opening a PR |
