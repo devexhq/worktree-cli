@@ -1,10 +1,9 @@
-from pathlib import Path
-
 import typer
 
 from worktree.cli.context import CliContext
-from worktree.common.fs import find_worktree_root
+from worktree.common.filesystem import Filesystem
 from worktree.common.utils import RichOutput
+from worktree.core.config import Config
 from worktree.core.db.facade import WorktreeDb
 
 from .commands.config_set import config_set_command
@@ -22,8 +21,11 @@ def _get_or_build_context(ctx: typer.Context) -> CliContext:
     context: CliContext | None = ctx.obj.get("context") if ctx.obj else None
     if context is not None:
         return context
-    cwd = find_worktree_root(Path.cwd())
-    return CliContext(cwd=cwd, db=WorktreeDb(path=cwd), output=RichOutput())
+    target_path = ctx.obj.get("path") if ctx.obj else None
+    fs = Filesystem.configure(target_path)
+    Config.configure(target_path)
+    cwd = fs.root_dir
+    return CliContext(cwd=cwd, db=WorktreeDb(path=cwd), output=RichOutput(), fs=fs)
 
 
 @config_app.command("show")

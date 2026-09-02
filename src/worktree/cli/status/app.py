@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import typer
 
 from worktree.cli.context import CliContext
-from worktree.common.fs import find_worktree_root
+from worktree.common.filesystem import Filesystem
 from worktree.common.utils import RichOutput
+from worktree.core.config import Config
 from worktree.core.db.facade import WorktreeDb
 
 from .commands.root import status_command
@@ -33,8 +32,11 @@ def status_callback(
     """Display configuration status for Worktree CLI."""
     context: CliContext | None = ctx.obj.get("context") if ctx.obj else None
     if context is None:
-        cwd = find_worktree_root(Path.cwd())
-        context = CliContext(cwd=cwd, db=WorktreeDb(path=cwd), output=RichOutput())
+        target_path = ctx.obj.get("path") if ctx.obj else None
+        fs = Filesystem.configure(target_path)
+        Config.configure(target_path)
+        cwd = fs.root_dir
+        context = CliContext(cwd=cwd, db=WorktreeDb(path=cwd), output=RichOutput(), fs=fs)
     outcome = status_command(context, output_format=format)
     if not outcome.ok:
         raise typer.Exit(code=1)

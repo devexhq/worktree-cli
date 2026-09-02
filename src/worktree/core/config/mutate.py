@@ -10,7 +10,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from worktree.common.fs import atomic_write_json
+from worktree.common.filesystem import Filesystem
 from worktree.common.schema_validation import CONFIG_VALIDATOR
 from worktree.core.config.loader import (
     _map_worktree_config,
@@ -256,7 +256,7 @@ def set_config_value_result(
         return schema_error
 
     try:
-        atomic_write_json(resolved_path, updated)
+        Filesystem.atomic_write_json(resolved_path, updated)
     except OSError as exc:
         return ConfigSetResult(
             status=ConfigSetStatus.WRITE_FAILED,

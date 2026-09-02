@@ -16,7 +16,7 @@ from worktree.common.constants import (
     BOOTSTRAP_SCHEMA_VERSION,
     REQUIRED_SUBDIRS,
 )
-from worktree.common.fs import atomic_write_json
+from worktree.common.filesystem import Filesystem
 from worktree.common.utils import display_path
 from worktree.core.bootstrap.models import (
     BootstrapResult,
@@ -95,7 +95,7 @@ def write_bootstrap_metadata(
         "status": status,
         "root_path": str(root_path),
     }
-    atomic_write_json(meta_path, payload)
+    Filesystem.atomic_write_json(meta_path, payload)
 
 
 def _ensure_required_subdirs(root_path: Path, result: BootstrapResult) -> bool:

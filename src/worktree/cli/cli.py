@@ -1,7 +1,8 @@
 """Typer CLI entrypoint for the Worktree (`wt`) command."""
 
 import sys
-from typing import Any
+from pathlib import Path
+from typing import Annotated, Any
 
 import typer
 from rich.console import Console
@@ -83,24 +84,37 @@ def version_callback(value: bool):
 @app.callback(invoke_without_command=True)
 def main(
     ctx: typer.Context,
-    verbose: bool = typer.Option(
-        False,
-        "--verbose",
-        "-v",
-        help="Enable extensive internal engineering telemetry logging.",
-    ),
-    version: bool | None = typer.Option(
-        None,
-        "--version",
-        callback=version_callback,
-        is_eager=True,
-        help="Print the current version of the Worktree CLI and exit.",
-    ),
+    path: Annotated[
+        Path | None,
+        typer.Option(
+            "--path",
+            "-p",
+            help="Target workspace root directory (defaults to auto-discovering worktree or git root).",
+        ),
+    ] = None,
+    verbose: Annotated[
+        bool,
+        typer.Option(
+            "--verbose",
+            "-v",
+            help="Enable extensive internal engineering telemetry logging.",
+        ),
+    ] = False,
+    version: Annotated[
+        bool | None,
+        typer.Option(
+            "--version",
+            callback=version_callback,
+            is_eager=True,
+            help="Print the current version of the Worktree CLI and exit.",
+        ),
+    ] = None,
 ):
     """Global configuration wrapper managing shared application context."""
-    # Stash verbose settings inside the runtime context dict for downstream commands
+    # Stash verbose and path settings inside the runtime context dict for downstream commands
     ctx.ensure_object(dict)
     ctx.obj["verbose"] = verbose
+    ctx.obj["path"] = path
 
     # 1. Handle base commands
     if ctx.invoked_subcommand is None:
@@ -114,7 +128,7 @@ def main(
     excluded_commands = {"config", "init", "install", "status"}
     if ctx.invoked_subcommand not in excluded_commands and not ctx.obj.get("is_help", False):
         try:
-            ctx.obj["context"] = CliContext.build()
+            ctx.obj["context"] = CliContext.build(path=path)
         except ConfigLoadError as exc:
             output = RichOutput()
             output.add_error_panel("Config Error", str(exc))

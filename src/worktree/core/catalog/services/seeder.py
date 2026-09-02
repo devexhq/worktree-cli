@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from worktree.common.fs import atomic_write_text, get_catalog_templates_dir
+from worktree.common.filesystem import Filesystem
 from worktree.common.lock import WorkspaceLock
 from worktree.common.utils import display_path
 from worktree.core.catalog.models import SeedResult
@@ -27,7 +27,7 @@ def _seed_one_file(source_file: Path, target_path: Path, *, force: bool, result:
 
     try:
         text = source_file.read_text(encoding="utf-8")
-        atomic_write_text(target_path, text)
+        Filesystem.atomic_write_text(target_path, text)
     except OSError as exc:
         result.errors.append(f"{display_path(target_path)}: {exc}")
         return
@@ -48,12 +48,11 @@ def seed_catalog_templates(
     with WorkspaceLock(path):
         result = SeedResult()
 
-        source_dir = get_catalog_templates_dir() / f"{item_type.value}s" / "wt"
+        source_dir = Filesystem().catalog_templates_dir / f"{item_type.value}s" / "wt"
         if not source_dir.is_dir():
             return result
 
-        base_dir = path.resolve()
-        target_dir = base_dir / ".worktree" / "catalog" / f"{item_type.value}s" / "wt"
+        target_dir = Filesystem(path).catalog_dir / f"{item_type.value}s" / "wt"
 
         for source_file in _iter_source_files(Path(str(source_dir))):
             rel_name = source_file.relative_to(Path(str(source_dir)))

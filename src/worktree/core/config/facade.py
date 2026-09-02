@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from worktree.common.filesystem import Filesystem
 from worktree.core.config.exceptions import ConfigLoadError
 from worktree.core.config.generator import ConfigGenerationResult
 from worktree.core.config.loader import (
@@ -35,29 +36,74 @@ from worktree.core.config.validate import (
 class Config:
     """Unified entrypoint for workspace configuration loading, validation, mutation, and serialization."""
 
-    def __init__(self, path: Path = Path(".")) -> None:
-        self.path = path.resolve()
+    _instance: Config | None = None
+    _fs: Filesystem = None  # pyright: ignore[reportAssignmentType]
+    path: Path = Path(".")
+    cwd: Path = Path(".")
+    _cached_config: WorktreeConfig | None = None
+
+    def __new__(cls, path: Path | None = None) -> Config:
+        """Return singleton instance when path is omitted, or create a specific instance when path is provided."""
+        if path is None:
+            if cls._instance is None:
+                instance = super().__new__(cls)
+                instance._initialize(None)
+                cls._instance = instance
+            return cls._instance
+
+        instance = super().__new__(cls)
+        instance._initialize(path)
+        return instance
+
+    def _initialize(self, path: Path | None = None) -> None:
+        self._fs = Filesystem(path) if path is not None else Filesystem()
+        self.path = self._fs.root_dir
         self.cwd = self.path
         self._cached_config: WorktreeConfig | None = None
+
+    @classmethod
+    def configure(cls, root: Path | str | None = None) -> Config:
+        """Configure the process-level root, reset caches, and return the active Config singleton."""
+        Filesystem.configure(root)
+        cls.reset()
+        return cls()
+
+    @classmethod
+    def reset(cls) -> None:
+        """Reset the singleton instance and clear in-memory config loader caches."""
+        from worktree.core.config.loader import clear_config_cache
+
+        clear_config_cache()
+        cls._instance = None
+
+    @classmethod
+    def instance(cls) -> Config:
+        """Return the active singleton instance."""
+        return cls()
 
     def load(self, *, config_path: Path | None = None) -> ConfigLoadResult:
         """Load and parse ``config.json`` returning a structured result."""
         from worktree.core.config.loader import load_config
 
-        return load_config(path=self.path, config_path=config_path)
+        target_cfg = config_path if config_path is not None else self._fs.config_file
+        return load_config(path=self._fs.root_dir, config_path=target_cfg)
 
     def validate(self, *, config_path: Path | None = None) -> ConfigValidationResult:
         """Validate ``config.json`` against schema constraints and return structured report."""
         from worktree.core.config.validate import validate_config_result
 
-        return validate_config_result(path=self.path, config_path=config_path)
+        target_cfg = config_path if config_path is not None else self._fs.config_file
+        return validate_config_result(path=self._fs.root_dir, config_path=target_cfg)
 
     def set(self, key: str, value: Any) -> ConfigSetResult:
         """Set a dot-path configuration key and persist to disk."""
         from worktree.core.config.mutate import set_config_value_result
 
         parsed_value = self.parse_value(value) if isinstance(value, str) else value
-        return set_config_value_result(key, parsed_value, path=self.path)
+        result = set_config_value_result(key, parsed_value, path=self._fs.root_dir)
+        if result.ok:
+            self._cached_config = None
+        return result
 
     def generate(
         self,
@@ -69,9 +115,12 @@ class Config:
         """Generate a default ``config.json`` file in workspace."""
         from worktree.core.config.generator import generate_default_config
 
-        p_name = project_name or self.path.name
-        cfg_path = (self.path / ".worktree" / "config.json").resolve()
-        return generate_default_config(cfg_path, p_name, overwrite=overwrite, repair=repair)
+        p_name = project_name or self._fs.root_dir.name
+        cfg_path = self._fs.config_file
+        result = generate_default_config(cfg_path, p_name, overwrite=overwrite, repair=repair)
+        if result.ok:
+            self._cached_config = None
+        return result
 
     # ------------------------------------------------------------------ #
     # Accessor properties (load-once, raise on failure)                  #

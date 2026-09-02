@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from worktree.common.fs import find_worktree_root, scan_yaml_directory
+from worktree.common.filesystem import Filesystem
 from worktree.core.config import Config, ConfigLoadStatus
 from worktree.core.db import (
     RunsRepository,
@@ -80,7 +80,7 @@ def _scan_catalog_category(category_dir: Path) -> tuple[int, int, list[str]]:
     if not category_dir.is_dir():
         return 0, 0, []
 
-    entries = scan_yaml_directory(category_dir)
+    entries = Filesystem.scan_yaml_directory(category_dir)
     invalid_count = 0
     names: list[str] = []
 
@@ -94,7 +94,7 @@ def _scan_catalog_category(category_dir: Path) -> tuple[int, int, list[str]]:
 
 def _collect_catalog_status(root_dir: Path) -> CatalogStatusInfo:
     """Collect blueprint catalog directory health and item counts."""
-    catalog_dir = root_dir / ".worktree" / "catalog"
+    catalog_dir = Filesystem(root_dir).catalog_dir
     if not catalog_dir.is_dir():
         return CatalogStatusInfo(
             exists=False,
@@ -129,7 +129,7 @@ def _collect_catalog_status(root_dir: Path) -> CatalogStatusInfo:
 
 def _collect_database_status(root_dir: Path) -> DatabaseStatusInfo:
     """Collect SQLite database accessibility and total recorded runs."""
-    db_path = root_dir / ".worktree" / "data.db"
+    db_path = Filesystem(root_dir).db_file
     if not db_path.is_file():
         return DatabaseStatusInfo(
             exists=False,
@@ -168,7 +168,7 @@ def _collect_sandbox_status(
         else 5
     )
 
-    sandboxes_dir = root_dir / ".worktree" / "sandboxes"
+    sandboxes_dir = Filesystem(root_dir).sandboxes_dir
 
     if database_status.is_accessible:
         try:
@@ -231,7 +231,8 @@ def _collect_warnings(
 
 def collect_status(cwd: Path | None = None) -> WorktreeStatusResult:
     """Collect workspace health and runtime status without side effects."""
-    root_dir = find_worktree_root(cwd or Path.cwd())
+    fs = Filesystem(cwd)
+    root_dir = fs.root_dir
 
     git_status = _collect_git_status(root_dir)
     config_status = _collect_config_status(root_dir)
@@ -245,7 +246,7 @@ def collect_status(cwd: Path | None = None) -> WorktreeStatusResult:
         sandboxes=sandbox_status,
     )
 
-    is_initialized = (root_dir / ".worktree").is_dir() and config_status.status != ConfigLoadStatus.NOT_FOUND
+    is_initialized = fs.worktree_dir.is_dir() and config_status.status != ConfigLoadStatus.NOT_FOUND
 
     return WorktreeStatusResult(
         root_dir=root_dir,

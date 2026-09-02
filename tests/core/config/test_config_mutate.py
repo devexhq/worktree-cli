@@ -230,7 +230,7 @@ class SetConfigValueResultTests:
         def mock_write_json(*args, **kwargs):
             raise OSError("Permission denied")
 
-        monkeypatch.setattr("worktree.core.config.mutate.atomic_write_json", mock_write_json)
+        monkeypatch.setattr("worktree.core.config.mutate.Filesystem.atomic_write_json", mock_write_json)
 
         result = set_config_value_result("agent.model", "qwen2.5-coder", path=fs.base_path)
         assert not result.ok

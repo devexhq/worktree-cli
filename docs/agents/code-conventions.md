@@ -200,8 +200,8 @@ Reuse this shape for new core operations instead of introducing ad-hoc return ty
 
 Never write a config/state file directly. Write to a `.tmp` sibling, flush,
 `os.fsync`, then `Path.replace` to swap it into place atomically. See
-`atomic_write_json` in [src/worktree/common/fs.py](../../src/worktree/common/fs.py)
-and `atomic_write_text` in the same module for the pattern.
+`Filesystem.atomic_write_json` in [src/worktree/common/filesystem/services/operations.py](../../src/worktree/common/filesystem/services/operations.py)
+and `Filesystem.atomic_write_text` in the same module for the pattern.
 
 ## Console output
 

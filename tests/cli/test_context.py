@@ -26,6 +26,17 @@ class CliContextBuildTests:
         assert context.config is not None
         assert context.config.project.name == git_fs.base_path.name
 
+    def test_build_with_explicit_path(
+        self,
+        git_fs: GitFileSystem,
+    ) -> None:
+        git_fs.init_repo()
+        context = CliContext.build(path=git_fs.base_path)
+        assert context is not None
+        assert context.cwd == git_fs.base_path.resolve()
+        assert context.fs.root_dir == git_fs.base_path.resolve()
+        assert context.config is not None
+
     def test_build_raises_when_config_not_found(
         self,
         git_fs: GitFileSystem,

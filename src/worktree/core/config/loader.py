@@ -10,7 +10,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from worktree.common.fs import find_worktree_root, get_worktree_config_file
+from worktree.common.filesystem import Filesystem
 from worktree.common.schema_validation import CONFIG_VALIDATOR
 from worktree.core.config.models import WorktreeConfig
 
@@ -79,8 +79,7 @@ def resolve_config_path(
     """
     if config_path is not None:
         return config_path.expanduser().resolve()
-    effective_root = (path if path is not None else find_worktree_root(Path.cwd())).expanduser().resolve()
-    return get_worktree_config_file(effective_root).resolve()
+    return Filesystem(path).config_file
 
 
 def _read_and_validate_disk_config(target_path: Path) -> ConfigLoadResult:

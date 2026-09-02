@@ -4,13 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from worktree.common.fs import (
-    get_gitignore_file,
-    get_worktree_config_file,
-    get_worktree_dir,
-    is_git_repository,
-    update_gitignore,
-)
+from worktree.common.filesystem import Filesystem
 from worktree.core.bootstrap.models import WorkspaceInitResult
 from worktree.core.bootstrap.services.bootstrap import bootstrap_worktree
 from worktree.core.catalog.services.seeder import seed_all_catalog_templates
@@ -20,7 +14,7 @@ from worktree.core.db import init_database
 
 
 def initialize_workspace(
-    root: Path,
+    root: Path | None = None,
     *,
     tool_version: str | None = None,
     overwrite: bool = False,
@@ -32,25 +26,26 @@ def initialize_workspace(
     .gitignore, generates canonical default configuration, initializes the SQLite
     state database, and seeds starter catalog templates.
     """
-    root = root.resolve()
+    fs = Filesystem(root)
+    resolved_root = fs.root_dir
 
-    if not is_git_repository(root):
+    if not fs.is_git_repo():
         err = (
             "The current directory is not a valid Git repository.\n"
             "Run [bold cyan]git init[/bold cyan] before running [bold cyan]wt init[/bold cyan]."
         )
         return WorkspaceInitResult(errors=[err])
 
-    result = bootstrap_worktree(get_worktree_dir(root), tool_version=tool_version)
+    result = bootstrap_worktree(fs.worktree_dir, tool_version=tool_version)
     if not result.ok:
         return WorkspaceInitResult(bootstrap_result=result, errors=list(result.errors))
 
     if result.root_created:
-        update_gitignore(get_gitignore_file(root))
+        fs.update_gitignore()
 
     config_result = generate_default_config(
-        get_worktree_config_file(root),
-        project_name=root.name,
+        fs.config_file,
+        project_name=resolved_root.name,
         overwrite=overwrite,
         repair=repair,
     )
@@ -61,10 +56,10 @@ def initialize_workspace(
             errors=list(config_result.errors),
         )
 
-    config = Config(root)
-    init_database(path=root, db_rel_path=config.paths.db_path)
+    config = Config(resolved_root)
+    init_database(path=resolved_root, db_rel_path=config.paths.db_path)
 
-    seed_result = seed_all_catalog_templates(path=root)
+    seed_result = seed_all_catalog_templates(path=resolved_root)
     return WorkspaceInitResult(
         bootstrap_result=result,
         config_result=config_result,

@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from tests.helpers import FileSystem
-from worktree.common.fs import get_catalog_templates_dir
+from worktree.common.filesystem import Filesystem
 from worktree.core.catalog.services.seeder import seed_catalog_templates
 from worktree.core.db import CatalogItemType
 from worktree.core.step import (
@@ -87,7 +87,7 @@ description: Missing command field
         assert isinstance(step, StepDefinition)
 
     def test_packaged_step_seeds_validate_as_step_definition(self) -> None:
-        steps_wt = Path(str(get_catalog_templates_dir() / "steps" / "wt"))
+        steps_wt = Path(str(Filesystem().catalog_templates_dir / "steps" / "wt"))
         for name in _PACKAGED_STEP_NAMES:
             step = load_step_definition(steps_wt / f"{name}.yml")
             assert step.id == name

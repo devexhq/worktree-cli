@@ -1,20 +1,7 @@
 from enum import StrEnum
-from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
-
-
-class YamlFile(BaseModel):
-    """Representation of a yaml file from a directory scan."""
-
-    path: Path
-    name: str
-    content: str | None = ""
-    parsed: Any | None = None
-    checksum: str | None = None
-    file_size: int | None = None
-    error: str | None = None
 
 
 class DefinitionResolutionStatus(StrEnum):

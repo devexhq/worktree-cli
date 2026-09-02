@@ -7,11 +7,7 @@ import pytest
 from pydantic import BaseModel
 
 from tests.helpers import FileSystem
-from worktree.common.fs import (
-    compute_content_checksum,
-    delete_file,
-    read_yaml_file,
-)
+from worktree.common.filesystem import Filesystem
 from worktree.common.models import DefinitionResolutionStatus
 from worktree.core.catalog.services.inventory import (
     compute_catalog_sha,
@@ -48,24 +44,24 @@ class CatalogInventoryDirsAndChecksumTests:
         assert len(sha) == 16  # "workflow_" (9) + 7 hex chars = 16
         assert len(checksum) == 64
         assert sha == f"workflow_{checksum[:7]}"
-        # Confirm it delegates to compute_content_checksum
-        assert checksum == compute_content_checksum("name: test\n")
+        # Confirm it delegates to Filesystem.compute_checksum
+        assert checksum == Filesystem.compute_checksum("name: test\n")
 
     def test_common_fs_checksum_and_delete(self, fs: FileSystem) -> None:
         content = "test text"
-        checksum = compute_content_checksum(content)
+        checksum = Filesystem.compute_checksum(content)
         assert len(checksum) == 64
 
         test_path = fs.base_path / "sample.txt"
         fs.write_file("sample.txt", content)
 
-        yaml_file = read_yaml_file(test_path)
+        yaml_file = Filesystem.read_yaml_file(test_path)
         assert yaml_file.checksum == checksum
         assert yaml_file.file_size == len(content.encode("utf-8"))
 
-        assert delete_file(test_path) is True
+        assert Filesystem().delete_file(test_path) is True
         assert not test_path.exists()
-        assert delete_file(test_path) is False
+        assert Filesystem().delete_file(test_path) is False
 
 
 class CatalogScannerAndIndexTests:

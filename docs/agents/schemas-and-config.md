@@ -564,7 +564,7 @@ Packaged scaffolds live under
 [src/worktree/core/catalog/templates/](../../src/worktree/core/catalog/templates/)
 (`workflows/`, `tasks/`, `steps/`), including `default.yml` per type and curated
 `wt/` seed trees. Path helper: `get_catalog_templates_dir()` in
-[src/worktree/common/fs.py](../../src/worktree/common/fs.py).
+[src/worktree/common/filesystem/services/paths.py](../../src/worktree/common/filesystem/services/paths.py) (and `Filesystem().catalog_templates_dir`).
 
 Curated step seeds ship under `templates/steps/wt/`
 (`git-sync-base`, `ai-planner`, `ai-code-patcher`, `run-tests`, `ai-reviewer`)

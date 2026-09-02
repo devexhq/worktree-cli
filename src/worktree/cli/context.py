@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Self
 
-from worktree.common.fs import find_worktree_root
+from worktree.common.filesystem import Filesystem
 from worktree.common.utils import RichOutput
 from worktree.core.config import Config
 from worktree.core.config.models import WorktreeConfig
@@ -19,14 +19,19 @@ class CliContext:
     db: WorktreeDb
     output: RichOutput
     config: WorktreeConfig | None = None
+    fs: Filesystem = field(default_factory=Filesystem)
 
     @classmethod
     def build(
         cls,
         cwd: Path | None = None,
+        *,
+        path: Path | None = None,
     ) -> Self:
         """Factory to build the global CLI state."""
-        effective_cwd = find_worktree_root(cwd or Path.cwd())
-        config = Config(effective_cwd)
+        target_path = path if path is not None else cwd
+        fs = Filesystem.configure(target_path)
+        config = Config.configure(target_path)
+        effective_cwd = fs.root_dir
         db = WorktreeDb(path=effective_cwd, db_rel_path=config.paths.db_path)
-        return cls(cwd=effective_cwd, db=db, output=RichOutput(), config=config._loaded_config)
+        return cls(cwd=effective_cwd, db=db, output=RichOutput(), config=config._loaded_config, fs=fs)

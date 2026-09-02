@@ -44,6 +44,7 @@ src/worktree/core/                   Business logic (no Typer)
                                      models.py, exceptions.py, services/
 
 src/worktree/common/                 Shared helpers (no core/ imports)
+  filesystem/                        models.py, facade.py (`Filesystem`), services/{git,operations,paths,yaml}.py
 src/worktree/schemas/v1/             Versioned JSON Schemas
 ```
 
