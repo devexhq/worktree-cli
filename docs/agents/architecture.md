@@ -9,37 +9,34 @@ User-facing command behavior lives under [docs/cli/](../cli/). Entity shapes and
 **Relevant sources:** `src/worktree/cli/`, `src/worktree/core/`, `src/worktree/common/`, `src/worktree/schemas/`.
 
 ```
-src/worktree/cli/cli.py              Typer entrypoint
-src/worktree/cli/<name>/             One package per CLI subcommand (thin wrappers over domain)
-  app.py                             Typer app / command registration
-  commands/                          Command handlers (e.g. root.py, commands/<action>.py)
-  models.py                          CLI outcome and presentation models
-  renderers.py                       Rich terminal rendering
-  formatters.py                      String layout formatters
+src/worktree/cli/                    Typer CLI entrypoint and subcommand wrappers (no domain logic)
+  cli.py                             Application definition, global options, top-level exception handling
+  <name>/                            Subcommand packages (catalog, config, diff, history, init, resume, run, sandbox, status)
 
-src/worktree/core/                   Business logic (no Typer)
-  bootstrap/                         models.py, facade.py (Bootstrap), services/{bootstrap,initialize}.py
-  git/                               models.py, runner.py (GitRunner), exceptions.py
-  sandbox/                           models.py, exceptions.py, facade.py (Sandbox), services/{delete,detector,lifecycle,list,patch,pruner,show,wip}.py
-  config/                            models.py, exceptions.py, facade.py (Config), generator.py, loader.py, mutate.py, parser.py, serialize.py, validate.py
-  db/                                models.py, facade.py (WorktreeDb), connection.py, migrations.py, repositories/, alembic/
-  inputs/                            models.py, facade.py (Inputs), services/{interpolate,renderer,resolve}.py
-  catalog/                           models.py, exceptions.py, facade.py (Catalog), services/{inventory,seeder}.py, templates/
-  blueprint/                         models.py, exceptions.py, facade.py (Blueprint), renderers.py
-  diff/                              models.py, facade.py (Diff), renderers.py, services.py, writer.py
-  status/                            models.py, facade.py (Status), services/collector.py
-  history/                           models.py, facade.py (History), renderers.py, services.py
-  step/                              models.py, exceptions.py, facade.py (Step), runner.py, assertions/, services/{conditions,loader,metadata,resolver}.py, utils/
-  runtime/                           models.py, exceptions.py, engine.py (entrypoint: run_steps), failure.py, loop_runner.py, observer.py, prompter.py
-  engine/                            models.py, exceptions.py, engine.py (entrypoint: Engine class), resumable.py, writer.py, services/{reconcile,resume,run}.py
-  agents/                            models.py, exceptions.py, base.py, factory.py, cli_mutation.py, mutation_git.py, providers (local, ollama, cursor, gemini, copilot)
-  patch/                             models.py, exceptions.py, patch.py
+src/worktree/core/                   Domain business logic and orchestration (no Typer imports)
+  bootstrap/                         Workspace directory structure initialization and repair
+  git/                               Low-level Git CLI subprocess invocation and plumbing
+  sandbox/                           Isolated git worktree sandbox lifecycle (create, delete, list, prune, apply, diff)
+  config/                            Workspace configuration loading, validation, generation, and mutation
+  db/                                SQLite persistence, connection management, Alembic migrations, and repositories
+  inputs/                            Parameter input declaration, CLI flag resolution, and placeholder interpolation
+  catalog/                           Workflow/task/step template discovery, indexing, seeding, and inventory
+  blueprint/                         Unified task and workflow document loading and inspection
+  diff/                              Session unified diff computation and artifact retrieval
+  status/                            Workspace health diagnostics and telemetry collection
+  history/                           Execution run queries and history presentation
+  step/                              Single-step execution, assertions evaluation, and step-local failure recovery
+  runtime/                           In-process step-loop orchestration (run_steps), failure prompter, and pause checkpoints
+  engine/                            Process facade (Engine), DB run persistence, session minting, and run/resume services
+  agents/                            AI agent adapter protocol and provider integrations (local, ollama, cursor, gemini, copilot)
+  patch/                             Unified-diff parsing and validation
 
-src/worktree/common/                 Shared helpers (no core/ imports)
-  filesystem/                        models.py, facade.py (Filesystem), services/{git,operations,paths,yaml}.py
-  constants.py, exceptions.py, formatters.py, lock.py, models.py, process.py, schema_validation.py, types.py, utils.py, version.py
+src/worktree/common/                 Shared foundational utilities (never imports core/ or cli/)
+  filesystem/                        Atomic file operations, path helpers, safe YAML I/O
+  schema_validation.py               JSON Schema Draft 2020-12 validation wrapper
+  lock.py, process.py, utils.py      Cross-process advisory locks, subprocess helpers, and console formatters
 
-src/worktree/schemas/v1/             Versioned JSON Schemas (config.json, workflow.json)
+src/worktree/schemas/v1/             Packaged, versioned JSON Schemas (config.json, workflow.json)
 ```
 
 - Default for **new** domain code: `models.py` + `services/<verb>.py`. Do not extend the flat `config/` / `db/` pattern to new domains.
