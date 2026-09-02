@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from worktree.common.lock import WorkspaceLock
-from worktree.core.config.loader import ConfigLoadStatus, load_config_result
+from worktree.core.config.loader import ConfigLoadStatus, load_config
 from worktree.core.config.models import WorktreeConfig
 from worktree.core.db import SandboxesRepository, SandboxRecord, SandboxStatus
 from worktree.core.git.exceptions import (
@@ -46,27 +46,29 @@ class SandboxLifecycle:
         self,
         path: Path,
         db: SandboxesRepository,
-        config: WorktreeConfig | None = None,
     ) -> None:
         """Initialize lifecycle manager.
 
         Args:
             path: Target repository root path.
             db: Explicit SandboxesRepository instance.
-            config: Optional pre-loaded WorktreeConfig instance.
         """
         self.path = path.expanduser().resolve()
         self.db = db
-        self._config: WorktreeConfig | None = config
-        if config is not None:
-            self.sandbox_base_dir = self.path / config.paths.root_dir / "sandboxes"
-        else:
-            self.sandbox_base_dir = self.path / ".worktree" / "sandboxes"
+        self._config: WorktreeConfig | None = None
 
     @property
     def config(self) -> WorktreeConfig | None:
         """Return the config last loaded by a successful create attempt."""
         return self._config
+
+    @property
+    def sandbox_base_dir(self) -> Path:
+        """Base storage directory for created sandboxes."""
+        cfg = self._config or load_config(path=self.path).config
+        if cfg is not None:
+            return self.path / cfg.paths.root_dir / "sandboxes"
+        return self.path / ".worktree" / "sandboxes"
 
     def _ensure_sandbox_dir(self) -> None:
         """Create the parent sandbox storage directory if missing."""
@@ -99,9 +101,7 @@ class SandboxLifecycle:
 
     def _load_config(self) -> tuple[SandboxCreateResult | None, WorktreeConfig | None]:
         """Load and validate worktree configuration."""
-        if self._config is not None:
-            return None, self._config
-        load = load_config_result(path=self.path)
+        load = load_config(path=self.path)
         if load.status == ConfigLoadStatus.NOT_FOUND:
             return (
                 SandboxCreateResult(
@@ -275,6 +275,7 @@ class SandboxLifecycle:
                     errors=["Configuration not loaded"],
                 )
 
+            self._config = config
             self._ensure_sandbox_dir()
             capacity_err = self._check_capacity(config)
             if capacity_err is not None:

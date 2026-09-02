@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field
 
-from worktree.core.config.loader import ConfigLoadStatus, load_config_result
+from worktree.core.config.loader import ConfigLoadStatus, load_config
 from worktree.core.config.models import WorktreeConfig
 
 
@@ -78,7 +78,7 @@ def validate_config_result(
     Returns:
         Classified ``ConfigValidationResult`` with absolute ``config_path``.
     """
-    loaded = load_config_result(path=path, config_path=config_path)
+    loaded = load_config(path=path, config_path=config_path)
     status = _LOAD_STATUS_TO_VALIDATION[loaded.status]
 
     if loaded.status != ConfigLoadStatus.OK:

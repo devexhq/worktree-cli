@@ -19,7 +19,6 @@ from worktree.core.blueprint.renderers import (
     render_blueprint_run_success,
 )
 from worktree.core.catalog import Catalog
-from worktree.core.config.models import WorktreeConfig
 from worktree.core.db import CatalogRepository, RunRecord, RunsRepository, RunStatus
 from worktree.core.engine.engine import Engine
 from worktree.core.engine.exceptions import EngineInputError, EngineRuntimeError
@@ -51,7 +50,6 @@ class BlueprintRunService:
     cli_args: list[str] | None = None
     non_interactive: bool = False
     auto_apply: bool = False
-    config: WorktreeConfig | None = None
     renderer: BlueprintRenderer = field(init=False)
     warnings: list[str] = field(default_factory=list)
 
@@ -83,7 +81,7 @@ class BlueprintRunService:
 
         try:
             with observer:
-                run_outcome = Engine(self.path, db=self.runs_db, catalog=catalog, config=self.config).run(
+                run_outcome = Engine(self.path, db=self.runs_db, catalog=catalog).run(
                     blueprint,
                     RunRequest(
                         cli_args=self.cli_args,

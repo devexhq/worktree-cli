@@ -7,7 +7,7 @@ from typing import Self
 from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
 from worktree.common.fs import find_worktree_root
 from worktree.common.utils import RichOutput
-from worktree.core.config.loader import load_config_result
+from worktree.core.config.loader import load_config
 from worktree.core.config.models import WorktreeConfig
 from worktree.core.db.facade import WorktreeDb
 
@@ -33,7 +33,7 @@ class CliContext:
         effective_cwd = find_worktree_root(cwd or Path.cwd())
         active_dispatcher = dispatcher if dispatcher is not None else ui_dispatcher
 
-        load_result = load_config_result(path=effective_cwd)
+        load_result = load_config(path=effective_cwd)
         if not load_result.ok or load_result.config is None:
             active_dispatcher.dispatch(load_result, output_format=output_format)
             return None

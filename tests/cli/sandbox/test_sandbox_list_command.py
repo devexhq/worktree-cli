@@ -65,6 +65,9 @@ class SandboxListCollectTests:
         first = db.get(first.id)
         second = db.get(second.id)
 
+        assert first is not None
+        assert second is not None
+
         result = collect_sandbox_list(git_fs.base_path, self.db.sandboxes)
         assert result.ok
         assert [row.id for row in result.sandboxes] == [second.id, first.id]

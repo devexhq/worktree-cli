@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from worktree.common.utils import RichOutput
-from worktree.core.config.models import WorktreeConfig
+from worktree.core.config.loader import load_config
 from worktree.core.diff.models import DiffResult, DiffStatus
 from worktree.core.diff.renderers import render_diff
 
@@ -21,7 +21,6 @@ class DiffService:
     raw: bool = False
     full: bool = False
     max_lines: int | None = None
-    config: WorktreeConfig | None = None
 
     def _discover_latest_session(self, sessions_dir: Path) -> Path | None:
         """Discover the most recently modified session directory under sessions_dir."""
@@ -104,8 +103,9 @@ class DiffService:
 
     def collect(self) -> DiffResult:
         """Collect and validate the diff artifact without side effects."""
-        if self.config is not None:
-            sessions_dir = self.path / self.config.paths.sessions_dir
+        load = load_config(path=self.path)
+        if load.ok and load.config is not None:
+            sessions_dir = self.path / load.config.paths.sessions_dir
         else:
             sessions_dir = self.path / ".worktree" / "sessions"
 

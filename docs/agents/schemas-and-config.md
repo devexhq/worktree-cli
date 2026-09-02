@@ -99,8 +99,10 @@ explicit `config_path` wins when provided.
 
 ### Primary API
 
-`load_config_result(path=None, *, config_path=None) -> ConfigLoadResult` is the
-primary surface. It does not print, call `sys.exit`, or create/mutate files.
+`load_config(path=None, *, config_path=None, bypass_cache=False) -> ConfigLoadResult` is the
+primary surface (`load_config_result` is provided as an alias). It does not print, call `sys.exit`, or create/mutate files.
+It uses an in-memory cache validated against file modification time and size (`st_mtime_ns`, `st_size`) to eliminate
+redundant disk reads and parsing overhead while immediately reflecting changes from direct user edits.
 
 `ConfigLoadResult` (`core/config/loader.py`, `extra: "forbid", strict: True`):
 `status: ConfigLoadStatus`, `config_path: Path` (absolute), `raw: dict | None`,
@@ -127,16 +129,11 @@ change; codes should not):
 Schema validation uses packaged `CONFIG_VALIDATOR` / `v1/config.json`. Non-object
 roots skip schema validation (`root_not_object`).
 
-### Raising helpers
+### Parsing Helpers
 
-Thin wrappers over the same internals (no print/exit):
+`parse_and_validate_config(raw) -> WorktreeConfig` parses and validates a raw dictionary
+against schema and Pydantic models, raising `ValueError` on validation failure.
 
-- `load_raw_config(config_path) -> dict`
-- `parse_and_validate_config(raw) -> WorktreeConfig`
-- `load_config(path=None, *, config_path=None) -> WorktreeConfig`
-
-They raise `FileNotFoundError` for `not_found`, `OSError` for `unreadable`, and
-`ValueError` for other non-non-ok statuses, using messages from `errors`.
 
 ### Context warnings
 

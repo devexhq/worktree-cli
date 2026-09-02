@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
 
-from worktree.common.fs import get_worktree_config_file
+from worktree.common.fs import find_worktree_root, get_worktree_config_file
 from worktree.common.schema_validation import CONFIG_VALIDATOR
 from worktree.core.config.models import WorktreeConfig
 
@@ -43,6 +44,25 @@ class ConfigLoadResult(BaseModel):
         return self.status == ConfigLoadStatus.OK
 
 
+@dataclass
+class _CachedConfig:
+    mtime_ns: int
+    size: int
+    result: ConfigLoadResult
+
+
+_CONFIG_CACHE: dict[Path, _CachedConfig] = {}
+
+
+def clear_config_cache(path: Path | None = None) -> None:
+    """Explicitly clear in-memory cached configuration."""
+    if path is not None:
+        target = resolve_config_path(path=path)
+        _CONFIG_CACHE.pop(target, None)
+    else:
+        _CONFIG_CACHE.clear()
+
+
 def resolve_config_path(
     path: Path | None = None,
     *,
@@ -59,63 +79,20 @@ def resolve_config_path(
     """
     if config_path is not None:
         return config_path.expanduser().resolve()
-    if path is None:
-        raise ValueError("Repository path must be provided when config_path is omitted.")
-    root = path.expanduser().resolve()
-    return get_worktree_config_file(root).resolve()
+    effective_root = (path if path is not None else find_worktree_root(Path.cwd())).expanduser().resolve()
+    return get_worktree_config_file(effective_root).resolve()
 
 
-def load_config_result(
-    path: Path | None = None,
-    *,
-    config_path: Path | None = None,
-) -> ConfigLoadResult:
-    """Load and validate config without raising.
-
-    Primary load surface for commands. Does not print, exit, create, or mutate
-    config files.
-
-    Args:
-        path: Repository root for default path resolution.
-        config_path: Explicit path override.
-
-    Returns:
-        Classified ``ConfigLoadResult`` with absolute ``config_path``.
-    """
-    path = resolve_config_path(path=path, config_path=config_path)
-
-    if path.exists() and path.is_dir():
-        return ConfigLoadResult(
-            status=ConfigLoadStatus.PATH_IS_DIRECTORY,
-            config_path=path,
-            errors=[
-                f"Config path is a directory, not a file: '{path}' "
-                f"(CONFIG_PATH_IS_DIRECTORY).\n"
-                "Fix:\n"
-                "- remove the directory or point config_path at a file"
-            ],
-        )
-
-    if not path.exists():
-        return ConfigLoadResult(
-            status=ConfigLoadStatus.NOT_FOUND,
-            config_path=path,
-            errors=[
-                f"Configuration file not found at '{path}' (CONFIG_NOT_FOUND).\n"
-                "Fix:\n"
-                "- run `wt init` to create `.worktree/config.json`"
-            ],
-        )
-
+def _read_and_validate_disk_config(target_path: Path) -> ConfigLoadResult:
+    """Read, parse, and validate config.json from disk."""
     try:
-        text = path.read_text(encoding="utf-8")
+        text = target_path.read_text(encoding="utf-8")
     except OSError as exc:
         return ConfigLoadResult(
             status=ConfigLoadStatus.UNREADABLE,
-            config_path=path,
+            config_path=target_path,
             errors=[
-                f"Unable to read config.json at '{path}': {exc} "
-                f"(CONFIG_UNREADABLE).\n"
+                f"Unable to read config.json at '{target_path}': {exc} (CONFIG_UNREADABLE).\n"
                 "Fix:\n"
                 "- check file permissions and that the path is readable"
             ],
@@ -129,10 +106,9 @@ def load_config_result(
             detail = f"{exc.msg} at {detail}"
         return ConfigLoadResult(
             status=ConfigLoadStatus.MALFORMED_JSON,
-            config_path=path,
+            config_path=target_path,
             errors=[
-                f"Malformed config.json at '{path}': {detail} "
-                f"(CONFIG_MALFORMED_JSON).\n"
+                f"Malformed config.json at '{target_path}': {detail} (CONFIG_MALFORMED_JSON).\n"
                 "Fix:\n"
                 "- repair JSON syntax, or restore from backup"
             ],
@@ -141,10 +117,9 @@ def load_config_result(
     if not isinstance(data, dict):
         return ConfigLoadResult(
             status=ConfigLoadStatus.ROOT_NOT_OBJECT,
-            config_path=path,
+            config_path=target_path,
             errors=[
-                f"Malformed config.json at '{path}': root must be an object "
-                f"(CONFIG_ROOT_NOT_OBJECT).\n"
+                f"Malformed config.json at '{target_path}': root must be an object (CONFIG_ROOT_NOT_OBJECT).\n"
                 "Fix:\n"
                 "- ensure config.json is a JSON object, not an array or scalar"
             ],
@@ -154,7 +129,7 @@ def load_config_result(
     if not validation.ok:
         return ConfigLoadResult(
             status=ConfigLoadStatus.SCHEMA_INVALID,
-            config_path=path,
+            config_path=target_path,
             raw=data,
             errors=[
                 "\n".join(
@@ -174,7 +149,7 @@ def load_config_result(
     except Exception as exc:  # pydantic ValidationError and similar
         return ConfigLoadResult(
             status=ConfigLoadStatus.SCHEMA_INVALID,
-            config_path=path,
+            config_path=target_path,
             raw=data,
             errors=[
                 "\n".join(
@@ -191,11 +166,100 @@ def load_config_result(
 
     return ConfigLoadResult(
         status=ConfigLoadStatus.OK,
-        config_path=path,
+        config_path=target_path,
         raw=data,
         config=config,
         errors=[],
     )
+
+
+def _check_path_existence(target_path: Path) -> ConfigLoadResult | None:
+    """Validate that target_path exists and is a file."""
+    if target_path.exists() and target_path.is_dir():
+        _CONFIG_CACHE.pop(target_path, None)
+        return ConfigLoadResult(
+            status=ConfigLoadStatus.PATH_IS_DIRECTORY,
+            config_path=target_path,
+            errors=[
+                f"Config path is a directory, not a file: '{target_path}' (CONFIG_PATH_IS_DIRECTORY).\n"
+                "Fix:\n"
+                "- remove the directory or point config_path at a file"
+            ],
+        )
+
+    if not target_path.exists():
+        _CONFIG_CACHE.pop(target_path, None)
+        return ConfigLoadResult(
+            status=ConfigLoadStatus.NOT_FOUND,
+            config_path=target_path,
+            errors=[
+                f"Configuration file not found at '{target_path}' (CONFIG_NOT_FOUND).\n"
+                "Fix:\n"
+                "- run `wt init` to create `.worktree/config.json`"
+            ],
+        )
+    return None
+
+
+def _get_cached_config(
+    target_path: Path,
+    stat: Any,
+    bypass_cache: bool,
+) -> ConfigLoadResult | None:
+    """Return cached ConfigLoadResult if stat matches in-memory entry."""
+    if bypass_cache or stat is None:
+        return None
+    cached = _CONFIG_CACHE.get(target_path)
+    if cached is not None and cached.mtime_ns == stat.st_mtime_ns and cached.size == stat.st_size:
+        return cached.result
+    return None
+
+
+def load_config(
+    path: Path | None = None,
+    *,
+    config_path: Path | None = None,
+    bypass_cache: bool = False,
+) -> ConfigLoadResult:
+    """Load and validate config without raising.
+
+    Primary load surface for commands. Does not print, exit, create, or mutate
+    config files. Uses an in-memory cache validated against file modification time.
+
+    Args:
+        path: Repository root for default path resolution. Defaults to CWD worktree root.
+        config_path: Explicit path override.
+        bypass_cache: When True, bypasses the in-memory cache and reads disk directly.
+
+    Returns:
+        Classified ``ConfigLoadResult`` with absolute ``config_path``.
+    """
+    target_path = resolve_config_path(path=path, config_path=config_path)
+
+    path_error = _check_path_existence(target_path)
+    if path_error is not None:
+        return path_error
+
+    try:
+        stat = target_path.stat()
+    except OSError:
+        stat = None
+
+    cached = _get_cached_config(target_path, stat, bypass_cache)
+    if cached is not None:
+        return cached
+
+    result = _read_and_validate_disk_config(target_path)
+    if stat is not None and result.ok:
+        _CONFIG_CACHE[target_path] = _CachedConfig(
+            mtime_ns=stat.st_mtime_ns,
+            size=stat.st_size,
+            result=result,
+        )
+    return result
+
+
+load_config_result = load_config
 
 
 def _map_worktree_config(raw: dict[str, Any]) -> WorktreeConfig:
@@ -210,35 +274,6 @@ def _map_worktree_config(raw: dict[str, Any]) -> WorktreeConfig:
         },
     }
     return WorktreeConfig.model_validate(normalized)
-
-
-def load_raw_config(config_path: Path) -> dict[str, Any]:
-    """Load JSON object or raise with classified message.
-
-    Args:
-        config_path: Path to the config file.
-
-    Returns:
-        Parsed JSON object.
-
-    Raises:
-        FileNotFoundError: When the file is missing.
-        ValueError: For other classified load failures.
-        OSError: When the path cannot be read.
-    """
-    result = load_config_result(config_path=config_path)
-    if result.status == ConfigLoadStatus.OK:
-        if result.raw is None:
-            raise ValueError(
-                f"Configuration loaded from '{result.config_path}' but the raw payload is missing "
-                f"(CONFIG_INTERNAL_INVARIANT)."
-            )
-        return result.raw
-    if result.status == ConfigLoadStatus.NOT_FOUND:
-        raise FileNotFoundError(result.errors[0] if result.errors else str(result.status))
-    if result.status == ConfigLoadStatus.UNREADABLE:
-        raise OSError(result.errors[0] if result.errors else str(result.status))
-    raise ValueError(result.errors[0] if result.errors else str(result.status))
 
 
 def parse_and_validate_config(raw: dict[str, Any]) -> WorktreeConfig:
@@ -280,37 +315,3 @@ def parse_and_validate_config(raw: dict[str, Any]) -> WorktreeConfig:
                 ]
             )
         ) from exc
-
-
-def load_config(
-    path: Path | None = None,
-    *,
-    config_path: Path | None = None,
-) -> WorktreeConfig:
-    """Return WorktreeConfig or raise with classified message.
-
-    Args:
-        path: Repository root for default path resolution.
-        config_path: Explicit path override.
-
-    Returns:
-        Typed ``WorktreeConfig``.
-
-    Raises:
-        FileNotFoundError: When the config file is missing.
-        ValueError: For other classified load failures.
-        OSError: When the path cannot be read.
-    """
-    result = load_config_result(path=path, config_path=config_path)
-    if result.status == ConfigLoadStatus.OK:
-        if result.config is None:
-            raise ValueError(
-                f"Configuration loaded from '{result.config_path}' but the parsed config is missing "
-                f"(CONFIG_INTERNAL_INVARIANT)."
-            )
-        return result.config
-    if result.status == ConfigLoadStatus.NOT_FOUND:
-        raise FileNotFoundError(result.errors[0] if result.errors else str(result.status))
-    if result.status == ConfigLoadStatus.UNREADABLE:
-        raise OSError(result.errors[0] if result.errors else str(result.status))
-    raise ValueError(result.errors[0] if result.errors else str(result.status))
