@@ -12,13 +12,13 @@ from rich.console import Console
 
 from tests.helpers import FileSystem, make_rich_output
 from worktree.common.utils import RichOutput
+from worktree.core.config.models import ProjectConfig, WorktreeConfig
 from worktree.core.diff.models import DiffResult, DiffStatus
 from worktree.core.diff.renderers import (
     render_diff,
     render_diff_not_found,
     render_diff_success,
     render_empty_diff,
-    render_not_initialized,
     render_read_failure,
     render_session_not_found,
 )
@@ -35,15 +35,6 @@ _SAMPLE_DIFF = """diff --git a/file.txt b/file.txt
 
 class DiffRenderersTests:
     """Unit tests for diff Rich renderers."""
-
-    def test_render_not_initialized(self) -> None:
-        """Verify render_not_initialized formats the error panel."""
-        output, buffer = make_rich_output()
-        render_not_initialized(["Missing config.json"], output=output)
-        output.print()
-        text = buffer.getvalue()
-        assert "Worktree Not Initialized" in text
-        assert "Missing config.json" in text
 
     def test_render_session_not_found_explicit(self) -> None:
         """Verify render_session_not_found with explicit session ID."""
@@ -246,9 +237,6 @@ class DiffRenderersTests:
         """Verify render_diff routes each DiffStatus correctly."""
         output, buffer = make_rich_output()
 
-        res_uninit = DiffResult(status=DiffStatus.NOT_INITIALIZED, errors=["Uninitialized error"])
-        render_diff(res_uninit, output=output)
-
         res_sess_nf = DiffResult(status=DiffStatus.SESSION_NOT_FOUND, session_id="s1")
         render_diff(res_sess_nf, output=output)
 
@@ -263,7 +251,6 @@ class DiffRenderersTests:
 
         output.print()
         text = buffer.getvalue()
-        assert "Worktree Not Initialized" in text
         assert "Session 's1' not found" in text
         assert "Session 's2' has no diff artifact." in text
         assert "Read error" in text
@@ -273,14 +260,28 @@ class DiffRenderersTests:
 class DiffServiceTests:
     """Unit tests for DiffService data collection and execution."""
 
-    def test_collect_not_initialized(self, fs: FileSystem) -> None:
-        """Verify collect returns NOT_INITIALIZED when .worktree/config.json is absent."""
+    def test_collect_no_config_falls_back_to_default_path(self, fs: FileSystem) -> None:
+        """Verify collect without config uses .worktree/sessions as the default sessions path."""
         output = RichOutput()
         service = DiffService(path=fs.base_path, output=output)
         result = service.collect()
         assert not result.ok
-        assert result.status == DiffStatus.NOT_INITIALIZED
-        assert len(result.errors) > 0
+        # No config and no sessions directory: SESSION_NOT_FOUND (not NOT_INITIALIZED)
+        assert result.status == DiffStatus.SESSION_NOT_FOUND
+
+    def test_collect_uses_injected_config_sessions_dir(self, fs: FileSystem) -> None:
+        """Verify collect uses config.paths.sessions_dir from the injected WorktreeConfig."""
+        config = WorktreeConfig(version=1, project=ProjectConfig(name="test"))
+        patch_file = fs.base_path / config.paths.sessions_dir / "sbx_cfg" / "diff.patch"
+        patch_file.parent.mkdir(parents=True, exist_ok=True)
+        patch_file.write_text(_SAMPLE_DIFF, encoding="utf-8")
+
+        output = RichOutput()
+        service = DiffService(path=fs.base_path, output=output, session_id="sbx_cfg", config=config)
+        result = service.collect()
+        assert result.ok
+        assert result.status == DiffStatus.OK
+        assert result.diff_text == _SAMPLE_DIFF
 
     def test_collect_explicit_session_missing_dir(self, fs: FileSystem) -> None:
         """Verify collect returns SESSION_NOT_FOUND when explicit session directory is absent."""

@@ -247,9 +247,10 @@ class DiffCliIntegrationTests:
         assert "Session 'sbx_no_patch' has no diff artifact." in result.output
 
     def test_cli_diff_uninitialized_exits_1(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Verify 'wt diff' in uninitialized directory renders error and exits 1."""
+        """Verify 'wt diff' in uninitialized directory renders error and exits 1 via CliContext."""
         monkeypatch.chdir(tmp_path)
 
         result = runner.invoke(app, ["diff"])
         assert result.exit_code == 1
-        assert "Worktree workspace is not initialized" in result.output or "Worktree Not Initialized" in result.output
+        # Error comes from CliContext.build() via ConfigLoadFormatter, not DiffService
+        assert "Worktree workspace is not initialized" in result.output or "not initialized" in result.output.lower()

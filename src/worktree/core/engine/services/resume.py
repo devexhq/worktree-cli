@@ -12,6 +12,7 @@ from worktree.core.blueprint import (
 )
 from worktree.core.blueprint.renderers import render_blueprint_run_success
 from worktree.core.catalog import Catalog
+from worktree.core.config.models import WorktreeConfig
 from worktree.core.db import CatalogRepository, RunRecord, RunsRepository, RunStatus
 from worktree.core.engine.engine import Engine
 from worktree.core.engine.exceptions import EngineResumeError, EngineRuntimeError
@@ -33,6 +34,7 @@ class BlueprintResumeService:
     output: RichOutput
     session_id: str | None = None
     non_interactive: bool = False
+    config: WorktreeConfig | None = None
     warnings: list[str] = field(default_factory=list)
 
     def execute(self) -> BlueprintRunCommandOutcome:
@@ -47,7 +49,7 @@ class BlueprintResumeService:
 
         try:
             with observer:
-                run_outcome = Engine(self.path, db=self.db, catalog=catalog).resume(
+                run_outcome = Engine(self.path, db=self.db, catalog=catalog, config=self.config).resume(
                     target_session_id,
                     observer=observer,
                     failure_prompter=prompter,

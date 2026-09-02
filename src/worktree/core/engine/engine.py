@@ -10,6 +10,7 @@ from pathlib import Path
 from worktree.common.lock import WorkspaceLock
 from worktree.core.blueprint import Blueprint
 from worktree.core.catalog import Catalog
+from worktree.core.config.models import WorktreeConfig
 from worktree.core.db import BlueprintKind, RunsRepository, RunStatus
 from worktree.core.engine.exceptions import EngineInputError
 from worktree.core.engine.models import RunRequest, SessionRunPayload
@@ -59,10 +60,12 @@ class Engine:
         path: Path,
         db: RunsRepository,
         catalog: Catalog,
+        config: WorktreeConfig | None = None,
     ) -> None:
         self.path = path.resolve()
         self.db = db
         self.catalog = catalog
+        self.config = config
 
     def run(self, blueprint: Blueprint, request: RunRequest | None = None) -> RunOutcome:
         """Adapt ``blueprint`` into ``RunContext`` and delegate to ``run_steps``."""
@@ -94,6 +97,7 @@ class Engine:
                 failure_prompter=req.failure_prompter,
                 pause_store=pause_store,
                 auto_apply=req.auto_apply,
+                config=self.config,
             )
         )
 
@@ -155,6 +159,7 @@ class Engine:
                 failure_prompter=failure_prompter,
                 pause_store=pause_store,
                 resume_from=checkpoint,
+                config=self.config,
             )
         )
 

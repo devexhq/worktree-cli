@@ -12,14 +12,6 @@ from worktree.common.utils import RichOutput, display_path
 from worktree.core.diff.models import DiffResult, DiffStatus
 
 
-def render_not_initialized(errors: list[str], *, output: RichOutput) -> None:
-    """Render the not-initialized error panel for diff commands."""
-    output.render_not_initialized(
-        errors,
-        fix_hint="run `wt init` to initialize getworktree",
-    )
-
-
 def render_session_not_found(session_id: str | None, *, output: RichOutput) -> None:
     """Render the session-not-found error panel."""
     if session_id:
@@ -134,10 +126,6 @@ def render_diff(
     cwd: Path | None = None,
 ) -> None:
     """Render diff result to Rich output based on classified status."""
-    if result.status == DiffStatus.NOT_INITIALIZED:
-        render_not_initialized(result.errors, output=output)
-        return
-
     if result.status == DiffStatus.SESSION_NOT_FOUND:
         render_session_not_found(result.session_id, output=output)
         return
