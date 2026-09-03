@@ -71,10 +71,11 @@ core/<domain>/
 
 **Relevant sources:** `src/worktree/common/models.py`, `src/worktree/core/*/models.py`
 
-Operations that can fail return a Pydantic result object instead of raising:
+Operations that can fail return a Pydantic result object subclassing `BaseResult` instead of raising:
 - `status: StrEnum`: Outcome state.
-- `warnings: list[str]`: Non-fatal issues.
-- `errors: list[str]`: Fatal issues.
+- `warnings: list[str]`: Non-fatal issues (inherited from `BaseResult`).
+- `errors: list[str]`: Fatal issues (inherited from `BaseResult`).
+- `fixes: list[str]`: Suggested fixes or remediations (inherited from `BaseResult`).
 - `ok: bool`: Property returning `not bool(self.errors)` or `status == OK`.
 - Callers check `.ok` and render `.errors` / `.warnings` rather than catching exceptions.
 

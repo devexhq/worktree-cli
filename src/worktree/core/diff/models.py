@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import StrEnum
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from worktree.common.models import BaseResult
 
 
 class DiffStatus(StrEnum):
@@ -18,17 +18,13 @@ class DiffStatus(StrEnum):
     READ_FAILURE = "read_failure"
 
 
-class DiffResult(BaseModel):
+class DiffResult(BaseResult):
     """Structured result of diff collection before rendering."""
-
-    model_config = {"extra": "forbid", "strict": True}
 
     status: DiffStatus
     session_id: str | None = None
     artifact_path: Path | None = None
     diff_text: str = ""
-    errors: list[str] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:

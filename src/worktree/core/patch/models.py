@@ -2,7 +2,9 @@
 
 from enum import StrEnum
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from worktree.common.models import BaseResult
 
 
 class PatchApplyStatus(StrEnum):
@@ -21,14 +23,11 @@ class PatchApplyStatus(StrEnum):
     SANDBOX_MISSING = "sandbox_missing"
 
 
-class PatchApplyResult(BaseModel):
+class PatchApplyResult(BaseResult):
     """Non-raising result of patch validation / apply."""
-
-    model_config = {"extra": "forbid", "strict": True}
 
     status: PatchApplyStatus
     touched_files: list[str] = Field(default_factory=list)
-    errors: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:

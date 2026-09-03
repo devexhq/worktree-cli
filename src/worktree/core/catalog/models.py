@@ -8,7 +8,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from worktree.common.models import DefinitionResolutionStatus
+from worktree.common.models import BaseResult, DefinitionResolutionStatus
 from worktree.core.db import CatalogItemType, CatalogRecord
 
 
@@ -20,18 +20,14 @@ class CatalogResolveStatus(StrEnum):
     LOAD_ERROR = "load_error"
 
 
-class CatalogResolveResult(BaseModel):
+class CatalogResolveResult(BaseResult):
     """Non-raising result of resolving a catalog YAML document."""
-
-    model_config = {"extra": "forbid", "strict": True}
 
     status: CatalogResolveStatus
     name: str
     raw: dict[str, Any] | None = None
     record: CatalogRecord | None = None
     matches: list[CatalogRecord] = Field(default_factory=list)
-    errors: list[str] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -39,19 +35,12 @@ class CatalogResolveResult(BaseModel):
         return self.status == CatalogResolveStatus.OK
 
 
-class SeedResult(BaseModel):
+class SeedResult(BaseResult):
     """Outcome of seeding packaged catalog blueprint templates."""
-
-    model_config = {
-        "extra": "forbid",
-        "strict": True,
-    }
 
     created_files: list[Path] = Field(default_factory=list)
     skipped_existing_files: list[Path] = Field(default_factory=list)
     overwritten_files: list[Path] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
-    errors: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -59,13 +48,10 @@ class SeedResult(BaseModel):
         return not self.errors
 
 
-class CatalogScanResult(BaseModel):
+class CatalogScanResult(BaseResult):
     """Result of scanning and indexing catalog blueprint directories."""
 
-    model_config = {"extra": "forbid", "strict": True}
-
     items: list[CatalogRecord] = Field(default_factory=list)
-    errors: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -73,13 +59,10 @@ class CatalogScanResult(BaseModel):
         return not self.errors
 
 
-class CatalogSubdirectoryScanResult(BaseModel):
+class CatalogSubdirectoryScanResult(BaseResult):
     """Result of scanning a catalog subdirectory."""
 
-    model_config = {"extra": "forbid", "strict": True}
-
     scanned_records: list[CatalogRecord] = Field(default_factory=list)
-    errors: list[str] = Field(default_factory=list)
     scanned_shas: set[str] = Field(default_factory=set)
 
 
@@ -102,16 +85,12 @@ class DefinitionValidationOutcome(BaseModel):
     errors: list[str] = Field(default_factory=list)
 
 
-class CatalogListResult(BaseModel):
+class CatalogListResult(BaseResult):
     """Result of listing catalog blueprints and templates."""
-
-    model_config = {"extra": "forbid", "strict": True}
 
     items: list[CatalogRecord] = Field(default_factory=list)
     type_filter: CatalogItemType | str | None = None
     templates: list[tuple[str, str]] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
-    errors: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -119,15 +98,12 @@ class CatalogListResult(BaseModel):
         return not self.errors
 
 
-class CatalogShowResult(BaseModel):
+class CatalogShowResult(BaseResult):
     """Result of showing a catalog blueprint or packaged template."""
-
-    model_config = {"extra": "forbid", "strict": True}
 
     item: CatalogRecord | None = None
     content: str | None = None
     template_matches: list[tuple[str, str]] = Field(default_factory=list)
-    errors: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -135,15 +111,12 @@ class CatalogShowResult(BaseModel):
         return not self.errors and (self.item is not None or self.content is not None or bool(self.template_matches))
 
 
-class CatalogDeleteResult(BaseModel):
+class CatalogDeleteResult(BaseResult):
     """Result of deleting a catalog blueprint."""
-
-    model_config = {"extra": "forbid", "strict": True}
 
     item: CatalogRecord | None = None
     deleted: bool = False
     cancelled: bool = False
-    errors: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -151,13 +124,10 @@ class CatalogDeleteResult(BaseModel):
         return not self.errors and self.deleted
 
 
-class CatalogCreateResult(BaseModel):
+class CatalogCreateResult(BaseResult):
     """Result of creating a catalog blueprint."""
 
-    model_config = {"extra": "forbid", "strict": True}
-
     item: CatalogRecord | None = None
-    errors: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:

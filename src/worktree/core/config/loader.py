@@ -8,9 +8,8 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field
-
 from worktree.common.filesystem import Filesystem
+from worktree.common.models import BaseResult
 from worktree.common.schema_validation import CONFIG_VALIDATOR
 from worktree.core.config.models import WorktreeConfig
 
@@ -27,16 +26,13 @@ class ConfigLoadStatus(StrEnum):
     UNREADABLE = "unreadable"
 
 
-class ConfigLoadResult(BaseModel):
+class ConfigLoadResult(BaseResult):
     """Non-raising result of load + schema validation for config.json."""
-
-    model_config = {"extra": "forbid", "strict": True}
 
     status: ConfigLoadStatus
     config_path: Path
     raw: dict[str, Any] | None = None
     config: WorktreeConfig | None = None
-    errors: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:

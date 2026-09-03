@@ -14,18 +14,24 @@ class DefinitionResolutionStatus(StrEnum):
     DISCOVERY_FAILED = "discovery_failed"
 
 
-class DefinitionResolutionResult[T](BaseModel):
-    """Non-raising result of resolving one domain definition name."""
+class BaseResult(BaseModel):
+    """Base DTO for operation results."""
 
     model_config = {"extra": "forbid", "strict": True}
+
+    errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    fixes: list[str] = Field(default_factory=list)
+
+
+class DefinitionResolutionResult[T](BaseResult):
+    """Non-raising result of resolving one domain definition name."""
 
     status: DefinitionResolutionStatus
     requested_name: str
     resolved: T | None = None
     definition: Any | None = None
     matches: list[T] = Field(default_factory=list)
-    errors: list[str] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:

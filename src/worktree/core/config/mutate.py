@@ -8,9 +8,8 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field
-
 from worktree.common.filesystem import Filesystem
+from worktree.common.models import BaseResult
 from worktree.common.schema_validation import CONFIG_VALIDATOR
 from worktree.core.config.loader import (
     _map_worktree_config,
@@ -34,16 +33,13 @@ class ConfigSetStatus(StrEnum):
     WRITE_FAILED = "write_failed"
 
 
-class ConfigSetResult(BaseModel):
+class ConfigSetResult(BaseResult):
     """Non-raising result of a config dot-path set operation."""
-
-    model_config = {"extra": "forbid", "strict": True}
 
     status: ConfigSetStatus
     config_path: Path
     key: str
     value: Any = None
-    errors: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:

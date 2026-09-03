@@ -7,6 +7,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
+from worktree.common.models import BaseResult
 from worktree.core.db import RunRecord
 from worktree.core.runtime.models import FailurePrompter, RunObserver
 from worktree.core.step.models import StepResult
@@ -55,10 +56,8 @@ class SessionRunPayload(BaseModel):
     step_results: list[StepResult] = Field(default_factory=list)
 
 
-class ReconciliationResult(BaseModel):
+class ReconciliationResult(BaseResult):
     """Result of reconciling stale running sessions."""
-
-    model_config = {"extra": "forbid", "strict": True}
 
     reconciled: list[RunRecord] = Field(default_factory=list)
     warning: str | None = None

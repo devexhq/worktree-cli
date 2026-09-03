@@ -5,8 +5,9 @@ from __future__ import annotations
 from enum import Enum
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
+from worktree.common.models import BaseResult
 from worktree.core.catalog.models import SeedResult
 from worktree.core.config.generator import ConfigGenerationResult
 
@@ -18,21 +19,14 @@ class DirEnsureOutcome(Enum):
     EXISTING = "existing"
 
 
-class BootstrapResult(BaseModel):
+class BootstrapResult(BaseResult):
     """Outcome of bootstrapping the `.worktree/` directory tree."""
-
-    model_config = {
-        "extra": "forbid",
-        "strict": True,
-    }
 
     root_path: Path
     root_created: bool = False
     dirs_created: list[Path] = Field(default_factory=list)
     dirs_existing: list[Path] = Field(default_factory=list)
     repaired: bool = False
-    warnings: list[str] = Field(default_factory=list)
-    errors: list[str] = Field(default_factory=list)
     seed_result: SeedResult = Field(default_factory=SeedResult)
 
     @property
@@ -41,18 +35,12 @@ class BootstrapResult(BaseModel):
         return not self.errors
 
 
-class WorkspaceInitResult(BaseModel):
+class WorkspaceInitResult(BaseResult):
     """Structured outcome of initializing a project workspace."""
-
-    model_config = {
-        "extra": "forbid",
-        "strict": True,
-    }
 
     bootstrap_result: BootstrapResult | None = None
     config_result: ConfigGenerationResult | None = None
     seed_result: SeedResult | None = None
-    errors: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:

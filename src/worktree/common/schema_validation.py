@@ -8,18 +8,12 @@ from importlib.resources.abc import Traversable
 from typing import Any
 
 from jsonschema import Draft202012Validator
-from pydantic import BaseModel, Field
+
+from worktree.common.models import BaseResult
 
 
-class ValidationResult(BaseModel):
+class ValidationResult(BaseResult):
     """Outcome of validating a document against a JSON schema."""
-
-    model_config = {
-        "extra": "forbid",
-        "strict": True,
-    }
-
-    errors: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:
