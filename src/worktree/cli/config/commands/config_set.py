@@ -3,8 +3,7 @@
 from worktree.cli.context import CliContext
 from worktree.cli.ui.dispatcher import ui_dispatcher
 from worktree.core.config import Config
-
-from ..models import ConfigSetCommandOutcome
+from worktree.core.config.mutate import ConfigSetResult
 
 
 def config_set_command(
@@ -12,7 +11,7 @@ def config_set_command(
     key: str,
     value: str,
     output_format: str = "terminal",
-) -> ConfigSetCommandOutcome:
+) -> ConfigSetResult:
     """Set a configuration value by top-level or nested dot-path key.
 
     String inputs are parsed into native types (bool, int, float, list, dict).
@@ -28,8 +27,4 @@ def config_set_command(
     """
     result = Config(path=context.cwd).set(key, value)
     ui_dispatcher.dispatch(result, output_format=output_format)
-
-    if not result.ok:
-        return ConfigSetCommandOutcome(errors=list(result.errors))
-
-    return ConfigSetCommandOutcome(key=result.key, value=result.value)
+    return result

@@ -58,14 +58,14 @@ def history_callback(
     """Inspect past blueprint execution sessions, step details, and checkpoints."""
     if ctx.invoked_subcommand is None:
         context: CliContext = ctx.obj["context"]
-        outcome = history_root_command(
+        result = history_root_command(
             context,
             limit=limit,
             status=status.value if status is not None else None,
             kind=kind.value if kind is not None else None,
             output_format=format,
         )
-        if not outcome.ok:
+        if not result.ok:
             raise typer.Exit(code=1)
 
 
@@ -104,14 +104,14 @@ def history_list(
 ) -> None:
     """List past blueprint execution sessions."""
     context: CliContext = ctx.obj["context"]
-    outcome = history_list_command(
+    result = history_list_command(
         context,
         limit=limit,
         status=status.value if status is not None else None,
         kind=kind.value if kind is not None else None,
         output_format=format,
     )
-    if not outcome.ok:
+    if not result.ok:
         raise typer.Exit(code=1)
 
 
@@ -127,10 +127,10 @@ def history_show(
 ) -> None:
     """Show detailed metadata, error messages, and checkpoint state for a session."""
     context: CliContext = ctx.obj["context"]
-    outcome = history_show_command(
+    result = history_show_command(
         context,
         session_id,
         output_format=format,
     )
-    if not outcome.ok:
+    if not result.ok:
         raise typer.Exit(code=1)

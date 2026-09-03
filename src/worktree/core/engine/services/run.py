@@ -11,7 +11,7 @@ from worktree.core.blueprint import (
     BlueprintKind,
     BlueprintLoadError,
     BlueprintNotFoundError,
-    BlueprintRunCommandOutcome,
+    BlueprintRunResult,
     BlueprintValidationError,
 )
 from worktree.core.blueprint.renderers import (
@@ -60,7 +60,7 @@ class BlueprintRunService:
     def _kind_label(self) -> str:
         return self.kind.value if self.kind is not None else "blueprint"
 
-    def execute(self) -> BlueprintRunCommandOutcome:
+    def execute(self) -> BlueprintRunResult:
         """Run the full execution pipeline and return the outcome."""
         reconciliation_result = reconcile_stale_runs(self.runs_db, path=self.path)
         if reconciliation_result.warning:
@@ -112,16 +112,16 @@ class BlueprintRunService:
 
         return self._finalize(run_outcome)
 
-    def _fail(self, message: str) -> BlueprintRunCommandOutcome:
+    def _fail(self, message: str) -> BlueprintRunResult:
         panel_title = f"{self._kind_label.capitalize()} Run Failed"
         self.output.add_error_panel(panel_title, message)
-        return BlueprintRunCommandOutcome(
+        return BlueprintRunResult(
             run_record=None,
             errors=[message],
             output_items=list(self.output._items),
         )
 
-    def _load_blueprint(self, catalog: Catalog) -> tuple[Blueprint | None, BlueprintRunCommandOutcome | None]:
+    def _load_blueprint(self, catalog: Catalog) -> tuple[Blueprint | None, BlueprintRunResult | None]:
         try:
             blueprint = Blueprint.load(self.name, catalog=catalog)
         except (BlueprintNotFoundError, BlueprintLoadError) as exc:
@@ -175,7 +175,7 @@ class BlueprintRunService:
     def _render_success(self, final_record: RunRecord) -> None:
         render_blueprint_run_success(final_record, self.kind, output=self.output)
 
-    def _finalize(self, run_outcome: RunOutcome) -> BlueprintRunCommandOutcome:
+    def _finalize(self, run_outcome: RunOutcome) -> BlueprintRunResult:
         sid = run_outcome.session_id or ""
         self.warnings.extend(run_outcome.warnings)
         record = self._load_record(sid) if sid else None
@@ -188,7 +188,7 @@ class BlueprintRunService:
 
         if run_outcome.ok:
             self._render_success(final_record)
-            return BlueprintRunCommandOutcome(
+            return BlueprintRunResult(
                 run_record=final_record,
                 warnings=self.warnings,
                 output_items=list(self.output._items),
@@ -197,7 +197,7 @@ class BlueprintRunService:
         if run_outcome.status == RunStatus.PAUSED:
             msg = primary_error or f"{self._kind_label.capitalize()} paused; checkpoint saved."
             self.output.add_line(msg)
-            return BlueprintRunCommandOutcome(
+            return BlueprintRunResult(
                 run_record=final_record,
                 warnings=self.warnings,
                 output_items=list(self.output._items),
@@ -206,7 +206,7 @@ class BlueprintRunService:
         if run_outcome.status == RunStatus.CANCELLED:
             msg = primary_error or "Cancelled by user."
             self.output.add_error_panel(f"{self._kind_label.capitalize()} Run Cancelled", msg)
-            return BlueprintRunCommandOutcome(
+            return BlueprintRunResult(
                 run_record=final_record,
                 errors=[msg],
                 warnings=self.warnings,
@@ -215,7 +215,7 @@ class BlueprintRunService:
 
         msg = self.renderer.render(run_outcome)
         self.output.add_error_panel(f"{self._kind_label.capitalize()} Run Failed", msg)
-        return BlueprintRunCommandOutcome(
+        return BlueprintRunResult(
             run_record=final_record,
             errors=[msg],
             warnings=self.warnings,

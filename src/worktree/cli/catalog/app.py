@@ -34,8 +34,8 @@ def catalog_callback(
     """Inspect and manage executable blueprints in .worktree/catalog/."""
     if ctx.invoked_subcommand is None:
         context: CliContext = ctx.obj["context"]
-        outcome = catalog_list_command(context, type_filter=type, output_format=format)
-        if not outcome.ok:
+        result = catalog_list_command(context, type_filter=type, output_format=format)
+        if not result.ok:
             raise typer.Exit(code=1)
 
 
@@ -55,8 +55,8 @@ def catalog_list(
 ):
     """List catalog blueprints."""
     context: CliContext = ctx.obj["context"]
-    outcome = catalog_list_command(context, type_filter=type, output_format=format)
-    if not outcome.ok:
+    result = catalog_list_command(context, type_filter=type, output_format=format)
+    if not result.ok:
         raise typer.Exit(code=1)
 
 
@@ -73,8 +73,8 @@ def catalog_create(
 ):
     """Create a new catalog blueprint under .worktree/catalog/<type>s/<name>.yml."""
     context: CliContext = ctx.obj["context"]
-    outcome = catalog_create_command(context, type, name, output_format=format)
-    if not outcome.ok:
+    result = catalog_create_command(context, type, name, output_format=format)
+    if not result.ok:
         raise typer.Exit(code=1)
 
 
@@ -90,8 +90,8 @@ def catalog_show(
 ):
     """Show metadata and definition content of a catalog blueprint."""
     context: CliContext = ctx.obj["context"]
-    outcome = catalog_show_command(context, name, output_format=format)
-    if not outcome.ok:
+    result = catalog_show_command(context, name, output_format=format)
+    if not result.ok:
         raise typer.Exit(code=1)
 
 
@@ -112,6 +112,6 @@ def catalog_delete(
 ):
     """Delete a catalog blueprint file and its database index record."""
     context: CliContext = ctx.obj["context"]
-    outcome = catalog_delete_command(context, name, force=force, output_format=format)
-    if not outcome.ok:
+    result = catalog_delete_command(context, name, force=force, output_format=format)
+    if not result.ok:
         raise typer.Exit(code=1)

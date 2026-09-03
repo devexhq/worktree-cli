@@ -49,8 +49,8 @@ def sandbox_create(
 ):
     """Create an isolated git worktree sandbox."""
     context: CliContext = ctx.obj["context"]
-    outcome = sandbox_create_command(context, name=name, base_ref=base_ref, wip=wip, output_format=format)
-    if not outcome.ok:
+    result = sandbox_create_command(context, name=name, base_ref=base_ref, wip=wip, output_format=format)
+    if not result.ok:
         raise typer.Exit(code=1)
 
 
@@ -73,12 +73,12 @@ def sandbox_list(
 ):
     """List tracked sandboxes and their lifecycle status."""
     context: CliContext = ctx.obj["context"]
-    outcome = sandbox_list_command(
+    result = sandbox_list_command(
         context,
         status=status.value if status is not None else None,
         output_format=format,
     )
-    if not outcome.ok:
+    if not result.ok:
         raise typer.Exit(code=1)
 
 
@@ -94,8 +94,8 @@ def sandbox_show(
 ):
     """Show full detail for one tracked sandbox."""
     context: CliContext = ctx.obj["context"]
-    outcome = sandbox_show_command(context, sandbox_id, output_format=format)
-    if not outcome.ok:
+    result = sandbox_show_command(context, sandbox_id, output_format=format)
+    if not result.ok:
         raise typer.Exit(code=1)
 
 
@@ -120,8 +120,8 @@ def sandbox_prune(
 ):
     """Safely prune stale sandboxes, orphaned directories, and temporary branches."""
     context: CliContext = ctx.obj["context"]
-    outcome = sandbox_prune_command(context, dry_run=dry_run, force=force, output_format=format)
-    if not outcome.ok:
+    result = sandbox_prune_command(context, dry_run=dry_run, force=force, output_format=format)
+    if not result.ok:
         raise typer.Exit(code=1)
 
 
@@ -142,8 +142,8 @@ def sandbox_delete(
 ):
     """Delete a sandbox worktree and branch after confirmation."""
     context: CliContext = ctx.obj["context"]
-    outcome = sandbox_delete_command(context, sandbox_id, force=force, output_format=format)
-    if not outcome.ok:
+    result = sandbox_delete_command(context, sandbox_id, force=force, output_format=format)
+    if not result.ok:
         raise typer.Exit(code=1)
 
 
@@ -189,7 +189,7 @@ def sandbox_apply(
 ):
     """Apply changes from an isolated sandbox back into the main workspace."""
     context: CliContext = ctx.obj["context"]
-    outcome = sandbox_apply_command(
+    result = sandbox_apply_command(
         context,
         sandbox_id,
         strategy=strategy,
@@ -199,7 +199,7 @@ def sandbox_apply(
         message=message,
         output_format=format,
     )
-    if not outcome.ok:
+    if not result.ok:
         raise typer.Exit(code=1)
 
 
@@ -220,6 +220,6 @@ def sandbox_diff(
 ):
     """Inspect differences between sandbox worktree and base commit."""
     context: CliContext = ctx.obj["context"]
-    outcome = sandbox_diff_command(context, sandbox_id, stat=stat, output_format=format)
-    if not outcome.ok:
+    result = sandbox_diff_command(context, sandbox_id, stat=stat, output_format=format)
+    if not result.ok:
         raise typer.Exit(code=1)

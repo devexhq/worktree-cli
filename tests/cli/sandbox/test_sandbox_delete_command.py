@@ -17,7 +17,6 @@ from worktree.cli.sandbox.commands.sandbox_delete import (
     sandbox_delete_command,
 )
 from worktree.cli.sandbox.formatters import SandboxDeleteFormatter
-from worktree.cli.sandbox.models import SandboxDeleteResult, SandboxDeleteStatus
 from worktree.cli.sandbox.renderers import (
     sandbox_delete_confirm_prompt,
 )
@@ -26,6 +25,7 @@ from worktree.core.db import (
     WorktreeDb,
 )
 from worktree.core.sandbox import Sandbox
+from worktree.core.sandbox.models import SandboxDeleteResult, SandboxDeleteStatus
 
 runner = CliRunner()
 DB_REL = ".worktree/data.db"

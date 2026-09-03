@@ -10,10 +10,6 @@ from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.text import Text
 
-from worktree.cli.sandbox.models import (
-    SandboxDeleteResult,
-    SandboxDeleteStatus,
-)
 from worktree.cli.sandbox.renderers import build_sandbox_detail_table, build_sandbox_table
 from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
 from worktree.common.types import ComponentFormatter
@@ -24,6 +20,8 @@ from worktree.core.sandbox.models import (
     SandboxApplyResult,
     SandboxApplyStrategy,
     SandboxCreateResult,
+    SandboxDeleteResult,
+    SandboxDeleteStatus,
     SandboxDiffResult,
     SandboxDiffStatus,
     SandboxListResult,

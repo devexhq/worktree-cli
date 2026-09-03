@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from worktree.cli.context import CliContext
-from worktree.cli.history.models import HistoryListCommandOutcome
 from worktree.cli.ui.dispatcher import ui_dispatcher
 from worktree.core.history import History
+from worktree.core.history.models import HistoryListResult
 
 
 def history_root_command(
@@ -14,7 +14,7 @@ def history_root_command(
     status: str | None = None,
     kind: str | None = None,
     output_format: str = "terminal",
-) -> HistoryListCommandOutcome:
+) -> HistoryListResult:
     """Execute history list query and dispatch results via UiDispatcher.
 
     Args:
@@ -25,7 +25,7 @@ def history_root_command(
         output_format: Presentation format ("terminal" or "json").
 
     Returns:
-        HistoryListCommandOutcome containing listed runs and errors.
+        HistoryListResult containing listed runs and errors.
     """
     result = History(path=context.cwd, db=context.db.runs).list(
         limit=limit,
@@ -33,11 +33,7 @@ def history_root_command(
         kind=kind,
     )
     ui_dispatcher.dispatch(result, output_format=output_format)
-    return HistoryListCommandOutcome(
-        result=result,
-        runs=result.runs,
-        errors=list(result.errors),
-    )
+    return result
 
 
 history_list_command = history_root_command

@@ -39,12 +39,12 @@ def init_callback(
     Config.configure(target_path)
     cwd = fs.root_dir
     context = CliContext(cwd=cwd, db=WorktreeDb(path=cwd), fs=fs)
-    outcome = init_command(
+    result = init_command(
         context,
         tool_version=get_version(),
         overwrite=overwrite,
         repair=repair,
         output_format=format,
     )
-    if not outcome.ok:
+    if not result.ok:
         raise typer.Exit(code=1)

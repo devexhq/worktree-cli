@@ -5,10 +5,7 @@ from __future__ import annotations
 from worktree.cli.context import CliContext
 from worktree.cli.ui.dispatcher import ui_dispatcher
 from worktree.core.sandbox import Sandbox
-
-from ..models import (
-    SandboxPruneCommandOutcome,
-)
+from worktree.core.sandbox.models import SandboxPruneResult
 
 
 def sandbox_prune_command(
@@ -17,7 +14,7 @@ def sandbox_prune_command(
     dry_run: bool = False,
     force: bool = False,
     output_format: str = "terminal",
-) -> SandboxPruneCommandOutcome:
+) -> SandboxPruneResult:
     """Safely prune stale sandboxes, orphaned directories, and temporary branches.
 
     Args:
@@ -27,7 +24,7 @@ def sandbox_prune_command(
         output_format: Presentation format ("terminal" or "json").
 
     Returns:
-        Structured prune outcome.
+        Structured prune result.
     """
     result = Sandbox(
         path=context.cwd,
@@ -39,9 +36,4 @@ def sandbox_prune_command(
     )
 
     ui_dispatcher.dispatch(result, output_format=output_format)
-
-    return SandboxPruneCommandOutcome(
-        result=result,
-        errors=list(result.errors),
-        warnings=list(result.warnings),
-    )
+    return result

@@ -43,12 +43,12 @@ def register_diff_command(app: typer.Typer) -> None:
     ) -> None:
         """View syntax-highlighted unified diff for a session."""
         context: CliContext = ctx.obj["context"]
-        outcome = diff_command(
+        result = diff_command(
             context,
             session_id=session_id,
             raw=raw,
             full=full,
             output_format=format,
         )
-        if not outcome.ok:
+        if not result.ok:
             raise typer.Exit(code=1)

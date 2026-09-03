@@ -4,9 +4,7 @@ from __future__ import annotations
 
 from worktree.cli.context import CliContext
 from worktree.cli.ui.dispatcher import ui_dispatcher
-from worktree.core.sandbox import Sandbox, SandboxApplyStrategy
-
-from ..models import SandboxApplyCommandOutcome
+from worktree.core.sandbox import Sandbox, SandboxApplyResult, SandboxApplyStrategy
 
 
 def sandbox_apply_command(
@@ -19,7 +17,7 @@ def sandbox_apply_command(
     delete: bool = False,
     message: str | None = None,
     output_format: str = "terminal",
-) -> SandboxApplyCommandOutcome:
+) -> SandboxApplyResult:
     """Apply sandbox changes back to main workspace.
 
     Args:
@@ -43,11 +41,4 @@ def sandbox_apply_command(
     )
 
     ui_dispatcher.dispatch(result, output_format=output_format)
-    if not result.ok:
-        return SandboxApplyCommandOutcome(
-            result=result,
-            errors=list(result.errors),
-            warnings=list(result.warnings),
-        )
-
-    return SandboxApplyCommandOutcome(result=result, warnings=list(result.warnings))
+    return result

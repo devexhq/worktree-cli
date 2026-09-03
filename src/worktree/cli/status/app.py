@@ -36,6 +36,4 @@ def status_callback(
         Config.configure(target_path)
         cwd = fs.root_dir
         context = CliContext(cwd=cwd, db=WorktreeDb(path=cwd), fs=fs)
-    outcome = status_command(context, output_format=format)
-    if not outcome.ok:
-        raise typer.Exit(code=1)
+    status_command(context, output_format=format)

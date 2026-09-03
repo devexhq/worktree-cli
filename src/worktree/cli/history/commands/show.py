@@ -3,16 +3,16 @@
 from __future__ import annotations
 
 from worktree.cli.context import CliContext
-from worktree.cli.history.models import HistoryShowCommandOutcome
 from worktree.cli.ui.dispatcher import ui_dispatcher
 from worktree.core.history import History
+from worktree.core.history.models import HistoryShowResult
 
 
 def history_show_command(
     context: CliContext,
     session_id: str,
     output_format: str = "terminal",
-) -> HistoryShowCommandOutcome:
+) -> HistoryShowResult:
     """Execute session show query and dispatch results via UiDispatcher.
 
     Args:
@@ -21,12 +21,8 @@ def history_show_command(
         output_format: Presentation format ("terminal" or "json").
 
     Returns:
-        HistoryShowCommandOutcome containing session details and errors.
+        HistoryShowResult containing session details and errors.
     """
     result = History(path=context.cwd, db=context.db.runs).show(session_id)
     ui_dispatcher.dispatch(result, output_format=output_format)
-    return HistoryShowCommandOutcome(
-        result=result,
-        run=result.run,
-        errors=list(result.errors),
-    )
+    return result

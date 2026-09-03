@@ -5,14 +5,13 @@ from __future__ import annotations
 from worktree.cli.context import CliContext
 from worktree.cli.ui.dispatcher import ui_dispatcher
 from worktree.core.config import Config
-
-from ..models import ConfigShowCommandOutcome
+from worktree.core.config.loader import ConfigLoadResult
 
 
 def config_show_command(
     context: CliContext,
     output_format: str = "terminal",
-) -> ConfigShowCommandOutcome:
+) -> ConfigLoadResult:
     """Print source metadata, then the effective configuration as pretty JSON.
 
     Args:
@@ -20,13 +19,8 @@ def config_show_command(
         output_format: Presentation format ("terminal" or "json").
 
     Returns:
-        ConfigShowCommandOutcome containing loaded config and errors.
+        ConfigLoadResult containing loaded config and errors.
     """
     result = Config(path=context.cwd).load()
     ui_dispatcher.dispatch(result, output_format=output_format)
-    return ConfigShowCommandOutcome(
-        result=result,
-        config=result.config,
-        config_path=result.config_path,
-        errors=list(result.errors),
-    )
+    return result

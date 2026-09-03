@@ -31,19 +31,18 @@ class DiffCommandDirectTests:
     """Direct unit tests for diff_command pure function."""
 
     def test_diff_command_direct_success(self, fs: FileSystem) -> None:
-        """Verify diff_command returns OK outcome when diff.patch exists."""
+        """Verify diff_command returns OK result when diff.patch exists."""
         fs.create_config_file()
         patch_file = fs.base_path / ".worktree" / "sessions" / "sbx_cmd_1" / "diff.patch"
         patch_file.parent.mkdir(parents=True, exist_ok=True)
         patch_file.write_text(_SAMPLE_DIFF, encoding="utf-8")
 
         context = make_cli_context(cwd=fs.base_path)
-        outcome = diff_command(context, "sbx_cmd_1")
-        assert outcome.ok
-        assert outcome.result is not None
-        assert outcome.result.status == DiffStatus.OK
-        assert outcome.result.session_id == "sbx_cmd_1"
-        assert outcome.result.diff_text == _SAMPLE_DIFF
+        result = diff_command(context, "sbx_cmd_1")
+        assert result.ok
+        assert result.status == DiffStatus.OK
+        assert result.session_id == "sbx_cmd_1"
+        assert result.diff_text == _SAMPLE_DIFF
 
     def test_diff_command_direct_raw(self, fs: FileSystem) -> None:
         """Verify diff_command with raw=True executes cleanly."""
@@ -53,10 +52,9 @@ class DiffCommandDirectTests:
         patch_file.write_text(_SAMPLE_DIFF, encoding="utf-8")
 
         context = make_cli_context(cwd=fs.base_path)
-        outcome = diff_command(context, "sbx_raw_1", raw=True)
-        assert outcome.ok
-        assert outcome.result is not None
-        assert outcome.result.status == DiffStatus.OK
+        result = diff_command(context, "sbx_raw_1", raw=True)
+        assert result.ok
+        assert result.status == DiffStatus.OK
 
     def test_diff_command_direct_full(self, fs: FileSystem) -> None:
         """Verify diff_command with full=True executes cleanly."""
@@ -66,10 +64,9 @@ class DiffCommandDirectTests:
         patch_file.write_text(_SAMPLE_DIFF, encoding="utf-8")
 
         context = make_cli_context(cwd=fs.base_path)
-        outcome = diff_command(context, "sbx_full_1", full=True)
-        assert outcome.ok
-        assert outcome.result is not None
-        assert outcome.result.status == DiffStatus.OK
+        result = diff_command(context, "sbx_full_1", full=True)
+        assert result.ok
+        assert result.status == DiffStatus.OK
 
     def test_diff_command_direct_empty(self, fs: FileSystem) -> None:
         """Verify diff_command with empty diff returns EMPTY_DIFF status."""
@@ -79,10 +76,9 @@ class DiffCommandDirectTests:
         patch_file.write_text("", encoding="utf-8")
 
         context = make_cli_context(cwd=fs.base_path)
-        outcome = diff_command(context, "sbx_empty_1")
-        assert outcome.ok
-        assert outcome.result is not None
-        assert outcome.result.status == DiffStatus.EMPTY_DIFF
+        result = diff_command(context, "sbx_empty_1")
+        assert result.ok
+        assert result.status == DiffStatus.EMPTY_DIFF
 
 
 class DiffCliIntegrationTests:

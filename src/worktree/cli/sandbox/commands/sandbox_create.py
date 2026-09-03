@@ -1,8 +1,7 @@
 from worktree.cli.context import CliContext
 from worktree.cli.ui.dispatcher import ui_dispatcher
 from worktree.core.sandbox import Sandbox
-
-from ..models import SandboxCreateCommandOutcome
+from worktree.core.sandbox.models import SandboxCreateResult
 
 
 def sandbox_create_command(
@@ -11,7 +10,7 @@ def sandbox_create_command(
     base_ref: str | None = None,
     wip: bool = False,
     output_format: str = "terminal",
-) -> SandboxCreateCommandOutcome:
+) -> SandboxCreateResult:
     """Create an isolated git worktree sandbox.
 
     Args:
@@ -27,10 +26,4 @@ def sandbox_create_command(
         include_wip=wip,
     )
     ui_dispatcher.dispatch(result, output_format=output_format)
-    if not result.ok or result.session is None:
-        return SandboxCreateCommandOutcome(errors=list(result.errors), warnings=list(result.warnings))
-
-    return SandboxCreateCommandOutcome(
-        session_id=result.session.session_id,
-        warnings=list(result.warnings),
-    )
+    return result

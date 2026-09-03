@@ -86,7 +86,7 @@ common/  ->  core/{db,git,sandbox,catalog,inputs,patch,history,diff,status}/  ->
 
 **Relevant sources:** `src/worktree/cli/`, `src/worktree/cli/cli.py`
 
-1. Create `src/worktree/cli/<name>/` with `app.py`, `commands/<action>.py` (or `commands/root.py`), `models.py`, `renderers.py`.
+1. Create `src/worktree/cli/<name>/` with `app.py`, `commands/<action>.py` (or `commands/root.py`), `formatters.py`, `renderers.py`.
 2. Wire command logic directly to underlying domain services or facades (e.g. `BlueprintRunService`, `HistoryListService`). Keep CLI packages free of business logic, DB queries, or direct filesystem scans.
 3. Register the command in [src/worktree/cli/cli.py](../../src/worktree/cli/cli.py).
 4. Add tests under `tests/cli/<name>/`.
