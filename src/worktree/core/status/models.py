@@ -34,6 +34,7 @@ class ConfigStatusInfo(BaseModel):
     raw: dict[str, Any] | None = None
     config: WorktreeConfig | None = None
     errors: list[str] = Field(default_factory=list)
+    fixes: list[str] = Field(default_factory=list)
 
 
 class CatalogStatusInfo(BaseModel):

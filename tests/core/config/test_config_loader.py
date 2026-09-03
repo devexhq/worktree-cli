@@ -104,9 +104,9 @@ class LoadConfigTests:
         assert not result.ok
         assert result.config is None
         joined = "\n".join(result.errors)
-        assert "wt init" in joined
-        assert str(result.config_path) in joined
         assert "CONFIG_NOT_FOUND" in joined
+        assert str(result.config_path) in joined
+        assert any("wt init" in f for f in result.fixes)
 
     def test_zero_arguments_does_not_raise(self) -> None:
         result = load_config()

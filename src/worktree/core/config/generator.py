@@ -110,20 +110,18 @@ def merge_missing_keys(
     return inserted
 
 
-def _preflight_config_path(config_path: Path) -> list[str]:
-    """Return error strings if the config path cannot be used."""
+def _preflight_config_path(config_path: Path) -> tuple[list[str], list[str]]:
+    """Return (errors, fixes) if the config path cannot be used."""
     if config_path.exists() and config_path.is_dir():
-        return [f"CONFIG_PATH_IS_DIRECTORY at {config_path.as_posix()}"]
+        return [f"CONFIG_PATH_IS_DIRECTORY at {config_path.as_posix()}"], []
     parent = config_path.parent
     if not parent.exists():
-        return [f"CONFIG_PARENT_MISSING at {parent.as_posix()}"]
+        return [f"CONFIG_PARENT_MISSING at {parent.as_posix()}"], []
     if not os.access(parent, os.W_OK):
-        return [
-            f"CONFIG_PATH_NOT_WRITABLE at {config_path.as_posix()}\n"
-            "Fix:\n"
-            f"- ensure write permissions for {parent.as_posix()} directory"
+        return [f"CONFIG_PATH_NOT_WRITABLE at {config_path.as_posix()}"], [
+            f"Ensure write permissions for {parent.as_posix()} directory"
         ]
-    return []
+    return [], []
 
 
 def _write_fresh_config(
@@ -164,11 +162,8 @@ def _repair_existing_config(
             result.errors.append("CONFIG_INVALID_JSON: root must be a JSON object")
             return result
     except json.JSONDecodeError as exc:
-        result.errors.append(
-            f"CONFIG_INVALID_JSON at {config_path.as_posix()}: {exc}\n"
-            "Fix:\n"
-            "- repair invalid JSON manually, or run wt init --overwrite"
-        )
+        result.errors.append(f"CONFIG_INVALID_JSON at {config_path.as_posix()}: {exc}")
+        result.fixes.append("Repair invalid JSON manually, or run wt init --overwrite")
         return result
 
     defaults = build_default_config(project_name)
@@ -208,9 +203,10 @@ def generate_default_config(
     if overwrite and repair:
         result.warnings.append("repair ignored when overwrite=True")
 
-    preflight = _preflight_config_path(config_path)
-    if preflight:
-        result.errors.extend(preflight)
+    preflight_errors, preflight_fixes = _preflight_config_path(config_path)
+    if preflight_errors:
+        result.errors.extend(preflight_errors)
+        result.fixes.extend(preflight_fixes)
         return result
 
     existed_before = config_path.is_file()

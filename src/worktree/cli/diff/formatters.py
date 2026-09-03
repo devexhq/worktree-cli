@@ -26,39 +26,55 @@ def _resolve_diff_rel_path(data: DiffResult) -> str:
     return ".worktree/sessions/<session_id>/diff.patch"
 
 
+def _format_session_not_found_panel(data: DiffResult) -> Panel:
+    """Format error panel when session is missing."""
+    if data.errors:
+        error_message = "\n\n".join(data.errors)
+    elif data.session_id:
+        error_message = f"Session '{data.session_id}' not found under .worktree/sessions/."
+    else:
+        error_message = "No loop run sessions found."
+    fixes = data.fixes or ["Run `wt sandbox list` or check .worktree/sessions/ for valid session IDs"]
+    message = f"{error_message}\nFix:\n" + "\n".join(f"- {fix}" for fix in fixes)
+    return Panel(message, title="Session Not Found", border_style="red")
+
+
+def _format_diff_not_found_panel(data: DiffResult) -> Panel:
+    """Format error panel when diff artifact is missing."""
+    session_label = data.session_id or "unknown"
+    error_message = data.errors[0] if data.errors else f"Session '{session_label}' has no diff artifact."
+    fixes = data.fixes or [
+        f"Verify the session generated a diff artifact at .worktree/sessions/{session_label}/diff.patch"
+    ]
+    message = f"{error_message}\nFix:\n" + "\n".join(f"- {fix}" for fix in fixes)
+    return Panel(message, title="Diff Not Found", border_style="red")
+
+
+def _format_read_failure_panel(data: DiffResult) -> Panel:
+    """Format error panel when diff artifact cannot be read."""
+    error_message = data.errors[0] if data.errors else "Failed to read diff artifact."
+    fixes = data.fixes or ["Check file permissions and that the artifact is readable"]
+    message = f"{error_message}\nFix:\n" + "\n".join(f"- {fix}" for fix in fixes)
+    return Panel(message, title="Read Failure", border_style="red")
+
+
 def _format_diff_error_panel(data: DiffResult) -> Panel:
     """Format error panel for non-ok diff results."""
     if data.status == DiffStatus.SESSION_NOT_FOUND:
-        if data.session_id:
-            message = (
-                f"Session '{data.session_id}' not found under .worktree/sessions/.\n"
-                "Fix:\n"
-                "- run `wt sandbox list` or check .worktree/sessions/ for valid session IDs"
-            )
-        else:
-            message = (
-                "No loop run sessions found.\n"
-                "Fix:\n"
-                "- run `wt sandbox list` or check .worktree/sessions/ for valid session IDs"
-            )
-        return Panel(message, title="Session Not Found", border_style="red")
-
+        return _format_session_not_found_panel(data)
     if data.status == DiffStatus.DIFF_NOT_FOUND:
-        session_label = data.session_id or "unknown"
-        message = (
-            f"Session '{session_label}' has no diff artifact.\n"
-            "Fix:\n"
-            f"- verify the session generated a diff artifact at .worktree/sessions/{session_label}/diff.patch"
-        )
-        return Panel(message, title="Diff Not Found", border_style="red")
-
+        return _format_diff_not_found_panel(data)
     if data.status == DiffStatus.READ_FAILURE:
-        error_message = data.errors[0] if data.errors else "Failed to read diff artifact."
-        message = f"{error_message}\nFix:\n- check file permissions and that the artifact is readable"
-        return Panel(message, title="Read Failure", border_style="red")
+        return _format_read_failure_panel(data)
 
-    error_message = "\n\n".join(data.errors) if data.errors else "Diff operation failed."
-    return Panel(error_message, title="Diff Failed", border_style="red")
+    parts: list[str] = []
+    if data.errors:
+        parts.append("\n\n".join(data.errors))
+    else:
+        parts.append("Diff operation failed.")
+    if data.fixes:
+        parts.append("Fix:\n" + "\n".join(f"- {fix}" for fix in data.fixes))
+    return Panel("\n\n".join(parts), title="Diff Failed", border_style="red")
 
 
 def _format_truncation_notice(

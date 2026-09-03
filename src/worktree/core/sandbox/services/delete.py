@@ -20,6 +20,8 @@ def collect_sandbox_delete(
         return SandboxDeleteResult(
             status=SandboxDeleteStatus.NOT_FOUND,
             sandbox_id=sandbox_id,
+            errors=[f"Sandbox '{sandbox_id}' not found."],
+            fixes=["Run `wt sandbox list` to see known sandboxes"],
         )
 
     if row.status is SandboxStatus.CLEANED:

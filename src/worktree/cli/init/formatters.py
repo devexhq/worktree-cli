@@ -90,19 +90,42 @@ def _render_seed_lines(result: SeedResult, cwd: Path) -> list[Any]:
     return renderables
 
 
+def _render_preflight_failure(data: WorkspaceInitResult) -> Panel:
+    """Render panel when initialization preflight checks fail."""
+    lines = "\n".join(data.errors)
+    if data.fixes:
+        lines += "\nFix:\n" + "\n".join(f"  {fix}" for fix in data.fixes)
+    return Panel.fit(f"[bold red]Initialization Failed![/bold red]\n{lines}", border_style="red")
+
+
+def _render_bootstrap_failure(data: WorkspaceInitResult) -> Panel:
+    """Render panel when bootstrap step fails."""
+    assert data.bootstrap_result is not None
+    lines = "\n".join(f"  {err}" for err in data.bootstrap_result.errors)
+    fixes = data.bootstrap_result.fixes or [
+        "Resolve the path conflict above, then rerun [bold cyan]wt init[/bold cyan]."
+    ]
+    remediation = "\nFix:\n" + "\n".join(f"  {fix}" for fix in fixes)
+    return Panel.fit(f"[bold red]Failed to initialize Worktree:[/bold red]\n{lines}{remediation}", border_style="red")
+
+
+def _render_config_failure(data: WorkspaceInitResult) -> Panel:
+    """Render panel when configuration generation fails."""
+    assert data.config_result is not None
+    lines = "\n".join(f"- {err}" for err in data.config_result.errors)
+    if data.config_result.fixes:
+        lines += "\nFix:\n" + "\n".join(f"  {fix}" for fix in data.config_result.fixes)
+    return Panel.fit(f"[bold red]Failed to generate config:[/bold red]\n{lines}", border_style="red")
+
+
 def _render_failure_panel(data: WorkspaceInitResult) -> Panel | None:
+    """Render failure panels for preflight, bootstrap, or configuration generation errors."""
     if data.bootstrap_result is None and data.errors:
-        lines = "\n".join(data.errors)
-        return Panel.fit(f"[bold red]Initialization Failed![/bold red]\n{lines}", border_style="red")
+        return _render_preflight_failure(data)
     if data.bootstrap_result is not None and not data.bootstrap_result.ok:
-        lines = "\n".join(f"  {err}" for err in data.bootstrap_result.errors)
-        remediation = "\nFix:\n  resolve the path conflict above, then rerun [bold cyan]wt init[/bold cyan]."
-        return Panel.fit(
-            f"[bold red]Failed to initialize Worktree:[/bold red]\n{lines}{remediation}", border_style="red"
-        )
+        return _render_bootstrap_failure(data)
     if data.config_result is not None and not data.config_result.ok:
-        lines = "\n".join(f"- {err}" for err in data.config_result.errors)
-        return Panel.fit(f"[bold red]Failed to generate config:[/bold red]\n{lines}", border_style="red")
+        return _render_config_failure(data)
     return None
 
 

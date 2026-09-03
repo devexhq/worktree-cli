@@ -48,6 +48,7 @@ class DiffService:
                         status=DiffStatus.SESSION_NOT_FOUND,
                         session_id=self.session_id,
                         errors=[f"Session '{self.session_id}' not found under .worktree/sessions/."],
+                        fixes=["Run `wt sandbox list` or check .worktree/sessions/ for valid session IDs"],
                     ),
                 )
             return target_dir, self.session_id, None
@@ -60,6 +61,7 @@ class DiffService:
                 DiffResult(
                     status=DiffStatus.SESSION_NOT_FOUND,
                     errors=["No loop run sessions found."],
+                    fixes=["Run `wt sandbox list` or check .worktree/sessions/ for valid session IDs"],
                 ),
             )
 
@@ -74,6 +76,7 @@ class DiffService:
                 session_id=session_id,
                 artifact_path=patch_file,
                 errors=[f"Session '{session_id}' has no diff artifact."],
+                fixes=[f"Verify the session generated a diff artifact at .worktree/sessions/{session_id}/diff.patch"],
             )
 
         try:
@@ -84,6 +87,7 @@ class DiffService:
                 session_id=session_id,
                 artifact_path=patch_file,
                 errors=[f"Failed to read diff artifact at '{patch_file}': {exc}"],
+                fixes=["Check file permissions and that the artifact is readable"],
             )
 
         if not diff_text.strip():

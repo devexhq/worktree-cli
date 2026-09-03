@@ -88,12 +88,8 @@ def _read_config_object(path: Path, key: str) -> dict[str, Any] | ConfigSetResul
             status=ConfigSetStatus.PATH_IS_DIRECTORY,
             config_path=path,
             key=key,
-            errors=[
-                f"Config path is a directory, not a file: '{path}' "
-                f"(CONFIG_PATH_IS_DIRECTORY).\n"
-                "Fix:\n"
-                "- remove the directory or point config_path at a file"
-            ],
+            errors=[f"Config path is a directory, not a file: '{path}' (CONFIG_PATH_IS_DIRECTORY)."],
+            fixes=["Remove the directory or point config_path at a file"],
         )
 
     if not path.exists():
@@ -101,11 +97,8 @@ def _read_config_object(path: Path, key: str) -> dict[str, Any] | ConfigSetResul
             status=ConfigSetStatus.NOT_FOUND,
             config_path=path,
             key=key,
-            errors=[
-                f"Configuration file not found at '{path}' (CONFIG_NOT_FOUND).\n"
-                "Fix:\n"
-                "- run `wt init` to create `.worktree/config.json`"
-            ],
+            errors=[f"Configuration file not found at '{path}' (CONFIG_NOT_FOUND)."],
+            fixes=["Run `wt init` to create `.worktree/config.json`"],
         )
 
     try:
@@ -115,12 +108,8 @@ def _read_config_object(path: Path, key: str) -> dict[str, Any] | ConfigSetResul
             status=ConfigSetStatus.UNREADABLE,
             config_path=path,
             key=key,
-            errors=[
-                f"Unable to read config.json at '{path}': {exc} "
-                f"(CONFIG_UNREADABLE).\n"
-                "Fix:\n"
-                "- check file permissions and that the path is readable"
-            ],
+            errors=[f"Unable to read config.json at '{path}': {exc} (CONFIG_UNREADABLE)."],
+            fixes=["Check file permissions and that the path is readable"],
         )
 
     try:
@@ -133,12 +122,8 @@ def _read_config_object(path: Path, key: str) -> dict[str, Any] | ConfigSetResul
             status=ConfigSetStatus.MALFORMED_JSON,
             config_path=path,
             key=key,
-            errors=[
-                f"Malformed config.json at '{path}': {detail} "
-                f"(CONFIG_MALFORMED_JSON).\n"
-                "Fix:\n"
-                "- repair JSON syntax, or restore from backup"
-            ],
+            errors=[f"Malformed config.json at '{path}': {detail} (CONFIG_MALFORMED_JSON)."],
+            fixes=["Repair JSON syntax, or restore from backup"],
         )
 
     if not isinstance(data, dict):
@@ -146,12 +131,8 @@ def _read_config_object(path: Path, key: str) -> dict[str, Any] | ConfigSetResul
             status=ConfigSetStatus.ROOT_NOT_OBJECT,
             config_path=path,
             key=key,
-            errors=[
-                f"Malformed config.json at '{path}': root must be an object "
-                f"(CONFIG_ROOT_NOT_OBJECT).\n"
-                "Fix:\n"
-                "- ensure config.json is a JSON object, not an array or scalar"
-            ],
+            errors=[f"Malformed config.json at '{path}': root must be an object (CONFIG_ROOT_NOT_OBJECT)."],
+            fixes=["Ensure config.json is a JSON object, not an array or scalar"],
         )
 
     return data
@@ -174,11 +155,12 @@ def _validate_mutated_config(
                     [
                         "Config schema validation failed (CONFIG_SCHEMA_INVALID):",
                         *(f"- {msg}" for msg in validation.errors),
-                        "Fix:",
-                        "- run `wt config validate` for details",
-                        "- or `wt init --repair` to insert missing keys without overwriting values",
                     ]
                 )
+            ],
+            fixes=[
+                "Run `wt config validate` for details",
+                "Or `wt init --repair` to insert missing keys without overwriting values",
             ],
         )
 
@@ -194,11 +176,12 @@ def _validate_mutated_config(
                     [
                         "Config schema validation failed (CONFIG_SCHEMA_INVALID):",
                         *(f"- {msg}" for msg in [str(exc)]),
-                        "Fix:",
-                        "- run `wt config validate` for details",
-                        "- or `wt init --repair` to insert missing keys without overwriting values",
                     ]
                 )
+            ],
+            fixes=[
+                "Run `wt config validate` for details",
+                "Or `wt init --repair` to insert missing keys without overwriting values",
             ],
         )
 
@@ -258,12 +241,8 @@ def set_config_value_result(
             status=ConfigSetStatus.WRITE_FAILED,
             config_path=resolved_path,
             key=key,
-            errors=[
-                f"Unable to write config.json at '{resolved_path}': {exc} "
-                f"(CONFIG_WRITE_FAILED).\n"
-                "Fix:\n"
-                "- check file permissions and free disk space"
-            ],
+            errors=[f"Unable to write config.json at '{resolved_path}': {exc} (CONFIG_WRITE_FAILED)."],
+            fixes=["Check file permissions and free disk space"],
         )
 
     clear_config_cache(resolved_path)

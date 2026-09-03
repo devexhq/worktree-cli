@@ -64,12 +64,15 @@ class ConfigLoadFormatterTests:
             status=ConfigLoadStatus.SCHEMA_INVALID,
             config_path=Path("/workspace/.worktree/config.json"),
             errors=["Schema validation failed (CONFIG_SCHEMA_INVALID): project.name is required"],
+            fixes=["Run `wt config validate` for details"],
         )
         rich_renderable = formatter.to_rich(result)
         assert isinstance(rich_renderable, Panel)
         rendered = render_rich(rich_renderable)
         assert "Config Error" in rendered
         assert "CONFIG_SCHEMA_INVALID" in rendered
+        assert "Fix:" in rendered
+        assert "Run `wt config validate` for details" in rendered
 
     def test_to_json_serializable(self) -> None:
         formatter = ConfigLoadFormatter()
@@ -164,12 +167,15 @@ class ConfigValidateFormatterTests:
             config_path=Path("/workspace/.worktree/config.json"),
             errors=["paths.root_dir contains invalid control characters (CONFIG_SEMANTIC_PATH_INVALID)."],
             warnings=[],
+            fixes=["Use a plain relative path string without newlines or NUL bytes"],
         )
         rich_renderable = formatter.to_rich(result)
         assert isinstance(rich_renderable, Panel)
         rendered = render_rich(rich_renderable)
         assert "Config Validation Failed" in rendered
         assert "CONFIG_SEMANTIC_PATH_INVALID" in rendered
+        assert "Fix:" in rendered
+        assert "Use a plain relative path string without newlines or NUL bytes" in rendered
 
     def test_to_rich_invalid_with_warnings(self) -> None:
         formatter = ConfigValidateFormatter()
@@ -228,12 +234,15 @@ class ConfigSetFormatterTests:
             config_path=Path("/workspace/.worktree/config.json"),
             key="agent.invalid_key",
             errors=["Config schema validation failed (CONFIG_SCHEMA_INVALID): extra property not allowed"],
+            fixes=["Run `wt config validate` for details"],
         )
         rich_renderable = formatter.to_rich(result)
         assert isinstance(rich_renderable, Panel)
         rendered = render_rich(rich_renderable)
         assert "Config Error" in rendered
         assert "CONFIG_SCHEMA_INVALID" in rendered
+        assert "Fix:" in rendered
+        assert "Run `wt config validate` for details" in rendered
 
     def test_to_json_serializable(self) -> None:
         formatter = ConfigSetFormatter()

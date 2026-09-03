@@ -103,8 +103,7 @@ class ConfigValidateCommandTests:
         out = capsys.readouterr().out
         _assert_success_stdout(out, config_path=config_path, with_warnings=True)
         assert "CONFIG_WARN_AGENT_MODEL_MISSING" in out
-        # Multi-line engine messages keep continuation indented by two spaces.
-        assert any(line.startswith("  ") for line in out.splitlines())
+        assert any("Set agent.model" in f for f in outcome.fixes)
 
     def test_missing_config_exits_one(
         self,

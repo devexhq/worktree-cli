@@ -79,7 +79,12 @@ class HistoryShowService:
         row = self.db.get(self.session_id)
 
         if row is None:
-            return HistoryShowResult(status=HistoryShowStatus.NOT_FOUND, session_id=self.session_id)
+            return HistoryShowResult(
+                status=HistoryShowStatus.NOT_FOUND,
+                session_id=self.session_id,
+                errors=[f"Session '{self.session_id}' not found."],
+                fixes=["Run `wt history` to view past sessions"],
+            )
 
         return HistoryShowResult(status=HistoryShowStatus.OK, session_id=self.session_id, run=row)
 

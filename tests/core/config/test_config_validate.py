@@ -75,7 +75,7 @@ class ValidateConfigResultLoadFailureTests:
         assert result.warnings == []
         joined = _joined(result)
         assert "CONFIG_NOT_FOUND" in joined
-        assert "wt init" in joined
+        assert any("wt init" in f for f in result.fixes)
         assert str(result.config_path) in joined
 
     def test_malformed_json(self, fs: FileSystem) -> None:
@@ -136,8 +136,8 @@ class ValidateConfigResultLoadFailureTests:
         assert "Config schema validation failed" in block
         assert block.count("CONFIG_SCHEMA_INVALID") == 1
         assert "- " in block
-        assert "wt config validate" in block
-        assert "wt init --repair" in block
+        assert any("wt config validate" in f for f in result.fixes)
+        assert any("wt init --repair" in f for f in result.fixes)
 
 
 class ValidateConfigResultSemanticErrorTests:
@@ -155,7 +155,8 @@ class ValidateConfigResultSemanticErrorTests:
         assert all("CONFIG_SEMANTIC_PATH_INVALID" in e for e in result.errors)
         assert "paths.db_path" in result.errors[0]
         assert "paths.sessions_dir" in result.errors[1]
-        assert all("Fix:" in e for e in result.errors)
+        assert len(result.fixes) == 2
+        assert all("Use a plain relative path" in f for f in result.fixes)
 
 
 class ValidateConfigResultSemanticWarningTests:
@@ -173,7 +174,7 @@ class ValidateConfigResultSemanticWarningTests:
         assert result.errors == []
         assert len(result.warnings) == 1
         assert "CONFIG_WARN_AGENT_MODEL_MISSING" in result.warnings[0]
-        assert "Fix:" in result.warnings[0]
+        assert any("Set agent.model" in f for f in result.fixes)
 
     def test_local_provider_null_model_no_warning(self, fs: FileSystem) -> None:
         raw = build_default_config("demo")
@@ -192,7 +193,7 @@ class ValidateConfigResultSemanticWarningTests:
         assert result.ok
         assert result.errors == []
         assert any("CONFIG_WARN_AGENT_ENDPOINT" in w for w in result.warnings)
-        assert any("Fix:" in w for w in result.warnings)
+        assert any("Set agent.endpoint" in f for f in result.fixes)
 
     def test_null_endpoint_no_warning(self, fs: FileSystem) -> None:
         raw = build_default_config("demo")
@@ -212,7 +213,7 @@ class ValidateConfigResultSemanticWarningTests:
         assert len(result.warnings) == 1
         assert "CONFIG_WARN_SANDBOX_LIMIT" in result.warnings[0]
         assert "11" in result.warnings[0]
-        assert "Fix:" in result.warnings[0]
+        assert any("Lower sandbox.max_active_sandboxes" in f for f in result.fixes)
 
     def test_warning_order(self, fs: FileSystem) -> None:
         raw = build_default_config("demo")
