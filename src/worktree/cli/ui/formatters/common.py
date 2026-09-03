@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Protocol, overload
+from typing import TYPE_CHECKING, Any, Literal, Protocol, overload
 
 from rich.panel import Panel
 
@@ -58,6 +58,7 @@ def render_list_fixes(
     return f"{header}\n{bullet_lines}"
 
 
+@overload
 def build_error_panel(
     title: str,
     errors: Sequence[str] | None = None,
@@ -66,7 +67,46 @@ def build_error_panel(
     *,
     border_style: str = ERROR_PANEL_STYLE,
     fit: bool = False,
-) -> Panel:
+    raw: Literal[False] = False,
+) -> Panel: ...
+
+
+@overload
+def build_error_panel(
+    title: str,
+    errors: Sequence[str] | None = None,
+    default: str = "",
+    fixes: Sequence[str] | None = None,
+    *,
+    border_style: str = ERROR_PANEL_STYLE,
+    fit: bool = False,
+    raw: Literal[True],
+) -> str: ...
+
+
+@overload
+def build_error_panel(
+    title: str,
+    errors: Sequence[str] | None = None,
+    default: str = "",
+    fixes: Sequence[str] | None = None,
+    *,
+    border_style: str = ERROR_PANEL_STYLE,
+    fit: bool = False,
+    raw: bool = False,
+) -> Panel | str: ...
+
+
+def build_error_panel(
+    title: str,
+    errors: Sequence[str] | None = None,
+    default: str = "",
+    fixes: Sequence[str] | None = None,
+    *,
+    border_style: str = ERROR_PANEL_STYLE,
+    fit: bool = False,
+    raw: bool = False,
+) -> Panel | str:
     """Build a standardized Rich error panel combining formatted errors and remediation fixes.
 
     Args:
@@ -76,6 +116,7 @@ def build_error_panel(
         fixes: Optional sequence of remediation fix strings.
         border_style: Border style color. Defaults to ERROR_PANEL_STYLE ("red").
         fit: Whether to use Panel.fit instead of Panel. Defaults to False.
+        raw: Whether to return a raw string or Panel.
 
     Returns:
         Configured Rich Panel.
@@ -83,6 +124,8 @@ def build_error_panel(
     error_msg = render_list_errors(errors, default=default)
     fixes_msg = render_list_fixes(fixes)
     message = f"{error_msg}\n{fixes_msg}" if fixes_msg else error_msg
+    if raw:
+        return message
     panel_cls = Panel.fit if fit else Panel
     return panel_cls(message, title=title, border_style=border_style)
 

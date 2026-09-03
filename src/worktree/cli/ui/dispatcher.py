@@ -117,6 +117,9 @@ class UiDispatcher:
             }
             sys.stdout.write(json.dumps(envelope) + "\n")
             sys.stdout.flush()
+        elif effective_format == "raw":
+            sys.stdout.write(formatter.to_raw(data))
+            sys.stdout.flush()
         else:
             rich_renderable = formatter.to_rich(data)
             self._console.print(rich_renderable)

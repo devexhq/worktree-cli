@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from worktree.core.config import Config
 from worktree.core.diff.models import DiffResult, DiffStatus
@@ -19,7 +18,6 @@ class DiffService:
     raw: bool = False
     full: bool = False
     max_lines: int | None = None
-    output: Any = None
 
     def _discover_latest_session(self, sessions_dir: Path) -> Path | None:
         """Discover the most recently modified session directory under sessions_dir."""

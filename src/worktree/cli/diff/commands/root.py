@@ -13,7 +13,7 @@ def diff_command(
     *,
     raw: bool = False,
     full: bool = False,
-    max_lines: int | None = None,
+    max_lines: int = 500,
     output_format: str = "terminal",
 ) -> DiffResult:
     """Execute session diff query and render results via UI dispatcher.
@@ -29,9 +29,9 @@ def diff_command(
     Returns:
         Structured DiffResult with status, errors, and warnings.
     """
-    result = Diff(path=context.cwd).inspect(session_id=session_id)
-    result.raw = raw
-    result.full = full
-    result.max_lines = max_lines
-    ui_dispatcher.dispatch(result, output_format)
+    result = Diff(path=context.cwd, raw=raw, full=full, max_lines=max_lines).inspect(session_id=session_id)
+    if raw and output_format == "terminal":
+        ui_dispatcher.dispatch(result, output_format="raw")
+    else:
+        ui_dispatcher.dispatch(result, output_format)
     return result

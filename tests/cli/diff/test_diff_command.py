@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import time
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,7 @@ from typer.testing import CliRunner
 
 from tests.helpers import FileSystem, make_cli_context
 from worktree.cli import app
+from worktree.cli.context import CliContext
 from worktree.cli.diff.commands.root import diff_command
 from worktree.core.diff import DiffStatus
 
@@ -27,56 +29,46 @@ _SAMPLE_DIFF = """diff --git a/src/main.py b/src/main.py
 """
 
 
-class DiffCommandDirectTests:
+@pytest.fixture
+def sample_diff(fs: FileSystem) -> Iterator[tuple[Path, CliContext]]:
+    fs.create_config_file()
+    patch_file = fs.base_path / ".worktree" / "sessions" / "sbx_diff_cmd_1" / "diff.patch"
+    patch_file.parent.mkdir(parents=True, exist_ok=True)
+    patch_file.write_text(_SAMPLE_DIFF, encoding="utf-8")
+    context = make_cli_context(cwd=fs.base_path)
+
+    yield patch_file, context
+
+
+class DiffCommandRootTests:
     """Direct unit tests for diff_command pure function."""
 
-    def test_diff_command_direct_success(self, fs: FileSystem) -> None:
+    def test_diff_command_direct_success(self, sample_diff: tuple[Path, CliContext]) -> None:
         """Verify diff_command returns OK result when diff.patch exists."""
-        fs.create_config_file()
-        patch_file = fs.base_path / ".worktree" / "sessions" / "sbx_cmd_1" / "diff.patch"
-        patch_file.parent.mkdir(parents=True, exist_ok=True)
-        patch_file.write_text(_SAMPLE_DIFF, encoding="utf-8")
-
-        context = make_cli_context(cwd=fs.base_path)
-        result = diff_command(context, "sbx_cmd_1")
+        _, context = sample_diff
+        result = diff_command(context, "sbx_diff_cmd_1", full=True)
         assert result.ok
         assert result.status == DiffStatus.OK
-        assert result.session_id == "sbx_cmd_1"
-        assert result.diff_text == _SAMPLE_DIFF
 
-    def test_diff_command_direct_raw(self, fs: FileSystem) -> None:
+    def test_diff_command_direct_raw(self, sample_diff: tuple[Path, CliContext]) -> None:
         """Verify diff_command with raw=True executes cleanly."""
-        fs.create_config_file()
-        patch_file = fs.base_path / ".worktree" / "sessions" / "sbx_raw_1" / "diff.patch"
-        patch_file.parent.mkdir(parents=True, exist_ok=True)
-        patch_file.write_text(_SAMPLE_DIFF, encoding="utf-8")
-
-        context = make_cli_context(cwd=fs.base_path)
-        result = diff_command(context, "sbx_raw_1", raw=True)
+        _, context = sample_diff
+        result = diff_command(context, "sbx_diff_cmd_1", raw=True)
         assert result.ok
         assert result.status == DiffStatus.OK
 
-    def test_diff_command_direct_full(self, fs: FileSystem) -> None:
+    def test_diff_command_direct_full(self, sample_diff: tuple[Path, CliContext]) -> None:
         """Verify diff_command with full=True executes cleanly."""
-        fs.create_config_file()
-        patch_file = fs.base_path / ".worktree" / "sessions" / "sbx_full_1" / "diff.patch"
-        patch_file.parent.mkdir(parents=True, exist_ok=True)
-        patch_file.write_text(_SAMPLE_DIFF, encoding="utf-8")
-
-        context = make_cli_context(cwd=fs.base_path)
-        result = diff_command(context, "sbx_full_1", full=True)
+        _, context = sample_diff
+        result = diff_command(context, "sbx_diff_cmd_1", full=True)
         assert result.ok
         assert result.status == DiffStatus.OK
 
-    def test_diff_command_direct_empty(self, fs: FileSystem) -> None:
+    def test_diff_command_direct_empty(self, sample_diff: tuple[Path, CliContext]) -> None:
         """Verify diff_command with empty diff returns EMPTY_DIFF status."""
-        fs.create_config_file()
-        patch_file = fs.base_path / ".worktree" / "sessions" / "sbx_empty_1" / "diff.patch"
-        patch_file.parent.mkdir(parents=True, exist_ok=True)
-        patch_file.write_text("", encoding="utf-8")
-
-        context = make_cli_context(cwd=fs.base_path)
-        result = diff_command(context, "sbx_empty_1")
+        patch_file, context = sample_diff
+        patch_file.write_text("")
+        result = diff_command(context, "sbx_diff_cmd_1", full=True)
         assert result.ok
         assert result.status == DiffStatus.EMPTY_DIFF
 

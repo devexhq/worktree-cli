@@ -175,3 +175,4 @@ reportCallInDefaultInitializer = "none"  # Typer Option()/Argument() defaults
 reportUnusedParameter = "none"  # Typer ctx and callback-required params
 reportUnannotatedClassAttribute = "none"  # Pydantic model_config / ClassVar flood
 reportUnusedCallResult = "none"  # Path.mkdir, list.append-style intentional discards
+reportMissingTypeStubs = false
