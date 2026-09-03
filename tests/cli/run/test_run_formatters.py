@@ -8,20 +8,20 @@ from rich.console import Console
 
 from worktree.cli.run.formatters import BlueprintRunFormatter
 from worktree.cli.ui.dispatcher import UiDispatcher
-from worktree.core.blueprint.models import BlueprintKind, BlueprintRunCommandOutcome
+from worktree.core.blueprint.models import BlueprintKind, BlueprintRunResult
 from worktree.core.db import RunRecord, RunStatus
 
 
 def test_blueprint_run_formatter_empty() -> None:
     formatter = BlueprintRunFormatter()
-    outcome = BlueprintRunCommandOutcome()
+    outcome = BlueprintRunResult()
     rendered = formatter.to_rich(outcome)
     assert rendered.plain == ""
 
 
 def test_blueprint_run_formatter_errors_only() -> None:
     formatter = BlueprintRunFormatter()
-    outcome = BlueprintRunCommandOutcome(errors=["Failed to load blueprint."])
+    outcome = BlueprintRunResult(errors=["Failed to load blueprint."])
     rendered = formatter.to_rich(outcome)
     buf = io.StringIO()
     Console(file=buf, force_terminal=False).print(rendered)
@@ -30,7 +30,7 @@ def test_blueprint_run_formatter_errors_only() -> None:
 
 def test_blueprint_run_formatter_output_items() -> None:
     formatter = BlueprintRunFormatter()
-    outcome = BlueprintRunCommandOutcome(
+    outcome = BlueprintRunResult(
         run_record=RunRecord(
             id=1,
             session_id="session_123",
@@ -60,7 +60,7 @@ def test_blueprint_run_formatter_to_json_serializable() -> None:
         status=RunStatus.COMPLETED,
         started_at="2026-09-02T00:00:00Z",
     )
-    outcome = BlueprintRunCommandOutcome(
+    outcome = BlueprintRunResult(
         run_record=record,
         output_items=["Line 1", "Line 2"],
     )
@@ -74,9 +74,9 @@ def test_blueprint_run_dispatcher_terminal() -> None:
     string_io = io.StringIO()
     console = Console(file=string_io, force_terminal=False)
     dispatcher = UiDispatcher(console=console)
-    dispatcher.register(BlueprintRunCommandOutcome, BlueprintRunFormatter())
+    dispatcher.register(BlueprintRunResult, BlueprintRunFormatter())
 
-    outcome = BlueprintRunCommandOutcome(
+    outcome = BlueprintRunResult(
         output_items=["Task finished successfully."],
     )
     dispatcher.dispatch(outcome, output_format="terminal")

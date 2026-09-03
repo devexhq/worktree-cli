@@ -139,8 +139,8 @@ class BlueprintDefinition(BaseModel):
         return self
 
 
-class BlueprintRunCommandOutcome(BaseModel):
-    """Unified outcome for task and workflow execution."""
+class BlueprintRunResult(BaseModel):
+    """Unified result for task and workflow execution."""
 
     model_config = {"extra": "forbid", "strict": True}
 
@@ -153,3 +153,6 @@ class BlueprintRunCommandOutcome(BaseModel):
     def ok(self) -> bool:
         """Return True if run completed without fatal errors."""
         return self.run_record is not None and len(self.errors) == 0
+
+
+BlueprintRunCommandOutcome = BlueprintRunResult

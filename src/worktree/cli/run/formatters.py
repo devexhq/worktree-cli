@@ -10,17 +10,17 @@ from rich.text import Text
 
 from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
 from worktree.common.types import ComponentFormatter
-from worktree.core.blueprint.models import BlueprintRunCommandOutcome
+from worktree.core.blueprint.models import BlueprintRunResult
 
 
-class BlueprintRunFormatter(ComponentFormatter[BlueprintRunCommandOutcome]):
-    """Formatter for task and workflow execution outcomes."""
+class BlueprintRunFormatter(ComponentFormatter[BlueprintRunResult]):
+    """Formatter for task and workflow execution results."""
 
-    def to_rich(self, data: BlueprintRunCommandOutcome) -> Any:
+    def to_rich(self, data: BlueprintRunResult) -> Any:
         """Render execution output lines, panels, or failure summaries.
 
         Args:
-            data: Structured outcome of blueprint execution.
+            data: Structured result of blueprint execution.
 
         Returns:
             Rich renderable object (Group, Panel, Text).
@@ -39,11 +39,11 @@ class BlueprintRunFormatter(ComponentFormatter[BlueprintRunCommandOutcome]):
             renderables.append(Text.from_markup(item) if isinstance(item, str) else item)
         return Group(*renderables)
 
-    def to_json_serializable(self, data: BlueprintRunCommandOutcome) -> dict[str, Any]:
-        """Convert BlueprintRunCommandOutcome to primitive dictionary for JSON serialization.
+    def to_json_serializable(self, data: BlueprintRunResult) -> dict[str, Any]:
+        """Convert BlueprintRunResult to primitive dictionary for JSON serialization.
 
         Args:
-            data: Structured outcome of blueprint execution.
+            data: Structured result of blueprint execution.
 
         Returns:
             JSON-serializable dictionary.
@@ -64,7 +64,7 @@ def register_run_formatters(dispatcher: UiDispatcher | None = None) -> None:
         dispatcher: UiDispatcher instance to register on. Defaults to ui_dispatcher.
     """
     target = dispatcher if dispatcher is not None else ui_dispatcher
-    target.register(BlueprintRunCommandOutcome, BlueprintRunFormatter())
+    target.register(BlueprintRunResult, BlueprintRunFormatter())
 
 
 # Register default run formatters on the central ui_dispatcher

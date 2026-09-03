@@ -10,6 +10,7 @@ from worktree.core.blueprint.models import (
     BlueprintDefinition,
     BlueprintKind,
     BlueprintRunCommandOutcome,
+    BlueprintRunResult,
 )
 
 __all__ = [
@@ -19,5 +20,6 @@ __all__ = [
     "BlueprintLoadError",
     "BlueprintNotFoundError",
     "BlueprintRunCommandOutcome",
+    "BlueprintRunResult",
     "BlueprintValidationError",
 ]
