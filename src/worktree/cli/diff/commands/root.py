@@ -36,13 +36,11 @@ def diff_command(
     ui_dispatcher.register(DiffResult, DiffResultFormatter(full=full, max_lines=max_lines))
     result = Diff(path=context.cwd).inspect(session_id=session_id)
 
-    if output_format == "json":
-        ui_dispatcher.dispatch(result, output_format="json")
-    elif raw and result.ok:
+    if output_format == "terminal" and raw and result.ok:
         sys.stdout.write(result.diff_text)
         sys.stdout.flush()
     else:
-        ui_dispatcher.dispatch(result, output_format="terminal")
+        ui_dispatcher.dispatch(result, output_format)
 
     return DiffCommandOutcome(
         result=result,
