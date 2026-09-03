@@ -114,6 +114,15 @@ Operations that can fail return a Pydantic result object subclassing `BaseResult
 
 ---
 
+## Encapsulation and Private Members
+
+- **Forbid private member access in production code**: Never access private attributes or methods (names with a leading underscore `_`) across module or class boundaries in `src/`.
+- **Forbid importing private methods/functions**: Never import private functions, methods, or variables across modules in production code (`src/`).
+- **Expose query properties**: Expose public boolean query properties (e.g. `is_interactive`, `is_terminal_format`, `is_enabled`, `has_*`) on classes rather than referencing private members from external callers.
+- **Tests exemption**: Tests under `tests/` may assert against or inspect private members when strictly necessary to verify low-level internal implementation behavior.
+
+---
+
 ## Backwards Compatibility
 
 - Maintain backwards compatibility **only** for surfaces users interact with directly:

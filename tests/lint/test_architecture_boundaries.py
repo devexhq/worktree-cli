@@ -13,13 +13,11 @@ def _iter_python_files(directory: Path) -> list[Path]:
 
 
 def test_no_rich_imports_outside_cli_ui() -> None:
-    """Ensure rich and rich.* are never imported outside src/worktree/cli/ui/ and observer adapter."""
+    """Ensure rich and rich.* are never imported outside src/worktree/cli/ui/."""
     allowed_dirs = [
         SRC_ROOT / "cli" / "ui",
     ]
-    allowed_files = [
-        SRC_ROOT / "cli" / "run" / "observer.py",
-    ]
+    allowed_files: list[Path] = []
 
     violations: list[str] = []
     for file_path in _iter_python_files(SRC_ROOT):

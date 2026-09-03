@@ -99,7 +99,7 @@ def run_command(
             non_interactive=non_interactive,
             auto_apply=auto_apply,
             observer=observer,
-            failure_prompter=CliFailurePrompter(ui_dispatcher._console),
+            failure_prompter=CliFailurePrompter(ui_dispatcher.console),
         ).execute()
 
     for warning in result.warnings:

@@ -86,7 +86,7 @@ def resume_command(
             session_id=session_id,
             non_interactive=non_interactive,
             observer=observer,
-            failure_prompter=CliFailurePrompter(ui_dispatcher._console),
+            failure_prompter=CliFailurePrompter(ui_dispatcher.console),
         ).execute()
 
     for warning in result.warnings:
