@@ -86,11 +86,8 @@ def _read_and_validate_disk_config(target_path: Path) -> ConfigLoadResult:
         return ConfigLoadResult(
             status=ConfigLoadStatus.UNREADABLE,
             config_path=target_path,
-            errors=[
-                f"Unable to read config.json at '{target_path}': {exc} (CONFIG_UNREADABLE).\n"
-                "Fix:\n"
-                "- check file permissions and that the path is readable"
-            ],
+            errors=[f"Unable to read config.json at '{target_path}': {exc} (CONFIG_UNREADABLE)."],
+            fixes=["Check file permissions and that the path is readable"],
         )
 
     try:
@@ -102,22 +99,16 @@ def _read_and_validate_disk_config(target_path: Path) -> ConfigLoadResult:
         return ConfigLoadResult(
             status=ConfigLoadStatus.MALFORMED_JSON,
             config_path=target_path,
-            errors=[
-                f"Malformed config.json at '{target_path}': {detail} (CONFIG_MALFORMED_JSON).\n"
-                "Fix:\n"
-                "- repair JSON syntax, or restore from backup"
-            ],
+            errors=[f"Malformed config.json at '{target_path}': {detail} (CONFIG_MALFORMED_JSON)."],
+            fixes=["Repair JSON syntax, or restore from backup"],
         )
 
     if not isinstance(data, dict):
         return ConfigLoadResult(
             status=ConfigLoadStatus.ROOT_NOT_OBJECT,
             config_path=target_path,
-            errors=[
-                f"Malformed config.json at '{target_path}': root must be an object (CONFIG_ROOT_NOT_OBJECT).\n"
-                "Fix:\n"
-                "- ensure config.json is a JSON object, not an array or scalar"
-            ],
+            errors=[f"Malformed config.json at '{target_path}': root must be an object (CONFIG_ROOT_NOT_OBJECT)."],
+            fixes=["Ensure config.json is a JSON object, not an array or scalar"],
         )
 
     validation = CONFIG_VALIDATOR.validate(data)
@@ -131,11 +122,12 @@ def _read_and_validate_disk_config(target_path: Path) -> ConfigLoadResult:
                     [
                         "Config schema validation failed (CONFIG_SCHEMA_INVALID):",
                         *(f"- {msg}" for msg in validation.errors),
-                        "Fix:",
-                        "- run `wt config validate` for details",
-                        "- or `wt init --repair` to insert missing keys without overwriting values",
                     ]
                 )
+            ],
+            fixes=[
+                "Run `wt config validate` for details",
+                "Or `wt init --repair` to insert missing keys without overwriting values",
             ],
         )
 
@@ -151,11 +143,12 @@ def _read_and_validate_disk_config(target_path: Path) -> ConfigLoadResult:
                     [
                         "Config schema validation failed (CONFIG_SCHEMA_INVALID):",
                         *(f"- {msg}" for msg in [str(exc)]),
-                        "Fix:",
-                        "- run `wt config validate` for details",
-                        "- or `wt init --repair` to insert missing keys without overwriting values",
                     ]
                 )
+            ],
+            fixes=[
+                "Run `wt config validate` for details",
+                "Or `wt init --repair` to insert missing keys without overwriting values",
             ],
         )
 
@@ -175,11 +168,8 @@ def _check_path_existence(target_path: Path) -> ConfigLoadResult | None:
         return ConfigLoadResult(
             status=ConfigLoadStatus.PATH_IS_DIRECTORY,
             config_path=target_path,
-            errors=[
-                f"Config path is a directory, not a file: '{target_path}' (CONFIG_PATH_IS_DIRECTORY).\n"
-                "Fix:\n"
-                "- remove the directory or point config_path at a file"
-            ],
+            errors=[f"Config path is a directory, not a file: '{target_path}' (CONFIG_PATH_IS_DIRECTORY)."],
+            fixes=["Remove the directory or point config_path at a file"],
         )
 
     if not target_path.exists():
@@ -187,11 +177,8 @@ def _check_path_existence(target_path: Path) -> ConfigLoadResult | None:
         return ConfigLoadResult(
             status=ConfigLoadStatus.NOT_FOUND,
             config_path=target_path,
-            errors=[
-                f"Configuration file not found at '{target_path}' (CONFIG_NOT_FOUND).\n"
-                "Fix:\n"
-                "- run `wt init` to create `.worktree/config.json`"
-            ],
+            errors=[f"Configuration file not found at '{target_path}' (CONFIG_NOT_FOUND)."],
+            fixes=["Run `wt init` to create `.worktree/config.json`"],
         )
     return None
 

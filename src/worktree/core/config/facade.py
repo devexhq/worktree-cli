@@ -132,7 +132,10 @@ class Config:
         if self._cached_config is None:
             result = self.load()
             if not result.ok or result.config is None:
-                errors = "; ".join(result.errors) if result.errors else "unknown error"
+                parts = list(result.errors)
+                if result.fixes:
+                    parts.append("Fix:\n" + "\n".join(f"- {f}" for f in result.fixes))
+                errors = "; ".join(parts) if parts else "unknown error"
                 raise ConfigLoadError(f"Failed to load config at '{self.path}': {errors}")
             self._cached_config = result.config
         return self._cached_config

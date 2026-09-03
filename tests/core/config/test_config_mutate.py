@@ -237,5 +237,5 @@ class SetConfigValueResultTests:
         assert result.status is ConfigSetStatus.WRITE_FAILED
         assert "CONFIG_WRITE_FAILED" in result.errors[0]
         assert "Permission denied" in result.errors[0]
-        assert "check file permissions and free disk space" in result.errors[0]
+        assert "Check file permissions and free disk space" in result.fixes[0]
         assert config_path.read_text(encoding="utf-8") == original_text

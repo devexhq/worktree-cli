@@ -89,21 +89,25 @@ def _format_show_error_panel(data: SandboxShowResult) -> Panel:
     """Format error panel for non-ok sandbox show results."""
     if data.status == SandboxShowStatus.NOT_INITIALIZED:
         err_msg = "\n\n".join(data.errors) if data.errors else "Worktree workspace is not initialized."
+        fixes = data.fixes or ["Run `wt init` to create `.worktree/config.json`"]
         return Panel(
-            f"{err_msg}\n\nHint: run `wt init` to create `.worktree/config.json`",
+            f"{err_msg}\nFix:\n" + "\n".join(f"- {fix}" for fix in fixes),
             title="Worktree Not Initialized",
             border_style="red",
         )
 
     if data.status == SandboxShowStatus.NOT_FOUND:
         msg = data.errors[0] if data.errors else "Sandbox not found."
+        fixes = data.fixes or ["Run `wt sandbox list` to see known sandboxes"]
         return Panel(
-            f"{msg}\nFix:\n- run `wt sandbox list` to see known sandboxes",
+            f"{msg}\nFix:\n" + "\n".join(f"- {fix}" for fix in fixes),
             title="Sandbox Not Found",
             border_style="red",
         )
 
     err_msg = "\n\n".join(data.errors) if data.errors else "Failed to show sandbox."
+    if data.fixes:
+        err_msg += "\nFix:\n" + "\n".join(f"- {fix}" for fix in data.fixes)
     return Panel(err_msg, title="Sandbox Show Failed", border_style="red")
 
 
@@ -156,8 +160,9 @@ class SandboxListFormatter(ComponentFormatter[SandboxListResult]):
         """
         if not data.ok:
             err_msg = "\n\n".join(data.errors) if data.errors else "Worktree workspace is not initialized."
+            fixes = data.fixes or ["Run `wt init` to create `.worktree/config.json`"]
             return Panel(
-                f"{err_msg}\n\nFix:\n- run `wt init` to create `.worktree/config.json`",
+                f"{err_msg}\nFix:\n" + "\n".join(f"- {fix}" for fix in fixes),
                 title="Worktree Not Initialized",
                 border_style="red",
             )
@@ -205,6 +210,8 @@ class SandboxCreateFormatter(ComponentFormatter[SandboxCreateResult]):
             return Group(*renderables)
 
         err_msg = "\n\n".join(data.errors) if data.errors else "Sandbox creation failed."
+        if data.fixes:
+            err_msg += "\nFix:\n" + "\n".join(f"- {fix}" for fix in data.fixes)
         return Panel(err_msg, title="Sandbox Create Failed", border_style="red")
 
     def to_json_serializable(self, data: SandboxCreateResult) -> dict[str, Any]:
@@ -258,6 +265,8 @@ class SandboxApplyFormatter(ComponentFormatter[SandboxApplyResult]):
             return _format_apply_success(data)
 
         message = "\n\n".join(data.errors) if data.errors else "Sandbox apply failed."
+        if data.fixes:
+            message += "\nFix:\n" + "\n".join(f"- {fix}" for fix in data.fixes)
         return Panel(message, title="Sandbox Apply Failed", border_style="red")
 
     def to_json_serializable(self, data: SandboxApplyResult) -> dict[str, Any]:
@@ -276,18 +285,23 @@ def _format_delete_error_panel(data: SandboxDeleteResult) -> Panel:
     """Format error panel for non-ok sandbox delete results."""
     if data.status == SandboxDeleteStatus.NOT_INITIALIZED:
         err_msg = "\n\n".join(data.errors) if data.errors else "Worktree workspace is not initialized."
+        fixes = data.fixes or ["Run `wt init` to create `.worktree/config.json`"]
         return Panel(
-            f"{err_msg}\n\nFix:\n- run `wt init` to create `.worktree/config.json`",
+            f"{err_msg}\nFix:\n" + "\n".join(f"- {fix}" for fix in fixes),
             title="Worktree Not Initialized",
             border_style="red",
         )
     if data.status == SandboxDeleteStatus.NOT_FOUND:
+        msg = data.errors[0] if data.errors else f"Sandbox '{data.sandbox_id}' not found."
+        fixes = data.fixes or ["Run `wt sandbox list` to see known sandboxes"]
         return Panel(
-            f"Sandbox '{data.sandbox_id}' not found.\nFix:\n- run `wt sandbox list` to see known sandboxes",
+            f"{msg}\nFix:\n" + "\n".join(f"- {fix}" for fix in fixes),
             title="Sandbox Not Found",
             border_style="red",
         )
     message = "\n\n".join(data.errors) if data.errors else "Sandbox delete failed."
+    if data.fixes:
+        message += "\nFix:\n" + "\n".join(f"- {fix}" for fix in data.fixes)
     return Panel(message, title="Sandbox Delete Failed", border_style="red")
 
 
@@ -339,6 +353,8 @@ class SandboxDiffFormatter(ComponentFormatter[SandboxDiffResult]):
             return Text(f"Sandbox '{data.sandbox_id}' has no changes compared to base commit.")
         if not data.ok:
             message = "\n\n".join(data.errors) if data.errors else "Failed to generate diff."
+            if data.fixes:
+                message += "\nFix:\n" + "\n".join(f"- {fix}" for fix in data.fixes)
             return Panel(message, title="Sandbox Diff Failed", border_style="red")
         if data.stat_text:
             return Text(data.stat_text.strip())

@@ -92,7 +92,7 @@ class TestSandboxLifecycle:
         assert second.status == SandboxCreateStatus.CAPACITY_EXCEEDED
         assert second.session is None
         assert "Maximum active sandboxes reached (1/1)." in second.errors[0]
-        assert "wt prune" in second.errors[0]
+        assert any("wt prune" in f for f in second.fixes)
         assert not (lifecycle.sandbox_base_dir / "sbx_b").exists()
         lifecycle.cleanup(first.session)
 

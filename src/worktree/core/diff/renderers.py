@@ -18,13 +18,13 @@ def render_session_not_found(session_id: str | None, *, output: RichOutput) -> N
         message = (
             f"Session '{session_id}' not found under .worktree/sessions/.\n"
             "Fix:\n"
-            "- run `wt sandbox list` or check .worktree/sessions/ for valid session IDs"
+            "- Run `wt sandbox list` or check .worktree/sessions/ for valid session IDs"
         )
     else:
         message = (
             "No loop run sessions found.\n"
             "Fix:\n"
-            "- run `wt sandbox list` or check .worktree/sessions/ for valid session IDs"
+            "- Run `wt sandbox list` or check .worktree/sessions/ for valid session IDs"
         )
     output.add_error_panel("Session Not Found", message)
 
@@ -34,14 +34,14 @@ def render_diff_not_found(session_id: str, *, output: RichOutput) -> None:
     message = (
         f"Session '{session_id}' has no diff artifact.\n"
         "Fix:\n"
-        f"- verify the session generated a diff artifact at .worktree/sessions/{session_id}/diff.patch"
+        f"- Verify the session generated a diff artifact at .worktree/sessions/{session_id}/diff.patch"
     )
     output.add_error_panel("Diff Not Found", message)
 
 
 def render_read_failure(message: str, *, output: RichOutput) -> None:
     """Render the read-failure error panel when diff.patch cannot be read."""
-    full_message = f"{message}\nFix:\n- check file permissions and that the artifact is readable"
+    full_message = f"{message}\nFix:\n- Check file permissions and that the artifact is readable"
     output.add_error_panel("Read Failure", full_message)
 
 

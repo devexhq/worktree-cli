@@ -106,10 +106,10 @@ class SandboxLifecycle:
         if len(active) >= max_allowed:
             return SandboxCreateResult(
                 status=SandboxCreateStatus.CAPACITY_EXCEEDED,
-                errors=[
-                    f"Maximum active sandboxes reached ({len(active)}/{max_allowed}).\n"
-                    "Fix:\n- run `wt prune` to remove stale sandboxes, or\n"
-                    "- raise sandbox.max_active_sandboxes in .worktree/config.json"
+                errors=[f"Maximum active sandboxes reached ({len(active)}/{max_allowed})."],
+                fixes=[
+                    "Run `wt prune` to remove stale sandboxes, or",
+                    "Raise sandbox.max_active_sandboxes in .worktree/config.json",
                 ],
             )
         return None
@@ -137,19 +137,15 @@ class SandboxLifecycle:
             self.discard_partial(sandbox_path, temp_branch)
             return SandboxCreateResult(
                 status=SandboxCreateStatus.GIT_TIMEOUT,
-                errors=[
-                    f"Git worktree operation timed out (SANDBOX_GIT_TIMEOUT): {exc}\n"
-                    "Fix:\n- check for git lock files, credential prompts, or stuck git processes, then retry"
-                ],
+                errors=[f"Git worktree operation timed out (SANDBOX_GIT_TIMEOUT): {exc}"],
+                fixes=["Check for git lock files, credential prompts, or stuck git processes, then retry"],
             )
         except Exception as exc:
             self.discard_partial(sandbox_path, temp_branch)
             return SandboxCreateResult(
                 status=SandboxCreateStatus.GIT_FAILED,
-                errors=[
-                    f"Git worktree operation failed (SANDBOX_GIT_FAILED): {exc}\n"
-                    "Fix:\n- ensure this directory is a Git repository with a valid base ref"
-                ],
+                errors=[f"Git worktree operation failed (SANDBOX_GIT_FAILED): {exc}"],
+                fixes=["Ensure this directory is a Git repository with a valid base ref"],
             )
 
     def _resolve_base_commit(
@@ -187,19 +183,15 @@ class SandboxLifecycle:
             self.discard_partial(sandbox_path, temp_branch)
             return [], SandboxCreateResult(
                 status=SandboxCreateStatus.GIT_TIMEOUT,
-                errors=[
-                    f"Git timed out while overlaying uncommitted WIP (SANDBOX_GIT_TIMEOUT): {exc}\n"
-                    "Fix:\n- check for git lock files or retry without --wip"
-                ],
+                errors=[f"Git timed out while overlaying uncommitted WIP (SANDBOX_GIT_TIMEOUT): {exc}"],
+                fixes=["Check for git lock files or retry without --wip"],
             )
         except Exception as exc:
             self.discard_partial(sandbox_path, temp_branch)
             return [], SandboxCreateResult(
                 status=SandboxCreateStatus.WIP_FAILED,
-                errors=[
-                    f"Failed to overlay uncommitted WIP into sandbox (SANDBOX_WIP_FAILED): {exc}\n"
-                    "Fix:\n- resolve local conflicts and retry, or commit changes first"
-                ],
+                errors=[f"Failed to overlay uncommitted WIP into sandbox (SANDBOX_WIP_FAILED): {exc}"],
+                fixes=["Resolve local conflicts and retry, or commit changes first"],
             )
 
     def _persist_session(self, session: SandboxSession) -> list[str]:

@@ -104,7 +104,8 @@ class SandboxPatch:
             return None, SandboxApplyResult(
                 status=SandboxApplyStatus.NOT_FOUND,
                 sandbox_id=sandbox_id,
-                errors=[f"Sandbox '{sandbox_id}' not found.\nFix:\n- run `wt sandbox list` to see known sandboxes"],
+                errors=[f"Sandbox '{sandbox_id}' not found."],
+                fixes=["run `wt sandbox list` to see known sandboxes"],
             )
 
         if not Path(record.sandbox_path).is_dir():
@@ -144,10 +145,10 @@ class SandboxPatch:
         return SandboxApplyResult(
             status=SandboxApplyStatus.MAIN_REPO_DIRTY,
             sandbox_id=sandbox_id,
-            errors=[
-                f"Cannot apply sandbox {sandbox_id}: main repository has uncommitted changes.\n"
-                "Fix:\n- commit or stash local changes in the main workspace, or\n"
-                "- pass --allow-dirty to overlay changes anyway"
+            errors=[f"Cannot apply sandbox {sandbox_id}: main repository has uncommitted changes."],
+            fixes=[
+                "Commit or stash local changes in the main workspace, or",
+                "Pass --allow-dirty to overlay changes anyway",
             ],
         )
 
@@ -228,11 +229,11 @@ class SandboxPatch:
                 sandbox_id=sandbox_id,
                 conflicting_files=conflicts,
                 errors=[
-                    f"Cannot apply sandbox {sandbox_id}: conflicts detected.\n"
-                    f"Conflicting files:\n{conflict_bullets}\n"
-                    "Fix:\n"
-                    f"- inspect sandbox differences with `wt sandbox diff {sandbox_id}`\n"
-                    "- resolve conflicts in the main workspace or sandbox worktree"
+                    f"Cannot apply sandbox {sandbox_id}: conflicts detected.\nConflicting files:\n{conflict_bullets}"
+                ],
+                fixes=[
+                    f"Inspect sandbox differences with `wt sandbox diff {sandbox_id}`",
+                    "Resolve conflicts in the main workspace or sandbox worktree",
                 ],
             )
 

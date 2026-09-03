@@ -103,6 +103,9 @@ def _collect_remediations(result: WorktreeStatusResult) -> list[str]:
         remediations.append(REMEDIATION_MAP[result.config.status])
     if not result.git.is_git_repo:
         remediations.append("Run 'git init' or navigate to a Git repository.")
+    for fix in result.fixes:
+        if fix not in remediations:
+            remediations.append(fix)
     return remediations
 
 

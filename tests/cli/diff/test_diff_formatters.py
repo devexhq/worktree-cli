@@ -78,7 +78,7 @@ def test_diff_result_formatter_to_rich_session_not_found_explicit() -> None:
     out = render_rich(rich_renderable)
     assert "Session Not Found" in out
     assert "Session 'sbx_missing_99' not found under .worktree/sessions/." in out
-    assert "run `wt sandbox list`" in out
+    assert "Run `wt sandbox list`" in out
 
 
 def test_diff_result_formatter_to_rich_session_not_found_implicit() -> None:

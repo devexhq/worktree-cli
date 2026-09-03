@@ -13,6 +13,28 @@ from worktree.common.types import ComponentFormatter
 from worktree.core.blueprint.models import BlueprintRunResult
 
 
+def _render_empty_output(data: BlueprintRunResult) -> Any:
+    """Render failure panel or empty text when output_items is empty."""
+    if not data.ok and data.errors:
+        message = "\n".join(data.errors)
+        if data.fixes:
+            message += "\nFix:\n" + "\n".join(f"- {fix}" for fix in data.fixes)
+        return Panel(message, title="Run Failed", border_style="red")
+    return Text("")
+
+
+def _render_output_items(output_items: list[Any]) -> Any:
+    """Render one or more output items as Rich Text or Group."""
+    if len(output_items) == 1:
+        item = output_items[0]
+        return Text.from_markup(item) if isinstance(item, str) else item
+
+    renderables: list[Any] = []
+    for item in output_items:
+        renderables.append(Text.from_markup(item) if isinstance(item, str) else item)
+    return Group(*renderables)
+
+
 class BlueprintRunFormatter(ComponentFormatter[BlueprintRunResult]):
     """Formatter for task and workflow execution results."""
 
@@ -26,18 +48,8 @@ class BlueprintRunFormatter(ComponentFormatter[BlueprintRunResult]):
             Rich renderable object (Group, Panel, Text).
         """
         if not data.output_items:
-            if not data.ok and data.errors:
-                return Panel("\n".join(data.errors), title="Run Failed", border_style="red")
-            return Text("")
-
-        if len(data.output_items) == 1:
-            item = data.output_items[0]
-            return Text.from_markup(item) if isinstance(item, str) else item
-
-        renderables: list[Any] = []
-        for item in data.output_items:
-            renderables.append(Text.from_markup(item) if isinstance(item, str) else item)
-        return Group(*renderables)
+            return _render_empty_output(data)
+        return _render_output_items(data.output_items)
 
     def to_json_serializable(self, data: BlueprintRunResult) -> dict[str, Any]:
         """Convert BlueprintRunResult to primitive dictionary for JSON serialization.

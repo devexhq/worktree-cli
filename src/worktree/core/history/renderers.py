@@ -117,7 +117,7 @@ def render_history_list(runs: list[RunRecord], *, output: RichOutput) -> None:
 
 def render_history_not_found(session_id: str, *, output: RichOutput) -> None:
     """Render the not-found error panel for history show."""
-    message = f"Session '{session_id}' not found.\nFix:\n- run `wt history` to view past sessions"
+    message = f"Session '{session_id}' not found.\nFix:\n- Run `wt history` to view past sessions"
     output.add_error_panel("Session Not Found", message)
 
 

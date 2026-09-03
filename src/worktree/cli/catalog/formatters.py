@@ -124,6 +124,8 @@ class CatalogShowFormatter(ComponentFormatter[CatalogShowResult]):
         """
         if data.errors or not data.ok:
             error_message = "\n\n".join(data.errors) if data.errors else "Catalog blueprint not found."
+            if data.fixes:
+                error_message += "\nFix:\n" + "\n".join(f"- {fix}" for fix in data.fixes)
             return Panel(error_message, title="Catalog Show Failed", border_style="red")
 
         if data.template_matches:
@@ -163,6 +165,8 @@ class CatalogDeleteFormatter(ComponentFormatter[CatalogDeleteResult]):
 
         if data.errors or not data.ok:
             error_message = "\n\n".join(data.errors) if data.errors else "Catalog delete failed."
+            if data.fixes:
+                error_message += "\nFix:\n" + "\n".join(f"- {fix}" for fix in data.fixes)
             return Panel(error_message, title="Catalog Delete Failed", border_style="red")
 
         if data.deleted and data.item is not None:
@@ -196,6 +200,8 @@ class CatalogCreateFormatter(ComponentFormatter[CatalogCreateResult]):
         """
         if data.errors or not data.ok or data.item is None:
             error_message = "\n\n".join(data.errors) if data.errors else "Catalog creation failed."
+            if data.fixes:
+                error_message += "\nFix:\n" + "\n".join(f"- {fix}" for fix in data.fixes)
             return Panel(error_message, title="Catalog Creation Failed", border_style="red")
 
         t_type = enum_value(data.item.item_type)

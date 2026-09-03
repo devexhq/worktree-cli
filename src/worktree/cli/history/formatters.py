@@ -49,7 +49,10 @@ class HistoryListFormatter(ComponentFormatter[HistoryListResult]):
             Rich renderable object (Table, Group, Panel, or Text).
         """
         if not data.ok and data.errors:
-            return Panel("\n\n".join(data.errors), title="History List Failed", border_style="red")
+            parts = ["\n\n".join(data.errors)]
+            if data.fixes:
+                parts.append("Fix:\n" + "\n".join(f"- {fix}" for fix in data.fixes))
+            return Panel("\n".join(parts), title="History List Failed", border_style="red")
 
         return _render_list_runs(data)
 
@@ -65,25 +68,29 @@ class HistoryListFormatter(ComponentFormatter[HistoryListResult]):
         return data.model_dump(mode="json")
 
 
-def _render_show_not_found(session_id: str | None) -> Panel:
+def _render_show_not_found(session_id: str | None, fixes: list[str] | None = None) -> Panel:
     """Render error panel when requested session record is not found."""
     session_label = session_id or "unknown"
-    message = f"Session '{session_label}' not found.\nFix:\n- run `wt history` to view past sessions"
+    fix_list = fixes or ["Run `wt history` to view past sessions"]
+    message = f"Session '{session_label}' not found.\nFix:\n" + "\n".join(f"- {f}" for f in fix_list)
     return Panel(message, title="Session Not Found", border_style="red")
 
 
-def _render_show_error(errors: list[str]) -> Panel:
+def _render_show_error(errors: list[str], fixes: list[str] | None = None) -> Panel:
     """Render error panel when session show encounters errors."""
-    return Panel("\n\n".join(errors), title="Session Show Failed", border_style="red")
+    parts = ["\n\n".join(errors)]
+    if fixes:
+        parts.append("Fix:\n" + "\n".join(f"- {f}" for f in fixes))
+    return Panel("\n".join(parts), title="Session Show Failed", border_style="red")
 
 
 def _render_show_error_panel(data: HistoryShowResult) -> Panel | None:
     """Check and render error panels for session show operation."""
     if data.status == HistoryShowStatus.NOT_FOUND or (data.run is None and not data.errors):
-        return _render_show_not_found(data.session_id)
+        return _render_show_not_found(data.session_id, data.fixes)
 
     if data.errors and not data.ok:
-        return _render_show_error(data.errors)
+        return _render_show_error(data.errors, data.fixes)
 
     return None
 

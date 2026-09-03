@@ -31,9 +31,14 @@ class ConfigLoadFormatter(ComponentFormatter[ConfigLoadResult]):
             payload = f"Config: {data.config_path.as_posix()}\nStatus: valid\n\n{as_json(data.config)}"
             return Text(payload)
 
-        message = (
-            "\n\n".join(data.errors) if data.errors else f"Configuration failed to load ({data.status.value.upper()})."
-        )
+        parts: list[str] = []
+        if data.errors:
+            parts.append("\n\n".join(data.errors))
+        else:
+            parts.append(f"Configuration failed to load ({data.status.value.upper()}).")
+        if data.fixes:
+            parts.append("Fix:\n" + "\n".join(f"- {fix}" for fix in data.fixes))
+        message = "\n".join(parts)
         return Panel(message, title="Config Error", border_style="red")
 
     def to_json_serializable(self, data: ConfigLoadResult) -> dict[str, Any]:
@@ -69,6 +74,43 @@ class ConfigShowFormatter(ComponentFormatter[WorktreeConfig]):
         return data.model_dump(mode="json")
 
 
+def _format_valid_config(data: ConfigValidationResult) -> Text:
+    """Format successful configuration validation output with optional warnings and fixes."""
+    status_label = "valid with warnings" if data.warnings else "valid"
+    lines = [
+        f"Config: {data.config_path.as_posix()}",
+        f"Status: {status_label}",
+        "",
+    ]
+    if data.warnings:
+        lines.append("Warnings:")
+        lines.extend(format_warning_bullets(data.warnings))
+        lines.append("")
+    if data.fixes:
+        lines.append("Fix:")
+        lines.extend(f"- {fix}" for fix in data.fixes)
+        lines.append("")
+    lines.append("Config is valid.")
+    return Text("\n".join(lines))
+
+
+def _format_invalid_config(data: ConfigValidationResult) -> Any:
+    """Format failed configuration validation error panel and warnings."""
+    parts: list[str] = []
+    if data.errors:
+        parts.append("\n\n".join(data.errors))
+    else:
+        parts.append("Configuration validation failed.")
+    if data.fixes:
+        parts.append("Fix:\n" + "\n".join(f"- {fix}" for fix in data.fixes))
+    message = "\n".join(parts)
+    panel = Panel(message, title="Config Validation Failed", border_style="red")
+    if data.warnings:
+        warning_block = "Warnings:\n" + "\n".join(format_warning_bullets(data.warnings))
+        return Group(panel, Text(warning_block))
+    return panel
+
+
 class ConfigValidateFormatter(ComponentFormatter[ConfigValidationResult]):
     """Formatter for configuration validation results."""
 
@@ -82,25 +124,8 @@ class ConfigValidateFormatter(ComponentFormatter[ConfigValidationResult]):
             Rich renderable object (Text, Panel, or Group).
         """
         if data.ok:
-            status_label = "valid with warnings" if data.warnings else "valid"
-            lines = [
-                f"Config: {data.config_path.as_posix()}",
-                f"Status: {status_label}",
-                "",
-            ]
-            if data.warnings:
-                lines.append("Warnings:")
-                lines.extend(format_warning_bullets(data.warnings))
-                lines.append("")
-            lines.append("Config is valid.")
-            return Text("\n".join(lines))
-
-        message = "\n\n".join(data.errors) if data.errors else "Configuration validation failed."
-        panel = Panel(message, title="Config Validation Failed", border_style="red")
-        if data.warnings:
-            warning_block = "Warnings:\n" + "\n".join(format_warning_bullets(data.warnings))
-            return Group(panel, Text(warning_block))
-        return panel
+            return _format_valid_config(data)
+        return _format_invalid_config(data)
 
     def to_json_serializable(self, data: ConfigValidationResult) -> dict[str, Any]:
         """Convert ConfigValidationResult to primitive dictionary for JSON serialization.
@@ -133,7 +158,14 @@ class ConfigSetFormatter(ComponentFormatter[ConfigSetResult]):
                 f"[bold green]✔  Config updated: {data.key} = {value_str} ({type_name})[/bold green]"
             )
 
-        message = "\n\n".join(data.errors) if data.errors else "Failed to update configuration."
+        parts: list[str] = []
+        if data.errors:
+            parts.append("\n\n".join(data.errors))
+        else:
+            parts.append("Failed to update configuration.")
+        if data.fixes:
+            parts.append("Fix:\n" + "\n".join(f"- {fix}" for fix in data.fixes))
+        message = "\n".join(parts)
         return Panel(message, title="Config Error", border_style="red")
 
     def to_json_serializable(self, data: ConfigSetResult) -> dict[str, Any]:

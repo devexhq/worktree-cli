@@ -86,6 +86,7 @@ def validate_config_result(
             config=None,
             errors=list(loaded.errors),
             warnings=[],
+            fixes=list(loaded.fixes),
         )
 
     if loaded.config is None:
@@ -99,10 +100,11 @@ def validate_config_result(
                 f"(CONFIG_INTERNAL_INVARIANT)."
             ],
             warnings=[],
+            fixes=[],
         )
 
-    errors = _semantic_errors(loaded.config)
-    warnings = _semantic_warnings(loaded.config)
+    errors, error_fixes = _semantic_errors(loaded.config)
+    warnings, warning_fixes = _semantic_warnings(loaded.config)
     if errors:
         return ConfigValidationResult(
             status=ConfigValidationStatus.INVALID,
@@ -111,6 +113,7 @@ def validate_config_result(
             config=None,
             errors=errors,
             warnings=warnings,
+            fixes=[*error_fixes, *warning_fixes],
         )
 
     return ConfigValidationResult(
@@ -120,59 +123,44 @@ def validate_config_result(
         config=loaded.config,
         errors=[],
         warnings=warnings,
+        fixes=warning_fixes,
     )
 
 
-def _semantic_errors(config: WorktreeConfig) -> list[str]:
-    """Return semantic errors in FR-6 rule order."""
+def _semantic_errors(config: WorktreeConfig) -> tuple[list[str], list[str]]:
+    """Return semantic errors and fixes in FR-6 rule order."""
     errors: list[str] = []
+    fixes: list[str] = []
 
     for field_name in sorted(_PATH_FIELD_NAMES):
         value = getattr(config.paths, field_name)
         if "\x00" in value or "\n" in value or "\r" in value:
-            errors.append(
-                f"paths.{field_name} contains invalid control characters "
-                f"(CONFIG_SEMANTIC_PATH_INVALID).\n"
-                "Fix:\n"
-                "- use a plain relative path string without newlines or "
-                "NUL bytes"
-            )
+            errors.append(f"paths.{field_name} contains invalid control characters (CONFIG_SEMANTIC_PATH_INVALID).")
+            fixes.append("Use a plain relative path string without newlines or NUL bytes")
 
-    return errors
+    return errors, fixes
 
 
-def _semantic_warnings(config: WorktreeConfig) -> list[str]:
-    """Return semantic warnings in FR-7 rule order."""
+def _semantic_warnings(config: WorktreeConfig) -> tuple[list[str], list[str]]:
+    """Return semantic warnings and fixes in FR-7 rule order."""
     warnings: list[str] = []
+    fixes: list[str] = []
 
     if config.agent.provider != "local" and config.agent.model is None:
-        warnings.append(
-            "agent.provider is not 'local' but agent.model is missing "
-            "(CONFIG_WARN_AGENT_MODEL_MISSING).\n"
-            "Fix:\n"
-            "- set agent.model or use provider=local"
-        )
+        warnings.append("agent.provider is not 'local' but agent.model is missing (CONFIG_WARN_AGENT_MODEL_MISSING).")
+        fixes.append("Set agent.model or use provider=local")
 
     endpoint = config.agent.endpoint
     if endpoint is not None and not _is_absolute_http_url(endpoint):
-        warnings.append(
-            f"agent.endpoint is not an absolute http(s) URL: '{endpoint}' "
-            f"(CONFIG_WARN_AGENT_ENDPOINT).\n"
-            "Fix:\n"
-            "- set agent.endpoint to an absolute http:// or https:// URL, "
-            "or null"
-        )
+        warnings.append(f"agent.endpoint is not an absolute http(s) URL: '{endpoint}' (CONFIG_WARN_AGENT_ENDPOINT).")
+        fixes.append("Set agent.endpoint to an absolute http:// or https:// URL, or null")
 
     max_active = config.sandbox.max_active_sandboxes
     if max_active > 10:
-        warnings.append(
-            f"sandbox.max_active_sandboxes ({max_active}) exceeds 10 "
-            f"(CONFIG_WARN_SANDBOX_LIMIT).\n"
-            "Fix:\n"
-            "- lower sandbox.max_active_sandboxes to 10 or fewer"
-        )
+        warnings.append(f"sandbox.max_active_sandboxes ({max_active}) exceeds 10 (CONFIG_WARN_SANDBOX_LIMIT).")
+        fixes.append("Lower sandbox.max_active_sandboxes to 10 or fewer")
 
-    return warnings
+    return warnings, fixes
 
 
 def _is_absolute_http_url(value: str) -> bool:

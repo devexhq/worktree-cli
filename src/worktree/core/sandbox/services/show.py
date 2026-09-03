@@ -31,7 +31,11 @@ def collect_sandbox_show(
     """
     row = db.get(sandbox_id)
     if row is None:
-        return SandboxShowResult(status=SandboxShowStatus.NOT_FOUND)
+        return SandboxShowResult(
+            status=SandboxShowStatus.NOT_FOUND,
+            errors=[f"Sandbox '{sandbox_id}' not found."],
+            fixes=["Run `wt sandbox list` to see known sandboxes"],
+        )
 
     reconciled = False
     if row.status is SandboxStatus.ACTIVE and not Path(row.sandbox_path).is_dir():
