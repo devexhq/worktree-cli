@@ -144,7 +144,6 @@ class BlueprintRunResult(BaseResult):
     """Unified result for task and workflow execution."""
 
     run_record: RunRecord | None = None
-    output_items: list[Any] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:

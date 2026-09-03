@@ -1,0 +1,105 @@
+"""Pydantic DTO models representing runtime UI events."""
+
+from __future__ import annotations
+
+from pydantic import BaseModel
+
+from worktree.core.db import BlueprintKind, RunStatus
+
+
+class ErrorPanelEvent(BaseModel):
+    """UI event representing an error panel."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    title: str
+    message: str
+    border_style: str = "red"
+
+
+class WarningEvent(BaseModel):
+    """UI event representing a warning notice."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    message: str
+
+
+class MessageEvent(BaseModel):
+    """UI event representing a general status notice or text line."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    message: str
+    style: str | None = None
+
+
+class RunSuccessEvent(BaseModel):
+    """UI event representing blueprint run completion."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    session_id: str
+    blueprint_name: str
+    kind: BlueprintKind
+    status: RunStatus
+
+
+class StepStartEvent(BaseModel):
+    """UI event representing the beginning of a step."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    idx: int
+    total: int
+    step_id: str
+    name: str | None = None
+    command: str | None = None
+
+
+class StepDoneEvent(BaseModel):
+    """UI event representing the completion of a step."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    idx: int
+    total: int
+    step_id: str
+    ok: bool
+    exit_code: int
+    duration_seconds: float | None = None
+    error_message: str | None = None
+
+
+class StepOutputEvent(BaseModel):
+    """UI event representing a stream output line emitted by a running step."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    step_id: str
+    line: str
+    stream: str = "stdout"
+
+
+class SandboxLifecycleEvent(BaseModel):
+    """UI event representing sandbox creation, activation, or cleanup."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    action: str
+    path: str
+    active: bool | None = None
+    kept: bool | None = None
+
+
+class LoopLifecycleEvent(BaseModel):
+    """UI event representing loop block progress and evaluation."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    loop_id: str
+    action: str
+    turn: int | None = None
+    max_iterations: int | None = None
+    status: str | None = None
+    message: str | None = None

@@ -267,7 +267,7 @@ class RunCliTests:
                 raise KeyboardInterrupt
 
         monkeypatch.setattr(
-            "worktree.core.engine.services.run.CliFailurePrompter",
+            "worktree.cli.run.commands.root.CliFailurePrompter",
             lambda *args, **kwargs: _InterruptPrompter(),
         )
 
@@ -278,6 +278,7 @@ class RunCliTests:
             runs_db=ctx.db.runs,
             catalog_db=ctx.db.catalog,
             session_id="paused_session_1",
+            failure_prompter=_InterruptPrompter(),
         ).execute()
         assert outcome.run_record is not None
         assert outcome.run_record.status == RunStatus.PAUSED

@@ -16,14 +16,36 @@ F = TypeVar("F", bound=ComponentFormatter[Any] | type[ComponentFormatter[Any]])
 class UiDispatcher:
     """Central UI dispatcher routing domain data to appropriate formatters."""
 
-    def __init__(self, console: Console | None = None) -> None:
+    def __init__(self, console: Console | None = None, output_format: str = "terminal") -> None:
         """Initialize dispatcher.
 
         Args:
             console: Rich Console instance to use for terminal output. Defaults to None.
+            output_format: Default output format ("terminal" or "json"). Defaults to "terminal".
         """
-        self._console: Console = console if console is not None else Console()
+        self._custom_console: Console | None = console
         self._registry: dict[type[Any], ComponentFormatter[Any]] = {}
+        self._output_format: str = output_format
+
+    @property
+    def _console(self) -> Console:
+        """Get the active Console instance."""
+        if self._custom_console is not None:
+            return self._custom_console
+        return Console()
+
+    @property
+    def output_format(self) -> str:
+        """Get current output format."""
+        return self._output_format
+
+    def set_output_format(self, output_format: str) -> None:
+        """Set output format ("terminal" or "json").
+
+        Args:
+            output_format: Presentation format ("terminal" or "json").
+        """
+        self._output_format = output_format
 
     @overload
     def register(
@@ -65,22 +87,23 @@ class UiDispatcher:
             return decorator(formatter)
         return decorator
 
-    def dispatch(self, data: Any, output_format: str = "terminal") -> None:
+    def dispatch(self, data: Any, output_format: str | None = None) -> None:
         """Dispatch domain data to registered formatter according to output format.
 
         Args:
             data: Domain data object to render.
-            output_format: Presentation format ("terminal" or "json").
+            output_format: Presentation format ("terminal" or "json"). Defaults to None.
 
         Raises:
             ValueError: If no formatter is registered for the data's type.
         """
+        effective_format = output_format if output_format is not None else self._output_format
         data_type = type(data)
         formatter = self._registry.get(data_type)
         if formatter is None:
             raise ValueError(f"No formatter registered for type: {data_type.__name__}")
 
-        if output_format == "json":
+        if effective_format == "json":
             envelope = {
                 "event_type": data_type.__name__,
                 "payload": formatter.to_json_serializable(data),

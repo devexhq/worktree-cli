@@ -10,9 +10,6 @@ from typer.core import TyperGroup
 from worktree.cli.context import CliContext
 
 from .commands.root import run_command
-from .formatters import register_run_formatters
-
-register_run_formatters()
 
 
 class RunTyperGroup(TyperGroup):
