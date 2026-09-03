@@ -11,7 +11,12 @@ from worktree.cli.ui.formatters.catalog import (
     CatalogShowFormatter,
     register_catalog_formatters,
 )
-from worktree.cli.ui.formatters.common import DispatcherProtocol
+from worktree.cli.ui.formatters.common import (
+    DispatcherProtocol,
+    build_error_panel,
+    render_list_errors,
+    render_list_fixes,
+)
 from worktree.cli.ui.formatters.config import (
     ConfigLoadFormatter,
     ConfigSetFormatter,
@@ -115,6 +120,7 @@ __all__ = [
     "WelcomeBannerFormatter",
     "WorkspaceInitFormatter",
     "WorktreeStatusFormatter",
+    "build_error_panel",
     "register_all_formatters",
     "register_catalog_formatters",
     "register_config_formatters",
@@ -126,4 +132,6 @@ __all__ = [
     "register_sandbox_formatters",
     "register_status_formatters",
     "register_ui_formatters",
+    "render_list_errors",
+    "render_list_fixes",
 ]

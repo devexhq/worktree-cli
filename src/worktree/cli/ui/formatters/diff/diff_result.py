@@ -9,6 +9,7 @@ from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.text import Text
 
+from worktree.cli.ui.formatters.common import build_error_panel
 from worktree.cli.ui.formatters.diff.common import format_truncation_notice, resolve_diff_rel_path
 from worktree.common.constants import DEFAULT_MAX_DIFF_LINES
 from worktree.common.types import ComponentFormatter
@@ -17,34 +18,29 @@ from worktree.core.diff.models import DiffResult, DiffStatus
 
 def _format_session_not_found_panel(data: DiffResult) -> Panel:
     """Format error panel when session is missing."""
-    if data.errors:
-        error_message = "\n\n".join(data.errors)
-    elif data.session_id:
-        error_message = f"Session '{data.session_id}' not found under .worktree/sessions/."
-    else:
-        error_message = "No loop run sessions found."
+    default = (
+        f"Session '{data.session_id}' not found under .worktree/sessions/."
+        if data.session_id
+        else "No loop run sessions found."
+    )
     fixes = data.fixes or ["Run `wt sandbox list` or check .worktree/sessions/ for valid session IDs"]
-    message = f"{error_message}\nFix:\n" + "\n".join(f"- {fix}" for fix in fixes)
-    return Panel(message, title="Session Not Found", border_style="red")
+    return build_error_panel("Session Not Found", data.errors, default, fixes)
 
 
 def _format_diff_not_found_panel(data: DiffResult) -> Panel:
     """Format error panel when diff artifact is missing."""
     session_label = data.session_id or "unknown"
-    error_message = data.errors[0] if data.errors else f"Session '{session_label}' has no diff artifact."
+    default = f"Session '{session_label}' has no diff artifact."
     fixes = data.fixes or [
         f"Verify the session generated a diff artifact at .worktree/sessions/{session_label}/diff.patch"
     ]
-    message = f"{error_message}\nFix:\n" + "\n".join(f"- {fix}" for fix in fixes)
-    return Panel(message, title="Diff Not Found", border_style="red")
+    return build_error_panel("Diff Not Found", data.errors, default, fixes)
 
 
 def _format_read_failure_panel(data: DiffResult) -> Panel:
     """Format error panel when diff artifact cannot be read."""
-    error_message = data.errors[0] if data.errors else "Failed to read diff artifact."
     fixes = data.fixes or ["Check file permissions and that the artifact is readable"]
-    message = f"{error_message}\nFix:\n" + "\n".join(f"- {fix}" for fix in fixes)
-    return Panel(message, title="Read Failure", border_style="red")
+    return build_error_panel("Read Failure", data.errors, "Failed to read diff artifact.", fixes)
 
 
 def _format_diff_error_panel(data: DiffResult) -> Panel:
@@ -56,14 +52,7 @@ def _format_diff_error_panel(data: DiffResult) -> Panel:
     if data.status == DiffStatus.READ_FAILURE:
         return _format_read_failure_panel(data)
 
-    parts: list[str] = []
-    if data.errors:
-        parts.append("\n\n".join(data.errors))
-    else:
-        parts.append("Diff operation failed.")
-    if data.fixes:
-        parts.append("Fix:\n" + "\n".join(f"- {fix}" for fix in data.fixes))
-    return Panel("\n\n".join(parts), title="Diff Failed", border_style="red")
+    return build_error_panel("Diff Failed", data.errors, "Diff operation failed.", data.fixes)
 
 
 class DiffResultFormatter(ComponentFormatter[DiffResult]):

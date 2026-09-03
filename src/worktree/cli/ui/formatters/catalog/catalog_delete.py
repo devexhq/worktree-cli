@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from rich.panel import Panel
 from rich.text import Text
 
+from worktree.cli.ui.formatters.common import build_error_panel
 from worktree.common.types import ComponentFormatter
 from worktree.core.catalog.models import CatalogDeleteResult
 
@@ -20,10 +20,12 @@ class CatalogDeleteFormatter(ComponentFormatter[CatalogDeleteResult]):
             return Text("Deletion cancelled.")
 
         if data.errors or not data.ok:
-            error_message = "\n\n".join(data.errors) if data.errors else "Catalog delete failed."
-            if data.fixes:
-                error_message += "\nFix:\n" + "\n".join(f"- {fix}" for fix in data.fixes)
-            return Panel(error_message, title="Catalog Delete Failed", border_style="red")
+            return build_error_panel(
+                "Catalog Delete Failed",
+                data.errors,
+                "Catalog delete failed.",
+                data.fixes,
+            )
 
         if data.deleted and data.item is not None:
             return Text(f"Deleted catalog blueprint '{data.item.sha}' ({data.item.path}).")

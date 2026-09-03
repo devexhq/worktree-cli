@@ -5,9 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 from rich.console import Group
-from rich.panel import Panel
 from rich.text import Text
 
+from worktree.cli.ui.formatters.common import build_error_panel
 from worktree.common.types import ComponentFormatter
 from worktree.core.sandbox.models import SandboxApplyResult, SandboxApplyStrategy
 
@@ -43,10 +43,12 @@ class SandboxApplyFormatter(ComponentFormatter[SandboxApplyResult]):
         if data.ok:
             return _format_apply_success(data)
 
-        message = "\n\n".join(data.errors) if data.errors else "Sandbox apply failed."
-        if data.fixes:
-            message += "\nFix:\n" + "\n".join(f"- {fix}" for fix in data.fixes)
-        return Panel(message, title="Sandbox Apply Failed", border_style="red")
+        return build_error_panel(
+            "Sandbox Apply Failed",
+            data.errors,
+            "Sandbox apply failed.",
+            data.fixes,
+        )
 
     def to_json_serializable(self, data: SandboxApplyResult) -> dict[str, Any]:
         """Convert SandboxApplyResult to primitive dictionary for JSON serialization."""

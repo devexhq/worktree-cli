@@ -12,14 +12,9 @@ from worktree.cli.ui.formatters.catalog.common import (
     build_catalog_table,
     build_catalog_template_table,
 )
+from worktree.cli.ui.formatters.common import build_error_panel
 from worktree.common.types import ComponentFormatter
 from worktree.core.catalog.models import CatalogListResult
-
-
-def _render_list_errors(data: CatalogListResult) -> Panel | None:
-    if data.errors:
-        return Panel("\n".join(data.errors), title="Catalog Filter Error", border_style="red")
-    return None
 
 
 def _render_list_empty(data: CatalogListResult) -> Any:
@@ -44,9 +39,8 @@ class CatalogListFormatter(ComponentFormatter[CatalogListResult]):
 
     def to_rich(self, data: CatalogListResult) -> Any:
         """Render catalog blueprint list, templates table, or empty state."""
-        error_panel = _render_list_errors(data)
-        if error_panel is not None:
-            return error_panel
+        if data.errors:
+            return build_error_panel("Catalog Filter Error", data.errors, fixes=data.fixes)
 
         if data.templates:
             return build_catalog_template_table(data.templates)

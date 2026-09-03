@@ -5,9 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 from rich.console import Group
-from rich.panel import Panel
 from rich.text import Text
 
+from worktree.cli.ui.formatters.common import build_error_panel
 from worktree.cli.ui.formatters.history.common import build_history_table
 from worktree.common.types import ComponentFormatter
 from worktree.core.history.models import HistoryListResult
@@ -32,10 +32,7 @@ class HistoryListFormatter(ComponentFormatter[HistoryListResult]):
     def to_rich(self, data: HistoryListResult) -> Any:
         """Render execution history table, warnings, or empty state."""
         if not data.ok and data.errors:
-            parts = ["\n\n".join(data.errors)]
-            if data.fixes:
-                parts.append("Fix:\n" + "\n".join(f"- {fix}" for fix in data.fixes))
-            return Panel("\n".join(parts), title="History List Failed", border_style="red")
+            return build_error_panel("History List Failed", data.errors, fixes=data.fixes)
 
         return _render_list_runs(data)
 

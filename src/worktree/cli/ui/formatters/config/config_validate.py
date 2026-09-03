@@ -5,9 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 from rich.console import Group
-from rich.panel import Panel
 from rich.text import Text
 
+from worktree.cli.ui.formatters.common import build_error_panel, render_list_fixes
 from worktree.common.formatters import format_warning_bullets
 from worktree.common.types import ComponentFormatter
 from worktree.core.config.validate import ConfigValidationResult
@@ -25,9 +25,8 @@ def _format_valid_config(data: ConfigValidationResult) -> Text:
         lines.append("Warnings:")
         lines.extend(format_warning_bullets(data.warnings))
         lines.append("")
-    if data.fixes:
-        lines.append("Fix:")
-        lines.extend(f"- {fix}" for fix in data.fixes)
+    if fixes_msg := render_list_fixes(data.fixes):
+        lines.append(fixes_msg)
         lines.append("")
     lines.append("Config is valid.")
     return Text("\n".join(lines))
@@ -35,15 +34,12 @@ def _format_valid_config(data: ConfigValidationResult) -> Text:
 
 def _format_invalid_config(data: ConfigValidationResult) -> Any:
     """Format failed configuration validation error panel and warnings."""
-    parts: list[str] = []
-    if data.errors:
-        parts.append("\n\n".join(data.errors))
-    else:
-        parts.append("Configuration validation failed.")
-    if data.fixes:
-        parts.append("Fix:\n" + "\n".join(f"- {fix}" for fix in data.fixes))
-    message = "\n".join(parts)
-    panel = Panel(message, title="Config Validation Failed", border_style="red")
+    panel = build_error_panel(
+        "Config Validation Failed",
+        data.errors,
+        "Configuration validation failed.",
+        data.fixes,
+    )
     if data.warnings:
         warning_block = "Warnings:\n" + "\n".join(format_warning_bullets(data.warnings))
         return Group(panel, Text(warning_block))

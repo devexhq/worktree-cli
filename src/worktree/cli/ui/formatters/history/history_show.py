@@ -8,6 +8,7 @@ from rich.console import Group
 from rich.panel import Panel
 from rich.text import Text
 
+from worktree.cli.ui.formatters.common import build_error_panel
 from worktree.cli.ui.formatters.history.common import (
     build_checkpoint_renderables,
     build_metadata_table,
@@ -21,16 +22,16 @@ def _render_show_not_found(session_id: str | None, fixes: list[str] | None = Non
     """Render error panel when requested session record is not found."""
     session_label = session_id or "unknown"
     fix_list = fixes or ["Run `wt history` to view past sessions"]
-    message = f"Session '{session_label}' not found.\nFix:\n" + "\n".join(f"- {f}" for f in fix_list)
-    return Panel(message, title="Session Not Found", border_style="red")
+    return build_error_panel(
+        "Session Not Found",
+        default=f"Session '{session_label}' not found.",
+        fixes=fix_list,
+    )
 
 
 def _render_show_error(errors: list[str], fixes: list[str] | None = None) -> Panel:
     """Render error panel when session show encounters errors."""
-    parts = ["\n\n".join(errors)]
-    if fixes:
-        parts.append("Fix:\n" + "\n".join(f"- {f}" for f in fixes))
-    return Panel("\n".join(parts), title="Session Show Failed", border_style="red")
+    return build_error_panel("Session Show Failed", errors=errors, fixes=fixes)
 
 
 def _render_show_error_panel(data: HistoryShowResult) -> Panel | None:

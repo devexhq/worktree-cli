@@ -6,9 +6,9 @@ from pathlib import Path
 from typing import Any
 
 from rich.console import Group
-from rich.panel import Panel
 from rich.text import Text
 
+from worktree.cli.ui.formatters.common import build_error_panel
 from worktree.common.types import ComponentFormatter
 from worktree.common.utils import display_path
 from worktree.core.sandbox.models import SandboxCreateResult
@@ -32,10 +32,12 @@ class SandboxCreateFormatter(ComponentFormatter[SandboxCreateResult]):
                 renderables.append(Text(f"   • {warning}", style="dim"))
             return Group(*renderables)
 
-        err_msg = "\n\n".join(data.errors) if data.errors else "Sandbox creation failed."
-        if data.fixes:
-            err_msg += "\nFix:\n" + "\n".join(f"- {fix}" for fix in data.fixes)
-        return Panel(err_msg, title="Sandbox Create Failed", border_style="red")
+        return build_error_panel(
+            "Sandbox Create Failed",
+            data.errors,
+            "Sandbox creation failed.",
+            data.fixes,
+        )
 
     def to_json_serializable(self, data: SandboxCreateResult) -> dict[str, Any]:
         """Convert SandboxCreateResult to primitive dictionary for JSON serialization."""

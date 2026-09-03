@@ -8,6 +8,7 @@ from rich.console import Group
 from rich.panel import Panel
 from rich.text import Text
 
+from worktree.cli.ui.formatters.common import build_error_panel
 from worktree.cli.ui.formatters.sandbox.common import build_sandbox_detail_table
 from worktree.common.types import ComponentFormatter
 from worktree.core.sandbox.models import SandboxShowResult, SandboxShowStatus
@@ -16,27 +17,29 @@ from worktree.core.sandbox.models import SandboxShowResult, SandboxShowStatus
 def _format_show_error_panel(data: SandboxShowResult) -> Panel:
     """Format error panel for non-ok sandbox show results."""
     if data.status == SandboxShowStatus.NOT_INITIALIZED:
-        err_msg = "\n\n".join(data.errors) if data.errors else "Worktree workspace is not initialized."
         fixes = data.fixes or ["Run `wt init` to create `.worktree/config.json`"]
-        return Panel(
-            f"{err_msg}\nFix:\n" + "\n".join(f"- {fix}" for fix in fixes),
-            title="Worktree Not Initialized",
-            border_style="red",
+        return build_error_panel(
+            "Worktree Not Initialized",
+            data.errors,
+            "Worktree workspace is not initialized.",
+            fixes,
         )
 
     if data.status == SandboxShowStatus.NOT_FOUND:
-        msg = data.errors[0] if data.errors else "Sandbox not found."
         fixes = data.fixes or ["Run `wt sandbox list` to see known sandboxes"]
-        return Panel(
-            f"{msg}\nFix:\n" + "\n".join(f"- {fix}" for fix in fixes),
-            title="Sandbox Not Found",
-            border_style="red",
+        return build_error_panel(
+            "Sandbox Not Found",
+            data.errors,
+            "Sandbox not found.",
+            fixes,
         )
 
-    err_msg = "\n\n".join(data.errors) if data.errors else "Failed to show sandbox."
-    if data.fixes:
-        err_msg += "\nFix:\n" + "\n".join(f"- {fix}" for fix in data.fixes)
-    return Panel(err_msg, title="Sandbox Show Failed", border_style="red")
+    return build_error_panel(
+        "Sandbox Show Failed",
+        data.errors,
+        "Failed to show sandbox.",
+        data.fixes,
+    )
 
 
 class SandboxShowFormatter(ComponentFormatter[SandboxShowResult]):

@@ -8,6 +8,7 @@ from typing import Any
 from rich.syntax import Syntax
 from rich.text import Text
 
+from worktree.cli.ui.formatters.common import render_list_fixes
 from worktree.common.constants import DEFAULT_MAX_DIFF_LINES
 from worktree.common.utils import display_path
 from worktree.core.diff.models import DiffResult, DiffStatus
@@ -45,17 +46,11 @@ def format_truncation_notice(
 def render_session_not_found(session_id: str | None, *, output: Any) -> None:
     """Render the session-not-found error panel."""
     if session_id:
-        message = (
-            f"Session '{session_id}' not found under .worktree/sessions/.\n"
-            "Fix:\n"
-            "- Run `wt sandbox list` or check .worktree/sessions/ for valid session IDs"
-        )
+        error = f"Session '{session_id}' not found under .worktree/sessions/."
     else:
-        message = (
-            "No loop run sessions found.\n"
-            "Fix:\n"
-            "- Run `wt sandbox list` or check .worktree/sessions/ for valid session IDs"
-        )
+        error = "No loop run sessions found."
+    fixes = ["Run `wt sandbox list` or check .worktree/sessions/ for valid session IDs"]
+    message = f"{error}\n{render_list_fixes(fixes)}"
     if hasattr(output, "add_error_panel"):
         output.add_error_panel("Session Not Found", message)
     elif hasattr(output, "error_panel"):
@@ -64,11 +59,9 @@ def render_session_not_found(session_id: str | None, *, output: Any) -> None:
 
 def render_diff_not_found(session_id: str, *, output: Any) -> None:
     """Render the diff-not-found error panel when diff.patch is missing."""
-    message = (
-        f"Session '{session_id}' has no diff artifact.\n"
-        "Fix:\n"
-        f"- Verify the session generated a diff artifact at .worktree/sessions/{session_id}/diff.patch"
-    )
+    error = f"Session '{session_id}' has no diff artifact."
+    fixes = [f"Verify the session generated a diff artifact at .worktree/sessions/{session_id}/diff.patch"]
+    message = f"{error}\n{render_list_fixes(fixes)}"
     if hasattr(output, "add_error_panel"):
         output.add_error_panel("Diff Not Found", message)
     elif hasattr(output, "error_panel"):
@@ -77,7 +70,8 @@ def render_diff_not_found(session_id: str, *, output: Any) -> None:
 
 def render_read_failure(message: str, *, output: Any) -> None:
     """Render the read-failure error panel when diff.patch cannot be read."""
-    full_message = f"{message}\nFix:\n- Check file permissions and that the artifact is readable"
+    fixes = ["Check file permissions and that the artifact is readable"]
+    full_message = f"{message}\n{render_list_fixes(fixes)}"
     if hasattr(output, "add_error_panel"):
         output.add_error_panel("Read Failure", full_message)
     elif hasattr(output, "error_panel"):

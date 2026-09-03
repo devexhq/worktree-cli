@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.text import Text
 
+from worktree.cli.ui.formatters.common import build_error_panel
 from worktree.common.types import ComponentFormatter
 from worktree.core.sandbox.models import SandboxDiffResult, SandboxDiffStatus
 
@@ -20,10 +20,13 @@ class SandboxDiffFormatter(ComponentFormatter[SandboxDiffResult]):
         if data.status == SandboxDiffStatus.EMPTY_DIFF:
             return Text(f"Sandbox '{data.sandbox_id}' has no changes compared to base commit.")
         if not data.ok:
-            message = "\n\n".join(data.errors) if data.errors else "Failed to generate diff."
-            if data.fixes:
-                message += "\nFix:\n" + "\n".join(f"- {fix}" for fix in data.fixes)
-            return Panel(message, title="Sandbox Diff Failed", border_style="red")
+            return build_error_panel(
+                "Sandbox Diff Failed",
+                data.errors,
+                "Failed to generate diff.",
+                data.fixes,
+            )
+
         if data.stat_text:
             return Text(data.stat_text.strip())
         return Syntax(data.diff_text.strip(), "diff", word_wrap=True)

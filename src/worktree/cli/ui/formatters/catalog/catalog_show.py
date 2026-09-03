@@ -6,10 +6,10 @@ from pathlib import Path
 from typing import Any
 
 from rich.console import Group
-from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.text import Text
 
+from worktree.cli.ui.formatters.common import build_error_panel
 from worktree.common.types import ComponentFormatter
 from worktree.common.utils import enum_value
 from worktree.core.catalog.models import CatalogShowResult
@@ -47,10 +47,12 @@ class CatalogShowFormatter(ComponentFormatter[CatalogShowResult]):
     def to_rich(self, data: CatalogShowResult) -> Any:
         """Render blueprint header metadata and YAML syntax highlighting or template."""
         if data.errors or not data.ok:
-            error_message = "\n\n".join(data.errors) if data.errors else "Catalog blueprint not found."
-            if data.fixes:
-                error_message += "\nFix:\n" + "\n".join(f"- {fix}" for fix in data.fixes)
-            return Panel(error_message, title="Catalog Show Failed", border_style="red")
+            return build_error_panel(
+                "Catalog Show Failed",
+                data.errors,
+                "Catalog blueprint not found.",
+                data.fixes,
+            )
 
         if data.template_matches:
             return _render_show_template_matches(data.template_matches)

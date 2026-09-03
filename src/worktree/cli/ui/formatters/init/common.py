@@ -8,6 +8,11 @@ from typing import Any
 from rich.panel import Panel
 from rich.text import Text
 
+from worktree.cli.ui.formatters.common import (
+    ERROR_PANEL_STYLE,
+    render_list_errors,
+    render_list_fixes,
+)
 from worktree.common.utils import display_path
 from worktree.core.bootstrap import BootstrapResult, WorkspaceInitResult
 from worktree.core.catalog.models import SeedResult
@@ -90,10 +95,10 @@ def render_seed_lines(result: SeedResult, cwd: Path) -> list[Any]:
 
 def render_preflight_failure(data: WorkspaceInitResult) -> Panel:
     """Render panel when initialization preflight checks fail."""
-    lines = "\n".join(data.errors)
-    if data.fixes:
-        lines += "\nFix:\n" + "\n".join(f"  {fix}" for fix in data.fixes)
-    return Panel.fit(f"[bold red]Initialization Failed![/bold red]\n{lines}", border_style="red")
+    lines = render_list_errors(data.errors, separator="\n")
+    if fixes_msg := render_list_fixes(data.fixes, bullet="  "):
+        lines = f"{lines}\n{fixes_msg}"
+    return Panel.fit(f"[bold red]Initialization Failed![/bold red]\n{lines}", border_style=ERROR_PANEL_STYLE)
 
 
 def render_bootstrap_failure(data: WorkspaceInitResult) -> Panel:
@@ -103,17 +108,20 @@ def render_bootstrap_failure(data: WorkspaceInitResult) -> Panel:
     fixes = data.bootstrap_result.fixes or [
         "Resolve the path conflict above, then rerun [bold cyan]wt init[/bold cyan]."
     ]
-    remediation = "\nFix:\n" + "\n".join(f"  {fix}" for fix in fixes)
-    return Panel.fit(f"[bold red]Failed to initialize Worktree:[/bold red]\n{lines}{remediation}", border_style="red")
+    remediation = render_list_fixes(fixes, bullet="  ")
+    return Panel.fit(
+        f"[bold red]Failed to initialize Worktree:[/bold red]\n{lines}\n{remediation}",
+        border_style=ERROR_PANEL_STYLE,
+    )
 
 
 def render_config_failure(data: WorkspaceInitResult) -> Panel:
     """Render panel when configuration generation fails."""
     assert data.config_result is not None
     lines = "\n".join(f"- {err}" for err in data.config_result.errors)
-    if data.config_result.fixes:
-        lines += "\nFix:\n" + "\n".join(f"  {fix}" for fix in data.config_result.fixes)
-    return Panel.fit(f"[bold red]Failed to generate config:[/bold red]\n{lines}", border_style="red")
+    if fixes_msg := render_list_fixes(data.config_result.fixes, bullet="  "):
+        lines = f"{lines}\n{fixes_msg}"
+    return Panel.fit(f"[bold red]Failed to generate config:[/bold red]\n{lines}", border_style=ERROR_PANEL_STYLE)
 
 
 def render_failure_panel(data: WorkspaceInitResult) -> Panel | None:
