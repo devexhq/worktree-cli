@@ -7,6 +7,9 @@ import typer
 from worktree.cli.context import CliContext
 
 from .commands.root import diff_command
+from .formatters import register_diff_formatters
+
+register_diff_formatters()
 
 
 def register_diff_command(app: typer.Typer) -> None:
@@ -32,10 +35,20 @@ def register_diff_command(app: typer.Typer) -> None:
             "--full/--no-full",
             help="Bypass line truncation limits in interactive terminals.",
         ),
+        format: str = typer.Option(
+            "terminal",
+            "--format",
+            help="Presentation format ('terminal' or 'json').",
+        ),
     ) -> None:
         """View syntax-highlighted unified diff for a session."""
         context: CliContext = ctx.obj["context"]
-        outcome = diff_command(context, session_id=session_id, raw=raw, full=full)
-        context.output.print()
+        outcome = diff_command(
+            context,
+            session_id=session_id,
+            raw=raw,
+            full=full,
+            output_format=format,
+        )
         if not outcome.ok:
             raise typer.Exit(code=1)

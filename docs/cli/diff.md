@@ -20,6 +20,7 @@ wt diff [session_id] [OPTIONS]
 | --- | --- |
 | `--raw` | Output unformatted plain text diff directly to stdout without headers, Rich panels, or ANSI codes. Truncation limits are completely bypassed. |
 | `--full` / `--no-full` | Bypass line truncation limits in interactive terminals (TTY) and render complete formatted diff. |
+| `--format <terminal\|json>` | Presentation format (`terminal` or `json`). Defaults to `terminal`. |
 
 ## Behavior
 
