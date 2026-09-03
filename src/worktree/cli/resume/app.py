@@ -5,8 +5,12 @@ from __future__ import annotations
 import typer
 
 from worktree.cli.context import CliContext
+from worktree.cli.run.formatters import register_run_formatters
+from worktree.cli.ui.dispatcher import ui_dispatcher
 
 from .commands.root import resume_command
+
+register_run_formatters()
 
 resume_app = typer.Typer(
     name="resume",
@@ -36,6 +40,6 @@ def resume_callback(
         session_id=session_id,
         non_interactive=non_interactive,
     )
-    context.output.print()
+    ui_dispatcher.dispatch(outcome)
     if not outcome.ok:
         raise typer.Exit(code=1)

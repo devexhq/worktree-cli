@@ -41,7 +41,7 @@ class BlueprintRunService:
     path: Path
     runs_db: RunsRepository
     catalog_db: CatalogRepository
-    output: RichOutput
+    output: RichOutput = field(default_factory=RichOutput)
     kind: BlueprintKind | None = None
     no_sandbox: bool = False
     keep: bool = False
@@ -115,7 +115,11 @@ class BlueprintRunService:
     def _fail(self, message: str) -> BlueprintRunCommandOutcome:
         panel_title = f"{self._kind_label.capitalize()} Run Failed"
         self.output.add_error_panel(panel_title, message)
-        return BlueprintRunCommandOutcome(run_record=None, errors=[message])
+        return BlueprintRunCommandOutcome(
+            run_record=None,
+            errors=[message],
+            output_items=list(self.output._items),
+        )
 
     def _load_blueprint(self, catalog: Catalog) -> tuple[Blueprint | None, BlueprintRunCommandOutcome | None]:
         try:
@@ -184,12 +188,20 @@ class BlueprintRunService:
 
         if run_outcome.ok:
             self._render_success(final_record)
-            return BlueprintRunCommandOutcome(run_record=final_record, warnings=self.warnings)
+            return BlueprintRunCommandOutcome(
+                run_record=final_record,
+                warnings=self.warnings,
+                output_items=list(self.output._items),
+            )
 
         if run_outcome.status == RunStatus.PAUSED:
             msg = primary_error or f"{self._kind_label.capitalize()} paused; checkpoint saved."
             self.output.add_line(msg)
-            return BlueprintRunCommandOutcome(run_record=final_record, warnings=self.warnings)
+            return BlueprintRunCommandOutcome(
+                run_record=final_record,
+                warnings=self.warnings,
+                output_items=list(self.output._items),
+            )
 
         if run_outcome.status == RunStatus.CANCELLED:
             msg = primary_error or "Cancelled by user."
@@ -198,6 +210,7 @@ class BlueprintRunService:
                 run_record=final_record,
                 errors=[msg],
                 warnings=self.warnings,
+                output_items=list(self.output._items),
             )
 
         msg = self.renderer.render(run_outcome)
@@ -206,4 +219,5 @@ class BlueprintRunService:
             run_record=final_record,
             errors=[msg],
             warnings=self.warnings,
+            output_items=list(self.output._items),
         )

@@ -51,7 +51,6 @@ class ConfigShowCommandTests:
         ctx = make_cli_context(cwd=git_fs.base_path)
         outcome = config_show_command(ctx)
         assert outcome.ok
-        ctx.output.print()
         header, body = _split_show_stdout(capsys.readouterr().out)
         _assert_success_header(header, config_path)
         data = json.loads(body)
@@ -69,7 +68,6 @@ class ConfigShowCommandTests:
         ctx = make_cli_context(cwd=git_fs.base_path)
         outcome = config_show_command(ctx)
         assert not outcome.ok
-        ctx.output.print()
         _assert_no_success_header(capsys.readouterr().out)
 
     def test_schema_invalid_exits_nonzero(
@@ -86,7 +84,6 @@ class ConfigShowCommandTests:
         ctx = make_cli_context(cwd=git_fs.base_path)
         outcome = config_show_command(ctx)
         assert not outcome.ok
-        ctx.output.print()
         _assert_no_success_header(capsys.readouterr().out)
 
     def test_show_output_format_json(

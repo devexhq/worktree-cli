@@ -8,8 +8,12 @@ import typer
 from typer.core import TyperGroup
 
 from worktree.cli.context import CliContext
+from worktree.cli.ui.dispatcher import ui_dispatcher
 
 from .commands.root import run_command
+from .formatters import register_run_formatters
+
+register_run_formatters()
 
 
 class RunTyperGroup(TyperGroup):
@@ -86,6 +90,6 @@ def run_callback(
         auto_apply=auto_apply,
         cli_args=list(ctx.args),
     )
-    context.output.print()
+    ui_dispatcher.dispatch(outcome)
     if not outcome.ok:
         raise typer.Exit(code=1)

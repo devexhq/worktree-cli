@@ -1,16 +1,17 @@
 """Handles `wt config set` command."""
 
 from worktree.cli.context import CliContext
+from worktree.cli.ui.dispatcher import ui_dispatcher
 from worktree.core.config import Config
 
 from ..models import ConfigSetCommandOutcome
-from ..renderers import format_config_value
 
 
 def config_set_command(
     context: CliContext,
     key: str,
     value: str,
+    output_format: str = "terminal",
 ) -> ConfigSetCommandOutcome:
     """Set a configuration value by top-level or nested dot-path key.
 
@@ -20,19 +21,15 @@ def config_set_command(
     against the V1 schema allow-list.
 
     Args:
+        context: CLI context instance.
         key: Dot-path key (e.g. ``agent.model`` or ``version``).
         value: String value from CLI to parse and store at ``key``.
-        context: CLI context instance.
+        output_format: Presentation format ("terminal" or "json").
     """
-    output = context.output
-    result = Config().set(key, value)
+    result = Config(path=context.cwd).set(key, value)
+    ui_dispatcher.dispatch(result, output_format=output_format)
 
     if not result.ok:
-        message = "\n\n".join(result.errors) if result.errors else "Failed to update configuration."
-        output.add_error_panel("Config Error", message)
         return ConfigSetCommandOutcome(errors=list(result.errors))
 
-    value_str = format_config_value(result.value)
-    type_name = type(result.value).__name__
-    output.add_success(f"Config updated: {result.key} = {value_str} ({type_name})")
     return ConfigSetCommandOutcome(key=result.key, value=result.value)

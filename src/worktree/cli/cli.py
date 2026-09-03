@@ -20,10 +20,11 @@ from worktree.cli.resume.app import resume_app
 from worktree.cli.run.app import run_app
 from worktree.cli.sandbox.app import sandbox_app
 from worktree.cli.status.app import status_app
+from worktree.cli.ui.dispatcher import ui_dispatcher
 from worktree.common.lock import LockTimeoutError
-from worktree.common.utils import RichOutput
 from worktree.common.version import get_version
-from worktree.core.config import ConfigLoadError
+from worktree.core.config import ConfigLoadError, ConfigLoadResult, ConfigLoadStatus
+from worktree.core.config.loader import resolve_config_path
 
 # Initialize a central styling console for high-utility layout parsing
 console = Console()
@@ -130,9 +131,13 @@ def main(
         try:
             ctx.obj["context"] = CliContext.build(path=path)
         except ConfigLoadError as exc:
-            output = RichOutput()
-            output.add_error_panel("Config Error", str(exc))
-            output.print()
+            cfg_path = resolve_config_path(path)
+            result = ConfigLoadResult(
+                status=ConfigLoadStatus.NOT_FOUND,
+                config_path=cfg_path,
+                errors=[str(exc)],
+            )
+            ui_dispatcher.dispatch(result)
             raise typer.Exit(code=1) from exc
 
 
@@ -144,21 +149,20 @@ def run_cli() -> None:
         # Allow intentional Typer exits (like version_callback or help) to pass through normally
         raise
     except LockTimeoutError as exc:
-        output = RichOutput()
-        output.add_error_panel("Workspace Lock Timeout", str(exc))
-        output.print()
+        console.print(Panel.fit(f"[bold red]Workspace Lock Timeout[/bold red]\n{exc!s}", border_style="red"))
         sys.exit(1)
     except ConfigLoadError as exc:
-        output = RichOutput()
-        output.add_error_panel("Config Error", str(exc))
-        output.print()
+        cfg_path = resolve_config_path()
+        result = ConfigLoadResult(
+            status=ConfigLoadStatus.NOT_FOUND,
+            config_path=cfg_path,
+            errors=[str(exc)],
+        )
+        ui_dispatcher.dispatch(result)
         sys.exit(1)
     except Exception as exc:
         # Global Catch-All for unexpected bugs (e.g., missing record.id)
-        output = RichOutput()
-        output.add_error("A fatal unexpected error occurred.")
-        output.add_line(f"Details: {exc!s}")
-        output.print()
+        console.print(f"[bold red]A fatal unexpected error occurred.[/bold red]\nDetails: {exc!s}")
         sys.exit(1)
 
 

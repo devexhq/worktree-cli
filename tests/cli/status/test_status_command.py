@@ -34,7 +34,6 @@ class StatusCommandTests:
         assert outcome.result is not None
         assert outcome.errors == []
 
-        ctx.output.print()
         out = capsys.readouterr().out
         assert "Worktree Workspace Status" in out
         assert git_fs.base_path.name in out
@@ -60,7 +59,6 @@ class StatusCommandTests:
         outcome = status_command(ctx)
         assert outcome.ok
 
-        ctx.output.print()
         out = capsys.readouterr().out
         assert "Reconciled 1 interrupted session (session_id: sbx_status_stale)." in out
         assert "Worktree Workspace Status" in out
@@ -84,7 +82,6 @@ class StatusCommandTests:
         assert outcome.result is not None
         assert not outcome.result.is_initialized
 
-        ctx.output.print()
         out = capsys.readouterr().out
         assert "Worktree Workspace Status" in out
         assert "Uninitialized" in out
@@ -110,7 +107,6 @@ class StatusCommandTests:
         assert outcome.result is not None
         assert outcome.result.is_initialized
 
-        ctx.output.print()
         out = capsys.readouterr().out
         assert "Worktree Workspace Status (Degraded)" in out
         assert "test-broken-proj" in out

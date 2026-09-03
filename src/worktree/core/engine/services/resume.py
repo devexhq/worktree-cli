@@ -30,7 +30,7 @@ class BlueprintResumeService:
     path: Path
     db: RunsRepository
     catalog_db: CatalogRepository
-    output: RichOutput
+    output: RichOutput = field(default_factory=RichOutput)
     session_id: str | None = None
     non_interactive: bool = False
     warnings: list[str] = field(default_factory=list)
@@ -80,6 +80,7 @@ class BlueprintResumeService:
             run_record=None,
             errors=[message],
             warnings=self.warnings,
+            output_items=list(self.output._items),
         )
 
     def _resolve_prompter(self, kind: BlueprintKind | None = None) -> tuple[bool, FailurePrompter | None]:
@@ -109,12 +110,20 @@ class BlueprintResumeService:
 
         if run_outcome.ok:
             self._render_success(record)
-            return BlueprintRunCommandOutcome(run_record=record, warnings=self.warnings)
+            return BlueprintRunCommandOutcome(
+                run_record=record,
+                warnings=self.warnings,
+                output_items=list(self.output._items),
+            )
 
         if run_outcome.status == RunStatus.PAUSED:
             msg = primary_error or "Run paused; checkpoint saved."
             self.output.add_line(msg)
-            return BlueprintRunCommandOutcome(run_record=record, warnings=self.warnings)
+            return BlueprintRunCommandOutcome(
+                run_record=record,
+                warnings=self.warnings,
+                output_items=list(self.output._items),
+            )
 
         if run_outcome.status == RunStatus.CANCELLED:
             msg = primary_error or "Cancelled by user."
@@ -123,6 +132,7 @@ class BlueprintResumeService:
                 run_record=record,
                 errors=[msg],
                 warnings=self.warnings,
+                output_items=list(self.output._items),
             )
 
         msg = primary_error or f"Cannot resume session '{session_id}'."
@@ -131,4 +141,5 @@ class BlueprintResumeService:
             run_record=record,
             errors=[msg],
             warnings=self.warnings,
+            output_items=list(self.output._items),
         )

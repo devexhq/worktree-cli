@@ -147,6 +147,7 @@ class BlueprintRunCommandOutcome(BaseModel):
     run_record: RunRecord | None = None
     errors: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    output_items: list[Any] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:
