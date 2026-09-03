@@ -38,20 +38,23 @@ class ConfigLoadFormatterTests:
         )
         rich_renderable = formatter.to_rich(result)
         assert isinstance(rich_renderable, Text)
-        assert "Configuration valid at '/workspace/.worktree/config.json'." in rich_renderable.plain
+        rendered = rich_renderable.plain
+        assert "Config: /workspace/.worktree/config.json" in rendered
+        assert "Status: valid" in rendered
+        assert "test" in rendered
 
     def test_to_rich_not_found(self) -> None:
         formatter = ConfigLoadFormatter()
         result = ConfigLoadResult(
             status=ConfigLoadStatus.NOT_FOUND,
             config_path=Path("/workspace/.worktree/config.json"),
-            errors=["Configuration file not found (CONFIG_NOT_FOUND)."],
+            errors=["Configuration file not found at '/workspace/.worktree/config.json' (CONFIG_NOT_FOUND)."],
         )
         rich_renderable = formatter.to_rich(result)
-        assert isinstance(rich_renderable, Group)
+        assert isinstance(rich_renderable, Panel)
         rendered = render_rich(rich_renderable)
-        assert "Worktree workspace is not initialized." in rendered
-        assert "Hint: Run 'wt init' to initialize Worktree in this repository." in rendered
+        assert "Config Error" in rendered
+        assert "CONFIG_NOT_FOUND" in rendered
 
     def test_to_rich_schema_invalid(self) -> None:
         formatter = ConfigLoadFormatter()
@@ -63,7 +66,7 @@ class ConfigLoadFormatterTests:
         rich_renderable = formatter.to_rich(result)
         assert isinstance(rich_renderable, Panel)
         rendered = render_rich(rich_renderable)
-        assert "Invalid Worktree Configuration" in rendered
+        assert "Config Error" in rendered
         assert "CONFIG_SCHEMA_INVALID" in rendered
 
     def test_to_json_serializable(self) -> None:

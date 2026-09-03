@@ -105,9 +105,10 @@ class ConfigShowCommandTests:
         lines = [line for line in out.strip().split("\n") if line]
         assert len(lines) == 1
         payload = json.loads(lines[0])
-        assert payload["event_type"] == "WorktreeConfig"
-        assert payload["payload"]["version"] == 1
-        assert payload["payload"]["project"]["name"] == git_fs.base_path.name
+        assert payload["event_type"] == "ConfigLoadResult"
+        assert payload["payload"]["status"] == "ok"
+        assert payload["payload"]["config"]["version"] == 1
+        assert payload["payload"]["config"]["project"]["name"] == git_fs.base_path.name
 
 
 class ConfigShowCliTests:
@@ -140,9 +141,10 @@ class ConfigShowCliTests:
         lines = [line for line in result.stdout.strip().split("\n") if line]
         assert len(lines) == 1
         payload = json.loads(lines[0])
-        assert payload["event_type"] == "WorktreeConfig"
-        assert payload["payload"]["version"] == 1
-        assert payload["payload"]["project"]["name"] == git_fs.base_path.name
+        assert payload["event_type"] == "ConfigLoadResult"
+        assert payload["payload"]["status"] == "ok"
+        assert payload["payload"]["config"]["version"] == 1
+        assert payload["payload"]["config"]["project"]["name"] == git_fs.base_path.name
 
     def test_show_missing_config(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_fs.base_path)
