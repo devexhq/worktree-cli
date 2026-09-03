@@ -16,7 +16,6 @@ from worktree.core.runtime.models import (
     StepLoopState,
     parse_checkpoint,
 )
-from worktree.core.runtime.prompter import CliFailurePrompter
 from worktree.core.step import (
     ExecutionIdentity,
     ExecutionMetadata,
@@ -33,7 +32,6 @@ from worktree.core.step.services.metadata import (
 
 __all__ = [
     "USER_CONTINUED_MARKER",
-    "CliFailurePrompter",
     "ExecutionIdentity",
     "ExecutionMetadata",
     "FailurePromptDecision",

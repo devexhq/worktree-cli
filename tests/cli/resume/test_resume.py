@@ -59,7 +59,7 @@ def mock_interactive_prompter(monkeypatch: pytest.MonkeyPatch) -> _RetryPrompter
     """Simulate an interactive user choosing to RETRY the paused step."""
     prompter = _RetryPrompter()
     monkeypatch.setattr(
-        "worktree.cli.resume.commands.root.CliFailurePrompter",
+        "worktree.cli.resume.commands.root.DispatcherFailurePrompter",
         lambda *args, **kwargs: prompter,
     )
     return prompter
@@ -375,7 +375,7 @@ class ResumeCliTests:
                 raise KeyboardInterrupt
 
         monkeypatch.setattr(
-            "worktree.cli.resume.commands.root.CliFailurePrompter",
+            "worktree.cli.resume.commands.root.DispatcherFailurePrompter",
             lambda *args, **kwargs: _InterruptPrompter(),
         )
 

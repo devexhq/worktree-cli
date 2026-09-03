@@ -121,3 +121,27 @@ class WelcomeBannerEvent(BaseModel):
     model_config = {"extra": "forbid", "strict": True}
 
     version: str
+
+
+class PromptOption(BaseModel):
+    """Option presented to the user during an interactive prompt."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    key: str
+    label: str
+    decision: str
+
+
+class PromptEvent(BaseModel):
+    """UI event representing an interactive prompt for step failure or loop max iterations."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    prompt_type: str  # "step_failure" | "loop_max_iterations"
+    prompt_id: str  # step ID or loop ID
+    kind: str  # "task" | "workflow"
+    title: str
+    diagnostic: str | None = None
+    options: list[PromptOption]
+    default: str = "abort"

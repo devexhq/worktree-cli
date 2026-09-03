@@ -37,6 +37,7 @@ class LoopPromptDecision(StrEnum):
     ABORT = "abort"
 
 
+@runtime_checkable
 class FailurePrompter(Protocol):
     """Injectable decision entrypoint for interactive step-failure and loop-handling."""
 

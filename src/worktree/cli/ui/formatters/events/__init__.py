@@ -9,6 +9,7 @@ from worktree.cli.ui.events import (
     LockWaitEvent,
     LoopLifecycleEvent,
     MessageEvent,
+    PromptEvent,
     RunSuccessEvent,
     SandboxLifecycleEvent,
     StepDoneEvent,
@@ -22,6 +23,7 @@ from .error_panel import ErrorPanelFormatter
 from .lock_wait import LockWaitFormatter
 from .loop import LoopLifecycleFormatter
 from .message import MessageFormatter
+from .prompt import PromptFormatter
 from .run_success import RunSuccessFormatter
 from .sandbox import SandboxLifecycleFormatter
 from .step_done import StepDoneFormatter
@@ -42,6 +44,7 @@ def register_event_formatters(dispatcher: DispatcherProtocol) -> None:
     dispatcher.register(StepOutputEvent, StepOutputFormatter())
     dispatcher.register(SandboxLifecycleEvent, SandboxLifecycleFormatter())
     dispatcher.register(LoopLifecycleEvent, LoopLifecycleFormatter())
+    dispatcher.register(PromptEvent, PromptFormatter())
 
 
 __all__ = [
@@ -49,6 +52,7 @@ __all__ = [
     "LockWaitFormatter",
     "LoopLifecycleFormatter",
     "MessageFormatter",
+    "PromptFormatter",
     "RunSuccessFormatter",
     "SandboxLifecycleFormatter",
     "StepDoneFormatter",

@@ -493,7 +493,7 @@ def test_dispatcher_format_and_interactive_properties() -> None:
     dispatcher_tty = UiDispatcher(console=console_tty, output_format="terminal")
     assert dispatcher_tty.is_interactive is True
     assert dispatcher_tty.is_terminal_format is True
-    assert dispatcher_tty.console is console_tty
+    assert dispatcher_tty._console is console_tty
 
     # If output_format is json, is_interactive is True but is_terminal_format is False
     dispatcher_tty.set_output_format("json")

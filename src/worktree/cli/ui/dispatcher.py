@@ -7,7 +7,13 @@ from typing import Any, TypeVar, overload
 
 from rich.console import Console
 
-from worktree.cli.ui.events import SandboxLifecycleEvent, StepDoneEvent, StepOutputEvent, StepStartEvent
+from worktree.cli.ui.events import (
+    PromptEvent,
+    SandboxLifecycleEvent,
+    StepDoneEvent,
+    StepOutputEvent,
+    StepStartEvent,
+)
 from worktree.cli.ui.live import LiveDisplayManager
 from worktree.common.types import ComponentFormatter
 
@@ -43,11 +49,6 @@ class UiDispatcher:
         if self._custom_console is not None:
             return self._custom_console
         return Console()
-
-    @property
-    def console(self) -> Console:
-        """Get the active Console instance."""
-        return self._console
 
     @property
     def is_interactive(self) -> bool:
@@ -139,7 +140,12 @@ class UiDispatcher:
             sys.stdout.write(formatter.to_raw(data))
             sys.stdout.flush()
         elif self._live_display is not None and self._live_display.is_active:
-            self._dispatch_live(data, formatter)
+            if isinstance(data, PromptEvent):
+                self.stop_live()
+                rich_renderable = formatter.to_rich(data)
+                self._console.print(rich_renderable)
+            else:
+                self._dispatch_live(data, formatter)
         else:
             rich_renderable = formatter.to_rich(data)
             self._console.print(rich_renderable)

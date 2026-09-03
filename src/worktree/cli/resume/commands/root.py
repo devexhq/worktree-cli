@@ -5,6 +5,7 @@ from __future__ import annotations
 from worktree.cli.context import CliContext
 from worktree.cli.run.commands.root import _first_error
 from worktree.cli.run.observer import resolve_cli_observer
+from worktree.cli.run.prompter import DispatcherFailurePrompter
 from worktree.cli.ui import (
     ErrorPanelEvent,
     MessageEvent,
@@ -15,7 +16,6 @@ from worktree.cli.ui import (
 from worktree.core.blueprint.models import BlueprintKind, BlueprintRunResult
 from worktree.core.db import RunRecord, RunStatus
 from worktree.core.engine import BlueprintResumeService
-from worktree.core.runtime import CliFailurePrompter
 
 
 def _emit_resume_start_notice(context: CliContext, session_id: str | None) -> None:
@@ -86,7 +86,7 @@ def resume_command(
             session_id=session_id,
             non_interactive=non_interactive,
             observer=observer,
-            failure_prompter=CliFailurePrompter(ui_dispatcher.console),
+            failure_prompter=DispatcherFailurePrompter(ui_dispatcher),
         ).execute()
 
     for warning in result.warnings:
