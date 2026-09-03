@@ -62,12 +62,13 @@ Comprehensive reference for the shape of entities across the Worktree CLI codeba
 - `src/worktree/common/models.py`
 
 ### Result/Outcome Pattern
-All operations that can fail return a Pydantic result object instead of raising:
+All operations that can fail return a Pydantic result object subclassing `BaseResult` instead of raising:
 - `status: StrEnum`: Machine-readable outcome state.
-- `errors: list[str]`: Fatal error messages (empty on success).
-- `warnings: list[str]`: Non-fatal warning messages.
+- `errors: list[str]`: Fatal error messages (inherited from `BaseResult`).
+- `warnings: list[str]`: Non-fatal warning messages (inherited from `BaseResult`).
+- `fixes: list[str]`: Suggested fixes or remediations (inherited from `BaseResult`).
 - `ok: bool`: Property returning `True` when `not bool(self.errors)` or `status == OK`.
-- Standard configuration: `model_config = {"extra": "forbid", "strict": True}`.
+- Standard configuration: `model_config = {"extra": "forbid", "strict": True}` on `BaseResult`.
 
 ### Configuration Models
 **Relevant sources:** `src/worktree/core/config/models.py`, `loader.py`, `validate.py`, `mutate.py`, `generator.py`.

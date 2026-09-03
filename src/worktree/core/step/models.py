@@ -7,6 +7,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from worktree.common.models import BaseResult
+
 _DRIVE_PATH_RE = re.compile(r"^[A-Za-z]:/")
 DEFAULT_STEP_TIMEOUT_SECONDS = 120
 
@@ -160,10 +162,8 @@ class StepAssert(BaseModel):
         return self
 
 
-class AssertionResult(BaseModel):
+class AssertionResult(BaseResult):
     """Aggregate result of evaluating a step's assert block."""
-
-    model_config = {"extra": "forbid", "strict": True}
 
     passed: bool
     failed_conditions: list[str] = Field(default_factory=list)
@@ -239,10 +239,8 @@ class StepDefinition(BaseModel):
         return self
 
 
-class ConditionEvaluationResult(BaseModel):
+class ConditionEvaluationResult(BaseResult):
     """Result of evaluating a single until condition expression."""
-
-    model_config = {"extra": "forbid", "strict": True}
 
     expression: str
     passed: bool
@@ -386,10 +384,8 @@ class StepDispatchOutcome(BaseModel):
     attempts: int = 1
 
 
-class StepResult(BaseModel):
+class StepResult(BaseResult):
     """Normalized result of a step execution."""
-
-    model_config = {"extra": "forbid", "strict": True}
 
     step_id: str
     status: str  # "completed" | "failed" | "ignored"

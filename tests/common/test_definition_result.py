@@ -49,6 +49,7 @@ class DefinitionResultTests:
         assert result.matches == []
         assert result.errors == []
         assert result.warnings == []
+        assert result.fixes == []
 
     def test_rejects_extra_fields(self) -> None:
         with pytest.raises(ValidationError):

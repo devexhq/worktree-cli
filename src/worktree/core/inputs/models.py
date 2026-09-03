@@ -7,6 +7,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from worktree.common.models import BaseResult
+
 
 class InputType(StrEnum):
     """Supported blueprint input parameter types."""
@@ -59,15 +61,11 @@ class ParameterInput(BaseModel):
         return self
 
 
-class InputResolveResult(BaseModel):
+class InputResolveResult(BaseResult):
     """Non-raising result of parsing and validating blueprint inputs."""
-
-    model_config = {"extra": "forbid", "strict": True}
 
     values: dict[str, str | int | bool] = Field(default_factory=dict)
     missing: list[str] = Field(default_factory=list)
-    errors: list[str] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:

@@ -7,6 +7,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from worktree.common.models import BaseResult
 from worktree.core.db import SandboxRecord
 
 
@@ -17,14 +18,11 @@ class SandboxListStatus(StrEnum):
     NOT_INITIALIZED = "not_initialized"
 
 
-class SandboxListResult(BaseModel):
+class SandboxListResult(BaseResult):
     """Structured result for ``wt sandbox list`` before rendering."""
-
-    model_config = {"extra": "forbid", "strict": True}
 
     status: SandboxListStatus
     sandboxes: list[SandboxRecord] = Field(default_factory=list)
-    errors: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -40,16 +38,13 @@ class SandboxShowStatus(StrEnum):
     NOT_FOUND = "not_found"
 
 
-class SandboxShowResult(BaseModel):
+class SandboxShowResult(BaseResult):
     """Structured result for ``wt sandbox show`` before rendering."""
-
-    model_config = {"extra": "forbid", "strict": True}
 
     status: SandboxShowStatus
     sandbox: SandboxRecord | None = None
     disk_present: bool = False
     reconciled: bool = False
-    errors: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -85,15 +80,11 @@ class SandboxCreateStatus(StrEnum):
     WIP_FAILED = "wip_failed"
 
 
-class SandboxCreateResult(BaseModel):
+class SandboxCreateResult(BaseResult):
     """Non-raising result of sandbox creation."""
-
-    model_config = {"extra": "forbid", "strict": True}
 
     status: SandboxCreateStatus
     session: SandboxSession | None = None
-    errors: list[str] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -120,10 +111,8 @@ class SandboxApplyStatus(StrEnum):
     GIT_FAILED = "git_failed"
 
 
-class SandboxApplyResult(BaseModel):
+class SandboxApplyResult(BaseResult):
     """Structured result of applying sandbox changes."""
-
-    model_config = {"extra": "forbid", "strict": True}
 
     status: SandboxApplyStatus
     sandbox_id: str
@@ -132,8 +121,6 @@ class SandboxApplyResult(BaseModel):
     conflicting_files: list[str] = Field(default_factory=list)
     cleaned_up: bool = False
     commit_sha: str | None = None
-    errors: list[str] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -150,18 +137,14 @@ class SandboxDiffStatus(StrEnum):
     GIT_FAILED = "git_failed"
 
 
-class SandboxDiffResult(BaseModel):
+class SandboxDiffResult(BaseResult):
     """Structured result of inspecting sandbox diffs."""
-
-    model_config = {"extra": "forbid", "strict": True}
 
     status: SandboxDiffStatus
     sandbox_id: str
     diff_text: str = ""
     stat_text: str = ""
     files_changed: list[str] = Field(default_factory=list)
-    errors: list[str] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -202,16 +185,12 @@ class SandboxDetectionStatus(StrEnum):
     ERROR = "error"
 
 
-class SandboxDetectionResult(BaseModel):
+class SandboxDetectionResult(BaseResult):
     """Structured, non-raising result of stale sandbox detection."""
-
-    model_config = {"extra": "forbid", "strict": True}
 
     status: SandboxDetectionStatus = SandboxDetectionStatus.OK
     items: list[StaleSandboxItem] = Field(default_factory=list)
     active_sandbox_count: int = 0
-    errors: list[str] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -287,17 +266,13 @@ class PrunedItem(BaseModel):
     error: str | None = None
 
 
-class SandboxPruneResult(BaseModel):
+class SandboxPruneResult(BaseResult):
     """Structured result of sandbox pruning execution."""
-
-    model_config = {"extra": "forbid", "strict": True}
 
     status: SandboxPruneStatus = SandboxPruneStatus.OK
     dry_run: bool = False
     force: bool = False
     items: list[PrunedItem] = Field(default_factory=list)
-    errors: list[str] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -346,16 +321,13 @@ class SandboxDeleteStatus(StrEnum):
     NOT_FOUND = "not_found"
 
 
-class SandboxDeleteResult(BaseModel):
+class SandboxDeleteResult(BaseResult):
     """Structured result for ``wt sandbox delete``."""
-
-    model_config = {"extra": "forbid", "strict": True}
 
     status: SandboxDeleteStatus
     sandbox_id: str = ""
     sandbox: SandboxRecord | None = None
     deleted: bool = False
-    errors: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:

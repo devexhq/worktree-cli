@@ -7,8 +7,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, Field
-
+from worktree.common.models import BaseResult
 from worktree.core.config.loader import ConfigLoadStatus
 from worktree.core.config.models import WorktreeConfig
 
@@ -25,17 +24,13 @@ class ConfigValidationStatus(StrEnum):
     UNREADABLE = "unreadable"
 
 
-class ConfigValidationResult(BaseModel):
+class ConfigValidationResult(BaseResult):
     """Non-raising result of structural + semantic config validation."""
-
-    model_config = {"extra": "forbid", "strict": True}
 
     status: ConfigValidationStatus
     config_path: Path
     raw: dict[str, Any] | None = None
     config: WorktreeConfig | None = None
-    errors: list[str] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:

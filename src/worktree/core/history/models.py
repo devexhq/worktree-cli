@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
+from worktree.common.models import BaseResult
 from worktree.core.db import RunRecord
 
 
@@ -15,15 +16,11 @@ class HistoryListStatus(StrEnum):
     OK = "ok"
 
 
-class HistoryListResult(BaseModel):
+class HistoryListResult(BaseResult):
     """Structured result for history list before rendering."""
-
-    model_config = {"extra": "forbid", "strict": True}
 
     status: HistoryListStatus = HistoryListStatus.OK
     runs: list[RunRecord] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
-    errors: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -38,15 +35,12 @@ class HistoryShowStatus(StrEnum):
     NOT_FOUND = "not_found"
 
 
-class HistoryShowResult(BaseModel):
+class HistoryShowResult(BaseResult):
     """Structured result for history show before rendering."""
-
-    model_config = {"extra": "forbid", "strict": True}
 
     status: HistoryShowStatus
     session_id: str | None = None
     run: RunRecord | None = None
-    errors: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:

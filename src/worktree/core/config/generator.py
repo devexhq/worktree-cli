@@ -9,9 +9,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from worktree.common.filesystem import Filesystem
+from worktree.common.models import BaseResult
 from worktree.common.schema_validation import CONFIG_VALIDATOR
 from worktree.core.config.loader import clear_config_cache
 
@@ -67,13 +68,8 @@ CANONICAL_V1_DEFAULTS: dict[str, Any] = {
 }
 
 
-class ConfigGenerationResult(BaseModel):
+class ConfigGenerationResult(BaseResult):
     """Outcome of attempting to create, skip, repair, or overwrite config."""
-
-    model_config = {
-        "extra": "forbid",
-        "strict": True,
-    }
 
     created: bool = False
     skipped_existing: bool = False
@@ -81,8 +77,6 @@ class ConfigGenerationResult(BaseModel):
     overwritten: bool = False
     inserted_keys: list[str] = Field(default_factory=list)
     config_path: Path | None = None
-    warnings: list[str] = Field(default_factory=list)
-    errors: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:

@@ -7,6 +7,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from worktree.common.models import BaseResult
 from worktree.core.config.loader import ConfigLoadStatus
 from worktree.core.config.models import WorktreeConfig
 
@@ -71,10 +72,8 @@ class SandboxStatusInfo(BaseModel):
     max_active_sandboxes: int
 
 
-class WorktreeStatusResult(BaseModel):
+class WorktreeStatusResult(BaseResult):
     """Unified workspace status collection result."""
-
-    model_config = {"extra": "forbid", "strict": True}
 
     root_dir: Path
     is_initialized: bool
@@ -83,7 +82,6 @@ class WorktreeStatusResult(BaseModel):
     catalog: CatalogStatusInfo
     database: DatabaseStatusInfo
     sandboxes: SandboxStatusInfo
-    warnings: list[str] = Field(default_factory=list)
 
     @property
     def ok(self) -> bool:

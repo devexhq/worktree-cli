@@ -7,6 +7,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
+from worktree.common.models import BaseResult
 from worktree.core.blueprint.exceptions import BlueprintValidationError
 from worktree.core.db import BlueprintKind, RunRecord
 from worktree.core.inputs import ParameterInput
@@ -139,14 +140,10 @@ class BlueprintDefinition(BaseModel):
         return self
 
 
-class BlueprintRunResult(BaseModel):
+class BlueprintRunResult(BaseResult):
     """Unified result for task and workflow execution."""
 
-    model_config = {"extra": "forbid", "strict": True}
-
     run_record: RunRecord | None = None
-    errors: list[str] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
     output_items: list[Any] = Field(default_factory=list)
 
     @property
