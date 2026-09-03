@@ -30,12 +30,20 @@ _SAMPLE_DIFF = """diff --git a/src/main.py b/src/main.py
 
 
 @pytest.fixture
-def sample_diff(fs: FileSystem) -> Iterator[tuple[Path, CliContext]]:
+def configured_project(fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Establish an initialized project with config.json and set cwd."""
     fs.create_config_file()
-    patch_file = fs.base_path / ".worktree" / "sessions" / "sbx_diff_cmd_1" / "diff.patch"
+    monkeypatch.chdir(fs.base_path)
+    return fs.base_path
+
+
+@pytest.fixture
+def sample_diff(configured_project: Path) -> Iterator[tuple[Path, CliContext]]:
+    """Establish baseline sample session diff artifact and CliContext."""
+    patch_file = configured_project / ".worktree" / "sessions" / "sbx_diff_cmd_1" / "diff.patch"
     patch_file.parent.mkdir(parents=True, exist_ok=True)
     patch_file.write_text(_SAMPLE_DIFF, encoding="utf-8")
-    context = make_cli_context(cwd=fs.base_path)
+    context = make_cli_context(cwd=configured_project)
 
     yield patch_file, context
 
@@ -76,107 +84,86 @@ class DiffCommandRootTests:
 class DiffCliIntegrationTests:
     """CLI integration tests for ``wt diff`` command."""
 
-    def test_cli_diff_explicit_session_formatted(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_cli_diff_explicit_session_formatted(self, sample_diff: tuple[Path, CliContext]) -> None:
         """Verify 'wt diff <session_id>' renders session header and syntax diff."""
-        fs.create_config_file()
-        monkeypatch.chdir(fs.base_path)
+        patch_file, _ = sample_diff
+        session_id = patch_file.parent.name
 
-        patch_file = fs.base_path / ".worktree" / "sessions" / "sbx_a1b2c3d4" / "diff.patch"
-        patch_file.parent.mkdir(parents=True, exist_ok=True)
-        patch_file.write_text(_SAMPLE_DIFF, encoding="utf-8")
-
-        result = runner.invoke(app, ["diff", "sbx_a1b2c3d4"])
+        result = runner.invoke(app, ["diff", session_id])
         assert result.exit_code == 0
-        assert "Session: sbx_a1b2c3d4" in result.output
-        assert ".worktree/sessions/sbx_a1b2c3d4/diff.patch" in result.output
+        assert f"Session: {session_id}" in result.output
+        assert f".worktree/sessions/{session_id}/diff.patch" in result.output
         assert "def old(): pass" in result.output
         assert "def new(): pass" in result.output
 
-    def test_cli_diff_raw_flag(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_cli_diff_raw_flag(self, sample_diff: tuple[Path, CliContext]) -> None:
         """Verify 'wt diff <session_id> --raw' outputs plain text diff without header."""
-        fs.create_config_file()
-        monkeypatch.chdir(fs.base_path)
+        patch_file, _ = sample_diff
+        session_id = patch_file.parent.name
 
-        patch_file = fs.base_path / ".worktree" / "sessions" / "sbx_raw" / "diff.patch"
-        patch_file.parent.mkdir(parents=True, exist_ok=True)
-        patch_file.write_text(_SAMPLE_DIFF, encoding="utf-8")
-
-        result = runner.invoke(app, ["diff", "sbx_raw", "--raw"])
+        result = runner.invoke(app, ["diff", session_id, "--raw"])
         assert result.exit_code == 0
-        assert "Session: sbx_raw" not in result.output
+        assert f"Session: {session_id}" not in result.output
         assert _SAMPLE_DIFF.strip() in result.output
 
-    def test_cli_diff_full_flag(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_cli_diff_full_flag(self, sample_diff: tuple[Path, CliContext]) -> None:
         """Verify 'wt diff <session_id> --full' renders formatted output with session header."""
-        fs.create_config_file()
-        monkeypatch.chdir(fs.base_path)
+        patch_file, _ = sample_diff
+        session_id = patch_file.parent.name
 
-        patch_file = fs.base_path / ".worktree" / "sessions" / "sbx_full" / "diff.patch"
-        patch_file.parent.mkdir(parents=True, exist_ok=True)
-        patch_file.write_text(_SAMPLE_DIFF, encoding="utf-8")
-
-        result = runner.invoke(app, ["diff", "sbx_full", "--full"])
+        result = runner.invoke(app, ["diff", session_id, "--full"])
         assert result.exit_code == 0
-        assert "Session: sbx_full" in result.output
+        assert f"Session: {session_id}" in result.output
         assert "def old(): pass" in result.output
         assert "def new(): pass" in result.output
 
-    def test_cli_diff_raw_precedence_over_full(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_cli_diff_raw_precedence_over_full(self, sample_diff: tuple[Path, CliContext]) -> None:
         """Verify passing both --raw and --full cleanly outputs raw text."""
-        fs.create_config_file()
-        monkeypatch.chdir(fs.base_path)
+        patch_file, _ = sample_diff
+        session_id = patch_file.parent.name
 
-        patch_file = fs.base_path / ".worktree" / "sessions" / "sbx_both" / "diff.patch"
-        patch_file.parent.mkdir(parents=True, exist_ok=True)
-        patch_file.write_text(_SAMPLE_DIFF, encoding="utf-8")
-
-        result = runner.invoke(app, ["diff", "sbx_both", "--raw", "--full"])
+        result = runner.invoke(app, ["diff", session_id, "--raw", "--full"])
         assert result.exit_code == 0
-        assert "Session: sbx_both" not in result.output
+        assert f"Session: {session_id}" not in result.output
         assert _SAMPLE_DIFF.strip() in result.output
 
-    def test_cli_diff_large_patch_tty_truncation(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_cli_diff_large_patch_tty_truncation(
+        self, sample_diff: tuple[Path, CliContext], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Verify 'wt diff <session_id>' truncates when running in simulated TTY."""
-        fs.create_config_file()
-        monkeypatch.chdir(fs.base_path)
+        patch_file, _ = sample_diff
+        session_id = patch_file.parent.name
         monkeypatch.setattr(Console, "is_terminal", property(lambda self: True))
 
         large_diff = "\n".join([f"+line {i}" for i in range(1, 550)])
-        patch_file = fs.base_path / ".worktree" / "sessions" / "sbx_large" / "diff.patch"
-        patch_file.parent.mkdir(parents=True, exist_ok=True)
         patch_file.write_text(large_diff, encoding="utf-8")
 
-        result = runner.invoke(app, ["diff", "sbx_large"])
+        result = runner.invoke(app, ["diff", session_id])
         assert result.exit_code == 0
-        assert "Session: sbx_large" in result.output
+        assert f"Session: {session_id}" in result.output
         assert "+line 500" in result.output
         assert "+line 501" not in result.output
         assert "... [diff truncated: showing 500 of 549 lines]" in result.output
-        assert "run `wt diff sbx_large --full` to view complete formatted output" in result.output
-        assert "run `wt diff sbx_large --full | less -R` to page through formatted diff" in result.output
+        assert f"run `wt diff {session_id} --full` to view complete formatted output" in result.output
+        assert f"run `wt diff {session_id} --full | less -R` to page through formatted diff" in result.output
 
-    def test_cli_diff_large_patch_non_tty_full(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_cli_diff_large_patch_non_tty_full(self, sample_diff: tuple[Path, CliContext]) -> None:
         """Verify 'wt diff <session_id>' in non-TTY (default runner) outputs entire diff without truncation."""
-        fs.create_config_file()
-        monkeypatch.chdir(fs.base_path)
+        patch_file, _ = sample_diff
+        session_id = patch_file.parent.name
 
         large_diff = "\n".join([f"+line {i}" for i in range(1, 550)])
-        patch_file = fs.base_path / ".worktree" / "sessions" / "sbx_large_non_tty" / "diff.patch"
-        patch_file.parent.mkdir(parents=True, exist_ok=True)
         patch_file.write_text(large_diff, encoding="utf-8")
 
-        result = runner.invoke(app, ["diff", "sbx_large_non_tty"])
+        result = runner.invoke(app, ["diff", session_id])
         assert result.exit_code == 0
-        assert "Session: sbx_large_non_tty" in result.output
+        assert f"Session: {session_id}" in result.output
         assert "+line 549" in result.output
         assert "diff truncated" not in result.output
 
-    def test_cli_diff_auto_picks_latest_session(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_cli_diff_auto_picks_latest_session(self, configured_project: Path) -> None:
         """Verify 'wt diff' with no args selects the latest session directory."""
-        fs.create_config_file()
-        monkeypatch.chdir(fs.base_path)
-
-        sessions_dir = fs.base_path / ".worktree" / "sessions"
+        sessions_dir = configured_project / ".worktree" / "sessions"
 
         older_sess = sessions_dir / "sbx_old"
         older_sess.mkdir(parents=True, exist_ok=True)
@@ -193,45 +180,33 @@ class DiffCliIntegrationTests:
         assert "Session: sbx_new" in result.output
         assert "def new(): pass" in result.output
 
-    def test_cli_diff_empty_patch_exits_0(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_cli_diff_empty_patch_exits_0(self, sample_diff: tuple[Path, CliContext]) -> None:
         """Verify 'wt diff' on empty patch prints clean message and exits 0."""
-        fs.create_config_file()
-        monkeypatch.chdir(fs.base_path)
-
-        patch_file = fs.base_path / ".worktree" / "sessions" / "sbx_empty" / "diff.patch"
-        patch_file.parent.mkdir(parents=True, exist_ok=True)
+        patch_file, _ = sample_diff
+        session_id = patch_file.parent.name
         patch_file.write_text("   \n", encoding="utf-8")
 
-        result = runner.invoke(app, ["diff", "sbx_empty"])
+        result = runner.invoke(app, ["diff", session_id])
         assert result.exit_code == 0
-        assert "No changes recorded for session sbx_empty." in result.output
+        assert f"No changes recorded for session {session_id}." in result.output
 
-    def test_cli_diff_missing_explicit_session_exits_1(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_cli_diff_missing_explicit_session_exits_1(self, configured_project: Path) -> None:
         """Verify 'wt diff <missing_session>' renders Session Not Found panel and exits 1."""
-        fs.create_config_file()
-        monkeypatch.chdir(fs.base_path)
-
         result = runner.invoke(app, ["diff", "sbx_99999999"])
         assert result.exit_code == 1
         assert "Session Not Found" in result.output
         assert "Session 'sbx_99999999' not found under .worktree/sessions/." in result.output
 
-    def test_cli_diff_no_sessions_exits_1(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_cli_diff_no_sessions_exits_1(self, configured_project: Path) -> None:
         """Verify 'wt diff' with no sessions renders Session Not Found panel and exits 1."""
-        fs.create_config_file()
-        monkeypatch.chdir(fs.base_path)
-
         result = runner.invoke(app, ["diff"])
         assert result.exit_code == 1
         assert "Session Not Found" in result.output
         assert "No loop run sessions found." in result.output
 
-    def test_cli_diff_missing_patch_artifact_exits_1(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_cli_diff_missing_patch_artifact_exits_1(self, configured_project: Path) -> None:
         """Verify 'wt diff <session>' without diff.patch renders Diff Not Found panel and exits 1."""
-        fs.create_config_file()
-        monkeypatch.chdir(fs.base_path)
-
-        session_dir = fs.base_path / ".worktree" / "sessions" / "sbx_no_patch"
+        session_dir = configured_project / ".worktree" / "sessions" / "sbx_no_patch"
         session_dir.mkdir(parents=True, exist_ok=True)
 
         result = runner.invoke(app, ["diff", "sbx_no_patch"])
@@ -239,16 +214,12 @@ class DiffCliIntegrationTests:
         assert "Diff Not Found" in result.output
         assert "Session 'sbx_no_patch' has no diff artifact." in result.output
 
-    def test_cli_diff_format_json_success(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_cli_diff_format_json_success(self, sample_diff: tuple[Path, CliContext]) -> None:
         """Verify 'wt diff <session_id> --format json' outputs NDJSON envelope."""
-        fs.create_config_file()
-        monkeypatch.chdir(fs.base_path)
+        patch_file, _ = sample_diff
+        session_id = patch_file.parent.name
 
-        patch_file = fs.base_path / ".worktree" / "sessions" / "sbx_json_cli" / "diff.patch"
-        patch_file.parent.mkdir(parents=True, exist_ok=True)
-        patch_file.write_text(_SAMPLE_DIFF, encoding="utf-8")
-
-        result = runner.invoke(app, ["diff", "sbx_json_cli", "--format", "json"])
+        result = runner.invoke(app, ["diff", session_id, "--format", "json"])
         assert result.exit_code == 0
 
         lines = [line for line in result.output.strip().split("\n") if line]
@@ -257,14 +228,11 @@ class DiffCliIntegrationTests:
         payload = json.loads(lines[0])
         assert payload["event_type"] == "DiffResult"
         assert payload["payload"]["status"] == "ok"
-        assert payload["payload"]["session_id"] == "sbx_json_cli"
+        assert payload["payload"]["session_id"] == session_id
         assert payload["payload"]["diff_text"] == _SAMPLE_DIFF
 
-    def test_cli_diff_format_json_missing_session(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_cli_diff_format_json_missing_session(self, configured_project: Path) -> None:
         """Verify 'wt diff <missing> --format json' outputs NDJSON envelope and exits 1."""
-        fs.create_config_file()
-        monkeypatch.chdir(fs.base_path)
-
         result = runner.invoke(app, ["diff", "sbx_nonexistent", "--format", "json"])
         assert result.exit_code == 1
 
@@ -277,16 +245,13 @@ class DiffCliIntegrationTests:
         assert payload["payload"]["session_id"] == "sbx_nonexistent"
         assert len(payload["payload"]["errors"]) > 0
 
-    def test_cli_diff_format_json_empty_diff(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_cli_diff_format_json_empty_diff(self, sample_diff: tuple[Path, CliContext]) -> None:
         """Verify 'wt diff <empty> --format json' outputs NDJSON envelope for empty diff and exits 0."""
-        fs.create_config_file()
-        monkeypatch.chdir(fs.base_path)
+        patch_file, _ = sample_diff
+        session_id = patch_file.parent.name
+        patch_file.write_text("")
 
-        patch_file = fs.base_path / ".worktree" / "sessions" / "sbx_json_empty" / "diff.patch"
-        patch_file.parent.mkdir(parents=True, exist_ok=True)
-        patch_file.write_text("", encoding="utf-8")
-
-        result = runner.invoke(app, ["diff", "sbx_json_empty", "--format", "json"])
+        result = runner.invoke(app, ["diff", session_id, "--format", "json"])
         assert result.exit_code == 0
 
         lines = [line for line in result.output.strip().split("\n") if line]
