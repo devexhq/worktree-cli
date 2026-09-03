@@ -8,6 +8,7 @@ from rich.console import Group
 from rich.panel import Panel
 from rich.text import Text
 
+from worktree.cli.config.renderers import format_config_value
 from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
 from worktree.common.formatters import format_warning_bullets
 from worktree.common.types import ComponentFormatter
@@ -16,6 +17,7 @@ from worktree.core.config.loader import (
     resolve_config_path,
 )
 from worktree.core.config.models import WorktreeConfig
+from worktree.core.config.mutate import ConfigSetResult
 from worktree.core.config.serialize import as_json
 from worktree.core.config.validate import ConfigValidationResult
 
@@ -112,12 +114,47 @@ class ConfigValidateFormatter(ComponentFormatter[ConfigValidationResult]):
         return data.model_dump(mode="json")
 
 
+class ConfigSetFormatter(ComponentFormatter[ConfigSetResult]):
+    """Formatter for configuration mutation results."""
+
+    def to_rich(self, data: ConfigSetResult) -> Any:
+        """Render configuration update confirmation or error panel.
+
+        Args:
+            data: Structured result of config set operation.
+
+        Returns:
+            Rich Text or Panel renderable.
+        """
+        if data.ok:
+            value_str = format_config_value(data.value)
+            type_name = type(data.value).__name__
+            return Text.from_markup(
+                f"[bold green]✔  Config updated: {data.key} = {value_str} ({type_name})[/bold green]"
+            )
+
+        message = "\n\n".join(data.errors) if data.errors else "Failed to update configuration."
+        return Panel(message, title="Config Error", border_style="red")
+
+    def to_json_serializable(self, data: ConfigSetResult) -> dict[str, Any]:
+        """Convert ConfigSetResult to primitive dictionary for JSON serialization.
+
+        Args:
+            data: Structured result of config set operation.
+
+        Returns:
+            JSON-serializable dictionary.
+        """
+        return data.model_dump(mode="json")
+
+
 def register_config_formatters(dispatcher: UiDispatcher | None = None) -> None:
     """Register config formatters on the target UiDispatcher."""
     target = dispatcher if dispatcher is not None else ui_dispatcher
     target.register(ConfigLoadResult, ConfigLoadFormatter())
     target.register(WorktreeConfig, ConfigShowFormatter())
     target.register(ConfigValidationResult, ConfigValidateFormatter())
+    target.register(ConfigSetResult, ConfigSetFormatter())
 
 
 register_config_formatters()

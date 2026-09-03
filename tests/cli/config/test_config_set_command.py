@@ -35,7 +35,6 @@ class ConfigSetCommandTests:
         ctx = make_cli_context(cwd=git_fs.base_path)
         outcome = config_set_command(ctx, "agent.model", "qwen2.5-coder")
         assert outcome.ok
-        ctx.output.print()
         out = capsys.readouterr().out
         assert "Config updated: agent.model = qwen2.5-coder (str)" in out
         assert _read_config(config_path)["agent"]["model"] == "qwen2.5-coder"
@@ -59,7 +58,6 @@ class ConfigSetCommandTests:
         ctx = make_cli_context(cwd=git_fs.base_path)
         outcome = config_set_command(ctx, "agents.ollama.port", "11434")
         assert not outcome.ok
-        ctx.output.print()
         out = capsys.readouterr().out
         assert "Config Error" in out
         assert "agents.ollama.port" in out
@@ -76,7 +74,6 @@ class ConfigSetCommandTests:
         ctx = make_cli_context(cwd=git_fs.base_path)
         outcome = config_set_command(ctx, "agent.model", "x")
         assert not outcome.ok
-        ctx.output.print()
         out = capsys.readouterr().out
         assert "CONFIG_NOT_FOUND" in out or "not found" in out.lower()
 

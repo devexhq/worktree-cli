@@ -13,6 +13,7 @@ from rich.text import Text
 from tests.helpers import render_rich
 from worktree.cli.config.formatters import (
     ConfigLoadFormatter,
+    ConfigSetFormatter,
     ConfigShowFormatter,
     ConfigValidateFormatter,
     register_config_formatters,
@@ -20,6 +21,7 @@ from worktree.cli.config.formatters import (
 from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
 from worktree.core.config.loader import ConfigLoadResult, ConfigLoadStatus
 from worktree.core.config.models import AgentConfig, ProjectConfig, WorktreeConfig
+from worktree.core.config.mutate import ConfigSetResult, ConfigSetStatus
 from worktree.core.config.validate import (
     ConfigValidationResult,
     ConfigValidationStatus,
@@ -202,6 +204,53 @@ class ConfigValidateFormatterTests:
         assert dumped["errors"] == []
 
 
+class ConfigSetFormatterTests:
+    """Tests for ConfigSetFormatter."""
+
+    def test_to_rich_ok(self) -> None:
+        formatter = ConfigSetFormatter()
+        result = ConfigSetResult(
+            status=ConfigSetStatus.OK,
+            config_path=Path("/workspace/.worktree/config.json"),
+            key="agent.model",
+            value="qwen2.5-coder",
+            errors=[],
+        )
+        rich_renderable = formatter.to_rich(result)
+        assert isinstance(rich_renderable, Text)
+        rendered = rich_renderable.plain
+        assert "Config updated: agent.model = qwen2.5-coder (str)" in rendered
+
+    def test_to_rich_error(self) -> None:
+        formatter = ConfigSetFormatter()
+        result = ConfigSetResult(
+            status=ConfigSetStatus.SCHEMA_INVALID,
+            config_path=Path("/workspace/.worktree/config.json"),
+            key="agent.invalid_key",
+            errors=["Config schema validation failed (CONFIG_SCHEMA_INVALID): extra property not allowed"],
+        )
+        rich_renderable = formatter.to_rich(result)
+        assert isinstance(rich_renderable, Panel)
+        rendered = render_rich(rich_renderable)
+        assert "Config Error" in rendered
+        assert "CONFIG_SCHEMA_INVALID" in rendered
+
+    def test_to_json_serializable(self) -> None:
+        formatter = ConfigSetFormatter()
+        result = ConfigSetResult(
+            status=ConfigSetStatus.OK,
+            config_path=Path("/workspace/.worktree/config.json"),
+            key="agent.model",
+            value="qwen2.5-coder",
+            errors=[],
+        )
+        dumped = formatter.to_json_serializable(result)
+        assert isinstance(dumped, dict)
+        assert dumped["status"] == "ok"
+        assert dumped["key"] == "agent.model"
+        assert dumped["value"] == "qwen2.5-coder"
+
+
 class ConfigRegistrationAndDispatchTests:
     """Tests for registration and dispatcher integration."""
 
@@ -211,14 +260,18 @@ class ConfigRegistrationAndDispatchTests:
         assert ConfigLoadResult in dispatcher._registry
         assert WorktreeConfig in dispatcher._registry
         assert ConfigValidationResult in dispatcher._registry
+        assert ConfigSetResult in dispatcher._registry
         assert isinstance(dispatcher._registry[WorktreeConfig], ConfigShowFormatter)
         assert isinstance(dispatcher._registry[ConfigValidationResult], ConfigValidateFormatter)
+        assert isinstance(dispatcher._registry[ConfigSetResult], ConfigSetFormatter)
 
     def test_ui_dispatcher_registration(self) -> None:
         assert WorktreeConfig in ui_dispatcher._registry
         assert ConfigValidationResult in ui_dispatcher._registry
+        assert ConfigSetResult in ui_dispatcher._registry
         assert isinstance(ui_dispatcher._registry[WorktreeConfig], ConfigShowFormatter)
         assert isinstance(ui_dispatcher._registry[ConfigValidationResult], ConfigValidateFormatter)
+        assert isinstance(ui_dispatcher._registry[ConfigSetResult], ConfigSetFormatter)
 
     def test_dispatcher_config_show_ndjson(self, capsys: pytest.CaptureFixture[str]) -> None:
         dispatcher = UiDispatcher()
@@ -271,3 +324,26 @@ class ConfigRegistrationAndDispatchTests:
         assert payload["payload"]["status"] == "valid"
         assert payload["payload"]["config_path"] == "/workspace/.worktree/config.json"
         assert payload["payload"]["warnings"] == ["warn-1"]
+
+    def test_dispatcher_config_set_ndjson(self, capsys: pytest.CaptureFixture[str]) -> None:
+        dispatcher = UiDispatcher()
+        register_config_formatters(dispatcher)
+        result = ConfigSetResult(
+            status=ConfigSetStatus.OK,
+            config_path=Path("/workspace/.worktree/config.json"),
+            key="agent.model",
+            value="gpt-4o",
+            errors=[],
+        )
+
+        dispatcher.dispatch(result, output_format="json")
+
+        captured = capsys.readouterr()
+        lines = [line for line in captured.out.strip().split("\n") if line]
+        assert len(lines) == 1
+
+        payload = json.loads(lines[0])
+        assert payload["event_type"] == "ConfigSetResult"
+        assert payload["payload"]["status"] == "ok"
+        assert payload["payload"]["key"] == "agent.model"
+        assert payload["payload"]["value"] == "gpt-4o"

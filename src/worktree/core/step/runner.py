@@ -257,6 +257,7 @@ class StepExecution:
                 cmd,
                 shell=shell,
                 cwd=self.sandbox_path,
+                stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,

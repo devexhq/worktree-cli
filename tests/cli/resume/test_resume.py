@@ -92,7 +92,6 @@ class BlueprintResumeServiceTests:
             path=ctx.cwd,
             db=ctx.db.runs,
             catalog_db=ctx.db.catalog,
-            output=ctx.output,
         ).execute()
         assert outcome.ok
         assert outcome.run_record is not None
@@ -129,7 +128,6 @@ class BlueprintResumeServiceTests:
             path=ctx.cwd,
             db=ctx.db.runs,
             catalog_db=ctx.db.catalog,
-            output=ctx.output,
         ).execute()
         assert outcome.ok
         assert outcome.run_record is not None
@@ -164,7 +162,6 @@ class BlueprintResumeServiceTests:
             path=ctx.cwd,
             db=ctx.db.runs,
             catalog_db=ctx.db.catalog,
-            output=ctx.output,
         ).execute()
         assert outcome.ok
         assert outcome.run_record is not None
@@ -181,7 +178,6 @@ class BlueprintResumeServiceTests:
             path=ctx.cwd,
             db=ctx.db.runs,
             catalog_db=ctx.db.catalog,
-            output=ctx.output,
         ).execute()
         assert not outcome.ok
         assert outcome.run_record is None
@@ -211,7 +207,6 @@ class BlueprintResumeServiceTests:
             path=ctx.cwd,
             db=self.db.runs,
             catalog_db=ctx.db.catalog,
-            output=ctx.output,
         ).execute()
         assert any("Failed to load run record for 'broken-session': DB query failed" in w for w in outcome.warnings)
 
@@ -380,7 +375,6 @@ class ResumeCliTests:
             path=ctx.cwd,
             db=ctx.db.runs,
             catalog_db=ctx.db.catalog,
-            output=ctx.output,
         ).execute()
         assert outcome.ok
         assert outcome.run_record is not None

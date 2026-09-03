@@ -46,7 +46,6 @@ class BlueprintRunServiceTests:
             path=ctx.cwd,
             runs_db=ctx.db.runs,
             catalog_db=ctx.db.catalog,
-            output=ctx.output,
             session_id="test_run_task_1",
         ).execute()
         assert res.ok
@@ -77,7 +76,6 @@ class BlueprintRunServiceTests:
             path=ctx.cwd,
             runs_db=ctx.db.runs,
             catalog_db=ctx.db.catalog,
-            output=ctx.output,
             no_sandbox=True,
             session_id="test_run_wf_1",
         ).execute()
@@ -115,7 +113,6 @@ class BlueprintRunServiceTests:
             path=ctx.cwd,
             runs_db=ctx.db.runs,
             catalog_db=ctx.db.catalog,
-            output=ctx.output,
             session_id="new_run_1",
         ).execute()
         assert res.ok
@@ -280,7 +277,6 @@ class RunCliTests:
             path=ctx.cwd,
             runs_db=ctx.db.runs,
             catalog_db=ctx.db.catalog,
-            output=ctx.output,
             session_id="paused_session_1",
         ).execute()
         assert outcome.run_record is not None

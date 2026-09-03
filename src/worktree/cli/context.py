@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Self
 
 from worktree.common.filesystem import Filesystem
-from worktree.common.utils import RichOutput
 from worktree.core.config import Config
 from worktree.core.config.models import WorktreeConfig
 from worktree.core.db.facade import WorktreeDb
@@ -17,7 +16,6 @@ class CliContext:
 
     cwd: Path
     db: WorktreeDb
-    output: RichOutput
     config: WorktreeConfig | None = None
     fs: Filesystem = field(default_factory=Filesystem)
 
@@ -34,4 +32,4 @@ class CliContext:
         config = Config.configure(target_path)
         effective_cwd = fs.root_dir
         db = WorktreeDb(path=effective_cwd, db_rel_path=config.paths.db_path)
-        return cls(cwd=effective_cwd, db=db, output=RichOutput(), config=config._loaded_config, fs=fs)
+        return cls(cwd=effective_cwd, db=db, config=config._loaded_config, fs=fs)

@@ -24,13 +24,12 @@ from worktree.core.runtime import RunCheckpoint
 from worktree.core.step import StepDefinition, StepResult
 
 
-def make_cli_context(cwd: Path | None = None, *, output: RichOutput | None = None) -> CliContext:
+def make_cli_context(cwd: Path | None = None) -> CliContext:
     """Helper to construct a CliContext for test invocations."""
     effective_cwd = cwd or Path.cwd()
     return CliContext(
         cwd=effective_cwd,
         db=WorktreeDb(path=effective_cwd),
-        output=output or RichOutput(),
     )
 
 

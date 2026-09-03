@@ -5,8 +5,11 @@ from __future__ import annotations
 import typer
 
 from worktree.cli.context import CliContext
+from worktree.cli.run.formatters import register_run_formatters
 
 from .commands.root import resume_command
+
+register_run_formatters()
 
 resume_app = typer.Typer(
     name="resume",
@@ -28,6 +31,12 @@ def resume_callback(
         "--non-interactive",
         help="Disable interactive prompts; prompt_user failures abort the run.",
     ),
+    format: str = typer.Option(
+        "terminal",
+        "--format",
+        "-f",
+        help="Output format: 'terminal' or 'json'.",
+    ),
 ) -> None:
     """Resume a paused blueprint execution session (task or workflow)."""
     context: CliContext = ctx.obj["context"]
@@ -35,7 +44,7 @@ def resume_callback(
         context,
         session_id=session_id,
         non_interactive=non_interactive,
+        output_format=format,
     )
-    context.output.print()
     if not outcome.ok:
         raise typer.Exit(code=1)

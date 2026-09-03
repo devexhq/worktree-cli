@@ -358,7 +358,6 @@ class TestStatusDegraded:
         assert not outcome.result.is_initialized
         assert outcome.errors == []
 
-        ctx.output.print()
         out = capsys.readouterr().out
         assert "Worktree Workspace Status" in out
         assert "Uninitialized" in out
@@ -385,7 +384,6 @@ class TestStatusDegraded:
         assert not outcome.result.ok
         assert outcome.errors == []
 
-        ctx.output.print()
         out = capsys.readouterr().out
         assert "Worktree Workspace Status (Degraded)" in out
         assert "CONFIG_MALFORMED_JSON" in out

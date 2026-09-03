@@ -78,7 +78,6 @@ class ConfigValidateCommandTests:
         ctx = make_cli_context(cwd=git_fs.base_path)
         outcome = config_validate_command(ctx)
         assert outcome.ok
-        ctx.output.print()
         _assert_success_stdout(
             capsys.readouterr().out,
             config_path=config_path,
@@ -101,7 +100,6 @@ class ConfigValidateCommandTests:
         ctx = make_cli_context(cwd=git_fs.base_path)
         outcome = config_validate_command(ctx)
         assert outcome.ok
-        ctx.output.print()
         out = capsys.readouterr().out
         _assert_success_stdout(out, config_path=config_path, with_warnings=True)
         assert "CONFIG_WARN_AGENT_MODEL_MISSING" in out
@@ -118,7 +116,6 @@ class ConfigValidateCommandTests:
         ctx = make_cli_context(cwd=git_fs.base_path)
         outcome = config_validate_command(ctx)
         assert not outcome.ok
-        ctx.output.print()
         combined = _assert_failure_output(capsys.readouterr().out)
         assert "CONFIG_NOT_FOUND" in combined or "not found" in combined.lower()
 
@@ -136,7 +133,6 @@ class ConfigValidateCommandTests:
         ctx = make_cli_context(cwd=git_fs.base_path)
         outcome = config_validate_command(ctx)
         assert not outcome.ok
-        ctx.output.print()
         combined = _assert_failure_output(capsys.readouterr().out)
         assert "schema" in combined.lower() or "CONFIG_SCHEMA_INVALID" in combined
 
@@ -155,7 +151,6 @@ class ConfigValidateCommandTests:
         ctx = make_cli_context(cwd=git_fs.base_path)
         outcome = config_validate_command(ctx)
         assert not outcome.ok
-        ctx.output.print()
         combined = _assert_failure_output(capsys.readouterr().out)
         assert "CONFIG_SEMANTIC_PATH_INVALID" in combined
 
@@ -173,7 +168,6 @@ class ConfigValidateCommandTests:
         ctx = make_cli_context(cwd=git_fs.base_path)
         outcome = config_validate_command(ctx)
         assert not outcome.ok
-        ctx.output.print()
         combined = _assert_failure_output(capsys.readouterr().out)
         assert "CONFIG_MALFORMED_JSON" in combined or "json" in combined.lower()
 
@@ -190,7 +184,6 @@ class ConfigValidateCommandTests:
         ctx = make_cli_context(cwd=git_fs.base_path)
         outcome = config_validate_command(ctx)
         assert not outcome.ok
-        ctx.output.print()
         combined = _assert_failure_output(capsys.readouterr().out)
         assert "CONFIG_PATH_IS_DIRECTORY" in combined or "directory" in combined.lower()
 
@@ -214,7 +207,6 @@ class ConfigValidateCommandTests:
             ctx = make_cli_context(cwd=git_fs.base_path)
             outcome = config_validate_command(ctx)
         assert not outcome.ok
-        ctx.output.print()
         combined = _assert_failure_output(capsys.readouterr().out)
         assert "Configuration validation failed." in combined
 
@@ -243,7 +235,6 @@ class ConfigValidateCommandTests:
             ctx = make_cli_context(cwd=git_fs.base_path)
             outcome = config_validate_command(ctx)
         assert not outcome.ok
-        ctx.output.print()
         out = capsys.readouterr().out
         combined = _assert_failure_output(out)
         assert "CONFIG_SEMANTIC_MAX_ATTEMPTS" in combined
@@ -264,7 +255,6 @@ class ConfigValidateCommandTests:
         ctx = make_cli_context(cwd=git_fs.base_path)
         outcome = config_validate_command(ctx)
         assert not outcome.ok
-        ctx.output.print()
         assert not config_path.exists()
         _assert_failure_output(capsys.readouterr().out)
 

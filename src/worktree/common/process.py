@@ -205,7 +205,7 @@ def run_isolated_process(
         cmd,
         cwd=effective_cwd,
         env=env,
-        stdin=subprocess.PIPE if input_data is not None else None,
+        stdin=subprocess.PIPE if input_data is not None else subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         shell=shell,

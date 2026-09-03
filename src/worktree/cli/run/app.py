@@ -10,6 +10,9 @@ from typer.core import TyperGroup
 from worktree.cli.context import CliContext
 
 from .commands.root import run_command
+from .formatters import register_run_formatters
+
+register_run_formatters()
 
 
 class RunTyperGroup(TyperGroup):
@@ -72,6 +75,12 @@ def run_callback(
         "--auto-apply",
         help="Automatically apply sandbox changes to the main workspace on successful completion.",
     ),
+    format: str = typer.Option(
+        "terminal",
+        "--format",
+        "-f",
+        help="Output format: 'terminal' or 'json'.",
+    ),
 ) -> None:
     """Execute a task or workflow blueprint."""
     context: CliContext = ctx.obj["context"]
@@ -85,7 +94,7 @@ def run_callback(
         non_interactive=non_interactive,
         auto_apply=auto_apply,
         cli_args=list(ctx.args),
+        output_format=format,
     )
-    context.output.print()
     if not outcome.ok:
         raise typer.Exit(code=1)

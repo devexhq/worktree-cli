@@ -51,7 +51,6 @@ class NoSandboxCliTests:
             path=ctx.cwd,
             runs_db=ctx.db.runs,
             catalog_db=ctx.db.catalog,
-            output=ctx.output,
             no_sandbox=True,
         ).execute()
         assert res.ok
