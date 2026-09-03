@@ -11,14 +11,14 @@ from rich.panel import Panel
 from rich.text import Text
 
 from tests.helpers import render_rich
-from worktree.cli.config.formatters import (
+from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
+from worktree.cli.ui.formatters.config import (
     ConfigLoadFormatter,
     ConfigSetFormatter,
     ConfigShowFormatter,
     ConfigValidateFormatter,
     register_config_formatters,
 )
-from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
 from worktree.core.config.loader import ConfigLoadResult, ConfigLoadStatus
 from worktree.core.config.models import AgentConfig, ProjectConfig, WorktreeConfig
 from worktree.core.config.mutate import ConfigSetResult, ConfigSetStatus

@@ -14,7 +14,6 @@ from worktree.common.lock import (
     LockTimeoutError,
     WorkspaceLock,
     _cleanup_registered_locks,
-    _render_lock_waiting,
     _try_lock_windows,
     _unlock_fd,
     resolve_lock_file_path,
@@ -136,11 +135,14 @@ class TestWorkspaceLock:
         finally:
             p1.join(timeout=5.0)
 
-    def test_render_lock_waiting(self, tmp_path: Path) -> None:
-        lock_file = tmp_path / ".worktree" / ".lock"
-        # Should execute cleanly without raising
-        _render_lock_waiting(lock_file, "12345", 30.0)
-        _render_lock_waiting(lock_file, None, 30.0)
+    def test_on_wait_callback(self, tmp_path: Path) -> None:
+        called: list[tuple[Path, str | None, float]] = []
+
+        def on_wait(path: Path, holder_pid: str | None, timeout: float) -> None:
+            called.append((path, holder_pid, timeout))
+
+        lock = WorkspaceLock(tmp_path, on_wait=on_wait)
+        assert lock.on_wait is on_wait
 
     def test_cleanup_registered_locks(self, tmp_path: Path) -> None:
         lock = WorkspaceLock(tmp_path)

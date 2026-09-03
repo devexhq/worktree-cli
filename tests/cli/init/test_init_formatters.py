@@ -9,12 +9,12 @@ from rich.console import Console, Group
 from rich.panel import Panel
 
 from tests.helpers import FileSystem, render_rich
-from worktree.cli.init.formatters import (
+from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
+from worktree.cli.ui.formatters.init import (
     InitOutcomeFormatter,
     WorkspaceInitFormatter,
     register_init_formatters,
 )
-from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
 from worktree.core.bootstrap import (
     BootstrapResult,
     WorkspaceInitResult,

@@ -12,7 +12,6 @@ from worktree.cli.ui import (
     WarningEvent,
     ui_dispatcher,
 )
-from worktree.common.utils import RichOutput
 from worktree.core.blueprint.models import BlueprintKind, BlueprintRunResult
 from worktree.core.db import RunRecord, RunStatus
 from worktree.core.engine import BlueprintResumeService
@@ -87,7 +86,7 @@ def resume_command(
             session_id=session_id,
             non_interactive=non_interactive,
             observer=observer,
-            failure_prompter=CliFailurePrompter(RichOutput(ui_dispatcher._console)),
+            failure_prompter=CliFailurePrompter(ui_dispatcher._console),
         ).execute()
 
     for warning in result.warnings:

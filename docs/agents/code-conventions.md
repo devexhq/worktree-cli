@@ -91,12 +91,14 @@ Operations that can fail return a Pydantic result object subclassing `BaseResult
 
 ---
 
-## Console Output and Error Messages
-
-**Relevant sources:** `src/worktree/common/utils.py`
-
-- CLI output must route through `RichOutput` or a configured Rich `Console` — no bare `print()`.
-- Use `RichOutput.error_panel` for consistent cross-command failure formatting.
+## Console Output and Terminal Formatting
+ 
+**Relevant sources:** `src/worktree/cli/ui/`
+ 
+- Terminal output must route through `ui_dispatcher.dispatch(result)` — direct `print()`, `rich` imports, `typer.echo`, and console output outside `src/worktree/cli/ui/dispatcher.py` are strictly banned by Ruff lint rules (`T20`, `TID251`) and AST tests.
+- Formatters reside under `src/worktree/cli/ui/formatters/<domain>/<name>.py`, strictly one `*Formatter` class per module.
+- Domain shared table builders reside in `src/worktree/cli/ui/formatters/<domain>/common.py`.
+- No `renderers.py` modules exist anywhere in the codebase.
 - Construct `errors` and `warnings` messages using inline f-strings or literals at call sites. Do not create private single-message formatting wrappers.
 
 ---

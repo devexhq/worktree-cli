@@ -6,8 +6,7 @@ import sys
 
 import pytest
 
-from tests.helpers import make_rich_output
-from worktree.common.utils import RichOutput
+from tests.helpers import RichOutput, make_rich_output
 from worktree.core.runtime.models import FailurePromptDecision, LoopPromptDecision
 from worktree.core.runtime.prompter import CliFailurePrompter
 from worktree.core.step import StepDefinition, StepResult

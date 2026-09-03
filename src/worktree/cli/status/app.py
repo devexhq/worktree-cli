@@ -8,9 +8,6 @@ from worktree.core.config import Config
 from worktree.core.db.facade import WorktreeDb
 
 from .commands.root import status_command
-from .formatters import register_status_formatters
-
-register_status_formatters()
 
 status_app = typer.Typer(
     name="status",

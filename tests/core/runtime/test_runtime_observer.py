@@ -12,11 +12,14 @@ from rich.console import Console, Group
 from rich.panel import Panel
 from rich.table import Table
 
-from tests.helpers import make_cmd_step, make_failed_result, make_ok_result, make_rich_output
-from worktree.common.utils import RichOutput
-from worktree.core.runtime.engine import _notify_step_output
-from worktree.core.runtime.models import RunContext, RunObserver
-from worktree.core.runtime.observer import (
+from tests.helpers import (
+    RichOutput,
+    make_cmd_step,
+    make_failed_result,
+    make_ok_result,
+    make_rich_output,
+)
+from worktree.cli.run.observer import (
     DEFAULT_OUTPUT_BUFFER_SIZE,
     CliRunObserver,
     LiveRunObserver,
@@ -30,6 +33,8 @@ from worktree.core.runtime.observer import (
     build_live_step_table,
     resolve_run_observer,
 )
+from worktree.core.runtime.engine import _notify_step_output
+from worktree.core.runtime.models import RunContext, RunObserver
 
 
 def _render_to_text(renderable: Table | Group | Panel, *, width: int = 100) -> str:

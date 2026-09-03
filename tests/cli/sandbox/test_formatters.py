@@ -9,13 +9,13 @@ import pytest
 from rich.text import Text
 
 from tests.helpers import render_rich
-from worktree.cli.sandbox.formatters import (
+from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
+from worktree.cli.ui.formatters.sandbox import (
     PrunedItemFormatter,
     SandboxCreateFormatter,
     SandboxListFormatter,
     SandboxShowFormatter,
 )
-from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
 from worktree.core.db import SandboxRecord, SandboxStatus
 from worktree.core.sandbox.models import (
     PruneAction,
@@ -243,7 +243,7 @@ def test_ui_dispatcher_registrations() -> None:
 
 
 def test_sandbox_prune_formatter_empty() -> None:
-    from worktree.cli.sandbox.formatters import SandboxPruneFormatter
+    from worktree.cli.ui.formatters.sandbox import SandboxPruneFormatter
     from worktree.core.sandbox.models import SandboxPruneResult
 
     formatter = SandboxPruneFormatter()
@@ -258,7 +258,7 @@ def test_sandbox_prune_formatter_empty() -> None:
 
 
 def test_sandbox_prune_formatter_with_items() -> None:
-    from worktree.cli.sandbox.formatters import SandboxPruneFormatter
+    from worktree.cli.ui.formatters.sandbox import SandboxPruneFormatter
     from worktree.core.sandbox.models import SandboxPruneResult
 
     formatter = SandboxPruneFormatter()

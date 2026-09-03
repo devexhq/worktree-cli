@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import sys
-
 from worktree.cli.context import CliContext
-from worktree.cli.diff.formatters import DiffResultFormatter
 from worktree.cli.ui.dispatcher import ui_dispatcher
 from worktree.core.diff import Diff, DiffResult
 
@@ -32,13 +29,9 @@ def diff_command(
     Returns:
         Structured DiffResult with status, errors, and warnings.
     """
-    ui_dispatcher.register(DiffResult, DiffResultFormatter(full=full, max_lines=max_lines))
     result = Diff(path=context.cwd).inspect(session_id=session_id)
-
-    if output_format == "terminal" and raw and result.ok:
-        sys.stdout.write(result.diff_text)
-        sys.stdout.flush()
-    else:
-        ui_dispatcher.dispatch(result, output_format)
-
+    result.raw = raw
+    result.full = full
+    result.max_lines = max_lines
+    ui_dispatcher.dispatch(result, output_format)
     return result

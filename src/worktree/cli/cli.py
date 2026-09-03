@@ -5,9 +5,6 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import typer
-from rich.console import Console
-from rich.panel import Panel
-from rich.text import Text
 from typer.core import TyperGroup
 
 from worktree.cli.catalog.app import catalog_app
@@ -21,13 +18,11 @@ from worktree.cli.run.app import run_app
 from worktree.cli.sandbox.app import sandbox_app
 from worktree.cli.status.app import status_app
 from worktree.cli.ui.dispatcher import ui_dispatcher
+from worktree.cli.ui.events import ErrorPanelEvent, MessageEvent, WelcomeBannerEvent
 from worktree.common.lock import LockTimeoutError
 from worktree.common.version import get_version
 from worktree.core.config import ConfigLoadError, ConfigLoadResult, ConfigLoadStatus
 from worktree.core.config.loader import resolve_config_path
-
-# Initialize a central styling console for high-utility layout parsing
-console = Console()
 
 # Package Metadata matching our PyPI footprint
 __version__ = get_version()
@@ -65,20 +60,15 @@ app.add_typer(sandbox_app, name="sandbox")
 app.add_typer(status_app, name="status")
 
 
-def print_welcome_banner():
+def print_welcome_banner() -> None:
     """Renders a highly scannable, developer-focused ASCII brand panel."""
-    banner_text = Text()
-    banner_text.append("🌳 Worktree CLI ", style="bold green")
-    banner_text.append(f"v{__version__}\n", style="dim cyan")
-    banner_text.append("Isolated Git Workspaces & Agent Workflows", style="italic dim")
-
-    console.print(Panel(banner_text, border_style="green", expand=False, padding=(1, 4)))
+    ui_dispatcher.dispatch(WelcomeBannerEvent(version=__version__))
 
 
-def version_callback(value: bool):
+def version_callback(value: bool) -> None:
     """Callback function to handle explicit version printing flags."""
     if value:
-        console.print(f"[bold green]Worktree CLI[/bold green] v{__version__}")
+        ui_dispatcher.dispatch(MessageEvent(message=f"[bold green]Worktree CLI[/bold green] v{__version__}"))
         raise typer.Exit()
 
 
@@ -120,10 +110,12 @@ def main(
     # 1. Handle base commands
     if ctx.invoked_subcommand is None:
         print_welcome_banner()
-        console.print(ctx.get_help())
+        ui_dispatcher.dispatch(MessageEvent(message=ctx.get_help()))
         raise typer.Exit()
     elif verbose:
-        console.print("[dim yellow][TELEMETRY] Global verbose tracking layer active.[/dim yellow]")
+        ui_dispatcher.dispatch(
+            MessageEvent(message="[dim yellow][TELEMETRY] Global verbose tracking layer active.[/dim yellow]")
+        )
 
     # 2. Edge validation & exclusion list
     excluded_commands = {"config", "init", "install", "status"}
@@ -149,7 +141,13 @@ def run_cli() -> None:
         # Allow intentional Typer exits (like version_callback or help) to pass through normally
         raise
     except LockTimeoutError as exc:
-        console.print(Panel.fit(f"[bold red]Workspace Lock Timeout[/bold red]\n{exc!s}", border_style="red"))
+        ui_dispatcher.dispatch(
+            ErrorPanelEvent(
+                title="Workspace Lock Timeout",
+                message=str(exc),
+                border_style="red",
+            )
+        )
         sys.exit(1)
     except ConfigLoadError as exc:
         cfg_path = resolve_config_path()
@@ -162,7 +160,13 @@ def run_cli() -> None:
         sys.exit(1)
     except Exception as exc:
         # Global Catch-All for unexpected bugs (e.g., missing record.id)
-        console.print(f"[bold red]A fatal unexpected error occurred.[/bold red]\nDetails: {exc!s}")
+        ui_dispatcher.dispatch(
+            ErrorPanelEvent(
+                title="Fatal Error",
+                message=f"A fatal unexpected error occurred.\nDetails: {exc!s}",
+                border_style="red",
+            )
+        )
         sys.exit(1)
 
 

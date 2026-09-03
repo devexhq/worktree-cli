@@ -8,9 +8,6 @@ from worktree.core.db.facade import WorktreeDb
 from .commands.config_set import config_set_command
 from .commands.config_show import config_show_command
 from .commands.config_validate import config_validate_command
-from .formatters import register_config_formatters
-
-register_config_formatters()
 
 config_app = typer.Typer(
     name="config",

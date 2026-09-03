@@ -9,7 +9,6 @@ import yaml
 from rich.console import Console
 
 from worktree.cli.context import CliContext
-from worktree.common.utils import RichOutput
 from worktree.core.config.generator import generate_default_config
 from worktree.core.db import (
     BlueprintKind,
@@ -278,6 +277,77 @@ def seed_sandbox(
     )
 
 
+class RichOutput:
+    """Test helper mimicking RichOutput for test assertions."""
+
+    def __init__(self, console: Console | None = None) -> None:
+        self.console = console or Console()
+        self._items: list[Any] = []
+
+    def add_line(self, item: Any) -> None:
+        self._items.append(item)
+
+    def add_warning(self, msg: str) -> None:
+        self._items.append(msg)
+
+    def add_success(self, msg: str) -> None:
+        self._items.append(f"[bold green]✔  {msg}[/bold green]")
+
+    def add_error(self, msg: str) -> None:
+        self._items.append(msg)
+
+    def add_error_panel(self, title: str, message: str) -> None:
+        from rich.panel import Panel
+
+        self._items.append(
+            Panel.fit(
+                f"[bold red]{title}[/bold red]\n{message}",
+                border_style="red",
+            )
+        )
+
+    def add_spacer(self) -> None:
+        self._items.append("")
+
+    def add_dim_bullet(self, message: str) -> None:
+        self._items.append(f"  [dim]•[/dim] {message}")
+
+    def error_panel(self, title: str, message: str) -> None:
+        self.add_error_panel(title, message)
+
+    def spacer(self) -> None:
+        self.add_spacer()
+
+    def success(self, message: str) -> None:
+        self.add_success(message)
+
+    def error(self, message: str) -> None:
+        self.add_error(message)
+
+    def info(self, message: Any) -> None:
+        self.add_line(message)
+
+    def dim_bullet(self, message: str) -> None:
+        self.add_dim_bullet(message)
+
+    def dim_text(self, message: str) -> None:
+        self._items.append(f"[bold dim]{message}[/bold dim]")
+
+    def render_not_initialized(self, errors: list[str], fix_hint: str | None = None) -> None:
+        hint = f"\nFix:\n- {fix_hint}" if fix_hint else ""
+        msg = ("\n\n".join(errors) if errors else ".worktree/config.json not found.") + hint
+        self.error_panel("Worktree Not Initialized", msg)
+
+    def print(self, *args: Any) -> None:
+        if args:
+            for arg in args:
+                self.console.print(arg)
+            return
+        for item in self._items:
+            self.console.print(item)
+        self._items.clear()
+
+
 def make_rich_output(*, width: int = 120) -> tuple[RichOutput, StringIO]:
     """Fixed-width console so Rich tables/panels do not truncate under narrow CI COLUMNS."""
     buffer = StringIO()
@@ -292,7 +362,12 @@ def make_rich_output(*, width: int = 120) -> tuple[RichOutput, StringIO]:
 
 def render_rich(renderable: Any, *, width: int = 120) -> str:
     """Render a Rich renderable directly to a plain text string for assertions."""
-    rich_output, buffer = make_rich_output(width=width)
-    rich_output.add_line(renderable)
-    rich_output.print()
+    buffer = StringIO()
+    console = Console(
+        file=buffer,
+        force_terminal=False,
+        color_system=None,
+        width=width,
+    )
+    console.print(renderable)
     return buffer.getvalue()

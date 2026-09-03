@@ -8,12 +8,9 @@ import signal
 import sys
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
 from types import FrameType, TracebackType
-from typing import ClassVar
-
-from rich.console import Console
-from rich.panel import Panel
 
 # Optional imports based on platform
 if sys.platform != "win32":
@@ -142,22 +139,6 @@ def _write_holder_pid(fd: int) -> None:
         pass
 
 
-def _render_lock_waiting(lock_path: Path, holder_pid: str | None, timeout_seconds: float) -> None:
-    """Render a Rich notification panel when waiting on an active lock."""
-    try:
-        console = Console(stderr=True)
-        pid_info = f" (PID: {holder_pid})" if holder_pid else ""
-        panel = Panel.fit(
-            f"[yellow]Workspace lock is currently held by another process{pid_info}.[/yellow]\n"
-            f"[dim]Waiting for lock release on '{lock_path.name}' (timeout: {timeout_seconds:.1f}s)...[/dim]",
-            title="[bold yellow]Lock Held[/bold yellow]",
-            border_style="yellow",
-        )
-        console.print(panel)
-    except Exception:
-        pass
-
-
 def _check_lock_timeout(
     start_time: float,
     timeout_seconds: float,
@@ -186,17 +167,22 @@ def resolve_lock_file_path(root_dir: Path) -> Path:
 class WorkspaceLock:
     """Cross-process advisory file lock context manager for .worktree/."""
 
-    _CONSOLE: ClassVar[Console | None] = None
-
-    def __init__(self, root_dir: Path, timeout_seconds: float = DEFAULT_LOCK_TIMEOUT_SECONDS) -> None:
+    def __init__(
+        self,
+        root_dir: Path,
+        timeout_seconds: float = DEFAULT_LOCK_TIMEOUT_SECONDS,
+        on_wait: Callable[[Path, str | None, float], None] | None = None,
+    ) -> None:
         """Initialize workspace lock bound to root_dir.
 
         Args:
             root_dir: Repository root or .worktree directory.
             timeout_seconds: Maximum seconds to wait for lock acquisition.
+            on_wait: Optional callback invoked if lock is currently held.
         """
         self.lock_path = resolve_lock_file_path(root_dir)
         self.timeout_seconds = max(0.1, float(timeout_seconds))
+        self.on_wait = on_wait
         self._fd: int | None = None
         self._is_nested: bool = False
 
@@ -217,7 +203,8 @@ class WorkspaceLock:
 
             holder_pid = _read_holder_pid(self.lock_path)
             if not announced:
-                _render_lock_waiting(self.lock_path, holder_pid, self.timeout_seconds)
+                if self.on_wait is not None:
+                    self.on_wait(self.lock_path, holder_pid, self.timeout_seconds)
                 announced = True
 
             _check_lock_timeout(start_time, self.timeout_seconds, self.lock_path, holder_pid)

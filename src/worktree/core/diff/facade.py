@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from worktree.common.utils import RichOutput
 from worktree.core.diff.models import DiffResult
 from worktree.core.diff.services import DiffService
 from worktree.core.diff.writer import get_session_dir, write_session_diff
@@ -19,8 +18,7 @@ class Diff:
 
     def inspect(self, session_id: str | None = None) -> DiffResult:
         """Inspect and return structured diff result for a session or latest run."""
-        # Using a dummy RichOutput since collect() is pure inspection without rendering
-        service = DiffService(path=self.path, output=RichOutput(), session_id=session_id)
+        service = DiffService(path=self.path, session_id=session_id)
         return service.collect()
 
     @staticmethod

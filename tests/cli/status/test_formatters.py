@@ -10,11 +10,11 @@ from rich.console import Console, Group
 from rich.table import Table
 
 from tests.helpers import render_rich
-from worktree.cli.status.formatters import (
+from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
+from worktree.cli.ui.formatters.status import (
     WorktreeStatusFormatter,
     register_status_formatters,
 )
-from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
 from worktree.core.config.loader import ConfigLoadStatus
 from worktree.core.config.models import AgentConfig, ProjectConfig, WorktreeConfig
 from worktree.core.status.models import (

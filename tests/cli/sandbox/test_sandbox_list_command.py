@@ -13,8 +13,8 @@ from worktree.cli import app
 from worktree.cli.sandbox.commands.sandbox_list import (
     sandbox_list_command,
 )
-from worktree.cli.sandbox.formatters import SandboxListFormatter
-from worktree.cli.sandbox.renderers import (
+from worktree.cli.ui.formatters.sandbox import SandboxListFormatter
+from worktree.cli.ui.formatters.sandbox.common import (
     build_sandbox_table,
 )
 from worktree.core.db import (

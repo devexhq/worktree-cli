@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from tests.helpers import make_rich_output
-from worktree.cli.status.renderers import render_status_summary
+from worktree.cli.ui.formatters.status.common import render_status_summary
 from worktree.core.config.loader import ConfigLoadStatus
 from worktree.core.config.models import AgentConfig, ProjectConfig, WorktreeConfig
 from worktree.core.status.models import (

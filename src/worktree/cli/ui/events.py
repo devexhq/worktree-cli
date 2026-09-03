@@ -103,3 +103,11 @@ class LoopLifecycleEvent(BaseModel):
     max_iterations: int | None = None
     status: str | None = None
     message: str | None = None
+
+
+class WelcomeBannerEvent(BaseModel):
+    """UI event representing the welcome brand panel."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    version: str

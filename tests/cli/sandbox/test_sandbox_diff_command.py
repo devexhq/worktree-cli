@@ -6,7 +6,7 @@ from typer.testing import CliRunner
 from tests.helpers import GitFileSystem, make_cli_context, render_rich
 from worktree.cli import app
 from worktree.cli.sandbox.commands.sandbox_diff import sandbox_diff_command
-from worktree.cli.sandbox.formatters import SandboxDiffFormatter
+from worktree.cli.ui.formatters.sandbox import SandboxDiffFormatter
 from worktree.core.db import WorktreeDb
 from worktree.core.sandbox import (
     Sandbox,
