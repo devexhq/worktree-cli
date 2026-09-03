@@ -15,24 +15,18 @@ def config_validate_command(
 ) -> ConfigValidateCommandOutcome:
     """Validate config and print the CLI validation report.
 
-    Calls ``validate_config_result`` only. Success paths print a plain text
-    report (warnings allowed). Failure paths print a Rich error
-    panel titled ``Config Validation Failed``. Read-only: never
-    creates, repairs, or mutates config files.
-
     Args:
         context: CLI context instance.
         output_format: Presentation format ("terminal" or "json").
+
+    Returns:
+        ConfigValidateCommandOutcome containing validation results and errors.
     """
     result = Config(path=context.cwd).validate()
     ui_dispatcher.dispatch(result, output_format=output_format)
-
-    if result.ok:
-        return ConfigValidateCommandOutcome(config_path=result.config_path, warnings=list(result.warnings))
-
-    message = "\n\n".join(result.errors) if result.errors else "Configuration validation failed."
     return ConfigValidateCommandOutcome(
+        result=result,
         config_path=result.config_path,
         warnings=list(result.warnings),
-        errors=list(result.errors) if result.errors else [message],
+        errors=list(result.errors),
     )

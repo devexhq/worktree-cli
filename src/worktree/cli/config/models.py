@@ -6,7 +6,9 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from worktree.core.config.loader import ConfigLoadResult
 from worktree.core.config.models import WorktreeConfig
+from worktree.core.config.validate import ConfigValidationResult
 
 
 class ConfigShowCommandOutcome(BaseModel):
@@ -14,6 +16,7 @@ class ConfigShowCommandOutcome(BaseModel):
 
     model_config = {"extra": "forbid", "strict": True}
 
+    result: ConfigLoadResult | None = None
     config: WorktreeConfig | None = None
     config_path: Path | None = None
     errors: list[str] = Field(default_factory=list)
@@ -21,6 +24,8 @@ class ConfigShowCommandOutcome(BaseModel):
     @property
     def ok(self) -> bool:
         """Return True if config was loaded without errors."""
+        if self.result is not None:
+            return self.result.ok and not self.errors
         return not self.errors and self.config is not None
 
 
@@ -44,6 +49,7 @@ class ConfigValidateCommandOutcome(BaseModel):
 
     model_config = {"extra": "forbid", "strict": True}
 
+    result: ConfigValidationResult | None = None
     config_path: Path | None = None
     warnings: list[str] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
@@ -51,4 +57,6 @@ class ConfigValidateCommandOutcome(BaseModel):
     @property
     def ok(self) -> bool:
         """Return True if config is valid without errors."""
+        if self.result is not None:
+            return self.result.ok and not self.errors
         return not self.errors and self.config_path is not None

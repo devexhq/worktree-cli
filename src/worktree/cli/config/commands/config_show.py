@@ -25,6 +25,7 @@ def config_show_command(
     result = Config(path=context.cwd).load()
     ui_dispatcher.dispatch(result, output_format=output_format)
     return ConfigShowCommandOutcome(
+        result=result,
         config=result.config,
         config_path=result.config_path,
         errors=list(result.errors),
