@@ -5,8 +5,7 @@ from __future__ import annotations
 from worktree.cli.context import CliContext
 from worktree.cli.ui.dispatcher import ui_dispatcher
 from worktree.core.sandbox import Sandbox
-
-from ..models import SandboxDiffCommandOutcome
+from worktree.core.sandbox.models import SandboxDiffResult
 
 
 def sandbox_diff_command(
@@ -15,7 +14,7 @@ def sandbox_diff_command(
     *,
     stat: bool = False,
     output_format: str = "terminal",
-) -> SandboxDiffCommandOutcome:
+) -> SandboxDiffResult:
     """Inspect unified diff or file summary statistics for a sandbox.
 
     Args:
@@ -28,8 +27,4 @@ def sandbox_diff_command(
     result = sandbox.diff(sandbox_id, stat=stat)
 
     ui_dispatcher.dispatch(result, output_format=output_format)
-    return SandboxDiffCommandOutcome(
-        result=result,
-        errors=list(result.errors),
-        warnings=list(result.warnings),
-    )
+    return result

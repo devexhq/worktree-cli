@@ -8,7 +8,7 @@ from pathlib import Path
 from worktree.common.utils import RichOutput
 from worktree.core.blueprint import (
     BlueprintKind,
-    BlueprintRunCommandOutcome,
+    BlueprintRunResult,
 )
 from worktree.core.blueprint.renderers import render_blueprint_run_success
 from worktree.core.catalog import Catalog
@@ -35,7 +35,7 @@ class BlueprintResumeService:
     non_interactive: bool = False
     warnings: list[str] = field(default_factory=list)
 
-    def execute(self) -> BlueprintRunCommandOutcome:
+    def execute(self) -> BlueprintRunResult:
         """Find session if omitted, classify and resume via Engine."""
         target_session_id, target_kind, resolve_error = self._resolve_target_session()
         if resolve_error is not None or not target_session_id:
@@ -74,9 +74,9 @@ class BlueprintResumeService:
         target_kind = record.kind if record is not None else None
         return self.session_id, target_kind, None
 
-    def _fail(self, message: str) -> BlueprintRunCommandOutcome:
+    def _fail(self, message: str) -> BlueprintRunResult:
         self.output.add_error_panel("Resume Failed", message)
-        return BlueprintRunCommandOutcome(
+        return BlueprintRunResult(
             run_record=None,
             errors=[message],
             warnings=self.warnings,
@@ -103,14 +103,14 @@ class BlueprintResumeService:
         if record is not None:
             render_blueprint_run_success(record, record.kind, output=self.output)
 
-    def _finalize(self, session_id: str, run_outcome: RunOutcome) -> BlueprintRunCommandOutcome:
+    def _finalize(self, session_id: str, run_outcome: RunOutcome) -> BlueprintRunResult:
         self.warnings.extend(run_outcome.warnings)
         record = self._load_record(session_id)
         primary_error = run_outcome.errors[0] if run_outcome.errors else None
 
         if run_outcome.ok:
             self._render_success(record)
-            return BlueprintRunCommandOutcome(
+            return BlueprintRunResult(
                 run_record=record,
                 warnings=self.warnings,
                 output_items=list(self.output._items),
@@ -119,7 +119,7 @@ class BlueprintResumeService:
         if run_outcome.status == RunStatus.PAUSED:
             msg = primary_error or "Run paused; checkpoint saved."
             self.output.add_line(msg)
-            return BlueprintRunCommandOutcome(
+            return BlueprintRunResult(
                 run_record=record,
                 warnings=self.warnings,
                 output_items=list(self.output._items),
@@ -128,7 +128,7 @@ class BlueprintResumeService:
         if run_outcome.status == RunStatus.CANCELLED:
             msg = primary_error or "Cancelled by user."
             self.output.add_error_panel("Resume Cancelled", msg)
-            return BlueprintRunCommandOutcome(
+            return BlueprintRunResult(
                 run_record=record,
                 errors=[msg],
                 warnings=self.warnings,
@@ -137,7 +137,7 @@ class BlueprintResumeService:
 
         msg = primary_error or f"Cannot resume session '{session_id}'."
         self.output.add_error_panel("Resume Failed", msg)
-        return BlueprintRunCommandOutcome(
+        return BlueprintRunResult(
             run_record=record,
             errors=[msg],
             warnings=self.warnings,

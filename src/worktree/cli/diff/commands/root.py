@@ -6,7 +6,6 @@ import sys
 
 from worktree.cli.context import CliContext
 from worktree.cli.diff.formatters import DiffResultFormatter
-from worktree.cli.diff.models import DiffCommandOutcome
 from worktree.cli.ui.dispatcher import ui_dispatcher
 from worktree.core.diff import Diff, DiffResult
 
@@ -19,7 +18,7 @@ def diff_command(
     full: bool = False,
     max_lines: int | None = None,
     output_format: str = "terminal",
-) -> DiffCommandOutcome:
+) -> DiffResult:
     """Execute session diff query and render results via UI dispatcher.
 
     Args:
@@ -31,7 +30,7 @@ def diff_command(
         output_format: Presentation format ("terminal" or "json").
 
     Returns:
-        Structured DiffCommandOutcome with result, errors, and warnings.
+        Structured DiffResult with status, errors, and warnings.
     """
     ui_dispatcher.register(DiffResult, DiffResultFormatter(full=full, max_lines=max_lines))
     result = Diff(path=context.cwd).inspect(session_id=session_id)
@@ -42,8 +41,4 @@ def diff_command(
     else:
         ui_dispatcher.dispatch(result, output_format)
 
-    return DiffCommandOutcome(
-        result=result,
-        errors=list(result.errors),
-        warnings=list(result.warnings),
-    )
+    return result

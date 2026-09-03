@@ -29,10 +29,9 @@ class StatusCommandTests:
         git_fs.init_repo()
 
         ctx = make_cli_context(cwd=git_fs.base_path)
-        outcome = status_command(ctx)
-        assert outcome.ok
-        assert outcome.result is not None
-        assert outcome.errors == []
+        result = status_command(ctx)
+        assert result.ok
+        assert result.is_initialized
 
         out = capsys.readouterr().out
         assert "Worktree Workspace Status" in out
@@ -56,8 +55,8 @@ class StatusCommandTests:
             pid=9999999,
         )
 
-        outcome = status_command(ctx)
-        assert outcome.ok
+        result = status_command(ctx)
+        assert result.ok
 
         out = capsys.readouterr().out
         assert "Reconciled 1 interrupted session (session_id: sbx_status_stale)." in out
@@ -76,11 +75,9 @@ class StatusCommandTests:
     ) -> None:
         monkeypatch.chdir(fs.base_path)
         ctx = make_cli_context(cwd=fs.base_path)
-        outcome = status_command(ctx)
+        result = status_command(ctx)
 
-        assert outcome.ok
-        assert outcome.result is not None
-        assert not outcome.result.is_initialized
+        assert not result.is_initialized
 
         out = capsys.readouterr().out
         assert "Worktree Workspace Status" in out
@@ -102,10 +99,9 @@ class StatusCommandTests:
         config_path.write_text('{"version": 1, "project": {"name": "test-broken-proj"}}\n', encoding="utf-8")
 
         ctx = make_cli_context(cwd=git_fs.base_path)
-        outcome = status_command(ctx)
-        assert outcome.ok
-        assert outcome.result is not None
-        assert outcome.result.is_initialized
+        result = status_command(ctx)
+        assert not result.ok
+        assert result.is_initialized
 
         out = capsys.readouterr().out
         assert "Worktree Workspace Status (Degraded)" in out
@@ -123,8 +119,8 @@ class StatusCommandTests:
         git_fs.init_repo()
 
         ctx = make_cli_context(cwd=git_fs.base_path)
-        outcome = status_command(ctx, output_format="json")
-        assert outcome.ok
+        result = status_command(ctx, output_format="json")
+        assert result.ok
 
         out = capsys.readouterr().out
         import json

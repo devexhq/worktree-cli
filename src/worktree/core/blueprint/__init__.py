@@ -9,7 +9,6 @@ from worktree.core.blueprint.facade import Blueprint
 from worktree.core.blueprint.models import (
     BlueprintDefinition,
     BlueprintKind,
-    BlueprintRunCommandOutcome,
     BlueprintRunResult,
 )
 
@@ -19,7 +18,6 @@ __all__ = [
     "BlueprintKind",
     "BlueprintLoadError",
     "BlueprintNotFoundError",
-    "BlueprintRunCommandOutcome",
     "BlueprintRunResult",
     "BlueprintValidationError",
 ]

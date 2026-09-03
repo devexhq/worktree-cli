@@ -153,6 +153,3 @@ class BlueprintRunResult(BaseModel):
     def ok(self) -> bool:
         """Return True if run completed without fatal errors."""
         return self.run_record is not None and len(self.errors) == 0
-
-
-BlueprintRunCommandOutcome = BlueprintRunResult

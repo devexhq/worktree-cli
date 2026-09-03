@@ -4,9 +4,7 @@ from __future__ import annotations
 
 from worktree.cli.context import CliContext
 from worktree.cli.ui.dispatcher import ui_dispatcher
-from worktree.core.bootstrap import initialize_workspace
-
-from ..models import InitCommandOutcome
+from worktree.core.bootstrap import WorkspaceInitResult, initialize_workspace
 
 
 def init_command(
@@ -15,7 +13,7 @@ def init_command(
     overwrite: bool = False,
     repair: bool = False,
     output_format: str = "terminal",
-) -> InitCommandOutcome:
+) -> WorkspaceInitResult:
     """Initialize a local project workspace for Worktree CLI and desktop sync.
 
     Args:
@@ -32,4 +30,4 @@ def init_command(
         repair=repair,
     )
     ui_dispatcher.dispatch(result, output_format=output_format)
-    return InitCommandOutcome(result=result, errors=list(result.errors))
+    return result

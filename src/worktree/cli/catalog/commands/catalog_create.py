@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from worktree.cli.catalog.models import CatalogCreateCommandOutcome
 from worktree.cli.context import CliContext
 from worktree.cli.ui.dispatcher import ui_dispatcher
 from worktree.core.catalog import Catalog
+from worktree.core.catalog.models import CatalogCreateResult
 from worktree.core.db import CatalogItemType
 
 
@@ -14,7 +14,7 @@ def catalog_create_command(
     item_type: CatalogItemType | str,
     name: str,
     output_format: str = "terminal",
-) -> CatalogCreateCommandOutcome:
+) -> CatalogCreateResult:
     """Create a new catalog blueprint under ``.worktree/catalog/<type>s/<name>.yml``.
 
     Args:
@@ -24,15 +24,11 @@ def catalog_create_command(
         output_format: Presentation format ("terminal" or "json").
 
     Returns:
-        CatalogCreateCommandOutcome containing created record or errors.
+        CatalogCreateResult containing created record or errors.
     """
     result = Catalog(path=context.cwd, db=context.db.catalog).create(
         item_type=item_type,
         name=name,
     )
     ui_dispatcher.dispatch(result, output_format=output_format)
-    return CatalogCreateCommandOutcome(
-        result=result,
-        item=result.item,
-        errors=list(result.errors),
-    )
+    return result

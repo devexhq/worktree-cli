@@ -225,9 +225,9 @@ def test_sandbox_create_formatter_to_json_serializable() -> None:
 
 def test_ui_dispatcher_registrations() -> None:
     """Verify ui_dispatcher has all 8 sandbox formatters registered."""
-    from worktree.cli.sandbox.models import SandboxDeleteResult
     from worktree.core.sandbox.models import (
         SandboxApplyResult,
+        SandboxDeleteResult,
         SandboxDiffResult,
         SandboxPruneResult,
     )

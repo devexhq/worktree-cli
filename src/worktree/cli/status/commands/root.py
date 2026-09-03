@@ -6,14 +6,13 @@ from worktree.cli.context import CliContext
 from worktree.cli.ui.dispatcher import ui_dispatcher
 from worktree.core.engine import reconcile_stale_runs
 from worktree.core.status import Status
-
-from ..models import StatusCommandOutcome
+from worktree.core.status.models import WorktreeStatusResult
 
 
 def status_command(
     context: CliContext,
     output_format: str = "terminal",
-) -> StatusCommandOutcome:
+) -> WorktreeStatusResult:
     """Inspect active worktree configuration and repository context.
 
     Args:
@@ -28,4 +27,4 @@ def status_command(
         result.warnings.insert(0, reconciliation_result.warning)
 
     ui_dispatcher.dispatch(result, output_format=output_format)
-    return StatusCommandOutcome(result=result)
+    return result

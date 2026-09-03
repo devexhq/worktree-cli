@@ -84,7 +84,7 @@ def run_callback(
 ) -> None:
     """Execute a task or workflow blueprint."""
     context: CliContext = ctx.obj["context"]
-    outcome = run_command(
+    result = run_command(
         context,
         name=name,
         no_sandbox=no_sandbox,
@@ -96,5 +96,5 @@ def run_callback(
         cli_args=list(ctx.args),
         output_format=format,
     )
-    if not outcome.ok:
+    if not result.ok:
         raise typer.Exit(code=1)

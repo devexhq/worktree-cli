@@ -13,9 +13,6 @@ from worktree.core.sandbox import (
     SandboxSession,
 )
 
-from ..models import (
-    SandboxDeleteCommandOutcome,
-)
 from ..renderers import (
     sandbox_delete_confirm_prompt,
 )
@@ -46,7 +43,7 @@ def sandbox_delete_command(
     sandbox_id: str,
     force: bool = False,
     output_format: str = "terminal",
-) -> SandboxDeleteCommandOutcome:
+) -> SandboxDeleteResult:
     """Delete a tracked sandbox worktree and branch.
 
     Confirms before mutating unless ``force`` is True. Already-cleaned rows are
@@ -63,20 +60,21 @@ def sandbox_delete_command(
 
     if result.status is SandboxDeleteStatus.NOT_INITIALIZED:
         ui_dispatcher.dispatch(result, output_format=output_format)
-        return SandboxDeleteCommandOutcome(errors=list(result.errors))
+        return result
     if result.status is SandboxDeleteStatus.NOT_FOUND or result.sandbox is None:
-        ui_dispatcher.dispatch(result, output_format=output_format)
-        return SandboxDeleteCommandOutcome(errors=[f"Sandbox '{sandbox_id}' not found."])
+        not_found_result = result.model_copy(update={"errors": [f"Sandbox '{sandbox_id}' not found."]})
+        ui_dispatcher.dispatch(not_found_result, output_format=output_format)
+        return not_found_result
     if result.status is SandboxDeleteStatus.ALREADY_CLEANED:
         ui_dispatcher.dispatch(result, output_format=output_format)
-        return SandboxDeleteCommandOutcome(already_cleaned=True)
+        return result
 
     row = result.sandbox
 
     if not force and not _confirm_or_abort(row):
         aborted = result.model_copy(update={"status": SandboxDeleteStatus.ABORTED, "errors": ["Aborted."]})
         ui_dispatcher.dispatch(aborted, output_format=output_format)
-        return SandboxDeleteCommandOutcome(errors=["Aborted."])
+        return aborted
 
     session = SandboxSession(
         session_id=row.id,
@@ -89,4 +87,4 @@ def sandbox_delete_command(
     sandbox.cleanup(session)
     deleted = result.model_copy(update={"status": SandboxDeleteStatus.DELETED, "deleted": True})
     ui_dispatcher.dispatch(deleted, output_format=output_format)
-    return SandboxDeleteCommandOutcome(deleted=True)
+    return deleted

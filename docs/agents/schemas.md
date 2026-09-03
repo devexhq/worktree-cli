@@ -187,10 +187,9 @@ Each core domain exposes a cohesive facade class that encapsulates domain servic
 ### Subcommand Structure
 Each CLI command package under `src/worktree/cli/<name>/` contains:
 - `app.py`: Subcommand Typer app registration.
-- `commands/`: Individual command implementations (e.g. `root.py`, `commands/<action>.py`).
-- `models.py`: CLI-specific DTOs or outcome models.
-- `renderers.py`: Rich-based terminal presentation.
-- `formatters.py`: String/text layout formatters.
+- `commands/`: Individual command implementations (e.g. `root.py`, `commands/<action>.py`) returning core domain `*Result` models.
+- `formatters.py`: UI dispatcher component formatters for core domain `*Result` models.
+- `renderers.py`: Rich-based terminal presentation functions.
 
 ### Registered CLI Commands
 - `wt init`: Initialize workspace, generate `.worktree/` directory and `config.json`.

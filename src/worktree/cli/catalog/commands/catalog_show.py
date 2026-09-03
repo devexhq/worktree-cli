@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-from worktree.cli.catalog.models import CatalogShowCommandOutcome
 from worktree.cli.context import CliContext
 from worktree.cli.ui.dispatcher import ui_dispatcher
 from worktree.core.catalog import Catalog
+from worktree.core.catalog.models import CatalogShowResult
 
 
 def catalog_show_command(
     context: CliContext,
     sha_or_name: str,
     output_format: str = "terminal",
-) -> CatalogShowCommandOutcome:
+) -> CatalogShowResult:
     """Show details and definition content of a catalog blueprint.
 
     Args:
@@ -21,13 +21,8 @@ def catalog_show_command(
         output_format: Presentation format ("terminal" or "json").
 
     Returns:
-        CatalogShowCommandOutcome containing record and content or errors.
+        CatalogShowResult containing record and content or errors.
     """
     result = Catalog(path=context.cwd, db=context.db.catalog).show(sha_or_name)
     ui_dispatcher.dispatch(result, output_format=output_format)
-    return CatalogShowCommandOutcome(
-        result=result,
-        item=result.item,
-        content=result.content,
-        errors=list(result.errors),
-    )
+    return result

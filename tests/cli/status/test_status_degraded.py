@@ -348,15 +348,12 @@ class TestStatusDegraded:
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        """Verify status_command on an uninitialized workspace returns ok and exit code 0."""
+        """Verify status_command on an uninitialized workspace returns WorktreeStatusResult."""
         monkeypatch.chdir(git_fs.base_path)
         ctx = make_cli_context(cwd=git_fs.base_path)
-        outcome = status_command(ctx)
+        result = status_command(ctx)
 
-        assert outcome.ok
-        assert outcome.result is not None
-        assert not outcome.result.is_initialized
-        assert outcome.errors == []
+        assert not result.is_initialized
 
         out = capsys.readouterr().out
         assert "Worktree Workspace Status" in out
@@ -370,19 +367,16 @@ class TestStatusDegraded:
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        """Verify status_command on a corrupted workspace returns ok and exit code 0."""
+        """Verify status_command on a corrupted workspace returns WorktreeStatusResult."""
         monkeypatch.chdir(git_fs.base_path)
         config_path = git_fs.base_path / ".worktree" / "config.json"
         config_path.parent.mkdir(parents=True, exist_ok=True)
         config_path.write_text("{bad json: true", encoding="utf-8")
 
         ctx = make_cli_context(cwd=git_fs.base_path)
-        outcome = status_command(ctx)
+        result = status_command(ctx)
 
-        assert outcome.ok
-        assert outcome.result is not None
-        assert not outcome.result.ok
-        assert outcome.errors == []
+        assert not result.ok
 
         out = capsys.readouterr().out
         assert "Worktree Workspace Status (Degraded)" in out

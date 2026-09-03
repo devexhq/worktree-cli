@@ -41,8 +41,8 @@ def config_show(
 ):
     """Display the full normalized effective configuration as JSON."""
     context = _get_or_build_context(ctx)
-    outcome = config_show_command(context, output_format=format)
-    if not outcome.ok:
+    result = config_show_command(context, output_format=format)
+    if not result.ok:
         raise typer.Exit(code=1)
 
 
@@ -65,8 +65,8 @@ def config_set(
 ):
     """Set a configuration value by key or nested dot-path."""
     context = _get_or_build_context(ctx)
-    outcome = config_set_command(context, key, value, output_format=format)
-    if not outcome.ok:
+    result = config_set_command(context, key, value, output_format=format)
+    if not result.ok:
         raise typer.Exit(code=1)
 
 
@@ -81,6 +81,6 @@ def config_validate(
 ):
     """Validate .worktree/config.json against the V1 schema and semantic rules."""
     context = _get_or_build_context(ctx)
-    outcome = config_validate_command(context, output_format=format)
-    if not outcome.ok:
+    result = config_validate_command(context, output_format=format)
+    if not result.ok:
         raise typer.Exit(code=1)

@@ -80,10 +80,9 @@ class SandboxDiffCommandDirectTests:
         (session.sandbox_path / "hello.py").write_text("hello = True\n", encoding="utf-8")
 
         context = make_cli_context(cwd=git_fs.base_path)
-        outcome = sandbox_diff_command(context, "sbx_diff_cmd")
-        assert outcome.ok
-        assert outcome.result is not None
-        assert "hello.py" in outcome.result.files_changed
+        result = sandbox_diff_command(context, "sbx_diff_cmd")
+        assert result.ok
+        assert "hello.py" in result.files_changed
         manager.cleanup(session)
 
 
