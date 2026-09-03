@@ -30,7 +30,7 @@ inv complexity --paths <changed-file1>,<changed-file2> --plain   # complexity ga
 
 ## Testing / Code Quality
 
-Use `pytest -q` during development. Prefer scoping to the test module/function during quick iterations. 
+Use `uv run inv test` during development. Prefer scoping to the test module/function during quick iterations. 
 Before committing, all of these must pass:
 `inv test -c` (coverage, **≥ 80%** via `fail_under` in `pyproject.toml`),
 `ruff format`, `ruff check`, `basedpyright src --level error`,
@@ -60,6 +60,15 @@ command that doesn't exist, no shipped command left undocumented. When a
 command is added, renamed, or removed in `cli.py`, update `README.md` in the
 same PR. Prefer generating the comparison (diff `wt --help`'s command list
 against the README) over eyeballing it.
+
+## Backwards compatibility
+
+Maintain backwards compatibility **only** for surfaces users interact with directly:
+- CLI command surface, subcommands, arguments, and flags (e.g. renaming a sub-command).
+- User configuration and schema files (e.g. keys or values in `.worktree/config.json`, blueprint YAMLs).
+- Stable machine-readable CLI outputs (e.g. JSON event contracts).
+
+Do **not** preserve backwards compatibility aliases, compatibility properties, or shim layers for internal code (`common/`, `core/`, or internal CLI modules). Update internal callers and test suites directly. If unsure whether a surface is user-facing, ask the user.
 
 ## Documentation
 

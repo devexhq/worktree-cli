@@ -12,6 +12,8 @@ from collections.abc import Callable
 from pathlib import Path
 from types import FrameType, TracebackType
 
+LockWaitNotifier = Callable[[Path, str | None, float], None]
+
 # Optional imports based on platform
 if sys.platform != "win32":
     import fcntl
@@ -38,10 +40,10 @@ class LockTimeoutError(RuntimeError):
 def _cleanup_registered_locks() -> None:
     """Close and unlock all active file descriptors registered in this process."""
     with _REGISTRY_LOCK:
-        for fd in list(_FD_REGISTRY.values()):
+        for file_descriptor in list(_FD_REGISTRY.values()):
             try:
-                _unlock_fd(fd)
-                os.close(fd)
+                _unlock_file_descriptor(file_descriptor)
+                os.close(file_descriptor)
             except Exception:
                 pass
         _LOCK_REGISTRY.clear()
@@ -70,48 +72,48 @@ def _ensure_signal_handlers() -> None:
         _signal_handlers_installed = True
 
 
-def _try_flock_posix(fd: int) -> bool:
+def _try_flock_posix(file_descriptor: int) -> bool:
     """Attempt non-blocking flock acquisition on POSIX systems."""
     if fcntl is None:
         return False
     try:
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl.flock(file_descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
         return True
     except (BlockingIOError, OSError, PermissionError):
         return False
 
 
-def _try_lock_windows(fd: int) -> bool:
+def _try_lock_windows(file_descriptor: int) -> bool:
     """Attempt non-blocking byte lock on Windows systems."""
     if msvcrt is None:
         return False
     try:
-        os.lseek(fd, 0, os.SEEK_SET)
-        msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+        os.lseek(file_descriptor, 0, os.SEEK_SET)
+        msvcrt.locking(file_descriptor, msvcrt.LK_NBLCK, 1)
         return True
     except (BlockingIOError, OSError, PermissionError):
         return False
 
 
-def _try_acquire_fd_lock(fd: int) -> bool:
+def _try_acquire_file_descriptor_lock(file_descriptor: int) -> bool:
     """Attempt non-blocking platform-specific file lock."""
     if sys.platform != "win32":
-        return _try_flock_posix(fd)
-    return _try_lock_windows(fd)
+        return _try_flock_posix(file_descriptor)
+    return _try_lock_windows(file_descriptor)
 
 
-def _unlock_fd(fd: int) -> None:
-    """Release platform-specific file lock on fd."""
+def _unlock_file_descriptor(file_descriptor: int) -> None:
+    """Release platform-specific file lock on file_descriptor."""
     if sys.platform != "win32":
         if fcntl is not None:
             try:
-                fcntl.flock(fd, fcntl.LOCK_UN)
+                fcntl.flock(file_descriptor, fcntl.LOCK_UN)
             except Exception:
                 pass
     elif msvcrt is not None:
         try:
-            os.lseek(fd, 0, os.SEEK_SET)
-            msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+            os.lseek(file_descriptor, 0, os.SEEK_SET)
+            msvcrt.locking(file_descriptor, msvcrt.LK_UNLCK, 1)
         except Exception:
             pass
 
@@ -127,14 +129,14 @@ def _read_holder_pid(lock_path: Path) -> str | None:
         return None
 
 
-def _write_holder_pid(fd: int) -> None:
+def _write_holder_pid(file_descriptor: int) -> None:
     """Write current process PID into the lock file and flush."""
     try:
-        os.lseek(fd, 0, os.SEEK_SET)
-        os.ftruncate(fd, 0)
+        os.lseek(file_descriptor, 0, os.SEEK_SET)
+        os.ftruncate(file_descriptor, 0)
         pid_payload = f"{os.getpid()}\n".encode()
-        os.write(fd, pid_payload)
-        os.fsync(fd)
+        os.write(file_descriptor, pid_payload)
+        os.fsync(file_descriptor)
     except Exception:
         pass
 
@@ -164,8 +166,28 @@ def resolve_lock_file_path(root_dir: Path) -> Path:
     return canonical_root / ".worktree" / ".lock"
 
 
+_default_on_wait: LockWaitNotifier | None = None
+
+
 class WorkspaceLock:
     """Cross-process advisory file lock context manager for .worktree/."""
+
+    @classmethod
+    def set_default_on_wait(cls, callback: LockWaitNotifier | None) -> None:
+        """Configure process-level default wait callback for lock contention."""
+        global _default_on_wait
+        _default_on_wait = callback
+
+    @classmethod
+    def reset_default_on_wait(cls) -> None:
+        """Reset process-level default wait callback to None."""
+        global _default_on_wait
+        _default_on_wait = None
+
+    @classmethod
+    def get_default_on_wait(cls) -> LockWaitNotifier | None:
+        """Return currently configured process-level default wait callback."""
+        return _default_on_wait
 
     def __init__(
         self,
@@ -182,8 +204,8 @@ class WorkspaceLock:
         """
         self.lock_path = resolve_lock_file_path(root_dir)
         self.timeout_seconds = max(0.1, float(timeout_seconds))
-        self.on_wait = on_wait
-        self._fd: int | None = None
+        self.on_wait = on_wait if on_wait is not None else _default_on_wait
+        self._file_descriptor: int | None = None
         self._is_nested: bool = False
 
     def _open_lock_file(self) -> int:
@@ -191,14 +213,14 @@ class WorkspaceLock:
         self.lock_path.parent.mkdir(parents=True, exist_ok=True)
         return os.open(str(self.lock_path), os.O_RDWR | os.O_CREAT, 0o644)
 
-    def _poll_lock(self, fd: int) -> bool:
+    def _poll_lock(self, file_descriptor: int) -> bool:
         """Poll for lock acquisition up to timeout_seconds."""
         start_time = time.monotonic()
         announced = False
 
         while True:
-            if _try_acquire_fd_lock(fd):
-                _write_holder_pid(fd)
+            if _try_acquire_file_descriptor_lock(file_descriptor):
+                _write_holder_pid(file_descriptor)
                 return True
 
             holder_pid = _read_holder_pid(self.lock_path)
@@ -218,24 +240,24 @@ class WorkspaceLock:
             depth = _LOCK_REGISTRY.get(self.lock_path, 0)
             if depth > 0:
                 _LOCK_REGISTRY[self.lock_path] = depth + 1
-                self._fd = _FD_REGISTRY.get(self.lock_path)
+                self._file_descriptor = _FD_REGISTRY.get(self.lock_path)
                 self._is_nested = True
                 return self
 
-        fd = self._open_lock_file()
+        file_descriptor = self._open_lock_file()
         try:
-            self._poll_lock(fd)
+            self._poll_lock(file_descriptor)
         except Exception:
             try:
-                os.close(fd)
+                os.close(file_descriptor)
             except Exception:
                 pass
             raise
 
         with _REGISTRY_LOCK:
             _LOCK_REGISTRY[self.lock_path] = 1
-            _FD_REGISTRY[self.lock_path] = fd
-            self._fd = fd
+            _FD_REGISTRY[self.lock_path] = file_descriptor
+            self._file_descriptor = file_descriptor
             self._is_nested = False
 
         return self
@@ -249,17 +271,17 @@ class WorkspaceLock:
                 return
 
             _LOCK_REGISTRY.pop(self.lock_path, None)
-            fd = _FD_REGISTRY.pop(self.lock_path, None)
+            file_descriptor = _FD_REGISTRY.pop(self.lock_path, None)
 
-        if fd is not None:
+        if file_descriptor is not None:
             try:
-                _unlock_fd(fd)
+                _unlock_file_descriptor(file_descriptor)
             finally:
                 try:
-                    os.close(fd)
+                    os.close(file_descriptor)
                 except Exception:
                     pass
-        self._fd = None
+        self._file_descriptor = None
 
     def __enter__(self) -> WorkspaceLock:
         """Context manager entry point acquiring workspace lock."""

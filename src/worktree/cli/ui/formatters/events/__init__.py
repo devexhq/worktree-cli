@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from worktree.cli.ui.events import (
     ErrorPanelEvent,
+    LockWaitEvent,
     LoopLifecycleEvent,
     MessageEvent,
     RunSuccessEvent,
@@ -18,6 +19,7 @@ from worktree.cli.ui.events import (
 from worktree.cli.ui.formatters.common import DispatcherProtocol
 
 from .error_panel import ErrorPanelFormatter
+from .lock_wait import LockWaitFormatter
 from .loop import LoopLifecycleFormatter
 from .message import MessageFormatter
 from .run_success import RunSuccessFormatter
@@ -31,6 +33,7 @@ from .warning import WarningFormatter
 def register_event_formatters(dispatcher: DispatcherProtocol) -> None:
     """Register all UI event formatters on the provided dispatcher."""
     dispatcher.register(ErrorPanelEvent, ErrorPanelFormatter())
+    dispatcher.register(LockWaitEvent, LockWaitFormatter())
     dispatcher.register(WarningEvent, WarningFormatter())
     dispatcher.register(MessageEvent, MessageFormatter())
     dispatcher.register(RunSuccessEvent, RunSuccessFormatter())
@@ -43,6 +46,7 @@ def register_event_formatters(dispatcher: DispatcherProtocol) -> None:
 
 __all__ = [
     "ErrorPanelFormatter",
+    "LockWaitFormatter",
     "LoopLifecycleFormatter",
     "MessageFormatter",
     "RunSuccessFormatter",

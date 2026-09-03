@@ -3,6 +3,7 @@
 from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
 from worktree.cli.ui.events import (
     ErrorPanelEvent,
+    LockWaitEvent,
     LoopLifecycleEvent,
     MessageEvent,
     RunSuccessEvent,
@@ -16,6 +17,7 @@ from worktree.cli.ui.events import (
 
 __all__ = [
     "ErrorPanelEvent",
+    "LockWaitEvent",
     "LoopLifecycleEvent",
     "MessageEvent",
     "RunSuccessEvent",

@@ -9,7 +9,7 @@ from typer.core import TyperGroup
 
 from worktree.cli.catalog.app import catalog_app
 from worktree.cli.config.app import config_app
-from worktree.cli.context import CliContext
+from worktree.cli.context import CliContext, default_lock_wait_notifier
 from worktree.cli.diff.app import register_diff_command
 from worktree.cli.history.app import history_app
 from worktree.cli.init.app import init_app
@@ -19,7 +19,7 @@ from worktree.cli.sandbox.app import sandbox_app
 from worktree.cli.status.app import status_app
 from worktree.cli.ui.dispatcher import ui_dispatcher
 from worktree.cli.ui.events import ErrorPanelEvent, MessageEvent, WelcomeBannerEvent
-from worktree.common.lock import LockTimeoutError
+from worktree.common.lock import LockTimeoutError, WorkspaceLock
 from worktree.common.version import get_version
 from worktree.core.config import ConfigLoadError, ConfigLoadResult, ConfigLoadStatus
 from worktree.core.config.loader import resolve_config_path
@@ -106,6 +106,9 @@ def main(
     ctx.ensure_object(dict)
     ctx.obj["verbose"] = verbose
     ctx.obj["path"] = path
+
+    # Initialize default lock wait notifier for cross-process concurrency feedback
+    WorkspaceLock.set_default_on_wait(default_lock_wait_notifier)
 
     # 1. Handle base commands
     if ctx.invoked_subcommand is None:

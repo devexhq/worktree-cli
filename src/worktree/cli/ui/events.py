@@ -25,6 +25,16 @@ class WarningEvent(BaseModel):
     message: str
 
 
+class LockWaitEvent(BaseModel):
+    """UI event representing waiting on an advisory workspace lock."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    lock_path: str
+    holder_pid: str | None = None
+    timeout_seconds: float
+
+
 class MessageEvent(BaseModel):
     """UI event representing a general status notice or text line."""
 

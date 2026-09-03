@@ -13,6 +13,7 @@ from worktree.cli.run.observer import DispatcherRunObserver, resolve_cli_observe
 from worktree.cli.ui.dispatcher import UiDispatcher
 from worktree.cli.ui.events import (
     ErrorPanelEvent,
+    LockWaitEvent,
     LoopLifecycleEvent,
     MessageEvent,
     RunSuccessEvent,
@@ -79,6 +80,44 @@ def test_warning_event_json(capsys: pytest.CaptureFixture[str]) -> None:
     assert parsed == {
         "event_type": "WarningEvent",
         "payload": {"message": "Something non-fatal occurred."},
+    }
+
+
+def test_lock_wait_event_terminal(dispatcher_with_buf: tuple[UiDispatcher, io.StringIO]) -> None:
+    dispatcher, buf = dispatcher_with_buf
+    event1 = LockWaitEvent(lock_path="/path/to/.worktree/.lock", holder_pid="12345", timeout_seconds=30.0)
+    dispatcher.dispatch(event1, output_format="terminal")
+    out1 = buf.getvalue()
+    assert "Lock Held" in out1
+    assert "PID: 12345" in out1
+    assert "Waiting for lock release on '.lock'" in out1
+    assert "30.0s" in out1
+
+    # Without holder_pid
+    buf.seek(0)
+    buf.truncate(0)
+    event2 = LockWaitEvent(lock_path="/path/to/.worktree/.lock", holder_pid=None, timeout_seconds=15.0)
+    dispatcher.dispatch(event2, output_format="terminal")
+    out2 = buf.getvalue()
+    assert "Lock Held" in out2
+    assert "PID:" not in out2
+    assert "15.0s" in out2
+
+
+def test_lock_wait_event_json(capsys: pytest.CaptureFixture[str]) -> None:
+    dispatcher = UiDispatcher()
+    register_ui_formatters(dispatcher)
+    event = LockWaitEvent(lock_path="/path/to/.worktree/.lock", holder_pid="999", timeout_seconds=30.0)
+    dispatcher.dispatch(event, output_format="json")
+    captured = capsys.readouterr()
+    parsed = json.loads(captured.out.strip())
+    assert parsed == {
+        "event_type": "LockWaitEvent",
+        "payload": {
+            "lock_path": "/path/to/.worktree/.lock",
+            "holder_pid": "999",
+            "timeout_seconds": 30.0,
+        },
     }
 
 

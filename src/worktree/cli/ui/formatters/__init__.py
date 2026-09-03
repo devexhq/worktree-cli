@@ -30,6 +30,7 @@ from worktree.cli.ui.formatters.diff import (
 )
 from worktree.cli.ui.formatters.events import (
     ErrorPanelFormatter,
+    LockWaitFormatter,
     LoopLifecycleFormatter,
     MessageFormatter,
     RunSuccessFormatter,
@@ -101,6 +102,7 @@ __all__ = [
     "HistoryListFormatter",
     "HistoryShowFormatter",
     "InitOutcomeFormatter",
+    "LockWaitFormatter",
     "LoopLifecycleFormatter",
     "MessageFormatter",
     "PrunedItemFormatter",

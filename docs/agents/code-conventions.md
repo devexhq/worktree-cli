@@ -110,3 +110,15 @@ Operations that can fail return a Pydantic result object subclassing `BaseResult
 - Docstrings follow the Google convention (enforced by Ruff `D` rules).
 - Use absolute imports (`worktree.*`) across packages. Relative imports are allowed only within the same directory (`from . import ...`).
 - Use `__all__` in package `__init__.py` files when re-exporting internal symbols into a public subpackage surface.
+- **Top-level imports**: Always place imports at the top of the module across both production code and test suites. Do **not** use inline imports inside functions, methods, or test cases unless strictly necessary to break circular dependencies or avoid expensive eager initialization (any scoped inline import must carry a justifying comment).
+
+---
+
+## Backwards Compatibility
+
+- Maintain backwards compatibility **only** for surfaces users interact with directly:
+  - CLI commands, subcommands, arguments, and flags (e.g. renaming a sub-command).
+  - Configuration files and blueprint YAML definitions (e.g. keys or values in `config.json`).
+  - Stable machine-readable CLI output formats (e.g. JSON output event envelopes).
+- Do **not** preserve backwards compatibility aliases, compatibility properties, or shim layers for internal code (`common/`, `core/`, or internal `cli/` modules) when refactoring or renaming symbols (e.g., do not keep `_unlock_fd` when renaming to `_unlock_file_descriptor`, or property aliases like `_fd`). Refactor internal callers and tests directly.
+- **When in doubt**: Ask the user before introducing compatibility layers or deprecation shims for ambiguous boundaries.
