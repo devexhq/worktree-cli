@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from worktree.common.utils import RichOutput
 from worktree.core.blueprint import (
     Blueprint,
     BlueprintKind,
@@ -14,10 +13,7 @@ from worktree.core.blueprint import (
     BlueprintRunResult,
     BlueprintValidationError,
 )
-from worktree.core.blueprint.renderers import (
-    BlueprintRenderer,
-    render_blueprint_run_success,
-)
+from worktree.core.blueprint.renderers import BlueprintRenderer
 from worktree.core.catalog import Catalog
 from worktree.core.db import CatalogRepository, RunRecord, RunsRepository, RunStatus
 from worktree.core.engine.engine import Engine
@@ -26,10 +22,9 @@ from worktree.core.engine.models import RunRequest
 from worktree.core.engine.services.reconcile import reconcile_stale_runs
 from worktree.core.inputs.services.resolve import format_input_error_message
 from worktree.core.runtime import (
-    CliFailurePrompter,
     FailurePrompter,
+    RunObserver,
     RunOutcome,
-    resolve_run_observer,
 )
 
 
@@ -41,7 +36,6 @@ class BlueprintRunService:
     path: Path
     runs_db: RunsRepository
     catalog_db: CatalogRepository
-    output: RichOutput = field(default_factory=RichOutput)
     kind: BlueprintKind | None = None
     no_sandbox: bool = False
     keep: bool = False
@@ -50,11 +44,9 @@ class BlueprintRunService:
     cli_args: list[str] | None = None
     non_interactive: bool = False
     auto_apply: bool = False
-    renderer: BlueprintRenderer = field(init=False)
+    observer: RunObserver | None = None
+    failure_prompter: FailurePrompter | None = None
     warnings: list[str] = field(default_factory=list)
-
-    def __post_init__(self) -> None:
-        self.renderer = BlueprintRenderer(self.kind or BlueprintKind.TASK)
 
     @property
     def _kind_label(self) -> str:
@@ -64,7 +56,7 @@ class BlueprintRunService:
         """Run the full execution pipeline and return the outcome."""
         reconciliation_result = reconcile_stale_runs(self.runs_db, path=self.path)
         if reconciliation_result.warning:
-            self.output.add_warning(reconciliation_result.warning)
+            self.warnings.append(reconciliation_result.warning)
 
         catalog = Catalog(path=self.path, db=self.catalog_db)
         blueprint, fail_outcome = self._load_blueprint(catalog)
@@ -73,28 +65,22 @@ class BlueprintRunService:
 
         if self.kind is None:
             self.kind = blueprint.kind
-            self.renderer = BlueprintRenderer(self.kind)
-
-        effective_non_interactive, prompter = self._resolve_prompter()
-        self.output.add_line(f"Running {self._kind_label} '{self.name}'...")
-        observer = resolve_run_observer(self.output, non_interactive=effective_non_interactive)
 
         try:
-            with observer:
-                run_outcome = Engine(self.path, db=self.runs_db, catalog=catalog).run(
-                    blueprint,
-                    RunRequest(
-                        cli_args=self.cli_args,
-                        use_sandbox=not self.no_sandbox,
-                        keep=self.keep,
-                        agent=self.agent,
-                        session_id=self.session_id,
-                        observer=observer,
-                        failure_prompter=prompter,
-                        non_interactive=effective_non_interactive,
-                        auto_apply=self.auto_apply,
-                    ),
-                )
+            run_outcome = Engine(self.path, db=self.runs_db, catalog=catalog).run(
+                blueprint,
+                RunRequest(
+                    cli_args=self.cli_args,
+                    use_sandbox=not self.no_sandbox,
+                    keep=self.keep,
+                    agent=self.agent,
+                    session_id=self.session_id,
+                    observer=self.observer,
+                    failure_prompter=self.failure_prompter,
+                    non_interactive=self.non_interactive,
+                    auto_apply=self.auto_apply,
+                ),
+            )
         except EngineInputError as exc:
             return self._fail(
                 format_input_error_message(
@@ -107,27 +93,23 @@ class BlueprintRunService:
         except EngineRuntimeError as exc:
             return self._fail(str(exc))
 
-        for warning in run_outcome.warnings:
-            self.output.add_line(warning)
-
         return self._finalize(run_outcome)
 
     def _fail(self, message: str) -> BlueprintRunResult:
-        panel_title = f"{self._kind_label.capitalize()} Run Failed"
-        self.output.add_error_panel(panel_title, message)
         return BlueprintRunResult(
             run_record=None,
             errors=[message],
-            output_items=list(self.output._items),
+            warnings=self.warnings,
         )
 
     def _load_blueprint(self, catalog: Catalog) -> tuple[Blueprint | None, BlueprintRunResult | None]:
+        renderer = BlueprintRenderer(self.kind or BlueprintKind.TASK)
         try:
             blueprint = Blueprint.load(self.name, catalog=catalog)
         except (BlueprintNotFoundError, BlueprintLoadError) as exc:
-            return None, self._fail(self.renderer.render_resolve_failure([str(exc)]))
+            return None, self._fail(renderer.render_resolve_failure([str(exc)]))
         except BlueprintValidationError as exc:
-            return None, self._fail(self.renderer.render_validate_failure([str(exc)]))
+            return None, self._fail(renderer.render_validate_failure([str(exc)]))
 
         if self.kind is not None and blueprint.kind is not self.kind:
             msg = (
@@ -137,15 +119,6 @@ class BlueprintRunService:
             return None, self._fail(msg)
 
         return blueprint, None
-
-    def _resolve_prompter(self) -> tuple[bool, FailurePrompter | None]:
-        if self.non_interactive:
-            return True, None
-        prompter_kind = "workflow" if self.kind == BlueprintKind.WORKFLOW else "task"
-        prompter = CliFailurePrompter(self.output, kind=prompter_kind)
-        if not prompter.is_interactive:
-            return True, None
-        return False, prompter
 
     def _load_record(self, session_id: str) -> RunRecord | None:
         try:
@@ -172,9 +145,6 @@ class BlueprintRunService:
             error_message=error,
         )
 
-    def _render_success(self, final_record: RunRecord) -> None:
-        render_blueprint_run_success(final_record, self.kind, output=self.output)
-
     def _finalize(self, run_outcome: RunOutcome) -> BlueprintRunResult:
         sid = run_outcome.session_id or ""
         self.warnings.extend(run_outcome.warnings)
@@ -186,38 +156,8 @@ class BlueprintRunService:
             primary_error,
         )
 
-        if run_outcome.ok:
-            self._render_success(final_record)
-            return BlueprintRunResult(
-                run_record=final_record,
-                warnings=self.warnings,
-                output_items=list(self.output._items),
-            )
-
-        if run_outcome.status == RunStatus.PAUSED:
-            msg = primary_error or f"{self._kind_label.capitalize()} paused; checkpoint saved."
-            self.output.add_line(msg)
-            return BlueprintRunResult(
-                run_record=final_record,
-                warnings=self.warnings,
-                output_items=list(self.output._items),
-            )
-
-        if run_outcome.status == RunStatus.CANCELLED:
-            msg = primary_error or "Cancelled by user."
-            self.output.add_error_panel(f"{self._kind_label.capitalize()} Run Cancelled", msg)
-            return BlueprintRunResult(
-                run_record=final_record,
-                errors=[msg],
-                warnings=self.warnings,
-                output_items=list(self.output._items),
-            )
-
-        msg = self.renderer.render(run_outcome)
-        self.output.add_error_panel(f"{self._kind_label.capitalize()} Run Failed", msg)
         return BlueprintRunResult(
             run_record=final_record,
-            errors=[msg],
+            errors=list(run_outcome.errors),
             warnings=self.warnings,
-            output_items=list(self.output._items),
         )

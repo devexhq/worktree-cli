@@ -96,3 +96,22 @@ def test_dispatcher_unregistered_type_raises() -> None:
     dispatcher = UiDispatcher()
     with pytest.raises(ValueError, match="No formatter registered for type: DummyItem"):
         dispatcher.dispatch(DummyItem(name="unregistered", count=0))
+
+
+def test_dispatcher_set_output_format(capsys: pytest.CaptureFixture[str]) -> None:
+    dispatcher = UiDispatcher()
+    dispatcher.register(DummyItem, DummyItemFormatter())
+    assert dispatcher.output_format == "terminal"
+
+    dispatcher.set_output_format("json")
+    assert dispatcher.output_format == "json"
+
+    item = DummyItem(name="gear", count=1)
+    dispatcher.dispatch(item)  # Omitting output_format uses active format ("json")
+
+    captured = capsys.readouterr()
+    parsed = json.loads(captured.out.strip())
+    assert parsed == {
+        "event_type": "DummyItem",
+        "payload": {"name": "gear", "count": 1},
+    }

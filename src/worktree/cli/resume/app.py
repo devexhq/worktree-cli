@@ -5,11 +5,8 @@ from __future__ import annotations
 import typer
 
 from worktree.cli.context import CliContext
-from worktree.cli.run.formatters import register_run_formatters
 
 from .commands.root import resume_command
-
-register_run_formatters()
 
 resume_app = typer.Typer(
     name="resume",

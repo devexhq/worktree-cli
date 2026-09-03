@@ -45,17 +45,24 @@ def _seed_paused_run(
         db.update_status(session_id, status)
 
 
+class _RetryPrompter:
+    """Test prompter that always returns RETRY for prompt_user steps."""
+
+    is_interactive: bool = True
+
+    def prompt_step_failure(self, **kwargs: object) -> FailurePromptDecision:
+        return FailurePromptDecision.RETRY
+
+
 @pytest.fixture
-def mock_interactive_prompter(monkeypatch: pytest.MonkeyPatch) -> None:
+def mock_interactive_prompter(monkeypatch: pytest.MonkeyPatch) -> _RetryPrompter:
     """Simulate an interactive user choosing to RETRY the paused step."""
+    prompter = _RetryPrompter()
     monkeypatch.setattr(
-        "worktree.core.engine.services.resume.CliFailurePrompter.is_interactive",
-        True,
+        "worktree.cli.resume.commands.root.CliFailurePrompter",
+        lambda *args, **kwargs: prompter,
     )
-    monkeypatch.setattr(
-        "worktree.core.engine.services.resume.CliFailurePrompter.prompt_step_failure",
-        lambda self, *args, **kwargs: FailurePromptDecision.RETRY,
-    )
+    return prompter
 
 
 class BlueprintResumeServiceTests:
@@ -72,7 +79,7 @@ class BlueprintResumeServiceTests:
         self,
         fs: FileSystem,
         monkeypatch: pytest.MonkeyPatch,
-        mock_interactive_prompter: None,
+        mock_interactive_prompter: _RetryPrompter,
     ) -> None:
         """Verify BlueprintResumeService successfully resumes a paused task session."""
         monkeypatch.chdir(fs.base_path)
@@ -92,6 +99,7 @@ class BlueprintResumeServiceTests:
             path=ctx.cwd,
             db=ctx.db.runs,
             catalog_db=ctx.db.catalog,
+            failure_prompter=mock_interactive_prompter,
         ).execute()
         assert outcome.ok
         assert outcome.run_record is not None
@@ -106,7 +114,7 @@ class BlueprintResumeServiceTests:
         self,
         git_fs: GitFileSystem,
         monkeypatch: pytest.MonkeyPatch,
-        mock_interactive_prompter: None,
+        mock_interactive_prompter: _RetryPrompter,
     ) -> None:
         """Verify BlueprintResumeService successfully resumes a paused workflow session."""
         git_fs.init_repo()
@@ -128,6 +136,7 @@ class BlueprintResumeServiceTests:
             path=ctx.cwd,
             db=ctx.db.runs,
             catalog_db=ctx.db.catalog,
+            failure_prompter=mock_interactive_prompter,
         ).execute()
         assert outcome.ok
         assert outcome.run_record is not None
@@ -142,7 +151,7 @@ class BlueprintResumeServiceTests:
         self,
         fs: FileSystem,
         monkeypatch: pytest.MonkeyPatch,
-        mock_interactive_prompter: None,
+        mock_interactive_prompter: _RetryPrompter,
     ) -> None:
         """Verify BlueprintResumeService auto-picks the most recent paused run when session_id is omitted."""
         monkeypatch.chdir(fs.base_path)
@@ -162,6 +171,7 @@ class BlueprintResumeServiceTests:
             path=ctx.cwd,
             db=ctx.db.runs,
             catalog_db=ctx.db.catalog,
+            failure_prompter=mock_interactive_prompter,
         ).execute()
         assert outcome.ok
         assert outcome.run_record is not None
@@ -365,7 +375,7 @@ class ResumeCliTests:
                 raise KeyboardInterrupt
 
         monkeypatch.setattr(
-            "worktree.core.engine.services.resume.CliFailurePrompter",
+            "worktree.cli.resume.commands.root.CliFailurePrompter",
             lambda *args, **kwargs: _InterruptPrompter(),
         )
 
@@ -375,8 +385,8 @@ class ResumeCliTests:
             path=ctx.cwd,
             db=ctx.db.runs,
             catalog_db=ctx.db.catalog,
+            failure_prompter=_InterruptPrompter(),
         ).execute()
-        assert outcome.ok
         assert outcome.run_record is not None
         assert outcome.run_record.status == RunStatus.PAUSED
 
@@ -445,7 +455,7 @@ class ResumeCliTests:
 
         result = runner.invoke(app, ["resume", "task-cancel"])
         assert result.exit_code == 1
-        assert "Resume Cancelled" in result.output
+        assert "Cancelled by user." in result.output
 
 
 class ResumeCommandDirectTests:

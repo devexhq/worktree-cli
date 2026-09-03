@@ -3,12 +3,64 @@
 from __future__ import annotations
 
 from worktree.cli.context import CliContext
-from worktree.cli.run.formatters import register_run_formatters
-from worktree.cli.ui.dispatcher import ui_dispatcher
-from worktree.core.blueprint.models import BlueprintRunResult
+from worktree.cli.run.commands.root import _first_error
+from worktree.cli.run.observer import resolve_cli_observer
+from worktree.cli.ui import (
+    ErrorPanelEvent,
+    MessageEvent,
+    RunSuccessEvent,
+    WarningEvent,
+    ui_dispatcher,
+)
+from worktree.common.utils import RichOutput
+from worktree.core.blueprint.models import BlueprintKind, BlueprintRunResult
+from worktree.core.db import RunRecord, RunStatus
 from worktree.core.engine import BlueprintResumeService
+from worktree.core.runtime import CliFailurePrompter
 
-register_run_formatters()
+
+def _emit_resume_start_notice(context: CliContext, session_id: str | None) -> None:
+    if session_id:
+        ui_dispatcher.dispatch(MessageEvent(message=f"Resuming session '{session_id}'..."))
+        return
+    latest = context.db.runs.get_latest_paused()
+    if latest is not None:
+        ui_dispatcher.dispatch(
+            MessageEvent(message=f"Resuming latest paused session '{latest.session_id}' ({latest.blueprint_name})...")
+        )
+
+
+def _resume_failure_msg(result: BlueprintRunResult, session_id: str | None) -> str:
+    """Return the final error message for a failed resume."""
+    if result.errors:
+        return "\n\n".join(result.errors)
+    return f"Cannot resume session '{session_id}'." if session_id else "Resume failed."
+
+
+def _dispatch_resume_outcome(
+    result: BlueprintRunResult,
+    record: RunRecord | None,
+    kind_title: str,
+    session_id: str | None,
+) -> None:
+    """Dispatch the appropriate UI event for a completed resume operation."""
+    if result.ok and record is not None:
+        ui_dispatcher.dispatch(
+            RunSuccessEvent(
+                session_id=record.session_id,
+                blueprint_name=record.blueprint_name,
+                kind=record.kind or BlueprintKind.TASK,
+                status=record.status,
+            )
+        )
+    elif record is not None and record.status == RunStatus.PAUSED:
+        ui_dispatcher.dispatch(MessageEvent(message=_first_error(result, f"{kind_title} paused; checkpoint saved.")))
+    elif record is not None and record.status == RunStatus.CANCELLED:
+        ui_dispatcher.dispatch(
+            ErrorPanelEvent(title="Resume Cancelled", message=_first_error(result, "Cancelled by user."))
+        )
+    else:
+        ui_dispatcher.dispatch(ErrorPanelEvent(title="Resume Failed", message=_resume_failure_msg(result, session_id)))
 
 
 def resume_command(
@@ -19,12 +71,30 @@ def resume_command(
     output_format: str = "terminal",
 ) -> BlueprintRunResult:
     """Resume a paused task or workflow blueprint execution session."""
-    result = BlueprintResumeService(
-        path=context.cwd,
-        db=context.db.runs,
-        catalog_db=context.db.catalog,
-        session_id=session_id,
+    ui_dispatcher.set_output_format(output_format)
+    _emit_resume_start_notice(context, session_id)
+
+    observer = resolve_cli_observer(
+        ui_dispatcher,
         non_interactive=non_interactive,
-    ).execute()
-    ui_dispatcher.dispatch(result, output_format=output_format)
+        output_format=output_format,
+    )
+    with observer:
+        result = BlueprintResumeService(
+            path=context.cwd,
+            db=context.db.runs,
+            catalog_db=context.db.catalog,
+            session_id=session_id,
+            non_interactive=non_interactive,
+            observer=observer,
+            failure_prompter=CliFailurePrompter(RichOutput(ui_dispatcher._console)),
+        ).execute()
+
+    for warning in result.warnings:
+        ui_dispatcher.dispatch(WarningEvent(message=warning))
+
+    record = result.run_record
+    effective_kind = record.kind if record is not None and record.kind is not None else BlueprintKind.TASK
+    kind_title = effective_kind.value.capitalize()
+    _dispatch_resume_outcome(result, record, kind_title, session_id)
     return result
