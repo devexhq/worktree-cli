@@ -9,6 +9,9 @@ from worktree.core.db.facade import WorktreeDb
 from .commands.config_set import config_set_command
 from .commands.config_show import config_show_command
 from .commands.config_validate import config_validate_command
+from .formatters import register_config_formatters
+
+register_config_formatters()
 
 config_app = typer.Typer(
     name="config",
@@ -29,10 +32,17 @@ def _get_or_build_context(ctx: typer.Context) -> CliContext:
 
 
 @config_app.command("show")
-def config_show(ctx: typer.Context):
+def config_show(
+    ctx: typer.Context,
+    format: str = typer.Option(
+        "terminal",
+        "--format",
+        help="Presentation format ('terminal' or 'json').",
+    ),
+):
     """Display the full normalized effective configuration as JSON."""
     context = _get_or_build_context(ctx)
-    outcome = config_show_command(context)
+    outcome = config_show_command(context, output_format=format)
     context.output.print()
     if not outcome.ok:
         raise typer.Exit(code=1)
@@ -59,10 +69,17 @@ def config_set(
 
 
 @config_app.command("validate")
-def config_validate(ctx: typer.Context):
+def config_validate(
+    ctx: typer.Context,
+    format: str = typer.Option(
+        "terminal",
+        "--format",
+        help="Presentation format ('terminal' or 'json').",
+    ),
+):
     """Validate .worktree/config.json against the V1 schema and semantic rules."""
     context = _get_or_build_context(ctx)
-    outcome = config_validate_command(context)
+    outcome = config_validate_command(context, output_format=format)
     context.output.print()
     if not outcome.ok:
         raise typer.Exit(code=1)

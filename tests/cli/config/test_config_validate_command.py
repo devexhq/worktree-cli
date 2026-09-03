@@ -268,6 +268,26 @@ class ConfigValidateCommandTests:
         assert not config_path.exists()
         _assert_failure_output(capsys.readouterr().out)
 
+    def test_validate_output_format_json(
+        self,
+        git_fs: GitFileSystem,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
+
+        ctx = make_cli_context(cwd=git_fs.base_path)
+        outcome = config_validate_command(ctx, output_format="json")
+        assert outcome.ok
+        out = capsys.readouterr().out
+        lines = [line for line in out.strip().split("\n") if line]
+        assert len(lines) == 1
+        payload = json.loads(lines[0])
+        assert payload["event_type"] == "ConfigValidationResult"
+        assert payload["payload"]["status"] == "valid"
+        assert payload["payload"]["config_path"].endswith("config.json")
+
 
 class ConfigValidateCliTests:
     """CLI wiring tests for `wt config validate`."""
@@ -285,6 +305,20 @@ class ConfigValidateCliTests:
             config_path=config_path,
             with_warnings=False,
         )
+
+    def test_validate_cli_json_format(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+        init = runner.invoke(app, ["init"])
+        assert init.exit_code == 0
+
+        result = runner.invoke(app, ["config", "validate", "--format", "json"])
+        assert result.exit_code == 0
+        lines = [line for line in result.stdout.strip().split("\n") if line]
+        assert len(lines) == 1
+        payload = json.loads(lines[0])
+        assert payload["event_type"] == "ConfigValidationResult"
+        assert payload["payload"]["status"] == "valid"
+        assert payload["payload"]["config_path"].endswith("config.json")
 
     def test_validate_with_warnings(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_fs.base_path)
@@ -349,3 +383,9 @@ class ConfigValidateCliTests:
         validate_cmd = config_cmd.get_command(None, "validate")
         assert validate_cmd is not None
         assert validate_cmd.help == "Validate .worktree/config.json against the V1 schema and semantic rules."
+        opts: set[str] = set()
+        for param in validate_cmd.params:
+            opts.update(param.opts)
+            secondary = getattr(param, "secondary_opts", None) or ()
+            opts.update(secondary)
+        assert "--format" in opts

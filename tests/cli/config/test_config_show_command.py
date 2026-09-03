@@ -89,6 +89,27 @@ class ConfigShowCommandTests:
         ctx.output.print()
         _assert_no_success_header(capsys.readouterr().out)
 
+    def test_show_output_format_json(
+        self,
+        git_fs: GitFileSystem,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
+
+        ctx = make_cli_context(cwd=git_fs.base_path)
+        outcome = config_show_command(ctx, output_format="json")
+        assert outcome.ok
+        out = capsys.readouterr().out
+        lines = [line for line in out.strip().split("\n") if line]
+        assert len(lines) == 1
+        payload = json.loads(lines[0])
+        assert payload["event_type"] == "ConfigLoadResult"
+        assert payload["payload"]["status"] == "ok"
+        assert payload["payload"]["config"]["version"] == 1
+        assert payload["payload"]["config"]["project"]["name"] == git_fs.base_path.name
+
 
 class ConfigShowCliTests:
     """CLI wiring tests for `wt config show`."""
@@ -109,6 +130,21 @@ class ConfigShowCliTests:
         assert "paths" in data
         assert "telemetry" in data
         assert data["agent"]["provider"] == "local"
+
+    def test_show_cli_json_format(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+        init = runner.invoke(app, ["init"])
+        assert init.exit_code == 0
+
+        result = runner.invoke(app, ["config", "show", "--format", "json"])
+        assert result.exit_code == 0
+        lines = [line for line in result.stdout.strip().split("\n") if line]
+        assert len(lines) == 1
+        payload = json.loads(lines[0])
+        assert payload["event_type"] == "ConfigLoadResult"
+        assert payload["payload"]["status"] == "ok"
+        assert payload["payload"]["config"]["version"] == 1
+        assert payload["payload"]["config"]["project"]["name"] == git_fs.base_path.name
 
     def test_show_missing_config(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_fs.base_path)
@@ -143,3 +179,12 @@ class ConfigShowCliTests:
         config_cmd = root_cmd.get_command(None, "config")
         assert config_cmd is not None
         assert "show" in config_cmd.list_commands(None)
+
+        show_cmd = config_cmd.get_command(None, "show")
+        assert show_cmd is not None
+        opts: set[str] = set()
+        for param in show_cmd.params:
+            opts.update(param.opts)
+            secondary = getattr(param, "secondary_opts", None) or ()
+            opts.update(secondary)
+        assert "--format" in opts
