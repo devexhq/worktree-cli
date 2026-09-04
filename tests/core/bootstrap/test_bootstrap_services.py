@@ -138,4 +138,9 @@ class BootstrapResultValidationTests:
 
     def test_bootstrap_result_rejects_non_bool_values(self) -> None:
         with pytest.raises(ValidationError):
-            BootstrapResult(root_path=Path("/tmp"), root_created="yes")
+            BootstrapResult.model_validate(
+                {
+                    "root_path": Path("/tmp"),
+                    "root_created": "yes",
+                }
+            )

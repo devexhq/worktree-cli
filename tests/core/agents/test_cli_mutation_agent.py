@@ -14,6 +14,7 @@ from worktree.core.agents.cli_mutation import (
     CliMutationOutcome,
     CliMutationRunFn,
     CliMutationRunRequest,
+    CliMutationRunStatus,
     build_mutation_prompt,
 )
 from worktree.core.agents.models import AgentFailurePayload
@@ -50,7 +51,7 @@ def _request(sandbox: Path, **kwargs: object) -> AgentRequest:
 def _fake_run(
     *,
     edits: dict[str, str] | None = None,
-    status: str = "finished",
+    status: CliMutationRunStatus = "finished",
     error_detail: str | None = None,
     result_text: str | None = "done",
 ):

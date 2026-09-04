@@ -18,14 +18,21 @@ Before executing commands or editing files, state:
     1. The specific directive/doc governing this action.
     2. The target scope (e.g. specific test package or module).
 
+When implementing a GitHub issue, **plan before writing code**: follow
+[docs/agents/planning.md](docs/agents/planning.md) to extract the issue's
+contract, ground it in the current tree, and enumerate every artifact (DTOs,
+services, facade methods, commands, subcommands, formatters, schemas, tests,
+docs) into a plan with code samples. Skip it only for a single-file change that
+adds no new surface.
+
 ## Essential commands
 
 ```bash
 uv sync --all-extras            # install dependencies with uv (or uv pip install -e .[dev])
-inv test                        # run tests (python -m pytest tests/ -q)
+inv test                        # run tests (python -m pytest -n auto tests/ -q)
 ruff check .                    # lint
 ruff format .                   # format
-basedpyright src                # typecheck package (errors must be 0)
+basedpyright src tests          # typecheck package and tests (errors must be 0)
 inv complexity --paths <changed-file1>,<changed-file2> --plain   # complexity gate for changed files
 ```
 
@@ -34,7 +41,7 @@ inv complexity --paths <changed-file1>,<changed-file2> --plain   # complexity ga
 Use `uv run inv test` during development. Prefer scoping to the test module/function during quick iterations. 
 Before committing, all of these must pass:
 `inv test -c` (coverage, **≥ 80%** via `fail_under` in `pyproject.toml`),
-`ruff format`, `ruff check`, `basedpyright src --level error`,
+`ruff format`, `ruff check`, `basedpyright src tests --level error`,
 `inv complexity --paths <changed-file1>,<changed-file2> --plain --failed` (no touched
 function may exceed complexity 10). Fix any failure before retrying the commit
 — do not commit while `inv complexity` is failing.
@@ -56,9 +63,42 @@ Lint/format config lives in `pyproject.toml` under `[tool.ruff]` (no separate
 
 `basedpyright` in this repo's config does **not** honor bare `# type: ignore`
 or `# type: ignore[code]`. Only `# pyright: ignore[reportRuleName]` suppresses
-anything — a bare `# type: ignore` on a real error is a silent no-op that
+anything: a bare `# type: ignore` on a real error is a silent no-op that
 looks acknowledged but isn't. See
 [ci-and-tooling.md](docs/agents/ci-and-tooling.md#type-checking).
+
+### `Any`
+
+`typeCheckingMode = "recommended"` means `reportAny` and `reportExplicitAny`
+surface every `Any` as a **warning**, so they never block `--level error`. They
+are still findings, not noise: triage each one you touch.
+
+`Any` in a parameter costs checking inside one function. `Any` in a **return
+type** disables checking at every call site, transitively, so `-> Any` is held
+to a much stricter standard and is effectively never acceptable on a public
+function. Prefer `object` when a value is only stored, compared, or passed
+through: `object` forces a narrow before use, `Any` forces nothing.
+
+Never reach for `Any` to work around an import boundary, a missing model, or a
+test seam, fix the cause. If `Any` is the only way to satisfy a layering rule,
+the class is in the wrong package. The four categories where `Any` is correct
+(Pydantic `mode="before"` validators, serialization payloads, values read from
+user documents, pass-through `**kwargs`) are listed in
+[code-conventions.md](docs/agents/code-conventions.md#type-annotations-and-any).
+Suppress only outside those four, and only with a reason.
+
+### `pyright: ignore`
+
+An ignore is not a type. `reportCallIssue`, `reportArgumentType`, and
+`reportIncompatibleVariableOverride` are real errors; silencing them to
+green `--level error` is how a defect stays. Fix the annotation, the
+fixture, or the override.
+
+The exceptions (intentional ill-typed test inputs, third-party stub
+conflicts, platform-gated imports) are listed in
+[code-conventions.md](docs/agents/code-conventions.md#type-checker-suppressions).
+Every ignore needs a reason naming which one applies. Never use
+`# type: ignore`; it is a no-op in this repo.
 
 ## Keeping user-facing docs in sync
 
@@ -144,6 +184,7 @@ the source is trust, and that only holds if the doc holds up.
 |-----|-------------|
 | [docs/agents/architecture.md](docs/agents/architecture.md) | Module layout, domain ownership, import boundaries, `.worktree/` layout (structure only) |
 | [docs/agents/code-conventions.md](docs/agents/code-conventions.md) | Python style **and file placement** (`models.py` vs `services/`), Result/Outcome, writes, console output |
+| [docs/agents/planning.md](docs/agents/planning.md) | Planning an issue before implementation (artifact inventory, code samples, plan template) |
 | [docs/agents/testing.md](docs/agents/testing.md) | Adding or running tests |
 | [docs/agents/schemas.md](docs/agents/schemas.md) | Entity shapes (exceptions, DTOs, facades, commands), config & blueprint schemas |
 | [docs/agents/glossary.md](docs/agents/glossary.md) | Disambiguating task / workflow / blueprint / step / run / session / sandbox / checkpoint |

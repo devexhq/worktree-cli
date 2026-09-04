@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -24,7 +25,7 @@ def _write_default_config(repo: Path) -> Path:
     return config_path
 
 
-def _read_config(config_path: Path) -> dict:
+def _read_config(config_path: Path) -> dict[str, Any]:
     return json.loads(config_path.read_text(encoding="utf-8"))
 
 
@@ -32,35 +33,35 @@ class SetNestedValueTests:
     """Pure dict mutation tests for set_nested_value."""
 
     def test_sets_top_level_key(self) -> None:
-        data: dict = {"version": 1}
+        data: dict[str, Any] = {"version": 1}
         set_nested_value(data, "version", "2")
         assert data == {"version": "2"}
 
     def test_sets_existing_nested_key(self) -> None:
-        data: dict = {"agent": {"model": "old", "provider": "local"}}
+        data: dict[str, Any] = {"agent": {"model": "old", "provider": "local"}}
         set_nested_value(data, "agent.model", "qwen2.5-coder")
         assert data["agent"]["model"] == "qwen2.5-coder"
         assert data["agent"]["provider"] == "local"
 
     def test_creates_missing_intermediate_dicts(self) -> None:
-        data: dict = {}
+        data: dict[str, Any] = {}
         set_nested_value(data, "custom.toolchain.timeout", "120")
         assert data == {"custom": {"toolchain": {"timeout": "120"}}}
 
     def test_type_collision_raises_and_preserves_dict(self) -> None:
-        data: dict = {"agents": {"ollama": "qwen2.5-coder"}}
+        data: dict[str, Any] = {"agents": {"ollama": "qwen2.5-coder"}}
         snapshot = json.loads(json.dumps(data))
         with pytest.raises(ValueError, match="already defined as a scalar value"):
             set_nested_value(data, "agents.ollama.port", "11434")
         assert data == snapshot
 
     def test_empty_path_raises(self) -> None:
-        data: dict = {}
+        data: dict[str, Any] = {}
         with pytest.raises(ValueError, match="non-empty"):
             set_nested_value(data, "", "x")
 
     def test_empty_segment_raises(self) -> None:
-        data: dict = {}
+        data: dict[str, Any] = {}
         with pytest.raises(ValueError, match="empty segment"):
             set_nested_value(data, "agent..model", "x")
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -14,7 +15,7 @@ from worktree.core.config.loader import clear_config_cache
 
 
 @pytest.fixture(autouse=True)
-def _reset_config_cache() -> None:
+def _reset_config_cache() -> Iterator[None]:
     """Reset the in-memory config cache and singletons between tests."""
     Filesystem.reset()
     Config.reset()

@@ -6,10 +6,15 @@ import json
 from pathlib import Path
 
 import pytest
-import typer
 from typer.testing import CliRunner
 
-from tests.helpers import GitFileSystem, make_cli_context
+from tests.helpers import (
+    GitFileSystem,
+    get_subcommand,
+    get_subgroup,
+    list_subcommands,
+    make_cli_context,
+)
 from worktree.cli import app
 from worktree.cli.config.commands.config_show import config_show_command
 
@@ -171,14 +176,12 @@ class ConfigShowCliTests:
             json.loads(result.stdout)
 
     def test_help_lists_config_show(self) -> None:
-        root_cmd = typer.main.get_command(app)
-        assert "config" in root_cmd.list_commands(None)
-        config_cmd = root_cmd.get_command(None, "config")
-        assert config_cmd is not None
-        assert "show" in config_cmd.list_commands(None)
+        root_group = get_subgroup(app)
+        assert "config" in list_subcommands(root_group)
+        config_group = get_subgroup(app, "config")
+        assert "show" in list_subcommands(config_group)
 
-        show_cmd = config_cmd.get_command(None, "show")
-        assert show_cmd is not None
+        show_cmd = get_subcommand(app, "config", "show")
         opts: set[str] = set()
         for param in show_cmd.params:
             opts.update(param.opts)

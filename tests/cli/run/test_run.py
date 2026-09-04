@@ -258,12 +258,15 @@ class RunCliTests:
             steps=[{"id": "pause-step", "run": "exit 1", "on_failure": "prompt_user"}],
         )
 
-        from worktree.core.runtime import FailurePromptDecision
+        from worktree.core.runtime import FailurePromptDecision, LoopPromptDecision
 
         class _InterruptPrompter:
             is_interactive: bool = True
 
             def prompt_step_failure(self, **kwargs: object) -> FailurePromptDecision:
+                raise KeyboardInterrupt
+
+            def prompt_loop_max_iterations(self, **kwargs: object) -> LoopPromptDecision:
                 raise KeyboardInterrupt
 
         monkeypatch.setattr(

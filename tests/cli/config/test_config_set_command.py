@@ -4,19 +4,19 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
-from typer.main import get_command
 from typer.testing import CliRunner
 
-from tests.helpers import GitFileSystem, make_cli_context
+from tests.helpers import GitFileSystem, get_subcommand, make_cli_context
 from worktree.cli import app
 from worktree.cli.config.commands.config_set import config_set_command
 
 runner = CliRunner()
 
 
-def _read_config(config_path: Path) -> dict:
+def _read_config(config_path: Path) -> dict[str, Any]:
     return json.loads(config_path.read_text(encoding="utf-8"))
 
 
@@ -158,7 +158,7 @@ class ConfigSetCliTests:
         result = runner.invoke(app, ["config", "set", "--help"])
         assert result.exit_code == 0
 
-        set_cmd = get_command(app).get_command(None, "config").get_command(None, "set")
+        set_cmd = get_subcommand(app, "config", "set")
         params = {p.name for p in set_cmd.params}
         assert "key" in params
         assert "value" in params

@@ -7,10 +7,17 @@ from unittest.mock import patch
 
 import pytest
 import typer
-from typer.main import get_command
 from typer.testing import CliRunner
 
-from tests.helpers import GitFileSystem, make_cli_context, render_rich, seed_sandbox
+from tests.helpers import (
+    GitFileSystem,
+    get_subcommand,
+    get_subgroup,
+    list_subcommands,
+    make_cli_context,
+    render_rich,
+    seed_sandbox,
+)
 from worktree.cli import app
 from worktree.cli.sandbox.commands.sandbox_delete import (
     _sandbox_delete_confirm_prompt as sandbox_delete_confirm_prompt,
@@ -359,17 +366,18 @@ class SandboxDeleteCliTests:
         result = runner.invoke(app, ["sandbox", "--help"])
         assert result.exit_code == 0
 
-        sandbox_cmd = get_command(app).get_command(None, "sandbox")
-        assert "delete" in sandbox_cmd.list_commands(None)
-        assert "create" in sandbox_cmd.list_commands(None)
-        assert "list" in sandbox_cmd.list_commands(None)
-        assert "show" in sandbox_cmd.list_commands(None)
+        sandbox_cmd = get_subgroup(app, "sandbox")
+        cmds = list_subcommands(sandbox_cmd)
+        assert "delete" in cmds
+        assert "create" in cmds
+        assert "list" in cmds
+        assert "show" in cmds
 
     def test_delete_help(self) -> None:
         result = runner.invoke(app, ["sandbox", "delete", "--help"])
         assert result.exit_code == 0
 
-        delete_cmd = get_command(app).get_command(None, "sandbox").get_command(None, "delete")
+        delete_cmd = get_subcommand(app, "sandbox", "delete")
         assert any(param.name == "sandbox_id" for param in delete_cmd.params)
         opts: set[str] = set()
         for param in delete_cmd.params:

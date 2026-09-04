@@ -56,7 +56,7 @@ class StepResolverTests:
     def test_resolve_uses_step_merges_on_failure_when_referencing_step_overrides(self, fs: FileSystem) -> None:
         fs.create_step_file(step_id="base", command="echo base", on_failure="continue")
 
-        step = StepDefinition(id="derived", uses="base", on_failure="abort")
+        step = StepDefinition(id="derived", uses="base", on_failure=FailureSpec(action=FailurePolicy.ABORT))
 
         resolved = resolve_step_definition(step, path=fs.base_path)
 

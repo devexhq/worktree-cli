@@ -10,7 +10,7 @@ from worktree.core.config.generator import (
     build_default_config,
 )
 from worktree.core.config.loader import parse_and_validate_config
-from worktree.core.config.models import WorktreeConfig
+from worktree.core.config.models import ProjectConfig, WorktreeConfig
 from worktree.core.config.serialize import as_json, serialize_config
 
 _TOP_LEVEL = (
@@ -69,7 +69,7 @@ class SerializeConfigTests:
         """WorktreeConfig factories fill omitted optional sections."""
         config = WorktreeConfig(
             version=1,
-            project={"name": "sparse", "initialized_at": None},
+            project=ProjectConfig(name="sparse", initialized_at=None),
         )
         data = serialize_config(config)
         assert data["paths"]["root_dir"] == ".worktree"

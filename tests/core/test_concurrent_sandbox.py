@@ -14,7 +14,7 @@ from worktree.core.sandbox import Sandbox
 def _worker_create_sandbox(
     repo_path: Path,
     name: str,
-    result_queue: multiprocessing.Queue,  # type: ignore[reportMissingTypeArgument]
+    result_queue: multiprocessing.Queue[dict[str, Any]],
 ) -> None:
     """Worker process that instantiates a repository/manager and creates a sandbox."""
     try:
@@ -39,7 +39,7 @@ def _worker_create_sandbox(
 def _worker_cleanup_sandbox(
     repo_path: Path,
     session_id: str,
-    result_queue: multiprocessing.Queue,  # type: ignore[reportMissingTypeArgument]
+    result_queue: multiprocessing.Queue[dict[str, Any]],
 ) -> None:
     """Worker process that cleans up a sandbox by session id."""
     try:
@@ -56,6 +56,32 @@ def _worker_cleanup_sandbox(
         result_queue.put({"ok": False, "errors": [str(exc)]})
 
 
+def _run_and_wait_processes(processes: list[Any], timeout: float = 30.0) -> None:
+    for p in processes:
+        p.start()
+    for p in processes:
+        p.join(timeout=timeout)
+        assert not p.is_alive(), "Process did not terminate within timeout"
+
+
+def _drain_queue(queue: Any, count: int, timeout: float = 10.0) -> list[dict[str, Any]]:
+    results: list[dict[str, Any]] = []
+    for _ in range(count):
+        res = queue.get(timeout=timeout)
+        assert res["ok"] is True, f"Worker failed: {res.get('errors')}"
+        results.append(res)
+    return results
+
+
+def _verify_cleaned(db: SandboxesRepository, paths: list[Path], session_ids: list[str]) -> None:
+    for p in paths:
+        assert not p.exists()
+    for sid in session_ids:
+        rec = db.get(sid)
+        assert rec is not None
+        assert rec.status == SandboxStatus.CLEANED
+
+
 class TestConcurrentSandboxOperations:
     """Integration tests verifying cross-process concurrency safety on sandboxes."""
 
@@ -67,30 +93,19 @@ class TestConcurrentSandboxOperations:
         result_queue = ctx.Queue()
 
         concurrency_count = 3
-        processes: list[multiprocessing.Process] = []
 
         # 1. Launch 3 concurrent sandbox creation processes
-        for i in range(concurrency_count):
-            p = ctx.Process(
+        processes = [
+            ctx.Process(
                 target=_worker_create_sandbox,
                 args=(git_fs.base_path, f"worker-{i}", result_queue),
             )
-            processes.append(p)
-            p.start()
-
-        for p in processes:
-            p.join(timeout=30.0)
-            assert not p.is_alive(), "Process did not terminate within timeout"
+            for i in range(concurrency_count)
+        ]
+        _run_and_wait_processes(processes)
 
         # 2. Collect and verify all creation results
-        results: list[dict[str, Any]] = []
-        for _ in range(concurrency_count):
-            results.append(result_queue.get(timeout=10.0))
-
-        assert len(results) == concurrency_count
-        for res in results:
-            assert res["ok"] is True, f"Worker failed: {res.get('errors')}"
-
+        results = _drain_queue(result_queue, concurrency_count)
         session_ids = [r["session_id"] for r in results]
         branch_names = [r["branch_name"] for r in results]
         paths = [Path(r["path"]) for r in results]
@@ -99,44 +114,23 @@ class TestConcurrentSandboxOperations:
         assert len(set(session_ids)) == concurrency_count
         assert len(set(branch_names)) == concurrency_count
         assert len(set(paths)) == concurrency_count
-
-        for p in paths:
-            assert p.is_dir()
+        assert all(p.is_dir() for p in paths)
 
         # 3. Verify SQLite DB state
         db = SandboxesRepository(git_fs.base_path)
-        records = db.list()
-        assert len(records) >= concurrency_count
-        active_ids = {r.id for r in records if r.status == SandboxStatus.ACTIVE}
-        for sid in session_ids:
-            assert sid in active_ids
+        active_ids = {r.id for r in db.list() if r.status == SandboxStatus.ACTIVE}
+        assert all(sid in active_ids for sid in session_ids)
 
         # 4. Launch concurrent cleanup
-        cleanup_processes: list[multiprocessing.Process] = []
-        for sid in session_ids:
-            p = ctx.Process(
+        cleanup_processes = [
+            ctx.Process(
                 target=_worker_cleanup_sandbox,
                 args=(git_fs.base_path, sid, result_queue),
             )
-            cleanup_processes.append(p)
-            p.start()
-
-        for p in cleanup_processes:
-            p.join(timeout=30.0)
-            assert not p.is_alive(), "Cleanup process did not terminate within timeout"
-
-        cleanup_results: list[dict[str, Any]] = []
-        for _ in range(concurrency_count):
-            cleanup_results.append(result_queue.get(timeout=10.0))
-
-        for res in cleanup_results:
-            assert res["ok"] is True, f"Cleanup worker failed: {res.get('errors')}"
+            for sid in session_ids
+        ]
+        _run_and_wait_processes(cleanup_processes)
+        _drain_queue(result_queue, concurrency_count)
 
         # 5. Verify worktrees removed and DB records marked cleaned
-        for p in paths:
-            assert not p.exists()
-
-        for sid in session_ids:
-            rec = db.get(sid)
-            assert rec is not None
-            assert rec.status == SandboxStatus.CLEANED
+        _verify_cleaned(db, paths, session_ids)

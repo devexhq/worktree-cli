@@ -205,7 +205,7 @@ class StepDefinition(BaseModel):
     tools: list[str] = Field(default_factory=list)
     env: dict[str, str] = Field(default_factory=dict)
     timeout_seconds: int = Field(default=DEFAULT_STEP_TIMEOUT_SECONDS, gt=0)
-    assert_: StepAssert | None = Field(default=None, alias="assert")
+    assert_: StepAssert | None = Field(default=None, validation_alias="assert", serialization_alias="assert")
     on_failure: FailureSpec = Field(default_factory=lambda: FailureSpec(action=FailurePolicy.ABORT))
 
     @field_validator("type", mode="before")

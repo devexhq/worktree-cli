@@ -5,6 +5,7 @@ from __future__ import annotations
 from tests.helpers import FileSystem
 from worktree.core.runtime import (
     FailurePromptDecision,
+    LoopPromptDecision,
     RunContext,
     run_steps,
 )
@@ -29,6 +30,9 @@ class _ScriptedPrompter:
         diagnostic: str,
     ) -> FailurePromptDecision:
         return self.decisions.pop(0)
+
+    def prompt_loop_max_iterations(self, **kwargs: object) -> LoopPromptDecision:
+        return LoopPromptDecision.ABORT
 
 
 class RuntimeMetadataPropagationTests:
