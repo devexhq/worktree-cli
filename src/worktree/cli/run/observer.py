@@ -13,9 +13,7 @@ from worktree.cli.ui.events import (
     StepOutputEvent,
     StepStartEvent,
 )
-from worktree.common.utils import RichOutput
 from worktree.core.runtime.models import RunObserver
-from worktree.core.runtime.observer import LiveRunObserver
 from worktree.core.step import ConditionEvaluationResult, StepDefinition, StepResult
 
 if TYPE_CHECKING:
@@ -25,15 +23,20 @@ if TYPE_CHECKING:
 class DispatcherRunObserver(RunObserver):
     """Observer adapter converting runtime lifecycle callbacks into UI events for UiDispatcher."""
 
-    def __init__(self, dispatcher: UiDispatcher) -> None:
-        """Initialize observer with a target UiDispatcher instance.
+    def __init__(self, dispatcher: UiDispatcher, *, live: bool = False) -> None:
+        """Initialize observer.
 
         Args:
             dispatcher: UiDispatcher instance to route events through.
+            live: Whether to coordinate an active live display session.
         """
         self._dispatcher = dispatcher
+        self._live = live
 
     def __enter__(self) -> DispatcherRunObserver:
+        """Enter observer context and optionally start live display."""
+        if self._live:
+            self._dispatcher.start_live()
         return self
 
     def __exit__(
@@ -42,7 +45,9 @@ class DispatcherRunObserver(RunObserver):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        pass
+        """Exit observer context and stop live display."""
+        if self._live:
+            self._dispatcher.stop_live()
 
     def on_sandbox_ready(self, path: Path, active: bool) -> None:
         """Dispatch sandbox readiness event."""
@@ -142,8 +147,8 @@ def resolve_cli_observer(
     *,
     non_interactive: bool = False,
     output_format: str = "terminal",
-) -> DispatcherRunObserver | LiveRunObserver:
-    """Return LiveRunObserver for interactive terminal sessions, else DispatcherRunObserver.
+) -> DispatcherRunObserver:
+    """Return DispatcherRunObserver configured for the execution session.
 
     Args:
         dispatcher: The active UiDispatcher instance.
@@ -151,8 +156,7 @@ def resolve_cli_observer(
         output_format: Output format ('terminal' or 'json').
 
     Returns:
-        A RunObserver instance suitable for the execution context.
+        A DispatcherRunObserver instance with live mode enabled if supported.
     """
-    if output_format == "json" or non_interactive or not dispatcher._console.is_terminal:
-        return DispatcherRunObserver(dispatcher)
-    return LiveRunObserver(output=RichOutput(dispatcher._console))
+    enable_live = output_format == "terminal" and not non_interactive and dispatcher.is_interactive
+    return DispatcherRunObserver(dispatcher, live=enable_live)

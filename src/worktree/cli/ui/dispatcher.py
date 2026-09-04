@@ -7,6 +7,14 @@ from typing import Any, TypeVar, overload
 
 from rich.console import Console
 
+from worktree.cli.ui.events import (
+    PromptEvent,
+    SandboxLifecycleEvent,
+    StepDoneEvent,
+    StepOutputEvent,
+    StepStartEvent,
+)
+from worktree.cli.ui.live import LiveDisplayManager
 from worktree.common.types import ComponentFormatter
 
 T = TypeVar("T")
@@ -26,6 +34,14 @@ class UiDispatcher:
         self._custom_console: Console | None = console
         self._registry: dict[type[Any], ComponentFormatter[Any]] = {}
         self._output_format: str = output_format
+        self._live_display: LiveDisplayManager | None = None
+        self._register_default_formatters()
+
+    def _register_default_formatters(self) -> None:
+        """Register all default component formatters."""
+        from worktree.cli.ui.formatters import register_all_formatters
+
+        register_all_formatters(self)
 
     @property
     def _console(self) -> Console:
@@ -33,6 +49,16 @@ class UiDispatcher:
         if self._custom_console is not None:
             return self._custom_console
         return Console()
+
+    @property
+    def is_interactive(self) -> bool:
+        """Whether the active console output is connected to an interactive terminal (TTY)."""
+        return self._console.is_terminal
+
+    @property
+    def is_terminal_format(self) -> bool:
+        """Whether the active output format is terminal."""
+        return self._output_format == "terminal"
 
     @property
     def output_format(self) -> str:
@@ -110,9 +136,46 @@ class UiDispatcher:
             }
             sys.stdout.write(json.dumps(envelope) + "\n")
             sys.stdout.flush()
+        elif effective_format == "raw":
+            sys.stdout.write(formatter.to_raw(data))
+            sys.stdout.flush()
+        elif self._live_display is not None and self._live_display.is_active:
+            if isinstance(data, PromptEvent):
+                self.stop_live()
+                rich_renderable = formatter.to_rich(data)
+                self._console.print(rich_renderable)
+            else:
+                self._dispatch_live(data, formatter)
         else:
             rich_renderable = formatter.to_rich(data)
             self._console.print(rich_renderable)
+
+    def start_live(self) -> None:
+        """Start interactive live display if terminal output format is active."""
+        if self.is_terminal_format and self.is_interactive and self._live_display is None:
+            self._live_display = LiveDisplayManager(self._console)
+            self._live_display.start()
+
+    def stop_live(self) -> None:
+        """Stop active interactive live display."""
+        if self._live_display is not None:
+            self._live_display.stop()
+            self._live_display = None
+
+    def _dispatch_live(self, data: Any, formatter: ComponentFormatter[Any]) -> None:
+        """Route events through active live display session."""
+        if self._live_display is None:
+            return
+        if isinstance(data, StepStartEvent):
+            self._live_display.handle_step_start(data)
+        elif isinstance(data, StepOutputEvent):
+            self._live_display.handle_step_output(data)
+        elif isinstance(data, StepDoneEvent):
+            self._live_display.handle_step_done(data)
+        elif isinstance(data, SandboxLifecycleEvent):
+            self._live_display.handle_sandbox(data, formatter.to_rich(data))
+        else:
+            self._live_display.print_above(formatter.to_rich(data))
 
 
 ui_dispatcher = UiDispatcher()

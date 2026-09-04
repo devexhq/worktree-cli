@@ -7,9 +7,6 @@ import typer
 from worktree.cli.context import CliContext
 
 from .commands.root import diff_command
-from .formatters import register_diff_formatters
-
-register_diff_formatters()
 
 
 def register_diff_command(app: typer.Typer) -> None:

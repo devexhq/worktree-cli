@@ -40,9 +40,7 @@ class SessionDiffPersistenceTests:
         assert "modified content" in content
 
         # Verify DiffService immediately reads the generated patch
-        from worktree.common.utils import RichOutput
-
-        diff_service = DiffService(path=git_fs.base_path, output=RichOutput(), session_id="task_diff_1")
+        diff_service = DiffService(path=git_fs.base_path, session_id="task_diff_1")
         diff_res = diff_service.collect()
         assert diff_res.ok
         assert diff_res.status == DiffStatus.OK

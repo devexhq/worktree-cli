@@ -11,11 +11,11 @@ from rich.panel import Panel
 from rich.text import Text
 
 from tests.helpers import render_rich
-from worktree.cli.diff.formatters import (
+from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
+from worktree.cli.ui.formatters.diff import (
     DiffResultFormatter,
     register_diff_formatters,
 )
-from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
 from worktree.core.diff.models import DiffResult, DiffStatus
 
 _SAMPLE_DIFF = """diff --git a/src/main.py b/src/main.py

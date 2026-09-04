@@ -7,9 +7,6 @@ from worktree.core.config import Config
 from worktree.core.db.facade import WorktreeDb
 
 from .commands.root import init_command
-from .formatters import register_init_formatters
-
-register_init_formatters()
 
 init_app = typer.Typer(name="init", help="Initialize Worktree CLI in the current directory.")
 

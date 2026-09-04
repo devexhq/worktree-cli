@@ -13,6 +13,17 @@ class ComponentFormatter[T](ABC):
         "default": "default",
     }
 
+    def to_raw(self, data: T) -> str:
+        """Render as raw text.
+
+        Args:
+            data: Domain data object to render to terminal output.
+
+        Returns:
+            A raw text string.
+        """
+        raise NotImplementedError
+
     @abstractmethod
     def to_rich(self, data: T) -> Any:
         """Render to a Rich renderable (Text, Table, Panel, etc.).

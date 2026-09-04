@@ -5,15 +5,15 @@ from __future__ import annotations
 from pathlib import Path
 
 from tests.helpers import FileSystem, render_rich
-from worktree.cli.config.formatters import (
+from worktree.cli.ui.formatters.config import (
     ConfigLoadFormatter,
     ConfigSetFormatter,
     ConfigValidateFormatter,
 )
-from worktree.cli.diff.formatters import DiffResultFormatter
-from worktree.cli.history.formatters import HistoryListFormatter, HistoryShowFormatter
-from worktree.cli.init.formatters import WorkspaceInitFormatter
-from worktree.cli.sandbox.formatters import (
+from worktree.cli.ui.formatters.diff import DiffResultFormatter
+from worktree.cli.ui.formatters.history import HistoryListFormatter, HistoryShowFormatter
+from worktree.cli.ui.formatters.init import WorkspaceInitFormatter
+from worktree.cli.ui.formatters.sandbox import (
     SandboxApplyFormatter,
     SandboxCreateFormatter,
     SandboxDeleteFormatter,

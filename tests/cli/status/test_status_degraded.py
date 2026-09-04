@@ -8,7 +8,7 @@ import pytest
 
 from tests.helpers import GitFileSystem, make_cli_context, make_rich_output
 from worktree.cli.status.commands.root import status_command
-from worktree.cli.status.renderers import render_status_summary
+from worktree.cli.ui.formatters.status.common import render_status_summary
 from worktree.core.config.loader import ConfigLoadStatus
 from worktree.core.status.models import (
     CatalogStatusInfo,

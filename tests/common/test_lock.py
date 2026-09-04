@@ -14,9 +14,8 @@ from worktree.common.lock import (
     LockTimeoutError,
     WorkspaceLock,
     _cleanup_registered_locks,
-    _render_lock_waiting,
     _try_lock_windows,
-    _unlock_fd,
+    _unlock_file_descriptor,
     resolve_lock_file_path,
 )
 
@@ -76,10 +75,10 @@ class TestWorkspaceLock:
             with lock2:
                 assert lock2._is_nested is True
                 assert lock1.lock_path.exists()
-            assert lock1._fd is not None
+            assert lock1._file_descriptor is not None
 
         # Lock is fully released after outer block exits
-        assert lock1._fd is None
+        assert lock1._file_descriptor is None
 
     def test_exception_releases_lock(self, tmp_path: Path) -> None:
         with pytest.raises(RuntimeError, match="Intentional failure"):
@@ -136,16 +135,83 @@ class TestWorkspaceLock:
         finally:
             p1.join(timeout=5.0)
 
-    def test_render_lock_waiting(self, tmp_path: Path) -> None:
-        lock_file = tmp_path / ".worktree" / ".lock"
-        # Should execute cleanly without raising
-        _render_lock_waiting(lock_file, "12345", 30.0)
-        _render_lock_waiting(lock_file, None, 30.0)
+    def test_on_wait_callback_fires_on_contention(self, tmp_path: Path) -> None:
+        ctx = multiprocessing.get_context("spawn")
+        ready_event = ctx.Event()
+        called: list[tuple[Path, str | None, float]] = []
+
+        def on_wait(path: Path, holder_pid: str | None, timeout: float) -> None:
+            called.append((path, holder_pid, timeout))
+
+        # Start holder holding lock for 0.6s
+        p1 = ctx.Process(target=_child_hold_lock, args=(tmp_path, 0.6, ready_event))
+        p1.start()
+
+        try:
+            assert ready_event.wait(timeout=5.0), "Holder process failed to acquire lock"
+
+            # Waiter with on_wait callback
+            with WorkspaceLock(tmp_path, timeout_seconds=3.0, on_wait=on_wait) as lock:
+                assert lock.lock_path.exists()
+
+            assert len(called) == 1
+            lock_path, holder_pid, timeout_val = called[0]
+            assert lock_path == resolve_lock_file_path(tmp_path)
+            assert holder_pid == str(p1.pid)
+            assert timeout_val == 3.0
+        finally:
+            p1.join(timeout=5.0)
+
+    def test_default_on_wait_callback_fires_on_contention(self, tmp_path: Path) -> None:
+        ctx = multiprocessing.get_context("spawn")
+        ready_event = ctx.Event()
+        called: list[tuple[Path, str | None, float]] = []
+
+        def default_on_wait(path: Path, holder_pid: str | None, timeout: float) -> None:
+            called.append((path, holder_pid, timeout))
+
+        WorkspaceLock.set_default_on_wait(default_on_wait)
+        try:
+            p1 = ctx.Process(target=_child_hold_lock, args=(tmp_path, 0.6, ready_event))
+            p1.start()
+
+            try:
+                assert ready_event.wait(timeout=5.0), "Holder process failed to acquire lock"
+
+                # Constructor omits on_wait, so default should fire
+                with WorkspaceLock(tmp_path, timeout_seconds=3.0) as lock:
+                    assert lock.lock_path.exists()
+
+                assert len(called) == 1
+                assert called[0][0] == resolve_lock_file_path(tmp_path)
+                assert called[0][1] == str(p1.pid)
+                assert called[0][2] == 3.0
+            finally:
+                p1.join(timeout=5.0)
+        finally:
+            WorkspaceLock.reset_default_on_wait()
+
+    def test_explicit_on_wait_overrides_default(self, tmp_path: Path) -> None:
+        default_called: list[tuple[Path, str | None, float]] = []
+        explicit_called: list[tuple[Path, str | None, float]] = []
+
+        def default_cb(p: Path, h: str | None, t: float) -> None:
+            default_called.append((p, h, t))
+
+        def explicit_cb(p: Path, h: str | None, t: float) -> None:
+            explicit_called.append((p, h, t))
+
+        WorkspaceLock.set_default_on_wait(default_cb)
+        try:
+            lock = WorkspaceLock(tmp_path, on_wait=explicit_cb)
+            assert lock.on_wait is explicit_cb
+        finally:
+            WorkspaceLock.reset_default_on_wait()
 
     def test_cleanup_registered_locks(self, tmp_path: Path) -> None:
         lock = WorkspaceLock(tmp_path)
         lock.acquire()
-        assert lock._fd is not None
+        assert lock._file_descriptor is not None
 
         _cleanup_registered_locks()
         # After cleanup, lock registry is empty
@@ -167,7 +233,7 @@ class TestWorkspaceLock:
             try:
                 assert _try_lock_windows(fd) is True
                 mock_msvcrt.locking.assert_called_with(fd, 1, 1)
-                _unlock_fd(fd)
+                _unlock_file_descriptor(fd)
                 mock_msvcrt.locking.assert_called_with(fd, 2, 1)
             finally:
                 os.close(fd)

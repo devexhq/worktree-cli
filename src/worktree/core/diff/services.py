@@ -5,18 +5,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from worktree.common.utils import RichOutput
 from worktree.core.config import Config
 from worktree.core.diff.models import DiffResult, DiffStatus
-from worktree.core.diff.renderers import render_diff
 
 
 @dataclass
 class DiffService:
-    """Service encapsulating session unified diff retrieval and rendering."""
+    """Service encapsulating session unified diff retrieval."""
 
     path: Path
-    output: RichOutput
     session_id: str | None = None
     raw: bool = False
     full: bool = False
@@ -96,6 +93,9 @@ class DiffService:
                 session_id=session_id,
                 artifact_path=patch_file,
                 diff_text="",
+                raw=self.raw,
+                full=self.full,
+                max_lines=self.max_lines,
             )
 
         return DiffResult(
@@ -103,6 +103,9 @@ class DiffService:
             session_id=session_id,
             artifact_path=patch_file,
             diff_text=diff_text,
+            raw=self.raw,
+            full=self.full,
+            max_lines=self.max_lines,
         )
 
     def collect(self) -> DiffResult:
@@ -120,14 +123,5 @@ class DiffService:
         return self._read_patch_artifact(target_dir, resolved_session_id)
 
     def execute(self) -> DiffResult:
-        """Collect diff artifact and render results to Rich output."""
-        result = self.collect()
-        render_diff(
-            result,
-            raw=self.raw,
-            full=self.full,
-            max_lines=self.max_lines,
-            output=self.output,
-            cwd=self.path,
-        )
-        return result
+        """Collect diff artifact and return structured result."""
+        return self.collect()

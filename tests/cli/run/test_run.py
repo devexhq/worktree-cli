@@ -267,7 +267,7 @@ class RunCliTests:
                 raise KeyboardInterrupt
 
         monkeypatch.setattr(
-            "worktree.cli.run.commands.root.CliFailurePrompter",
+            "worktree.cli.run.commands.root.DispatcherFailurePrompter",
             lambda *args, **kwargs: _InterruptPrompter(),
         )
 

@@ -13,7 +13,7 @@ from worktree.cli import app
 from worktree.cli.sandbox.commands.sandbox_show import (
     sandbox_show_command,
 )
-from worktree.cli.sandbox.formatters import SandboxShowFormatter
+from worktree.cli.ui.formatters.sandbox import SandboxShowFormatter
 from worktree.core.db import (
     SandboxRecord,
     SandboxStatus,

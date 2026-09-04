@@ -13,7 +13,6 @@ from worktree.core.blueprint import (
     BlueprintRunResult,
     BlueprintValidationError,
 )
-from worktree.core.blueprint.renderers import BlueprintRenderer
 from worktree.core.catalog import Catalog
 from worktree.core.db import CatalogRepository, RunRecord, RunsRepository, RunStatus
 from worktree.core.engine.engine import Engine
@@ -103,13 +102,15 @@ class BlueprintRunService:
         )
 
     def _load_blueprint(self, catalog: Catalog) -> tuple[Blueprint | None, BlueprintRunResult | None]:
-        renderer = BlueprintRenderer(self.kind or BlueprintKind.TASK)
+        kind_str = self.kind.value if self.kind else "blueprint"
         try:
             blueprint = Blueprint.load(self.name, catalog=catalog)
         except (BlueprintNotFoundError, BlueprintLoadError) as exc:
-            return None, self._fail(renderer.render_resolve_failure([str(exc)]))
+            msg = str(exc) if str(exc) else f"Failed to resolve {kind_str}."
+            return None, self._fail(msg)
         except BlueprintValidationError as exc:
-            return None, self._fail(renderer.render_validate_failure([str(exc)]))
+            msg = str(exc) if str(exc) else f"{kind_str.capitalize()} definition is invalid."
+            return None, self._fail(msg)
 
         if self.kind is not None and blueprint.kind is not self.kind:
             msg = (

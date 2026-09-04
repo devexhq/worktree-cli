@@ -11,9 +11,6 @@ from worktree.core.db import BlueprintKind, RunStatus
 
 from .commands.root import history_list_command, history_root_command
 from .commands.show import history_show_command
-from .formatters import register_history_formatters
-
-register_history_formatters()
 
 history_app = typer.Typer(
     name="history",

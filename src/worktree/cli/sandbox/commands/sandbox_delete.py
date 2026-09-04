@@ -13,9 +13,12 @@ from worktree.core.sandbox import (
     SandboxSession,
 )
 
-from ..renderers import (
-    sandbox_delete_confirm_prompt,
-)
+
+def _sandbox_delete_confirm_prompt(sandbox: object) -> str:
+    branch = getattr(sandbox, "branch_name", getattr(sandbox, "branch", "unknown"))
+    path = getattr(sandbox, "sandbox_path", getattr(sandbox, "path", "unknown"))
+    s_id = getattr(sandbox, "id", getattr(sandbox, "session_id", "unknown"))
+    return f"Delete sandbox '{s_id}' (branch {branch}, path {path})?\nThis removes the git worktree and branch."
 
 
 def collect_sandbox_delete(
@@ -30,7 +33,7 @@ def _confirm_or_abort(row: object) -> bool:
     """Prompt user for confirmation; return True if confirmed."""
     try:
         confirmed = typer.confirm(
-            sandbox_delete_confirm_prompt(row),  # pyright: ignore[reportArgumentType]
+            _sandbox_delete_confirm_prompt(row),
             default=False,
         )
     except typer.Abort:

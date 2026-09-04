@@ -8,20 +8,19 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from tests.helpers import FileSystem, make_rich_output, make_run
+from tests.helpers import FileSystem, RichOutput, make_rich_output, make_run
 from worktree.cli import app
-from worktree.common.utils import RichOutput
-from worktree.core.blueprint import BlueprintKind
-from worktree.core.config.generator import generate_default_config
-from worktree.core.db import RunStatus, WorktreeDb
-from worktree.core.history.models import HistoryShowStatus
-from worktree.core.history.renderers import (
+from worktree.cli.ui.formatters.history.common import (
     _parse_timestamp,
     format_run_duration,
     format_run_status,
     render_history_list,
     render_history_show,
 )
+from worktree.core.blueprint import BlueprintKind
+from worktree.core.config.generator import generate_default_config
+from worktree.core.db import RunStatus, WorktreeDb
+from worktree.core.history.models import HistoryShowStatus
 from worktree.core.history.services import (
     HistoryListService,
     HistoryShowService,

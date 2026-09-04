@@ -14,7 +14,7 @@ from typer.testing import CliRunner
 from tests.helpers import FileSystem, GitFileSystem, make_cli_context, render_rich
 from worktree.cli import app
 from worktree.cli.sandbox.commands.sandbox_create import sandbox_create_command
-from worktree.cli.sandbox.formatters import SandboxCreateFormatter
+from worktree.cli.ui.formatters.sandbox import SandboxCreateFormatter
 from worktree.core.db import SandboxStatus, WorktreeDb
 from worktree.core.sandbox import (
     SandboxCreateResult,

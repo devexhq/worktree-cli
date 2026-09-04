@@ -25,6 +25,9 @@ class DiffResult(BaseResult):
     session_id: str | None = None
     artifact_path: Path | None = None
     diff_text: str = ""
+    raw: bool = False
+    full: bool = False
+    max_lines: int | None = None
 
     @property
     def ok(self) -> bool:

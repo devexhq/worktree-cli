@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from worktree.common.utils import RichOutput
 from worktree.core.diff.models import DiffResult
 from worktree.core.diff.services import DiffService
 from worktree.core.diff.writer import get_session_dir, write_session_diff
@@ -13,14 +12,21 @@ from worktree.core.diff.writer import get_session_dir, write_session_diff
 class Diff:
     """Unified entrypoint for execution run diff artifacts inspection and writing."""
 
-    def __init__(self, path: Path = Path(".")) -> None:
+    def __init__(self, path: Path = Path("."), raw: bool = False, full: bool = False, max_lines: int = 500) -> None:
         self.path = path.resolve()
-        self.cwd = self.path
+        self.raw = raw
+        self.full = full
+        self.max_lines = max_lines
 
     def inspect(self, session_id: str | None = None) -> DiffResult:
         """Inspect and return structured diff result for a session or latest run."""
-        # Using a dummy RichOutput since collect() is pure inspection without rendering
-        service = DiffService(path=self.path, output=RichOutput(), session_id=session_id)
+        service = DiffService(
+            path=self.path,
+            session_id=session_id,
+            raw=self.raw,
+            full=self.full,
+            max_lines=self.max_lines,
+        )
         return service.collect()
 
     @staticmethod

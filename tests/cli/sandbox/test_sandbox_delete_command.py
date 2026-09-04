@@ -13,13 +13,11 @@ from typer.testing import CliRunner
 from tests.helpers import GitFileSystem, make_cli_context, render_rich, seed_sandbox
 from worktree.cli import app
 from worktree.cli.sandbox.commands.sandbox_delete import (
+    _sandbox_delete_confirm_prompt as sandbox_delete_confirm_prompt,
     collect_sandbox_delete,
     sandbox_delete_command,
 )
-from worktree.cli.sandbox.formatters import SandboxDeleteFormatter
-from worktree.cli.sandbox.renderers import (
-    sandbox_delete_confirm_prompt,
-)
+from worktree.cli.ui.formatters.sandbox import SandboxDeleteFormatter
 from worktree.core.db import (
     SandboxStatus,
     WorktreeDb,

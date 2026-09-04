@@ -25,6 +25,16 @@ class WarningEvent(BaseModel):
     message: str
 
 
+class LockWaitEvent(BaseModel):
+    """UI event representing waiting on an advisory workspace lock."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    lock_path: str
+    holder_pid: str | None = None
+    timeout_seconds: float
+
+
 class MessageEvent(BaseModel):
     """UI event representing a general status notice or text line."""
 
@@ -103,3 +113,35 @@ class LoopLifecycleEvent(BaseModel):
     max_iterations: int | None = None
     status: str | None = None
     message: str | None = None
+
+
+class WelcomeBannerEvent(BaseModel):
+    """UI event representing the welcome brand panel."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    version: str
+
+
+class PromptOption(BaseModel):
+    """Option presented to the user during an interactive prompt."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    key: str
+    label: str
+    decision: str
+
+
+class PromptEvent(BaseModel):
+    """UI event representing an interactive prompt for step failure or loop max iterations."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    prompt_type: str  # "step_failure" | "loop_max_iterations"
+    prompt_id: str  # step ID or loop ID
+    kind: str  # "task" | "workflow"
+    title: str
+    diagnostic: str | None = None
+    options: list[PromptOption]
+    default: str = "abort"

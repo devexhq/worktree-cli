@@ -58,8 +58,8 @@ src/worktree/schemas/v1/             Packaged, versioned JSON Schemas (config.js
 - **Runtime** (`core/runtime/`): Step-loop execution (`run_steps`), `RunContext` / `RunObserver` / `RunOutcome`, failure orchestration (abort / continue / `prompt_user`), and pause checkpoint persistence. Runtime must not import cli.
 - **Engine** (`core/engine/`): Process-level run persistence, session ID minting (`RunRequest`), DB run records, run/resume services (`BlueprintRunService`, `BlueprintResumeService`, `reconcile_stale_runs`). Must not import cli.
 - **Catalog** (`core/catalog/`): Template scanning, indexing, `CatalogDb` sync hooks, packaged seeds under `templates/`.
-- **History** (`core/history/`): `HistoryListService`, `HistoryShowService`, result models, and table/panel renderers.
-- **Diff** (`core/diff/`): `DiffService`, session diff resolution, artifact loading, result models, and terminal renderers.
+- **History** (`core/history/`): `HistoryListService`, `HistoryShowService`, result models (`HistoryListResult`, `HistoryShowResult`). UI formatters reside in `cli/ui/formatters/history/`.
+- **Diff** (`core/diff/`): `DiffService`, session diff resolution, artifact loading, result models (`DiffResult`). UI formatters reside in `cli/ui/formatters/diff/`.
 - **Status** (`core/status/`): Workspace health and runtime telemetry collection (`collect_status`), result models (`WorktreeStatusResult`), warning aggregation.
 - **Sandbox** (`core/sandbox/`): Isolated git worktree checkout creation, deletion, listing, show, prune, and patch application (`Sandbox` facade, `services/lifecycle.py`).
 - **Shared core infra**: `config/`, `db/`, `git/`, `bootstrap/`.
@@ -72,7 +72,8 @@ Dependencies flow one way down the stack; do not import upward:
 common/  ->  core/{db,git,sandbox,catalog,inputs,patch,history,diff,status}/  ->  core/agents/  ->  core/step/  ->  {core/runtime/, core/blueprint/}  ->  core/engine/  ->  cli/
 ```
 
-- `common/` never depends on `core/`.
+- `common/` never depends on `core/` or `cli/`.
+- `core/` and `common/` never import `cli/` or `rich`. All terminal rendering is driven through `ui_dispatcher.dispatch(result)`.
 - `core/inputs/` must not import `step`, `runtime`, `agents`, or `patch`.
 - `core/patch/` must not import `agents`, `step`, or `runtime`.
 - `core/agents/` may use `patch/` and `config/`; must not import `step` or `runtime`.
@@ -81,15 +82,17 @@ common/  ->  core/{db,git,sandbox,catalog,inputs,patch,history,diff,status}/  ->
 - `core/blueprint/` may use `catalog/`, `inputs/`, `step/`; must not import `runtime/`, `engine/`, or `cli/`.
 - `core/engine/` may use `runtime/`, `blueprint/`, `db/`; must not import `cli/`.
 - `cli/` may import `core/` and `common/`; lower layers never import `cli/`.
+- CLI commands never render directly or import formatters; they emit results through `ui_dispatcher.dispatch(result)`.
 
 ## Adding a new command
 
-**Relevant sources:** `src/worktree/cli/`, `src/worktree/cli/cli.py`
+**Relevant sources:** `src/worktree/cli/`, `src/worktree/cli/ui/`, `src/worktree/cli/cli.py`
 
-1. Create `src/worktree/cli/<name>/` with `app.py`, `commands/<action>.py` (or `commands/root.py`), `formatters.py`, `renderers.py`.
-2. Wire command logic directly to underlying domain services or facades (e.g. `BlueprintRunService`, `HistoryListService`). Keep CLI packages free of business logic, DB queries, or direct filesystem scans.
-3. Register the command in [src/worktree/cli/cli.py](../../src/worktree/cli/cli.py).
-4. Add tests under `tests/cli/<name>/`.
+1. Create `src/worktree/cli/<name>/` with `app.py` and `commands/<action>.py` (or `commands/root.py`). Do not create `formatters.py` or `renderers.py` modules in domain CLI folders.
+2. Add single-responsibility formatters in `src/worktree/cli/ui/formatters/<name>/<model>.py` (one `*Formatter` class per module) and expose registration in `src/worktree/cli/ui/formatters/<name>/__init__.py`.
+3. Wire command logic directly to underlying domain services or facades (e.g. `BlueprintRunService`, `HistoryListService`), dispatching results via `ui_dispatcher.dispatch(result)`. Keep CLI packages free of business logic, DB queries, or direct filesystem scans.
+4. Register the command in [src/worktree/cli/cli.py](../../src/worktree/cli/cli.py).
+5. Add tests under `tests/cli/<name>/`.
 
 ## Adding a new catalog-backed domain
 
@@ -97,7 +100,7 @@ common/  ->  core/{db,git,sandbox,catalog,inputs,patch,history,diff,status}/  ->
 2. **Exceptions**: `<X>LoadError` / `<X>ValidationError` subclassing definition errors in `core/<x>/exceptions.py`.
 3. **Loader**: `core/<x>/services/loader.py` -> `get_catalog_item(..., definition_cls=...)`.
 4. **Execution**: If executing steps, build `RunContext` and delegate to `run_steps` in `core.runtime.engine`.
-5. **CLI**: Thin `commands/root.py`, Rich renderers in `cli/<x>/renderers.py`, plain-text formatters in `core/<x>/services/renderer.py`.
+5. **CLI**: Thin `commands/root.py`, UI formatters in `cli/ui/formatters/<x>/`, plain-text formatters in `core/<x>/services/renderer.py` if needed for non-interactive diagnostics.
 
 ## Adding a new agent provider
 

@@ -12,14 +12,14 @@ from rich.table import Table
 from rich.text import Text
 
 from tests.helpers import render_rich
-from worktree.cli.catalog.formatters import (
+from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
+from worktree.cli.ui.formatters.catalog import (
     CatalogCreateFormatter,
     CatalogDeleteFormatter,
     CatalogListFormatter,
     CatalogShowFormatter,
     register_catalog_formatters,
 )
-from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
 from worktree.core.catalog.models import (
     CatalogCreateResult,
     CatalogDeleteResult,

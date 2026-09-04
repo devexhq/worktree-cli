@@ -91,12 +91,14 @@ Operations that can fail return a Pydantic result object subclassing `BaseResult
 
 ---
 
-## Console Output and Error Messages
-
-**Relevant sources:** `src/worktree/common/utils.py`
-
-- CLI output must route through `RichOutput` or a configured Rich `Console` — no bare `print()`.
-- Use `RichOutput.error_panel` for consistent cross-command failure formatting.
+## Console Output and Terminal Formatting
+ 
+**Relevant sources:** `src/worktree/cli/ui/`
+ 
+- Terminal output must route through `ui_dispatcher.dispatch(result)` — direct `print()`, `rich` imports, `typer.echo`, and console output outside `src/worktree/cli/ui/dispatcher.py` are strictly banned by Ruff lint rules (`T20`, `TID251`) and AST tests.
+- Formatters reside under `src/worktree/cli/ui/formatters/<domain>/<name>.py`, strictly one `*Formatter` class per module.
+- Domain shared table builders reside in `src/worktree/cli/ui/formatters/<domain>/common.py`.
+- No `renderers.py` modules exist anywhere in the codebase.
 - Construct `errors` and `warnings` messages using inline f-strings or literals at call sites. Do not create private single-message formatting wrappers.
 
 ---
@@ -108,3 +110,24 @@ Operations that can fail return a Pydantic result object subclassing `BaseResult
 - Docstrings follow the Google convention (enforced by Ruff `D` rules).
 - Use absolute imports (`worktree.*`) across packages. Relative imports are allowed only within the same directory (`from . import ...`).
 - Use `__all__` in package `__init__.py` files when re-exporting internal symbols into a public subpackage surface.
+- **Top-level imports**: Always place imports at the top of the module across both production code and test suites. Do **not** use inline imports inside functions, methods, or test cases unless strictly necessary to break circular dependencies or avoid expensive eager initialization (any scoped inline import must carry a justifying comment).
+
+---
+
+## Encapsulation and Private Members
+
+- **Forbid private member access in production code**: Never access private attributes or methods (names with a leading underscore `_`) across module or class boundaries in `src/`.
+- **Forbid importing private methods/functions**: Never import private functions, methods, or variables across modules in production code (`src/`).
+- **Expose query properties**: Expose public boolean query properties (e.g. `is_interactive`, `is_terminal_format`, `is_enabled`, `has_*`) on classes rather than referencing private members from external callers.
+- **Tests exemption**: Tests under `tests/` may assert against or inspect private members when strictly necessary to verify low-level internal implementation behavior.
+
+---
+
+## Backwards Compatibility
+
+- Maintain backwards compatibility **only** for surfaces users interact with directly:
+  - CLI commands, subcommands, arguments, and flags (e.g. renaming a sub-command).
+  - Configuration files and blueprint YAML definitions (e.g. keys or values in `config.json`).
+  - Stable machine-readable CLI output formats (e.g. JSON output event envelopes).
+- Do **not** preserve backwards compatibility aliases, compatibility properties, or shim layers for internal code (`common/`, `core/`, or internal `cli/` modules) when refactoring or renaming symbols (e.g., do not keep `_unlock_fd` when renaming to `_unlock_file_descriptor`, or property aliases like `_fd`). Refactor internal callers and tests directly.
+- **When in doubt**: Ask the user before introducing compatibility layers or deprecation shims for ambiguous boundaries.

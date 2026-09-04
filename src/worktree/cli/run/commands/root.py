@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from worktree.cli.context import CliContext
 from worktree.cli.run.observer import resolve_cli_observer
+from worktree.cli.run.prompter import DispatcherFailurePrompter
 from worktree.cli.ui import (
     ErrorPanelEvent,
     MessageEvent,
@@ -11,12 +12,10 @@ from worktree.cli.ui import (
     WarningEvent,
     ui_dispatcher,
 )
-from worktree.common.utils import RichOutput
 from worktree.core.blueprint.models import BlueprintKind, BlueprintRunResult
 from worktree.core.catalog import Catalog
 from worktree.core.db import RunRecord, RunStatus
 from worktree.core.engine import BlueprintRunService
-from worktree.core.runtime import CliFailurePrompter
 
 
 def _resolve_blueprint_label(context: CliContext, name: str) -> tuple[str, BlueprintKind]:
@@ -100,7 +99,7 @@ def run_command(
             non_interactive=non_interactive,
             auto_apply=auto_apply,
             observer=observer,
-            failure_prompter=CliFailurePrompter(RichOutput(ui_dispatcher._console)),
+            failure_prompter=DispatcherFailurePrompter(ui_dispatcher, kind=kind_label),
         ).execute()
 
     for warning in result.warnings:

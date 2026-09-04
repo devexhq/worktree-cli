@@ -6,7 +6,7 @@ from typer.testing import CliRunner
 from tests.helpers import GitFileSystem, make_cli_context, render_rich
 from worktree.cli import app
 from worktree.cli.sandbox.commands.sandbox_apply import sandbox_apply_command
-from worktree.cli.sandbox.formatters import SandboxApplyFormatter
+from worktree.cli.ui.formatters.sandbox import SandboxApplyFormatter
 from worktree.core.db import WorktreeDb
 from worktree.core.sandbox import (
     Sandbox,

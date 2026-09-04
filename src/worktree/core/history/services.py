@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
-from worktree.common.utils import RichOutput
 from worktree.core.db import BlueprintKind, RunsRepository, RunStatus
 from worktree.core.engine.services.reconcile import reconcile_stale_runs
 
@@ -15,23 +15,18 @@ from .models import (
     HistoryShowResult,
     HistoryShowStatus,
 )
-from .renderers import (
-    render_history_list,
-    render_history_not_found,
-    render_history_show,
-)
 
 
 @dataclass
 class HistoryListService:
-    """Service encapsulating execution history retrieval and rendering."""
+    """Service encapsulating execution history retrieval."""
 
     path: Path
     db: RunsRepository
-    output: RichOutput
     limit: int | None = 20
     status: str | None = None
     kind: str | None = None
+    output: Any = None
 
     def collect(self) -> HistoryListResult:
         """Retrieve filtered execution runs from database."""
@@ -39,7 +34,6 @@ class HistoryListService:
         reconciliation_result = reconcile_stale_runs(self.db, path=self.path)
         if reconciliation_result.warning:
             warnings.append(reconciliation_result.warning)
-            self.output.add_warning(reconciliation_result.warning)
 
         status_filter: RunStatus | str | None = None
         if self.status is not None:
@@ -59,20 +53,18 @@ class HistoryListService:
         return HistoryListResult(status=HistoryListStatus.OK, runs=runs, warnings=warnings)
 
     def execute(self) -> HistoryListResult:
-        """Execute history list query and render results to console."""
-        result = self.collect()
-        render_history_list(result.runs, output=self.output)
-        return result
+        """Execute history list query and return structured result."""
+        return self.collect()
 
 
 @dataclass
 class HistoryShowService:
-    """Service encapsulating history session inspection and rendering."""
+    """Service encapsulating history session inspection."""
 
     session_id: str
     path: Path
     db: RunsRepository
-    output: RichOutput
+    output: Any = None
 
     def collect(self) -> HistoryShowResult:
         """Look up execution session metadata, errors, and checkpoint contents."""
@@ -89,11 +81,5 @@ class HistoryShowService:
         return HistoryShowResult(status=HistoryShowStatus.OK, session_id=self.session_id, run=row)
 
     def execute(self) -> HistoryShowResult:
-        """Execute session show query and render results to console."""
-        result = self.collect()
-        if result.status is HistoryShowStatus.NOT_FOUND or result.run is None:
-            render_history_not_found(self.session_id, output=self.output)
-            return result
-
-        render_history_show(result.run, output=self.output)
-        return result
+        """Execute session show query and return structured result."""
+        return self.collect()

@@ -6,8 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.helpers import FileSystem, make_rich_output, make_run
-from worktree.common.utils import RichOutput
+from tests.helpers import FileSystem, RichOutput, make_run
 from worktree.core.blueprint import BlueprintKind
 from worktree.core.config.generator import generate_default_config
 from worktree.core.db import RunStatus, WorktreeDb
@@ -143,15 +142,10 @@ class HistoryListServiceTests:
             kind=BlueprintKind.TASK,
             status=RunStatus.COMPLETED,
         )
-        rich_output, buffer = make_rich_output(width=160)
-
-        service = HistoryListService(path=fs.base_path, db=self.db.runs, output=rich_output)
+        service = HistoryListService(path=fs.base_path, db=self.db.runs)
         result = service.execute()
         assert result.ok
-        rich_output.print()
-        output = buffer.getvalue()
-        assert "Execution History" in output
-        assert "run-exec" in output
+        assert any(r.session_id == "run-exec" for r in result.runs)
 
 
 class HistoryShowServiceTests:
@@ -197,24 +191,17 @@ class HistoryShowServiceTests:
             kind=BlueprintKind.TASK,
             status=RunStatus.COMPLETED,
         )
-        rich_output, buffer = make_rich_output(width=160)
-
-        service = HistoryShowService(session_id="run-show-exec", path=fs.base_path, db=self.db.runs, output=rich_output)
+        service = HistoryShowService(session_id="run-show-exec", path=fs.base_path, db=self.db.runs)
         result = service.execute()
         assert result.ok
-        rich_output.print()
-        output = buffer.getvalue()
-        assert "Session Metadata: run-show-exec" in output
-        assert "show-task" in output
+        assert result.run is not None
+        assert result.run.session_id == "run-show-exec"
+        assert result.run.blueprint_name == "show-task"
 
     def test_execute_not_found_renders_panel(self, fs: FileSystem) -> None:
         _init_workspace(fs.base_path)
-        rich_output, buffer = make_rich_output(width=160)
-
-        service = HistoryShowService(session_id="missing-exec", path=fs.base_path, db=self.db.runs, output=rich_output)
+        service = HistoryShowService(session_id="missing-exec", path=fs.base_path, db=self.db.runs)
         result = service.execute()
         assert not result.ok
-        rich_output.print()
-        output = buffer.getvalue()
-        assert "Session Not Found" in output
-        assert "missing-exec" in output
+        assert result.status is HistoryShowStatus.NOT_FOUND
+        assert result.run is None

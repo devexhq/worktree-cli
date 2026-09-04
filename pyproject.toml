@@ -103,15 +103,26 @@ exclude = [
 [tool.ruff.lint]
 # E/W pycodestyle, F pyflakes, I isort, B bugbear, C4 comprehensions,
 # UP pyupgrade, RUF ruff, FA future-annotations, D pydocstyle (Google).
-select = ["E", "W", "F", "I", "B", "C4", "UP", "RUF", "FA", "D"]
+select = ["E", "W", "F", "I", "B", "C4", "UP", "RUF", "FA", "D", "T20", "TID"]
 # E501 handled by formatter; FA100 allow missing future annotations;
 # D100/D101/D104/D105/D107 skip noisy docstring requirements.
 ignore = ["E501", "FA100", "D100", "D104", "D105", "D107", "D101"]
 dummy-variable-rgx = "^_$"
 
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"rich".msg = "Direct 'rich' imports are prohibited outside of 'src/worktree/cli/ui/'."
+"typer.echo".msg = "Direct console output via typer.echo is prohibited. Route output through ui_dispatcher.dispatch()."
+"typer.secho".msg = "Direct console output via typer.secho is prohibited. Route output through ui_dispatcher.dispatch()."
+"click.echo".msg = "Direct console output via click.echo is prohibited. Route output through ui_dispatcher.dispatch()."
+"click.secho".msg = "Direct console output via click.secho is prohibited. Route output through ui_dispatcher.dispatch()."
+
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
-"tests/*" = ["D"]
+"tests/*" = ["D", "T201", "T203", "TID251"]
+"tasks.py" = ["T201"]
+"src/worktree/cli/ui/**" = ["TID251"]
+"src/worktree/cli/ui/dispatcher.py" = ["TID251", "T201"]
+"src/worktree/cli/run/observer.py" = ["TID251"]
 
 [tool.ruff.lint.isort]
 combine-as-imports = true
@@ -164,3 +175,4 @@ reportCallInDefaultInitializer = "none"  # Typer Option()/Argument() defaults
 reportUnusedParameter = "none"  # Typer ctx and callback-required params
 reportUnannotatedClassAttribute = "none"  # Pydantic model_config / ClassVar flood
 reportUnusedCallResult = "none"  # Path.mkdir, list.append-style intentional discards
+reportMissingTypeStubs = false
