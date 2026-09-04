@@ -25,7 +25,7 @@ def test(context, path="tests/", coverage=False, fast_fail=False, parallel=True)
     cmd.append("-q")
 
     env = os.environ.copy()
-    # Pinned to 160 to match tests/helpers.py (render_rich / make_rich_output).
+    # Pinned to 160 to match tests/helpers.py (render_rich).
     # In non-interactive test runs (pty=False), Rich defaults to 80 columns when COLUMNS
     # is unset. Width 160 ensures multi-column Rich tables (e.g. 7-column execution history)
     # and long filesystem paths in test assertions do not wrap or truncate prematurely.
