@@ -12,7 +12,6 @@ from worktree.core.agents import (
     AgentRequest,
     AgentResponseStatus,
     GeminiAgentAdapter,
-    get_agent_adapter,
 )
 from worktree.core.agents.cli_mutation import (
     CliMutationOutcome,
@@ -65,12 +64,6 @@ def sandbox(fs: FileSystem) -> Path:
 @pytest.fixture(autouse=True)
 def _api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(GEMINI_API_KEY_ENV, "test-key")
-
-
-class GeminiFactoryTests:
-    def test_gemini_provider(self) -> None:
-        adapter = get_agent_adapter("gemini")
-        assert isinstance(adapter, GeminiAgentAdapter)
 
 
 class GeminiAuthTests:

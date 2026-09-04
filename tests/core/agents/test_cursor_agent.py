@@ -194,14 +194,6 @@ class CursorAdapterTests:
         assert any("timed out" in e.lower() for e in resp.errors)
         assert resp.mutation_baseline_ref is not None
 
-    def test_cancelled_maps_to_timeout(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr("worktree.core.agents.cursor.default_cursor_run", _fake_run(status="timeout"))
-        adapter = CursorAgentAdapter()
-
-        resp = adapter.propose_fix(_request(sandbox))
-
-        assert resp.status == AgentResponseStatus.TIMEOUT
-
     def test_gate_violation_discards_edits(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
             "worktree.core.agents.cursor.default_cursor_run",

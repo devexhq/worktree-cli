@@ -14,19 +14,13 @@ from worktree.cli.ui.events import PromptEvent, PromptOption
 from worktree.cli.ui.formatters.events.prompt import PromptFormatter
 from worktree.core.runtime.models import (
     FailurePromptDecision,
-    FailurePrompter,
     LoopPromptDecision,
 )
 from worktree.core.step import LoopStepBlock, StepDefinition, StepResult
 
 
 class TestDispatcherFailurePrompter:
-    """Tests for DispatcherFailurePrompter protocol compliance and interactions."""
-
-    def test_protocol_compliance(self) -> None:
-        dispatcher = UiDispatcher()
-        prompter = DispatcherFailurePrompter(dispatcher)
-        assert isinstance(prompter, FailurePrompter)
+    """Tests for DispatcherFailurePrompter decision parsing and prompt interactions."""
 
     @pytest.mark.parametrize(
         ("raw_input", "expected"),

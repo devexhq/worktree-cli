@@ -72,12 +72,3 @@ def build_sandbox_detail_table(sandbox: SandboxRecord, *, disk_present: bool) ->
     for field in _SANDBOX_SHOW_FIELDS:
         table.add_row(f"{field}:", values[field])
     return table
-
-
-def sandbox_delete_confirm_prompt(sandbox: SandboxRecord) -> str:
-    """Build the confirmation prompt text for sandbox delete."""
-    return (
-        f"Delete sandbox '{sandbox.id}' (branch {sandbox.branch_name}, "
-        f"path {sandbox.sandbox_path})?\n"
-        "This removes the git worktree and branch."
-    )

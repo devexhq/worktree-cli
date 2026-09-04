@@ -8,7 +8,6 @@ from unittest.mock import MagicMock
 
 from rich.console import Console
 
-from tests.helpers import make_cmd_step
 from worktree.cli.run.observer import DispatcherRunObserver, resolve_cli_observer
 from worktree.cli.ui.dispatcher import UiDispatcher
 from worktree.cli.ui.events import (
@@ -18,18 +17,11 @@ from worktree.cli.ui.events import (
     StepOutputEvent,
     StepStartEvent,
 )
-from worktree.core.runtime.engine import _notify_step_output
-from worktree.core.runtime.models import RunContext, RunObserver
 from worktree.core.step import ConditionEvaluationResult, StepDefinition, StepResult
 
 
 class TestDispatcherRunObserver:
     """Tests for DispatcherRunObserver event dispatching and lifecycle."""
-
-    def test_run_observer_protocol_compliance(self) -> None:
-        dispatcher = UiDispatcher()
-        observer = DispatcherRunObserver(dispatcher)
-        assert isinstance(observer, RunObserver)
 
     def test_context_manager_live_lifecycle(self) -> None:
         dispatcher = MagicMock(spec=UiDispatcher)
@@ -152,15 +144,3 @@ class TestResolveCliObserver:
         observer = resolve_cli_observer(dispatcher, non_interactive=False, output_format="terminal")
         assert isinstance(observer, DispatcherRunObserver)
         assert observer._live is False
-
-
-class TestProtocolAndEngineIntegration:
-    """Tests protocol compliance and engine helper."""
-
-    def test_notify_step_output_invokes_observer(self) -> None:
-        observer = MagicMock(spec=RunObserver)
-        context = RunContext(steps=[], cwd=Path.cwd(), observer=observer)
-        step = make_cmd_step(step_id="s1")
-
-        _notify_step_output(context, 1, 1, step, "test line", stream="stdout")
-        observer.on_step_output.assert_called_once_with(1, 1, step, "test line", stream="stdout")

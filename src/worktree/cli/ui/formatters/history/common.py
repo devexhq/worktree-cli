@@ -209,14 +209,3 @@ def render_history_show(run: RunRecord, *, output: Any = None) -> None:
     if run.checkpoint_json:
         for renderable in build_checkpoint_renderables(run.checkpoint_json):
             _emit(output, renderable)
-
-
-def render_history_not_found(session_id: str, *, output: Any = None) -> None:
-    """Render not-found panel."""
-    msg = f"Session '{session_id}' not found.\nFix:\n- run `wt history` to view past sessions"
-    panel = Panel.fit(f"[bold red]Session Not Found[/bold red]\n{msg}", border_style="red")
-    if output is not None:
-        if hasattr(output, "add_line"):
-            output.add_line(panel)
-        elif hasattr(output, "error_panel"):
-            output.error_panel("Session Not Found", msg)

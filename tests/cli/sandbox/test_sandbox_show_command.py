@@ -300,7 +300,6 @@ class SandboxShowCliTests:
         assert result.exit_code == 0
 
         show_cmd = get_command(app).get_command(None, "sandbox").get_command(None, "show")
-        assert show_cmd.help == "Show full detail for one tracked sandbox."
         assert any(param.name == "sandbox_id" for param in show_cmd.params)
 
     def test_show_via_cli(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:

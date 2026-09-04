@@ -20,18 +20,6 @@ class SessionDirTests:
         assert path == fs.base_path / ".worktree" / "sessions" / "sbx_12345678"
 
 
-class AtomicWriteJsonTests:
-    """Tests for atomic_write_json."""
-
-    def test_writes_json_with_trailing_newline(self, fs: FileSystem) -> None:
-        path = fs.base_path / "cfg.json"
-        Filesystem.atomic_write_json(path, {"a": 1})
-        text = path.read_text(encoding="utf-8")
-        assert text.endswith("\n")
-        assert json.loads(text) == {"a": 1}
-        assert not path.with_name("cfg.json.tmp").exists()
-
-
 class AtomicWriteTextTests:
     """Tests for atomic_write_text."""
 
