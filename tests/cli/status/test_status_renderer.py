@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from tests.helpers import make_rich_output
-from worktree.cli.ui.formatters.status.common import render_status_summary
+from tests.helpers import render_rich
+from worktree.cli.ui.formatters.status import WorktreeStatusFormatter
 from worktree.core.config.loader import ConfigLoadStatus
 from worktree.core.config.models import AgentConfig, ProjectConfig, WorktreeConfig
 from worktree.core.status.models import (
@@ -80,15 +80,11 @@ def _make_status_result(
 
 
 class TestStatusRenderer:
-    """Tests for render_status_summary."""
+    """Tests for WorktreeStatusFormatter rendering."""
 
     def test_render_status_summary_healthy_workspace(self) -> None:
-        rich_output, buffer = make_rich_output()
         result = _make_status_result()
-
-        render_status_summary(result, output=rich_output)
-        rich_output.print()
-        rendered = buffer.getvalue()
+        rendered = render_rich(WorktreeStatusFormatter().to_rich(result))
 
         assert "Worktree Workspace Status" in rendered
         assert "Project Name" in rendered
@@ -106,17 +102,13 @@ class TestStatusRenderer:
         assert "Configuration & Context Warnings" not in rendered
 
     def test_render_status_summary_with_warnings(self) -> None:
-        rich_output, buffer = make_rich_output()
         result = _make_status_result(
             warnings=[
                 "max_active_sandboxes (10) is unusually high.",
                 "Active branch is 'main'. Automated workflows on primary branches are discouraged.",
             ]
         )
-
-        render_status_summary(result, output=rich_output)
-        rich_output.print()
-        rendered = buffer.getvalue()
+        rendered = render_rich(WorktreeStatusFormatter().to_rich(result))
 
         assert "Worktree Workspace Status" in rendered
         assert "⚠️ Configuration & Context Warnings:" in rendered
@@ -124,7 +116,6 @@ class TestStatusRenderer:
         assert "Active branch is 'main'." in rendered
 
     def test_render_status_summary_dirty_branch(self) -> None:
-        rich_output, buffer = make_rich_output()
         git_info = GitStatusInfo(
             is_git_repo=True,
             branch="feature/dirty-branch",
@@ -132,15 +123,11 @@ class TestStatusRenderer:
             uncommitted_files=3,
         )
         result = _make_status_result(git=git_info)
-
-        render_status_summary(result, output=rich_output)
-        rich_output.print()
-        rendered = buffer.getvalue()
+        rendered = render_rich(WorktreeStatusFormatter().to_rich(result))
 
         assert "feature/dirty-branch (dirty)" in rendered
 
     def test_render_status_summary_null_model_and_project(self) -> None:
-        rich_output, buffer = make_rich_output()
         root = Path("/workspace/my-repo")
         config_info = ConfigStatusInfo(
             status=ConfigLoadStatus.OK,
@@ -153,16 +140,12 @@ class TestStatusRenderer:
             ),
         )
         result = _make_status_result(root_dir=root, config=config_info)
-
-        render_status_summary(result, output=rich_output)
-        rich_output.print()
-        rendered = buffer.getvalue()
+        rendered = render_rich(WorktreeStatusFormatter().to_rich(result))
 
         assert "unnamed_project" in rendered
         assert "Not Configured" in rendered
 
     def test_render_status_summary_none_config(self) -> None:
-        rich_output, buffer = make_rich_output()
         root = Path("/workspace/my-repo")
         config_info = ConfigStatusInfo(
             status=ConfigLoadStatus.NOT_FOUND,
@@ -171,10 +154,7 @@ class TestStatusRenderer:
             config=None,
         )
         result = _make_status_result(root_dir=root, config=config_info)
-
-        render_status_summary(result, output=rich_output)
-        rich_output.print()
-        rendered = buffer.getvalue()
+        rendered = render_rich(WorktreeStatusFormatter().to_rich(result))
 
         assert "Worktree Workspace Status (Uninitialized)" in rendered
         assert "Uninitialized" in rendered
@@ -183,7 +163,6 @@ class TestStatusRenderer:
         assert "Run 'wt init' to initialize Worktree in this repository." in rendered
 
     def test_render_status_summary_empty_catalog(self) -> None:
-        rich_output, buffer = make_rich_output()
         root = Path("/workspace/my-repo")
         catalog_info = CatalogStatusInfo(
             exists=False,
@@ -196,15 +175,11 @@ class TestStatusRenderer:
             item_names=[],
         )
         result = _make_status_result(root_dir=root, catalog=catalog_info)
-
-        render_status_summary(result, output=rich_output)
-        rich_output.print()
-        rendered = buffer.getvalue()
+        rendered = render_rich(WorktreeStatusFormatter().to_rich(result))
 
         assert "0 valid / 0 total" in rendered
 
     def test_render_status_summary_invalid_catalog_items(self) -> None:
-        rich_output, buffer = make_rich_output()
         root = Path("/workspace/my-repo")
         catalog_info = CatalogStatusInfo(
             exists=True,
@@ -217,9 +192,6 @@ class TestStatusRenderer:
             item_names=["w1", "w2", "t1", "t2", "s1"],
         )
         result = _make_status_result(root_dir=root, catalog=catalog_info)
-
-        render_status_summary(result, output=rich_output)
-        rich_output.print()
-        rendered = buffer.getvalue()
+        rendered = render_rich(WorktreeStatusFormatter().to_rich(result))
 
         assert "3 valid / 5 total" in rendered

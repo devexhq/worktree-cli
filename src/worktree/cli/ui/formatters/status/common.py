@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from rich.table import Table
 
 from worktree.common.utils import display_path
@@ -147,28 +145,3 @@ def build_status_table(result: WorktreeStatusResult) -> Table:
     table.add_row("Active Sandboxes", format_sandboxes_status(result))
     table.add_row("Catalog Items", format_catalog_status(result))
     return table
-
-
-def _render_bullet_section(output: Any, header: str, items: list[str]) -> None:
-    """Helper to render a spaced bullet section to output."""
-    if not items:
-        return
-    if hasattr(output, "add_spacer"):
-        output.add_spacer()
-    output.add_line(header)
-    for item in items:
-        if hasattr(output, "add_dim_bullet"):
-            output.add_dim_bullet(item)
-        else:
-            output.add_line(f"  • {item}")
-
-
-def render_status_summary(result: WorktreeStatusResult, *, output: Any) -> None:
-    """Render Rich terminal summary for WorktreeStatusResult."""
-    output.add_line(build_status_table(result))
-    _render_bullet_section(
-        output,
-        "[yellow]⚠️ Configuration & Context Warnings:[/yellow]",
-        collect_all_warnings(result),
-    )
-    _render_bullet_section(output, "Next Steps & Remediation:", collect_remediations(result))

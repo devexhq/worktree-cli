@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from tests.helpers import GitFileSystem, make_cli_context, make_rich_output
+from tests.helpers import GitFileSystem, make_cli_context, render_rich
 from worktree.cli.status.commands.root import status_command
-from worktree.cli.ui.formatters.status.common import render_status_summary
+from worktree.cli.ui.formatters.status import WorktreeStatusFormatter
 from worktree.core.config.loader import ConfigLoadStatus
 from worktree.core.status.models import (
     CatalogStatusInfo,
@@ -82,7 +82,6 @@ class TestStatusDegraded:
 
     def test_uninitialized_workspace_rendering(self) -> None:
         """Verify uninitialized status table, badges, warnings, and remediation."""
-        rich_output, buffer = make_rich_output()
         root = Path("/workspace/uninit-repo")
         config_info = ConfigStatusInfo(
             status=ConfigLoadStatus.NOT_FOUND,
@@ -96,10 +95,7 @@ class TestStatusDegraded:
             config=config_info,
             warnings=["Worktree workspace is not initialized. Run 'wt init' to configure."],
         )
-
-        render_status_summary(result, output=rich_output)
-        rich_output.print()
-        rendered = buffer.getvalue()
+        rendered = render_rich(WorktreeStatusFormatter().to_rich(result))
 
         assert "Worktree Workspace Status" in rendered
         assert "Uninitialized" in rendered
@@ -117,7 +113,6 @@ class TestStatusDegraded:
 
     def test_malformed_json_degraded_rendering(self) -> None:
         """Verify degraded table and syntax repair remediation for malformed config.json."""
-        rich_output, buffer = make_rich_output()
         root = Path("/workspace/malformed-repo")
         config_info = ConfigStatusInfo(
             status=ConfigLoadStatus.MALFORMED_JSON,
@@ -136,10 +131,7 @@ class TestStatusDegraded:
             is_initialized=True,
             config=config_info,
         )
-
-        render_status_summary(result, output=rich_output)
-        rich_output.print()
-        rendered = buffer.getvalue()
+        rendered = render_rich(WorktreeStatusFormatter().to_rich(result))
 
         assert "Worktree Workspace Status (Degraded)" in rendered
         assert "CONFIG_MALFORMED_JSON" in rendered
@@ -151,7 +143,6 @@ class TestStatusDegraded:
 
     def test_schema_invalid_degraded_rendering(self) -> None:
         """Verify degraded table and schema repair remediation for invalid config schema."""
-        rich_output, buffer = make_rich_output()
         root = Path("/workspace/schema-invalid-repo")
         config_info = ConfigStatusInfo(
             status=ConfigLoadStatus.SCHEMA_INVALID,
@@ -165,10 +156,7 @@ class TestStatusDegraded:
             is_initialized=True,
             config=config_info,
         )
-
-        render_status_summary(result, output=rich_output)
-        rich_output.print()
-        rendered = buffer.getvalue()
+        rendered = render_rich(WorktreeStatusFormatter().to_rich(result))
 
         assert "Worktree Workspace Status (Degraded)" in rendered
         assert "CONFIG_SCHEMA_INVALID" in rendered
@@ -179,7 +167,6 @@ class TestStatusDegraded:
 
     def test_schema_invalid_with_raw_project_name_rendering(self) -> None:
         """Verify degraded table renders raw project name from unvalidated config dict."""
-        rich_output, buffer = make_rich_output()
         root = Path("/workspace/schema-invalid-repo")
         config_info = ConfigStatusInfo(
             status=ConfigLoadStatus.SCHEMA_INVALID,
@@ -194,10 +181,7 @@ class TestStatusDegraded:
             is_initialized=True,
             config=config_info,
         )
-
-        render_status_summary(result, output=rich_output)
-        rich_output.print()
-        rendered = buffer.getvalue()
+        rendered = render_rich(WorktreeStatusFormatter().to_rich(result))
 
         assert "Worktree Workspace Status (Degraded)" in rendered
         assert "my-broken-app" in rendered
@@ -206,7 +190,6 @@ class TestStatusDegraded:
 
     def test_root_not_object_degraded_rendering(self) -> None:
         """Verify degraded table and object root remediation when config is not a JSON object."""
-        rich_output, buffer = make_rich_output()
         root = Path("/workspace/root-array-repo")
         config_info = ConfigStatusInfo(
             status=ConfigLoadStatus.ROOT_NOT_OBJECT,
@@ -220,10 +203,7 @@ class TestStatusDegraded:
             is_initialized=True,
             config=config_info,
         )
-
-        render_status_summary(result, output=rich_output)
-        rich_output.print()
-        rendered = buffer.getvalue()
+        rendered = render_rich(WorktreeStatusFormatter().to_rich(result))
 
         assert "Worktree Workspace Status (Degraded)" in rendered
         assert "CONFIG_ROOT_NOT_OBJECT" in rendered
@@ -232,7 +212,6 @@ class TestStatusDegraded:
 
     def test_path_is_directory_degraded_rendering(self) -> None:
         """Verify degraded table and directory removal remediation when config is a directory."""
-        rich_output, buffer = make_rich_output()
         root = Path("/workspace/dir-config-repo")
         config_info = ConfigStatusInfo(
             status=ConfigLoadStatus.PATH_IS_DIRECTORY,
@@ -246,10 +225,7 @@ class TestStatusDegraded:
             is_initialized=True,
             config=config_info,
         )
-
-        render_status_summary(result, output=rich_output)
-        rich_output.print()
-        rendered = buffer.getvalue()
+        rendered = render_rich(WorktreeStatusFormatter().to_rich(result))
 
         assert "Worktree Workspace Status (Degraded)" in rendered
         assert "PATH_IS_DIRECTORY" in rendered
@@ -258,7 +234,6 @@ class TestStatusDegraded:
 
     def test_unreadable_config_degraded_rendering(self) -> None:
         """Verify degraded table and permission check remediation for unreadable config."""
-        rich_output, buffer = make_rich_output()
         root = Path("/workspace/unreadable-repo")
         config_info = ConfigStatusInfo(
             status=ConfigLoadStatus.UNREADABLE,
@@ -272,10 +247,7 @@ class TestStatusDegraded:
             is_initialized=True,
             config=config_info,
         )
-
-        render_status_summary(result, output=rich_output)
-        rich_output.print()
-        rendered = buffer.getvalue()
+        rendered = render_rich(WorktreeStatusFormatter().to_rich(result))
 
         assert "Worktree Workspace Status (Degraded)" in rendered
         assert "CONFIG_UNREADABLE" in rendered
@@ -284,7 +256,6 @@ class TestStatusDegraded:
 
     def test_non_git_repository_degraded_rendering(self) -> None:
         """Verify degraded table and git init remediation outside a git repository."""
-        rich_output, buffer = make_rich_output()
         root = Path("/workspace/non-git-dir")
         git_info = GitStatusInfo(
             is_git_repo=False,
@@ -297,10 +268,7 @@ class TestStatusDegraded:
             is_initialized=True,
             git=git_info,
         )
-
-        render_status_summary(result, output=rich_output)
-        rich_output.print()
-        rendered = buffer.getvalue()
+        rendered = render_rich(WorktreeStatusFormatter().to_rich(result))
 
         assert "Worktree Workspace Status (Degraded)" in rendered
         assert "NOT_A_GIT_REPO" in rendered
@@ -309,7 +277,6 @@ class TestStatusDegraded:
 
     def test_combined_non_git_and_missing_config(self) -> None:
         """Verify both remediations are rendered when outside git and missing config."""
-        rich_output, buffer = make_rich_output()
         root = Path("/workspace/empty-dir")
         git_info = GitStatusInfo(
             is_git_repo=False,
@@ -330,10 +297,7 @@ class TestStatusDegraded:
             config=config_info,
             warnings=["Worktree workspace is not initialized. Run 'wt init' to configure."],
         )
-
-        render_status_summary(result, output=rich_output)
-        rich_output.print()
-        rendered = buffer.getvalue()
+        rendered = render_rich(WorktreeStatusFormatter().to_rich(result))
 
         assert "Worktree Workspace Status" in rendered
         assert "Uninitialized" in rendered
