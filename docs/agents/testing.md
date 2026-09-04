@@ -169,9 +169,10 @@ not instances. Grow this directory.
   Console width for rendered assertions is authoritatively pinned to 160 by
   `tests/helpers.py` (`render_rich` and `make_rich_output`). Tests must not rely
   on ambient terminal size or in-process `os.environ["COLUMNS"]` mutations
-  (`tests/conftest.py` does not mutate `os.environ`). Both `tasks.py`
-  (`inv test`) and CI (`.github/workflows/ci.yml`) set `COLUMNS = "160"`
-  uniformly on the invoked subprocess environment.
+  (`tests/conftest.py` does not mutate `os.environ`). `pytest-env` in
+  `pyproject.toml`, `tasks.py` (`inv test`), and CI (`.github/workflows/ci.yml`)
+  set `COLUMNS = "160"` and `PYTHONIOENCODING = "utf-8"` uniformly across all
+  test invocations.
 - Prefer real filesystem and git over mocks.
 
 ### Fixture Scoping and Reuse
