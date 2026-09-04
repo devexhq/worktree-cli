@@ -25,6 +25,10 @@ services, facade methods, commands, subcommands, formatters, schemas, tests,
 docs) into a plan with code samples. Skip it only for a single-file change that
 adds no new surface.
 
+At the end of a unit of work, on top of providing a summary of changes and
+quality gate results, provide a commit message following
+[docs/agents/git-and-pr-conventions.md](docs/agents/git-and-pr-conventions.md).
+
 ## Essential commands
 
 ```bash
