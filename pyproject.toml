@@ -81,6 +81,9 @@ python_classes = ["Test*", "*Tests"]
 markers = [
     "slow: real subprocess, git, or multi-process tests",
 ]
+filterwarnings = [
+    "error",
+]
 
 [tool.coverage.run]
 source = ["worktree"]

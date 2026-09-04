@@ -160,6 +160,16 @@ class ProcessRegistry:
 process_registry = ProcessRegistry()
 
 
+def _cleanup_process_streams(proc: subprocess.Popen[Any]) -> None:
+    """Close any unclosed stdout/stderr/stdin streams on the process."""
+    for stream in (proc.stdout, proc.stderr, proc.stdin):
+        if stream is not None and not stream.closed:
+            try:
+                stream.close()
+            except Exception:
+                pass
+
+
 def run_isolated_process(
     cmd: Sequence[str] | str,
     *,
@@ -233,3 +243,4 @@ def run_isolated_process(
         process_registry.unregister(proc)
         if proc.poll() is None:
             terminate_process_tree(proc, grace_seconds=0.5, pgid=pgid)
+        _cleanup_process_streams(proc)
