@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import time
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -78,7 +79,7 @@ class DiffServiceTests:
 
         orig_read_text = Path.read_text
 
-        def _custom_read_text(self_path: Path, *args: object, **kwargs: object) -> str:
+        def _custom_read_text(self_path: Path, *args: Any, **kwargs: Any) -> str:
             if self_path.name == "diff.patch":
                 raise OSError("Disk read failure")
             return orig_read_text(self_path, *args, **kwargs)

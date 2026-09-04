@@ -8,10 +8,17 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-from typer.main import get_command
 from typer.testing import CliRunner
 
-from tests.helpers import FileSystem, GitFileSystem, make_cli_context, render_rich
+from tests.helpers import (
+    FileSystem,
+    GitFileSystem,
+    get_subcommand,
+    get_subgroup,
+    list_subcommands,
+    make_cli_context,
+    render_rich,
+)
 from worktree.cli import app
 from worktree.cli.sandbox.commands.sandbox_create import sandbox_create_command
 from worktree.cli.ui.formatters.sandbox import SandboxCreateFormatter
@@ -275,16 +282,17 @@ class SandboxCreateCliTests:
         result = runner.invoke(app, ["sandbox", "--help"])
         assert result.exit_code == 0
 
-        sandbox_cmd = get_command(app).get_command(None, "sandbox")
-        assert "create" in sandbox_cmd.list_commands(None)
-        assert "list" in sandbox_cmd.list_commands(None)
-        assert "show" in sandbox_cmd.list_commands(None)
+        sandbox_cmd = get_subgroup(app, "sandbox")
+        cmds = list_subcommands(sandbox_cmd)
+        assert "create" in cmds
+        assert "list" in cmds
+        assert "show" in cmds
 
     def test_create_help_options(self) -> None:
         result = runner.invoke(app, ["sandbox", "create", "--help"])
         assert result.exit_code == 0
 
-        create_cmd = get_command(app).get_command(None, "sandbox").get_command(None, "create")
+        create_cmd = get_subcommand(app, "sandbox", "create")
         opts: set[str] = set()
         for param in create_cmd.params:
             opts.update(param.opts)

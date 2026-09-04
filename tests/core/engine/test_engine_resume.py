@@ -21,8 +21,8 @@ from worktree.core.runtime import RunCheckpoint, RunContext, RunOutcome
 from worktree.core.step import LoopStepBlock
 
 
-def _checkpoint(**overrides: object) -> RunCheckpoint:
-    payload: dict[str, object] = {"step_id": "setup", "pending_step_id": "publish"}
+def _checkpoint(**overrides: Any) -> RunCheckpoint:
+    payload: dict[str, Any] = {"step_id": "setup", "pending_step_id": "publish"}
     payload.update(overrides)
     return make_checkpoint(**payload)
 
@@ -212,7 +212,7 @@ class EngineResumeExecutionTests:
 
         real_update = RunsRepository.update_status
 
-        def _fail_finalize(self_repo: RunsRepository, session_id: str, status: RunStatus, **kwargs: object) -> None:
+        def _fail_finalize(self_repo: RunsRepository, session_id: str, status: RunStatus, **kwargs: Any) -> None:
             if status != RunStatus.RUNNING:
                 raise RuntimeError("locked")
             real_update(self_repo, session_id, status, **kwargs)

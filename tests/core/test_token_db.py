@@ -73,7 +73,7 @@ class DatabaseTests:
 
         original_refresh = Session.refresh
 
-        def fake_refresh(session_self: Session, instance: Any, *args: object, **kwargs: object) -> None:
+        def fake_refresh(session_self: Session, instance: Any, *args: Any, **kwargs: Any) -> None:
             original_refresh(session_self, instance, *args, **kwargs)
             instance.id = None
 

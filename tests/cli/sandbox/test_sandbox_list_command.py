@@ -5,10 +5,17 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from typer.main import get_command
 from typer.testing import CliRunner
 
-from tests.helpers import GitFileSystem, make_cli_context, render_rich, seed_sandbox
+from tests.helpers import (
+    GitFileSystem,
+    get_subcommand,
+    get_subgroup,
+    list_subcommands,
+    make_cli_context,
+    render_rich,
+    seed_sandbox,
+)
 from worktree.cli import app
 from worktree.cli.sandbox.commands.sandbox_list import (
     sandbox_list_command,
@@ -277,8 +284,8 @@ class SandboxListCliTests:
         result = runner.invoke(app, ["sandbox", "--help"])
         assert result.exit_code == 0
 
-        sandbox_cmd = get_command(app).get_command(None, "sandbox")
-        assert "list" in sandbox_cmd.list_commands(None)
+        sandbox_cmd = get_subgroup(app, "sandbox")
+        assert "list" in list_subcommands(sandbox_cmd)
 
     def test_list_help(self) -> None:
         # Assert registration via Click metadata. Do not parse Rich --help text:
@@ -286,7 +293,7 @@ class SandboxListCliTests:
         result = runner.invoke(app, ["sandbox", "list", "--help"])
         assert result.exit_code == 0
 
-        list_cmd = get_command(app).get_command(None, "sandbox").get_command(None, "list")
+        list_cmd = get_subcommand(app, "sandbox", "list")
         opts: set[str] = set()
         for param in list_cmd.params:
             opts.update(param.opts)

@@ -72,15 +72,22 @@ source = "vcs"
 local_scheme = "no-local-version"
 
 [tool.pytest.ini_options]
-addopts = ""
+addopts = "-q --strict-markers --strict-config"
+testpaths = ["tests"]
 # Repo root must be importable so `tests.*` helpers resolve when invoked via the
 # `pytest` console script (sys.path[0] is not cwd in that mode).
 pythonpath = ["."]
 python_classes = ["Test*", "*Tests"]
+markers = [
+    "slow: real subprocess, git, or multi-process tests",
+]
+filterwarnings = [
+    "error",
+]
 
 [tool.coverage.run]
 source = ["worktree"]
-branch = false
+branch = true
 
 [tool.coverage.report]
 fail_under = 80
@@ -150,9 +157,8 @@ dev = [
 ]
 
 [tool.basedpyright]
-# Package-only gate for the ljb/typing rollout. Tests stay untyped until the
-# library surface is clean under recommended mode.
-include = ["src"]
+# Source and test suites type-checked under recommended mode.
+include = ["src", "tests"]
 exclude = [
     "**/__pycache__",
     "build",
@@ -175,4 +181,5 @@ reportCallInDefaultInitializer = "none"  # Typer Option()/Argument() defaults
 reportUnusedParameter = "none"  # Typer ctx and callback-required params
 reportUnannotatedClassAttribute = "none"  # Pydantic model_config / ClassVar flood
 reportUnusedCallResult = "none"  # Path.mkdir, list.append-style intentional discards
+reportUninitializedInstanceVariable = "none"  # Pytest fixture-initialized instance attributes
 reportMissingTypeStubs = false

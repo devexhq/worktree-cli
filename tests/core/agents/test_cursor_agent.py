@@ -18,6 +18,7 @@ from worktree.core.agents import (
 from worktree.core.agents.cli_mutation import (
     CliMutationOutcome,
     CliMutationRunRequest,
+    CliMutationRunStatus,
     build_mutation_prompt,
 )
 from worktree.core.agents.cursor import (
@@ -78,7 +79,7 @@ def _cursor_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
 def _fake_run(
     *,
     edits: dict[str, str] | None = None,
-    status: str = "finished",
+    status: CliMutationRunStatus = "finished",
     error_detail: str | None = None,
     result_text: str | None = "done",
 ):

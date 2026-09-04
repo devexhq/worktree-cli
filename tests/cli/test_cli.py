@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import multiprocessing
+import multiprocessing.synchronize
 import time
 from pathlib import Path
 
@@ -15,7 +16,7 @@ from worktree.cli.cli import __version__, app
 runner = CliRunner()
 
 
-def _child_hold_lock_cli(target_dir: Path, ready: multiprocessing.Event) -> None:
+def _child_hold_lock_cli(target_dir: Path, ready: multiprocessing.synchronize.Event) -> None:
     from worktree.common.lock import WorkspaceLock
 
     with WorkspaceLock(target_dir, timeout_seconds=5.0):

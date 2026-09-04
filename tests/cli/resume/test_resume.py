@@ -17,7 +17,7 @@ from worktree.core.blueprint import BlueprintKind
 from worktree.core.catalog.services.inventory import scan_and_index_catalog
 from worktree.core.db import RunsRepository, RunStatus, WorktreeDb
 from worktree.core.engine import BlueprintResumeService
-from worktree.core.runtime import FailurePromptDecision, RunCheckpoint
+from worktree.core.runtime import FailurePromptDecision, LoopPromptDecision, RunCheckpoint
 
 runner = CliRunner()
 
@@ -52,6 +52,9 @@ class _RetryPrompter:
 
     def prompt_step_failure(self, **kwargs: object) -> FailurePromptDecision:
         return FailurePromptDecision.RETRY
+
+    def prompt_loop_max_iterations(self, **kwargs: object) -> LoopPromptDecision:
+        return LoopPromptDecision.ABORT
 
 
 @pytest.fixture
@@ -372,6 +375,9 @@ class ResumeCliTests:
             is_interactive: bool = True
 
             def prompt_step_failure(self, **kwargs: object) -> FailurePromptDecision:
+                raise KeyboardInterrupt
+
+            def prompt_loop_max_iterations(self, **kwargs: object) -> LoopPromptDecision:
                 raise KeyboardInterrupt
 
         monkeypatch.setattr(

@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import multiprocessing
+import multiprocessing.synchronize
 import os
 import time
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -20,7 +22,7 @@ from worktree.common.lock import (
 )
 
 
-def _child_hold_lock(lock_dir: Path, hold_seconds: float, ready_event: multiprocessing.Event) -> None:
+def _child_hold_lock(lock_dir: Path, hold_seconds: float, ready_event: multiprocessing.synchronize.Event) -> None:
     """Helper process that holds WorkspaceLock for a fixed duration."""
     with WorkspaceLock(lock_dir, timeout_seconds=5.0):
         ready_event.set()
@@ -30,7 +32,7 @@ def _child_hold_lock(lock_dir: Path, hold_seconds: float, ready_event: multiproc
 def _child_acquire_with_timeout(
     lock_dir: Path,
     timeout_seconds: float,
-    result_queue: multiprocessing.Queue,  # type: ignore[reportMissingTypeArgument]
+    result_queue: multiprocessing.Queue[dict[str, Any]],
 ) -> None:
     """Helper process that tries to acquire WorkspaceLock and captures outcome."""
     try:

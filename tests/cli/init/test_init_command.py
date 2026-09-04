@@ -240,11 +240,11 @@ class InitCommandFailureTests:
         config_path = git_fs.base_path / ".worktree" / "config.json"
         config_path.write_text("{not-json", encoding="utf-8")
 
-        recorded: list[str] = []
+        recorded: list[str | None] = []
 
         def capture_init_database(path=None, *, cwd=None, db_rel_path=None, db_path=None):
             recorded.append(db_rel_path)
-            return Path(path or cwd or ".") / db_rel_path
+            return Path(path or cwd or ".") / (db_rel_path or "")
 
         monkeypatch.setattr("worktree.core.bootstrap.services.initialize.init_database", capture_init_database)
         monkeypatch.setattr(
@@ -290,16 +290,16 @@ class InitCliTests:
     """CliRunner coverage for `wt init`."""
 
     def test_init_help_includes_format_option(self) -> None:
-        from typer.main import get_command
         from typer.testing import CliRunner
 
+        from tests.helpers import get_subcommand
         from worktree.cli import app
 
         runner = CliRunner()
         result = runner.invoke(app, ["init", "--help"])
         assert result.exit_code == 0
 
-        cmd = get_command(app).get_command(None, "init")
+        cmd = get_subcommand(app, "init")
         opts: set[str] = set()
         for param in cmd.params:
             opts.update(param.opts)

@@ -262,7 +262,7 @@ def test_prune_combined_and_idempotency(git_fs: GitFileSystem) -> None:
     result2 = manager.prune()
     assert result2.ok
     assert result2.pruned_count == 0
-    assert result2.total_stale_count == 0 if hasattr(result2, "total_stale_count") else len(result2.items) == 0
+    assert len(result2.items) == 0
 
 
 def test_prune_manager_facade_and_helper(git_fs: GitFileSystem) -> None:

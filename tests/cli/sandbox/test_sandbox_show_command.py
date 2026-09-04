@@ -5,10 +5,17 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from typer.main import get_command
 from typer.testing import CliRunner
 
-from tests.helpers import GitFileSystem, make_cli_context, render_rich, seed_sandbox
+from tests.helpers import (
+    GitFileSystem,
+    get_subcommand,
+    get_subgroup,
+    list_subcommands,
+    make_cli_context,
+    render_rich,
+    seed_sandbox,
+)
 from worktree.cli import app
 from worktree.cli.sandbox.commands.sandbox_show import (
     sandbox_show_command,
@@ -291,15 +298,16 @@ class SandboxShowCliTests:
         result = runner.invoke(app, ["sandbox", "--help"])
         assert result.exit_code == 0
 
-        sandbox_cmd = get_command(app).get_command(None, "sandbox")
-        assert "show" in sandbox_cmd.list_commands(None)
-        assert "list" in sandbox_cmd.list_commands(None)
+        sandbox_cmd = get_subgroup(app, "sandbox")
+        cmds = list_subcommands(sandbox_cmd)
+        assert "show" in cmds
+        assert "list" in cmds
 
     def test_show_help(self) -> None:
         result = runner.invoke(app, ["sandbox", "show", "--help"])
         assert result.exit_code == 0
 
-        show_cmd = get_command(app).get_command(None, "sandbox").get_command(None, "show")
+        show_cmd = get_subcommand(app, "sandbox", "show")
         assert any(param.name == "sandbox_id" for param in show_cmd.params)
 
     def test_show_via_cli(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:

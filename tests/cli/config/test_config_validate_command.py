@@ -4,13 +4,19 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
-from typer.main import get_command
 from typer.testing import CliRunner
 
-from tests.helpers import GitFileSystem, make_cli_context
+from tests.helpers import (
+    GitFileSystem,
+    get_subcommand,
+    get_subgroup,
+    list_subcommands,
+    make_cli_context,
+)
 from worktree.cli import app
 from worktree.cli.config.commands.config_validate import config_validate_command
 from worktree.core.config.validate import (
@@ -21,11 +27,11 @@ from worktree.core.config.validate import (
 runner = CliRunner()
 
 
-def _read_config(config_path: Path) -> dict:
+def _read_config(config_path: Path) -> dict[str, Any]:
     return json.loads(config_path.read_text(encoding="utf-8"))
 
 
-def _write_config(config_path: Path, data: dict) -> None:
+def _write_config(config_path: Path, data: dict[str, Any]) -> None:
     config_path.write_text(
         json.dumps(data, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
@@ -359,17 +365,15 @@ class ConfigValidateCliTests:
         assert "CONFIG_SEMANTIC_PATH_INVALID" in combined
 
     def test_help_lists_config_validate(self) -> None:
-        root_cmd = get_command(app)
-        assert "config" in root_cmd.list_commands(None)
+        root_group = get_subgroup(app)
+        assert "config" in list_subcommands(root_group)
 
-        config_cmd = root_cmd.get_command(None, "config")
-        assert config_cmd is not None
-        assert "show" in config_cmd.list_commands(None)
-        assert "set" in config_cmd.list_commands(None)
-        assert "validate" in config_cmd.list_commands(None)
+        config_group = get_subgroup(app, "config")
+        assert "show" in list_subcommands(config_group)
+        assert "set" in list_subcommands(config_group)
+        assert "validate" in list_subcommands(config_group)
 
-        validate_cmd = config_cmd.get_command(None, "validate")
-        assert validate_cmd is not None
+        validate_cmd = get_subcommand(app, "config", "validate")
         opts: set[str] = set()
         for param in validate_cmd.params:
             opts.update(param.opts)

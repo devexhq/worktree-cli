@@ -29,7 +29,9 @@ Guidelines and requirements for local quality gates and continuous integration.
   basedpyright src                # typecheck
   basedpyright src --level error   # error gate (must be 0 errors)
   ```
-- **Suppression comments:** Must use `# pyright: ignore[reportRuleName]`. Bare `# type: ignore` is not honored.
+- **Suppression comments:** Must use `# pyright: ignore[reportRuleName]` with a
+  reason. Bare `# type: ignore` is not honored. Which rules may be suppressed
+  is in [code-conventions.md](code-conventions.md#type-checker-suppressions).
 
 ---
 
@@ -55,7 +57,7 @@ Guidelines and requirements for local quality gates and continuous integration.
 **Relevant sources:** `.github/workflows/ci.yml`
 
 Four CI jobs run on pushes to `main` and on pull requests:
-- **test**: `uv sync --all-extras` and pytest with coverage (`fail_under = 80` in `pyproject.toml`).
+- **test**: `uv sync --all-extras` and `pytest -n auto` with coverage (`fail_under = 80` in `pyproject.toml`).
 - **lint**: `ruff check .` and `ruff format --check .`.
 - **complexity**: Scoped `complexipy` run on changed files against PR base.
 - **ci**: Gate job requiring `test`, `lint`, and `complexity` to succeed.

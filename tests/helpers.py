@@ -5,8 +5,11 @@ from io import StringIO
 from pathlib import Path
 from typing import Any
 
+import click
+import typer
 import yaml
 from rich.console import Console
+from typer.core import TyperGroup
 
 from worktree.cli.context import CliContext
 from worktree.core.config.generator import generate_default_config
@@ -49,7 +52,7 @@ class FileSystem:
     def __init__(self, base_path: Path) -> None:
         self.base_path = base_path
 
-    def write_file(self, rel_path: str | Path, content: str | dict | list[Any]) -> Path:
+    def write_file(self, rel_path: str | Path, content: str | dict[str, Any] | list[Any]) -> Path:
         """Write content under base_path, creating parent dirs. Serializes dict/list by file suffix (.yaml/.yml/.json); str is written as-is."""
         path = self.base_path / rel_path
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -281,7 +284,7 @@ class RichOutput:
     """Test helper mimicking RichOutput for test assertions."""
 
     def __init__(self, console: Console | None = None) -> None:
-        self.console = console or Console()
+        self.console = console or Console(width=160)
         self._items: list[Any] = []
 
     def add_line(self, item: Any) -> None:
@@ -348,7 +351,7 @@ class RichOutput:
         self._items.clear()
 
 
-def make_rich_output(*, width: int = 120) -> tuple[RichOutput, StringIO]:
+def make_rich_output(*, width: int = 160) -> tuple[RichOutput, StringIO]:
     """Fixed-width console so Rich tables/panels do not truncate under narrow CI COLUMNS."""
     buffer = StringIO()
     console = Console(
@@ -360,7 +363,7 @@ def make_rich_output(*, width: int = 120) -> tuple[RichOutput, StringIO]:
     return RichOutput(console=console), buffer
 
 
-def render_rich(renderable: Any, *, width: int = 120) -> str:
+def render_rich(renderable: Any, *, width: int = 160) -> str:
     """Render a Rich renderable directly to a plain text string for assertions."""
     buffer = StringIO()
     console = Console(
@@ -371,3 +374,27 @@ def render_rich(renderable: Any, *, width: int = 120) -> str:
     )
     console.print(renderable)
     return buffer.getvalue()
+
+
+def get_subcommand(target: Any, *names: str) -> Any:
+    """Resolve a nested Click Command from a Typer app or parent Click Group."""
+    current = typer.main.get_command(target) if isinstance(target, typer.Typer) else target
+    for name in names:
+        assert isinstance(current, (click.Group, TyperGroup)), f"Expected Group, got {type(current)}"
+        sub = current.commands.get(name)
+        assert sub is not None, f"Command {name!r} not found on {current}"
+        current = sub
+    return current
+
+
+def get_subgroup(target: Any, *names: str) -> Any:
+    """Resolve a nested Click Group from a Typer app or parent Click Group."""
+    cmd = get_subcommand(target, *names)
+    assert isinstance(cmd, (click.Group, TyperGroup)), f"Expected Group, got {type(cmd)}"
+    return cmd
+
+
+def list_subcommands(group: Any) -> list[str]:
+    """Return command names registered under a click Group."""
+    assert isinstance(group, (click.Group, TyperGroup)), f"Expected Group, got {type(group)}"
+    return sorted(group.commands.keys())

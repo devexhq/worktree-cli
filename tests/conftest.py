@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import os
 import shutil
 import subprocess
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -14,7 +14,7 @@ from worktree.core.config.loader import clear_config_cache
 
 
 @pytest.fixture(autouse=True)
-def _reset_config_cache() -> None:
+def _reset_config_cache() -> Iterator[None]:
     """Reset the in-memory config cache and singletons between tests."""
     Filesystem.reset()
     Config.reset()
@@ -23,13 +23,6 @@ def _reset_config_cache() -> None:
     Filesystem.reset()
     Config.reset()
     clear_config_cache()
-
-
-@pytest.fixture(autouse=True, scope="session")
-def _set_test_terminal_width() -> None:
-    """Set standard terminal width for test output assertions (e.g. Rich table formatting)."""
-    os.environ["COLUMNS"] = "160"
-    os.environ["PYTHONIOENCODING"] = "utf-8"
 
 
 @pytest.fixture(scope="session")

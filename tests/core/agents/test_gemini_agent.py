@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -83,7 +84,7 @@ class GeminiAuthTests:
 
 class GeminiRunTests:
     def test_default_run_parses_json(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        captured: dict[str, object] = {}
+        captured: dict[str, Any] = {}
 
         def fake_run(cmd, *, cwd, env, input_data, timeout_seconds, **kwargs):
             captured["cmd"] = cmd

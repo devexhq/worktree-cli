@@ -137,16 +137,16 @@ class StatusCliTests:
     """CliRunner coverage for `wt status`."""
 
     def test_status_help_includes_format_option(self) -> None:
-        from typer.main import get_command
         from typer.testing import CliRunner
 
+        from tests.helpers import get_subcommand
         from worktree.cli import app
 
         runner = CliRunner()
         result = runner.invoke(app, ["status", "--help"])
         assert result.exit_code == 0
 
-        cmd = get_command(app).get_command(None, "status")
+        cmd = get_subcommand(app, "status")
         opts: set[str] = set()
         for param in cmd.params:
             opts.update(param.opts)

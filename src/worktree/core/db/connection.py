@@ -24,10 +24,21 @@ def resolve_db_path(path: Path, db_rel_path: str = DEFAULT_DB_REL_PATH) -> Path:
 def _set_sqlite_pragmas(dbapi_connection: Any, connection_record: Any) -> None:
     """Enable WAL mode and busy timeout for safe concurrent CLI + Desktop access."""
     cursor = dbapi_connection.cursor()
-    cursor.execute("PRAGMA journal_mode=WAL;")
-    cursor.execute("PRAGMA busy_timeout=5000;")
-    cursor.execute("PRAGMA synchronous=NORMAL;")
-    cursor.execute("PRAGMA foreign_keys=ON;")
+    try:
+        cursor.execute("PRAGMA journal_mode=WAL;")
+        cursor.execute("PRAGMA busy_timeout=5000;")
+        cursor.execute("PRAGMA synchronous=NORMAL;")
+        cursor.execute("PRAGMA foreign_keys=ON;")
+    except Exception:
+        try:
+            cursor.close()
+        except Exception:
+            pass
+        try:
+            dbapi_connection.close()
+        except Exception:
+            pass
+        raise
     cursor.close()
 
 

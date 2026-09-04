@@ -129,6 +129,22 @@ not instances. Grow this directory.
   unfinished.
 - **`isinstance` only when it distinguishes two real code paths.** `basedpyright`
   already proves the rest.
+- **Annotate test helpers as tightly as production.** Once `tests/` is inside
+  `[tool.basedpyright]`'s `include`, an `Any` in a fixture or helper propagates
+  into every test that uses it, so the checker stops protecting the suite. Give
+  fixtures real return types (`Iterator[GitFileSystem]`, not `None`) and type
+  helper parameters against what production passes. A `MagicMock` in a signature
+  is the same finding as a hand-rolled stub: see "Test doubles must be types
+  production actually passes" above. Permitted and banned uses of `Any` are in
+  [code-conventions.md](code-conventions.md#type-annotations-and-any) and apply
+  to `tests/` unchanged.
+- **Do not `# pyright: ignore` a test-tree error to make the checker pass.**
+  If the checker rejects a fixture or helper, the fixture is wrong; give it
+  the type production passes. The one exception is a test whose *subject* is
+  an ill-typed call (`pytest.raises(TypeError)`, Pydantic `extra="forbid"`).
+  Prefer `Model.model_validate({...})` when that path exists. Permitted and
+  banned suppressions are in
+  [code-conventions.md](code-conventions.md#type-checker-suppressions).
 - **Never assert help text wording.** Assert command registration and option
   names via Click metadata. The one exception is the `wt --help` vs `README.md`
   check required by AGENTS.md.
@@ -148,8 +164,14 @@ not instances. Grow this directory.
   session-scoped template. Provides `init_repo()`, `create_config_file()`,
   `create_step_file()`, `create_workflow_file()`.
 - `fs` (`FileSystem`): plain temp filesystem.
-- `render_rich(renderable, width=120)`: renders to plain text via a real
+- `render_rich(renderable, width=160)`: renders to plain text via a real
   `Console`. **This is the only supported way to capture rendered output.**
+  Console width for rendered assertions is authoritatively pinned to 160 by
+  `tests/helpers.py` (`render_rich` and `make_rich_output`). Tests must not rely
+  on ambient terminal size or in-process `os.environ["COLUMNS"]` mutations
+  (`tests/conftest.py` does not mutate `os.environ`). Both `tasks.py`
+  (`inv test`) and CI (`.github/workflows/ci.yml`) set `COLUMNS = "160"`
+  uniformly on the invoked subprocess environment.
 - Prefer real filesystem and git over mocks.
 
 ### Fixture Scoping and Reuse
@@ -214,7 +236,7 @@ inv test                            # full suite, parallel (xdist)
 inv test --no-parallel              # serial (faster for a single module)
 inv test --coverage                 # coverage report (inv test -c)
 inv test --fast-fail                # stop on first failure (-x)
-python -m pytest tests/ -q <path>   # a specific file or directory
+python -m pytest -n auto tests/ -q <path>   # a specific file or directory
 ```
 
 - Global floor is **>= 80%** (`fail_under` in `pyproject.toml`). Changed lines

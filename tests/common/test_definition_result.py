@@ -53,8 +53,10 @@ class DefinitionResultTests:
 
     def test_rejects_extra_fields(self) -> None:
         with pytest.raises(ValidationError):
-            DefinitionResolutionResult[_Entry](
-                status=DefinitionResolutionStatus.OK,
-                requested_name="my-task",
-                unexpected="nope",
+            DefinitionResolutionResult[_Entry].model_validate(
+                {
+                    "status": DefinitionResolutionStatus.OK,
+                    "requested_name": "my-task",
+                    "unexpected": "nope",
+                }
             )

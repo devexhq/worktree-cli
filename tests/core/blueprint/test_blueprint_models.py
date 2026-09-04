@@ -95,7 +95,7 @@ class BlueprintModelValidationTests:
 
     def test_from_document_non_mapping_raises_validation_error(self) -> None:
         with pytest.raises(BlueprintValidationError, match="must be a mapping"):
-            BlueprintDefinition.from_document(["not", "a", "mapping"], kind=BlueprintKind.TASK)  # type: ignore[arg-type]
+            BlueprintDefinition.from_document(["not", "a", "mapping"], kind=BlueprintKind.TASK)  # pyright: ignore[reportArgumentType]
 
     def test_from_document_invalid_payload_raises_blueprint_validation_error(self) -> None:
         with pytest.raises(BlueprintValidationError, match="kind='task'"):

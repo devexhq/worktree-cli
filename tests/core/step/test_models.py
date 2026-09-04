@@ -37,7 +37,7 @@ class FailurePolicyModelTests:
         assert spec.on_max_retries == FailurePolicy.ABORT
 
     def test_failure_spec_coerces_string_actions(self) -> None:
-        spec = FailureSpec(action="retry", on_max_retries="continue")
+        spec = FailureSpec.model_validate({"action": "retry", "on_max_retries": "continue"})
         assert spec.action == FailurePolicy.RETRY
         assert spec.on_max_retries == FailurePolicy.CONTINUE
 
@@ -47,7 +47,12 @@ class FailurePolicyModelTests:
 
     def test_failure_spec_forbids_extra_keys(self) -> None:
         with pytest.raises(ValidationError):
-            FailureSpec(action=FailurePolicy.ABORT, unknown_key="nope")
+            FailureSpec.model_validate(
+                {
+                    "action": FailurePolicy.ABORT,
+                    "unknown_key": "nope",
+                }
+            )
 
     def test_blueprint_defaults_coerces_string_on_failure(self) -> None:
         defaults = BlueprintDefaults.model_validate({"on_failure": "continue"})
@@ -97,7 +102,7 @@ class StepDefinitionModelTests:
             description="Run pytest suite",
             command="pytest tests/",
             timeout_seconds=60,
-            on_failure="abort",
+            on_failure=FailureSpec(action=FailurePolicy.ABORT),
         )
         assert step.id == "step_pytest"
         assert step.type == StepType.COMMAND
@@ -140,10 +145,12 @@ class StepDefinitionModelTests:
         assert step.uses == "wt/ai-code-patcher"
 
     def test_step_definition_on_failure_object_form(self) -> None:
-        step = StepDefinition(
-            id="step_retry",
-            run="flaky-command",
-            on_failure={"action": "retry", "max_retries": 5, "backoff_ms": 250, "on_max_retries": "continue"},
+        step = StepDefinition.model_validate(
+            {
+                "id": "step_retry",
+                "run": "flaky-command",
+                "on_failure": {"action": "retry", "max_retries": 5, "backoff_ms": 250, "on_max_retries": "continue"},
+            }
         )
         assert step.on_failure.action == FailurePolicy.RETRY
         assert step.on_failure.max_retries == 5
@@ -174,11 +181,13 @@ class StepDefinitionModelTests:
 
     def test_step_definition_extra_keys_forbidden(self) -> None:
         with pytest.raises(ValidationError):
-            StepDefinition(
-                id="s1",
-                type=StepType.COMMAND,
-                command="echo 1",
-                unknown_key="invalid",
+            StepDefinition.model_validate(
+                {
+                    "id": "s1",
+                    "type": StepType.COMMAND,
+                    "command": "echo 1",
+                    "unknown_key": "invalid",
+                }
             )
 
     def test_step_definition_assert_alias_round_trip(self) -> None:
@@ -225,7 +234,7 @@ class StepDefinitionModelTests:
                 id="step_build",
                 type=StepType.COMMAND,
                 command="make build",
-                assert_=StepAssert(**{field_name: value}),
+                assert_=StepAssert.model_validate({field_name: value}),
             )
 
 
@@ -249,5 +258,5 @@ class LoopStepBlockModelTests:
                 type="loop",
                 until=["steps.run-tests.exit_code == 0"],
                 do=[StepDefinition(id="run-tests", run="pytest")],
-                on_max_iterations="retry",
+                on_max_iterations=FailurePolicy.RETRY,
             )
