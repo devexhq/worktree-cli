@@ -80,7 +80,7 @@ python_classes = ["Test*", "*Tests"]
 
 [tool.coverage.run]
 source = ["worktree"]
-branch = false
+branch = true
 
 [tool.coverage.report]
 fail_under = 80

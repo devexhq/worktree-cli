@@ -219,9 +219,9 @@ python -m pytest tests/ -q <path>   # a specific file or directory
 
 - Global floor is **>= 80%** (`fail_under` in `pyproject.toml`). Changed lines
   should be held to a higher bar; the global number is a floor, not the target.
-- Branch coverage is **not yet enabled** (`branch = false` under
-  `[tool.coverage.run]`). Until it is, branch gaps do not show up in the report
-  at all, so cover them deliberately rather than trusting the percentage.
+- Branch coverage is **enabled** (`branch = true` under
+  `[tool.coverage.run]`). Branch gaps appear in coverage reports alongside missed
+  statements (e.g. `28->24`).
 - Coverage is a **regression backstop, not an optimization goal**. Do not add
   tests to raise the percentage.
 - **A coverage drop from deleting dead code is a success.** Read it that way.
