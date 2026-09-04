@@ -34,6 +34,7 @@ dev = [
     "pytest>=8.0.0",
     "pytest-cov>=4.0.0",
     "pytest-xdist>=3.5.0",
+    "pytest-env>=1.1.0",
     "ruff>=0.6.0",
     "invoke>=2.0.0",
     "complexipy>=6.2.0",
@@ -84,6 +85,10 @@ markers = [
 filterwarnings = [
     "error",
 ]
+
+[tool.pytest_env]
+COLUMNS = "160"
+PYTHONIOENCODING = "utf-8"
 
 [tool.coverage.run]
 source = ["worktree"]
