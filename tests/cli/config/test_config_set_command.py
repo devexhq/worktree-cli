@@ -159,7 +159,6 @@ class ConfigSetCliTests:
         assert result.exit_code == 0
 
         set_cmd = get_command(app).get_command(None, "config").get_command(None, "set")
-        assert set_cmd.help == "Set a configuration value by key or nested dot-path."
         params = {p.name for p in set_cmd.params}
         assert "key" in params
         assert "value" in params

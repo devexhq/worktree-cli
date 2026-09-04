@@ -234,14 +234,6 @@ def test_worktree_status_formatter_to_json_serializable() -> None:
     assert decoded["root_dir"] == "/workspace/my-repo"
 
 
-def test_register_status_formatters_custom_dispatcher() -> None:
-    dispatcher = UiDispatcher()
-    register_status_formatters(dispatcher)
-
-    assert WorktreeStatusResult in dispatcher._registry
-    assert isinstance(dispatcher._registry[WorktreeStatusResult], WorktreeStatusFormatter)
-
-
 def test_ui_dispatcher_registration() -> None:
     assert WorktreeStatusResult in ui_dispatcher._registry
     assert isinstance(ui_dispatcher._registry[WorktreeStatusResult], WorktreeStatusFormatter)

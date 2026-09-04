@@ -370,7 +370,6 @@ class SandboxDeleteCliTests:
         assert result.exit_code == 0
 
         delete_cmd = get_command(app).get_command(None, "sandbox").get_command(None, "delete")
-        assert delete_cmd.help == "Delete a sandbox worktree and branch after confirmation."
         assert any(param.name == "sandbox_id" for param in delete_cmd.params)
         opts: set[str] = set()
         for param in delete_cmd.params:

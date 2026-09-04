@@ -10,6 +10,7 @@ There are a subset of docs that must always be read for context before starting 
 - docs/agents/code-conventions.md
 - docs/agents/schemas.md
 - docs/agents/glossary.md
+- docs/agents/testing.md
 
 ## Agentic process
 
@@ -41,6 +42,14 @@ function may exceed complexity 10). Fix any failure before retrying the commit
 Coverage is a **backstop**, not a goal. Do **not** add tests only to raise the
 percentage. Prefer tests that lock real behavior and regressions; see
 [docs/agents/testing.md](docs/agents/testing.md).
+
+Tests assert **contracts** (`BaseResult` objects, JSON payloads, exit codes,
+files, git refs), never implementation (rendered layout, private state, call
+order). Two rules an agent gets wrong by default: a test double must be a type
+production actually passes, and a production parameter that only tests supply is
+dead code. Cover every branch of a factory or dispatch chain - a covered line in
+a two-branch function proves nothing. A coverage drop from deleting dead code is
+a success. Full rules: [docs/agents/testing.md](docs/agents/testing.md).
 
 Lint/format config lives in `pyproject.toml` under `[tool.ruff]` (no separate
 `ruff.toml`).
@@ -93,7 +102,10 @@ Update docs in the same PR only when the change matches one of these gates:
  and add its setup failure modes to
  [docs/agents/troubleshooting.md](docs/agents/troubleshooting.md).
 - **Removing a package/subsystem**: follow
- [docs/agents/ci-and-tooling.md](docs/agents/ci-and-tooling.md#removing-dead-code).
+  [docs/agents/ci-and-tooling.md](docs/agents/ci-and-tooling.md#removing-dead-code).
+- **Deleting a production symbol whose only caller was a test**: delete the test
+  in the same PR and expect coverage to fall. Do not backfill tests to hold the
+  percentage.
 
 Keep docs lean: no update is better than busywork. Prefer **deleting stale
 bullets** over appending a parallel truth. Pure refactors that do not change

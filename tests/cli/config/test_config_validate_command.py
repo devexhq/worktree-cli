@@ -364,14 +364,12 @@ class ConfigValidateCliTests:
 
         config_cmd = root_cmd.get_command(None, "config")
         assert config_cmd is not None
-        assert config_cmd.help == "Inspect, update, and validate Worktree CLI configuration."
         assert "show" in config_cmd.list_commands(None)
         assert "set" in config_cmd.list_commands(None)
         assert "validate" in config_cmd.list_commands(None)
 
         validate_cmd = config_cmd.get_command(None, "validate")
         assert validate_cmd is not None
-        assert validate_cmd.help == "Validate .worktree/config.json against the V1 schema and semantic rules."
         opts: set[str] = set()
         for param in validate_cmd.params:
             opts.update(param.opts)

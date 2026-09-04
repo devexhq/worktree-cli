@@ -81,7 +81,6 @@ class EngineConstructTests:
         engine = Engine(tmp_path, db=db, catalog=catalog)
 
         assert engine.path == tmp_path.resolve()
-        assert not hasattr(Engine, "spec")
 
 
 class EngineRunDelegationTests:

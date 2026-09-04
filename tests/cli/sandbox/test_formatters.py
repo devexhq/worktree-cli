@@ -257,21 +257,6 @@ def test_sandbox_prune_formatter_empty() -> None:
     assert dumped["items"] == []
 
 
-def test_sandbox_prune_formatter_with_items() -> None:
-    from worktree.cli.ui.formatters.sandbox import SandboxPruneFormatter
-    from worktree.core.sandbox.models import SandboxPruneResult
-
-    formatter = SandboxPruneFormatter()
-    item = PrunedItem(
-        category=StaleSandboxCategory.STALE_BRANCH,
-        identifier="feature/1",
-        action=PruneAction.PRUNED,
-    )
-    res = SandboxPruneResult(items=[item], errors=["some error"])
-    rich_out = formatter.to_rich(res)
-    assert rich_out is not None
-
-
 def test_dispatcher_json_format_ndjson(capsys: pytest.CaptureFixture[str]) -> None:
     dispatcher = UiDispatcher()
     dispatcher.register(PrunedItem, PrunedItemFormatter())

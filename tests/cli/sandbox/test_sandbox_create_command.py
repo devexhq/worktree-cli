@@ -285,7 +285,6 @@ class SandboxCreateCliTests:
         assert result.exit_code == 0
 
         create_cmd = get_command(app).get_command(None, "sandbox").get_command(None, "create")
-        assert create_cmd.help == "Create an isolated git worktree sandbox."
         opts: set[str] = set()
         for param in create_cmd.params:
             opts.update(param.opts)

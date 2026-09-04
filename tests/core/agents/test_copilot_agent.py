@@ -12,7 +12,6 @@ from worktree.core.agents import (
     AgentRequest,
     AgentResponseStatus,
     CopilotAgentAdapter,
-    get_agent_adapter,
 )
 from worktree.core.agents.cli_mutation import (
     CliMutationOutcome,
@@ -63,12 +62,6 @@ def sandbox(fs: FileSystem) -> Path:
 @pytest.fixture(autouse=True)
 def _token(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GH_TOKEN", "test-token")
-
-
-class CopilotFactoryTests:
-    def test_copilot_provider(self) -> None:
-        adapter = get_agent_adapter("copilot")
-        assert isinstance(adapter, CopilotAgentAdapter)
 
 
 class CopilotAuthTests:

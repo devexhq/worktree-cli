@@ -278,7 +278,6 @@ class SandboxListCliTests:
         assert result.exit_code == 0
 
         sandbox_cmd = get_command(app).get_command(None, "sandbox")
-        assert sandbox_cmd.help == "Inspect and manage git worktree sandboxes."
         assert "list" in sandbox_cmd.list_commands(None)
 
     def test_list_help(self) -> None:
@@ -288,7 +287,6 @@ class SandboxListCliTests:
         assert result.exit_code == 0
 
         list_cmd = get_command(app).get_command(None, "sandbox").get_command(None, "list")
-        assert list_cmd.help == "List tracked sandboxes and their lifecycle status."
         opts: set[str] = set()
         for param in list_cmd.params:
             opts.update(param.opts)
