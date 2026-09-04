@@ -256,7 +256,15 @@ class EngineResumeValidationTests:
 
         assert exc_info.value.status is EngineResumeStatus.NOT_FOUND
 
-    @pytest.mark.parametrize("status", [RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.RUNNING, RunStatus.CANCELLED])
+    @pytest.mark.parametrize(
+        "status",
+        [
+            pytest.param(RunStatus.COMPLETED, id="status_completed"),
+            pytest.param(RunStatus.FAILED, id="status_failed"),
+            pytest.param(RunStatus.RUNNING, id="status_running"),
+            pytest.param(RunStatus.CANCELLED, id="status_cancelled"),
+        ],
+    )
     def test_resume_wrong_status(self, fs: FileSystem, status: RunStatus) -> None:
         self.db.runs.create("task_wrong", blueprint_name="lint", kind=BlueprintKind.TASK, status=status)
 

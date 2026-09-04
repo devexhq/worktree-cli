@@ -25,13 +25,13 @@ class TestDispatcherFailurePrompter:
     @pytest.mark.parametrize(
         ("raw_input", "expected"),
         [
-            ("r", FailurePromptDecision.RETRY),
-            ("retry", FailurePromptDecision.RETRY),
-            ("c", FailurePromptDecision.CONTINUE),
-            ("continue", FailurePromptDecision.CONTINUE),
-            ("a", FailurePromptDecision.ABORT),
-            ("abort", FailurePromptDecision.ABORT),
-            ("  R  ", FailurePromptDecision.RETRY),
+            pytest.param("r", FailurePromptDecision.RETRY, id="short_retry"),
+            pytest.param("retry", FailurePromptDecision.RETRY, id="full_retry"),
+            pytest.param("c", FailurePromptDecision.CONTINUE, id="short_continue"),
+            pytest.param("continue", FailurePromptDecision.CONTINUE, id="full_continue"),
+            pytest.param("a", FailurePromptDecision.ABORT, id="short_abort"),
+            pytest.param("abort", FailurePromptDecision.ABORT, id="full_abort"),
+            pytest.param("  R  ", FailurePromptDecision.RETRY, id="whitespace_and_uppercase_retry"),
         ],
     )
     def test_prompt_step_failure_terminal_valid_decisions(

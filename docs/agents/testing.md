@@ -92,7 +92,10 @@ not instances. Grow this directory.
 
 - **One test = one behaviour.** Multiple scenarios go in
   `@pytest.mark.parametrize`, never a `for` loop and never four asserts in a
-  row - you need to know *which* case failed.
+  row - you need to know *which* case failed. Always wrap parameterized cases in
+  `pytest.param(..., id="descriptive_case_id")` with a clear, descriptive `id`
+  so failure outputs and test runners identify the exact scenario immediately
+  without decoding raw parameter tuples.
 - **Compare the object, not its fields.** If you are about to assert 8 fields of
   one result, write `assert result == Expected(...)` or
   `assert result.model_dump() == {...}`. One comparison is *stronger* than N

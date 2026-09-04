@@ -74,9 +74,9 @@ class SandboxDeleteCollectTests:
     @pytest.mark.parametrize(
         "status",
         [
-            SandboxStatus.ACTIVE,
-            SandboxStatus.MERGED,
-            SandboxStatus.CONFLICT,
+            pytest.param(SandboxStatus.ACTIVE, id="active_status"),
+            pytest.param(SandboxStatus.MERGED, id="merged_status"),
+            pytest.param(SandboxStatus.CONFLICT, id="conflict_status"),
         ],
     )
     def test_ready_for_deletable_statuses(

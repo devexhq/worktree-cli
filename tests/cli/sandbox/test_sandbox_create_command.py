@@ -205,11 +205,11 @@ class SandboxCreateCommandDirectTests:
     @pytest.mark.parametrize(
         ("status", "errors"),
         [
-            (SandboxCreateStatus.NOT_INITIALIZED, ["not initialized detail"]),
-            (SandboxCreateStatus.UNREADABLE_CONFIG, ["unreadable detail"]),
-            (SandboxCreateStatus.CAPACITY_EXCEEDED, ["capacity detail"]),
-            (SandboxCreateStatus.GIT_FAILED, ["git failed detail"]),
-            (SandboxCreateStatus.WIP_FAILED, ["wip failed detail"]),
+            pytest.param(SandboxCreateStatus.NOT_INITIALIZED, ["not initialized detail"], id="not_initialized"),
+            pytest.param(SandboxCreateStatus.UNREADABLE_CONFIG, ["unreadable detail"], id="unreadable_config"),
+            pytest.param(SandboxCreateStatus.CAPACITY_EXCEEDED, ["capacity detail"], id="capacity_exceeded"),
+            pytest.param(SandboxCreateStatus.GIT_FAILED, ["git failed detail"], id="git_failed"),
+            pytest.param(SandboxCreateStatus.WIP_FAILED, ["wip failed detail"], id="wip_failed"),
         ],
     )
     def test_failure_statuses_exit_one(

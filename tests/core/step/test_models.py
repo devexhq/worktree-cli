@@ -218,12 +218,12 @@ class StepDefinitionModelTests:
     @pytest.mark.parametrize(
         ("field_name", "value"),
         [
-            ("file_exists", "/etc/passwd"),
-            ("file_exists", "../secrets.txt"),
-            ("file_exists", ["dist/app.bin", "a/../../x"]),
-            ("file_exists", ""),
-            ("file_not_exists", "C:/Windows/system32"),
-            ("file_not_empty", "\\..\\escape.txt"),
+            pytest.param("file_exists", "/etc/passwd", id="absolute_unix_path"),
+            pytest.param("file_exists", "../secrets.txt", id="parent_traversal_path"),
+            pytest.param("file_exists", ["dist/app.bin", "a/../../x"], id="list_containing_traversal_path"),
+            pytest.param("file_exists", "", id="empty_path"),
+            pytest.param("file_not_exists", "C:/Windows/system32", id="absolute_windows_path"),
+            pytest.param("file_not_empty", "\\..\\escape.txt", id="windows_traversal_path"),
         ],
     )
     def test_step_definition_assert_path_safety_rejects_unsafe_paths(
