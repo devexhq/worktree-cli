@@ -8,19 +8,25 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from tests.helpers import FileSystem, RichOutput, make_rich_output, make_run
+from tests.helpers import FileSystem, make_run, render_rich
 from worktree.cli import app
+from worktree.cli.ui.formatters.history import (
+    HistoryListFormatter,
+    HistoryShowFormatter,
+)
 from worktree.cli.ui.formatters.history.common import (
     _parse_timestamp,
     format_run_duration,
     format_run_status,
-    render_history_list,
-    render_history_show,
 )
 from worktree.core.blueprint import BlueprintKind
 from worktree.core.config.generator import generate_default_config
 from worktree.core.db import RunStatus, WorktreeDb
-from worktree.core.history.models import HistoryShowStatus
+from worktree.core.history.models import (
+    HistoryListResult,
+    HistoryShowResult,
+    HistoryShowStatus,
+)
 from worktree.core.history.services import (
     HistoryListService,
     HistoryShowService,
@@ -90,7 +96,6 @@ class HistoryFormattersTests:
 
     def test_render_history_list_fixed_width(self, fs: FileSystem) -> None:
         """Verify render_history_list produces expected columns under a fixed-width console."""
-        rich_output, buffer = make_rich_output(width=160)
         run = make_run(
             self.db.runs,
             session_id="sess-12345678",
@@ -100,9 +105,8 @@ class HistoryFormattersTests:
             started_at="2026-08-19 01:00:00",
             completed_at="2026-08-19 01:00:10",
         )
-        render_history_list([run], output=rich_output)
-        rich_output.print()
-        output = buffer.getvalue()
+        result = HistoryListResult(runs=[run])
+        output = render_rich(HistoryListFormatter().to_rich(result))
         assert "Execution History" in output
         assert "sess-12345678" in output
         assert "sample-task" in output
@@ -110,7 +114,6 @@ class HistoryFormattersTests:
 
     def test_render_history_show_fixed_width(self, fs: FileSystem) -> None:
         """Verify render_history_show renders session details under a fixed-width console."""
-        rich_output, buffer = make_rich_output(width=160)
         run = make_run(
             self.db.runs,
             session_id="sess-show-123",
@@ -120,9 +123,12 @@ class HistoryFormattersTests:
             started_at="2026-08-19 01:00:00",
             completed_at="2026-08-19 01:00:10",
         )
-        render_history_show(run, output=rich_output)
-        rich_output.print()
-        output = buffer.getvalue()
+        result = HistoryShowResult(
+            status=HistoryShowStatus.OK,
+            session_id=run.session_id,
+            run=run,
+        )
+        output = render_rich(HistoryShowFormatter().to_rich(result))
         assert "Session Metadata: sess-show-123" in output
         assert "show-task" in output
 
@@ -160,26 +166,25 @@ class HistoryServiceDirectTests:
             status=RunStatus.PAUSED,
         )
 
-        out = RichOutput()
         # All runs
-        all_res = HistoryListService(path=fs.base_path, db=self.db.runs, output=out).collect()
+        all_res = HistoryListService(path=fs.base_path, db=self.db.runs).collect()
         assert all_res.ok
         assert len(all_res.runs) == 3
 
         # Filter status
-        failed_res = HistoryListService(path=fs.base_path, db=self.db.runs, status="failed", output=out).collect()
+        failed_res = HistoryListService(path=fs.base_path, db=self.db.runs, status="failed").collect()
         assert failed_res.ok
         assert len(failed_res.runs) == 1
         assert failed_res.runs[0].session_id == "run-2"
 
         # Filter kind
-        wf_res = HistoryListService(path=fs.base_path, db=self.db.runs, kind="workflow", output=out).collect()
+        wf_res = HistoryListService(path=fs.base_path, db=self.db.runs, kind="workflow").collect()
         assert wf_res.ok
         assert len(wf_res.runs) == 1
         assert wf_res.runs[0].session_id == "run-2"
 
         # Limit
-        limit_res = HistoryListService(path=fs.base_path, db=self.db.runs, limit=2, output=out).collect()
+        limit_res = HistoryListService(path=fs.base_path, db=self.db.runs, limit=2).collect()
         assert limit_res.ok
         assert len(limit_res.runs) == 2
 
@@ -193,16 +198,13 @@ class HistoryServiceDirectTests:
             status=RunStatus.COMPLETED,
         )
 
-        out = RichOutput()
-        found = HistoryShowService(session_id="run-show-1", path=fs.base_path, db=self.db.runs, output=out).collect()
+        found = HistoryShowService(session_id="run-show-1", path=fs.base_path, db=self.db.runs).collect()
         assert found.ok
         assert found.status is HistoryShowStatus.OK
         assert found.run is not None
         assert found.run.session_id == "run-show-1"
 
-        missing = HistoryShowService(
-            session_id="non-existent-session", path=fs.base_path, db=self.db.runs, output=out
-        ).collect()
+        missing = HistoryShowService(session_id="non-existent-session", path=fs.base_path, db=self.db.runs).collect()
         assert not missing.ok
         assert missing.status is HistoryShowStatus.NOT_FOUND
 
@@ -216,22 +218,17 @@ class HistoryServiceDirectTests:
             status=RunStatus.COMPLETED,
         )
 
-        out = RichOutput()
-        list_outcome = HistoryListService(path=fs.base_path, db=self.db.runs, output=out).execute()
+        list_outcome = HistoryListService(path=fs.base_path, db=self.db.runs).execute()
         assert list_outcome.ok
         assert len(list_outcome.runs) == 1
 
-        show_outcome = HistoryShowService(
-            session_id="svc-run-1", path=fs.base_path, db=self.db.runs, output=out
-        ).execute()
+        show_outcome = HistoryShowService(session_id="svc-run-1", path=fs.base_path, db=self.db.runs).execute()
         assert show_outcome.ok
         assert show_outcome.run is not None
         assert show_outcome.run.session_id == "svc-run-1"
 
         # Show not found
-        show_missing = HistoryShowService(
-            session_id="missing", path=fs.base_path, db=self.db.runs, output=out
-        ).execute()
+        show_missing = HistoryShowService(session_id="missing", path=fs.base_path, db=self.db.runs).execute()
         assert not show_missing.ok
         assert show_missing.status is HistoryShowStatus.NOT_FOUND
 

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from worktree.core.db import BlueprintKind, RunsRepository, RunStatus
 from worktree.core.engine.services.reconcile import reconcile_stale_runs
@@ -26,7 +25,6 @@ class HistoryListService:
     limit: int | None = 20
     status: str | None = None
     kind: str | None = None
-    output: Any = None
 
     def collect(self) -> HistoryListResult:
         """Retrieve filtered execution runs from database."""
@@ -64,7 +62,6 @@ class HistoryShowService:
     session_id: str
     path: Path
     db: RunsRepository
-    output: Any = None
 
     def collect(self) -> HistoryShowResult:
         """Look up execution session metadata, errors, and checkpoint contents."""

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.helpers import FileSystem, RichOutput, make_run
+from tests.helpers import FileSystem, make_run
 from worktree.core.blueprint import BlueprintKind
 from worktree.core.config.generator import generate_default_config
 from worktree.core.db import RunStatus, WorktreeDb
@@ -51,7 +51,7 @@ class HistoryListServiceTests:
             status=RunStatus.FAILED,
         )
 
-        service = HistoryListService(path=fs.base_path, db=self.db.runs, output=RichOutput())
+        service = HistoryListService(path=fs.base_path, db=self.db.runs)
         result = service.collect()
         assert result.ok
         assert result.status is HistoryListStatus.OK
@@ -74,16 +74,14 @@ class HistoryListServiceTests:
         )
 
         # Status matching enum
-        service = HistoryListService(path=fs.base_path, db=self.db.runs, status="failed", output=RichOutput())
+        service = HistoryListService(path=fs.base_path, db=self.db.runs, status="failed")
         result = service.collect()
         assert result.ok
         assert len(result.runs) == 1
         assert result.runs[0].session_id == "run-fail"
 
         # Invalid status string fallback
-        service_invalid = HistoryListService(
-            path=fs.base_path, db=self.db.runs, status="nonexistent_status", output=RichOutput()
-        )
+        service_invalid = HistoryListService(path=fs.base_path, db=self.db.runs, status="nonexistent_status")
         result_invalid = service_invalid.collect()
         assert result_invalid.ok
         assert len(result_invalid.runs) == 0
@@ -105,16 +103,14 @@ class HistoryListServiceTests:
         )
 
         # Kind matching enum
-        service = HistoryListService(path=fs.base_path, db=self.db.runs, kind="workflow", output=RichOutput())
+        service = HistoryListService(path=fs.base_path, db=self.db.runs, kind="workflow")
         result = service.collect()
         assert result.ok
         assert len(result.runs) == 1
         assert result.runs[0].session_id == "run-wf"
 
         # Invalid kind string fallback
-        service_invalid = HistoryListService(
-            path=fs.base_path, db=self.db.runs, kind="invalid_kind", output=RichOutput()
-        )
+        service_invalid = HistoryListService(path=fs.base_path, db=self.db.runs, kind="invalid_kind")
         result_invalid = service_invalid.collect()
         assert result_invalid.ok
         assert len(result_invalid.runs) == 0
@@ -129,7 +125,7 @@ class HistoryListServiceTests:
                 status=RunStatus.COMPLETED,
             )
 
-        service = HistoryListService(path=fs.base_path, db=self.db.runs, limit=3, output=RichOutput())
+        service = HistoryListService(path=fs.base_path, db=self.db.runs, limit=3)
         result = service.collect()
         assert result.ok
         assert len(result.runs) == 3
@@ -166,7 +162,7 @@ class HistoryShowServiceTests:
             status=RunStatus.COMPLETED,
         )
 
-        service = HistoryShowService(session_id="run-show", path=fs.base_path, db=self.db.runs, output=RichOutput())
+        service = HistoryShowService(session_id="run-show", path=fs.base_path, db=self.db.runs)
         result = service.collect()
         assert result.ok
         assert result.status is HistoryShowStatus.OK
@@ -175,9 +171,7 @@ class HistoryShowServiceTests:
 
     def test_collect_not_found(self, fs: FileSystem) -> None:
         _init_workspace(fs.base_path)
-        service = HistoryShowService(
-            session_id="missing-session", path=fs.base_path, db=self.db.runs, output=RichOutput()
-        )
+        service = HistoryShowService(session_id="missing-session", path=fs.base_path, db=self.db.runs)
         result = service.collect()
         assert not result.ok
         assert result.status is HistoryShowStatus.NOT_FOUND

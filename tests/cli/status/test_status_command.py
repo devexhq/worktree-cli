@@ -109,6 +109,28 @@ class StatusCommandTests:
         assert "CONFIG_SCHEMA_INVALID" in out
         assert "Uninitialized" not in out
 
+    def test_status_with_malformed_json_config(
+        self,
+        git_fs: GitFileSystem,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Verify status_command on a workspace with malformed JSON config."""
+        monkeypatch.chdir(git_fs.base_path)
+        config_path = git_fs.base_path / ".worktree" / "config.json"
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text("{bad json: true", encoding="utf-8")
+
+        ctx = make_cli_context(cwd=git_fs.base_path)
+        result = status_command(ctx)
+
+        assert not result.ok
+
+        out = capsys.readouterr().out
+        assert "Worktree Workspace Status (Degraded)" in out
+        assert "CONFIG_MALFORMED_JSON" in out
+        assert "Repair JSON syntax in .worktree/config.json or restore from backup." in out
+
     def test_status_json_format(
         self,
         git_fs: GitFileSystem,

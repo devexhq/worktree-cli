@@ -182,7 +182,14 @@ class CatalogCrudOperationsTests:
         )
         assert "from-template-wf" in content
 
-    @pytest.mark.parametrize("item_type", ["workflow", "task", "step"])
+    @pytest.mark.parametrize(
+        "item_type",
+        [
+            pytest.param("workflow", id="workflow_item_type"),
+            pytest.param("task", id="task_item_type"),
+            pytest.param("step", id="step_item_type"),
+        ],
+    )
     def test_create_catalog_item_default_content_is_non_empty_and_unnamed(self, fs: FileSystem, item_type: str) -> None:
         """Default content for each type is non-empty and no longer contains the packaged placeholder name."""
         record = create_catalog_item(item_type=item_type, name="my-blueprint", path=fs.base_path)

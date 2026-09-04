@@ -219,7 +219,13 @@ class CatalogFileOperationsTests:
         result = Catalog(fs.base_path).resolve_step("ai-code-patcher")
         assert result.ok
 
-    @pytest.mark.parametrize("name", ["lint.yaml", "lint.yml"])
+    @pytest.mark.parametrize(
+        "name",
+        [
+            pytest.param("lint.yaml", id="yaml_extension"),
+            pytest.param("lint.yml", id="yml_extension"),
+        ],
+    )
     def test_save_strips_yaml_suffix(self, fs: FileSystem, name: str) -> None:
         Catalog(fs.base_path).save(name, {"name": "lint"}, item_type=CatalogItemType.TASK)
         assert (fs.base_path / ".worktree" / "catalog" / "tasks" / "lint.yml").is_file()

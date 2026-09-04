@@ -139,12 +139,12 @@ class EngineRunDelegationTests:
     @pytest.mark.parametrize(
         ("caller_use_sandbox", "definition_use_sandbox", "expected"),
         [
-            (None, True, True),
-            (None, False, False),
-            (True, True, True),
-            (True, False, False),
-            (False, True, False),
-            (False, False, False),
+            pytest.param(None, True, True, id="caller_default_definition_true"),
+            pytest.param(None, False, False, id="caller_default_definition_false"),
+            pytest.param(True, True, True, id="caller_true_definition_true"),
+            pytest.param(True, False, False, id="caller_true_definition_false_disables"),
+            pytest.param(False, True, False, id="caller_false_overrides_definition_true"),
+            pytest.param(False, False, False, id="caller_false_definition_false"),
         ],
     )
     def test_run_use_sandbox_logic(

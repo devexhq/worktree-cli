@@ -27,10 +27,10 @@ class DefinitionResultTests:
     @pytest.mark.parametrize(
         "status",
         [
-            DefinitionResolutionStatus.NOT_FOUND,
-            DefinitionResolutionStatus.INVALID_NAME,
-            DefinitionResolutionStatus.LOAD_ERROR,
-            DefinitionResolutionStatus.DISCOVERY_FAILED,
+            pytest.param(DefinitionResolutionStatus.NOT_FOUND, id="not_found"),
+            pytest.param(DefinitionResolutionStatus.INVALID_NAME, id="invalid_name"),
+            pytest.param(DefinitionResolutionStatus.LOAD_ERROR, id="load_error"),
+            pytest.param(DefinitionResolutionStatus.DISCOVERY_FAILED, id="discovery_failed"),
         ],
     )
     def test_ok_property_false_for_non_ok_statuses(self, status: DefinitionResolutionStatus) -> None:

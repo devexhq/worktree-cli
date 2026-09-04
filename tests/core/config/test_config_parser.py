@@ -13,18 +13,18 @@ class TestParseConfigValue:
     @pytest.mark.parametrize(
         ("input_val", "expected"),
         [
-            ("true", True),
-            ("TRUE", True),
-            ("True", True),
-            ("false", False),
-            ("FALSE", False),
-            ("False", False),
-            ("yes", True),
-            ("YES", True),
-            ("Yes", True),
-            ("no", False),
-            ("NO", False),
-            ("No", False),
+            pytest.param("true", True, id="lower_true"),
+            pytest.param("TRUE", True, id="upper_true"),
+            pytest.param("True", True, id="title_true"),
+            pytest.param("false", False, id="lower_false"),
+            pytest.param("FALSE", False, id="upper_false"),
+            pytest.param("False", False, id="title_false"),
+            pytest.param("yes", True, id="lower_yes"),
+            pytest.param("YES", True, id="upper_yes"),
+            pytest.param("Yes", True, id="title_yes"),
+            pytest.param("no", False, id="lower_no"),
+            pytest.param("NO", False, id="upper_no"),
+            pytest.param("No", False, id="title_no"),
         ],
     )
     def test_fr1_boolean_parsing(self, input_val: str, expected: bool) -> None:
@@ -35,10 +35,10 @@ class TestParseConfigValue:
     @pytest.mark.parametrize(
         ("input_val", "expected"),
         [
-            ("0", 0),
-            ("10", 10),
-            ("-42", -42),
-            ("999999", 999999),
+            pytest.param("0", 0, id="zero"),
+            pytest.param("10", 10, id="positive_int"),
+            pytest.param("-42", -42, id="negative_int"),
+            pytest.param("999999", 999999, id="large_int"),
         ],
     )
     def test_fr2_integer_parsing(self, input_val: str, expected: int) -> None:
@@ -49,9 +49,9 @@ class TestParseConfigValue:
     @pytest.mark.parametrize(
         ("input_val", "expected"),
         [
-            ("3.14", 3.14),
-            ("-0.001", -0.001),
-            ("1e-5", 1e-5),
+            pytest.param("3.14", 3.14, id="pi_decimal"),
+            pytest.param("-0.001", -0.001, id="negative_decimal"),
+            pytest.param("1e-5", 1e-5, id="scientific_notation"),
         ],
     )
     def test_fr2_float_parsing(self, input_val: str, expected: float) -> None:
@@ -81,11 +81,11 @@ class TestParseConfigValue:
     @pytest.mark.parametrize(
         "input_val",
         [
-            "qwen2.5-coder",
-            "hello world",
-            "maybe",
-            "http://localhost:11434",
-            "v1.0.0",
+            pytest.param("qwen2.5-coder", id="model_name"),
+            pytest.param("hello world", id="phrase_with_space"),
+            pytest.param("maybe", id="arbitrary_word"),
+            pytest.param("http://localhost:11434", id="url_string"),
+            pytest.param("v1.0.0", id="version_tag"),
         ],
     )
     def test_fr4_string_fallback(self, input_val: str) -> None:
@@ -96,12 +96,12 @@ class TestParseConfigValue:
     @pytest.mark.parametrize(
         ("input_val", "expected"),
         [
-            ('"true"', "true"),
-            ('"false"', "false"),
-            ('"10"', "10"),
-            ('"3.14"', "3.14"),
-            ('"[1, 2]"', "[1, 2]"),
-            ('"hello"', "hello"),
+            pytest.param('"true"', "true", id="quoted_bool_true"),
+            pytest.param('"false"', "false", id="quoted_bool_false"),
+            pytest.param('"10"', "10", id="quoted_int"),
+            pytest.param('"3.14"', "3.14", id="quoted_float"),
+            pytest.param('"[1, 2]"', "[1, 2]", id="quoted_list"),
+            pytest.param('"hello"', "hello", id="quoted_string"),
         ],
     )
     def test_fr5_explicit_string_preservation(self, input_val: str, expected: str) -> None:

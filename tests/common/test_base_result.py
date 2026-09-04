@@ -107,6 +107,9 @@ class BaseResultTests:
         with pytest.raises(ValidationError):
             BaseResult(extra_field="invalid")  # pyright: ignore[reportCallIssue]
 
-    @pytest.mark.parametrize("result_cls", ALL_RESULT_CLASSES, ids=lambda cls: cls.__name__)
+    @pytest.mark.parametrize(
+        "result_cls",
+        [pytest.param(cls, id=cls.__name__) for cls in ALL_RESULT_CLASSES],
+    )
     def test_all_result_dtos_inherit_from_base_result(self, result_cls: type) -> None:
         assert issubclass(result_cls, BaseResult)
