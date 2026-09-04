@@ -72,11 +72,15 @@ source = "vcs"
 local_scheme = "no-local-version"
 
 [tool.pytest.ini_options]
-addopts = ""
+addopts = "-q --strict-markers --strict-config"
+testpaths = ["tests"]
 # Repo root must be importable so `tests.*` helpers resolve when invoked via the
 # `pytest` console script (sys.path[0] is not cwd in that mode).
 pythonpath = ["."]
 python_classes = ["Test*", "*Tests"]
+markers = [
+    "slow: real subprocess, git, or multi-process tests",
+]
 
 [tool.coverage.run]
 source = ["worktree"]
