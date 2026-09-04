@@ -8,19 +8,25 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from tests.helpers import FileSystem, RichOutput, make_rich_output, make_run
+from tests.helpers import FileSystem, RichOutput, make_run, render_rich
 from worktree.cli import app
+from worktree.cli.ui.formatters.history import (
+    HistoryListFormatter,
+    HistoryShowFormatter,
+)
 from worktree.cli.ui.formatters.history.common import (
     _parse_timestamp,
     format_run_duration,
     format_run_status,
-    render_history_list,
-    render_history_show,
 )
 from worktree.core.blueprint import BlueprintKind
 from worktree.core.config.generator import generate_default_config
 from worktree.core.db import RunStatus, WorktreeDb
-from worktree.core.history.models import HistoryShowStatus
+from worktree.core.history.models import (
+    HistoryListResult,
+    HistoryShowResult,
+    HistoryShowStatus,
+)
 from worktree.core.history.services import (
     HistoryListService,
     HistoryShowService,
@@ -90,7 +96,6 @@ class HistoryFormattersTests:
 
     def test_render_history_list_fixed_width(self, fs: FileSystem) -> None:
         """Verify render_history_list produces expected columns under a fixed-width console."""
-        rich_output, buffer = make_rich_output(width=160)
         run = make_run(
             self.db.runs,
             session_id="sess-12345678",
@@ -100,9 +105,8 @@ class HistoryFormattersTests:
             started_at="2026-08-19 01:00:00",
             completed_at="2026-08-19 01:00:10",
         )
-        render_history_list([run], output=rich_output)
-        rich_output.print()
-        output = buffer.getvalue()
+        result = HistoryListResult(runs=[run])
+        output = render_rich(HistoryListFormatter().to_rich(result))
         assert "Execution History" in output
         assert "sess-12345678" in output
         assert "sample-task" in output
@@ -110,7 +114,6 @@ class HistoryFormattersTests:
 
     def test_render_history_show_fixed_width(self, fs: FileSystem) -> None:
         """Verify render_history_show renders session details under a fixed-width console."""
-        rich_output, buffer = make_rich_output(width=160)
         run = make_run(
             self.db.runs,
             session_id="sess-show-123",
@@ -120,9 +123,12 @@ class HistoryFormattersTests:
             started_at="2026-08-19 01:00:00",
             completed_at="2026-08-19 01:00:10",
         )
-        render_history_show(run, output=rich_output)
-        rich_output.print()
-        output = buffer.getvalue()
+        result = HistoryShowResult(
+            status=HistoryShowStatus.OK,
+            session_id=run.session_id,
+            run=run,
+        )
+        output = render_rich(HistoryShowFormatter().to_rich(result))
         assert "Session Metadata: sess-show-123" in output
         assert "show-task" in output
 

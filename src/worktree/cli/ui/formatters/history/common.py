@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
-from typing import Any
 
 from rich.panel import Panel
 from rich.syntax import Syntax
@@ -167,45 +166,3 @@ def build_checkpoint_renderables(checkpoint_json: str) -> list[Panel | Table]:
     if step_table is not None:
         renderables.append(step_table)
     return renderables
-
-
-def render_empty_history(*, output: Any = None) -> None:
-    """Render the empty-state line when no runs match."""
-    msg = "No execution history found."
-    if output is not None:
-        if hasattr(output, "add_line"):
-            output.add_line(msg)
-        elif hasattr(output, "info"):
-            output.info(msg)
-
-
-def _emit(output: Any, item: Any) -> None:
-    if hasattr(output, "add_line"):
-        output.add_line(item)
-    elif hasattr(output, "info"):
-        output.info(item)
-
-
-def render_history_list(runs: list[RunRecord], *, output: Any = None) -> None:
-    """Render empty state or execution history table."""
-    if output is None:
-        return
-    if not runs:
-        render_empty_history(output=output)
-        return
-    _emit(output, build_history_table(runs))
-
-
-def render_history_show(run: RunRecord, *, output: Any = None) -> None:
-    """Render granular session metadata, errors, and checkpoint contents."""
-    if output is None:
-        return
-    metadata_table = build_metadata_table(run)
-    _emit(output, Panel(metadata_table, title=f"Session Metadata: {run.session_id}", border_style="blue"))
-
-    if run.error_message:
-        _emit(output, Panel(run.error_message, title="Error Details", border_style="red"))
-
-    if run.checkpoint_json:
-        for renderable in build_checkpoint_renderables(run.checkpoint_json):
-            _emit(output, renderable)
