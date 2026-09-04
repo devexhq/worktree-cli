@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import shutil
 import subprocess
 from collections.abc import Iterator
@@ -24,13 +23,6 @@ def _reset_config_cache() -> Iterator[None]:
     Filesystem.reset()
     Config.reset()
     clear_config_cache()
-
-
-@pytest.fixture(autouse=True, scope="session")
-def _set_test_terminal_width() -> None:
-    """Set standard terminal width for test output assertions (e.g. Rich table formatting)."""
-    os.environ["COLUMNS"] = "160"
-    os.environ["PYTHONIOENCODING"] = "utf-8"
 
 
 @pytest.fixture(scope="session")

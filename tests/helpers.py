@@ -284,7 +284,7 @@ class RichOutput:
     """Test helper mimicking RichOutput for test assertions."""
 
     def __init__(self, console: Console | None = None) -> None:
-        self.console = console or Console()
+        self.console = console or Console(width=160)
         self._items: list[Any] = []
 
     def add_line(self, item: Any) -> None:
@@ -351,7 +351,7 @@ class RichOutput:
         self._items.clear()
 
 
-def make_rich_output(*, width: int = 120) -> tuple[RichOutput, StringIO]:
+def make_rich_output(*, width: int = 160) -> tuple[RichOutput, StringIO]:
     """Fixed-width console so Rich tables/panels do not truncate under narrow CI COLUMNS."""
     buffer = StringIO()
     console = Console(
@@ -363,7 +363,7 @@ def make_rich_output(*, width: int = 120) -> tuple[RichOutput, StringIO]:
     return RichOutput(console=console), buffer
 
 
-def render_rich(renderable: Any, *, width: int = 120) -> str:
+def render_rich(renderable: Any, *, width: int = 160) -> str:
     """Render a Rich renderable directly to a plain text string for assertions."""
     buffer = StringIO()
     console = Console(

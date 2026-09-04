@@ -164,8 +164,14 @@ not instances. Grow this directory.
   session-scoped template. Provides `init_repo()`, `create_config_file()`,
   `create_step_file()`, `create_workflow_file()`.
 - `fs` (`FileSystem`): plain temp filesystem.
-- `render_rich(renderable, width=120)`: renders to plain text via a real
+- `render_rich(renderable, width=160)`: renders to plain text via a real
   `Console`. **This is the only supported way to capture rendered output.**
+  Console width for rendered assertions is authoritatively pinned to 160 by
+  `tests/helpers.py` (`render_rich` and `make_rich_output`). Tests must not rely
+  on ambient terminal size or in-process `os.environ["COLUMNS"]` mutations
+  (`tests/conftest.py` does not mutate `os.environ`). `tasks.py` sets
+  `env["COLUMNS"] = "160"` uniformly on the invoked subprocess environment for
+  `inv test`.
 - Prefer real filesystem and git over mocks.
 
 ### Fixture Scoping and Reuse
