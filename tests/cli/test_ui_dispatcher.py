@@ -673,7 +673,7 @@ class StatusDispatcherIntegrationTests:
         payload = json.loads(lines[0])
         assert payload["event_type"] == "WorktreeStatusResult"
         assert payload["payload"]["root_dir"] == "/workspace/my-repo"
-        assert payload["payload"]["config"]["status"] == "ok"
+        assert payload["payload"]["config_status"] == "ok"
 
     def test_dispatcher_terminal_format(self) -> None:
         dispatcher, buffer = make_dispatcher_with_buffer(force_terminal=True)

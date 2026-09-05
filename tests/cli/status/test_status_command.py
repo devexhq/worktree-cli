@@ -152,8 +152,8 @@ class StatusCommandTests:
         assert len(lines) == 1
         envelope = json.loads(lines[0])
         assert envelope["event_type"] == "WorktreeStatusResult"
-        assert envelope["payload"]["git"]["is_git_repo"] is True
-        assert envelope["payload"]["config"]["status"] == "ok"
+        assert envelope["payload"]["git_branch"] is not None
+        assert envelope["payload"]["config_status"] == "ok"
 
 
 class StatusCliTests:
@@ -192,7 +192,7 @@ class StatusCliTests:
         assert len(lines) == 1
         payload = json.loads(lines[0])
         assert payload["event_type"] == "WorktreeStatusResult"
-        assert payload["payload"]["config"]["is_valid"] is True
+        assert payload["payload"]["config_status"] == "ok"
 
     def test_status_cli_json_malformed_config_carries_fixes(
         self,
@@ -212,4 +212,6 @@ class StatusCliTests:
         assert len(lines) == 1
         payload = json.loads(lines[0])
         assert payload["event_type"] == "WorktreeStatusResult"
-        assert payload["payload"]["fixes"] == ["Repair JSON syntax in .worktree/config.json or restore from backup."]
+        assert payload["payload"]["remediations"] == [
+            "Repair JSON syntax in .worktree/config.json or restore from backup."
+        ]
