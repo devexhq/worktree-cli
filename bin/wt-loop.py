@@ -705,10 +705,11 @@ def command_plan(args: argparse.Namespace) -> int:
 
 def code_and_review(args: argparse.Namespace, number: int) -> tuple[str, list[PhaseResult]]:
     """Run one implement-then-review round and return its verdict."""
+    fix_scope = getattr(args, "fix", "blockers")
     instruction = (
         "Implement .agentic/plan.md."
         if number == 1
-        else "Run in review mode: address the findings in .agentic/review.md."
+        else f"Run in review mode (--fix {fix_scope}): address the findings in .agentic/review.md."
     )
     code_prompt = build_prompt("wt-code", instruction, args.inline_skills)
 
@@ -776,6 +777,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="terminal display mode: 'table' (2b Rich live table) or 'stream' (1b status spinner)",
     )
     parser.add_argument("--dry-run", action="store_true", help="print what would run without spawning")
+    parser.add_argument(
+        "--fix",
+        choices=["suggestions", "blockers", "all"],
+        default="blockers",
+        help="findings to address in review mode: 'suggestions', 'blockers', or 'all' (default: blockers)",
+    )
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -786,6 +793,12 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser = subparsers.add_parser("run", help="implement, review, loop to APPROVE")
     run_parser.add_argument("--max-rounds", type=int, default=3, help="review rounds before giving up")
     run_parser.add_argument("--push", action="store_true", help="run wt-push after APPROVE")
+    run_parser.add_argument(
+        "--fix",
+        choices=["suggestions", "blockers", "all"],
+        default=argparse.SUPPRESS,
+        help="findings to address in review mode: 'suggestions', 'blockers', or 'all' (default: blockers)",
+    )
     run_parser.set_defaults(func=command_run)
 
     return parser
