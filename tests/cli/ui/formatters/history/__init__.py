@@ -1,0 +1,1 @@
+"""History formatter tests."""

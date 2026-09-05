@@ -102,10 +102,19 @@ Write this to `.agentic/review.md` (create `.agentic/` if needed), overwriting a
 **Plan:** `.agentic/plan.md` <sha or "absent">
 
 ### Blocking
-- `path:line` - what is wrong, the rule it breaks (`<doc>#<section>`), and the concrete fix.
+- `path:line`
+  - Issue: what is wrong and the rule it breaks (`<doc>#<section>`).
+  - Fix: the concrete fix.
 
 ### Suggestions
+- `path:line`
+  - Issue: what could be improved.
+  - Fix: the suggested change.
+
 ### Nits
+- `path:line`
+  - Issue: minor style or wording observation.
+  - Fix: the concrete adjustment.
 
 ### Plan fidelity
 - <FR-n> - implemented as specified | deviates: <what> | missing
@@ -118,6 +127,10 @@ Write this to `.agentic/review.md` (create `.agentic/` if needed), overwriting a
 ```
 
 Severity: **Blocking** is a defect, a broken user-facing contract, a deviation from a plan contract, a suppression hiding a real type error, a test asserting implementation, a violation of a stated doc rule, or a missing required doc update. **Suggestion** is a real improvement that need not land now. **Nit** is style or wording with no rule behind it. Say `APPROVE` only with zero Blocking items. An empty section stays, marked `none`.
+
+Format: Each issue under **Blocking**, **Suggestions**, and **Nits** is written as the file name and line number (`path:line`, or `path` for file-level) followed by a 2-bullet list:
+- `Issue`: what is wrong and the rule it breaks (`<doc>#<section>` for blocking items).
+- `Fix`: the concrete fix.
 
 With `--post` and a PR scope, post the same content as a comment review: `gh pr review <n> --comment --body-file .agentic/review.md`. Never `--approve` or `--request-changes`, and do not add reviewers.
 

@@ -1,0 +1,529 @@
+"""Unit tests for WorktreeStatusFormatter."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+import pytest
+from rich.console import Group
+
+from tests.helpers import render_rich
+from worktree.cli.ui.formatters.status import WorktreeStatusFormatter
+from worktree.core.config.loader import ConfigLoadStatus
+from worktree.core.config.models import AgentConfig, ProjectConfig, WorktreeConfig
+from worktree.core.status.models import (
+    CatalogStatusInfo,
+    ConfigStatusInfo,
+    DatabaseStatusInfo,
+    GitStatusInfo,
+    SandboxStatusInfo,
+    WorktreeStatusResult,
+)
+
+
+def _make_status_result(
+    *,
+    root_dir: Path | None = None,
+    is_initialized: bool = True,
+    git: GitStatusInfo | None = None,
+    config: ConfigStatusInfo | None = None,
+    catalog: CatalogStatusInfo | None = None,
+    database: DatabaseStatusInfo | None = None,
+    sandboxes: SandboxStatusInfo | None = None,
+    warnings: list[str] | None = None,
+    fixes: list[str] | None = None,
+) -> WorktreeStatusResult:
+    base = root_dir or Path("/workspace/my-repo")
+    return WorktreeStatusResult(
+        root_dir=base,
+        is_initialized=is_initialized,
+        git=git
+        or GitStatusInfo(
+            is_git_repo=True,
+            branch="feature/status-cmd",
+            is_dirty=False,
+            uncommitted_files=0,
+        ),
+        config=config
+        or ConfigStatusInfo(
+            status=ConfigLoadStatus.OK,
+            config_path=base / ".worktree" / "config.json",
+            is_valid=True,
+            config=WorktreeConfig(
+                version=1,
+                project=ProjectConfig(name="worktree-cli"),
+                agent=AgentConfig(model="gemini-2.5-flash"),
+            ),
+        ),
+        catalog=catalog
+        or CatalogStatusInfo(
+            exists=True,
+            catalog_dir=base / ".worktree" / "catalog",
+            total_items=2,
+            workflows_count=1,
+            tasks_count=1,
+            steps_count=0,
+            invalid_items=0,
+            item_names=["deploy", "lint"],
+        ),
+        database=database
+        or DatabaseStatusInfo(
+            exists=True,
+            db_path=base / ".worktree" / "data.db",
+            is_accessible=True,
+            total_runs=1,
+        ),
+        sandboxes=sandboxes
+        or SandboxStatusInfo(
+            active_sandboxes=1,
+            total_sandboxes=1,
+            max_active_sandboxes=5,
+        ),
+        warnings=warnings or [],
+        fixes=fixes or [],
+    )
+
+
+class WorktreeStatusFormatterTests:
+    @pytest.mark.parametrize(
+        ("status", "warning_message", "expected_badge", "expected_remediation"),
+        [
+            pytest.param(
+                ConfigLoadStatus.OK,
+                None,
+                "ok (.worktree/config.json)",
+                None,
+                id="config_ok",
+            ),
+            pytest.param(
+                ConfigLoadStatus.NOT_FOUND,
+                None,
+                "CONFIG_NOT_FOUND",
+                "Run 'wt init' to initialize Worktree in this repository.",
+                id="config_not_found_uninitialized",
+            ),
+            pytest.param(
+                ConfigLoadStatus.MALFORMED_JSON,
+                (
+                    "Malformed config.json: "
+                    "Expecting property name enclosed in double quotes (line 2 col 1) (CONFIG_MALFORMED_JSON)."
+                ),
+                "CONFIG_MALFORMED_JSON",
+                "Repair JSON syntax in .worktree/config.json or restore from backup.",
+                id="config_malformed_json_degraded",
+            ),
+            pytest.param(
+                ConfigLoadStatus.SCHEMA_INVALID,
+                "Config schema validation failed (CONFIG_SCHEMA_INVALID):",
+                "CONFIG_SCHEMA_INVALID",
+                "Run 'wt config validate' to inspect schema errors or 'wt init --repair' to insert missing keys.",
+                id="config_schema_invalid_degraded",
+            ),
+            pytest.param(
+                ConfigLoadStatus.ROOT_NOT_OBJECT,
+                "Malformed config.json: root must be an object",
+                "CONFIG_ROOT_NOT_OBJECT",
+                "Ensure .worktree/config.json contains a JSON object root.",
+                id="config_root_not_object_degraded",
+            ),
+            pytest.param(
+                ConfigLoadStatus.PATH_IS_DIRECTORY,
+                "Config path is a directory, not a file: '/workspace/my-repo/.worktree/config.json'",
+                "PATH_IS_DIRECTORY",
+                "Remove directory at .worktree/config.json and run 'wt init'.",
+                id="config_path_is_directory_degraded",
+            ),
+            pytest.param(
+                ConfigLoadStatus.UNREADABLE,
+                "Unable to read config.json: Permission denied",
+                "CONFIG_UNREADABLE",
+                "Check file permissions for .worktree/config.json.",
+                id="config_unreadable_degraded",
+            ),
+        ],
+    )
+    def test_to_rich_config_modes_renders_badges_and_remediations(
+        self,
+        status: ConfigLoadStatus,
+        warning_message: str | None,
+        expected_badge: str,
+        expected_remediation: str | None,
+    ) -> None:
+        errors = [warning_message] if warning_message else []
+        is_initialized = status != ConfigLoadStatus.NOT_FOUND
+        config_info = ConfigStatusInfo(
+            status=status,
+            config_path=Path("/workspace/my-repo/.worktree/config.json"),
+            is_valid=(status == ConfigLoadStatus.OK),
+            config=(
+                WorktreeConfig(
+                    version=1,
+                    project=ProjectConfig(name="worktree-cli"),
+                    agent=AgentConfig(model="gemini-2.5-flash"),
+                )
+                if status == ConfigLoadStatus.OK
+                else None
+            ),
+            errors=errors,
+        )
+        warnings = [warning_message] if warning_message else []
+        fixes = [expected_remediation] if expected_remediation else []
+        result = _make_status_result(
+            is_initialized=is_initialized,
+            config=config_info,
+            warnings=warnings,
+            fixes=fixes,
+        )
+        rendered = render_rich(WorktreeStatusFormatter().to_rich(result))
+
+        assert expected_badge in rendered
+        if expected_remediation:
+            assert expected_remediation in rendered
+        if warning_message:
+            assert warning_message in rendered
+
+    @pytest.mark.parametrize(
+        ("git_info", "expected_branch_text", "expected_remediation"),
+        [
+            pytest.param(
+                GitStatusInfo(is_git_repo=True, branch="feature/status-cmd", is_dirty=False, uncommitted_files=0),
+                "feature/status-cmd",
+                None,
+                id="clean_git_branch",
+            ),
+            pytest.param(
+                GitStatusInfo(is_git_repo=True, branch="feature/dirty-branch", is_dirty=True, uncommitted_files=3),
+                "feature/dirty-branch (dirty)",
+                None,
+                id="dirty_git_branch",
+            ),
+            pytest.param(
+                GitStatusInfo(is_git_repo=False, branch="none", is_dirty=False, uncommitted_files=0),
+                "NOT_A_GIT_REPO",
+                "Run 'git init' or navigate to a Git repository.",
+                id="not_a_git_repo",
+            ),
+        ],
+    )
+    def test_to_rich_git_variants_renders_branch_and_remediation(
+        self,
+        git_info: GitStatusInfo,
+        expected_branch_text: str,
+        expected_remediation: str | None,
+    ) -> None:
+        result = _make_status_result(
+            git=git_info,
+            fixes=[expected_remediation] if expected_remediation else [],
+        )
+        rendered = render_rich(WorktreeStatusFormatter().to_rich(result))
+
+        assert expected_branch_text in rendered
+        if expected_remediation:
+            assert expected_remediation in rendered
+
+    def test_to_rich_when_non_git_and_uninitialized_renders_badges_and_remediations(self) -> None:
+        git_info = GitStatusInfo(is_git_repo=False, branch="none", is_dirty=False, uncommitted_files=0)
+        config_info = ConfigStatusInfo(
+            status=ConfigLoadStatus.NOT_FOUND,
+            config_path=Path("/workspace/my-repo/.worktree/config.json"),
+            is_valid=False,
+            config=None,
+        )
+        result = _make_status_result(
+            is_initialized=False,
+            git=git_info,
+            config=config_info,
+            warnings=["Worktree workspace is not initialized. Run 'wt init' to configure."],
+            fixes=[
+                "Run 'wt init' to initialize Worktree in this repository.",
+                "Run 'git init' or navigate to a Git repository.",
+            ],
+        )
+        rendered = render_rich(WorktreeStatusFormatter().to_rich(result))
+
+        assert "Uninitialized" in rendered
+        assert "NOT_A_GIT_REPO" in rendered
+        assert "CONFIG_NOT_FOUND" in rendered
+        assert "Run 'wt init' to initialize Worktree in this repository." in rendered
+        assert "Run 'git init' or navigate to a Git repository." in rendered
+
+    @pytest.mark.parametrize(
+        ("catalog_info", "expected_catalog_text"),
+        [
+            pytest.param(
+                CatalogStatusInfo(
+                    exists=True,
+                    catalog_dir=Path("/workspace/my-repo/.worktree/catalog"),
+                    total_items=2,
+                    workflows_count=1,
+                    tasks_count=1,
+                    steps_count=0,
+                    invalid_items=0,
+                    item_names=["deploy", "lint"],
+                ),
+                "2 valid / 2 total",
+                id="valid_catalog_items",
+            ),
+            pytest.param(
+                CatalogStatusInfo(
+                    exists=False,
+                    catalog_dir=Path("/workspace/my-repo/.worktree/catalog"),
+                    total_items=0,
+                    workflows_count=0,
+                    tasks_count=0,
+                    steps_count=0,
+                    invalid_items=0,
+                    item_names=[],
+                ),
+                "0 valid / 0 total",
+                id="empty_catalog",
+            ),
+            pytest.param(
+                CatalogStatusInfo(
+                    exists=True,
+                    catalog_dir=Path("/workspace/my-repo/.worktree/catalog"),
+                    total_items=5,
+                    workflows_count=2,
+                    tasks_count=2,
+                    steps_count=1,
+                    invalid_items=2,
+                    item_names=["w1", "w2", "t1", "t2", "s1"],
+                ),
+                "3 valid / 5 total",
+                id="catalog_with_invalid_items",
+            ),
+        ],
+    )
+    def test_to_rich_catalog_variants_renders_counts(
+        self,
+        catalog_info: CatalogStatusInfo,
+        expected_catalog_text: str,
+    ) -> None:
+        result = _make_status_result(catalog=catalog_info)
+        rendered = render_rich(WorktreeStatusFormatter().to_rich(result))
+        assert expected_catalog_text in rendered
+
+    @pytest.mark.parametrize(
+        (
+            "project_name",
+            "raw_config",
+            "agent_model",
+            "config_status",
+            "is_initialized",
+            "expected_project",
+            "expected_model",
+        ),
+        [
+            pytest.param(
+                "worktree-cli",
+                None,
+                "gemini-2.5-flash",
+                ConfigLoadStatus.OK,
+                True,
+                "worktree-cli",
+                "gemini-2.5-flash",
+                id="valid_project_with_specified_model",
+            ),
+            pytest.param(
+                "",
+                None,
+                None,
+                ConfigLoadStatus.OK,
+                True,
+                "unnamed_project",
+                "Not Configured",
+                id="empty_project_defaults_to_unnamed_and_not_configured",
+            ),
+            pytest.param(
+                None,
+                {"version": 1, "project": {"name": "my-broken-app"}},
+                None,
+                ConfigLoadStatus.SCHEMA_INVALID,
+                True,
+                "my-broken-app",
+                "Not Configured",
+                id="schema_invalid_extracts_raw_project_name",
+            ),
+            pytest.param(
+                None,
+                None,
+                None,
+                ConfigLoadStatus.SCHEMA_INVALID,
+                True,
+                "unknown (invalid config)",
+                "Not Configured",
+                id="schema_invalid_without_raw_project_shows_unknown_invalid",
+            ),
+            pytest.param(
+                None,
+                None,
+                None,
+                ConfigLoadStatus.NOT_FOUND,
+                False,
+                "Uninitialized",
+                "Not Configured",
+                id="uninitialized_shows_uninitialized_project_status",
+            ),
+        ],
+    )
+    def test_to_rich_project_and_agent_variants_renders_project_and_model(
+        self,
+        project_name: str | None,
+        raw_config: dict[str, Any] | None,
+        agent_model: str | None,
+        config_status: ConfigLoadStatus,
+        is_initialized: bool,
+        expected_project: str,
+        expected_model: str,
+    ) -> None:
+        root = Path("/workspace/my-repo")
+        config_obj = None
+        if config_status == ConfigLoadStatus.OK:
+            config_obj = WorktreeConfig(
+                version=1,
+                project=ProjectConfig(name=project_name or ""),
+                agent=AgentConfig(model=agent_model),
+            )
+        config_info = ConfigStatusInfo(
+            status=config_status,
+            config_path=root / ".worktree" / "config.json",
+            is_valid=(config_status == ConfigLoadStatus.OK),
+            raw=raw_config,
+            config=config_obj,
+        )
+        result = _make_status_result(root_dir=root, is_initialized=is_initialized, config=config_info)
+        rendered = render_rich(WorktreeStatusFormatter().to_rich(result))
+
+        assert expected_project in rendered
+        assert expected_model in rendered
+
+    def test_to_rich_with_warnings_renders_warning_messages(self) -> None:
+        formatter = WorktreeStatusFormatter()
+        result = _make_status_result(
+            warnings=[
+                "max_active_sandboxes (10) is unusually high.",
+                "Active branch is 'main'. Automated workflows on primary branches are discouraged.",
+            ]
+        )
+        rich_renderable = formatter.to_rich(result)
+        assert isinstance(rich_renderable, Group)
+
+        rendered = render_rich(rich_renderable)
+        assert "max_active_sandboxes (10) is unusually high." in rendered
+        assert "Active branch is 'main'." in rendered
+
+    def test_to_rich_with_warnings_and_fixes_renders_both(self) -> None:
+        formatter = WorktreeStatusFormatter()
+        result = _make_status_result(
+            warnings=["test warning"],
+            fixes=["test remediation"],
+        )
+        rendered = render_rich(formatter.to_rich(result))
+        assert "test warning" in rendered
+        assert "test remediation" in rendered
+
+    def test_to_rich_when_fixes_empty_omits_remediation(self) -> None:
+        formatter = WorktreeStatusFormatter()
+        result = _make_status_result(fixes=[])
+        rendered = render_rich(formatter.to_rich(result))
+        assert "worktree-cli" in rendered
+        assert "Run 'wt init'" not in rendered
+
+    def test_to_json_serializable_returns_exact_dict(self) -> None:
+        formatter = WorktreeStatusFormatter()
+        result = _make_status_result(warnings=["warning-1", "warning-2"])
+
+        dumped = formatter.to_json_serializable(result)
+        assert dumped == {
+            "root_dir": "/workspace/my-repo",
+            "is_initialized": True,
+            "git": {
+                "is_git_repo": True,
+                "branch": "feature/status-cmd",
+                "is_dirty": False,
+                "uncommitted_files": 0,
+            },
+            "config": {
+                "status": "ok",
+                "config_path": "/workspace/my-repo/.worktree/config.json",
+                "is_valid": True,
+                "raw": None,
+                "config": {
+                    "version": 1,
+                    "project": {
+                        "name": "worktree-cli",
+                        "initialized_at": None,
+                    },
+                    "paths": {
+                        "root_dir": ".worktree",
+                        "sessions_dir": ".worktree/sessions",
+                        "artifacts_dir": ".worktree/artifacts",
+                        "db_path": ".worktree/data.db",
+                    },
+                    "sandbox": {
+                        "base_ref": "HEAD",
+                        "max_active_sandboxes": 3,
+                        "default_timeout_seconds": 900,
+                    },
+                    "agent": {
+                        "provider": "local",
+                        "model": "gemini-2.5-flash",
+                        "endpoint": None,
+                        "temperature": 0.2,
+                        "max_tokens": 4096,
+                    },
+                    "history": {
+                        "save_attempt_logs": True,
+                        "save_agent_payloads": True,
+                        "save_final_diff": True,
+                        "max_sessions": 1000,
+                    },
+                    "doctor": {
+                        "check_git": True,
+                        "check_paths_writable": True,
+                        "check_config_schema": True,
+                        "check_stale_worktrees": True,
+                        "check_required_binaries": True,
+                    },
+                    "prune": {
+                        "remove_stale_worktrees": True,
+                        "remove_orphaned_sandboxes": True,
+                        "remove_expired_artifacts": False,
+                        "artifact_ttl_days": 30,
+                    },
+                    "telemetry": {
+                        "enabled": False,
+                    },
+                    "concurrency": {
+                        "lock_timeout_seconds": 30.0,
+                    },
+                },
+                "errors": [],
+                "fixes": [],
+            },
+            "catalog": {
+                "exists": True,
+                "catalog_dir": "/workspace/my-repo/.worktree/catalog",
+                "total_items": 2,
+                "workflows_count": 1,
+                "tasks_count": 1,
+                "steps_count": 0,
+                "invalid_items": 0,
+                "item_names": ["deploy", "lint"],
+            },
+            "database": {
+                "exists": True,
+                "db_path": "/workspace/my-repo/.worktree/data.db",
+                "is_accessible": True,
+                "total_runs": 1,
+            },
+            "sandboxes": {
+                "active_sandboxes": 1,
+                "total_sandboxes": 1,
+                "max_active_sandboxes": 5,
+            },
+            "warnings": ["warning-1", "warning-2"],
+            "errors": [],
+            "fixes": [],
+        }
