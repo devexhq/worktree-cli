@@ -101,6 +101,7 @@ Operations that can fail return a Pydantic result object subclassing `BaseResult
   parts of this; they currently exempt only `dispatcher.py` and do not detect
   `console.print`, `input`, or `typer.confirm`.
 - Formatters reside under `src/worktree/cli/ui/formatters/<domain>/<name>.py`, strictly one `*Formatter` class per module.
+- Presentation view model definitions reside under `src/worktree/cli/ui/formatters/<domain>/<name>_view.py`.
 - Domain shared table builders reside in `src/worktree/cli/ui/formatters/<domain>/common.py`.
 - No `renderers.py` modules exist anywhere in the codebase.
 - Construct `errors` and `warnings` messages using inline f-strings or literals at call sites. Do not create private single-message formatting wrappers.

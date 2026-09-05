@@ -95,14 +95,18 @@ mix them in one test.
   real side effects: files written, git refs created, DB rows.
 - **Mocks:** none, except genuine process or network boundaries. Use `git_fs` / `fs`.
 
-### Tier 2 - Presentation contracts (two tests per formatter, never one)
+### Tier 2 - Presentation contracts (three tests per formatter, never one)
 
-- **JSON:** assert `to_json_serializable(model)` as an **exact dict**. This is a
-  promise to other programs; exactness is the point and it catches accidental
-  new fields.
-- **Rich:** render at a pinned width and assert **only values that came from the
-  model** (ids, names, counts, error text). Never assert a label, border, glyph,
-  padding, or a full sentence.
+- **View model:** assert `transform(model) == ExpectedView(...)` to pin the typed intermediate
+  presentation model and verify all derivations.
+- **JSON wire format:** assert `to_json_serializable(model)` as an **exact literal dict**
+  (pinned at boundary states: fully populated and empty/sparse). Never assert
+  `== transform(model).model_dump(...)`, because only a literal dict pins field names,
+  enum spellings, and null-versus-absent serialization.
+- **Rich renderable:** render at a pinned width (`render_rich(...)`) and assert
+  **only values that came from the view model** (ids, names, counts, error text).
+  Read expectations directly from `case.view` so Rich assertions cannot drift from the
+  transform test. Never assert a label, border, glyph, padding, or a full sentence.
 
 ### Tier 3 - CLI wiring (`CliRunner`, four per command)
 

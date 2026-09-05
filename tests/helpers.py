@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from io import StringIO
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import click
 import typer
@@ -14,6 +14,8 @@ from typer.core import TyperGroup
 from worktree.cli.context import CliContext
 from worktree.cli.ui.dispatcher import UiDispatcher
 from worktree.core.config.generator import generate_default_config
+from worktree.core.config.loader import ConfigLoadStatus
+from worktree.core.config.models import AgentConfig, ProjectConfig, WorktreeConfig
 from worktree.core.db import (
     BlueprintKind,
     RunRecord,
@@ -24,6 +26,14 @@ from worktree.core.db import (
     WorktreeDb,
 )
 from worktree.core.runtime import RunCheckpoint
+from worktree.core.status.models import (
+    CatalogStatusInfo,
+    ConfigStatusInfo,
+    DatabaseStatusInfo,
+    GitStatusInfo,
+    SandboxStatusInfo,
+    WorktreeStatusResult,
+)
 from worktree.core.step import StepDefinition, StepResult
 
 
@@ -335,3 +345,81 @@ def list_subcommands(group: Any) -> list[str]:
     """Return command names registered under a click Group."""
     assert isinstance(group, (click.Group, TyperGroup)), f"Expected Group, got {type(group)}"
     return sorted(group.commands.keys())
+
+
+class FormatterCase[T, V](NamedTuple):
+    """One formatter scenario: the domain input and the view it must transform to.
+
+    Instances are module-level and shared across parametrized tests; treat them as read-only.
+    Iterating a collection inside one case (e.g. for warning in case.view.warnings)
+    asserts properties of that single scenario and is not the banned loop-over-scenarios pattern.
+    """
+
+    data: T
+    view: V
+
+
+def make_status_result(
+    *,
+    root_dir: Path | None = None,
+    is_initialized: bool = True,
+    git: GitStatusInfo | None = None,
+    config: ConfigStatusInfo | None = None,
+    catalog: CatalogStatusInfo | None = None,
+    database: DatabaseStatusInfo | None = None,
+    sandboxes: SandboxStatusInfo | None = None,
+    warnings: list[str] | None = None,
+    fixes: list[str] | None = None,
+    errors: list[str] | None = None,
+) -> WorktreeStatusResult:
+    """Helper to construct a valid WorktreeStatusResult with test defaults."""
+    base = root_dir or Path("/workspace/my-repo")
+    return WorktreeStatusResult(
+        root_dir=base,
+        is_initialized=is_initialized,
+        git=git
+        or GitStatusInfo(
+            is_git_repo=True,
+            branch="feature/status-cmd",
+            is_dirty=False,
+            uncommitted_files=0,
+        ),
+        config=config
+        or ConfigStatusInfo(
+            status=ConfigLoadStatus.OK,
+            config_path=base / ".worktree" / "config.json",
+            is_valid=True,
+            config=WorktreeConfig(
+                version=1,
+                project=ProjectConfig(name="worktree-cli"),
+                agent=AgentConfig(model="gemini-2.5-flash"),
+            ),
+        ),
+        catalog=catalog
+        or CatalogStatusInfo(
+            exists=True,
+            catalog_dir=base / ".worktree" / "catalog",
+            total_items=2,
+            workflows_count=1,
+            tasks_count=1,
+            steps_count=0,
+            invalid_items=0,
+            item_names=["deploy", "lint"],
+        ),
+        database=database
+        or DatabaseStatusInfo(
+            exists=True,
+            db_path=base / ".worktree" / "data.db",
+            is_accessible=True,
+            total_runs=1,
+        ),
+        sandboxes=sandboxes
+        or SandboxStatusInfo(
+            active_sandboxes=1,
+            total_sandboxes=1,
+            max_active_sandboxes=5,
+        ),
+        warnings=warnings or [],
+        fixes=fixes or [],
+        errors=errors or [],
+    )

@@ -93,25 +93,32 @@ def test_no_direct_output_outside_dispatcher() -> None:
     assert not violations, "Found direct console output outside dispatcher.py:\n" + "\n".join(violations)
 
 
+def _is_exempt_formatter_file(file_path: Path) -> bool:
+    return file_path.name in ("__init__.py", "common.py") or file_path.name.endswith("_view.py")
+
+
+def _find_formatter_classes(tree: ast.AST) -> list[str]:
+    return [
+        node.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ClassDef)
+        and (
+            node.name.endswith("Formatter") or any(isinstance(b, ast.Name) and "Formatter" in b.id for b in node.bases)
+        )
+    ]
+
+
 def test_one_formatter_class_per_module() -> None:
     """Ensure each module in formatters/ defines exactly one Formatter class."""
     formatters_dir = SRC_ROOT / "cli" / "ui" / "formatters"
     violations: list[str] = []
 
     for file_path in _iter_python_files(formatters_dir):
-        if file_path.name in ("__init__.py", "common.py"):
+        if _is_exempt_formatter_file(file_path):
             continue
 
         tree = ast.parse(file_path.read_text(encoding="utf-8"), filename=str(file_path))
-        formatter_classes = [
-            node.name
-            for node in ast.walk(tree)
-            if isinstance(node, ast.ClassDef)
-            and (
-                node.name.endswith("Formatter")
-                or any(isinstance(b, ast.Name) and "Formatter" in b.id for b in node.bases)
-            )
-        ]
+        formatter_classes = _find_formatter_classes(tree)
 
         if len(formatter_classes) != 1:
             violations.append(
