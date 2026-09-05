@@ -9,8 +9,14 @@ import shutil
 import subprocess
 import sys
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Protocol
+
+from rich.console import Console
+from rich.live import Live
+from rich.status import Status
+from rich.table import Table
 
 AGENTIC = Path(".agentic")
 PLAN = AGENTIC / "plan.md"
@@ -56,12 +62,206 @@ class PhaseResult:
 
 
 @dataclass
+class ToolRecord:
+    """Record of a single tool execution."""
+
+    tool: str
+    action: str
+    target_detail: str
+    description: str
+    start_monotonic: float
+    duration: float = 0.0
+    status: str = "running"  # "running" | "ok" | "error"
+    error_message: str | None = None
+
+
+class DisplayHandler(Protocol):
+    """Protocol for terminal event display implementations."""
+
+    def on_session_start(self, phase: str) -> None: ...
+
+    def on_tool_active(self, record: ToolRecord) -> None: ...
+
+    def on_tool_done(self, record: ToolRecord) -> None: ...
+
+    def on_agent_delta(self, delta: str) -> None: ...
+
+    def on_session_end(self) -> None: ...
+
+
+def truncate_detail(text: str, max_len: int = 45) -> str:
+    """Truncate long detail string, preserving path suffixes if text starts with /."""
+    if len(text) <= max_len:
+        return text
+    if text.startswith("/"):
+        return f"...{text[-(max_len - 3):]}"
+    return f"{text[: max_len - 3]}..."
+
+
+class StreamDisplay:
+    """Rich status spinner and semantic completion log (Option 1b)."""
+
+    def __init__(self, console: Console) -> None:
+        self.console = console
+        self._status: Status | None = None
+
+    def on_session_start(self, phase: str) -> None:
+        self._stop_status()
+
+    def _stop_status(self) -> None:
+        if self._status is not None:
+            self._status.stop()
+            self._status = None
+
+    def on_tool_active(self, record: ToolRecord) -> None:
+        msg = f"[wt-loop] ⠋ {record.description}..."
+        if self._status is None:
+            self._status = self.console.status(msg, spinner="dots")
+            self._status.start()
+        else:
+            self._status.update(msg)
+
+    def on_tool_done(self, record: ToolRecord) -> None:
+        self._stop_status()
+        dur_str = f"({record.duration:.1f}s)"
+        if record.status == "ok":
+            self.console.print(f"[wt-loop] [green]✓[/green] {record.description} {dur_str}")
+        else:
+            self.console.print(f"[wt-loop] [red]✗[/red] {record.description} {dur_str}")
+
+    def on_agent_delta(self, delta: str) -> None:
+        self._stop_status()
+        print(delta, end="", flush=True)
+
+    def on_session_end(self) -> None:
+        self._stop_status()
+
+
+class TableDisplay:
+    """Rich Live dynamic table dashboard (Option 2b)."""
+
+    def __init__(self, console: Console) -> None:
+        self.console = console
+        self.records: list[ToolRecord] = []
+        self._live: Live | None = None
+        self._rendered_row_count = 0
+
+    def _build_table(self) -> Table:
+        table = Table(box=None, pad_edge=False, show_header=True, header_style="bold")
+        table.add_column("ACTION", width=14, no_wrap=True)
+        table.add_column("TARGET / DETAIL", width=46, no_wrap=True)
+        table.add_column("TIME", width=7, no_wrap=True)
+        table.add_column("STATUS", width=10, no_wrap=True)
+
+        for rec in self.records[self._rendered_row_count :]:
+            detail = truncate_detail(rec.target_detail, 45)
+            if rec.status == "running":
+                elapsed = time.monotonic() - rec.start_monotonic
+                time_str = f"{elapsed:.1f}s"
+                status_str = "[yellow]• run[/yellow]"
+            elif rec.status == "ok":
+                time_str = f"{rec.duration:.1f}s"
+                status_str = "[green]✓ ok[/green]"
+            else:
+                time_str = f"{rec.duration:.1f}s"
+                status_str = "[red]✗ error[/red]"
+            table.add_row(rec.action, detail, time_str, status_str)
+        return table
+
+    def on_session_start(self, phase: str) -> None:
+        self.records.clear()
+        self._rendered_row_count = 0
+        if self._live is not None:
+            self._live.stop()
+            self._live = None
+
+    def _ensure_live(self) -> None:
+        if self._live is None:
+            self._live = Live(
+                self._build_table(),
+                console=self.console,
+                refresh_per_second=4,
+                transient=False,
+            )
+            self._live.start()
+        else:
+            self._live.update(self._build_table())
+
+    def on_tool_active(self, record: ToolRecord) -> None:
+        self.records.append(record)
+        self._ensure_live()
+
+    def on_tool_done(self, record: ToolRecord) -> None:
+        if self._live is not None:
+            self._live.update(self._build_table())
+
+    def on_agent_delta(self, delta: str) -> None:
+        if self._live is not None:
+            self._live.stop()
+            self._live = None
+            self._rendered_row_count = len(self.records)
+        print(delta, end="", flush=True)
+
+    def on_session_end(self) -> None:
+        if self._live is not None:
+            self._live.stop()
+            self._live = None
+            self._rendered_row_count = len(self.records)
+
+
+class SessionLogger:
+    """Logs raw 2a tabular data to scratch/loops/session-{identifier}/session-{identifier}-YYYYMMDDHHmmss.log."""
+
+    def __init__(self, phase: str) -> None:
+        self.phase = phase
+        self.sanitized_phase = phase.replace(" ", "-").replace("(", "").replace(")", "").replace("/", "-").lower()
+        self.timestamp = time.strftime("%Y%m%d%H%M%S")
+        self.conversation_id: str | None = None
+        self.log_path: Path | None = None
+
+    def set_conversation_id(self, conv_id: str) -> None:
+        """Capture conversation identifier if not already set."""
+        if not self.conversation_id and conv_id:
+            self.conversation_id = conv_id
+
+    def ensure_log_file(self) -> Path:
+        """Ensure session directory and log file are initialized with 2a header."""
+        if self.log_path is not None:
+            return self.log_path
+
+        short_id = self.conversation_id[:8] if self.conversation_id else None
+        identifier = f"{self.sanitized_phase}-{short_id}" if short_id else self.sanitized_phase
+        session_dir = Path("scratch/loops") / f"session-{identifier}"
+        session_dir.mkdir(parents=True, exist_ok=True)
+        self.log_path = session_dir / f"session-{identifier}-{self.timestamp}.log"
+        if not self.log_path.exists():
+            header = f"{'ACTION':<14}{'TARGET / DETAIL':<46}{'TIME':<7}{'STATUS'}\n"
+            self.log_path.write_text(header)
+        return self.log_path
+
+    def record_tool(self, record: ToolRecord) -> None:
+        """Append one tool execution row to the 2a raw log."""
+        path = self.ensure_log_file()
+        status_str = "✓ ok" if record.status == "ok" else "✗ error"
+        detail = truncate_detail(record.target_detail, 45)
+        dur_str = f"{record.duration:.1f}s"
+        line = f"{record.action:<14}{detail:<46}{dur_str:<7}{status_str}\n"
+        with path.open("a") as f:
+            f.write(line)
+
+    def finish(self) -> None:
+        """Ensure log file is initialized even if no tools were called."""
+        self.ensure_log_file()
+
+
+@dataclass
 class StreamState:
     """Track streaming text state during subprocess execution."""
 
     pending_newline: bool = False
     streamed_any_text: bool = False
     usage: dict[str, int] | None = None
+    active_tools: dict[int, ToolRecord] = field(default_factory=dict)
 
     def write_delta(self, delta: str) -> None:
         """Stream an agent text delta."""
@@ -111,44 +311,181 @@ def summarize_tool(tool_name: str, params: dict[str, object]) -> str:
     return " ".join(parts)
 
 
-def handle_tool_step(update: dict[str, object], state: StreamState) -> None:
-    """Log a tool invocation or completion."""
+def derive_tool_action_and_detail(tool: str, params: dict[str, object]) -> tuple[str, str]:
+    """Derive clean action name and target detail for tabular display and logs."""
+    if tool == "run_command":
+        cmd = str(params.get("CommandLine", "")).strip()
+        if cmd.startswith("git "):
+            return "git", cmd[4:].strip()
+        return "run_command", cmd
+    if tool in {"view_file", "replace_file_content", "write_to_file"}:
+        return tool, format_tool_target(params)
+    if tool == "list_dir":
+        path_str = str(params.get("DirectoryPath", ""))
+        try:
+            path_str = str(Path(path_str).relative_to(Path.cwd()))
+        except ValueError:
+            pass
+        return "list_dir", path_str
+    if tool == "grep_search":
+        return "grep_search", f"query={params.get('Query', '')!r}"
+    return tool, summarize_tool(tool, params)
+
+
+def _format_error_message(msg: str) -> str:
+    """Format single concise error message line."""
+    if "no such file or directory" in msg or "failed to read file" in msg:
+        return "file not found"
+    lines = [line.strip() for line in msg.splitlines() if line.strip()]
+    if not lines:
+        return "error"
+    last = lines[-1]
+    return f"{last[:40]}..." if len(last) > 40 else last
+
+
+def extract_error_detail(tool_info: dict[str, object]) -> str:
+    """Extract a concise error description from tool failure payload."""
+    err_obj = tool_info.get("error")
+    if not isinstance(err_obj, dict):
+        return "error"
+    msg = str(err_obj.get("message", "")).strip()
+    return _format_error_message(msg) if msg else "error"
+
+
+def _derive_error_description(tool: str, action: str, detail: str, error: str) -> str:
+    """Derive failure description for stream spinner/log."""
+    if tool == "view_file":
+        return f"Failed to read {detail}: {error}"
+    if tool in {"replace_file_content", "write_to_file"}:
+        return f"Failed to write {detail}: {error}"
+    return f"Failed {action} {detail}: {error}"
+
+
+def _derive_git_description(detail: str) -> str:
+    """Derive intent description for git commands."""
+    if "diff" in detail:
+        return "Inspecting git diff"
+    if "checkout" in detail or "branch" in detail:
+        return f"Checked out {detail.split()[-1]}"
+    if any(keyword in detail for keyword in ("pull", "merge", "fetch")):
+        return "Synced base branch origin/main"
+    return f"git {detail}"
+
+
+def _derive_file_description(tool: str, detail: str) -> str:
+    """Derive intent description for file operations."""
+    if tool == "view_file":
+        return f"Read {detail}"
+    if tool in {"replace_file_content", "write_to_file"}:
+        return f"Updated {detail}"
+    return ""
+
+
+def derive_tool_description(
+    tool: str, action: str, detail: str, params: dict[str, object], error: str | None = None
+) -> str:
+    """Derive human-friendly intent description for stream spinner/log."""
+    if error:
+        return _derive_error_description(tool, action, detail, error)
+
+    summary = str(params.get("toolSummary") or params.get("toolAction") or "").strip()
+    if summary:
+        return summary
+
+    if action == "git":
+        return _derive_git_description(detail)
+
+    file_desc = _derive_file_description(tool, detail)
+    return file_desc or f"{action} {detail}".strip()
+
+
+def handle_tool_step(
+    update: dict[str, object],
+    state: StreamState,
+    display: DisplayHandler,
+    logger: SessionLogger,
+) -> None:
+    """Log a tool invocation or completion, updating live display and writing 2a raw log."""
     state.ensure_newline()
     tool = str(update.get("tool_name", "tool"))
     tool_state = str(update.get("state", ""))
     tool_info = update.get("tool_info")
     params: dict[str, object] = tool_info.get("parameters", {}) if isinstance(tool_info, dict) else {}
+    step_idx = int(update.get("step_index", 0))
 
     if tool_state == "ACTIVE":
-        detail = summarize_tool(tool, params)
-        log(f"  -> [{tool}] {detail}".strip())
+        action, target_detail = derive_tool_action_and_detail(tool, params)
+        desc = derive_tool_description(tool, action, target_detail, params)
+        record = ToolRecord(
+            tool=tool,
+            action=action,
+            target_detail=target_detail,
+            description=desc,
+            start_monotonic=time.monotonic(),
+        )
+        state.active_tools[step_idx] = record
+        display.on_tool_active(record)
         return
 
+    record = state.active_tools.pop(step_idx, None)
+    if record is None:
+        action, target_detail = derive_tool_action_and_detail(tool, params)
+        record = ToolRecord(
+            tool=tool,
+            action=action,
+            target_detail=target_detail,
+            description=f"{action} {target_detail}",
+            start_monotonic=time.monotonic(),
+        )
+
     duration = update.get("duration_seconds")
-    dur_str = f" in {duration:.1f}s" if isinstance(duration, (int, float)) else ""
-    if tool_state == "DONE":
-        log(f"  ✓ [{tool}]{dur_str}")
-    elif tool_state == "ERROR":
-        log(f"  ✗ [{tool}] error{dur_str}")
+    record.duration = (
+        float(duration) if isinstance(duration, (int, float)) else (time.monotonic() - record.start_monotonic)
+    )
+    record.status = "ok" if tool_state == "DONE" else "error"
+    if tool_state == "ERROR" and isinstance(tool_info, dict):
+        record.error_message = extract_error_detail(tool_info)
+        record.description = derive_tool_description(
+            record.tool, record.action, record.target_detail, params, error=record.error_message
+        )
+
+    display.on_tool_done(record)
+    logger.record_tool(record)
 
 
-def handle_agent_response(update: dict[str, object], state: StreamState) -> None:
+def handle_agent_response(
+    update: dict[str, object],
+    state: StreamState,
+    display: DisplayHandler,
+) -> None:
     """Stream response delta if present."""
     delta = update.get("text_delta")
     if isinstance(delta, str) and delta:
-        state.write_delta(delta)
+        state.ensure_newline()
+        display.on_agent_delta(delta)
+        state.pending_newline = not delta.endswith("\n")
+        state.streamed_any_text = True
 
 
-def handle_step_update(update: dict[str, object], state: StreamState) -> None:
+def handle_step_update(
+    update: dict[str, object],
+    state: StreamState,
+    display: DisplayHandler,
+    logger: SessionLogger,
+) -> None:
     """Dispatch step update events."""
     step_type = update.get("step_type")
     if step_type == "tool":
-        handle_tool_step(update, state)
+        handle_tool_step(update, state, display, logger)
     elif step_type == "agent_response":
-        handle_agent_response(update, state)
+        handle_agent_response(update, state, display)
 
 
-def handle_result(result: dict[str, object], state: StreamState) -> None:
+def handle_result(
+    result: dict[str, object],
+    state: StreamState,
+    display: DisplayHandler,
+) -> None:
     """Capture token usage and print the final response if no deltas were streamed."""
     usage_data = result.get("usage")
     if isinstance(usage_data, dict):
@@ -158,24 +495,42 @@ def handle_result(result: dict[str, object], state: StreamState) -> None:
         return
     resp = result.get("response")
     if isinstance(resp, str) and resp:
+        display.on_session_end()
         state.ensure_newline()
         print(resp, flush=True)
 
 
-def handle_stream_event(event_obj: dict[str, object], state: StreamState) -> None:
+def handle_stream_event(
+    event_obj: dict[str, object],
+    state: StreamState,
+    display: DisplayHandler,
+    logger: SessionLogger,
+) -> None:
     """Dispatch a parsed NDJSON stream event."""
+    conv_id = str(event_obj.get("conversation_id", ""))
+    if conv_id:
+        logger.set_conversation_id(conv_id)
+
     event = event_obj.get("event")
     payload = event_obj.get(str(event))
     if not isinstance(payload, dict):
         return
 
+    payload_conv_id = str(payload.get("conversation_id", ""))
+    if payload_conv_id:
+        logger.set_conversation_id(payload_conv_id)
+
     if event == "step_update":
-        handle_step_update(payload, state)
+        handle_step_update(payload, state, display, logger)
     elif event == "result":
-        handle_result(payload, state)
+        handle_result(payload, state, display)
 
 
-def stream_process_output(process: subprocess.Popen[str]) -> StreamState:
+def stream_process_output(
+    process: subprocess.Popen[str],
+    display: DisplayHandler,
+    logger: SessionLogger,
+) -> StreamState:
     """Stream process stdout line by line, parsing JSON events when present."""
     state = StreamState()
     assert process.stdout is not None
@@ -186,20 +541,22 @@ def stream_process_output(process: subprocess.Popen[str]) -> StreamState:
         try:
             event_obj = json.loads(line)
         except json.JSONDecodeError:
-            state.ensure_newline()
-            print(raw_line, end="", flush=True)
+            display.on_agent_delta(raw_line)
+            state.streamed_any_text = True
             continue
 
         if isinstance(event_obj, dict):
-            handle_stream_event(event_obj, state)
+            handle_stream_event(event_obj, state, display, logger)
 
+    display.on_session_end()
+    logger.finish()
     state.ensure_newline()
     return state
 
 
 def format_duration(seconds: float) -> str:
     """Format duration in seconds to a human-readable string."""
-    total = int(round(seconds))
+    total = round(seconds)
     if total < 60:
         return f"{total}s"
     m, s = divmod(total, 60)
@@ -269,6 +626,13 @@ def run_phase(phase: str, host: str, prompt: str, args: argparse.Namespace) -> P
         log(f"{phase}: dry run, would exec: {argv[0]} ... ({len(prompt)} char prompt)")
         return PhaseResult(phase=phase, exit_code=0, seconds=0.0)
 
+    console = Console()
+    display: DisplayHandler = (
+        TableDisplay(console) if getattr(args, "display", "table") == "table" else StreamDisplay(console)
+    )
+    display.on_session_start(phase)
+    logger = SessionLogger(phase)
+
     started = time.monotonic()
     process = subprocess.Popen(
         argv,
@@ -277,13 +641,15 @@ def run_phase(phase: str, host: str, prompt: str, args: argparse.Namespace) -> P
         text=True,
         bufsize=1,
     )
-    state = stream_process_output(process)
+    state = stream_process_output(process, display, logger)
     process.wait()
     elapsed = time.monotonic() - started
 
     tok = state.usage.get("total_tokens", 0) if state.usage else 0
     tok_str = f" ({format_token_count(tok)} tokens)" if tok > 0 else ""
     log(f"{phase}: exit {process.returncode} in {elapsed:.0f}s{tok_str}")
+    if logger.log_path is not None:
+        log(f"{phase}: 2a raw log saved to {logger.log_path}")
     return PhaseResult(phase=phase, exit_code=process.returncode, seconds=elapsed, usage=state.usage)
 
 
@@ -402,6 +768,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--inline-skills",
         action="store_true",
         help="paste SKILL.md into the prompt; unnecessary for agy, which discovers .agents/skills natively",
+    )
+    parser.add_argument(
+        "--display",
+        choices=["table", "stream"],
+        default="table",
+        help="terminal display mode: 'table' (2b Rich live table) or 'stream' (1b status spinner)",
     )
     parser.add_argument("--dry-run", action="store_true", help="print what would run without spawning")
 
