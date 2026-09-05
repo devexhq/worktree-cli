@@ -19,6 +19,7 @@ class ParseTimestampTests:
         assert parse_timestamp("") is None
         assert parse_timestamp("   ") is None
         assert parse_timestamp("not-a-date") is None
+        assert parse_timestamp("invalid") is None
 
     def test_parse_timestamp_iso_formats(self) -> None:
         """Verify ISO-8601 format strings parse into UTC datetimes."""
@@ -41,20 +42,8 @@ class ParseTimestampTests:
         assert parsed_fraction is not None
         assert parsed_fraction.microsecond == 123456
 
-    def test_parse_timestamp_iso_and_sqlite_formats(self) -> None:
-        sqlite_parsed = parse_timestamp("2026-08-19 01:00:00")
-        assert sqlite_parsed is not None
-        assert sqlite_parsed.hour == 1
-        iso_parsed = parse_timestamp("2026-08-19T01:00:00Z")
-        assert iso_parsed is not None
-        assert iso_parsed.year == 2026
 
-    def test_parse_timestamp_invalid_and_none(self) -> None:
-        assert parse_timestamp(None) is None
-        assert parse_timestamp("invalid") is None
-
-
-class TestRunsRepository:
+class RunsRepositoryTests:
     """Tests for RunsRepository operations."""
 
     db: WorktreeDb

@@ -222,24 +222,6 @@ def test_init_outcome_formatter_to_json_serializable(fs: FileSystem) -> None:
     assert decoded["failure_mode"] is None
 
 
-def test_init_outcome_formatter_to_json_serializable_carries_outcome_and_failure_mode(fs: FileSystem) -> None:
-    formatter = WorkspaceInitFormatter()
-    root = fs.base_path / ".worktree"
-    result = WorkspaceInitResult(
-        bootstrap_result=BootstrapResult(
-            root_path=root,
-            root_created=True,
-            outcome=BootstrapOutcome.INITIALIZED,
-        ),
-        config_result=ConfigGenerationResult(config_path=root / "config.json", created=True),
-        seed_result=SeedResult(),
-        failure_mode=None,
-    )
-    dumped = formatter.to_json_serializable(result)
-    assert dumped["bootstrap_result"]["outcome"] == "initialized"
-    assert dumped["failure_mode"] is None
-
-
 def test_init_outcome_formatter_to_rich_branches_on_outcome(fs: FileSystem) -> None:
     formatter = WorkspaceInitFormatter()
     root = fs.base_path / ".worktree"
