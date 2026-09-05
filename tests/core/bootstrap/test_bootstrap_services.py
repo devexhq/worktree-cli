@@ -12,6 +12,7 @@ from tests.helpers import FileSystem
 from worktree.core.bootstrap import (
     BOOTSTRAP_META_REL,
     REQUIRED_SUBDIRS,
+    BootstrapOutcome,
     BootstrapResult,
     bootstrap_worktree,
 )
@@ -131,6 +132,30 @@ class BootstrapWorktreeTests:
         assert any("writable" in err.lower() for err in result.errors)
 
         os.chmod(root, stat.S_IRWXU)
+
+    def test_bootstrap_worktree_sets_initialized_outcome(self, project_tmp: Path) -> None:
+        root = project_tmp / ".worktree"
+        result = bootstrap_worktree(root)
+        assert result.outcome == BootstrapOutcome.INITIALIZED
+
+    def test_bootstrap_worktree_sets_repaired_outcome(self, project_tmp: Path) -> None:
+        root = project_tmp / ".worktree"
+        root.mkdir()
+        (root / "workflows").mkdir()
+        result = bootstrap_worktree(root)
+        assert result.outcome == BootstrapOutcome.REPAIRED
+
+    def test_bootstrap_worktree_sets_already_initialized_outcome(self, project_tmp: Path) -> None:
+        root = project_tmp / ".worktree"
+        bootstrap_worktree(root)
+        result = bootstrap_worktree(root)
+        assert result.outcome == BootstrapOutcome.ALREADY_INITIALIZED
+
+    def test_bootstrap_worktree_failure_sets_failed_outcome(self, project_tmp: Path) -> None:
+        root = project_tmp / ".worktree"
+        root.write_text("not a dir", encoding="utf-8")
+        result = bootstrap_worktree(root)
+        assert result.outcome == BootstrapOutcome.FAILED
 
 
 class BootstrapResultValidationTests:

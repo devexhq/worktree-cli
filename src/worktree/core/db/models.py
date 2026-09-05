@@ -48,6 +48,24 @@ def _now_utc_str() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
 
 
+def parse_timestamp(timestamp_str: str | None) -> datetime | None:
+    """Safely parse a timestamp string across supported ISO and SQLite UTC formats."""
+    if not timestamp_str or not timestamp_str.strip():
+        return None
+    cleaned = timestamp_str.strip()
+    try:
+        parsed = datetime.fromisoformat(cleaned)
+        return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
+    except ValueError:
+        pass
+    for format_pattern in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M:%S.%f", "%Y/%m/%d %H:%M:%S"):
+        try:
+            return datetime.strptime(cleaned, format_pattern).replace(tzinfo=UTC)
+        except ValueError:
+            continue
+    return None
+
+
 class PathType(TypeDecorator[Path]):
     """SQLAlchemy type for coercing Path objects to strings and back."""
 
@@ -212,6 +230,18 @@ class RunRecord(SQLModel, table=True):
         if "status" in data and isinstance(data["status"], str):
             data["status"] = RunStatus(data["status"])
         super().__init__(**data)
+
+    @property
+    def duration_seconds(self) -> float | None:
+        """Elapsed execution duration in seconds, or None if unfinished or unparseable."""
+        if not self.started_at or not self.completed_at:
+            return None
+        start = parse_timestamp(self.started_at)
+        end = parse_timestamp(self.completed_at)
+        if start is None or end is None:
+            return None
+        elapsed = (end - start).total_seconds()
+        return elapsed if elapsed >= 0 else None
 
 
 class WorkflowCostRecord(SQLModel, table=True):

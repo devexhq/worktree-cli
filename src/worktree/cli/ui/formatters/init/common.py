@@ -14,7 +14,12 @@ from worktree.cli.ui.formatters.common import (
     render_list_fixes,
 )
 from worktree.common.utils import display_path
-from worktree.core.bootstrap import BootstrapResult, WorkspaceInitResult
+from worktree.core.bootstrap import (
+    BootstrapOutcome,
+    BootstrapResult,
+    InitFailureMode,
+    WorkspaceInitResult,
+)
 from worktree.core.catalog.models import SeedResult
 from worktree.core.config.generator import ConfigGenerationResult
 
@@ -31,15 +36,15 @@ def render_bootstrap_lines(result: BootstrapResult, cwd: Path) -> list[Any]:
     """Render bootstrap result status and created directory lines."""
     renderables: list[Any] = []
     worktree_label = display_path(cwd / ".worktree", cwd)
-    if result.repaired:
+    if result.outcome == BootstrapOutcome.REPAIRED:
         renderables.append(
             Text.from_markup(f"[bold green]✔  Worktree structure repaired at {worktree_label}[/bold green]")
         )
         renderables.extend(render_path_bullets(result.dirs_created, "Created missing", cwd))
-    elif result.root_created or result.dirs_created:
+    elif result.outcome == BootstrapOutcome.INITIALIZED:
         renderables.append(Text.from_markup(f"[bold green]✔  Initialized Worktree at {worktree_label}[/bold green]"))
         renderables.extend(render_path_bullets(result.dirs_created, "Created", cwd))
-    else:
+    elif result.outcome == BootstrapOutcome.ALREADY_INITIALIZED:
         renderables.append(
             Text.from_markup(f"[bold green]✔  Worktree already initialized at {worktree_label}[/bold green]")
         )
@@ -126,10 +131,10 @@ def render_config_failure(data: WorkspaceInitResult) -> Panel:
 
 def render_failure_panel(data: WorkspaceInitResult) -> Panel | None:
     """Render failure panels for preflight, bootstrap, or configuration generation errors."""
-    if data.bootstrap_result is None and data.errors:
+    if data.failure_mode == InitFailureMode.PREFLIGHT:
         return render_preflight_failure(data)
-    if data.bootstrap_result is not None and not data.bootstrap_result.ok:
+    if data.failure_mode == InitFailureMode.BOOTSTRAP:
         return render_bootstrap_failure(data)
-    if data.config_result is not None and not data.config_result.ok:
+    if data.failure_mode == InitFailureMode.CONFIG_GENERATION:
         return render_config_failure(data)
     return None

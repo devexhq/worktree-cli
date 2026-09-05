@@ -19,6 +19,7 @@ from worktree.common.constants import (
 from worktree.common.filesystem import Filesystem
 from worktree.common.utils import display_path
 from worktree.core.bootstrap.models import (
+    BootstrapOutcome,
     BootstrapResult,
     DirEnsureOutcome,
 )
@@ -126,6 +127,23 @@ def _assert_layout_writable(root_path: Path, result: BootstrapResult) -> bool:
     return True
 
 
+def _classify_bootstrap_outcome(
+    *,
+    ok: bool,
+    repaired: bool,
+    root_created: bool,
+    dirs_created: list[Path],
+) -> BootstrapOutcome:
+    """Classify bootstrap execution into canonical BootstrapOutcome enum."""
+    if not ok:
+        return BootstrapOutcome.FAILED
+    if repaired:
+        return BootstrapOutcome.REPAIRED
+    if root_created or bool(dirs_created):
+        return BootstrapOutcome.INITIALIZED
+    return BootstrapOutcome.ALREADY_INITIALIZED
+
+
 def _bootstrap_status(
     *,
     repaired: bool,
@@ -179,6 +197,7 @@ def bootstrap_worktree(
         result.root_created = root_outcome == DirEnsureOutcome.CREATED
     except ValueError as exc:
         result.errors.append(str(exc))
+        result.outcome = BootstrapOutcome.FAILED
         return result
 
     if not result.root_created:
@@ -186,11 +205,14 @@ def bootstrap_worktree(
             assert_writable(root_path)
         except ValueError as exc:
             result.errors.append(str(exc))
+            result.outcome = BootstrapOutcome.FAILED
             return result
 
     if not _ensure_required_subdirs(root_path, result):
+        result.outcome = BootstrapOutcome.FAILED
         return result
     if not _assert_layout_writable(root_path, result):
+        result.outcome = BootstrapOutcome.FAILED
         return result
 
     result.repaired = _is_repair(
@@ -200,7 +222,15 @@ def bootstrap_worktree(
         prior_meta=prior_meta,
     )
     if result.errors:
+        result.outcome = BootstrapOutcome.FAILED
         return result
+
+    result.outcome = _classify_bootstrap_outcome(
+        ok=result.ok,
+        repaired=result.repaired,
+        root_created=result.root_created,
+        dirs_created=result.dirs_created,
+    )
 
     status = _bootstrap_status(
         repaired=result.repaired,
@@ -220,6 +250,8 @@ def bootstrap_worktree(
         )
     except OSError as exc:
         result.errors.append(f"Could not write bootstrap metadata at {display_path(meta_path)}: {exc}")
+        result.outcome = BootstrapOutcome.FAILED
+        return result
 
     result.seed_result = SeedResult()
     return result

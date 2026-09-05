@@ -7,8 +7,10 @@ from worktree.common.constants import (
 )
 from worktree.core.bootstrap.facade import Bootstrap
 from worktree.core.bootstrap.models import (
+    BootstrapOutcome,
     BootstrapResult,
     DirEnsureOutcome,
+    InitFailureMode,
     WorkspaceInitResult,
 )
 from worktree.core.bootstrap.services.bootstrap import (
@@ -25,8 +27,10 @@ __all__ = [
     "BOOTSTRAP_SCHEMA_VERSION",
     "REQUIRED_SUBDIRS",
     "Bootstrap",
+    "BootstrapOutcome",
     "BootstrapResult",
     "DirEnsureOutcome",
+    "InitFailureMode",
     "WorkspaceInitResult",
     "assert_writable",
     "bootstrap_worktree",

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
 
 from rich.panel import Panel
 from rich.syntax import Syntax
@@ -41,38 +40,15 @@ def format_run_status(status: RunStatus | str) -> str:
     return raw_status
 
 
-def _parse_timestamp(timestamp_str: str | None) -> datetime | None:
-    """Safely parse a timestamp string across supported ISO / SQLite formats."""
-    if not timestamp_str or not timestamp_str.strip():
-        return None
-    cleaned = timestamp_str.strip()
-    try:
-        return datetime.fromisoformat(cleaned)
-    except ValueError:
-        pass
-    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M:%S.%f", "%Y/%m/%d %H:%M:%S"):
-        try:
-            return datetime.strptime(cleaned, fmt)
-        except ValueError:
-            continue
-    return None
-
-
-def format_run_duration(started_at: str | None, completed_at: str | None) -> str:
-    """Calculate and format execution duration between start and completion timestamps."""
-    start_time = _parse_timestamp(started_at)
-    end_time = _parse_timestamp(completed_at)
-    if start_time is None or end_time is None:
+def format_run_duration(duration_seconds: float | None) -> str:
+    """Format elapsed seconds into canonical human-readable CLI duration string."""
+    if duration_seconds is None or duration_seconds < 0:
         return "-"
+    if duration_seconds < 60:
+        return f"{duration_seconds:.2f}s"
 
-    total_seconds = (end_time - start_time).total_seconds()
-    if total_seconds < 0:
-        return "-"
-    if total_seconds < 60:
-        return f"{total_seconds:.2f}s"
-
-    minutes = int(total_seconds // 60)
-    seconds = total_seconds % 60
+    minutes = int(duration_seconds // 60)
+    seconds = duration_seconds % 60
     return f"{minutes}m {seconds:04.1f}s"
 
 
@@ -89,7 +65,7 @@ def build_history_table(runs: list[RunRecord]) -> Table:
 
     for row in runs:
         status_colored = format_run_status(row.status)
-        duration = format_run_duration(row.started_at, row.completed_at)
+        duration = format_run_duration(row.duration_seconds)
         table.add_row(
             row.session_id,
             row.kind.value,
@@ -104,7 +80,7 @@ def build_history_table(runs: list[RunRecord]) -> Table:
 
 def build_metadata_table(run: RunRecord) -> Table:
     """Build key/value table for session metadata."""
-    duration = format_run_duration(run.started_at, run.completed_at)
+    duration = format_run_duration(run.duration_seconds)
     values = {
         "Session ID": run.session_id,
         "Blueprint Name": run.blueprint_name,

@@ -5,7 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from worktree.common.filesystem import Filesystem
-from worktree.core.bootstrap.models import WorkspaceInitResult
+from worktree.core.bootstrap.models import (
+    InitFailureMode,
+    WorkspaceInitResult,
+)
 from worktree.core.bootstrap.services.bootstrap import bootstrap_worktree
 from worktree.core.catalog.services.seeder import seed_all_catalog_templates
 from worktree.core.config import Config
@@ -34,11 +37,15 @@ def initialize_workspace(
             "The current directory is not a valid Git repository.\n"
             "Run [bold cyan]git init[/bold cyan] before running [bold cyan]wt init[/bold cyan]."
         )
-        return WorkspaceInitResult(errors=[err])
+        return WorkspaceInitResult(errors=[err], failure_mode=InitFailureMode.PREFLIGHT)
 
     result = bootstrap_worktree(fs.worktree_dir, tool_version=tool_version)
     if not result.ok:
-        return WorkspaceInitResult(bootstrap_result=result, errors=list(result.errors))
+        return WorkspaceInitResult(
+            bootstrap_result=result,
+            errors=list(result.errors),
+            failure_mode=InitFailureMode.BOOTSTRAP,
+        )
 
     if result.root_created:
         fs.update_gitignore()
@@ -54,6 +61,7 @@ def initialize_workspace(
             bootstrap_result=result,
             config_result=config_result,
             errors=list(config_result.errors),
+            failure_mode=InitFailureMode.CONFIG_GENERATION,
         )
 
     config = Config(resolved_root)
@@ -65,4 +73,5 @@ def initialize_workspace(
         config_result=config_result,
         seed_result=seed_result,
         errors=list(seed_result.errors),
+        failure_mode=None,
     )
