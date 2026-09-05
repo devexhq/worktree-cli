@@ -304,10 +304,10 @@ class ConfigRegistrationAndDispatchTests:
 
         dispatcher.dispatch(config, output_format="terminal")
 
-        out = buffer.getvalue()
-        assert "Config:" in out
-        assert "Status: valid" in out
-        assert "terminal-proj" in out
+        output = buffer.getvalue()
+        assert "Config:" in output
+        assert "Status: valid" in output
+        assert "terminal-proj" in output
 
     def test_dispatcher_config_validate_ndjson(self, capsys: pytest.CaptureFixture[str]) -> None:
         dispatcher = UiDispatcher()

@@ -333,6 +333,6 @@ class CatalogDispatcherIntegrationTests:
 
         dispatcher.dispatch(result, output_format="terminal")
 
-        out = buffer.getvalue()
-        assert "test-workflow" in out
-        assert "workflow_1234567" in out
+        output = buffer.getvalue()
+        assert "test-workflow" in output
+        assert "workflow_1234567" in output

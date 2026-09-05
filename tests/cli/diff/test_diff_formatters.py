@@ -223,9 +223,9 @@ def test_dispatcher_terminal_format() -> None:
 
     dispatcher.dispatch(result, output_format="terminal")
 
-    out = buffer.getvalue()
-    assert "Session: sbx_term" in out
-    assert "def old(): pass" in out
+    output = buffer.getvalue()
+    assert "Session: sbx_term" in output
+    assert "def old(): pass" in output
 
 
 def test_diff_result_formatter_to_raw_exact_unwrapped() -> None:
