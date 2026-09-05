@@ -1,0 +1,1 @@
+"""Global CLI formatter tests."""

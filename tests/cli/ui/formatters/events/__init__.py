@@ -1,0 +1,1 @@
+"""Event formatter tests."""
