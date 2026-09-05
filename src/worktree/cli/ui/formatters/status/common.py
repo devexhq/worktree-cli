@@ -18,17 +18,6 @@ CONFIG_STATUS_DISPLAY: dict[ConfigLoadStatus, str] = {
     ConfigLoadStatus.UNREADABLE: "[red]CONFIG_UNREADABLE[/red]",
 }
 
-REMEDIATION_MAP: dict[ConfigLoadStatus, str] = {
-    ConfigLoadStatus.NOT_FOUND: "Run 'wt init' to initialize Worktree in this repository.",
-    ConfigLoadStatus.MALFORMED_JSON: "Repair JSON syntax in .worktree/config.json or restore from backup.",
-    ConfigLoadStatus.SCHEMA_INVALID: (
-        "Run 'wt config validate' to inspect schema errors or 'wt init --repair' to insert missing keys."
-    ),
-    ConfigLoadStatus.ROOT_NOT_OBJECT: "Ensure .worktree/config.json contains a JSON object root.",
-    ConfigLoadStatus.PATH_IS_DIRECTORY: "Remove directory at .worktree/config.json and run 'wt init'.",
-    ConfigLoadStatus.UNREADABLE: "Check file permissions for .worktree/config.json.",
-}
-
 
 def get_table_title(result: WorktreeStatusResult) -> str:
     """Determine the status table title based on workspace initialization and health."""
@@ -94,42 +83,6 @@ def format_catalog_status(result: WorktreeStatusResult) -> str:
         return "[dim]N/A[/dim]"
     valid_items = result.catalog.total_items - result.catalog.invalid_items
     return f"{valid_items} valid / {result.catalog.total_items} total"
-
-
-def collect_remediations(result: WorktreeStatusResult) -> list[str]:
-    """Aggregate actionable remediation command hints for diagnosed failure modes."""
-    remediations: list[str] = []
-    if result.config.status in REMEDIATION_MAP:
-        remediations.append(REMEDIATION_MAP[result.config.status])
-    if not result.git.is_git_repo:
-        remediations.append("Run 'git init' or navigate to a Git repository.")
-    for fix in result.fixes:
-        if fix not in remediations:
-            remediations.append(fix)
-    return remediations
-
-
-def clean_error_message(err: str) -> str:
-    """Extract a concise single-line warning message from a raw error string."""
-    first_line = err.split("\n")[0].strip()
-    if "at '" not in first_line:
-        return first_line
-    prefix, _, rest = first_line.partition("at '")
-    _, _, message = rest.partition("': ")
-    return f"{prefix.strip()}: {message.strip()}" if message else first_line
-
-
-def collect_all_warnings(result: WorktreeStatusResult) -> list[str]:
-    """Aggregate collected warnings along with sanitized config error details."""
-    warnings = list(result.warnings)
-    if result.config.status in (ConfigLoadStatus.OK, ConfigLoadStatus.NOT_FOUND):
-        return warnings
-
-    for err in result.config.errors:
-        clean_msg = clean_error_message(err)
-        if clean_msg and clean_msg not in warnings:
-            warnings.append(clean_msg)
-    return warnings
 
 
 def build_status_table(result: WorktreeStatusResult) -> Table:

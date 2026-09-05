@@ -199,6 +199,43 @@ def _collect_sandbox_status(
     )
 
 
+def _clean_error_message(error: str) -> str:
+    """Extract a concise single-line warning message from a raw error string.
+
+    Args:
+        error: Raw multi-line error string from config loader.
+
+    Returns:
+        Sanitized single-line error message without file paths.
+    """
+    first_line = error.split("\n")[0].strip()
+    if "at '" not in first_line:
+        return first_line
+    prefix, _, rest = first_line.partition("at '")
+    _, _, message = rest.partition("': ")
+    return f"{prefix.strip()}: {message.strip()}" if message else first_line
+
+
+def _collect_config_error_warnings(config: ConfigStatusInfo) -> list[str]:
+    """Extract sanitized warning messages from config loading errors.
+
+    Args:
+        config: Collected configuration status information.
+
+    Returns:
+        List of cleaned warning strings extracted from config errors.
+    """
+    if config.status in (ConfigLoadStatus.OK, ConfigLoadStatus.NOT_FOUND):
+        return []
+
+    warnings: list[str] = []
+    for error in config.errors:
+        clean_message = _clean_error_message(error)
+        if clean_message and clean_message not in warnings:
+            warnings.append(clean_message)
+    return warnings
+
+
 def _collect_warnings(
     *,
     git: GitStatusInfo,
@@ -227,7 +264,43 @@ def _collect_warnings(
     if catalog.invalid_items > 0:
         warnings.append(f"{catalog.invalid_items} invalid blueprint file(s) detected in catalog.")
 
+    warnings.extend(_collect_config_error_warnings(config))
+
     return warnings
+
+
+CONFIG_REMEDIATION_MAP: dict[ConfigLoadStatus, str] = {
+    ConfigLoadStatus.NOT_FOUND: "Run 'wt init' to initialize Worktree in this repository.",
+    ConfigLoadStatus.MALFORMED_JSON: "Repair JSON syntax in .worktree/config.json or restore from backup.",
+    ConfigLoadStatus.SCHEMA_INVALID: (
+        "Run 'wt config validate' to inspect schema errors or 'wt init --repair' to insert missing keys."
+    ),
+    ConfigLoadStatus.ROOT_NOT_OBJECT: "Ensure .worktree/config.json contains a JSON object root.",
+    ConfigLoadStatus.PATH_IS_DIRECTORY: "Remove directory at .worktree/config.json and run 'wt init'.",
+    ConfigLoadStatus.UNREADABLE: "Check file permissions for .worktree/config.json.",
+}
+
+
+def _collect_fixes(
+    *,
+    git: GitStatusInfo,
+    config: ConfigStatusInfo,
+) -> list[str]:
+    """Aggregate actionable remediation command hints in deterministic order.
+
+    Args:
+        git: Git repository status information.
+        config: Configuration status information.
+
+    Returns:
+        List of suggested remediation action strings.
+    """
+    fixes: list[str] = []
+    if config.status in CONFIG_REMEDIATION_MAP:
+        fixes.append(CONFIG_REMEDIATION_MAP[config.status])
+    if not git.is_git_repo:
+        fixes.append("Run 'git init' or navigate to a Git repository.")
+    return fixes
 
 
 def collect_status(cwd: Path | None = None) -> WorktreeStatusResult:
@@ -246,6 +319,10 @@ def collect_status(cwd: Path | None = None) -> WorktreeStatusResult:
         catalog=catalog_status,
         sandboxes=sandbox_status,
     )
+    fixes = _collect_fixes(
+        git=git_status,
+        config=config_status,
+    )
 
     is_initialized = fs.worktree_dir.is_dir() and config_status.status != ConfigLoadStatus.NOT_FOUND
 
@@ -258,4 +335,5 @@ def collect_status(cwd: Path | None = None) -> WorktreeStatusResult:
         database=database_status,
         sandboxes=sandbox_status,
         warnings=warnings,
+        fixes=fixes,
     )

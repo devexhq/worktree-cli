@@ -15,7 +15,6 @@ from worktree.cli.ui.formatters.status import (
     WorktreeStatusFormatter,
     register_status_formatters,
 )
-from worktree.cli.ui.formatters.status.common import clean_error_message
 from worktree.core.config.loader import ConfigLoadStatus
 from worktree.core.config.models import AgentConfig, ProjectConfig, WorktreeConfig
 from worktree.core.status.models import (
@@ -38,6 +37,7 @@ def _make_status_result(
     database: DatabaseStatusInfo | None = None,
     sandboxes: SandboxStatusInfo | None = None,
     warnings: list[str] | None = None,
+    fixes: list[str] | None = None,
 ) -> WorktreeStatusResult:
     base = root_dir or Path("/workspace/my-repo")
     return WorktreeStatusResult(
@@ -86,11 +86,12 @@ def _make_status_result(
             max_active_sandboxes=5,
         ),
         warnings=warnings or [],
+        fixes=fixes or [],
     )
 
 
 @pytest.mark.parametrize(
-    ("status", "error_message", "expected_title", "expected_badge", "expected_remediation"),
+    ("status", "warning_message", "expected_title", "expected_badge", "expected_remediation"),
     [
         pytest.param(
             ConfigLoadStatus.OK,
@@ -111,10 +112,8 @@ def _make_status_result(
         pytest.param(
             ConfigLoadStatus.MALFORMED_JSON,
             (
-                "Malformed config.json at '/workspace/my-repo/.worktree/config.json': "
-                "Expecting property name enclosed in double quotes (line 2 col 1) (CONFIG_MALFORMED_JSON).\n"
-                "Fix:\n"
-                "- repair JSON syntax, or restore from backup"
+                "Malformed config.json: "
+                "Expecting property name enclosed in double quotes (line 2 col 1) (CONFIG_MALFORMED_JSON)."
             ),
             "Worktree Workspace Status (Degraded)",
             "CONFIG_MALFORMED_JSON",
@@ -123,7 +122,7 @@ def _make_status_result(
         ),
         pytest.param(
             ConfigLoadStatus.SCHEMA_INVALID,
-            "Config schema validation failed (CONFIG_SCHEMA_INVALID):\n- 'version' is a required property",
+            "Config schema validation failed (CONFIG_SCHEMA_INVALID):",
             "Worktree Workspace Status (Degraded)",
             "CONFIG_SCHEMA_INVALID",
             "Run 'wt config validate' to inspect schema errors or 'wt init --repair' to insert missing keys.",
@@ -131,7 +130,7 @@ def _make_status_result(
         ),
         pytest.param(
             ConfigLoadStatus.ROOT_NOT_OBJECT,
-            "Malformed config.json at '/workspace/my-repo/.worktree/config.json': root must be an object",
+            "Malformed config.json: root must be an object",
             "Worktree Workspace Status (Degraded)",
             "CONFIG_ROOT_NOT_OBJECT",
             "Ensure .worktree/config.json contains a JSON object root.",
@@ -147,7 +146,7 @@ def _make_status_result(
         ),
         pytest.param(
             ConfigLoadStatus.UNREADABLE,
-            "Unable to read config.json at '/workspace/my-repo/.worktree/config.json': Permission denied",
+            "Unable to read config.json: Permission denied",
             "Worktree Workspace Status (Degraded)",
             "CONFIG_UNREADABLE",
             "Check file permissions for .worktree/config.json.",
@@ -157,12 +156,12 @@ def _make_status_result(
 )
 def test_status_formatter_config_modes(
     status: ConfigLoadStatus,
-    error_message: str | None,
+    warning_message: str | None,
     expected_title: str,
     expected_badge: str,
     expected_remediation: str | None,
 ) -> None:
-    errors = [error_message] if error_message else []
+    errors = [warning_message] if warning_message else []
     is_initialized = status != ConfigLoadStatus.NOT_FOUND
     config_info = ConfigStatusInfo(
         status=status,
@@ -179,17 +178,24 @@ def test_status_formatter_config_modes(
         ),
         errors=errors,
     )
-    result = _make_status_result(is_initialized=is_initialized, config=config_info)
-    out = render_rich(WorktreeStatusFormatter().to_rich(result))
+    warnings = [warning_message] if warning_message else []
+    fixes = [expected_remediation] if expected_remediation else []
+    result = _make_status_result(
+        is_initialized=is_initialized,
+        config=config_info,
+        warnings=warnings,
+        fixes=fixes,
+    )
+    output = render_rich(WorktreeStatusFormatter().to_rich(result))
 
-    assert expected_title in out
-    assert expected_badge in out
+    assert expected_title in output
+    assert expected_badge in output
     if expected_remediation:
-        assert expected_remediation in out
+        assert expected_remediation in output
     else:
-        assert "Next Steps & Remediation:" not in out
-    if error_message:
-        assert clean_error_message(error_message) in out
+        assert "Next Steps & Remediation:" not in output
+    if warning_message:
+        assert warning_message in output
 
 
 @pytest.mark.parametrize(
@@ -220,7 +226,10 @@ def test_status_formatter_git_variants(
     expected_branch_text: str,
     expected_remediation: str | None,
 ) -> None:
-    result = _make_status_result(git=git_info)
+    result = _make_status_result(
+        git=git_info,
+        fixes=[expected_remediation] if expected_remediation else [],
+    )
     out = render_rich(WorktreeStatusFormatter().to_rich(result))
 
     assert expected_branch_text in out
@@ -244,6 +253,10 @@ def test_status_formatter_combined_non_git_and_uninitialized() -> None:
         git=git_info,
         config=config_info,
         warnings=["Worktree workspace is not initialized. Run 'wt init' to configure."],
+        fixes=[
+            "Run 'wt init' to initialize Worktree in this repository.",
+            "Run 'git init' or navigate to a Git repository.",
+        ],
     )
     out = render_rich(WorktreeStatusFormatter().to_rich(result))
 
@@ -419,6 +432,24 @@ def test_status_formatter_with_warnings() -> None:
     out = render_rich(rich_renderable)
     assert "max_active_sandboxes (10) is unusually high." in out
     assert "Active branch is 'main'." in out
+
+
+def test_status_formatter_renders_warnings_and_fixes() -> None:
+    formatter = WorktreeStatusFormatter()
+    result = _make_status_result(
+        warnings=["test warning"],
+        fixes=["test remediation"],
+    )
+    output = render_rich(formatter.to_rich(result))
+    assert "test warning" in output
+    assert "test remediation" in output
+
+
+def test_status_formatter_omits_remediation_when_fixes_empty() -> None:
+    formatter = WorktreeStatusFormatter()
+    result = _make_status_result(fixes=[])
+    output = render_rich(formatter.to_rich(result))
+    assert "Next Steps & Remediation:" not in output
 
 
 def test_status_formatter_to_json_serializable() -> None:
