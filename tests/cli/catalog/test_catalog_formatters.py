@@ -328,7 +328,6 @@ class CatalogDispatcherIntegrationTests:
 
     def test_dispatcher_terminal_format(self) -> None:
         dispatcher, buf = make_dispatcher_with_buffer(force_terminal=True)
-        register_catalog_formatters(dispatcher)
         item = _sample_catalog_record()
         result = CatalogListResult(items=[item])
 

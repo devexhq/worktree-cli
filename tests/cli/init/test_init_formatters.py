@@ -253,7 +253,6 @@ def test_dispatcher_json_format_ndjson(fs: FileSystem, capsys: pytest.CaptureFix
 
 def test_dispatcher_terminal_format(fs: FileSystem) -> None:
     dispatcher, buf = make_dispatcher_with_buffer(force_terminal=True)
-    register_init_formatters(dispatcher)
     result = WorkspaceInitResult(
         bootstrap_result=BootstrapResult(root_path=fs.base_path / ".worktree", root_created=True),
         config_result=ConfigGenerationResult(config_path=fs.base_path / ".worktree" / "config.json", created=True),

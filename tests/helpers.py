@@ -299,7 +299,6 @@ def make_dispatcher_with_buffer(
     force_terminal: bool = False,
     width: int = 160,
     output_format: str = "terminal",
-    register_formatters: bool = True,
     **console_kwargs: Any,
 ) -> tuple[UiDispatcher, StringIO]:
     """Factory creating a real UiDispatcher connected to an in-memory buffer with pinned width."""
@@ -311,8 +310,6 @@ def make_dispatcher_with_buffer(
         **console_kwargs,
     )
     dispatcher = UiDispatcher(console=console, output_format=output_format)
-    if not register_formatters:
-        dispatcher._registry.clear()
     return dispatcher, buffer
 
 

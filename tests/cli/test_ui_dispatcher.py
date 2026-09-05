@@ -31,7 +31,7 @@ class DummyItemFormatter(ComponentFormatter[DummyItem]):
 
 
 def test_dispatcher_direct_registration_instance() -> None:
-    dispatcher, string_io = make_dispatcher_with_buffer(register_formatters=False)
+    dispatcher, string_io = make_dispatcher_with_buffer()
     formatter = DummyItemFormatter()
 
     dispatcher.register(DummyItem, formatter)
@@ -42,7 +42,7 @@ def test_dispatcher_direct_registration_instance() -> None:
 
 
 def test_dispatcher_direct_registration_class() -> None:
-    dispatcher, string_io = make_dispatcher_with_buffer(register_formatters=False)
+    dispatcher, string_io = make_dispatcher_with_buffer()
 
     dispatcher.register(DummyItem, DummyItemFormatter)
     item = DummyItem(name="test2", count=10)
@@ -52,7 +52,7 @@ def test_dispatcher_direct_registration_class() -> None:
 
 
 def test_dispatcher_decorator_registration() -> None:
-    dispatcher, string_io = make_dispatcher_with_buffer(register_formatters=False)
+    dispatcher, string_io = make_dispatcher_with_buffer()
 
     @dispatcher.register(SimpleItem)
     class DecItemFormatter(ComponentFormatter[SimpleItem]):

@@ -544,7 +544,6 @@ def test_dispatcher_json_format_ndjson(capsys: pytest.CaptureFixture[str]) -> No
 
 def test_dispatcher_terminal_format() -> None:
     dispatcher, buf = make_dispatcher_with_buffer(force_terminal=True)
-    register_status_formatters(dispatcher)
     result = _make_status_result()
 
     dispatcher.dispatch(result, output_format="terminal")

@@ -320,7 +320,6 @@ class HistoryDispatcherIntegrationTests:
 
     def test_dispatcher_terminal_format(self) -> None:
         dispatcher, buf = make_dispatcher_with_buffer(force_terminal=True)
-        register_history_formatters(dispatcher)
         run = _sample_run_record()
         result = HistoryListResult(status=HistoryListStatus.OK, runs=[run])
 

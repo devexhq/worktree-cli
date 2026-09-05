@@ -300,7 +300,6 @@ class ConfigRegistrationAndDispatchTests:
 
     def test_dispatcher_config_show_terminal(self) -> None:
         dispatcher, buf = make_dispatcher_with_buffer(force_terminal=True)
-        register_config_formatters(dispatcher)
         config = WorktreeConfig(version=1, project=ProjectConfig(name="terminal-proj"))
 
         dispatcher.dispatch(config, output_format="terminal")
