@@ -16,7 +16,9 @@ from worktree.cli.ui.formatters.init import (
     register_init_formatters,
 )
 from worktree.core.bootstrap import (
+    BootstrapOutcome,
     BootstrapResult,
+    InitFailureMode,
     WorkspaceInitResult,
 )
 from worktree.core.catalog.models import SeedResult
@@ -205,6 +207,8 @@ def test_init_outcome_formatter_to_json_serializable(fs: FileSystem) -> None:
     assert isinstance(dumped, dict)
     assert dumped["bootstrap_result"]["root_created"] is True
     assert dumped["bootstrap_result"]["root_path"] == str(root)
+    assert dumped["bootstrap_result"]["outcome"] == "initialized"
+    assert dumped["failure_mode"] is None
     assert dumped["config_result"]["created"] is True
     assert dumped["config_result"]["config_path"] == str(root / "config.json")
     assert dumped["seed_result"]["created_files"] == [str(root / "workflows" / "test.yml")]
@@ -214,6 +218,34 @@ def test_init_outcome_formatter_to_json_serializable(fs: FileSystem) -> None:
     encoded = json.dumps(dumped)
     decoded = json.loads(encoded)
     assert decoded["bootstrap_result"]["root_created"] is True
+    assert decoded["bootstrap_result"]["outcome"] == "initialized"
+    assert decoded["failure_mode"] is None
+
+
+def test_init_outcome_formatter_to_rich_branches_on_outcome(fs: FileSystem) -> None:
+    formatter = WorkspaceInitFormatter()
+    root = fs.base_path / ".worktree"
+    result = WorkspaceInitResult(
+        bootstrap_result=BootstrapResult(
+            root_path=root,
+            outcome=BootstrapOutcome.REPAIRED,
+            dirs_created=[root / "sessions"],
+        ),
+        config_result=ConfigGenerationResult(config_path=root / "config.json", created=True),
+        seed_result=SeedResult(),
+    )
+    rendered = render_rich(formatter.to_rich(result))
+    assert "sessions" in rendered
+
+
+def test_init_outcome_formatter_to_rich_branches_on_failure_mode() -> None:
+    formatter = WorkspaceInitFormatter()
+    result = WorkspaceInitResult(
+        errors=["The current directory is not a valid Git repository."],
+        failure_mode=InitFailureMode.PREFLIGHT,
+    )
+    rendered = render_rich(formatter.to_rich(result))
+    assert "The current directory is not a valid Git repository." in rendered
 
 
 def test_register_init_formatters_custom_dispatcher() -> None:

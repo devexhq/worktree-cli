@@ -27,6 +27,7 @@ from worktree.core.db.models import (
     SandboxRecord,
     SandboxStatus,
     WorkflowCostRecord,
+    parse_timestamp,
 )
 from worktree.core.db.repositories import (
     BaseRepository,
@@ -58,6 +59,7 @@ __all__ = [
     "get_engine",
     "get_session",
     "init_database",
+    "parse_timestamp",
     "resolve_db_path",
     "sqlite_url",
 ]

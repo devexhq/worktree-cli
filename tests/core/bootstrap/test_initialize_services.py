@@ -4,8 +4,13 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from tests.helpers import FileSystem, GitFileSystem
+from worktree.core.bootstrap import InitFailureMode
+from worktree.core.bootstrap.services import initialize as initialize_module
 from worktree.core.bootstrap.services.initialize import initialize_workspace
+from worktree.core.config.generator import ConfigGenerationResult
 
 
 class InitializeWorkspaceTests:
@@ -68,3 +73,27 @@ class InitializeWorkspaceTests:
         assert result.config_result.overwritten
         reloaded = json.loads(config_path.read_text(encoding="utf-8"))
         assert reloaded["project"]["name"] == git_fs.base_path.name
+
+    def test_initialize_workspace_preflight_sets_failure_mode(self, fs: FileSystem) -> None:
+        result = initialize_workspace(fs.base_path)
+        assert result.failure_mode == InitFailureMode.PREFLIGHT
+
+    def test_initialize_workspace_bootstrap_failure_sets_failure_mode(self, git_fs: GitFileSystem) -> None:
+        (git_fs.base_path / ".worktree").write_text("not a dir", encoding="utf-8")
+        result = initialize_workspace(git_fs.base_path)
+        assert result.failure_mode == InitFailureMode.BOOTSTRAP
+
+    def test_initialize_workspace_config_failure_sets_failure_mode(
+        self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            initialize_module,
+            "generate_default_config",
+            lambda *args, **kwargs: ConfigGenerationResult(errors=["Config generation failed"]),
+        )
+        result = initialize_workspace(git_fs.base_path)
+        assert result.failure_mode == InitFailureMode.CONFIG_GENERATION
+
+    def test_initialize_workspace_success_sets_none_failure_mode(self, git_fs: GitFileSystem) -> None:
+        result = initialize_workspace(git_fs.base_path)
+        assert result.failure_mode is None

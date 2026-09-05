@@ -5,12 +5,45 @@ from __future__ import annotations
 import pytest
 
 from tests.helpers import FileSystem
-from worktree.core.db import BlueprintKind, RunRecord, RunStatus, WorktreeDb
+from worktree.core.db import BlueprintKind, RunRecord, RunStatus, WorktreeDb, parse_timestamp
 
 DB_REL = ".worktree/data.db"
 
 
-class TestRunsRepository:
+class ParseTimestampTests:
+    """Tier 1 unit tests for core timestamp parsing."""
+
+    def test_parse_timestamp_none_and_empty(self) -> None:
+        """Verify None and empty strings return None."""
+        assert parse_timestamp(None) is None
+        assert parse_timestamp("") is None
+        assert parse_timestamp("   ") is None
+        assert parse_timestamp("not-a-date") is None
+        assert parse_timestamp("invalid") is None
+
+    def test_parse_timestamp_iso_formats(self) -> None:
+        """Verify ISO-8601 format strings parse into UTC datetimes."""
+        parsed = parse_timestamp("2026-08-19T01:00:00")
+        assert parsed is not None
+        assert parsed.year == 2026
+        assert parsed.hour == 1
+
+        parsed_z = parse_timestamp("2026-08-19T01:00:00Z")
+        assert parsed_z is not None
+        assert parsed_z.year == 2026
+
+    def test_parse_timestamp_sqlite_formats(self) -> None:
+        """Verify SQLite timestamp strings parse into UTC datetimes."""
+        parsed = parse_timestamp("2026-08-19 01:00:00")
+        assert parsed is not None
+        assert parsed.hour == 1
+
+        parsed_fraction = parse_timestamp("2026-08-19 01:00:00.123456")
+        assert parsed_fraction is not None
+        assert parsed_fraction.microsecond == 123456
+
+
+class RunsRepositoryTests:
     """Tests for RunsRepository operations."""
 
     db: WorktreeDb
@@ -180,3 +213,33 @@ class TestRunsRepository:
         assert latest is not None
         assert latest.session_id == "s2"
         assert latest.status is RunStatus.PAUSED
+
+    def test_run_record_duration_seconds_completed(self) -> None:
+        record = RunRecord(
+            session_id="dur_1",
+            blueprint_name="task1",
+            kind=BlueprintKind.TASK,
+            started_at="2026-08-19 01:00:00",
+            completed_at="2026-08-19 01:00:10",
+        )
+        assert record.duration_seconds == 10.0
+
+    def test_run_record_duration_seconds_unfinished_returns_none(self) -> None:
+        record = RunRecord(
+            session_id="dur_2",
+            blueprint_name="task1",
+            kind=BlueprintKind.TASK,
+            started_at="2026-08-19 01:00:00",
+            completed_at=None,
+        )
+        assert record.duration_seconds is None
+
+    def test_run_record_duration_seconds_negative_returns_none(self) -> None:
+        record = RunRecord(
+            session_id="dur_3",
+            blueprint_name="task1",
+            kind=BlueprintKind.TASK,
+            started_at="2026-08-19 01:00:10",
+            completed_at="2026-08-19 01:00:00",
+        )
+        assert record.duration_seconds is None

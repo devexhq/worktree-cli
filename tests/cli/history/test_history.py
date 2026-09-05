@@ -15,7 +15,6 @@ from worktree.cli.ui.formatters.history import (
     HistoryShowFormatter,
 )
 from worktree.cli.ui.formatters.history.common import (
-    _parse_timestamp,
     format_run_duration,
     format_run_status,
 )
@@ -62,37 +61,30 @@ class HistoryFormattersTests:
         assert "cyan" in format_run_status(RunStatus.RUNNING)
         assert format_run_status("unknown") == "unknown"
 
-    def test_parse_timestamp(self) -> None:
-        """Verify timestamp parsing handles ISO and SQLite format strings."""
-        assert _parse_timestamp(None) is None
-        assert _parse_timestamp("") is None
-        assert _parse_timestamp("   ") is None
-        assert _parse_timestamp("not-a-date") is None
+    def test_format_run_duration_none_and_negative(self) -> None:
+        assert format_run_duration(None) == "-"
+        assert format_run_duration(-1.0) == "-"
 
-        parsed_iso = _parse_timestamp("2026-08-19T01:00:00")
-        assert parsed_iso is not None
-        assert parsed_iso.year == 2026
+    def test_format_run_duration_sub_minute(self) -> None:
+        assert format_run_duration(12.0) == "12.00s"
 
-        parsed_sqlite = _parse_timestamp("2026-08-19 01:00:00")
-        assert parsed_sqlite is not None
-        assert parsed_sqlite.hour == 1
+    def test_format_run_duration_multi_minute(self) -> None:
+        assert format_run_duration(150.0) == "2m 30.0s"
 
-    def test_format_run_duration(self) -> None:
-        """Verify duration calculations for seconds, minutes, and invalid inputs."""
-        assert format_run_duration(None, "2026-08-19 01:00:05") == "-"
-        assert format_run_duration("2026-08-19 01:00:00", None) == "-"
-        assert format_run_duration("invalid", "invalid") == "-"
-
-        # Negative duration fallback
-        assert format_run_duration("2026-08-19 01:00:10", "2026-08-19 01:00:00") == "-"
-
-        # Sub-minute duration
-        duration_short = format_run_duration("2026-08-19 01:00:00", "2026-08-19 01:00:12")
-        assert duration_short == "12.00s"
-
-        # Multi-minute duration
-        duration_long = format_run_duration("2026-08-19 01:00:00", "2026-08-19 01:02:30")
-        assert duration_long == "2m 30.0s"
+    def test_render_history_list_shows_duration(self, fs: FileSystem) -> None:
+        run = make_run(
+            self.db.runs,
+            session_id="sess-dur-test",
+            blueprint_name="sample-task",
+            kind=BlueprintKind.TASK,
+            status=RunStatus.COMPLETED,
+            started_at="2026-08-19 01:00:00",
+            completed_at="2026-08-19 01:00:10",
+        )
+        assert run.duration_seconds == 10.0
+        result = HistoryListResult(runs=[run])
+        output = render_rich(HistoryListFormatter().to_rich(result))
+        assert "10.00s" in output
 
     def test_render_history_list_fixed_width(self, fs: FileSystem) -> None:
         """Verify render_history_list produces expected columns under a fixed-width console."""
