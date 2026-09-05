@@ -63,10 +63,25 @@ class DiffResultFormatter(ComponentFormatter[DiffResult]):
         *,
         full: bool = False,
         max_lines: int | None = None,
+        console: Console | None = None,
     ) -> None:
-        """Initialize DiffResultFormatter with optional truncation overrides."""
+        """Initialize DiffResultFormatter with optional truncation overrides.
+
+        Args:
+            full: Bypass line truncation limits.
+            max_lines: Custom line truncation threshold.
+            console: Optional Rich Console instance for terminal introspection.
+        """
         self.full = full
         self.max_lines = max_lines
+        self._console = console
+
+    @property
+    def console(self) -> Console:
+        """Get the active Console instance."""
+        if self._console is not None:
+            return self._console
+        return Console()
 
     def to_raw(self, data: DiffResult) -> str:
         """Render a raw diff, empty message or error panel."""
@@ -86,14 +101,14 @@ class DiffResultFormatter(ComponentFormatter[DiffResult]):
         limit = effective_max if isinstance(effective_max, int) and effective_max > 0 else DEFAULT_MAX_DIFF_LINES
         diff_lines = data.diff_text.splitlines()
         total_lines = len(diff_lines)
-        is_tty = Console().is_terminal
+        is_tty = self.console.is_terminal
         should_truncate = is_tty and not effective_full and total_lines > limit
 
         if should_truncate:
             truncated_content = "\n".join(diff_lines[:limit])
             return truncated_content
 
-        return data.diff_text.rstrip()
+        return data.diff_text
 
     def to_rich(self, data: DiffResult) -> Any:
         """Render syntax-highlighted unified diff, empty message, or error panel."""
@@ -116,7 +131,7 @@ class DiffResultFormatter(ComponentFormatter[DiffResult]):
         limit = effective_max if isinstance(effective_max, int) and effective_max > 0 else DEFAULT_MAX_DIFF_LINES
         diff_lines = data.diff_text.splitlines()
         total_lines = len(diff_lines)
-        is_tty = Console().is_terminal
+        is_tty = self.console.is_terminal
         should_truncate = is_tty and not effective_full and total_lines > limit
 
         if should_truncate:
