@@ -291,8 +291,10 @@ Not needed for this issue: <kinds from the Step 3 checklist that are "none">
 
 ## Step 5: Save and hand off
 
-Write the plan to `scratch/plans/<issue-number>-<slug>-plan.md` (`scratch/` is
-gitignored, so plans stay out of commits). Create the directory if needed.
+Write the plan to `.agentic/plan.md` (`.agentic/` is gitignored, so plans stay
+out of commits). Create the directory if needed. Exactly one plan exists at a
+time: it is the handoff implementation reads, and the next planning cycle
+replaces it along with any stale `.agentic/review.md`.
 
 Report the path, and state plainly that this was planning only: nothing was
 implemented, tested, committed, or pushed.
