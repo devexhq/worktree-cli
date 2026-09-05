@@ -75,5 +75,7 @@ class CliSmokeTests:
             assert result.exit_code == 0
             assert "Lock Held" in result.output
             assert "Waiting for lock release" in result.output
+            assert str(p.pid) in result.output
+            assert ".lock" in result.output
         finally:
             p.join(timeout=5.0)

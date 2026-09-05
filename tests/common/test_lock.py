@@ -44,7 +44,7 @@ def _child_acquire_with_timeout(
         result_queue.put({"success": False, "error": f"Unexpected: {exc}"})
 
 
-class TestWorkspaceLock:
+class WorkspaceLockTests:
     """Tests for WorkspaceLock context manager."""
 
     def test_resolve_lock_file_path_root_dir(self, tmp_path: Path) -> None:
@@ -193,7 +193,9 @@ class TestWorkspaceLock:
         finally:
             WorkspaceLock.reset_default_on_wait()
 
-    def test_explicit_on_wait_overrides_default(self, tmp_path: Path) -> None:
+    def test_explicit_on_wait_overrides_default_fires_on_contention(self, tmp_path: Path) -> None:
+        ctx = multiprocessing.get_context("spawn")
+        ready_event = ctx.Event()
         default_called: list[tuple[Path, str | None, float]] = []
         explicit_called: list[tuple[Path, str | None, float]] = []
 
@@ -205,8 +207,22 @@ class TestWorkspaceLock:
 
         WorkspaceLock.set_default_on_wait(default_cb)
         try:
-            lock = WorkspaceLock(tmp_path, on_wait=explicit_cb)
-            assert lock.on_wait is explicit_cb
+            p1 = ctx.Process(target=_child_hold_lock, args=(tmp_path, 0.6, ready_event))
+            p1.start()
+
+            try:
+                assert ready_event.wait(timeout=5.0), "Holder process failed to acquire lock"
+
+                with WorkspaceLock(tmp_path, timeout_seconds=3.0, on_wait=explicit_cb) as lock:
+                    assert lock.lock_path.exists()
+
+                assert len(explicit_called) == 1
+                assert len(default_called) == 0
+                assert explicit_called[0][0] == resolve_lock_file_path(tmp_path)
+                assert explicit_called[0][1] == str(p1.pid)
+                assert explicit_called[0][2] == 3.0
+            finally:
+                p1.join(timeout=5.0)
         finally:
             WorkspaceLock.reset_default_on_wait()
 
