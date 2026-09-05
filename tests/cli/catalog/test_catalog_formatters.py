@@ -6,12 +6,12 @@ import json
 from pathlib import Path
 
 import pytest
-from rich.console import Console, Group
+from rich.console import Group
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from tests.helpers import render_rich
+from tests.helpers import make_dispatcher_with_buffer, render_rich
 from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
 from worktree.cli.ui.formatters.catalog import (
     CatalogCreateFormatter,
@@ -326,15 +326,14 @@ class CatalogDispatcherIntegrationTests:
         assert payload["event_type"] == "CatalogCreateResult"
         assert payload["payload"]["item"]["name"] == "test-workflow"
 
-    def test_dispatcher_terminal_format(self, capsys: pytest.CaptureFixture[str]) -> None:
-        console = Console(force_terminal=True, width=120)
-        dispatcher = UiDispatcher(console=console)
+    def test_dispatcher_terminal_format(self) -> None:
+        dispatcher, buf = make_dispatcher_with_buffer(force_terminal=True)
         register_catalog_formatters(dispatcher)
         item = _sample_catalog_record()
         result = CatalogListResult(items=[item])
 
         dispatcher.dispatch(result, output_format="terminal")
 
-        captured = capsys.readouterr()
-        assert "test-workflow" in captured.out
-        assert "workflow_1234567" in captured.out
+        out = buf.getvalue()
+        assert "test-workflow" in out
+        assert "workflow_1234567" in out

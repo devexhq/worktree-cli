@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import io
 import json
 from pathlib import Path
 
 import pytest
-from rich.console import Console
 
-from tests.helpers import render_rich
+from tests.helpers import make_dispatcher_with_buffer, render_rich
 from worktree.cli.run.observer import DispatcherRunObserver, resolve_cli_observer
 from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
 from worktree.cli.ui.events import (
@@ -30,17 +28,8 @@ from worktree.core.db import BlueprintKind, RunStatus
 from worktree.core.step import ConditionEvaluationResult, StepDefinition, StepResult
 
 
-@pytest.fixture
-def dispatcher_with_buf() -> tuple[UiDispatcher, io.StringIO]:
-    buf = io.StringIO()
-    console = Console(file=buf, force_terminal=False)
-    dispatcher = UiDispatcher(console=console)
-    register_ui_formatters(dispatcher)
-    return dispatcher, buf
-
-
-def test_error_panel_event_terminal(dispatcher_with_buf: tuple[UiDispatcher, io.StringIO]) -> None:
-    dispatcher, buf = dispatcher_with_buf
+def test_error_panel_event_terminal() -> None:
+    dispatcher, buf = make_dispatcher_with_buffer()
     event = ErrorPanelEvent(title="Task Run Failed", message="Command failed with exit code 1.")
     dispatcher.dispatch(event, output_format="terminal")
     output = buf.getvalue()
@@ -65,8 +54,8 @@ def test_error_panel_event_json(capsys: pytest.CaptureFixture[str]) -> None:
     }
 
 
-def test_warning_event_terminal(dispatcher_with_buf: tuple[UiDispatcher, io.StringIO]) -> None:
-    dispatcher, buf = dispatcher_with_buf
+def test_warning_event_terminal() -> None:
+    dispatcher, buf = make_dispatcher_with_buffer()
     event = WarningEvent(message="Something non-fatal occurred.")
     dispatcher.dispatch(event, output_format="terminal")
     assert "Warning: Something non-fatal occurred." in buf.getvalue()
@@ -85,8 +74,8 @@ def test_warning_event_json(capsys: pytest.CaptureFixture[str]) -> None:
     }
 
 
-def test_lock_wait_event_terminal(dispatcher_with_buf: tuple[UiDispatcher, io.StringIO]) -> None:
-    dispatcher, buf = dispatcher_with_buf
+def test_lock_wait_event_terminal() -> None:
+    dispatcher, buf = make_dispatcher_with_buffer()
     event1 = LockWaitEvent(lock_path="/path/to/.worktree/.lock", holder_pid="12345", timeout_seconds=30.0)
     dispatcher.dispatch(event1, output_format="terminal")
     out1 = buf.getvalue()
@@ -168,8 +157,8 @@ class LockWaitFormatterTests:
         assert isinstance(ui_dispatcher._registry[LockWaitEvent], LockWaitFormatter)
 
 
-def test_message_event_terminal_and_styled(dispatcher_with_buf: tuple[UiDispatcher, io.StringIO]) -> None:
-    dispatcher, buf = dispatcher_with_buf
+def test_message_event_terminal_and_styled() -> None:
+    dispatcher, buf = make_dispatcher_with_buffer()
     event1 = MessageEvent(message="Running task 'build'...")
     dispatcher.dispatch(event1, output_format="terminal")
     assert "Running task 'build'..." in buf.getvalue()
@@ -192,8 +181,8 @@ def test_message_event_json(capsys: pytest.CaptureFixture[str]) -> None:
     }
 
 
-def test_run_success_event_terminal(dispatcher_with_buf: tuple[UiDispatcher, io.StringIO]) -> None:
-    dispatcher, buf = dispatcher_with_buf
+def test_run_success_event_terminal() -> None:
+    dispatcher, buf = make_dispatcher_with_buffer()
     event = RunSuccessEvent(
         session_id="task_12345678",
         blueprint_name="build",
@@ -231,8 +220,8 @@ def test_run_success_event_json(capsys: pytest.CaptureFixture[str]) -> None:
     }
 
 
-def test_step_start_event_terminal(dispatcher_with_buf: tuple[UiDispatcher, io.StringIO]) -> None:
-    dispatcher, buf = dispatcher_with_buf
+def test_step_start_event_terminal() -> None:
+    dispatcher, buf = make_dispatcher_with_buffer()
     event = StepStartEvent(
         idx=1,
         total=3,
@@ -267,8 +256,8 @@ def test_step_start_event_json(capsys: pytest.CaptureFixture[str]) -> None:
     }
 
 
-def test_step_done_event_terminal_success(dispatcher_with_buf: tuple[UiDispatcher, io.StringIO]) -> None:
-    dispatcher, buf = dispatcher_with_buf
+def test_step_done_event_terminal_success() -> None:
+    dispatcher, buf = make_dispatcher_with_buffer()
     event = StepDoneEvent(
         idx=1,
         total=1,
@@ -281,8 +270,8 @@ def test_step_done_event_terminal_success(dispatcher_with_buf: tuple[UiDispatche
     assert "[STEP 1/1] build COMPLETED" in buf.getvalue()
 
 
-def test_step_done_event_terminal_failure(dispatcher_with_buf: tuple[UiDispatcher, io.StringIO]) -> None:
-    dispatcher, buf = dispatcher_with_buf
+def test_step_done_event_terminal_failure() -> None:
+    dispatcher, buf = make_dispatcher_with_buffer()
     event = StepDoneEvent(
         idx=2,
         total=2,
@@ -323,8 +312,8 @@ def test_step_done_event_json(capsys: pytest.CaptureFixture[str]) -> None:
     }
 
 
-def test_step_output_event_terminal(dispatcher_with_buf: tuple[UiDispatcher, io.StringIO]) -> None:
-    dispatcher, buf = dispatcher_with_buf
+def test_step_output_event_terminal() -> None:
+    dispatcher, buf = make_dispatcher_with_buffer()
     event = StepOutputEvent(step_id="build", line="compiling crate...", stream="stdout")
     dispatcher.dispatch(event, output_format="terminal")
     assert "compiling crate..." in buf.getvalue()
@@ -347,8 +336,8 @@ def test_step_output_event_json(capsys: pytest.CaptureFixture[str]) -> None:
     }
 
 
-def test_sandbox_lifecycle_event_terminal(dispatcher_with_buf: tuple[UiDispatcher, io.StringIO]) -> None:
-    dispatcher, buf = dispatcher_with_buf
+def test_sandbox_lifecycle_event_terminal() -> None:
+    dispatcher, buf = make_dispatcher_with_buffer()
     # Ready active
     dispatcher.dispatch(
         SandboxLifecycleEvent(action="ready", path="/tmp/sbx", active=True),
@@ -402,8 +391,8 @@ def test_sandbox_lifecycle_event_json(capsys: pytest.CaptureFixture[str]) -> Non
     }
 
 
-def test_loop_lifecycle_event_terminal(dispatcher_with_buf: tuple[UiDispatcher, io.StringIO]) -> None:
-    dispatcher, buf = dispatcher_with_buf
+def test_loop_lifecycle_event_terminal() -> None:
+    dispatcher, buf = make_dispatcher_with_buffer()
     # Start
     dispatcher.dispatch(
         LoopLifecycleEvent(loop_id="loop_1", action="start", max_iterations=5),
@@ -464,8 +453,8 @@ def test_loop_lifecycle_event_json(capsys: pytest.CaptureFixture[str]) -> None:
     }
 
 
-def test_dispatcher_run_observer_callbacks(dispatcher_with_buf: tuple[UiDispatcher, io.StringIO]) -> None:
-    dispatcher, buf = dispatcher_with_buf
+def test_dispatcher_run_observer_callbacks() -> None:
+    dispatcher, buf = make_dispatcher_with_buffer()
     observer = DispatcherRunObserver(dispatcher)
 
     with observer:
@@ -519,16 +508,13 @@ def test_resolve_cli_observer() -> None:
     assert obs_non_interactive._live is False
 
     # non-tty console in terminal mode -> DispatcherRunObserver with live=False
-    buf = io.StringIO()
-    console_non_tty = Console(file=buf, force_terminal=False)
-    dispatcher_non_tty = UiDispatcher(console=console_non_tty)
+    dispatcher_non_tty, _ = make_dispatcher_with_buffer(force_terminal=False)
     obs_terminal_non_tty = resolve_cli_observer(dispatcher_non_tty, output_format="terminal")
     assert isinstance(obs_terminal_non_tty, DispatcherRunObserver)
     assert obs_terminal_non_tty._live is False
 
     # tty console in terminal mode -> DispatcherRunObserver with live=True
-    console_tty = Console(file=buf, force_terminal=True)
-    dispatcher_tty = UiDispatcher(console=console_tty)
+    dispatcher_tty, _ = make_dispatcher_with_buffer(force_terminal=True)
     obs_terminal_tty = resolve_cli_observer(dispatcher_tty, output_format="terminal")
     assert isinstance(obs_terminal_tty, DispatcherRunObserver)
     assert obs_terminal_tty._live is True
@@ -536,10 +522,7 @@ def test_resolve_cli_observer() -> None:
 
 def test_resolve_cli_observer_live_mode_emits_output() -> None:
     """Verify resolve_cli_observer with live=True emits step, sandbox, and loop lifecycle output."""
-    buf = io.StringIO()
-    console = Console(file=buf, force_terminal=True, width=160)
-    dispatcher = UiDispatcher(console=console, output_format="terminal")
-    register_ui_formatters(dispatcher)
+    dispatcher, buf = make_dispatcher_with_buffer(force_terminal=True)
     observer = resolve_cli_observer(dispatcher, output_format="terminal")
     assert observer._live is True
 
@@ -586,29 +569,22 @@ def test_resolve_cli_observer_live_mode_emits_output() -> None:
 
 
 def test_dispatcher_format_and_interactive_properties() -> None:
-    buf = io.StringIO()
-    console_tty = Console(file=buf, force_terminal=True)
-    dispatcher_tty = UiDispatcher(console=console_tty, output_format="terminal")
+    dispatcher_tty, _ = make_dispatcher_with_buffer(force_terminal=True, output_format="terminal")
     assert dispatcher_tty.is_interactive is True
     assert dispatcher_tty.is_terminal_format is True
-    assert dispatcher_tty._console is console_tty
 
     # If output_format is json, is_interactive is True but is_terminal_format is False
     dispatcher_tty.set_output_format("json")
     assert dispatcher_tty.is_interactive is True
     assert dispatcher_tty.is_terminal_format is False
 
-    console_non_tty = Console(file=buf, force_terminal=False)
-    dispatcher_non_tty = UiDispatcher(console=console_non_tty, output_format="terminal")
+    dispatcher_non_tty, _ = make_dispatcher_with_buffer(force_terminal=False, output_format="terminal")
     assert dispatcher_non_tty.is_interactive is False
     assert dispatcher_non_tty.is_terminal_format is True
 
 
 def test_dispatcher_live_mode_routing() -> None:
-    buf = io.StringIO()
-    console = Console(file=buf, force_terminal=True)
-    dispatcher = UiDispatcher(console=console)
-    register_ui_formatters(dispatcher)
+    dispatcher, buf = make_dispatcher_with_buffer(force_terminal=True)
     observer = resolve_cli_observer(dispatcher, output_format="terminal")
 
     with observer:

@@ -7,9 +7,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from rich.console import Console, Group
+from rich.console import Group
 
-from tests.helpers import render_rich
+from tests.helpers import make_dispatcher_with_buffer, render_rich
 from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
 from worktree.cli.ui.formatters.status import (
     WorktreeStatusFormatter,
@@ -542,14 +542,13 @@ def test_dispatcher_json_format_ndjson(capsys: pytest.CaptureFixture[str]) -> No
     assert payload["payload"]["config"]["status"] == "ok"
 
 
-def test_dispatcher_terminal_format(capsys: pytest.CaptureFixture[str]) -> None:
-    console = Console(force_terminal=True, width=120)
-    dispatcher = UiDispatcher(console=console)
+def test_dispatcher_terminal_format() -> None:
+    dispatcher, buf = make_dispatcher_with_buffer(force_terminal=True)
     register_status_formatters(dispatcher)
     result = _make_status_result()
 
     dispatcher.dispatch(result, output_format="terminal")
 
-    captured = capsys.readouterr()
-    assert "Worktree Workspace Status" in captured.out
-    assert "worktree-cli" in captured.out
+    output = buf.getvalue()
+    assert "Worktree Workspace Status" in output
+    assert "worktree-cli" in output

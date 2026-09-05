@@ -12,6 +12,7 @@ from rich.console import Console
 from typer.core import TyperGroup
 
 from worktree.cli.context import CliContext
+from worktree.cli.ui.dispatcher import UiDispatcher
 from worktree.core.config.generator import generate_default_config
 from worktree.core.db import (
     BlueprintKind,
@@ -291,6 +292,28 @@ def render_rich(renderable: Any, *, width: int = 160) -> str:
     )
     console.print(renderable)
     return buffer.getvalue()
+
+
+def make_dispatcher_with_buffer(
+    *,
+    force_terminal: bool = False,
+    width: int = 160,
+    output_format: str = "terminal",
+    register_formatters: bool = True,
+    **console_kwargs: Any,
+) -> tuple[UiDispatcher, StringIO]:
+    """Factory creating a real UiDispatcher connected to an in-memory buffer with pinned width."""
+    buffer = StringIO()
+    console = Console(
+        file=buffer,
+        force_terminal=force_terminal,
+        width=width,
+        **console_kwargs,
+    )
+    dispatcher = UiDispatcher(console=console, output_format=output_format)
+    if not register_formatters:
+        dispatcher._registry.clear()
+    return dispatcher, buffer
 
 
 def get_subcommand(target: Any, *names: str) -> Any:

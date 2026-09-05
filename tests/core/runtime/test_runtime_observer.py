@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import io
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from rich.console import Console
-
+from tests.helpers import make_dispatcher_with_buffer
 from worktree.cli.run.observer import DispatcherRunObserver, resolve_cli_observer
 from worktree.cli.ui.dispatcher import UiDispatcher
 from worktree.cli.ui.events import (
@@ -118,29 +116,25 @@ class TestResolveCliObserver:
     """Tests for resolve_cli_observer factory."""
 
     def test_terminal_tty_enables_live(self) -> None:
-        console = Console(file=io.StringIO(), force_terminal=True)
-        dispatcher = UiDispatcher(console=console)
+        dispatcher, _ = make_dispatcher_with_buffer(force_terminal=True)
         observer = resolve_cli_observer(dispatcher, non_interactive=False, output_format="terminal")
         assert isinstance(observer, DispatcherRunObserver)
         assert observer._live is True
 
     def test_non_interactive_disables_live(self) -> None:
-        console = Console(file=io.StringIO(), force_terminal=True)
-        dispatcher = UiDispatcher(console=console)
+        dispatcher, _ = make_dispatcher_with_buffer(force_terminal=True)
         observer = resolve_cli_observer(dispatcher, non_interactive=True, output_format="terminal")
         assert isinstance(observer, DispatcherRunObserver)
         assert observer._live is False
 
     def test_json_format_disables_live(self) -> None:
-        console = Console(file=io.StringIO(), force_terminal=True)
-        dispatcher = UiDispatcher(console=console)
+        dispatcher, _ = make_dispatcher_with_buffer(force_terminal=True)
         observer = resolve_cli_observer(dispatcher, non_interactive=False, output_format="json")
         assert isinstance(observer, DispatcherRunObserver)
         assert observer._live is False
 
     def test_non_terminal_console_disables_live(self) -> None:
-        console = Console(file=io.StringIO(), force_terminal=False)
-        dispatcher = UiDispatcher(console=console)
+        dispatcher, _ = make_dispatcher_with_buffer(force_terminal=False)
         observer = resolve_cli_observer(dispatcher, non_interactive=False, output_format="terminal")
         assert isinstance(observer, DispatcherRunObserver)
         assert observer._live is False

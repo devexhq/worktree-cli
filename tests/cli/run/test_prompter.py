@@ -6,8 +6,8 @@ import io
 import json
 
 import pytest
-from rich.console import Console
 
+from tests.helpers import make_dispatcher_with_buffer
 from worktree.cli.run.prompter import DispatcherFailurePrompter
 from worktree.cli.ui.dispatcher import UiDispatcher
 from worktree.cli.ui.events import PromptEvent, PromptOption
@@ -40,9 +40,7 @@ class TestDispatcherFailurePrompter:
         raw_input: str,
         expected: FailurePromptDecision,
     ) -> None:
-        buf = io.StringIO()
-        console = Console(file=buf, force_terminal=True)
-        dispatcher = UiDispatcher(console=console, output_format="terminal")
+        dispatcher, buf = make_dispatcher_with_buffer(force_terminal=True)
         prompter = DispatcherFailurePrompter(dispatcher, kind="task")
 
         step = StepDefinition(id="step_1", name="Build Step", run="make build")
@@ -70,9 +68,7 @@ class TestDispatcherFailurePrompter:
         assert "Options:" in rendered
 
     def test_prompt_step_failure_invalid_then_valid(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        buf = io.StringIO()
-        console = Console(file=buf, force_terminal=True)
-        dispatcher = UiDispatcher(console=console, output_format="terminal")
+        dispatcher, buf = make_dispatcher_with_buffer(force_terminal=True)
         prompter = DispatcherFailurePrompter(dispatcher, kind="task")
 
         step = StepDefinition(id="step_1", run="make")
@@ -86,9 +82,7 @@ class TestDispatcherFailurePrompter:
         assert "Invalid option" in buf.getvalue()
 
     def test_prompt_step_failure_eof_aborts(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        buf = io.StringIO()
-        console = Console(file=buf, force_terminal=True)
-        dispatcher = UiDispatcher(console=console, output_format="terminal")
+        dispatcher, _ = make_dispatcher_with_buffer(force_terminal=True)
         prompter = DispatcherFailurePrompter(dispatcher)
 
         step = StepDefinition(id="s1", run="test")
@@ -102,9 +96,7 @@ class TestDispatcherFailurePrompter:
         assert decision == FailurePromptDecision.ABORT
 
     def test_prompt_loop_max_iterations_terminal(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        buf = io.StringIO()
-        console = Console(file=buf, force_terminal=True)
-        dispatcher = UiDispatcher(console=console, output_format="terminal")
+        dispatcher, buf = make_dispatcher_with_buffer(force_terminal=True)
         prompter = DispatcherFailurePrompter(dispatcher, kind="workflow")
 
         loop = LoopStepBlock(
@@ -128,9 +120,7 @@ class TestDispatcherFailurePrompter:
         assert "Grant 4 additional iterations" in rendered
 
     def test_prompt_loop_max_iterations_eof_aborts(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        buf = io.StringIO()
-        console = Console(file=buf, force_terminal=True)
-        dispatcher = UiDispatcher(console=console, output_format="terminal")
+        dispatcher, _ = make_dispatcher_with_buffer(force_terminal=True)
         prompter = DispatcherFailurePrompter(dispatcher)
 
         loop = LoopStepBlock(
@@ -177,9 +167,7 @@ class TestDispatcherFailurePrompter:
         assert payload["default"] == "abort"
 
     def test_non_interactive_terminal_aborts_immediately(self) -> None:
-        buf = io.StringIO()
-        console = Console(file=buf, force_terminal=False)
-        dispatcher = UiDispatcher(console=console, output_format="terminal")
+        dispatcher, _ = make_dispatcher_with_buffer(force_terminal=False)
         prompter = DispatcherFailurePrompter(dispatcher)
 
         step = StepDefinition(id="s1", run="test")

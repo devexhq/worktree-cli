@@ -1,13 +1,12 @@
-import io
 import json
 from dataclasses import dataclass
 from typing import Any
 
 import pytest
 from pydantic import BaseModel
-from rich.console import Console
 from rich.text import Text
 
+from tests.helpers import make_dispatcher_with_buffer
 from worktree.cli.ui.dispatcher import UiDispatcher
 from worktree.common.types import ComponentFormatter
 
@@ -32,9 +31,7 @@ class DummyItemFormatter(ComponentFormatter[DummyItem]):
 
 
 def test_dispatcher_direct_registration_instance() -> None:
-    string_io = io.StringIO()
-    console = Console(file=string_io, force_terminal=False)
-    dispatcher = UiDispatcher(console=console)
+    dispatcher, string_io = make_dispatcher_with_buffer(register_formatters=False)
     formatter = DummyItemFormatter()
 
     dispatcher.register(DummyItem, formatter)
@@ -45,9 +42,7 @@ def test_dispatcher_direct_registration_instance() -> None:
 
 
 def test_dispatcher_direct_registration_class() -> None:
-    string_io = io.StringIO()
-    console = Console(file=string_io, force_terminal=False)
-    dispatcher = UiDispatcher(console=console)
+    dispatcher, string_io = make_dispatcher_with_buffer(register_formatters=False)
 
     dispatcher.register(DummyItem, DummyItemFormatter)
     item = DummyItem(name="test2", count=10)
@@ -57,9 +52,7 @@ def test_dispatcher_direct_registration_class() -> None:
 
 
 def test_dispatcher_decorator_registration() -> None:
-    string_io = io.StringIO()
-    console = Console(file=string_io, force_terminal=False)
-    dispatcher = UiDispatcher(console=console)
+    dispatcher, string_io = make_dispatcher_with_buffer(register_formatters=False)
 
     @dispatcher.register(SimpleItem)
     class DecItemFormatter(ComponentFormatter[SimpleItem]):

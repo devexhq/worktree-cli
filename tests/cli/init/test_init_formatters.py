@@ -5,10 +5,10 @@ from __future__ import annotations
 import json
 
 import pytest
-from rich.console import Console, Group
+from rich.console import Group
 from rich.panel import Panel
 
-from tests.helpers import FileSystem, render_rich
+from tests.helpers import FileSystem, make_dispatcher_with_buffer, render_rich
 from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
 from worktree.cli.ui.formatters.init import (
     InitOutcomeFormatter,
@@ -251,9 +251,8 @@ def test_dispatcher_json_format_ndjson(fs: FileSystem, capsys: pytest.CaptureFix
     assert payload["payload"]["config_result"]["created"] is True
 
 
-def test_dispatcher_terminal_format(fs: FileSystem, capsys: pytest.CaptureFixture[str]) -> None:
-    console = Console(force_terminal=True, width=120)
-    dispatcher = UiDispatcher(console=console)
+def test_dispatcher_terminal_format(fs: FileSystem) -> None:
+    dispatcher, buf = make_dispatcher_with_buffer(force_terminal=True)
     register_init_formatters(dispatcher)
     result = WorkspaceInitResult(
         bootstrap_result=BootstrapResult(root_path=fs.base_path / ".worktree", root_created=True),
@@ -263,6 +262,6 @@ def test_dispatcher_terminal_format(fs: FileSystem, capsys: pytest.CaptureFixtur
 
     dispatcher.dispatch(result, output_format="terminal")
 
-    captured = capsys.readouterr()
-    assert "Initialized Worktree" in captured.out
-    assert "Generated config" in captured.out
+    output = buf.getvalue()
+    assert "Initialized Worktree" in output
+    assert "Generated config" in output
