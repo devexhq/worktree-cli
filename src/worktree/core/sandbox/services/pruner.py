@@ -50,7 +50,7 @@ class SandboxPruner:
                 action=PruneAction.PRUNED,
                 path=item.path,
                 branch_name=item.branch_name,
-                reason=item.reason,
+                reason=f"Would prune: {item.reason}" if item.reason else "Would prune",
             )
 
         try:
@@ -136,7 +136,7 @@ class SandboxPruner:
                 path=item.path,
                 branch_name=item.branch_name,
                 session_id=item.session_id,
-                reason=item.reason,
+                reason=f"Would prune: {item.reason}" if item.reason else "Would prune",
             )
 
         errors = self._cleanup_orphaned_dir_and_db(item)
@@ -172,7 +172,7 @@ class SandboxPruner:
                 path=item.path,
                 branch_name=item.branch_name,
                 session_id=item.session_id,
-                reason=item.reason,
+                reason=f"Would prune: {item.reason}" if item.reason else "Would prune",
             )
 
         try:
@@ -206,7 +206,7 @@ class SandboxPruner:
                 identifier=item.identifier,
                 action=PruneAction.PRUNED,
                 branch_name=item.branch_name,
-                reason=item.reason,
+                reason=f"Would prune: {item.reason}" if item.reason else "Would prune",
             )
 
         try:
