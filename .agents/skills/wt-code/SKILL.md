@@ -81,6 +81,6 @@ Loop until every gate is green, then report: what was implemented per FR, the ga
 3. Re-read each cited file before editing it, since the review may describe a state that has since changed.
 4. Dispute rather than comply when a finding is wrong: state the finding, why it does not hold, and flag it 🚨 for the human. A finding you cannot verify in the code is not a finding.
 5. Run the same completion gate above once the fixes are in.
-6. Do not edit or delete `.agentic/review.md`. It is the reviewer's artifact, and the next round is compared against it.
+6. Do not edit or delete `.agentic/review.md` or its machine-readable mirror `.agentic/review.json`. They are the reviewer's artifacts, and the next round is compared against them.
 
 Report each finding as fixed, disputed, or deferred, with the `path:line` you changed.

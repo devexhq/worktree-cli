@@ -39,7 +39,7 @@ Branch names follow `<username>/<short-description>`. If the current branch does
 Delete the handoff files **before staging anything**, so no path under `.agentic/` can reach the index even if the ignore rule is missing or a stale copy was tracked:
 
 ```bash
-rm -f .agentic/plan.md .agentic/review.md
+rm -f .agentic/plan.md .agentic/review.md .agentic/review.json
 git ls-files .agentic
 ```
 
