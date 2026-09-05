@@ -16,7 +16,7 @@ Get the current branch's work committed and represented by an open PR. Nothing e
 
 - **Never run tests or tooling.** No `inv test`, no `pytest`, no `ruff`, no `basedpyright`, no `inv complexity`, no `uv sync`. `/wt-code` already gated the change; re-running here is not this skill's job. If you believe the gates were never run, say so and let the human decide rather than running them.
 - **Never write code.** No fixes, no formatting, no "while I'm here" edits. If the diff looks wrong, report it and stop.
-- **Never commit to the default branch.** If `HEAD` is on it, stop and ask for a branch.
+- **Never commit to the default branch.** If `HEAD` is on it, update against origin, create a branch and continue.
 - **Never stage `.agentic/`.** The plan and review are working artifacts, not deliverables. Step 2 deletes them outright, which is the second guarantee behind the `/.agentic/` ignore rule. Leave `.worktree/` and `scratch/` alone.
 - **No AI attribution.** No `Co-authored-by:` trailers, no tool attribution lines, in commits or PR bodies.
 - **Do not add reviewers** unless the user names them.
