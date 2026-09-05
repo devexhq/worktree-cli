@@ -3,7 +3,8 @@ name: wt-review
 description: >-
   Review a change set in the worktree-cli repo on three axes, fidelity to the
   plan, implementation quality, and adherence to every rule in AGENTS.md and
-  docs/agents/*.md, then write the verdict to .agentic/review.md. Runs no tests
+  docs/agents/*.md, then write the verdict to .agentic/review.md plus a
+  machine-readable .agentic/review.json. Runs no tests
   or tooling. Use when asked to review a pull request, local pending changes, or
   commits on a branch, to run a pre-commit review gate, or to check whether a
   change obeys or should have updated the agent docs. Invoked as /wt-review
@@ -121,6 +122,40 @@ Severity: **Blocking** is a defect, a broken user-facing contract, a deviation f
 With `--post` and a PR scope, post the same content as a comment review: `gh pr review <n> --comment --body-file .agentic/review.md`. Never `--approve` or `--request-changes`, and do not add reviewers.
 
 On `CHANGES REQUIRED`, hand off to `/wt-code review`, which reads `.agentic/review.md`. Re-run this skill afterward as round n+1 against the updated scope. Cap at 3 rounds, then hand the remainder to the human.
+
+## 8. Emit the machine-readable verdict
+
+Write `.agentic/review.json` alongside the markdown, and print the same object as the **last line of stdout**, minified onto one line. A caller decides the next step from this file alone, without parsing prose.
+
+```json
+{
+  "verdict": "CHANGES_REQUIRED",
+  "round": 1,
+  "scope": { "kind": "pr", "ref": "364", "files": 7 },
+  "plan": ".agentic/plan.md",
+  "counts": { "blocking": 2, "suggestions": 3, "nits": 1 },
+  "findings": [
+    {
+      "severity": "blocking",
+      "path": "src/worktree/core/diff/services/render.py",
+      "line": 42,
+      "rule": "code-conventions.md#variable-naming",
+      "summary": "Local named `buf`; cryptic truncation of `buffer`."
+    }
+  ]
+}
+```
+
+Field contracts, since this is what a loop branches on:
+
+- `verdict` is exactly `APPROVE` or `CHANGES_REQUIRED`. Underscored, unlike the markdown heading, so it survives shell and condition matching untouched.
+- `verdict` is `APPROVE` if and only if `counts.blocking` is `0`. Never emit one without the other.
+- `scope.kind` is `pr`, `uncommitted`, or `branch`. `scope.ref` is the PR number, an empty string, or the compared range.
+- `plan` is the plan path, or `null` when `.agentic/plan.md` was absent.
+- `findings` carries every Blocking item and may omit Suggestions and Nits; `counts` always reflects the full report. `rule` is `<doc>#<section>` for anything Blocking, and `null` only for a Suggestion or Nit.
+- `line` is an integer, or `null` for a file-level or repo-level finding.
+
+Keep this shape stable. It is the contract a driver script consumes today, and the `outputs` condition a `wt` blueprint will branch on later (`outputs` conditions parse a step's stdout as JSON), so a field renamed here breaks both.
 
 ## Independence
 

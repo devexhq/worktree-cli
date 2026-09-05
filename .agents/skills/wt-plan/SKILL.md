@@ -25,7 +25,7 @@ Produce one plan document, precise enough that a different agent with no memory 
 Before anything else, clear the previous cycle's artifacts so a stale review can never be read as current:
 
 ```bash
-mkdir -p .agentic && rm -f .agentic/plan.md .agentic/review.md
+mkdir -p .agentic && rm -f .agentic/plan.md .agentic/review.md .agentic/review.json
 ```
 
 ## Step 2: Extract the contract
