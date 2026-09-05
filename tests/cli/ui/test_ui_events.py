@@ -534,6 +534,57 @@ def test_resolve_cli_observer() -> None:
     assert obs_terminal_tty._live is True
 
 
+def test_resolve_cli_observer_live_mode_emits_output() -> None:
+    """Verify resolve_cli_observer with live=True emits step, sandbox, and loop lifecycle output."""
+    buf = io.StringIO()
+    console = Console(file=buf, force_terminal=True, width=160)
+    dispatcher = UiDispatcher(console=console, output_format="terminal")
+    register_ui_formatters(dispatcher)
+    observer = resolve_cli_observer(dispatcher, output_format="terminal")
+    assert observer._live is True
+
+    with observer:
+        observer.on_sandbox_ready(Path("/tmp/sbx_live"), active=True)
+        observer.on_step_start(1, 2, StepDefinition(id="step-1", run="echo live", name="Live Step"))
+        observer.on_step_output(1, 2, StepDefinition(id="step-1", run="echo live"), "streaming output")
+        observer.on_step_done(
+            1,
+            2,
+            StepResult(
+                step_id="step-1",
+                status="completed",
+                exit_code=0,
+                stdout="streaming output",
+                stderr="",
+                duration_seconds=0.2,
+            ),
+        )
+        observer.on_loop_start("loop-live", 3)
+        observer.on_loop_turn_start("loop-live", 1, 3)
+        observer.on_loop_conditions_evaluated(
+            "loop-live",
+            [ConditionEvaluationResult(expression="exit_code == 0", passed=False, detail="exit_code is 1")],
+            all_passed=False,
+            next_turn=2,
+        )
+        observer.on_loop_turn_start("loop-live", 2, 3)
+        observer.on_loop_conditions_evaluated(
+            "loop-live",
+            [ConditionEvaluationResult(expression="exit_code == 0", passed=True, detail="exit_code is 0")],
+            all_passed=True,
+        )
+        observer.on_loop_done("loop-live", "completed", 2)
+        observer.on_sandbox_cleanup(kept=False, path=Path("/tmp/sbx_live"))
+
+    output = buf.getvalue()
+    assert "/tmp/sbx_live" in output
+    assert "Live Step" in output
+    assert "echo live" in output
+    assert "loop-live" in output
+    assert "Conditions not met. Continuing to turn 2" in output
+    assert "Sandbox: Cleaned" in output
+
+
 def test_dispatcher_format_and_interactive_properties() -> None:
     buf = io.StringIO()
     console_tty = Console(file=buf, force_terminal=True)
