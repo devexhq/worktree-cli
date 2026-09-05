@@ -6,11 +6,11 @@ import json
 from pathlib import Path
 
 import pytest
-from rich.console import Console, Group
+from rich.console import Group
 from rich.panel import Panel
 from rich.text import Text
 
-from tests.helpers import render_rich
+from tests.helpers import make_dispatcher_with_buffer, render_rich
 from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
 from worktree.cli.ui.formatters.config import (
     ConfigLoadFormatter,
@@ -298,18 +298,16 @@ class ConfigRegistrationAndDispatchTests:
         assert payload["payload"]["version"] == 1
         assert payload["payload"]["project"]["name"] == "ndjson-proj"
 
-    def test_dispatcher_config_show_terminal(self, capsys: pytest.CaptureFixture[str]) -> None:
-        console = Console(force_terminal=True, width=120)
-        dispatcher = UiDispatcher(console=console)
-        register_config_formatters(dispatcher)
+    def test_dispatcher_config_show_terminal(self) -> None:
+        dispatcher, buffer = make_dispatcher_with_buffer(force_terminal=True)
         config = WorktreeConfig(version=1, project=ProjectConfig(name="terminal-proj"))
 
         dispatcher.dispatch(config, output_format="terminal")
 
-        captured = capsys.readouterr()
-        assert "Config:" in captured.out
-        assert "Status: valid" in captured.out
-        assert "terminal-proj" in captured.out
+        output = buffer.getvalue()
+        assert "Config:" in output
+        assert "Status: valid" in output
+        assert "terminal-proj" in output
 
     def test_dispatcher_config_validate_ndjson(self, capsys: pytest.CaptureFixture[str]) -> None:
         dispatcher = UiDispatcher()

@@ -5,12 +5,12 @@ from __future__ import annotations
 import json
 
 import pytest
-from rich.console import Console, Group
+from rich.console import Group
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from tests.helpers import render_rich
+from tests.helpers import make_dispatcher_with_buffer, render_rich
 from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
 from worktree.cli.ui.formatters.history import (
     HistoryListFormatter,
@@ -318,15 +318,13 @@ class HistoryDispatcherIntegrationTests:
         assert payload["payload"]["session_id"] == "sess-12345678"
         assert payload["payload"]["run"]["session_id"] == "sess-12345678"
 
-    def test_dispatcher_terminal_format(self, capsys: pytest.CaptureFixture[str]) -> None:
-        console = Console(force_terminal=True, width=120)
-        dispatcher = UiDispatcher(console=console)
-        register_history_formatters(dispatcher)
+    def test_dispatcher_terminal_format(self) -> None:
+        dispatcher, buffer = make_dispatcher_with_buffer(force_terminal=True)
         run = _sample_run_record()
         result = HistoryListResult(status=HistoryListStatus.OK, runs=[run])
 
         dispatcher.dispatch(result, output_format="terminal")
 
-        captured = capsys.readouterr()
-        assert "Execution History" in captured.out
-        assert "sess-12345678" in captured.out
+        output = buffer.getvalue()
+        assert "Execution History" in output
+        assert "sess-12345678" in output

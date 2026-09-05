@@ -10,7 +10,7 @@ from rich.console import Console, Group
 from rich.panel import Panel
 from rich.text import Text
 
-from tests.helpers import render_rich
+from tests.helpers import make_dispatcher_with_buffer, render_rich
 from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
 from worktree.cli.ui.formatters.diff import (
     DiffResultFormatter,
@@ -211,11 +211,9 @@ def test_dispatcher_json_format_ndjson(capsys: pytest.CaptureFixture[str]) -> No
     assert payload["payload"]["diff_text"] == _SAMPLE_DIFF
 
 
-def test_dispatcher_terminal_format(capsys: pytest.CaptureFixture[str]) -> None:
+def test_dispatcher_terminal_format() -> None:
     """Verify dispatcher prints formatted console text in terminal mode."""
-    console = Console(force_terminal=True, width=120)
-    dispatcher = UiDispatcher(console=console)
-    register_diff_formatters(dispatcher)
+    dispatcher, buffer = make_dispatcher_with_buffer(force_terminal=True)
     result = DiffResult(
         status=DiffStatus.OK,
         session_id="sbx_term",
@@ -225,9 +223,9 @@ def test_dispatcher_terminal_format(capsys: pytest.CaptureFixture[str]) -> None:
 
     dispatcher.dispatch(result, output_format="terminal")
 
-    captured = capsys.readouterr()
-    assert "Session: sbx_term" in captured.out
-    assert "def old(): pass" in captured.out
+    output = buffer.getvalue()
+    assert "Session: sbx_term" in output
+    assert "def old(): pass" in output
 
 
 def test_diff_result_formatter_to_raw_exact_unwrapped() -> None:

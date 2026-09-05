@@ -1,13 +1,12 @@
-import io
 import json
 from dataclasses import dataclass
 from typing import Any
 
 import pytest
 from pydantic import BaseModel
-from rich.console import Console
 from rich.text import Text
 
+from tests.helpers import make_dispatcher_with_buffer
 from worktree.cli.ui.dispatcher import UiDispatcher
 from worktree.common.types import ComponentFormatter
 
@@ -32,34 +31,28 @@ class DummyItemFormatter(ComponentFormatter[DummyItem]):
 
 
 def test_dispatcher_direct_registration_instance() -> None:
-    string_io = io.StringIO()
-    console = Console(file=string_io, force_terminal=False)
-    dispatcher = UiDispatcher(console=console)
+    dispatcher, buffer = make_dispatcher_with_buffer()
     formatter = DummyItemFormatter()
 
     dispatcher.register(DummyItem, formatter)
     item = DummyItem(name="test", count=5)
 
     dispatcher.dispatch(item, output_format="terminal")
-    assert "Item: test (5)" in string_io.getvalue()
+    assert "Item: test (5)" in buffer.getvalue()
 
 
 def test_dispatcher_direct_registration_class() -> None:
-    string_io = io.StringIO()
-    console = Console(file=string_io, force_terminal=False)
-    dispatcher = UiDispatcher(console=console)
+    dispatcher, buffer = make_dispatcher_with_buffer()
 
     dispatcher.register(DummyItem, DummyItemFormatter)
     item = DummyItem(name="test2", count=10)
 
     dispatcher.dispatch(item, output_format="terminal")
-    assert "Item: test2 (10)" in string_io.getvalue()
+    assert "Item: test2 (10)" in buffer.getvalue()
 
 
 def test_dispatcher_decorator_registration() -> None:
-    string_io = io.StringIO()
-    console = Console(file=string_io, force_terminal=False)
-    dispatcher = UiDispatcher(console=console)
+    dispatcher, buffer = make_dispatcher_with_buffer()
 
     @dispatcher.register(SimpleItem)
     class DecItemFormatter(ComponentFormatter[SimpleItem]):
@@ -71,7 +64,7 @@ def test_dispatcher_decorator_registration() -> None:
 
     item = SimpleItem(value="hello")
     dispatcher.dispatch(item, output_format="terminal")
-    assert "Decorated: hello" in string_io.getvalue()
+    assert "Decorated: hello" in buffer.getvalue()
 
 
 def test_dispatcher_json_ndjson_output(capsys: pytest.CaptureFixture[str]) -> None:
