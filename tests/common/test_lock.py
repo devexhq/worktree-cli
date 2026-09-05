@@ -156,11 +156,7 @@ class WorkspaceLockTests:
             with WorkspaceLock(tmp_path, timeout_seconds=3.0, on_wait=on_wait) as lock:
                 assert lock.lock_path.exists()
 
-            assert len(called) == 1
-            lock_path, holder_pid, timeout_val = called[0]
-            assert lock_path == resolve_lock_file_path(tmp_path)
-            assert holder_pid == str(p1.pid)
-            assert timeout_val == 3.0
+            assert called == [(resolve_lock_file_path(tmp_path), str(p1.pid), 3.0)]
         finally:
             p1.join(timeout=5.0)
 
@@ -184,10 +180,7 @@ class WorkspaceLockTests:
                 with WorkspaceLock(tmp_path, timeout_seconds=3.0) as lock:
                     assert lock.lock_path.exists()
 
-                assert len(called) == 1
-                assert called[0][0] == resolve_lock_file_path(tmp_path)
-                assert called[0][1] == str(p1.pid)
-                assert called[0][2] == 3.0
+                assert called == [(resolve_lock_file_path(tmp_path), str(p1.pid), 3.0)]
             finally:
                 p1.join(timeout=5.0)
         finally:
@@ -216,11 +209,8 @@ class WorkspaceLockTests:
                 with WorkspaceLock(tmp_path, timeout_seconds=3.0, on_wait=explicit_cb) as lock:
                     assert lock.lock_path.exists()
 
-                assert len(explicit_called) == 1
-                assert len(default_called) == 0
-                assert explicit_called[0][0] == resolve_lock_file_path(tmp_path)
-                assert explicit_called[0][1] == str(p1.pid)
-                assert explicit_called[0][2] == 3.0
+                assert default_called == []
+                assert explicit_called == [(resolve_lock_file_path(tmp_path), str(p1.pid), 3.0)]
             finally:
                 p1.join(timeout=5.0)
         finally:
