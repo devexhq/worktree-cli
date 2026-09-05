@@ -319,12 +319,12 @@ class HistoryDispatcherIntegrationTests:
         assert payload["payload"]["run"]["session_id"] == "sess-12345678"
 
     def test_dispatcher_terminal_format(self) -> None:
-        dispatcher, buf = make_dispatcher_with_buffer(force_terminal=True)
+        dispatcher, buffer = make_dispatcher_with_buffer(force_terminal=True)
         run = _sample_run_record()
         result = HistoryListResult(status=HistoryListStatus.OK, runs=[run])
 
         dispatcher.dispatch(result, output_format="terminal")
 
-        output = buf.getvalue()
+        output = buffer.getvalue()
         assert "Execution History" in output
         assert "sess-12345678" in output

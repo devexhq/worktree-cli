@@ -213,7 +213,7 @@ def test_dispatcher_json_format_ndjson(capsys: pytest.CaptureFixture[str]) -> No
 
 def test_dispatcher_terminal_format() -> None:
     """Verify dispatcher prints formatted console text in terminal mode."""
-    dispatcher, buf = make_dispatcher_with_buffer(force_terminal=True)
+    dispatcher, buffer = make_dispatcher_with_buffer(force_terminal=True)
     result = DiffResult(
         status=DiffStatus.OK,
         session_id="sbx_term",
@@ -223,7 +223,7 @@ def test_dispatcher_terminal_format() -> None:
 
     dispatcher.dispatch(result, output_format="terminal")
 
-    out = buf.getvalue()
+    out = buffer.getvalue()
     assert "Session: sbx_term" in out
     assert "def old(): pass" in out
 

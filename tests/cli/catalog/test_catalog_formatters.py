@@ -327,12 +327,12 @@ class CatalogDispatcherIntegrationTests:
         assert payload["payload"]["item"]["name"] == "test-workflow"
 
     def test_dispatcher_terminal_format(self) -> None:
-        dispatcher, buf = make_dispatcher_with_buffer(force_terminal=True)
+        dispatcher, buffer = make_dispatcher_with_buffer(force_terminal=True)
         item = _sample_catalog_record()
         result = CatalogListResult(items=[item])
 
         dispatcher.dispatch(result, output_format="terminal")
 
-        out = buf.getvalue()
+        out = buffer.getvalue()
         assert "test-workflow" in out
         assert "workflow_1234567" in out

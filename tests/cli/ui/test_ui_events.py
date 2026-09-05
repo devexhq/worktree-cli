@@ -29,10 +29,10 @@ from worktree.core.step import ConditionEvaluationResult, StepDefinition, StepRe
 
 
 def test_error_panel_event_terminal() -> None:
-    dispatcher, buf = make_dispatcher_with_buffer()
+    dispatcher, buffer = make_dispatcher_with_buffer()
     event = ErrorPanelEvent(title="Task Run Failed", message="Command failed with exit code 1.")
     dispatcher.dispatch(event, output_format="terminal")
-    output = buf.getvalue()
+    output = buffer.getvalue()
     assert "Task Run Failed" in output
     assert "Command failed with exit code 1." in output
 
@@ -55,10 +55,10 @@ def test_error_panel_event_json(capsys: pytest.CaptureFixture[str]) -> None:
 
 
 def test_warning_event_terminal() -> None:
-    dispatcher, buf = make_dispatcher_with_buffer()
+    dispatcher, buffer = make_dispatcher_with_buffer()
     event = WarningEvent(message="Something non-fatal occurred.")
     dispatcher.dispatch(event, output_format="terminal")
-    assert "Warning: Something non-fatal occurred." in buf.getvalue()
+    assert "Warning: Something non-fatal occurred." in buffer.getvalue()
 
 
 def test_warning_event_json(capsys: pytest.CaptureFixture[str]) -> None:
@@ -75,21 +75,21 @@ def test_warning_event_json(capsys: pytest.CaptureFixture[str]) -> None:
 
 
 def test_lock_wait_event_terminal() -> None:
-    dispatcher, buf = make_dispatcher_with_buffer()
+    dispatcher, buffer = make_dispatcher_with_buffer()
     event1 = LockWaitEvent(lock_path="/path/to/.worktree/.lock", holder_pid="12345", timeout_seconds=30.0)
     dispatcher.dispatch(event1, output_format="terminal")
-    out1 = buf.getvalue()
+    out1 = buffer.getvalue()
     assert "Lock Held" in out1
     assert "PID: 12345" in out1
     assert "Waiting for lock release on '.lock'" in out1
     assert "30.0s" in out1
 
     # Without holder_pid
-    buf.seek(0)
-    buf.truncate(0)
+    buffer.seek(0)
+    buffer.truncate(0)
     event2 = LockWaitEvent(lock_path="/path/to/.worktree/.lock", holder_pid=None, timeout_seconds=15.0)
     dispatcher.dispatch(event2, output_format="terminal")
-    out2 = buf.getvalue()
+    out2 = buffer.getvalue()
     assert "Lock Held" in out2
     assert "PID:" not in out2
     assert "15.0s" in out2
@@ -158,14 +158,14 @@ class LockWaitFormatterTests:
 
 
 def test_message_event_terminal_and_styled() -> None:
-    dispatcher, buf = make_dispatcher_with_buffer()
+    dispatcher, buffer = make_dispatcher_with_buffer()
     event1 = MessageEvent(message="Running task 'build'...")
     dispatcher.dispatch(event1, output_format="terminal")
-    assert "Running task 'build'..." in buf.getvalue()
+    assert "Running task 'build'..." in buffer.getvalue()
 
     event2 = MessageEvent(message="Styled notice", style="bold")
     dispatcher.dispatch(event2, output_format="terminal")
-    assert "Styled notice" in buf.getvalue()
+    assert "Styled notice" in buffer.getvalue()
 
 
 def test_message_event_json(capsys: pytest.CaptureFixture[str]) -> None:
@@ -182,7 +182,7 @@ def test_message_event_json(capsys: pytest.CaptureFixture[str]) -> None:
 
 
 def test_run_success_event_terminal() -> None:
-    dispatcher, buf = make_dispatcher_with_buffer()
+    dispatcher, buffer = make_dispatcher_with_buffer()
     event = RunSuccessEvent(
         session_id="task_12345678",
         blueprint_name="build",
@@ -190,7 +190,7 @@ def test_run_success_event_terminal() -> None:
         status=RunStatus.COMPLETED,
     )
     dispatcher.dispatch(event, output_format="terminal")
-    output = buf.getvalue()
+    output = buffer.getvalue()
     assert "Task Run Completed:" in output
     assert "build" in output
     assert "session: task_12345678" in output
@@ -221,7 +221,7 @@ def test_run_success_event_json(capsys: pytest.CaptureFixture[str]) -> None:
 
 
 def test_step_start_event_terminal() -> None:
-    dispatcher, buf = make_dispatcher_with_buffer()
+    dispatcher, buffer = make_dispatcher_with_buffer()
     event = StepStartEvent(
         idx=1,
         total=3,
@@ -230,7 +230,7 @@ def test_step_start_event_terminal() -> None:
         command="cargo build",
     )
     dispatcher.dispatch(event, output_format="terminal")
-    assert "[STEP 1/3] Executing Compile Assets (command: cargo build)..." in buf.getvalue()
+    assert "[STEP 1/3] Executing Compile Assets (command: cargo build)..." in buffer.getvalue()
 
 
 def test_step_start_event_json(capsys: pytest.CaptureFixture[str]) -> None:
@@ -257,7 +257,7 @@ def test_step_start_event_json(capsys: pytest.CaptureFixture[str]) -> None:
 
 
 def test_step_done_event_terminal_success() -> None:
-    dispatcher, buf = make_dispatcher_with_buffer()
+    dispatcher, buffer = make_dispatcher_with_buffer()
     event = StepDoneEvent(
         idx=1,
         total=1,
@@ -267,11 +267,11 @@ def test_step_done_event_terminal_success() -> None:
         duration_seconds=1.23,
     )
     dispatcher.dispatch(event, output_format="terminal")
-    assert "[STEP 1/1] build COMPLETED" in buf.getvalue()
+    assert "[STEP 1/1] build COMPLETED" in buffer.getvalue()
 
 
 def test_step_done_event_terminal_failure() -> None:
-    dispatcher, buf = make_dispatcher_with_buffer()
+    dispatcher, buffer = make_dispatcher_with_buffer()
     event = StepDoneEvent(
         idx=2,
         total=2,
@@ -281,7 +281,7 @@ def test_step_done_event_terminal_failure() -> None:
         error_message="Assertion failed",
     )
     dispatcher.dispatch(event, output_format="terminal")
-    assert "[STEP 2/2] test FAILED: Assertion failed" in buf.getvalue()
+    assert "[STEP 2/2] test FAILED: Assertion failed" in buffer.getvalue()
 
 
 def test_step_done_event_json(capsys: pytest.CaptureFixture[str]) -> None:
@@ -313,10 +313,10 @@ def test_step_done_event_json(capsys: pytest.CaptureFixture[str]) -> None:
 
 
 def test_step_output_event_terminal() -> None:
-    dispatcher, buf = make_dispatcher_with_buffer()
+    dispatcher, buffer = make_dispatcher_with_buffer()
     event = StepOutputEvent(step_id="build", line="compiling crate...", stream="stdout")
     dispatcher.dispatch(event, output_format="terminal")
-    assert "compiling crate..." in buf.getvalue()
+    assert "compiling crate..." in buffer.getvalue()
 
 
 def test_step_output_event_json(capsys: pytest.CaptureFixture[str]) -> None:
@@ -337,40 +337,40 @@ def test_step_output_event_json(capsys: pytest.CaptureFixture[str]) -> None:
 
 
 def test_sandbox_lifecycle_event_terminal() -> None:
-    dispatcher, buf = make_dispatcher_with_buffer()
+    dispatcher, buffer = make_dispatcher_with_buffer()
     # Ready active
     dispatcher.dispatch(
         SandboxLifecycleEvent(action="ready", path="/tmp/sbx", active=True),
         output_format="terminal",
     )
-    assert "Sandbox: Active (/tmp/sbx)" in buf.getvalue()
+    assert "Sandbox: Active (/tmp/sbx)" in buffer.getvalue()
 
     # Ready in-place
-    buf.seek(0)
-    buf.truncate(0)
+    buffer.seek(0)
+    buffer.truncate(0)
     dispatcher.dispatch(
         SandboxLifecycleEvent(action="ready", path="/workspace", active=False),
         output_format="terminal",
     )
-    assert "Sandbox: In-place (workspace)" in buf.getvalue()
+    assert "Sandbox: In-place (workspace)" in buffer.getvalue()
 
     # Cleanup retained
-    buf.seek(0)
-    buf.truncate(0)
+    buffer.seek(0)
+    buffer.truncate(0)
     dispatcher.dispatch(
         SandboxLifecycleEvent(action="cleanup", path="/tmp/sbx", kept=True),
         output_format="terminal",
     )
-    assert "Sandbox: Retained (/tmp/sbx)" in buf.getvalue()
+    assert "Sandbox: Retained (/tmp/sbx)" in buffer.getvalue()
 
     # Cleanup removed
-    buf.seek(0)
-    buf.truncate(0)
+    buffer.seek(0)
+    buffer.truncate(0)
     dispatcher.dispatch(
         SandboxLifecycleEvent(action="cleanup", path="/tmp/sbx", kept=False),
         output_format="terminal",
     )
-    assert "Sandbox: Cleaned" in buf.getvalue()
+    assert "Sandbox: Cleaned" in buffer.getvalue()
 
 
 def test_sandbox_lifecycle_event_json(capsys: pytest.CaptureFixture[str]) -> None:
@@ -392,40 +392,40 @@ def test_sandbox_lifecycle_event_json(capsys: pytest.CaptureFixture[str]) -> Non
 
 
 def test_loop_lifecycle_event_terminal() -> None:
-    dispatcher, buf = make_dispatcher_with_buffer()
+    dispatcher, buffer = make_dispatcher_with_buffer()
     # Start
     dispatcher.dispatch(
         LoopLifecycleEvent(loop_id="loop_1", action="start", max_iterations=5),
         output_format="terminal",
     )
-    assert "[loop_1] Starting loop block (max_iterations: 5)" in buf.getvalue()
+    assert "[loop_1] Starting loop block (max_iterations: 5)" in buffer.getvalue()
 
     # Turn start
-    buf.seek(0)
-    buf.truncate(0)
+    buffer.seek(0)
+    buffer.truncate(0)
     dispatcher.dispatch(
         LoopLifecycleEvent(loop_id="loop_1", action="turn_start", turn=2, max_iterations=5),
         output_format="terminal",
     )
-    assert "[loop_1] --- Iteration Turn 2/5 ---" in buf.getvalue()
+    assert "[loop_1] --- Iteration Turn 2/5 ---" in buffer.getvalue()
 
     # Conditions evaluated
-    buf.seek(0)
-    buf.truncate(0)
+    buffer.seek(0)
+    buffer.truncate(0)
     dispatcher.dispatch(
         LoopLifecycleEvent(loop_id="loop_1", action="conditions_evaluated", message="Evaluated conditions"),
         output_format="terminal",
     )
-    assert "Evaluated conditions" in buf.getvalue()
+    assert "Evaluated conditions" in buffer.getvalue()
 
     # Done completed
-    buf.seek(0)
-    buf.truncate(0)
+    buffer.seek(0)
+    buffer.truncate(0)
     dispatcher.dispatch(
         LoopLifecycleEvent(loop_id="loop_1", action="done", turn=3, status="completed"),
         output_format="terminal",
     )
-    assert "[loop_1] Loop completed successfully in 3 iteration(s)." in buf.getvalue()
+    assert "[loop_1] Loop completed successfully in 3 iteration(s)." in buffer.getvalue()
 
 
 def test_loop_lifecycle_event_json(capsys: pytest.CaptureFixture[str]) -> None:
@@ -454,7 +454,7 @@ def test_loop_lifecycle_event_json(capsys: pytest.CaptureFixture[str]) -> None:
 
 
 def test_dispatcher_run_observer_callbacks() -> None:
-    dispatcher, buf = make_dispatcher_with_buffer()
+    dispatcher, buffer = make_dispatcher_with_buffer()
     observer = DispatcherRunObserver(dispatcher)
 
     with observer:
@@ -483,7 +483,7 @@ def test_dispatcher_run_observer_callbacks() -> None:
         observer.on_loop_done("loop-test", "completed", 1)
         observer.on_sandbox_cleanup(kept=False, path=Path("/tmp/sbx"))
 
-    output = buf.getvalue()
+    output = buffer.getvalue()
     assert "Sandbox: Active (/tmp/sbx)" in output
     assert "[STEP 1/2] Executing First Step (command: echo 1)..." in output
     assert "output line 1" in output
@@ -522,7 +522,7 @@ def test_resolve_cli_observer() -> None:
 
 def test_resolve_cli_observer_live_mode_emits_output() -> None:
     """Verify resolve_cli_observer with live=True emits step, sandbox, and loop lifecycle output."""
-    dispatcher, buf = make_dispatcher_with_buffer(force_terminal=True)
+    dispatcher, buffer = make_dispatcher_with_buffer(force_terminal=True)
     observer = resolve_cli_observer(dispatcher, output_format="terminal")
     assert observer._live is True
 
@@ -559,7 +559,7 @@ def test_resolve_cli_observer_live_mode_emits_output() -> None:
         observer.on_loop_done("loop-live", "completed", 2)
         observer.on_sandbox_cleanup(kept=False, path=Path("/tmp/sbx_live"))
 
-    output = buf.getvalue()
+    output = buffer.getvalue()
     assert "/tmp/sbx_live" in output
     assert "Live Step" in output
     assert "echo live" in output
@@ -584,7 +584,7 @@ def test_dispatcher_format_and_interactive_properties() -> None:
 
 
 def test_dispatcher_live_mode_routing() -> None:
-    dispatcher, buf = make_dispatcher_with_buffer(force_terminal=True)
+    dispatcher, buffer = make_dispatcher_with_buffer(force_terminal=True)
     observer = resolve_cli_observer(dispatcher, output_format="terminal")
 
     with observer:
@@ -598,6 +598,6 @@ def test_dispatcher_live_mode_routing() -> None:
         dispatcher.dispatch(LoopLifecycleEvent(loop_id="l1", action="start", max_iterations=2))
 
     assert dispatcher._live_display is None
-    output = buf.getvalue()
+    output = buffer.getvalue()
     assert "Sandbox: Active (/tmp/sbx)" in output
     assert "[l1] Starting loop block (max_iterations: 2)" in output

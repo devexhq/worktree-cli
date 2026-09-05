@@ -543,11 +543,11 @@ def test_dispatcher_json_format_ndjson(capsys: pytest.CaptureFixture[str]) -> No
 
 
 def test_dispatcher_terminal_format() -> None:
-    dispatcher, buf = make_dispatcher_with_buffer(force_terminal=True)
+    dispatcher, buffer = make_dispatcher_with_buffer(force_terminal=True)
     result = _make_status_result()
 
     dispatcher.dispatch(result, output_format="terminal")
 
-    output = buf.getvalue()
+    output = buffer.getvalue()
     assert "Worktree Workspace Status" in output
     assert "worktree-cli" in output

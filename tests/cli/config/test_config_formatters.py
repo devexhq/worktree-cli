@@ -299,12 +299,12 @@ class ConfigRegistrationAndDispatchTests:
         assert payload["payload"]["project"]["name"] == "ndjson-proj"
 
     def test_dispatcher_config_show_terminal(self) -> None:
-        dispatcher, buf = make_dispatcher_with_buffer(force_terminal=True)
+        dispatcher, buffer = make_dispatcher_with_buffer(force_terminal=True)
         config = WorktreeConfig(version=1, project=ProjectConfig(name="terminal-proj"))
 
         dispatcher.dispatch(config, output_format="terminal")
 
-        out = buf.getvalue()
+        out = buffer.getvalue()
         assert "Config:" in out
         assert "Status: valid" in out
         assert "terminal-proj" in out

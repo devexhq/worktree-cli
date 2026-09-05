@@ -40,7 +40,7 @@ class TestDispatcherFailurePrompter:
         raw_input: str,
         expected: FailurePromptDecision,
     ) -> None:
-        dispatcher, buf = make_dispatcher_with_buffer(force_terminal=True)
+        dispatcher, buffer = make_dispatcher_with_buffer(force_terminal=True)
         prompter = DispatcherFailurePrompter(dispatcher, kind="task")
 
         step = StepDefinition(id="step_1", name="Build Step", run="make build")
@@ -61,14 +61,14 @@ class TestDispatcherFailurePrompter:
         )
 
         assert decision == expected
-        rendered = buf.getvalue()
+        rendered = buffer.getvalue()
         assert "Step 'Build Step' failed (exit code 2)." in rendered
         assert "Compilation failed on line 10" in rendered
         assert "Task paused waiting for user input." in rendered
         assert "Options:" in rendered
 
     def test_prompt_step_failure_invalid_then_valid(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        dispatcher, buf = make_dispatcher_with_buffer(force_terminal=True)
+        dispatcher, buffer = make_dispatcher_with_buffer(force_terminal=True)
         prompter = DispatcherFailurePrompter(dispatcher, kind="task")
 
         step = StepDefinition(id="step_1", run="make")
@@ -79,7 +79,7 @@ class TestDispatcherFailurePrompter:
 
         decision = prompter.prompt_step_failure(step=step, result=result, diagnostic="")
         assert decision == FailurePromptDecision.CONTINUE
-        assert "Invalid option" in buf.getvalue()
+        assert "Invalid option" in buffer.getvalue()
 
     def test_prompt_step_failure_eof_aborts(self, monkeypatch: pytest.MonkeyPatch) -> None:
         dispatcher, _ = make_dispatcher_with_buffer(force_terminal=True)
@@ -96,7 +96,7 @@ class TestDispatcherFailurePrompter:
         assert decision == FailurePromptDecision.ABORT
 
     def test_prompt_loop_max_iterations_terminal(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        dispatcher, buf = make_dispatcher_with_buffer(force_terminal=True)
+        dispatcher, buffer = make_dispatcher_with_buffer(force_terminal=True)
         prompter = DispatcherFailurePrompter(dispatcher, kind="workflow")
 
         loop = LoopStepBlock(
@@ -115,7 +115,7 @@ class TestDispatcherFailurePrompter:
             grant_count=4,
         )
         assert decision == LoopPromptDecision.GRANT
-        rendered = buf.getvalue()
+        rendered = buffer.getvalue()
         assert "[loop_1] Reached max_iterations (5)" in rendered
         assert "Grant 4 additional iterations" in rendered
 
@@ -142,8 +142,8 @@ class TestDispatcherFailurePrompter:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        stdout_buf = io.StringIO()
-        monkeypatch.setattr("sys.stdout", stdout_buf)
+        stdout_buffer = io.StringIO()
+        monkeypatch.setattr("sys.stdout", stdout_buffer)
 
         dispatcher = UiDispatcher(output_format="json")
         prompter = DispatcherFailurePrompter(dispatcher, kind="task")
@@ -154,7 +154,7 @@ class TestDispatcherFailurePrompter:
         decision = prompter.prompt_step_failure(step=step, result=result, diagnostic="ruff syntax error")
         assert decision == FailurePromptDecision.ABORT
 
-        lines = [line for line in stdout_buf.getvalue().splitlines() if line.strip()]
+        lines = [line for line in stdout_buffer.getvalue().splitlines() if line.strip()]
         assert len(lines) == 1
         envelope = json.loads(lines[0])
         assert envelope["event_type"] == "PromptEvent"
