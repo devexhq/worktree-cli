@@ -9,10 +9,14 @@ from worktree.core.diff.models import DiffResult
 
 from .diff_result import DiffResultFormatter
 
+if TYPE_CHECKING:
+    from rich.console import Console
 
-def register_diff_formatters(dispatcher: DispatcherProtocol) -> None:
+
+def register_diff_formatters(dispatcher: DispatcherProtocol, console: Console | None = None) -> None:
     """Register diff formatters on the provided dispatcher."""
-    dispatcher.register(DiffResult, DiffResultFormatter())
+    effective_console = console or getattr(dispatcher, "_custom_console", None)
+    dispatcher.register(DiffResult, DiffResultFormatter(console=effective_console))
 
 
 __all__ = [

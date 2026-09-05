@@ -25,7 +25,7 @@ _SAMPLE_DIFF = """diff --git a/src/main.py b/src/main.py
 +++ b/src/main.py
 @@ -1,3 +1,3 @@
 -def old(): pass
-+def new(): pass
++def new(): pass  # intentionally long line exceeding 120 characters to ensure diff raw output does not wrap at terminal columns boundaries
 """
 
 
@@ -104,7 +104,8 @@ class DiffCliIntegrationTests:
         result = runner.invoke(app, ["diff", session_id, "--raw"])
         assert result.exit_code == 0
         assert f"Session: {session_id}" not in result.output
-        assert _SAMPLE_DIFF.strip() in result.output
+        assert "Session:" not in result.stdout
+        assert result.stdout == _SAMPLE_DIFF
 
     def test_cli_diff_full_flag(self, sample_diff: tuple[Path, CliContext]) -> None:
         """Verify 'wt diff <session_id> --full' renders formatted output with session header."""
@@ -125,7 +126,15 @@ class DiffCliIntegrationTests:
         result = runner.invoke(app, ["diff", session_id, "--raw", "--full"])
         assert result.exit_code == 0
         assert f"Session: {session_id}" not in result.output
-        assert _SAMPLE_DIFF.strip() in result.output
+        assert "Session:" not in result.stdout
+        assert result.stdout == _SAMPLE_DIFF
+
+    def test_cli_diff_raw_latest_session(self, sample_diff: tuple[Path, CliContext]) -> None:
+        """Verify 'wt diff --raw' outputs plain text diff for latest session without header."""
+        result = runner.invoke(app, ["diff", "--raw"])
+        assert result.exit_code == 0
+        assert "Session:" not in result.stdout
+        assert result.stdout == _SAMPLE_DIFF
 
     def test_cli_diff_large_patch_tty_truncation(
         self, sample_diff: tuple[Path, CliContext], monkeypatch: pytest.MonkeyPatch

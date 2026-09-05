@@ -23,7 +23,7 @@ _SAMPLE_DIFF = """diff --git a/src/main.py b/src/main.py
 +++ b/src/main.py
 @@ -1,3 +1,3 @@
 -def old(): pass
-+def new(): pass
++def new(): pass  # intentionally long line exceeding 120 characters to ensure diff raw output does not wrap at terminal columns boundaries
 """
 
 
@@ -228,3 +228,84 @@ def test_dispatcher_terminal_format(capsys: pytest.CaptureFixture[str]) -> None:
     captured = capsys.readouterr()
     assert "Session: sbx_term" in captured.out
     assert "def old(): pass" in captured.out
+
+
+def test_diff_result_formatter_to_raw_exact_unwrapped() -> None:
+    """Verify to_raw returns exact diff_text without wrapping lines over 120 chars when raw=True."""
+    formatter = DiffResultFormatter()
+    result = DiffResult(
+        status=DiffStatus.OK,
+        session_id="sbx_raw_1",
+        artifact_path=Path("/repo/.worktree/sessions/sbx_raw_1/diff.patch"),
+        diff_text=_SAMPLE_DIFF,
+        raw=True,
+    )
+
+    out = formatter.to_raw(result)
+    assert out == _SAMPLE_DIFF
+
+
+def test_diff_result_formatter_to_raw_empty_diff() -> None:
+    """Verify to_raw returns single-line message for empty diff."""
+    formatter = DiffResultFormatter()
+    result = DiffResult(
+        status=DiffStatus.EMPTY_DIFF,
+        session_id="sbx_raw_empty",
+        artifact_path=Path("/repo/.worktree/sessions/sbx_raw_empty/diff.patch"),
+        diff_text="",
+    )
+
+    out = formatter.to_raw(result)
+    assert out == "No changes recorded for session sbx_raw_empty."
+
+
+def test_diff_result_formatter_to_raw_error_panel() -> None:
+    """Verify to_raw returns raw string error panel on non-ok status."""
+    formatter = DiffResultFormatter()
+    result = DiffResult(
+        status=DiffStatus.SESSION_NOT_FOUND,
+        session_id="sbx_missing_raw",
+        errors=["Session 'sbx_missing_raw' not found under .worktree/sessions/."],
+    )
+
+    out = formatter.to_raw(result)
+    assert "Session 'sbx_missing_raw' not found" in out
+
+
+def test_diff_result_formatter_injected_console_tty_truncation() -> None:
+    """Verify injected Console with is_terminal=True enables truncation in to_raw and to_rich."""
+    forced_tty_console = Console(force_terminal=True)
+    formatter = DiffResultFormatter(console=forced_tty_console, max_lines=2)
+    result = DiffResult(
+        status=DiffStatus.OK,
+        session_id="sbx_trunc",
+        artifact_path=Path("/repo/.worktree/sessions/sbx_trunc/diff.patch"),
+        diff_text="line 1\nline 2\nline 3\nline 4\n",
+        raw=False,
+    )
+
+    # to_raw truncates to max_lines when running under TTY and raw=False
+    raw_out = formatter.to_raw(result)
+    assert raw_out == "line 1\nline 2"
+
+    # to_rich renders truncation notice
+    rich_out = render_rich(formatter.to_rich(result))
+    assert "diff truncated: showing 2 of 4 lines" in rich_out
+
+
+def test_dispatcher_raw_format(capsys: pytest.CaptureFixture[str]) -> None:
+    """Verify dispatcher prints exact raw text without wrapping in raw mode."""
+    dispatcher = UiDispatcher()
+    register_diff_formatters(dispatcher)
+    result = DiffResult(
+        status=DiffStatus.OK,
+        session_id="sbx_raw_dispatch",
+        artifact_path=Path("/repo/.worktree/sessions/sbx_raw_dispatch/diff.patch"),
+        diff_text=_SAMPLE_DIFF,
+        raw=True,
+    )
+
+    dispatcher.dispatch(result, output_format="raw")
+
+    captured = capsys.readouterr()
+    assert captured.out == _SAMPLE_DIFF

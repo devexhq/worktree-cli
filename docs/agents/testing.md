@@ -37,6 +37,36 @@ reach 90% line coverage while missing every real defect, and this one has.
   duplicate class survived.
 - `tests/core/**` must never import `worktree.cli.*`.
 
+### Test Names
+
+**`test_<condition>_<outcome>`.** The class or module carries the subject; the
+method carries what varies and what results. A reader must get the behavior from
+the node id alone, which is what a failure prints:
+`ResolveApiKeyTests::test_returns_key_when_set` says what `test_present` hides.
+
+| Opaque | Same test, decipherable |
+|---|---|
+| `test_present` | `test_returns_key_when_set` |
+| `test_timeout` | `test_timeout_maps_to_error` |
+| `test_success_block` | `test_create_ok_includes_sandbox_id` |
+| `test_no_op` | `test_no_edits_leaves_tree_unchanged` |
+
+**Banned: a name with no outcome.** `test_ok`, `test_success`, `test_present`,
+`test_missing`, `test_blank`, `test_basic`, `test_default`, `test_works`,
+`test_timeout`, `test_no_op`, `test_help`. A `should` prefix is not an outcome:
+`test_should_present` is `test_present` with filler, so do not add one.
+
+**Docstrings are optional, and must not restate the name.** `tests/*` ignores
+Ruff's `D` rules deliberately. Write one only for a constraint an identifier
+cannot carry: "detached grandchild processes are killed when step times out"
+(`tests/core/step/test_process_group.py`) earns it, "Verify collect without
+config raises ConfigLoadError" above
+`test_collect_no_config_raises_on_missing_config` does not. If swapping the
+docstring for the name would not change a reader's understanding, delete it.
+
+Rename opportunistically, in files you are already editing. Do not land a
+suite-wide rename.
+
 ### Organizing Command Tests by Tier
 
 Organize CLI command test modules into clear execution tiers to aid comprehension:
@@ -127,7 +157,8 @@ not instances. Grow this directory.
   "terminates the child process tree", a reviewer must be able to point at the
   line that checks the child died. A name that overstates the body is worse than
   no test: it forecloses the audit. When you copy a test, change the *inputs*,
-  not just the name - a renamed duplicate is how an untested branch hides.
+  not just the name - a renamed duplicate is how an untested branch hides. The
+  required name format is [Test Names](#test-names).
 - **`is not None` is not an assertion.** If it is the only assert, the test is
   unfinished.
 - **`isinstance` only when it distinguishes two real code paths.** `basedpyright`
