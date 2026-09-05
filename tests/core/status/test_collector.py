@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import stat
 import subprocess
 
 import pytest
@@ -440,3 +442,114 @@ class TestStatusCollector:
         assert result.database.is_accessible
         assert result.sandboxes.active_sandboxes == 1
         assert result.sandboxes.total_sandboxes == 1
+
+    def test_collect_status_warnings_includes_cleaned_config_error(
+        self,
+        git_fs: GitFileSystem,
+    ) -> None:
+        """Verify cleaned config errors are included in result.warnings when config is malformed."""
+        config_path = git_fs.base_path / ".worktree" / "config.json"
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text("{\ninvalid_json: true\n", encoding="utf-8")
+
+        result = collect_status(git_fs.base_path)
+
+        assert any(
+            w.startswith("Malformed config.json: Expecting property name enclosed in double quotes")
+            and "(CONFIG_MALFORMED_JSON)" in w
+            for w in result.warnings
+        )
+
+    def test_collect_status_warnings_ignores_config_errors_when_not_found(
+        self,
+        git_fs: GitFileSystem,
+    ) -> None:
+        """Verify config errors are ignored and only uninitialized warning is included when config is missing."""
+        subprocess.run(
+            ["git", "checkout", "-b", "feature-test"],
+            cwd=git_fs.base_path,
+            check=True,
+            capture_output=True,
+        )
+        result = collect_status(git_fs.base_path)
+
+        assert result.warnings == ["Worktree workspace is not initialized. Run 'wt init' to configure."]
+
+    def test_collect_status_fixes_for_uninitialized_workspace(
+        self,
+        git_fs: GitFileSystem,
+    ) -> None:
+        """Verify result.fixes contains initialization guidance for uninitialized workspace."""
+        result = collect_status(git_fs.base_path)
+        assert result.fixes == ["Run 'wt init' to initialize Worktree in this repository."]
+
+    def test_collect_status_fixes_for_non_git_repo(
+        self,
+        fs: FileSystem,
+    ) -> None:
+        """Verify result.fixes contains git init guidance for non-git repository with valid config."""
+        fs.create_config_file(agent={"model": "gpt-4o"})
+        result = collect_status(fs.base_path)
+        assert result.fixes == ["Run 'git init' or navigate to a Git repository."]
+
+    def test_collect_status_fixes_for_malformed_json(
+        self,
+        git_fs: GitFileSystem,
+    ) -> None:
+        """Verify result.fixes contains JSON repair guidance for malformed config."""
+        config_path = git_fs.base_path / ".worktree" / "config.json"
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text("{bad json: true", encoding="utf-8")
+        result = collect_status(git_fs.base_path)
+        assert result.fixes == ["Repair JSON syntax in .worktree/config.json or restore from backup."]
+
+    def test_collect_status_fixes_for_schema_invalid(
+        self,
+        git_fs: GitFileSystem,
+    ) -> None:
+        """Verify result.fixes contains schema repair guidance for invalid config schema."""
+        config_path = git_fs.base_path / ".worktree" / "config.json"
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text("{}", encoding="utf-8")
+        result = collect_status(git_fs.base_path)
+        assert result.fixes == [
+            "Run 'wt config validate' to inspect schema errors or 'wt init --repair' to insert missing keys."
+        ]
+
+    def test_collect_status_fixes_for_root_not_object(
+        self,
+        git_fs: GitFileSystem,
+    ) -> None:
+        """Verify result.fixes contains root object guidance when config root is an array."""
+        config_path = git_fs.base_path / ".worktree" / "config.json"
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text('["not", "an", "object"]', encoding="utf-8")
+        result = collect_status(git_fs.base_path)
+        assert result.fixes == ["Ensure .worktree/config.json contains a JSON object root."]
+
+    def test_collect_status_fixes_for_path_is_directory(
+        self,
+        git_fs: GitFileSystem,
+    ) -> None:
+        """Verify result.fixes contains removal guidance when config path is a directory."""
+        config_path = git_fs.base_path / ".worktree" / "config.json"
+        config_path.mkdir(parents=True, exist_ok=True)
+        result = collect_status(git_fs.base_path)
+        assert result.fixes == ["Remove directory at .worktree/config.json and run 'wt init'."]
+
+    def test_collect_status_fixes_for_unreadable(
+        self,
+        git_fs: GitFileSystem,
+    ) -> None:
+        """Verify result.fixes contains permissions guidance when config file is unreadable."""
+        config_path = git_fs.base_path / ".worktree" / "config.json"
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text("{}", encoding="utf-8")
+        config_path.chmod(0)
+        try:
+            if os.access(config_path, os.R_OK):
+                pytest.skip("filesystem still allows reading unreadable mode")
+            result = collect_status(git_fs.base_path)
+            assert result.fixes == ["Check file permissions for .worktree/config.json."]
+        finally:
+            config_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
