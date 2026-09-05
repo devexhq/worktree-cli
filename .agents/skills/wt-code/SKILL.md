@@ -5,7 +5,7 @@ description: >-
   scoped tests while building and the full gate suite (tests with coverage,
   ruff, basedpyright, complexity) once implementation is complete, without ever
   committing or pushing. Invoked as /wt-code to implement the plan, or /wt-code
-  review to address the findings in .agentic/review.md. Use when asked to
+  review [--fix blockers|suggestions|all] to address the findings in .agentic/review.md. Use when asked to
   implement a plan, write the code for a planned change, or fix review findings.
 ---
 
@@ -18,7 +18,7 @@ Turn `.agentic/plan.md` into working code, or in review mode, turn `.agentic/rev
 | Invocation | Input | Job |
 |---|---|---|
 | `/wt-code` | `.agentic/plan.md` | Implement the plan |
-| `/wt-code review` | `.agentic/review.md` | Fix the review's Blocking findings |
+| `/wt-code review [--fix <scope>]` | `.agentic/review.md` | Fix review findings (`blockers`, `suggestions`, `all`) |
 
 If the input file is missing, stop and say so. Do not reconstruct a plan from the conversation, and do not implement from memory of what was discussed: run `/wt-plan` first.
 
@@ -77,7 +77,10 @@ Loop until every gate is green, then report: what was implemented per FR, the ga
 ## Review mode (`/wt-code review`)
 
 1. Read `.agentic/review.md`. If it is absent, stop and say so.
-2. Fix every **Blocking** finding. Address **Suggestions** only if the user asks or they passed in "--all"; leave **Nits** alone unless you are already editing that line.
+2. Determine which findings to address based on `--fix [suggestions, blockers, all]` (or user instruction):
+   - **`blockers`** (default): Fix every **Blocking** finding. Leave **Suggestions** and **Nits** alone unless you are already editing that line.
+   - **`suggestions`**: Fix every **Blocking** finding and address **Suggestions**. Leave **Nits** alone unless you are already editing that line.
+   - **`all`** (or `--all`): Fix all findings across all categories: **Blocking**, **Suggestions**, and **Nits**.
 3. Re-read each cited file before editing it, since the review may describe a state that has since changed.
 4. Dispute rather than comply when a finding is wrong: state the finding, why it does not hold, and flag it 🚨 for the human. A finding you cannot verify in the code is not a finding.
 5. Run the same completion gate above once the fixes are in.
