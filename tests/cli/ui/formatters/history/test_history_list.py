@@ -2,8 +2,17 @@
 
 from __future__ import annotations
 
-from tests.helpers import render_rich
+from typing import Any
+
+import pytest
+
+from tests.helpers import FormatterCase, render_rich
+from worktree.cli.ui.formatters.history.common import format_run_duration
 from worktree.cli.ui.formatters.history.history_list import HistoryListFormatter
+from worktree.cli.ui.formatters.history.history_views import (
+    HistoryListView,
+    RunSummaryView,
+)
 from worktree.core.blueprint import BlueprintKind
 from worktree.core.db import RunRecord, RunStatus
 from worktree.core.history.models import (
@@ -30,7 +39,7 @@ def _sample_run_record(
         blueprint_name=blueprint_name,
         kind=kind,
         status=status,
-        branch_name=branch_name,
+        branch_name=branch_name or "",
         started_at=started_at,
         completed_at=completed_at,
         error_message=error_message,
@@ -38,77 +47,186 @@ def _sample_run_record(
     )
 
 
-class HistoryListFormatterTests:
-    """Tests for HistoryListFormatter."""
+def _make_run_summary_view(**overrides: Any) -> RunSummaryView:
+    defaults: dict[str, Any] = {
+        "session_id": "sess-12345678",
+        "kind": "task",
+        "blueprint_name": "deploy-task",
+        "status": "completed",
+        "branch_name": "feature/test",
+        "started_at": "2026-08-19 01:00:00",
+        "completed_at": "2026-08-19 01:00:10",
+        "duration_seconds": 10.0,
+        "error_message": None,
+    }
+    defaults.update(overrides)
+    return RunSummaryView(**defaults)
 
-    def test_to_rich_with_runs_renders_session_and_duration(self) -> None:
-        formatter = HistoryListFormatter()
-        run = _sample_run_record()
-        result = HistoryListResult(status=HistoryListStatus.OK, runs=[run])
 
-        rendered = render_rich(formatter.to_rich(result))
-        assert "sess-12345678" in rendered
-        assert "deploy-task" in rendered
-        assert "10.00s" in rendered
+def _make_history_list_view(**overrides: Any) -> HistoryListView:
+    defaults: dict[str, Any] = {
+        "status": HistoryListStatus.OK,
+        "runs": [_make_run_summary_view()],
+        "total_runs": 1,
+        "errors": [],
+        "warnings": [],
+        "fixes": [],
+    }
+    defaults.update(overrides)
+    return HistoryListView(**defaults)
 
-    def test_to_rich_when_empty_renders_no_runs(self) -> None:
-        formatter = HistoryListFormatter()
-        result = HistoryListResult(status=HistoryListStatus.OK, runs=[])
 
-        rendered = render_rich(formatter.to_rich(result))
-        assert "sess-" not in rendered
+POPULATED_RUNS = FormatterCase(
+    data=HistoryListResult(
+        status=HistoryListStatus.OK,
+        runs=[_sample_run_record()],
+    ),
+    view=_make_history_list_view(),
+)
 
-    def test_to_rich_with_warnings_renders_warning_and_run(self) -> None:
-        formatter = HistoryListFormatter()
-        run = _sample_run_record()
-        result = HistoryListResult(
-            status=HistoryListStatus.OK,
-            runs=[run],
-            warnings=["Reconciled 1 interrupted session (session_id: sess-stale)."],
-        )
+EMPTY_RUNS = FormatterCase(
+    data=HistoryListResult(
+        status=HistoryListStatus.OK,
+        runs=[],
+    ),
+    view=_make_history_list_view(runs=[], total_runs=0),
+)
 
-        rendered = render_rich(formatter.to_rich(result))
-        assert "Reconciled 1 interrupted session" in rendered
-        assert "sess-12345678" in rendered
+WARNINGS_RUNS = FormatterCase(
+    data=HistoryListResult(
+        status=HistoryListStatus.OK,
+        runs=[_sample_run_record()],
+        warnings=["Reconciled 1 interrupted session (session_id: sess-stale)."],
+    ),
+    view=_make_history_list_view(
+        warnings=["Reconciled 1 interrupted session (session_id: sess-stale)."],
+    ),
+)
 
-    def test_to_rich_when_errors_renders_error_message(self) -> None:
-        formatter = HistoryListFormatter()
-        result = HistoryListResult(
-            status=HistoryListStatus.OK,
-            errors=["Database query failed."],
-        )
+ERRORS_RUNS = FormatterCase(
+    data=HistoryListResult(
+        status=HistoryListStatus.OK,
+        errors=["Database query failed."],
+    ),
+    view=_make_history_list_view(
+        runs=[],
+        total_runs=0,
+        errors=["Database query failed."],
+    ),
+)
 
-        rendered = render_rich(formatter.to_rich(result))
-        assert "Database query failed." in rendered
+HISTORY_LIST_CASES = [
+    pytest.param(POPULATED_RUNS, id="populated_runs"),
+    pytest.param(EMPTY_RUNS, id="empty_runs"),
+    pytest.param(WARNINGS_RUNS, id="warnings_runs"),
+    pytest.param(ERRORS_RUNS, id="errors_runs"),
+]
 
-    def test_to_json_serializable_returns_exact_dict(self) -> None:
-        formatter = HistoryListFormatter()
-        run = _sample_run_record()
-        result = HistoryListResult(
-            status=HistoryListStatus.OK,
-            runs=[run],
-            warnings=["Warning test"],
-        )
-
-        dumped = formatter.to_json_serializable(result)
-        assert dumped == {
+HISTORY_LIST_PAYLOAD_CASES = [
+    pytest.param(
+        POPULATED_RUNS,
+        {
             "status": "ok",
             "runs": [
                 {
-                    "id": 1,
                     "session_id": "sess-12345678",
-                    "blueprint_name": "deploy-task",
                     "kind": "task",
-                    "branch_name": "feature/test",
+                    "blueprint_name": "deploy-task",
                     "status": "completed",
+                    "branch_name": "feature/test",
                     "started_at": "2026-08-19 01:00:00",
                     "completed_at": "2026-08-19 01:00:10",
+                    "duration_seconds": 10.0,
                     "error_message": None,
-                    "checkpoint_json": None,
-                    "pid": None,
                 }
             ],
-            "warnings": ["Warning test"],
+            "total_runs": 1,
             "errors": [],
+            "warnings": [],
             "fixes": [],
-        }
+        },
+        id="populated_runs",
+    ),
+    pytest.param(
+        EMPTY_RUNS,
+        {
+            "status": "ok",
+            "runs": [],
+            "total_runs": 0,
+            "errors": [],
+            "warnings": [],
+            "fixes": [],
+        },
+        id="empty_runs",
+    ),
+    pytest.param(
+        WARNINGS_RUNS,
+        {
+            "status": "ok",
+            "runs": [
+                {
+                    "session_id": "sess-12345678",
+                    "kind": "task",
+                    "blueprint_name": "deploy-task",
+                    "status": "completed",
+                    "branch_name": "feature/test",
+                    "started_at": "2026-08-19 01:00:00",
+                    "completed_at": "2026-08-19 01:00:10",
+                    "duration_seconds": 10.0,
+                    "error_message": None,
+                }
+            ],
+            "total_runs": 1,
+            "errors": [],
+            "warnings": ["Reconciled 1 interrupted session (session_id: sess-stale)."],
+            "fixes": [],
+        },
+        id="warnings_runs",
+    ),
+    pytest.param(
+        ERRORS_RUNS,
+        {
+            "status": "ok",
+            "runs": [],
+            "total_runs": 0,
+            "errors": ["Database query failed."],
+            "warnings": [],
+            "fixes": [],
+        },
+        id="errors_runs",
+    ),
+]
+
+
+class HistoryListFormatterTests:
+    """Tier 2 presentation contract tests for HistoryListFormatter."""
+
+    @pytest.mark.parametrize("case", HISTORY_LIST_CASES)
+    def test_transform_derives_expected_view(self, case: FormatterCase[HistoryListResult, HistoryListView]) -> None:
+        """Verify transform derives the exact HistoryListView model representation."""
+        assert HistoryListFormatter().transform(case.data) == case.view
+
+    @pytest.mark.parametrize(("case", "expected_payload"), HISTORY_LIST_PAYLOAD_CASES)
+    def test_json_payload_matches_published_shape(
+        self,
+        case: FormatterCase[HistoryListResult, HistoryListView],
+        expected_payload: dict[str, Any],
+    ) -> None:
+        """Verify to_json_serializable matches the exact published wire-format literal dict."""
+        assert HistoryListFormatter().to_json_serializable(case.data) == expected_payload
+
+    @pytest.mark.parametrize("case", HISTORY_LIST_CASES)
+    def test_rich_render_shows_every_view_value(self, case: FormatterCase[HistoryListResult, HistoryListView]) -> None:
+        """Verify that all non-null semantic view model values reach the Rich renderable output."""
+        rendered = render_rich(HistoryListFormatter().to_rich(case.data))
+        view = case.view
+
+        for run in view.runs:
+            assert run.session_id in rendered
+            assert run.blueprint_name in rendered
+            if run.duration_seconds is not None:
+                assert format_run_duration(run.duration_seconds) in rendered
+        for warning in view.warnings:
+            assert warning in rendered
+        for error in view.errors:
+            assert error in rendered
