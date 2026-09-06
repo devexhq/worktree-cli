@@ -9,6 +9,13 @@ from worktree.core.history.models import HistoryListResult, HistoryShowResult
 
 from .history_list import HistoryListFormatter
 from .history_show import HistoryShowFormatter
+from .history_views import (
+    CheckpointDetailsView,
+    CheckpointStepView,
+    HistoryListView,
+    HistoryShowView,
+    RunSummaryView,
+)
 
 
 def register_history_formatters(dispatcher: DispatcherProtocol) -> None:
@@ -18,7 +25,12 @@ def register_history_formatters(dispatcher: DispatcherProtocol) -> None:
 
 
 __all__ = [
+    "CheckpointDetailsView",
+    "CheckpointStepView",
     "HistoryListFormatter",
+    "HistoryListView",
     "HistoryShowFormatter",
+    "HistoryShowView",
+    "RunSummaryView",
     "register_history_formatters",
 ]

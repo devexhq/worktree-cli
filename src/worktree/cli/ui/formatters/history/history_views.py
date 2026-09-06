@@ -1,0 +1,71 @@
+from __future__ import annotations
+
+from pydantic import BaseModel, Field
+
+from worktree.core.history.models import HistoryListStatus, HistoryShowStatus
+
+
+class RunSummaryView(BaseModel):
+    """Semantic view of an execution history run record."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    session_id: str
+    kind: str
+    blueprint_name: str
+    status: str
+    branch_name: str | None = None
+    started_at: str | None = None
+    completed_at: str | None = None
+    duration_seconds: float | None = None
+    error_message: str | None = None
+
+
+class HistoryListView(BaseModel):
+    """Semantic view of execution history listing."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    status: HistoryListStatus
+    runs: list[RunSummaryView] = Field(default_factory=list)
+    total_runs: int = 0
+    errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    fixes: list[str] = Field(default_factory=list)
+
+
+class CheckpointStepView(BaseModel):
+    """Semantic view of an individual checkpoint step outcome."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    step_id: str
+    status: str
+    duration_seconds: float
+    error_message: str | None = None
+
+
+class CheckpointDetailsView(BaseModel):
+    """Semantic view of parsed runtime checkpoint metadata."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    pending_step_id: str
+    next_step_index: int
+    diagnostic: str | None = None
+    step_results: list[CheckpointStepView] = Field(default_factory=list)
+
+
+class HistoryShowView(BaseModel):
+    """Semantic view of execution history session detail."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    status: HistoryShowStatus
+    session_id: str | None = None
+    run: RunSummaryView | None = None
+    checkpoint: CheckpointDetailsView | None = None
+    checkpoint_raw: str | None = None
+    errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    fixes: list[str] = Field(default_factory=list)
