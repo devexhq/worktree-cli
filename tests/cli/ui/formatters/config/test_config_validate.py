@@ -3,84 +3,115 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
-from tests.helpers import render_rich
-from worktree.cli.ui.formatters.config.config_validate import ConfigValidateFormatter
+import pytest
+
+from tests.helpers import FormatterCase, render_rich
+from worktree.cli.ui.formatters.config import (
+    ConfigValidateFormatter,
+    ConfigValidationView,
+)
 from worktree.core.config.models import ProjectConfig, WorktreeConfig
 from worktree.core.config.validate import (
     ConfigValidationResult,
     ConfigValidationStatus,
 )
 
+CONFIG_PATH = Path("/workspace/.worktree/config.json")
 
-class ConfigValidateFormatterTests:
-    """Tests for ConfigValidateFormatter."""
+VALID_CASE = FormatterCase(
+    data=ConfigValidationResult(
+        status=ConfigValidationStatus.VALID,
+        config_path=CONFIG_PATH,
+        config=WorktreeConfig(version=1, project=ProjectConfig(name="valid-proj")),
+        warnings=[],
+        errors=[],
+        fixes=[],
+    ),
+    view=ConfigValidationView(
+        status=ConfigValidationStatus.VALID,
+        config_path=CONFIG_PATH,
+        status_label="valid",
+        config=WorktreeConfig(version=1, project=ProjectConfig(name="valid-proj")),
+        errors=[],
+        warnings=[],
+        fixes=[],
+    ),
+)
 
-    def test_to_rich_valid_renders_config_path(self) -> None:
-        formatter = ConfigValidateFormatter()
-        result = ConfigValidationResult(
-            status=ConfigValidationStatus.VALID,
-            config_path=Path("/workspace/.worktree/config.json"),
-            config=WorktreeConfig(version=1, project=ProjectConfig(name="valid-proj")),
-            warnings=[],
-            errors=[],
-        )
-        rendered = render_rich(formatter.to_rich(result))
-        assert "/workspace/.worktree/config.json" in rendered
+VALID_WITH_WARNINGS_CASE = FormatterCase(
+    data=ConfigValidationResult(
+        status=ConfigValidationStatus.VALID,
+        config_path=CONFIG_PATH,
+        config=WorktreeConfig(version=1, project=ProjectConfig(name="valid-proj")),
+        warnings=["agent.provider is not 'local' but agent.model is missing (CONFIG_WARN_AGENT_MODEL_MISSING)."],
+        errors=[],
+        fixes=["Set agent.model in .worktree/config.json"],
+    ),
+    view=ConfigValidationView(
+        status=ConfigValidationStatus.VALID,
+        config_path=CONFIG_PATH,
+        status_label="valid with warnings",
+        config=WorktreeConfig(version=1, project=ProjectConfig(name="valid-proj")),
+        errors=[],
+        warnings=["agent.provider is not 'local' but agent.model is missing (CONFIG_WARN_AGENT_MODEL_MISSING)."],
+        fixes=["Set agent.model in .worktree/config.json"],
+    ),
+)
 
-    def test_to_rich_valid_with_warnings_renders_path_and_warning(self) -> None:
-        formatter = ConfigValidateFormatter()
-        result = ConfigValidationResult(
-            status=ConfigValidationStatus.VALID,
-            config_path=Path("/workspace/.worktree/config.json"),
-            config=WorktreeConfig(version=1, project=ProjectConfig(name="valid-proj")),
-            warnings=[
-                "agent.provider is not 'local' but agent.model is missing (CONFIG_WARN_AGENT_MODEL_MISSING).\nFix:\n- set agent.model"
-            ],
-            errors=[],
-        )
-        rendered = render_rich(formatter.to_rich(result))
-        assert "/workspace/.worktree/config.json" in rendered
-        assert "CONFIG_WARN_AGENT_MODEL_MISSING" in rendered
+INVALID_CASE = FormatterCase(
+    data=ConfigValidationResult(
+        status=ConfigValidationStatus.INVALID,
+        config_path=CONFIG_PATH,
+        errors=["paths.root_dir contains invalid control characters (CONFIG_SEMANTIC_PATH_INVALID)."],
+        warnings=[],
+        fixes=["Use a plain relative path string without newlines or NUL bytes"],
+    ),
+    view=ConfigValidationView(
+        status=ConfigValidationStatus.INVALID,
+        config_path=CONFIG_PATH,
+        status_label="invalid",
+        config=None,
+        errors=["paths.root_dir contains invalid control characters (CONFIG_SEMANTIC_PATH_INVALID)."],
+        warnings=[],
+        fixes=["Use a plain relative path string without newlines or NUL bytes"],
+    ),
+)
 
-    def test_to_rich_when_invalid_renders_error_and_fix(self) -> None:
-        formatter = ConfigValidateFormatter()
-        result = ConfigValidationResult(
-            status=ConfigValidationStatus.INVALID,
-            config_path=Path("/workspace/.worktree/config.json"),
-            errors=["paths.root_dir contains invalid control characters (CONFIG_SEMANTIC_PATH_INVALID)."],
-            warnings=[],
-            fixes=["Use a plain relative path string without newlines or NUL bytes"],
-        )
-        rendered = render_rich(formatter.to_rich(result))
-        assert "CONFIG_SEMANTIC_PATH_INVALID" in rendered
-        assert "Use a plain relative path string without newlines or NUL bytes" in rendered
+INVALID_WITH_WARNINGS_CASE = FormatterCase(
+    data=ConfigValidationResult(
+        status=ConfigValidationStatus.INVALID,
+        config_path=CONFIG_PATH,
+        errors=["semantic failure (CONFIG_ERROR)."],
+        warnings=["warning message (CONFIG_WARN)."],
+        fixes=[],
+    ),
+    view=ConfigValidationView(
+        status=ConfigValidationStatus.INVALID,
+        config_path=CONFIG_PATH,
+        status_label="invalid",
+        config=None,
+        errors=["semantic failure (CONFIG_ERROR)."],
+        warnings=["warning message (CONFIG_WARN)."],
+        fixes=[],
+    ),
+)
 
-    def test_to_rich_when_invalid_with_warnings_renders_error_and_warning(self) -> None:
-        formatter = ConfigValidateFormatter()
-        result = ConfigValidationResult(
-            status=ConfigValidationStatus.INVALID,
-            config_path=Path("/workspace/.worktree/config.json"),
-            errors=["semantic failure (CONFIG_ERROR)."],
-            warnings=["warning message (CONFIG_WARN)."],
-        )
-        rendered = render_rich(formatter.to_rich(result))
-        assert "CONFIG_ERROR" in rendered
-        assert "CONFIG_WARN" in rendered
+VALIDATION_CASES = [
+    pytest.param(VALID_CASE, id="valid_config"),
+    pytest.param(VALID_WITH_WARNINGS_CASE, id="valid_with_warnings"),
+    pytest.param(INVALID_CASE, id="invalid_config"),
+    pytest.param(INVALID_WITH_WARNINGS_CASE, id="invalid_with_warnings"),
+]
 
-    def test_to_json_serializable_returns_exact_dict(self) -> None:
-        formatter = ConfigValidateFormatter()
-        result = ConfigValidationResult(
-            status=ConfigValidationStatus.VALID,
-            config_path=Path("/workspace/.worktree/config.json"),
-            config=WorktreeConfig(version=1, project=ProjectConfig(name="valid-proj")),
-            warnings=["test-warning"],
-            errors=[],
-        )
-        dumped = formatter.to_json_serializable(result)
-        assert dumped == {
+VALIDATION_PAYLOAD_CASES = [
+    pytest.param(
+        VALID_CASE,
+        {
             "status": "valid",
             "config_path": "/workspace/.worktree/config.json",
+            "status_label": "valid",
             "raw": None,
             "config": {
                 "version": 1,
@@ -132,7 +163,62 @@ class ConfigValidateFormatterTests:
                     "lock_timeout_seconds": 30.0,
                 },
             },
-            "warnings": ["test-warning"],
             "errors": [],
+            "warnings": [],
             "fixes": [],
-        }
+        },
+        id="valid_payload",
+    ),
+    pytest.param(
+        INVALID_CASE,
+        {
+            "status": "invalid",
+            "config_path": "/workspace/.worktree/config.json",
+            "status_label": "invalid",
+            "raw": None,
+            "config": None,
+            "errors": ["paths.root_dir contains invalid control characters (CONFIG_SEMANTIC_PATH_INVALID)."],
+            "warnings": [],
+            "fixes": ["Use a plain relative path string without newlines or NUL bytes"],
+        },
+        id="invalid_payload",
+    ),
+]
+
+
+class ConfigValidateFormatterTests:
+    """Presentation contract tests for ConfigValidateFormatter."""
+
+    @pytest.mark.parametrize("case", VALIDATION_CASES)
+    def test_transform_derives_expected_view(
+        self, case: FormatterCase[ConfigValidationResult, ConfigValidationView]
+    ) -> None:
+        """Verify transform derives the exact ConfigValidationView model representation."""
+        assert ConfigValidateFormatter().transform(case.data) == case.view
+
+    @pytest.mark.parametrize(("case", "expected_payload"), VALIDATION_PAYLOAD_CASES)
+    def test_json_payload_matches_published_shape(
+        self,
+        case: FormatterCase[ConfigValidationResult, ConfigValidationView],
+        expected_payload: dict[str, Any],
+    ) -> None:
+        """Verify to_json_serializable matches the exact published wire-format literal dict."""
+        assert ConfigValidateFormatter().to_json_serializable(case.data) == expected_payload
+
+    @pytest.mark.parametrize("case", VALIDATION_CASES)
+    def test_rich_render_shows_every_view_value(
+        self, case: FormatterCase[ConfigValidationResult, ConfigValidationView]
+    ) -> None:
+        """Verify that all non-null semantic view model values reach the Rich renderable output."""
+        rendered = render_rich(ConfigValidateFormatter().to_rich(case.data))
+        view = case.view
+
+        if view.status == ConfigValidationStatus.VALID:
+            assert view.config_path.as_posix() in rendered
+            assert view.status_label in rendered
+        for error in view.errors:
+            assert error in rendered
+        for warning in view.warnings:
+            assert warning in rendered
+        for fix in view.fixes:
+            assert fix in rendered

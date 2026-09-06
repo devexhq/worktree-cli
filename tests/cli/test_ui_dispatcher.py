@@ -336,8 +336,9 @@ class ConfigRegistrationAndDispatchTests:
 
         payload = json.loads(lines[0])
         assert payload["event_type"] == "WorktreeConfig"
-        assert payload["payload"]["version"] == 1
-        assert payload["payload"]["project"]["name"] == "ndjson-proj"
+        assert payload["payload"]["status"] == "valid"
+        assert payload["payload"]["config"]["version"] == 1
+        assert payload["payload"]["config"]["project"]["name"] == "ndjson-proj"
 
     def test_dispatcher_config_show_terminal(self) -> None:
         dispatcher, buffer = make_dispatcher_with_buffer(force_terminal=True)

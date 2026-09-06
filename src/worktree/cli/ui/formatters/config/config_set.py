@@ -8,29 +8,46 @@ from rich.text import Text
 
 from worktree.cli.ui.formatters.common import build_error_panel
 from worktree.cli.ui.formatters.config.common import format_config_value
+from worktree.cli.ui.formatters.config.config_views import ConfigSetView
 from worktree.common.types import ComponentFormatter
-from worktree.core.config.mutate import ConfigSetResult
+from worktree.core.config.mutate import ConfigSetResult, ConfigSetStatus
 
 
-class ConfigSetFormatter(ComponentFormatter[ConfigSetResult]):
+class ConfigSetFormatter(ComponentFormatter[ConfigSetResult, ConfigSetView]):
     """Formatter for configuration mutation results."""
+
+    def transform(self, data: ConfigSetResult) -> ConfigSetView:
+        """Derive the presentation-ready view from ConfigSetResult domain model.
+
+        Args:
+            data: Domain ConfigSetResult object.
+
+        Returns:
+            ConfigSetView with formatted value string and type name.
+        """
+        return ConfigSetView(
+            status=data.status,
+            config_path=data.config_path,
+            key=data.key,
+            value=data.value,
+            value_str=format_config_value(data.value),
+            value_type=type(data.value).__name__,
+            errors=list(data.errors),
+            warnings=list(data.warnings),
+            fixes=list(data.fixes),
+        )
 
     def to_rich(self, data: ConfigSetResult) -> Any:
         """Render configuration update confirmation or error panel."""
-        if data.ok:
-            value_str = format_config_value(data.value)
-            type_name = type(data.value).__name__
+        view = self.transform(data)
+        if view.status == ConfigSetStatus.OK:
             return Text.from_markup(
-                f"[bold green]✔  Config updated: {data.key} = {value_str} ({type_name})[/bold green]"
+                f"[bold green]✔  Config updated: {view.key} = {view.value_str} ({view.value_type})[/bold green]"
             )
 
         return build_error_panel(
             "Config Error",
-            data.errors,
+            view.errors,
             "Failed to update configuration.",
-            data.fixes,
+            view.fixes,
         )
-
-    def to_json_serializable(self, data: ConfigSetResult) -> dict[str, Any]:
-        """Convert ConfigSetResult to primitive dictionary for JSON serialization."""
-        return data.model_dump(mode="json")

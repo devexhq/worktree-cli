@@ -3,57 +3,216 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
-from tests.helpers import render_rich
-from worktree.cli.ui.formatters.config.config_set import ConfigSetFormatter
+import pytest
+
+from tests.helpers import FormatterCase, render_rich
+from worktree.cli.ui.formatters.config import ConfigSetFormatter, ConfigSetView
 from worktree.core.config.mutate import ConfigSetResult, ConfigSetStatus
 
+CONFIG_PATH = Path("/workspace/.worktree/config.json")
 
-class ConfigSetFormatterTests:
-    """Tests for ConfigSetFormatter."""
+SUCCESS_STR_CASE = FormatterCase(
+    data=ConfigSetResult(
+        status=ConfigSetStatus.OK,
+        config_path=CONFIG_PATH,
+        key="agent.model",
+        value="qwen2.5-coder",
+        errors=[],
+        warnings=[],
+        fixes=[],
+    ),
+    view=ConfigSetView(
+        status=ConfigSetStatus.OK,
+        config_path=CONFIG_PATH,
+        key="agent.model",
+        value="qwen2.5-coder",
+        value_str="qwen2.5-coder",
+        value_type="str",
+        errors=[],
+        warnings=[],
+        fixes=[],
+    ),
+)
 
-    def test_to_rich_mutation_renders_key_and_value(self) -> None:
-        formatter = ConfigSetFormatter()
-        result = ConfigSetResult(
-            status=ConfigSetStatus.OK,
-            config_path=Path("/workspace/.worktree/config.json"),
-            key="agent.model",
-            value="qwen2.5-coder",
-            errors=[],
-        )
-        rendered = render_rich(formatter.to_rich(result))
-        assert "agent.model" in rendered
-        assert "qwen2.5-coder" in rendered
+SUCCESS_BOOL_CASE = FormatterCase(
+    data=ConfigSetResult(
+        status=ConfigSetStatus.OK,
+        config_path=CONFIG_PATH,
+        key="telemetry.enabled",
+        value=True,
+        errors=[],
+        warnings=[],
+        fixes=[],
+    ),
+    view=ConfigSetView(
+        status=ConfigSetStatus.OK,
+        config_path=CONFIG_PATH,
+        key="telemetry.enabled",
+        value=True,
+        value_str="true",
+        value_type="bool",
+        errors=[],
+        warnings=[],
+        fixes=[],
+    ),
+)
 
-    def test_to_rich_when_invalid_schema_renders_error_and_fix(self) -> None:
-        formatter = ConfigSetFormatter()
-        result = ConfigSetResult(
-            status=ConfigSetStatus.SCHEMA_INVALID,
-            config_path=Path("/workspace/.worktree/config.json"),
-            key="agent.invalid_key",
-            errors=["Config schema validation failed (CONFIG_SCHEMA_INVALID): extra property not allowed"],
-            fixes=["Run `wt config validate` for details"],
-        )
-        rendered = render_rich(formatter.to_rich(result))
-        assert "CONFIG_SCHEMA_INVALID" in rendered
-        assert "Run `wt config validate` for details" in rendered
+SUCCESS_INT_CASE = FormatterCase(
+    data=ConfigSetResult(
+        status=ConfigSetStatus.OK,
+        config_path=CONFIG_PATH,
+        key="sandbox.max_active_sandboxes",
+        value=5,
+        errors=[],
+        warnings=[],
+        fixes=[],
+    ),
+    view=ConfigSetView(
+        status=ConfigSetStatus.OK,
+        config_path=CONFIG_PATH,
+        key="sandbox.max_active_sandboxes",
+        value=5,
+        value_str="5",
+        value_type="int",
+        errors=[],
+        warnings=[],
+        fixes=[],
+    ),
+)
 
-    def test_to_json_serializable_returns_exact_dict(self) -> None:
-        formatter = ConfigSetFormatter()
-        result = ConfigSetResult(
-            status=ConfigSetStatus.OK,
-            config_path=Path("/workspace/.worktree/config.json"),
-            key="agent.model",
-            value="qwen2.5-coder",
-            errors=[],
-        )
-        dumped = formatter.to_json_serializable(result)
-        assert dumped == {
+SUCCESS_DICT_CASE = FormatterCase(
+    data=ConfigSetResult(
+        status=ConfigSetStatus.OK,
+        config_path=CONFIG_PATH,
+        key="project",
+        value={"name": "my-app"},
+        errors=[],
+        warnings=[],
+        fixes=[],
+    ),
+    view=ConfigSetView(
+        status=ConfigSetStatus.OK,
+        config_path=CONFIG_PATH,
+        key="project",
+        value={"name": "my-app"},
+        value_str='{"name": "my-app"}',
+        value_type="dict",
+        errors=[],
+        warnings=[],
+        fixes=[],
+    ),
+)
+
+ERROR_SCHEMA_INVALID_CASE = FormatterCase(
+    data=ConfigSetResult(
+        status=ConfigSetStatus.SCHEMA_INVALID,
+        config_path=CONFIG_PATH,
+        key="agent.invalid_key",
+        value=None,
+        errors=["Config schema validation failed (CONFIG_SCHEMA_INVALID): extra property not allowed"],
+        warnings=[],
+        fixes=["Run `wt config validate` for details"],
+    ),
+    view=ConfigSetView(
+        status=ConfigSetStatus.SCHEMA_INVALID,
+        config_path=CONFIG_PATH,
+        key="agent.invalid_key",
+        value=None,
+        value_str="None",
+        value_type="NoneType",
+        errors=["Config schema validation failed (CONFIG_SCHEMA_INVALID): extra property not allowed"],
+        warnings=[],
+        fixes=["Run `wt config validate` for details"],
+    ),
+)
+
+SET_CASES = [
+    pytest.param(SUCCESS_STR_CASE, id="success_str"),
+    pytest.param(SUCCESS_BOOL_CASE, id="success_bool"),
+    pytest.param(SUCCESS_INT_CASE, id="success_int"),
+    pytest.param(SUCCESS_DICT_CASE, id="success_dict"),
+    pytest.param(ERROR_SCHEMA_INVALID_CASE, id="error_schema_invalid"),
+]
+
+SET_PAYLOAD_CASES = [
+    pytest.param(
+        SUCCESS_STR_CASE,
+        {
             "status": "ok",
             "config_path": "/workspace/.worktree/config.json",
             "key": "agent.model",
             "value": "qwen2.5-coder",
+            "value_str": "qwen2.5-coder",
+            "value_type": "str",
             "errors": [],
             "warnings": [],
             "fixes": [],
-        }
+        },
+        id="success_str_payload",
+    ),
+    pytest.param(
+        SUCCESS_BOOL_CASE,
+        {
+            "status": "ok",
+            "config_path": "/workspace/.worktree/config.json",
+            "key": "telemetry.enabled",
+            "value": True,
+            "value_str": "true",
+            "value_type": "bool",
+            "errors": [],
+            "warnings": [],
+            "fixes": [],
+        },
+        id="success_bool_payload",
+    ),
+    pytest.param(
+        ERROR_SCHEMA_INVALID_CASE,
+        {
+            "status": "schema_invalid",
+            "config_path": "/workspace/.worktree/config.json",
+            "key": "agent.invalid_key",
+            "value": None,
+            "value_str": "None",
+            "value_type": "NoneType",
+            "errors": ["Config schema validation failed (CONFIG_SCHEMA_INVALID): extra property not allowed"],
+            "warnings": [],
+            "fixes": ["Run `wt config validate` for details"],
+        },
+        id="error_schema_invalid_payload",
+    ),
+]
+
+
+class ConfigSetFormatterTests:
+    """Presentation contract tests for ConfigSetFormatter."""
+
+    @pytest.mark.parametrize("case", SET_CASES)
+    def test_transform_derives_expected_view(self, case: FormatterCase[ConfigSetResult, ConfigSetView]) -> None:
+        """Verify transform derives the exact ConfigSetView model representation."""
+        assert ConfigSetFormatter().transform(case.data) == case.view
+
+    @pytest.mark.parametrize(("case", "expected_payload"), SET_PAYLOAD_CASES)
+    def test_json_payload_matches_published_shape(
+        self,
+        case: FormatterCase[ConfigSetResult, ConfigSetView],
+        expected_payload: dict[str, Any],
+    ) -> None:
+        """Verify to_json_serializable matches the exact published wire-format literal dict."""
+        assert ConfigSetFormatter().to_json_serializable(case.data) == expected_payload
+
+    @pytest.mark.parametrize("case", SET_CASES)
+    def test_rich_render_shows_every_view_value(self, case: FormatterCase[ConfigSetResult, ConfigSetView]) -> None:
+        """Verify that all non-null semantic view model values reach the Rich renderable output."""
+        rendered = render_rich(ConfigSetFormatter().to_rich(case.data))
+        view = case.view
+
+        if view.status == ConfigSetStatus.OK:
+            assert view.key in rendered
+            assert view.value_str in rendered
+            assert view.value_type in rendered
+        for error in view.errors:
+            assert error in rendered
+        for fix in view.fixes:
+            assert fix in rendered
