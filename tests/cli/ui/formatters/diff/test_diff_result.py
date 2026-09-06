@@ -6,10 +6,10 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from rich.console import Console
 
 from tests.helpers import FormatterCase, render_rich
 from worktree.cli.ui.formatters.diff import DiffResultFormatter, DiffResultView
-from worktree.cli.ui.formatters.diff.common import resolve_diff_rel_path
 from worktree.core.diff.models import DiffResult, DiffStatus
 
 _SAMPLE_DIFF = """diff --git a/src/main.py b/src/main.py
@@ -56,7 +56,7 @@ OK_POPULATED = FormatterCase(
         status=DiffStatus.OK,
         session_id="sbx_fmt_1",
         artifact_path=Path("/repo/.worktree/sessions/sbx_fmt_1/diff.patch"),
-        relative_path=resolve_diff_rel_path(OK_POPULATED_DATA),
+        relative_path="/repo/.worktree/sessions/sbx_fmt_1/diff.patch",
         diff_text=_SAMPLE_DIFF,
         total_lines=6,
         warnings=["Non-critical warning"],
@@ -75,7 +75,7 @@ EMPTY_DIFF = FormatterCase(
         status=DiffStatus.EMPTY_DIFF,
         session_id="sbx_fmt_empty",
         artifact_path=Path("/repo/.worktree/sessions/sbx_fmt_empty/diff.patch"),
-        relative_path=resolve_diff_rel_path(EMPTY_DIFF_DATA),
+        relative_path="/repo/.worktree/sessions/sbx_fmt_empty/diff.patch",
         diff_text="",
         total_lines=0,
     ),
@@ -172,7 +172,7 @@ RAW_DIFF = FormatterCase(
         status=DiffStatus.OK,
         session_id="sbx_raw_1",
         artifact_path=Path("/repo/.worktree/sessions/sbx_raw_1/diff.patch"),
-        relative_path=resolve_diff_rel_path(RAW_DIFF_DATA),
+        relative_path="/repo/.worktree/sessions/sbx_raw_1/diff.patch",
         diff_text=_SAMPLE_DIFF,
         raw=True,
         total_lines=6,
@@ -192,7 +192,7 @@ DIFF_WITH_MAX_LINES = FormatterCase(
         status=DiffStatus.OK,
         session_id="sbx_max_lines",
         artifact_path=Path("/repo/.worktree/sessions/sbx_max_lines/diff.patch"),
-        relative_path=resolve_diff_rel_path(DIFF_MAX_LINES_DATA),
+        relative_path="/repo/.worktree/sessions/sbx_max_lines/diff.patch",
         diff_text=_SAMPLE_DIFF,
         max_lines=10,
         total_lines=6,
@@ -212,7 +212,7 @@ DIFF_FULL_FLAG = FormatterCase(
         status=DiffStatus.OK,
         session_id="sbx_full",
         artifact_path=Path("/repo/.worktree/sessions/sbx_full/diff.patch"),
-        relative_path=resolve_diff_rel_path(DIFF_FULL_DATA),
+        relative_path="/repo/.worktree/sessions/sbx_full/diff.patch",
         diff_text=_SAMPLE_DIFF,
         full=True,
         total_lines=6,
@@ -236,6 +236,29 @@ GENERAL_ERROR = FormatterCase(
     ),
 )
 
+DIFF_TRUNCATED_TRUE_DATA = DiffResult(
+    status=DiffStatus.OK,
+    session_id="sbx_truncated_true",
+    artifact_path=Path("/repo/.worktree/sessions/sbx_truncated_true/diff.patch"),
+    diff_text=_SAMPLE_DIFF,
+    max_lines=2,
+)
+DIFF_WITH_TRUNCATED_TRUE = FormatterCase(
+    data=DIFF_TRUNCATED_TRUE_DATA,
+    view=make_diff_view(
+        status=DiffStatus.OK,
+        session_id="sbx_truncated_true",
+        artifact_path=Path("/repo/.worktree/sessions/sbx_truncated_true/diff.patch"),
+        relative_path="/repo/.worktree/sessions/sbx_truncated_true/diff.patch",
+        diff_text=_SAMPLE_DIFF,
+        max_lines=2,
+        total_lines=6,
+        truncated=True,
+        truncated_lines=2,
+    ),
+)
+
+
 DIFF_CASES = [
     pytest.param(OK_POPULATED, id="ok_populated_diff"),
     pytest.param(EMPTY_DIFF, id="empty_diff"),
@@ -247,6 +270,7 @@ DIFF_CASES = [
     pytest.param(DIFF_WITH_MAX_LINES, id="diff_with_max_lines"),
     pytest.param(DIFF_FULL_FLAG, id="diff_full_flag"),
     pytest.param(GENERAL_ERROR, id="general_error"),
+    pytest.param(DIFF_WITH_TRUNCATED_TRUE, id="diff_with_truncated_true"),
 ]
 
 DIFF_PAYLOAD_CASES = [
@@ -256,7 +280,7 @@ DIFF_PAYLOAD_CASES = [
             "status": "ok",
             "session_id": "sbx_fmt_1",
             "artifact_path": "/repo/.worktree/sessions/sbx_fmt_1/diff.patch",
-            "relative_path": resolve_diff_rel_path(OK_POPULATED_DATA),
+            "relative_path": "/repo/.worktree/sessions/sbx_fmt_1/diff.patch",
             "diff_text": _SAMPLE_DIFF,
             "raw": False,
             "full": False,
@@ -276,7 +300,7 @@ DIFF_PAYLOAD_CASES = [
             "status": "empty_diff",
             "session_id": "sbx_fmt_empty",
             "artifact_path": "/repo/.worktree/sessions/sbx_fmt_empty/diff.patch",
-            "relative_path": resolve_diff_rel_path(EMPTY_DIFF_DATA),
+            "relative_path": "/repo/.worktree/sessions/sbx_fmt_empty/diff.patch",
             "diff_text": "",
             "raw": False,
             "full": False,
@@ -330,6 +354,9 @@ def _assert_rendered_diff_content(rendered: str, view: DiffResultView) -> None:
     if view.status == DiffStatus.OK and view.diff_text and not view.truncated:
         for line in view.diff_text.splitlines():
             assert line.strip() in rendered
+    if view.truncated:
+        assert str(view.truncated_lines) in rendered
+        assert str(view.total_lines) in rendered
     if view.status == DiffStatus.EMPTY_DIFF:
         assert "No changes recorded" in rendered
 
@@ -340,7 +367,8 @@ class DiffResultFormatterTests:
     @pytest.mark.parametrize("case", DIFF_CASES)
     def test_transform_derives_expected_view(self, case: FormatterCase[DiffResult, DiffResultView]) -> None:
         """Verify transform derives the exact DiffResultView model representation."""
-        assert DiffResultFormatter().transform(case.data) == case.view
+        formatter = DiffResultFormatter(console=Console(force_terminal=True))
+        assert formatter.transform(case.data) == case.view
 
     @pytest.mark.parametrize(("case", "expected_payload"), DIFF_PAYLOAD_CASES)
     def test_json_payload_matches_published_shape(
@@ -354,6 +382,86 @@ class DiffResultFormatterTests:
     @pytest.mark.parametrize("case", DIFF_CASES)
     def test_rich_render_shows_every_view_value(self, case: FormatterCase[DiffResult, DiffResultView]) -> None:
         """Verify that all non-null semantic view model values reach the Rich renderable output."""
-        rendered = render_rich(DiffResultFormatter().to_rich(case.data))
+        formatter = DiffResultFormatter(console=Console(force_terminal=True))
+        rendered = render_rich(formatter.to_rich(case.data))
         _assert_rendered_session_and_messages(rendered, case.view)
         _assert_rendered_diff_content(rendered, case.view)
+
+    def test_transform_when_non_terminal_bypasses_truncation(self) -> None:
+        formatter = DiffResultFormatter(console=Console(force_terminal=False))
+        view = formatter.transform(DIFF_TRUNCATED_TRUE_DATA)
+        assert view.truncated is False
+        assert view.truncated_lines == 0
+
+    def test_to_raw_when_raw_returns_diff_text(self) -> None:
+        formatter = DiffResultFormatter()
+        result = DiffResult(
+            status=DiffStatus.OK,
+            session_id="sbx_raw_1",
+            artifact_path=Path("/repo/.worktree/sessions/sbx_raw_1/diff.patch"),
+            diff_text=_SAMPLE_DIFF,
+            raw=True,
+        )
+        assert formatter.to_raw(result) == _SAMPLE_DIFF
+
+    def test_to_raw_when_empty_diff_renders_notice(self) -> None:
+        formatter = DiffResultFormatter()
+        result = DiffResult(
+            status=DiffStatus.EMPTY_DIFF,
+            session_id="sbx_raw_empty",
+            artifact_path=Path("/repo/.worktree/sessions/sbx_raw_empty/diff.patch"),
+            diff_text="",
+        )
+        assert formatter.to_raw(result) == "No changes recorded for session sbx_raw_empty."
+
+    def test_to_raw_when_session_not_found_renders_error(self) -> None:
+        formatter = DiffResultFormatter()
+        result = DiffResult(
+            status=DiffStatus.SESSION_NOT_FOUND,
+            session_id="sbx_missing_raw",
+            errors=["Session 'sbx_missing_raw' not found under .worktree/sessions/."],
+        )
+        raw_output = formatter.to_raw(result)
+        assert "Session 'sbx_missing_raw' not found" in raw_output
+
+    def test_to_raw_when_unclassified_error_renders_error(self) -> None:
+        formatter = DiffResultFormatter()
+        result = DiffResult(
+            status=DiffStatus.OK,
+            errors=["Generic diff failure"],
+        )
+        raw_output = formatter.to_raw(result)
+        assert "Generic diff failure" in raw_output
+
+    def test_to_raw_when_terminal_truncates_lines(self) -> None:
+        formatter = DiffResultFormatter(console=Console(force_terminal=True), max_lines=2)
+        result = DiffResult(
+            status=DiffStatus.OK,
+            session_id="sbx_trunc",
+            artifact_path=Path("/repo/.worktree/sessions/sbx_trunc/diff.patch"),
+            diff_text="line 1\nline 2\nline 3\nline 4\n",
+            raw=False,
+        )
+        assert formatter.to_raw(result) == "line 1\nline 2"
+
+    def test_to_raw_when_full_bypasses_truncation(self) -> None:
+        formatter = DiffResultFormatter(console=Console(force_terminal=True), max_lines=2, full=True)
+        result = DiffResult(
+            status=DiffStatus.OK,
+            session_id="sbx_trunc",
+            artifact_path=Path("/repo/.worktree/sessions/sbx_trunc/diff.patch"),
+            diff_text="line 1\nline 2\nline 3\nline 4\n",
+            raw=False,
+        )
+        assert formatter.to_raw(result) == "line 1\nline 2\nline 3\nline 4\n"
+
+    def test_to_raw_when_non_terminal_bypasses_truncation(self) -> None:
+        formatter = DiffResultFormatter(console=Console(force_terminal=False), max_lines=2)
+        result = DiffResult(
+            status=DiffStatus.OK,
+            session_id="sbx_trunc",
+            artifact_path=Path("/repo/.worktree/sessions/sbx_trunc/diff.patch"),
+            diff_text="line 1\nline 2\nline 3\nline 4\n",
+            raw=False,
+        )
+        assert formatter.to_raw(result) == "line 1\nline 2\nline 3\nline 4\n"

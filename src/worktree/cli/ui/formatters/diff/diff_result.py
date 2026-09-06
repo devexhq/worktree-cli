@@ -28,7 +28,7 @@ def _format_session_not_found_panel(data: DiffResult | DiffResultView, *, raw: b
     return build_error_panel("Session Not Found", data.errors, default, fixes, raw=raw)
 
 
-def _format_diff_not_found_panel(data: DiffResult | DiffResultView, raw: bool = False) -> Panel | str:
+def _format_diff_not_found_panel(data: DiffResult | DiffResultView, *, raw: bool = False) -> Panel | str:
     """Format error panel when diff artifact is missing."""
     session_label = data.session_id or "unknown"
     default = f"Session '{session_label}' has no diff artifact."
@@ -38,7 +38,7 @@ def _format_diff_not_found_panel(data: DiffResult | DiffResultView, raw: bool = 
     return build_error_panel("Diff Not Found", data.errors, default, fixes, raw=raw)
 
 
-def _format_read_failure_panel(data: DiffResult | DiffResultView, raw: bool = False) -> Panel | str:
+def _format_read_failure_panel(data: DiffResult | DiffResultView, *, raw: bool = False) -> Panel | str:
     """Format error panel when diff artifact cannot be read."""
     fixes = data.fixes or ["Check file permissions and that the artifact is readable"]
     return build_error_panel("Read Failure", data.errors, "Failed to read diff artifact.", fixes, raw=raw)
@@ -53,7 +53,7 @@ def _format_diff_error_panel(data: DiffResult | DiffResultView, *, raw: bool = F
     if data.status == DiffStatus.READ_FAILURE:
         return _format_read_failure_panel(data, raw=raw)
 
-    return build_error_panel("Diff Failed", data.errors, "Diff operation failed.", data.fixes)
+    return build_error_panel("Diff Failed", data.errors, "Diff operation failed.", data.fixes, raw=raw)
 
 
 class DiffResultFormatter(ComponentFormatter[DiffResult, DiffResultView]):
@@ -100,8 +100,8 @@ class DiffResultFormatter(ComponentFormatter[DiffResult, DiffResultView]):
         limit = effective_max if isinstance(effective_max, int) and effective_max > 0 else DEFAULT_MAX_DIFF_LINES
         diff_lines = data.diff_text.splitlines() if data.diff_text else []
         total_lines = len(diff_lines)
-        is_tty = self.console.is_terminal
-        should_truncate = is_tty and not effective_full and total_lines > limit
+        is_terminal = self.console.is_terminal
+        should_truncate = is_terminal and not effective_full and total_lines > limit
 
         return DiffResultView(
             status=data.status,
@@ -138,8 +138,8 @@ class DiffResultFormatter(ComponentFormatter[DiffResult, DiffResultView]):
         limit = effective_max if isinstance(effective_max, int) and effective_max > 0 else DEFAULT_MAX_DIFF_LINES
         diff_lines = data.diff_text.splitlines()
         total_lines = len(diff_lines)
-        is_tty = self.console.is_terminal
-        should_truncate = is_tty and not effective_full and total_lines > limit
+        is_terminal = self.console.is_terminal
+        should_truncate = is_terminal and not effective_full and total_lines > limit
 
         if should_truncate:
             truncated_content = "\n".join(diff_lines[:limit])
