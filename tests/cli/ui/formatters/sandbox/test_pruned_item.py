@@ -2,91 +2,181 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Any
+
 import pytest
 
-from tests.helpers import render_rich
+from tests.helpers import FormatterCase, render_rich
 from worktree.cli.ui.formatters.sandbox.pruned_item import PrunedItemFormatter
+from worktree.cli.ui.formatters.sandbox.sandbox_views import PrunedItemView
 from worktree.core.sandbox.models import (
     PruneAction,
     PrunedItem,
     StaleSandboxCategory,
 )
 
+DRY_RUN_STALE_BRANCH = FormatterCase(
+    data=PrunedItem(
+        category=StaleSandboxCategory.STALE_BRANCH,
+        identifier="feature/1",
+        action=PruneAction.PRUNED,
+        reason="Would prune stale branch",
+    ),
+    view=PrunedItemView(
+        category=StaleSandboxCategory.STALE_BRANCH,
+        category_label="stale branch",
+        identifier="feature/1",
+        action=PruneAction.PRUNED,
+        is_dry_run=True,
+        reason="Would prune stale branch",
+    ),
+)
+
+PRUNED_ORPHANED_DIRECTORY = FormatterCase(
+    data=PrunedItem(
+        category=StaleSandboxCategory.ORPHANED_DIRECTORY,
+        identifier="sbx_12345678",
+        action=PruneAction.PRUNED,
+        path=Path("/tmp/sbx_12345678"),
+        reason="Cleaned up orphaned directory",
+    ),
+    view=PrunedItemView(
+        category=StaleSandboxCategory.ORPHANED_DIRECTORY,
+        category_label="orphaned directory",
+        identifier="sbx_12345678",
+        action=PruneAction.PRUNED,
+        is_dry_run=False,
+        path=Path("/tmp/sbx_12345678"),
+        reason="Cleaned up orphaned directory",
+    ),
+)
+
+SKIPPED_DIRTY_DIRECTORY = FormatterCase(
+    data=PrunedItem(
+        category=StaleSandboxCategory.ORPHANED_DIRECTORY,
+        identifier="sbx_dirty",
+        action=PruneAction.SKIPPED,
+        path=Path("/tmp/sbx_dirty"),
+        reason="Contains uncommitted changes",
+    ),
+    view=PrunedItemView(
+        category=StaleSandboxCategory.ORPHANED_DIRECTORY,
+        category_label="orphaned directory",
+        identifier="sbx_dirty",
+        action=PruneAction.SKIPPED,
+        is_dry_run=False,
+        path=Path("/tmp/sbx_dirty"),
+        reason="Contains uncommitted changes",
+    ),
+)
+
+FAILED_STALE_WORKTREE_REF = FormatterCase(
+    data=PrunedItem(
+        category=StaleSandboxCategory.STALE_WORKTREE_REF,
+        identifier="/tmp/sbx",
+        action=PruneAction.FAILED,
+        error="Permission denied",
+    ),
+    view=PrunedItemView(
+        category=StaleSandboxCategory.STALE_WORKTREE_REF,
+        category_label="stale worktree ref",
+        identifier="/tmp/sbx",
+        action=PruneAction.FAILED,
+        is_dry_run=False,
+        error="Permission denied",
+    ),
+)
+
+STALE_DB_RECORD = FormatterCase(
+    data=PrunedItem(
+        category=StaleSandboxCategory.STALE_DB_RECORD,
+        identifier="sbx_rec",
+        action=PruneAction.PRUNED,
+        session_id="session-123",
+        branch_name="feature/test",
+        reason="Removed dead record",
+    ),
+    view=PrunedItemView(
+        category=StaleSandboxCategory.STALE_DB_RECORD,
+        category_label="stale db record",
+        identifier="sbx_rec",
+        action=PruneAction.PRUNED,
+        is_dry_run=False,
+        session_id="session-123",
+        branch_name="feature/test",
+        reason="Removed dead record",
+    ),
+)
+
+PRUNED_ITEM_CASES = [
+    pytest.param(DRY_RUN_STALE_BRANCH, id="dry_run_stale_branch"),
+    pytest.param(PRUNED_ORPHANED_DIRECTORY, id="pruned_orphaned_directory"),
+    pytest.param(SKIPPED_DIRTY_DIRECTORY, id="skipped_dirty_directory"),
+    pytest.param(FAILED_STALE_WORKTREE_REF, id="failed_stale_worktree_ref"),
+    pytest.param(STALE_DB_RECORD, id="stale_db_record"),
+]
+
+PRUNED_ITEM_PAYLOAD_CASES = [
+    pytest.param(
+        DRY_RUN_STALE_BRANCH,
+        {
+            "category": "stale_branch",
+            "category_label": "stale branch",
+            "identifier": "feature/1",
+            "action": "pruned",
+            "is_dry_run": True,
+            "path": None,
+            "branch_name": None,
+            "session_id": None,
+            "reason": "Would prune stale branch",
+            "error": None,
+        },
+        id="dry_run_stale_branch",
+    ),
+    pytest.param(
+        FAILED_STALE_WORKTREE_REF,
+        {
+            "category": "stale_worktree_ref",
+            "category_label": "stale worktree ref",
+            "identifier": "/tmp/sbx",
+            "action": "failed",
+            "is_dry_run": False,
+            "path": None,
+            "branch_name": None,
+            "session_id": None,
+            "reason": "",
+            "error": "Permission denied",
+        },
+        id="failed_stale_worktree_ref",
+    ),
+]
+
 
 class PrunedItemFormatterTests:
     """Presentation contract tests for PrunedItemFormatter."""
 
-    @pytest.mark.parametrize(
-        ("item", "expected_substrings"),
-        [
-            pytest.param(
-                PrunedItem(
-                    category=StaleSandboxCategory.STALE_BRANCH,
-                    identifier="feature/1",
-                    action=PruneAction.PRUNED,
-                    reason="Would prune stale branch",
-                ),
-                ["feature/1"],
-                id="dry_run_stale_branch",
-            ),
-            pytest.param(
-                PrunedItem(
-                    category=StaleSandboxCategory.ORPHANED_DIRECTORY,
-                    identifier="sbx_12345678",
-                    action=PruneAction.PRUNED,
-                    reason="Cleaned up orphaned directory",
-                ),
-                ["sbx_12345678"],
-                id="pruned_orphaned_directory",
-            ),
-            pytest.param(
-                PrunedItem(
-                    category=StaleSandboxCategory.ORPHANED_DIRECTORY,
-                    identifier="sbx_dirty",
-                    action=PruneAction.SKIPPED,
-                    reason="Contains uncommitted changes",
-                ),
-                ["sbx_dirty"],
-                id="skipped_dirty_directory",
-            ),
-            pytest.param(
-                PrunedItem(
-                    category=StaleSandboxCategory.STALE_WORKTREE_REF,
-                    identifier="/tmp/sbx",
-                    action=PruneAction.FAILED,
-                    error="Permission denied",
-                ),
-                ["/tmp/sbx", "Permission denied"],
-                id="failed_stale_worktree_ref",
-            ),
-        ],
-    )
-    def test_to_rich_renders_action_and_identifier(
-        self,
-        item: PrunedItem,
-        expected_substrings: list[str],
-    ) -> None:
-        formatter = PrunedItemFormatter()
-        rendered = render_rich(formatter.to_rich(item))
-        for expected in expected_substrings:
-            assert expected in rendered
+    @pytest.mark.parametrize("case", PRUNED_ITEM_CASES)
+    def test_transform_derives_expected_view(self, case: FormatterCase[PrunedItem, PrunedItemView]) -> None:
+        """Verify transform derives the exact PrunedItemView model representation."""
+        assert PrunedItemFormatter().transform(case.data) == case.view
 
-    def test_to_json_serializable_returns_exact_dict(self) -> None:
-        formatter = PrunedItemFormatter()
-        item = PrunedItem(
-            category=StaleSandboxCategory.STALE_BRANCH,
-            identifier="feature/1",
-            action=PruneAction.PRUNED,
-            reason="Would prune",
-        )
-        dumped = formatter.to_json_serializable(item)
-        assert dumped == {
-            "category": "stale_branch",
-            "identifier": "feature/1",
-            "action": "pruned",
-            "path": None,
-            "branch_name": None,
-            "session_id": None,
-            "reason": "Would prune",
-            "error": None,
-        }
+    @pytest.mark.parametrize(("case", "expected_payload"), PRUNED_ITEM_PAYLOAD_CASES)
+    def test_json_payload_matches_published_shape(
+        self,
+        case: FormatterCase[PrunedItem, PrunedItemView],
+        expected_payload: dict[str, Any],
+    ) -> None:
+        """Verify to_json_serializable matches the exact published wire-format literal dict."""
+        assert PrunedItemFormatter().to_json_serializable(case.data) == expected_payload
+
+    @pytest.mark.parametrize("case", PRUNED_ITEM_CASES)
+    def test_rich_render_shows_every_view_value(self, case: FormatterCase[PrunedItem, PrunedItemView]) -> None:
+        """Verify that all non-null semantic view model values reach the Rich renderable output."""
+        rendered = render_rich(PrunedItemFormatter().to_rich(case.data))
+        view = case.view
+
+        assert view.identifier in rendered
+        assert view.category_label in rendered
+        if view.error is not None:
+            assert view.error in rendered

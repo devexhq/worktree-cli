@@ -24,6 +24,7 @@ from .sandbox_diff import SandboxDiffFormatter
 from .sandbox_list import SandboxListFormatter
 from .sandbox_prune import SandboxPruneFormatter
 from .sandbox_show import SandboxShowFormatter
+from .sandbox_views import PrunedItemView, SandboxPruneView
 
 
 def register_sandbox_formatters(dispatcher: DispatcherProtocol) -> None:
@@ -40,12 +41,14 @@ def register_sandbox_formatters(dispatcher: DispatcherProtocol) -> None:
 
 __all__ = [
     "PrunedItemFormatter",
+    "PrunedItemView",
     "SandboxApplyFormatter",
     "SandboxCreateFormatter",
     "SandboxDeleteFormatter",
     "SandboxDiffFormatter",
     "SandboxListFormatter",
     "SandboxPruneFormatter",
+    "SandboxPruneView",
     "SandboxShowFormatter",
     "register_sandbox_formatters",
 ]
