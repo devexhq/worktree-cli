@@ -583,8 +583,8 @@ class WorkspaceInitDispatcherIntegrationTests:
 
         payload = json.loads(lines[0])
         assert payload["event_type"] == "WorkspaceInitResult"
-        assert payload["payload"]["bootstrap_result"]["root_created"] is True
-        assert payload["payload"]["config_result"]["created"] is True
+        assert payload["payload"]["bootstrap_outcome"] == "initialized"
+        assert payload["payload"]["config_created"] is True
 
     def test_dispatcher_terminal_format(self, fs: FileSystem) -> None:
         dispatcher, buffer = make_dispatcher_with_buffer(force_terminal=True)
