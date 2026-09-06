@@ -8,6 +8,7 @@ from worktree.cli.ui.formatters.common import DispatcherProtocol
 from worktree.core.diff.models import DiffResult
 
 from .diff_result import DiffResultFormatter
+from .diff_view import DiffResultView
 
 if TYPE_CHECKING:
     from rich.console import Console
@@ -21,5 +22,6 @@ def register_diff_formatters(dispatcher: DispatcherProtocol, console: Console | 
 
 __all__ = [
     "DiffResultFormatter",
+    "DiffResultView",
     "register_diff_formatters",
 ]
