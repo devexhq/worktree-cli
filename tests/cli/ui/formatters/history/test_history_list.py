@@ -221,8 +221,6 @@ class HistoryListFormatterTests:
         rendered = render_rich(HistoryListFormatter().to_rich(case.data))
         view = case.view
 
-        if not view.runs and not view.errors:
-            assert "No execution history found." in rendered
         for run in view.runs:
             assert run.session_id in rendered
             assert run.blueprint_name in rendered

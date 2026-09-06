@@ -11,13 +11,10 @@ from rich.table import Table
 
 from worktree.cli.ui.formatters.history.history_views import (
     CheckpointDetailsView,
-    CheckpointStepView,
     RunSummaryView,
 )
 from worktree.common.utils import enum_value
 from worktree.core.db import RunRecord, RunStatus
-from worktree.core.runtime import RunCheckpoint, parse_checkpoint
-from worktree.core.step import StepResult
 
 _SESSION_SHOW_FIELDS = (
     "Session ID",
@@ -74,7 +71,7 @@ def build_run_summary(run: RunRecord) -> RunSummaryView:
     )
 
 
-def build_history_table(runs: Sequence[RunSummaryView | RunRecord]) -> Table:
+def build_history_table(runs: Sequence[RunSummaryView]) -> Table:
     """Build the Rich table displaying execution history runs."""
     table = Table(title="Execution History", title_justify="left", show_header=True)
     table.add_column("SESSION ID", style="cyan", no_wrap=True)
@@ -100,7 +97,7 @@ def build_history_table(runs: Sequence[RunSummaryView | RunRecord]) -> Table:
     return table
 
 
-def build_metadata_table(run: RunSummaryView | RunRecord) -> Table:
+def build_metadata_table(run: RunSummaryView) -> Table:
     """Build key/value table for session metadata."""
     duration = format_run_duration(run.duration_seconds)
     values = {
@@ -122,7 +119,7 @@ def build_metadata_table(run: RunSummaryView | RunRecord) -> Table:
     return table
 
 
-def build_step_results_table(checkpoint: CheckpointDetailsView | RunCheckpoint) -> Table | None:
+def build_step_results_table(checkpoint: CheckpointDetailsView) -> Table | None:
     """Build a sub-table summarizing recorded step results in a checkpoint."""
     if not checkpoint.step_results:
         return None
@@ -133,7 +130,7 @@ def build_step_results_table(checkpoint: CheckpointDetailsView | RunCheckpoint) 
     table.add_column("Error")
 
     for step_result in checkpoint.step_results:
-        ok = step_result.ok if isinstance(step_result, StepResult) else step_result.status in ("completed", "ignored")
+        ok = step_result.status in ("completed", "ignored")
         status_style = "green" if ok else "red"
         status_label = f"[{status_style}]{step_result.status}[/{status_style}]"
         step_duration = f"{step_result.duration_seconds:.2f}s"
@@ -170,26 +167,3 @@ def build_checkpoint_view_renderables(
             return [Panel(checkpoint_raw, title="Checkpoint Data", border_style="cyan")]
 
     return []
-
-
-def build_checkpoint_renderables(checkpoint_json: str) -> list[Panel | Table]:
-    """Build checkpoint metadata and step details renderables or pretty JSON fallback."""
-    checkpoint = parse_checkpoint(checkpoint_json)
-    if checkpoint is None:
-        return build_checkpoint_view_renderables(None, checkpoint_raw=checkpoint_json)
-    return build_checkpoint_view_renderables(
-        CheckpointDetailsView(
-            pending_step_id=checkpoint.pending_step_id,
-            next_step_index=checkpoint.next_step_index,
-            diagnostic=checkpoint.diagnostic,
-            step_results=[
-                CheckpointStepView(
-                    step_id=step.step_id,
-                    status=step.status,
-                    duration_seconds=step.duration_seconds,
-                    error_message=step.error_message,
-                )
-                for step in checkpoint.step_results
-            ],
-        )
-    )

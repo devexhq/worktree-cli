@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from worktree.cli.ui.formatters.common import DispatcherProtocol
 from worktree.core.history.models import HistoryListResult, HistoryShowResult
 

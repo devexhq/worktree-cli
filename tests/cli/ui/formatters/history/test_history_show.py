@@ -340,6 +340,57 @@ HISTORY_SHOW_PAYLOAD_CASES = [
 ]
 
 
+def _assert_run_view_rendered(run: RunSummaryView | None, rendered: str) -> None:
+    if run is None:
+        return
+    assert run.session_id in rendered
+    assert run.blueprint_name in rendered
+    if run.branch_name is not None:
+        assert run.branch_name in rendered
+    if run.duration_seconds is not None:
+        assert format_run_duration(run.duration_seconds) in rendered
+    if run.error_message is not None:
+        assert run.error_message in rendered
+
+
+def _assert_checkpoint_step_rendered(step: CheckpointStepView, rendered: str) -> None:
+    assert step.step_id in rendered
+    assert f"{step.duration_seconds:.2f}s" in rendered
+    if step.error_message is not None:
+        assert step.error_message in rendered
+
+
+def _assert_checkpoint_view_rendered(checkpoint: CheckpointDetailsView | None, rendered: str) -> None:
+    if checkpoint is None:
+        return
+    assert checkpoint.pending_step_id in rendered
+    if checkpoint.diagnostic is not None:
+        assert checkpoint.diagnostic in rendered
+    for step in checkpoint.step_results:
+        _assert_checkpoint_step_rendered(step, rendered)
+
+
+def _assert_checkpoint_raw_rendered(checkpoint_raw: str | None, rendered: str) -> None:
+    if checkpoint_raw is None:
+        return
+    try:
+        raw_payload = json.loads(checkpoint_raw)
+        if isinstance(raw_payload, dict):
+            for key in raw_payload:
+                assert str(key) in rendered
+        else:
+            assert checkpoint_raw in rendered
+    except Exception:
+        assert checkpoint_raw in rendered
+
+
+def _assert_view_errors_rendered(view: HistoryShowView, rendered: str) -> None:
+    if view.status == HistoryShowStatus.NOT_FOUND and view.session_id is not None:
+        assert view.session_id in rendered
+    for error in view.errors:
+        assert error in rendered
+
+
 class HistoryShowFormatterTests:
     """Tier 2 presentation contract tests for HistoryShowFormatter."""
 
@@ -361,31 +412,7 @@ class HistoryShowFormatterTests:
     def test_rich_render_shows_every_view_value(self, case: FormatterCase[HistoryShowResult, HistoryShowView]) -> None:
         """Verify that all non-null semantic view model values reach the Rich renderable output."""
         rendered = render_rich(HistoryShowFormatter().to_rich(case.data))
-        view = case.view
-
-        if view.run is not None:
-            assert view.run.session_id in rendered
-            assert view.run.blueprint_name in rendered
-            if view.run.branch_name is not None:
-                assert view.run.branch_name in rendered
-            if view.run.duration_seconds is not None:
-                assert format_run_duration(view.run.duration_seconds) in rendered
-            if view.run.error_message is not None:
-                assert view.run.error_message in rendered
-
-        if view.checkpoint is not None:
-            assert view.checkpoint.pending_step_id in rendered
-            if view.checkpoint.diagnostic is not None:
-                assert view.checkpoint.diagnostic in rendered
-            for step in view.checkpoint.step_results:
-                assert step.step_id in rendered
-
-        if view.checkpoint_raw is not None:
-            assert "custom_field" in rendered
-
-        if view.status == HistoryShowStatus.NOT_FOUND:
-            if view.session_id is not None:
-                assert view.session_id in rendered
-
-        for error in view.errors:
-            assert error in rendered
+        _assert_run_view_rendered(case.view.run, rendered)
+        _assert_checkpoint_view_rendered(case.view.checkpoint, rendered)
+        _assert_checkpoint_raw_rendered(case.view.checkpoint_raw, rendered)
+        _assert_view_errors_rendered(case.view, rendered)

@@ -45,7 +45,7 @@ def _render_show_error_panel(view: HistoryShowView) -> Panel | None:
     if view.status == HistoryShowStatus.NOT_FOUND or (view.run is None and not view.errors):
         return _render_show_not_found(view.session_id, view.fixes)
 
-    if view.errors and (view.status != HistoryShowStatus.OK or view.run is None):
+    if view.errors:
         return _render_show_error(view.errors, view.fixes)
 
     return None
