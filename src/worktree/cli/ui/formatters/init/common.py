@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 from rich.panel import Panel
@@ -13,38 +12,31 @@ from worktree.cli.ui.formatters.common import (
     render_list_errors,
     render_list_fixes,
 )
-from worktree.common.utils import display_path
-from worktree.core.bootstrap import (
-    BootstrapOutcome,
-    BootstrapResult,
-    InitFailureMode,
-    WorkspaceInitResult,
-)
-from worktree.core.catalog.models import SeedResult
-from worktree.core.config.generator import ConfigGenerationResult
+from worktree.cli.ui.formatters.init.init_view import WorkspaceInitView
+from worktree.core.bootstrap.models import BootstrapOutcome, InitFailureMode
 
 
-def render_path_bullets(paths: list[Path], label: str, cwd: Path) -> list[Any]:
-    """Render bullet list of paths relative to cwd."""
+def render_string_bullets(items: list[str], label: str) -> list[Any]:
+    """Render bullet list of relative path strings or keys."""
     lines: list[Any] = [Text.from_markup(f"[bold dim]{label}:[/bold dim]")]
-    for path in paths:
-        lines.append(Text.from_markup(f"  [dim]•[/dim] [cyan]{display_path(path, cwd)}[/cyan]"))
+    for item in items:
+        lines.append(Text.from_markup(f"  [dim]•[/dim] [cyan]{item}[/cyan]"))
     return lines
 
 
-def render_bootstrap_lines(result: BootstrapResult, cwd: Path) -> list[Any]:
+def render_bootstrap_lines(view: WorkspaceInitView) -> list[Any]:
     """Render bootstrap result status and created directory lines."""
     renderables: list[Any] = []
-    worktree_label = display_path(cwd / ".worktree", cwd)
-    if result.outcome == BootstrapOutcome.REPAIRED:
+    worktree_label = view.root_path_relative or ".worktree"
+    if view.bootstrap_outcome == BootstrapOutcome.REPAIRED:
         renderables.append(
             Text.from_markup(f"[bold green]✔  Worktree structure repaired at {worktree_label}[/bold green]")
         )
-        renderables.extend(render_path_bullets(result.dirs_created, "Created missing", cwd))
-    elif result.outcome == BootstrapOutcome.INITIALIZED:
+        renderables.extend(render_string_bullets(view.dirs_created, "Created missing"))
+    elif view.bootstrap_outcome == BootstrapOutcome.INITIALIZED:
         renderables.append(Text.from_markup(f"[bold green]✔  Initialized Worktree at {worktree_label}[/bold green]"))
-        renderables.extend(render_path_bullets(result.dirs_created, "Created", cwd))
-    elif result.outcome == BootstrapOutcome.ALREADY_INITIALIZED:
+        renderables.extend(render_string_bullets(view.dirs_created, "Created"))
+    elif view.bootstrap_outcome == BootstrapOutcome.ALREADY_INITIALIZED:
         renderables.append(
             Text.from_markup(f"[bold green]✔  Worktree already initialized at {worktree_label}[/bold green]")
         )
@@ -52,43 +44,43 @@ def render_bootstrap_lines(result: BootstrapResult, cwd: Path) -> list[Any]:
     return renderables
 
 
-def render_config_lines(result: ConfigGenerationResult, cwd: Path) -> list[Any]:
+def render_config_lines(view: WorkspaceInitView) -> list[Any]:
     """Render config generation result lines."""
-    if not result.config_path:
+    if not view.config_path_relative:
         return []
     renderables: list[Any] = [Text("")]
-    label = f"./{display_path(result.config_path, cwd)}"
-    if result.created:
+    label = f"./{view.config_path_relative}"
+    if view.config_created:
         renderables.append(Text.from_markup(f"  [dim]•[/dim] Generated config: [cyan]{label}[/cyan]"))
-    elif result.overwritten:
+    elif view.config_overwritten:
         renderables.append(Text.from_markup(f"  [dim]•[/dim] Regenerated config: [cyan]{label}[/cyan]"))
-    elif result.repaired:
+    elif view.config_repaired:
         renderables.append(Text.from_markup(f"  [dim]•[/dim] Repaired config: [cyan]{label}[/cyan]"))
-        if result.inserted_keys:
+        if view.inserted_keys:
             renderables.append(Text.from_markup("[bold dim]  Added missing keys:[/bold dim]"))
-            for key in result.inserted_keys:
+            for key in view.inserted_keys:
                 renderables.append(Text.from_markup(f"  [dim]•[/dim] [cyan]{key}[/cyan]"))
-    elif result.skipped_existing:
+    elif view.config_skipped_existing:
         renderables.append(Text.from_markup(f"  [dim]•[/dim] Config exists: [cyan]{label}[/cyan]"))
     return renderables
 
 
-def render_seed_lines(result: SeedResult, cwd: Path) -> list[Any]:
+def render_seed_lines(view: WorkspaceInitView) -> list[Any]:
     """Render template seed result lines."""
     renderables: list[Any] = [Text("")]
-    if result.created_files:
+    if view.seeded_files:
         renderables.append(Text.from_markup("[bold green]✔  Seeded starter workflows[/bold green]"))
-        renderables.extend(render_path_bullets(result.created_files, "Created", cwd))
-    elif result.overwritten_files:
+        renderables.extend(render_string_bullets(view.seeded_files, "Created"))
+    elif view.overwritten_seed_files:
         renderables.append(Text.from_markup("[bold green]✔  Refreshed starter workflows[/bold green]"))
     else:
         renderables.append(Text.from_markup("[bold green]✔  Starter workflows already present[/bold green]"))
 
-    if result.skipped_existing_files:
-        renderables.extend(render_path_bullets(result.skipped_existing_files, "Skipped existing", cwd))
+    if view.skipped_seed_files:
+        renderables.extend(render_string_bullets(view.skipped_seed_files, "Skipped existing"))
 
-    if result.errors:
-        lines = "\n".join(f"- {err}" for err in result.errors)
+    if view.errors and view.failure_mode is None:
+        lines = "\n".join(f"- {error}" for error in view.errors)
         renderables.append(
             Panel.fit(
                 f"[bold red]Starter workflow seeding failed:[/bold red]\n{lines}",
@@ -98,21 +90,18 @@ def render_seed_lines(result: SeedResult, cwd: Path) -> list[Any]:
     return renderables
 
 
-def render_preflight_failure(data: WorkspaceInitResult) -> Panel:
+def render_preflight_failure(view: WorkspaceInitView) -> Panel:
     """Render panel when initialization preflight checks fail."""
-    lines = render_list_errors(data.errors, separator="\n")
-    if fixes_msg := render_list_fixes(data.fixes, bullet="  "):
-        lines = f"{lines}\n{fixes_msg}"
+    lines = render_list_errors(view.errors, separator="\n")
+    if fixes_message := render_list_fixes(view.fixes, bullet="  "):
+        lines = f"{lines}\n{fixes_message}"
     return Panel.fit(f"[bold red]Initialization Failed![/bold red]\n{lines}", border_style=ERROR_PANEL_STYLE)
 
 
-def render_bootstrap_failure(data: WorkspaceInitResult) -> Panel:
+def render_bootstrap_failure(view: WorkspaceInitView) -> Panel:
     """Render panel when bootstrap step fails."""
-    assert data.bootstrap_result is not None
-    lines = "\n".join(f"  {err}" for err in data.bootstrap_result.errors)
-    fixes = data.bootstrap_result.fixes or [
-        "Resolve the path conflict above, then rerun [bold cyan]wt init[/bold cyan]."
-    ]
+    lines = "\n".join(f"  {error}" for error in view.errors)
+    fixes = view.fixes or ["Resolve the path conflict above, then rerun [bold cyan]wt init[/bold cyan]."]
     remediation = render_list_fixes(fixes, bullet="  ")
     return Panel.fit(
         f"[bold red]Failed to initialize Worktree:[/bold red]\n{lines}\n{remediation}",
@@ -120,21 +109,20 @@ def render_bootstrap_failure(data: WorkspaceInitResult) -> Panel:
     )
 
 
-def render_config_failure(data: WorkspaceInitResult) -> Panel:
+def render_config_failure(view: WorkspaceInitView) -> Panel:
     """Render panel when configuration generation fails."""
-    assert data.config_result is not None
-    lines = "\n".join(f"- {err}" for err in data.config_result.errors)
-    if fixes_msg := render_list_fixes(data.config_result.fixes, bullet="  "):
-        lines = f"{lines}\n{fixes_msg}"
+    lines = "\n".join(f"- {error}" for error in view.errors)
+    if fixes_message := render_list_fixes(view.fixes, bullet="  "):
+        lines = f"{lines}\n{fixes_message}"
     return Panel.fit(f"[bold red]Failed to generate config:[/bold red]\n{lines}", border_style=ERROR_PANEL_STYLE)
 
 
-def render_failure_panel(data: WorkspaceInitResult) -> Panel | None:
+def render_failure_panel(view: WorkspaceInitView) -> Panel | None:
     """Render failure panels for preflight, bootstrap, or configuration generation errors."""
-    if data.failure_mode == InitFailureMode.PREFLIGHT:
-        return render_preflight_failure(data)
-    if data.failure_mode == InitFailureMode.BOOTSTRAP:
-        return render_bootstrap_failure(data)
-    if data.failure_mode == InitFailureMode.CONFIG_GENERATION:
-        return render_config_failure(data)
+    if view.failure_mode == InitFailureMode.PREFLIGHT:
+        return render_preflight_failure(view)
+    if view.failure_mode == InitFailureMode.BOOTSTRAP:
+        return render_bootstrap_failure(view)
+    if view.failure_mode == InitFailureMode.CONFIG_GENERATION:
+        return render_config_failure(view)
     return None

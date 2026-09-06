@@ -282,8 +282,8 @@ class InitCommandFailureTests:
         assert len(lines) == 1
         envelope = json.loads(lines[0])
         assert envelope["event_type"] == "WorkspaceInitResult"
-        assert envelope["payload"]["bootstrap_result"]["root_created"] is True
-        assert envelope["payload"]["config_result"]["created"] is True
+        assert envelope["payload"]["bootstrap_outcome"] == "initialized"
+        assert envelope["payload"]["config_created"] is True
 
 
 class InitCliTests:
@@ -333,4 +333,5 @@ class InitCliTests:
         assert len(lines) == 1
         payload = json.loads(lines[0])
         assert payload["event_type"] == "WorkspaceInitResult"
-        assert payload["payload"]["bootstrap_result"]["root_created"] is True
+        assert payload["payload"]["bootstrap_outcome"] == "initialized"
+        assert payload["payload"]["config_created"] is True
