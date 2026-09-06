@@ -74,7 +74,7 @@ def _is_pid_reused(pid: int, session_start: datetime | None, current_pid: int) -
 
     if pid == current_pid:
         current_start = get_process_start_time(current_pid)
-        return bool(current_start and current_start > session_start)
+        return bool(current_start and current_start > session_start + timedelta(seconds=1))
 
     proc_start = get_process_start_time(pid)
     return bool(proc_start and proc_start > session_start + timedelta(seconds=1))

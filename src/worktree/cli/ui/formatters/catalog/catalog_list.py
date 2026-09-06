@@ -8,51 +8,91 @@ from rich.console import Group
 from rich.panel import Panel
 from rich.text import Text
 
+from worktree.cli.ui.formatters.catalog.catalog_views import (
+    CatalogItemView,
+    CatalogListView,
+    CatalogTemplateView,
+)
 from worktree.cli.ui.formatters.catalog.common import (
     build_catalog_table,
     build_catalog_template_table,
 )
 from worktree.cli.ui.formatters.common import build_error_panel
 from worktree.common.types import ComponentFormatter
+from worktree.common.utils import enum_value
 from worktree.core.catalog.models import CatalogListResult
 
 
-def _render_list_empty(data: CatalogListResult) -> Any:
+def _render_list_empty(view: CatalogListView) -> Any:
     renderables: list[Any] = [Text("No catalog blueprints found.")]
-    for warning in data.warnings:
+    for warning in view.warnings:
         renderables.append(Panel(warning, title="Catalog Scan Warning", border_style="red"))
-    return Group(*renderables) if data.warnings else renderables[0]
+    return Group(*renderables) if view.warnings else renderables[0]
 
 
-def _render_list_items(data: CatalogListResult) -> Any:
-    table = build_catalog_table(data.items)
-    if not data.warnings:
+def _render_list_items(view: CatalogListView) -> Any:
+    table = build_catalog_table(view.items)
+    if not view.warnings:
         return table
     renderables: list[Any] = [table]
-    for warning in data.warnings:
+    for warning in view.warnings:
         renderables.append(Panel(warning, title="Catalog Scan Warning", border_style="red"))
     return Group(*renderables)
 
 
-class CatalogListFormatter(ComponentFormatter[CatalogListResult]):
+class CatalogListFormatter(ComponentFormatter[CatalogListResult, CatalogListView]):
     """Formatter for catalog list command results."""
+
+    def transform(self, data: CatalogListResult) -> CatalogListView:
+        """Derive the presentation-ready view from CatalogListResult.
+
+        Args:
+            data: Domain CatalogListResult.
+
+        Returns:
+            CatalogListView with mapped item and template models.
+        """
+        items = [
+            CatalogItemView(
+                id=item.id,
+                sha=item.sha,
+                item_type=enum_value(item.item_type),
+                name=item.name,
+                path=item.path.as_posix(),
+                checksum=item.checksum,
+                created_at=item.created_at,
+                updated_at=item.updated_at,
+            )
+            for item in data.items
+        ]
+        templates = [
+            CatalogTemplateView(item_type=template_type, path=template_path)
+            for template_type, template_path in data.templates
+        ]
+        return CatalogListView(
+            items=items,
+            type_filter=enum_value(data.type_filter) if data.type_filter else None,
+            templates=templates,
+            total_items=len(data.items),
+            errors=data.errors,
+            warnings=data.warnings,
+            fixes=data.fixes,
+        )
 
     def to_rich(self, data: CatalogListResult) -> Any:
         """Render catalog blueprint list, templates table, or empty state."""
-        if data.errors:
-            return build_error_panel("Catalog Filter Error", data.errors, fixes=data.fixes)
+        view = self.transform(data)
 
-        if data.templates:
-            return build_catalog_template_table(data.templates)
+        if view.errors:
+            return build_error_panel("Catalog Filter Error", view.errors, fixes=view.fixes)
 
-        if data.type_filter == "template":
+        if view.templates:
+            return build_catalog_template_table(view.templates)
+
+        if view.type_filter == "template":
             return Text("No packaged templates found.")
 
-        if not data.items:
-            return _render_list_empty(data)
+        if not view.items:
+            return _render_list_empty(view)
 
-        return _render_list_items(data)
-
-    def to_json_serializable(self, data: CatalogListResult) -> dict[str, Any]:
-        """Convert CatalogListResult to primitive dictionary for JSON serialization."""
-        return data.model_dump(mode="json")
+        return _render_list_items(view)
