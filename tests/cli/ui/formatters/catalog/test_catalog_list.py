@@ -3,9 +3,17 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
-from tests.helpers import render_rich
+import pytest
+
+from tests.helpers import FormatterCase, render_rich
 from worktree.cli.ui.formatters.catalog.catalog_list import CatalogListFormatter
+from worktree.cli.ui.formatters.catalog.catalog_views import (
+    CatalogItemView,
+    CatalogListView,
+    CatalogTemplateView,
+)
 from worktree.core.catalog.models import CatalogListResult
 from worktree.core.db import CatalogItemType, CatalogRecord
 
@@ -23,62 +31,98 @@ def _sample_catalog_record() -> CatalogRecord:
     )
 
 
-class CatalogListFormatterTests:
-    """Tests for CatalogListFormatter."""
+WITH_ITEMS = FormatterCase(
+    data=CatalogListResult(items=[_sample_catalog_record()]),
+    view=CatalogListView(
+        items=[
+            CatalogItemView(
+                id=1,
+                sha="workflow_1234567",
+                item_type="workflow",
+                name="test-workflow",
+                path="workflows/test-workflow.yml",
+                checksum="1234567890abcdef",
+                created_at="2026-08-17T00:00:00Z",
+                updated_at="2026-08-17T00:00:00Z",
+            )
+        ],
+        total_items=1,
+    ),
+)
 
-    def test_to_rich_with_items_renders_name_and_sha(self) -> None:
-        formatter = CatalogListFormatter()
-        item = _sample_catalog_record()
-        result = CatalogListResult(items=[item])
 
-        rendered = render_rich(formatter.to_rich(result))
-        assert "test-workflow" in rendered
-        assert "workflow_1234567" in rendered
+EMPTY_ITEMS = FormatterCase(
+    data=CatalogListResult(items=[]),
+    view=CatalogListView(
+        items=[],
+        total_items=0,
+    ),
+)
 
-    def test_to_rich_when_empty_renders_no_items(self) -> None:
-        formatter = CatalogListFormatter()
-        result = CatalogListResult(items=[])
 
-        rendered = render_rich(formatter.to_rich(result))
-        assert "test-workflow" not in rendered
+TEMPLATES = FormatterCase(
+    data=CatalogListResult(templates=[("workflow", "workflows/default.yml")]),
+    view=CatalogListView(
+        templates=[CatalogTemplateView(item_type="workflow", path="workflows/default.yml")],
+        total_items=0,
+    ),
+)
 
-    def test_to_rich_templates_renders_template_path(self) -> None:
-        formatter = CatalogListFormatter()
-        result = CatalogListResult(templates=[("workflow", "workflows/default.yml")])
 
-        rendered = render_rich(formatter.to_rich(result))
-        assert "workflows/default.yml" in rendered
+EMPTY_TEMPLATES = FormatterCase(
+    data=CatalogListResult(type_filter="template", templates=[]),
+    view=CatalogListView(
+        type_filter="template",
+        templates=[],
+        total_items=0,
+    ),
+)
 
-    def test_to_rich_empty_templates_renders_no_templates(self) -> None:
-        formatter = CatalogListFormatter()
-        result = CatalogListResult(type_filter="template", templates=[])
 
-        rendered = render_rich(formatter.to_rich(result))
-        assert "workflows/default.yml" not in rendered
+WITH_ERRORS = FormatterCase(
+    data=CatalogListResult(errors=["Invalid --type argument 'invalid'."]),
+    view=CatalogListView(
+        errors=["Invalid --type argument 'invalid'."],
+        total_items=0,
+    ),
+)
 
-    def test_to_rich_with_errors_renders_error_message(self) -> None:
-        formatter = CatalogListFormatter()
-        result = CatalogListResult(errors=["Invalid --type argument 'invalid'."])
 
-        rendered = render_rich(formatter.to_rich(result))
-        assert "Invalid --type argument 'invalid'." in rendered
+WITH_WARNINGS = FormatterCase(
+    data=CatalogListResult(items=[_sample_catalog_record()], warnings=["Failed to parse corrupted.yml"]),
+    view=CatalogListView(
+        items=[
+            CatalogItemView(
+                id=1,
+                sha="workflow_1234567",
+                item_type="workflow",
+                name="test-workflow",
+                path="workflows/test-workflow.yml",
+                checksum="1234567890abcdef",
+                created_at="2026-08-17T00:00:00Z",
+                updated_at="2026-08-17T00:00:00Z",
+            )
+        ],
+        total_items=1,
+        warnings=["Failed to parse corrupted.yml"],
+    ),
+)
 
-    def test_to_rich_with_warnings_renders_warning_message(self) -> None:
-        formatter = CatalogListFormatter()
-        item = _sample_catalog_record()
-        result = CatalogListResult(items=[item], warnings=["Failed to parse corrupted.yml"])
 
-        rendered = render_rich(formatter.to_rich(result))
-        assert "test-workflow" in rendered
-        assert "Failed to parse corrupted.yml" in rendered
+LIST_CASES = [
+    pytest.param(WITH_ITEMS, id="with_items"),
+    pytest.param(EMPTY_ITEMS, id="empty_items"),
+    pytest.param(TEMPLATES, id="templates"),
+    pytest.param(EMPTY_TEMPLATES, id="empty_templates"),
+    pytest.param(WITH_ERRORS, id="with_errors"),
+    pytest.param(WITH_WARNINGS, id="with_warnings"),
+]
 
-    def test_to_json_serializable_returns_exact_dict(self) -> None:
-        formatter = CatalogListFormatter()
-        item = _sample_catalog_record()
-        result = CatalogListResult(items=[item], type_filter=CatalogItemType.WORKFLOW)
 
-        dumped = formatter.to_json_serializable(result)
-        assert dumped == {
+PAYLOAD_CASES = [
+    pytest.param(
+        WITH_ITEMS,
+        {
             "errors": [],
             "warnings": [],
             "fixes": [],
@@ -94,6 +138,111 @@ class CatalogListFormatterTests:
                     "updated_at": "2026-08-17T00:00:00Z",
                 }
             ],
-            "type_filter": "workflow",
+            "type_filter": None,
             "templates": [],
-        }
+            "total_items": 1,
+        },
+        id="with_items_payload",
+    ),
+    pytest.param(
+        EMPTY_ITEMS,
+        {
+            "errors": [],
+            "warnings": [],
+            "fixes": [],
+            "items": [],
+            "type_filter": None,
+            "templates": [],
+            "total_items": 0,
+        },
+        id="empty_items_payload",
+    ),
+    pytest.param(
+        TEMPLATES,
+        {
+            "errors": [],
+            "warnings": [],
+            "fixes": [],
+            "items": [],
+            "type_filter": None,
+            "templates": [
+                {
+                    "item_type": "workflow",
+                    "path": "workflows/default.yml",
+                }
+            ],
+            "total_items": 0,
+        },
+        id="templates_payload",
+    ),
+    pytest.param(
+        WITH_ERRORS,
+        {
+            "errors": ["Invalid --type argument 'invalid'."],
+            "warnings": [],
+            "fixes": [],
+            "items": [],
+            "type_filter": None,
+            "templates": [],
+            "total_items": 0,
+        },
+        id="with_errors_payload",
+    ),
+    pytest.param(
+        WITH_WARNINGS,
+        {
+            "errors": [],
+            "warnings": ["Failed to parse corrupted.yml"],
+            "fixes": [],
+            "items": [
+                {
+                    "id": 1,
+                    "sha": "workflow_1234567",
+                    "item_type": "workflow",
+                    "name": "test-workflow",
+                    "path": "workflows/test-workflow.yml",
+                    "checksum": "1234567890abcdef",
+                    "created_at": "2026-08-17T00:00:00Z",
+                    "updated_at": "2026-08-17T00:00:00Z",
+                }
+            ],
+            "type_filter": None,
+            "templates": [],
+            "total_items": 1,
+        },
+        id="with_warnings_payload",
+    ),
+]
+
+
+class CatalogListFormatterTests:
+    @pytest.mark.parametrize("case", LIST_CASES)
+    def test_transform_derives_expected_view(self, case: FormatterCase[CatalogListResult, CatalogListView]) -> None:
+        assert CatalogListFormatter().transform(case.data) == case.view
+
+    @pytest.mark.parametrize(("case", "expected_payload"), PAYLOAD_CASES)
+    def test_json_payload_matches_published_shape(
+        self,
+        case: FormatterCase[CatalogListResult, CatalogListView],
+        expected_payload: dict[str, Any],
+    ) -> None:
+        assert CatalogListFormatter().to_json_serializable(case.data) == expected_payload
+
+    @pytest.mark.parametrize("case", LIST_CASES)
+    def test_rich_render_shows_every_view_value(self, case: FormatterCase[CatalogListResult, CatalogListView]) -> None:
+        rendered = render_rich(CatalogListFormatter().to_rich(case.data))
+        view = case.view
+
+        for item in view.items:
+            assert item.name in rendered
+            assert item.sha in rendered
+
+        for template in view.templates:
+            assert template.item_type in rendered
+            assert template.path in rendered
+
+        for error in view.errors:
+            assert error in rendered
+
+        for warning in view.warnings:
+            assert warning in rendered

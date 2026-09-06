@@ -4,15 +4,17 @@ from __future__ import annotations
 
 from rich.table import Table
 
-from worktree.common.utils import enum_value
-from worktree.core.db import CatalogRecord
+from worktree.cli.ui.formatters.catalog.catalog_views import (
+    CatalogItemView,
+    CatalogTemplateView,
+)
 
 
-def build_catalog_table(items: list[CatalogRecord]) -> Table:
+def build_catalog_table(items: list[CatalogItemView]) -> Table:
     """Build the Rich table displaying catalog blueprint items.
 
     Args:
-        items: List of CatalogRecord instances.
+        items: List of CatalogItemView instances.
 
     Returns:
         A Rich Table with Name, Type, Path, SHA columns.
@@ -24,22 +26,21 @@ def build_catalog_table(items: list[CatalogRecord]) -> Table:
     table.add_column("SHA", no_wrap=True)
 
     for item in items:
-        t_type = enum_value(item.item_type)
         table.add_row(
             item.name,
-            t_type,
-            str(item.path),
+            item.item_type,
+            item.path,
             item.sha,
         )
 
     return table
 
 
-def build_catalog_template_table(rows: list[tuple[str, str]]) -> Table:
+def build_catalog_template_table(templates: list[CatalogTemplateView]) -> Table:
     """Build the Rich table displaying packaged `default.yml` templates.
 
     Args:
-        rows: List of (type, relative_path) pairs.
+        templates: List of CatalogTemplateView instances.
 
     Returns:
         A Rich Table with TYPE and PATH columns.
@@ -48,7 +49,7 @@ def build_catalog_template_table(rows: list[tuple[str, str]]) -> Table:
     table.add_column("TYPE", no_wrap=True)
     table.add_column("PATH")
 
-    for item_type, rel_path in rows:
-        table.add_row(item_type, rel_path)
+    for template in templates:
+        table.add_row(template.item_type, template.path)
 
     return table
