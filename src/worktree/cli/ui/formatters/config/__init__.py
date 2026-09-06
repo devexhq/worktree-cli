@@ -14,6 +14,7 @@ from .config_load import ConfigLoadFormatter
 from .config_set import ConfigSetFormatter
 from .config_show import ConfigShowFormatter
 from .config_validate import ConfigValidateFormatter
+from .config_views import ConfigSetView, ConfigShowView, ConfigValidationView
 
 
 def register_config_formatters(dispatcher: DispatcherProtocol) -> None:
@@ -27,7 +28,10 @@ def register_config_formatters(dispatcher: DispatcherProtocol) -> None:
 __all__ = [
     "ConfigLoadFormatter",
     "ConfigSetFormatter",
+    "ConfigSetView",
     "ConfigShowFormatter",
+    "ConfigShowView",
     "ConfigValidateFormatter",
+    "ConfigValidationView",
     "register_config_formatters",
 ]

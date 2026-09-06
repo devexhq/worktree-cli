@@ -8,53 +8,77 @@ from rich.console import Group
 from rich.text import Text
 
 from worktree.cli.ui.formatters.common import build_error_panel, render_list_fixes
+from worktree.cli.ui.formatters.config.config_views import ConfigValidationView
 from worktree.common.formatters import format_warning_bullets
 from worktree.common.types import ComponentFormatter
-from worktree.core.config.validate import ConfigValidationResult
+from worktree.core.config.validate import ConfigValidationResult, ConfigValidationStatus
 
 
-def _format_valid_config(data: ConfigValidationResult) -> Text:
+def _derive_status_label(data: ConfigValidationResult) -> str:
+    """Derive human-readable status label from validation result."""
+    if not data.ok:
+        return "invalid"
+    return "valid with warnings" if data.warnings else "valid"
+
+
+def _format_valid_config(view: ConfigValidationView) -> Text:
     """Format successful configuration validation output with optional warnings and fixes."""
-    status_label = "valid with warnings" if data.warnings else "valid"
     lines = [
-        f"Config: {data.config_path.as_posix()}",
-        f"Status: {status_label}",
+        f"Config: {view.config_path.as_posix()}",
+        f"Status: {view.status_label}",
         "",
     ]
-    if data.warnings:
+    if view.warnings:
         lines.append("Warnings:")
-        lines.extend(format_warning_bullets(data.warnings))
+        lines.extend(format_warning_bullets(view.warnings))
         lines.append("")
-    if fixes_msg := render_list_fixes(data.fixes):
-        lines.append(fixes_msg)
+    if fixes_message := render_list_fixes(view.fixes):
+        lines.append(fixes_message)
         lines.append("")
     lines.append("Config is valid.")
     return Text("\n".join(lines))
 
 
-def _format_invalid_config(data: ConfigValidationResult) -> Any:
+def _format_invalid_config(view: ConfigValidationView) -> Any:
     """Format failed configuration validation error panel and warnings."""
     panel = build_error_panel(
         "Config Validation Failed",
-        data.errors,
+        view.errors,
         "Configuration validation failed.",
-        data.fixes,
+        view.fixes,
     )
-    if data.warnings:
-        warning_block = "Warnings:\n" + "\n".join(format_warning_bullets(data.warnings))
+    if view.warnings:
+        warning_block = "Warnings:\n" + "\n".join(format_warning_bullets(view.warnings))
         return Group(panel, Text(warning_block))
     return panel
 
 
-class ConfigValidateFormatter(ComponentFormatter[ConfigValidationResult]):
+class ConfigValidateFormatter(ComponentFormatter[ConfigValidationResult, ConfigValidationView]):
     """Formatter for configuration validation results."""
+
+    def transform(self, data: ConfigValidationResult) -> ConfigValidationView:
+        """Derive the presentation-ready view from ConfigValidationResult domain model.
+
+        Args:
+            data: Domain ConfigValidationResult object.
+
+        Returns:
+            ConfigValidationView with derived status_label.
+        """
+        return ConfigValidationView(
+            status=data.status,
+            config_path=data.config_path,
+            status_label=_derive_status_label(data),
+            raw=data.raw,
+            config=data.config,
+            errors=list(data.errors),
+            warnings=list(data.warnings),
+            fixes=list(data.fixes),
+        )
 
     def to_rich(self, data: ConfigValidationResult) -> Any:
         """Render status label, warning bullets, or error panel."""
-        if data.ok:
-            return _format_valid_config(data)
-        return _format_invalid_config(data)
-
-    def to_json_serializable(self, data: ConfigValidationResult) -> dict[str, Any]:
-        """Convert ConfigValidationResult to primitive dictionary for JSON serialization."""
-        return data.model_dump(mode="json")
+        view = self.transform(data)
+        if view.status == ConfigValidationStatus.VALID:
+            return _format_valid_config(view)
+        return _format_invalid_config(view)
