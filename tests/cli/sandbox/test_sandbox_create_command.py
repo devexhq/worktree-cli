@@ -362,3 +362,20 @@ class SandboxCreateCliTests:
         second = runner.invoke(app, ["sandbox", "create", "--name", "two"])
         assert second.exit_code == 1
         assert "Sandbox Create Failed" in second.stdout
+
+    def test_sandbox_create_json_format_emits_ndjson_event(
+        self,
+        git_fs: GitFileSystem,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
+
+        result = runner.invoke(app, ["sandbox", "create", "--format", "json"])
+
+        assert result.exit_code == 0
+        lines = [line for line in result.stdout.splitlines() if line.strip()]
+        assert len(lines) == 1
+        parsed = json.loads(lines[0])
+        assert parsed["event_type"] == "SandboxCreateResult"
+        assert parsed["payload"]["status"] == "ok"

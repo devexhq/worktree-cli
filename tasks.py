@@ -8,7 +8,7 @@ from invoke import task
 
 
 @task(default=True)
-def test(context, path="tests/", coverage=False, fast_fail=False, parallel=True, cov_missing=False):
+def test(context, path="tests/", coverage=False, fast_fail=False, parallel=True):
     """Run the test suite, optionally with coverage, parallelization, and fast-fail behavior."""
     cmd = [sys.executable, "-m", "pytest", path]
 
@@ -17,10 +17,7 @@ def test(context, path="tests/", coverage=False, fast_fail=False, parallel=True,
 
     if coverage:
         # fail_under=80 lives in pyproject.toml [tool.coverage.report]
-        if cov_missing:
-            cmd.extend(["--cov=worktree", "--cov-report=term-missing"])
-        else:
-            cmd.extend(["--cov=worktree", "--cov-report=total"])
+        cmd.extend(["--cov=worktree", "--cov-report=term-missing"])
 
     if fast_fail:
         cmd.append("-x")

@@ -9,7 +9,7 @@ import pytest
 from tests.helpers import FileSystem, RunFactory, make_run
 from worktree.core.blueprint import BlueprintKind
 from worktree.core.config.generator import generate_default_config
-from worktree.core.db import RunsRepository, RunStatus, WorktreeDb
+from worktree.core.db import RunStatus, WorktreeDb
 from worktree.core.history.models import (
     HistoryListStatus,
     HistoryShowStatus,
@@ -29,44 +29,38 @@ def _init_workspace(root: Path) -> None:
 class HistoryListServiceTests:
     """Direct unit tests for HistoryListService data collection and execution."""
 
-    db: WorktreeDb
-
-    @pytest.fixture(autouse=True)
-    def setup_method(self, fs: FileSystem) -> None:
-        self.db = WorktreeDb(path=fs.base_path)
-
-    def test_collect_all_runs(self, fs: FileSystem) -> None:
+    def test_collect_all_runs(self, fs: FileSystem, worktree_db: WorktreeDb) -> None:
         make_run(
-            self.db.runs,
+            worktree_db.runs,
             session_id="run-1",
             blueprint_name="task-1",
             kind=BlueprintKind.TASK,
             status=RunStatus.COMPLETED,
         )
         make_run(
-            self.db.runs,
+            worktree_db.runs,
             session_id="run-2",
             blueprint_name="wf-1",
             kind=BlueprintKind.WORKFLOW,
             status=RunStatus.FAILED,
         )
 
-        service = HistoryListService(path=fs.base_path, db=self.db.runs)
+        service = HistoryListService(path=fs.base_path, db=worktree_db.runs)
         result = service.collect()
         assert result.ok
         assert result.status is HistoryListStatus.OK
         assert len(result.runs) == 2
 
-    def test_collect_filter_by_status(self, fs: FileSystem) -> None:
+    def test_collect_filter_by_status(self, fs: FileSystem, worktree_db: WorktreeDb) -> None:
         make_run(
-            self.db.runs,
+            worktree_db.runs,
             session_id="run-ok",
             blueprint_name="task-1",
             kind=BlueprintKind.TASK,
             status=RunStatus.COMPLETED,
         )
         make_run(
-            self.db.runs,
+            worktree_db.runs,
             session_id="run-fail",
             blueprint_name="task-2",
             kind=BlueprintKind.TASK,
@@ -74,28 +68,28 @@ class HistoryListServiceTests:
         )
 
         # Status matching enum
-        service = HistoryListService(path=fs.base_path, db=self.db.runs, status="failed")
+        service = HistoryListService(path=fs.base_path, db=worktree_db.runs, status="failed")
         result = service.collect()
         assert result.ok
         assert len(result.runs) == 1
         assert result.runs[0].session_id == "run-fail"
 
         # Invalid status string fallback
-        service_invalid = HistoryListService(path=fs.base_path, db=self.db.runs, status="nonexistent_status")
+        service_invalid = HistoryListService(path=fs.base_path, db=worktree_db.runs, status="nonexistent_status")
         result_invalid = service_invalid.collect()
         assert result_invalid.ok
         assert len(result_invalid.runs) == 0
 
-    def test_collect_filter_by_kind(self, fs: FileSystem) -> None:
+    def test_collect_filter_by_kind(self, fs: FileSystem, worktree_db: WorktreeDb) -> None:
         make_run(
-            self.db.runs,
+            worktree_db.runs,
             session_id="run-task",
             blueprint_name="task-1",
             kind=BlueprintKind.TASK,
             status=RunStatus.COMPLETED,
         )
         make_run(
-            self.db.runs,
+            worktree_db.runs,
             session_id="run-wf",
             blueprint_name="wf-1",
             kind=BlueprintKind.WORKFLOW,
@@ -103,42 +97,42 @@ class HistoryListServiceTests:
         )
 
         # Kind matching enum
-        service = HistoryListService(path=fs.base_path, db=self.db.runs, kind="workflow")
+        service = HistoryListService(path=fs.base_path, db=worktree_db.runs, kind="workflow")
         result = service.collect()
         assert result.ok
         assert len(result.runs) == 1
         assert result.runs[0].session_id == "run-wf"
 
         # Invalid kind string fallback
-        service_invalid = HistoryListService(path=fs.base_path, db=self.db.runs, kind="invalid_kind")
+        service_invalid = HistoryListService(path=fs.base_path, db=worktree_db.runs, kind="invalid_kind")
         result_invalid = service_invalid.collect()
         assert result_invalid.ok
         assert len(result_invalid.runs) == 0
 
-    def test_collect_limit(self, fs: FileSystem) -> None:
+    def test_collect_limit(self, fs: FileSystem, worktree_db: WorktreeDb) -> None:
         for i in range(5):
             make_run(
-                self.db.runs,
+                worktree_db.runs,
                 session_id=f"run-{i}",
                 blueprint_name=f"task-{i}",
                 kind=BlueprintKind.TASK,
                 status=RunStatus.COMPLETED,
             )
 
-        service = HistoryListService(path=fs.base_path, db=self.db.runs, limit=3)
+        service = HistoryListService(path=fs.base_path, db=worktree_db.runs, limit=3)
         result = service.collect()
         assert result.ok
         assert len(result.runs) == 3
 
-    def test_execute_renders_output(self, fs: FileSystem) -> None:
+    def test_execute_renders_output(self, fs: FileSystem, worktree_db: WorktreeDb) -> None:
         make_run(
-            self.db.runs,
+            worktree_db.runs,
             session_id="run-exec",
             blueprint_name="sample-task",
             kind=BlueprintKind.TASK,
             status=RunStatus.COMPLETED,
         )
-        service = HistoryListService(path=fs.base_path, db=self.db.runs)
+        service = HistoryListService(path=fs.base_path, db=worktree_db.runs)
         result = service.execute()
         assert result.ok
         assert any(r.session_id == "run-exec" for r in result.runs)
@@ -153,49 +147,49 @@ class HistoryShowServiceTests:
     def setup_method(self, fs: FileSystem) -> None:
         self.db = WorktreeDb(path=fs.base_path)
 
-    def test_collect_found(self, fs: FileSystem) -> None:
+    def test_collect_found(self, fs: FileSystem, worktree_db: WorktreeDb) -> None:
         make_run(
-            self.db.runs,
+            worktree_db.runs,
             session_id="run-show",
             blueprint_name="show-task",
             kind=BlueprintKind.TASK,
             status=RunStatus.COMPLETED,
         )
 
-        service = HistoryShowService(session_id="run-show", path=fs.base_path, db=self.db.runs)
+        service = HistoryShowService(session_id="run-show", path=fs.base_path, db=worktree_db.runs)
         result = service.collect()
         assert result.ok
         assert result.status is HistoryShowStatus.OK
         assert result.run is not None
         assert result.run.session_id == "run-show"
 
-    def test_collect_not_found(self, fs: FileSystem) -> None:
+    def test_collect_not_found(self, fs: FileSystem, worktree_db: WorktreeDb) -> None:
         _init_workspace(fs.base_path)
-        service = HistoryShowService(session_id="missing-session", path=fs.base_path, db=self.db.runs)
+        service = HistoryShowService(session_id="missing-session", path=fs.base_path, db=worktree_db.runs)
         result = service.collect()
         assert not result.ok
         assert result.status is HistoryShowStatus.NOT_FOUND
         assert result.run is None
 
-    def test_execute_found_renders_metadata(self, fs: FileSystem, runs_repository: RunsRepository) -> None:
+    def test_execute_found_renders_metadata(self, fs: FileSystem, worktree_db: WorktreeDb) -> None:
         completed_run = RunFactory.create(
-            runs_repository,
+            worktree_db.runs,
             session_id="run-show-exec",
             blueprint_name="show-task",
             kind=BlueprintKind.TASK,
             status=RunStatus.COMPLETED,
         )
 
-        service = HistoryShowService(session_id=completed_run.session_id, path=fs.base_path, db=runs_repository)
+        service = HistoryShowService(session_id=completed_run.session_id, path=fs.base_path, db=worktree_db.runs)
         result = service.execute()
         assert result.ok
         assert result.run is not None
         assert result.run.session_id == completed_run.session_id
         assert result.run.blueprint_name == completed_run.blueprint_name
 
-    def test_execute_not_found_renders_panel(self, fs: FileSystem) -> None:
+    def test_execute_not_found_renders_panel(self, fs: FileSystem, worktree_db: WorktreeDb) -> None:
         _init_workspace(fs.base_path)
-        service = HistoryShowService(session_id="missing-exec", path=fs.base_path, db=self.db.runs)
+        service = HistoryShowService(session_id="missing-exec", path=fs.base_path, db=worktree_db.runs)
         result = service.execute()
         assert not result.ok
         assert result.status is HistoryShowStatus.NOT_FOUND

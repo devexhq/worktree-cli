@@ -180,3 +180,20 @@ class ConfigSetCliTests:
         assert "Config Error" in combined
         assert "CONFIG_WRITE_FAILED" in combined
         assert "Permission denied" in combined
+
+    def test_config_set_json_format_emits_ndjson_event(
+        self,
+        git_fs: GitFileSystem,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+        assert runner.invoke(app, ["init"]).exit_code == 0
+
+        result = runner.invoke(app, ["config", "set", "agent.model", "qwen2.5-coder", "--format", "json"])
+
+        assert result.exit_code == 0
+        lines = [line for line in result.stdout.splitlines() if line.strip()]
+        assert len(lines) == 1
+        parsed = json.loads(lines[0])
+        assert parsed["event_type"] == "ConfigSetResult"
+        assert parsed["payload"]["status"] == "ok"

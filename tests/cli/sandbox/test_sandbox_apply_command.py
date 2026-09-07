@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 from typer.testing import CliRunner
 
@@ -164,3 +166,29 @@ class SandboxApplyCliInvocationTests:
         assert result.exit_code == 1
         assert "Sandbox Apply Failed" in result.stdout
         assert "Sandbox 'sbx_ghost' not found" in result.stdout
+
+    def test_sandbox_apply_json_format_emits_ndjson_event(
+        self,
+        git_fs: GitFileSystem,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
+
+        sandbox_id = "sbx_apply_json"
+        monkeypatch.setattr(
+            "worktree.cli.sandbox.commands.sandbox_apply.Sandbox.apply",
+            lambda *args, **kwargs: SandboxApplyResult(
+                status=SandboxApplyStatus.OK,
+                sandbox_id=sandbox_id,
+            ),
+        )
+
+        result = runner.invoke(app, ["sandbox", "apply", sandbox_id, "--format", "json"])
+
+        assert result.exit_code == 0
+        lines = [line for line in result.stdout.splitlines() if line.strip()]
+        assert len(lines) == 1
+        parsed = json.loads(lines[0])
+        assert parsed["event_type"] == "SandboxApplyResult"
+        assert parsed["payload"]["status"] == "ok"

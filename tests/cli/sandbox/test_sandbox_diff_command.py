@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 from typer.testing import CliRunner
 
@@ -70,10 +73,9 @@ class SandboxDiffRenderTests:
 class SandboxDiffCommandDirectTests:
     """Direct sandbox_diff_command execution tests."""
 
-    def test_sandbox_diff_command_success(self, git_fs: GitFileSystem) -> None:
+    def test_sandbox_diff_command_success(self, git_fs: GitFileSystem, git_worktree_db: WorktreeDb) -> None:
         git_fs.init_repo()
-        db = WorktreeDb(path=git_fs.base_path)
-        manager = Sandbox(path=git_fs.base_path, db=db.sandboxes)
+        manager = Sandbox(path=git_fs.base_path, db=git_worktree_db.sandboxes)
         create_res = manager.create(session_id="sbx_diff_cmd")
         assert create_res.ok and create_res.session is not None
         session = create_res.session
@@ -89,11 +91,12 @@ class SandboxDiffCommandDirectTests:
 class SandboxDiffCliInvocationTests:
     """Typer runner integration tests for `wt sandbox diff`."""
 
-    def test_cli_diff_default(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_cli_diff_default(
+        self, git_fs: GitFileSystem, git_worktree_db: WorktreeDb, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         git_fs.init_repo()
         monkeypatch.chdir(git_fs.base_path)
-        db = WorktreeDb(path=git_fs.base_path)
-        manager = Sandbox(path=git_fs.base_path, db=db.sandboxes)
+        manager = Sandbox(path=git_fs.base_path, db=git_worktree_db.sandboxes)
         create_res = manager.create(session_id="sbx_cli_diff")
         assert create_res.ok and create_res.session is not None
         session = create_res.session
@@ -104,11 +107,12 @@ class SandboxDiffCliInvocationTests:
         assert "cli_diff.txt" in result.stdout
         manager.cleanup(session)
 
-    def test_cli_diff_stat(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_cli_diff_stat(
+        self, git_fs: GitFileSystem, git_worktree_db: WorktreeDb, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         git_fs.init_repo()
         monkeypatch.chdir(git_fs.base_path)
-        db = WorktreeDb(path=git_fs.base_path)
-        manager = Sandbox(path=git_fs.base_path, db=db.sandboxes)
+        manager = Sandbox(path=git_fs.base_path, db=git_worktree_db.sandboxes)
         create_res = manager.create(session_id="sbx_cli_stat")
         assert create_res.ok and create_res.session is not None
         session = create_res.session
@@ -125,3 +129,32 @@ class SandboxDiffCliInvocationTests:
         result = runner.invoke(app, ["sandbox", "diff", "sbx_unknown"])
         assert result.exit_code == 1
         assert "Sandbox Diff Failed" in result.stdout
+
+    def test_sandbox_diff_json_format_emits_ndjson_event(
+        self,
+        git_fs: GitFileSystem,
+        git_worktree_db: WorktreeDb,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
+
+        create_result = runner.invoke(app, ["sandbox", "create"])
+        assert create_result.exit_code == 0
+
+        rows = git_worktree_db.sandboxes.list()
+        assert rows
+        sandbox_path = rows[0].sandbox_path
+        sandbox_id = rows[0].id
+
+        # Produce a real diff: add a file inside the sandbox worktree.
+        (Path(sandbox_path) / "new_file.txt").write_text("hello\n", encoding="utf-8")
+
+        result = runner.invoke(app, ["sandbox", "diff", sandbox_id, "--format", "json"])
+
+        assert result.exit_code == 0
+        lines = [line for line in result.stdout.splitlines() if line.strip()]
+        assert len(lines) == 1
+        parsed = json.loads(lines[0])
+        assert parsed["event_type"] == "SandboxDiffResult"
+        assert parsed["payload"]["status"] == "ok"
