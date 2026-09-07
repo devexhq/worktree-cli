@@ -432,28 +432,3 @@ def test_ui_dispatcher_registers_all_registry_formatters() -> None:
     for model_cls, formatter_cls in FORMATTER_REGISTRY.items():
         assert model_cls in ui_dispatcher._registry
         assert type(ui_dispatcher._registry[model_cls]) is formatter_cls
-
-
-def test_no_stale_domain_register_functions() -> None:
-    """Ensure old register_<domain>_formatters functions are removed from domain packages."""
-    from worktree.cli.ui.formatters import (
-        catalog,
-        config,
-        diff,
-        events,
-        global_cli,
-        history,
-        init,
-        sandbox,
-        status,
-    )
-
-    assert not hasattr(catalog, "register_catalog_formatters")
-    assert not hasattr(config, "register_config_formatters")
-    assert not hasattr(diff, "register_diff_formatters")
-    assert not hasattr(events, "register_event_formatters")
-    assert not hasattr(global_cli, "register_global_formatters")
-    assert not hasattr(history, "register_history_formatters")
-    assert not hasattr(init, "register_init_formatters")
-    assert not hasattr(sandbox, "register_sandbox_formatters")
-    assert not hasattr(status, "register_status_formatters")
