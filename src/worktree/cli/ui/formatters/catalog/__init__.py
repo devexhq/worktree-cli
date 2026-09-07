@@ -2,14 +2,6 @@
 
 from __future__ import annotations
 
-from worktree.cli.ui.formatters.common import DispatcherProtocol
-from worktree.core.catalog.models import (
-    CatalogCreateResult,
-    CatalogDeleteResult,
-    CatalogListResult,
-    CatalogShowResult,
-)
-
 from .catalog_create import CatalogCreateFormatter
 from .catalog_delete import CatalogDeleteFormatter
 from .catalog_list import CatalogListFormatter
@@ -21,15 +13,6 @@ from .catalog_views import (
     CatalogTemplateView,
 )
 
-
-def register_catalog_formatters(dispatcher: DispatcherProtocol) -> None:
-    """Register all catalog formatters on the provided dispatcher."""
-    dispatcher.register(CatalogListResult, CatalogListFormatter())
-    dispatcher.register(CatalogShowResult, CatalogShowFormatter())
-    dispatcher.register(CatalogDeleteResult, CatalogDeleteFormatter())
-    dispatcher.register(CatalogCreateResult, CatalogCreateFormatter())
-
-
 __all__ = [
     "CatalogCreateFormatter",
     "CatalogDeleteFormatter",
@@ -39,5 +22,4 @@ __all__ = [
     "CatalogShowFormatter",
     "CatalogShowView",
     "CatalogTemplateView",
-    "register_catalog_formatters",
 ]

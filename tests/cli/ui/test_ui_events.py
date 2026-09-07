@@ -21,7 +21,6 @@ from worktree.cli.ui.events import (
     StepStartEvent,
     WarningEvent,
 )
-from worktree.cli.ui.formatters import register_ui_formatters
 from worktree.core.db import BlueprintKind, RunStatus
 
 
@@ -36,7 +35,6 @@ def test_error_panel_event_terminal() -> None:
 
 def test_error_panel_event_json(capsys: pytest.CaptureFixture[str]) -> None:
     dispatcher = UiDispatcher()
-    register_ui_formatters(dispatcher)
     event = ErrorPanelEvent(title="Task Run Failed", message="Command failed with exit code 1.")
     dispatcher.dispatch(event, output_format="json")
     captured = capsys.readouterr()
@@ -60,7 +58,6 @@ def test_warning_event_terminal() -> None:
 
 def test_warning_event_json(capsys: pytest.CaptureFixture[str]) -> None:
     dispatcher = UiDispatcher()
-    register_ui_formatters(dispatcher)
     event = WarningEvent(message="Something non-fatal occurred.")
     dispatcher.dispatch(event, output_format="json")
     captured = capsys.readouterr()
@@ -94,7 +91,6 @@ def test_lock_wait_event_terminal() -> None:
 
 def test_lock_wait_event_json(capsys: pytest.CaptureFixture[str]) -> None:
     dispatcher = UiDispatcher()
-    register_ui_formatters(dispatcher)
     event = LockWaitEvent(lock_path="/path/to/.worktree/.lock", holder_pid="999", timeout_seconds=30.0)
     dispatcher.dispatch(event, output_format="json")
     captured = capsys.readouterr()
@@ -122,7 +118,6 @@ def test_message_event_terminal_and_styled() -> None:
 
 def test_message_event_json(capsys: pytest.CaptureFixture[str]) -> None:
     dispatcher = UiDispatcher()
-    register_ui_formatters(dispatcher)
     event = MessageEvent(message="Running task 'build'...", style="dim")
     dispatcher.dispatch(event, output_format="json")
     captured = capsys.readouterr()
@@ -151,7 +146,6 @@ def test_run_success_event_terminal() -> None:
 
 def test_run_success_event_json(capsys: pytest.CaptureFixture[str]) -> None:
     dispatcher = UiDispatcher()
-    register_ui_formatters(dispatcher)
     event = RunSuccessEvent(
         session_id="wf_12345678",
         blueprint_name="deploy",
@@ -187,7 +181,6 @@ def test_step_start_event_terminal() -> None:
 
 def test_step_start_event_json(capsys: pytest.CaptureFixture[str]) -> None:
     dispatcher = UiDispatcher()
-    register_ui_formatters(dispatcher)
     event = StepStartEvent(
         idx=1,
         total=2,
@@ -238,7 +231,6 @@ def test_step_done_event_terminal_failure() -> None:
 
 def test_step_done_event_json(capsys: pytest.CaptureFixture[str]) -> None:
     dispatcher = UiDispatcher()
-    register_ui_formatters(dispatcher)
     event = StepDoneEvent(
         idx=1,
         total=1,
@@ -273,7 +265,6 @@ def test_step_output_event_terminal() -> None:
 
 def test_step_output_event_json(capsys: pytest.CaptureFixture[str]) -> None:
     dispatcher = UiDispatcher()
-    register_ui_formatters(dispatcher)
     event = StepOutputEvent(step_id="build", line="compiling crate...", stream="stdout")
     dispatcher.dispatch(event, output_format="json")
     captured = capsys.readouterr()
@@ -327,7 +318,6 @@ def test_sandbox_lifecycle_event_terminal() -> None:
 
 def test_sandbox_lifecycle_event_json(capsys: pytest.CaptureFixture[str]) -> None:
     dispatcher = UiDispatcher()
-    register_ui_formatters(dispatcher)
     event = SandboxLifecycleEvent(action="ready", path="/workspace", active=False)
     dispatcher.dispatch(event, output_format="json")
     captured = capsys.readouterr()
@@ -382,7 +372,6 @@ def test_loop_lifecycle_event_terminal() -> None:
 
 def test_loop_lifecycle_event_json(capsys: pytest.CaptureFixture[str]) -> None:
     dispatcher = UiDispatcher()
-    register_ui_formatters(dispatcher)
     event = LoopLifecycleEvent(
         loop_id="loop_1",
         action="turn_start",

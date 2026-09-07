@@ -12,31 +12,25 @@ from rich.text import Text
 from tests.helpers import FileSystem, make_dispatcher_with_buffer
 from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
 from worktree.cli.ui.events import LockWaitEvent
-from worktree.cli.ui.formatters.catalog import register_catalog_formatters
 from worktree.cli.ui.formatters.config import (
     ConfigSetFormatter,
     ConfigShowFormatter,
     ConfigValidateFormatter,
-    register_config_formatters,
 )
 from worktree.cli.ui.formatters.diff import (
     DiffResultFormatter,
-    register_diff_formatters,
 )
 from worktree.cli.ui.formatters.events.lock_wait import LockWaitFormatter
 from worktree.cli.ui.formatters.history import (
     HistoryListFormatter,
     HistoryShowFormatter,
-    register_history_formatters,
 )
 from worktree.cli.ui.formatters.init import (
     InitOutcomeFormatter,
     WorkspaceInitFormatter,
-    register_init_formatters,
 )
 from worktree.cli.ui.formatters.status import (
     WorktreeStatusFormatter,
-    register_status_formatters,
 )
 from worktree.common.types import ComponentFormatter
 from worktree.core.blueprint import BlueprintKind
@@ -209,9 +203,8 @@ def _sample_catalog_record() -> CatalogRecord:
 class CatalogDispatcherIntegrationTests:
     """Integration tests for UiDispatcher catalog formatters and JSON/terminal output."""
 
-    def test_register_catalog_formatters_custom_dispatcher(self) -> None:
+    def test_custom_dispatcher_has_catalog_registrations(self) -> None:
         dispatcher = UiDispatcher()
-        register_catalog_formatters(dispatcher)
 
         assert CatalogListResult in dispatcher._registry
         assert CatalogShowResult in dispatcher._registry
@@ -226,7 +219,6 @@ class CatalogDispatcherIntegrationTests:
 
     def test_dispatcher_list_ndjson(self, capsys: pytest.CaptureFixture[str]) -> None:
         dispatcher = UiDispatcher()
-        register_catalog_formatters(dispatcher)
         item = _sample_catalog_record()
         result = CatalogListResult(items=[item], type_filter="workflow")
 
@@ -243,7 +235,6 @@ class CatalogDispatcherIntegrationTests:
 
     def test_dispatcher_show_ndjson(self, capsys: pytest.CaptureFixture[str]) -> None:
         dispatcher = UiDispatcher()
-        register_catalog_formatters(dispatcher)
         item = _sample_catalog_record()
         result = CatalogShowResult(item=item, content="name: test\n")
 
@@ -259,7 +250,6 @@ class CatalogDispatcherIntegrationTests:
 
     def test_dispatcher_delete_ndjson(self, capsys: pytest.CaptureFixture[str]) -> None:
         dispatcher = UiDispatcher()
-        register_catalog_formatters(dispatcher)
         item = _sample_catalog_record()
         result = CatalogDeleteResult(item=item, deleted=True)
 
@@ -275,7 +265,6 @@ class CatalogDispatcherIntegrationTests:
 
     def test_dispatcher_create_ndjson(self, capsys: pytest.CaptureFixture[str]) -> None:
         dispatcher = UiDispatcher()
-        register_catalog_formatters(dispatcher)
         item = _sample_catalog_record()
         result = CatalogCreateResult(item=item)
 
@@ -304,9 +293,8 @@ class CatalogDispatcherIntegrationTests:
 class ConfigRegistrationAndDispatchTests:
     """Tests for registration and dispatcher integration."""
 
-    def test_register_config_formatters_custom_dispatcher(self) -> None:
+    def test_custom_dispatcher_has_config_registrations(self) -> None:
         dispatcher = UiDispatcher()
-        register_config_formatters(dispatcher)
         assert ConfigLoadResult in dispatcher._registry
         assert WorktreeConfig in dispatcher._registry
         assert ConfigValidationResult in dispatcher._registry
@@ -325,7 +313,6 @@ class ConfigRegistrationAndDispatchTests:
 
     def test_dispatcher_config_show_ndjson(self, capsys: pytest.CaptureFixture[str]) -> None:
         dispatcher = UiDispatcher()
-        register_config_formatters(dispatcher)
         config = WorktreeConfig(version=1, project=ProjectConfig(name="ndjson-proj"))
 
         dispatcher.dispatch(config, output_format="json")
@@ -353,7 +340,6 @@ class ConfigRegistrationAndDispatchTests:
 
     def test_dispatcher_config_validate_ndjson(self, capsys: pytest.CaptureFixture[str]) -> None:
         dispatcher = UiDispatcher()
-        register_config_formatters(dispatcher)
         result = ConfigValidationResult(
             status=ConfigValidationStatus.VALID,
             config_path=Path("/workspace/.worktree/config.json"),
@@ -376,7 +362,6 @@ class ConfigRegistrationAndDispatchTests:
 
     def test_dispatcher_config_set_ndjson(self, capsys: pytest.CaptureFixture[str]) -> None:
         dispatcher = UiDispatcher()
-        register_config_formatters(dispatcher)
         result = ConfigSetResult(
             status=ConfigSetStatus.OK,
             config_path=Path("/workspace/.worktree/config.json"),
@@ -416,9 +401,8 @@ def _sample_run_record() -> RunRecord:
 class HistoryDispatcherIntegrationTests:
     """Integration tests for UiDispatcher history formatters and JSON/terminal output."""
 
-    def test_register_history_formatters_custom_dispatcher(self) -> None:
+    def test_custom_dispatcher_has_history_registrations(self) -> None:
         dispatcher = UiDispatcher()
-        register_history_formatters(dispatcher)
 
         assert HistoryListResult in dispatcher._registry
         assert HistoryShowResult in dispatcher._registry
@@ -433,7 +417,6 @@ class HistoryDispatcherIntegrationTests:
 
     def test_dispatcher_list_ndjson(self, capsys: pytest.CaptureFixture[str]) -> None:
         dispatcher = UiDispatcher()
-        register_history_formatters(dispatcher)
         run = _sample_run_record()
         result = HistoryListResult(status=HistoryListStatus.OK, runs=[run])
 
@@ -451,7 +434,6 @@ class HistoryDispatcherIntegrationTests:
 
     def test_dispatcher_show_ndjson(self, capsys: pytest.CaptureFixture[str]) -> None:
         dispatcher = UiDispatcher()
-        register_history_formatters(dispatcher)
         run = _sample_run_record()
         result = HistoryShowResult(
             status=HistoryShowStatus.OK,
@@ -486,9 +468,8 @@ class HistoryDispatcherIntegrationTests:
 class DiffDispatcherIntegrationTests:
     """Integration tests for UiDispatcher diff formatters and JSON/terminal/raw output."""
 
-    def test_register_diff_formatters_custom_dispatcher(self) -> None:
+    def test_custom_dispatcher_has_diff_registrations(self) -> None:
         dispatcher = UiDispatcher()
-        register_diff_formatters(dispatcher)
 
         assert DiffResult in dispatcher._registry
         assert isinstance(dispatcher._registry[DiffResult], DiffResultFormatter)
@@ -499,7 +480,6 @@ class DiffDispatcherIntegrationTests:
 
     def test_dispatcher_json_format_ndjson(self, capsys: pytest.CaptureFixture[str]) -> None:
         dispatcher = UiDispatcher()
-        register_diff_formatters(dispatcher)
         result = DiffResult(
             status=DiffStatus.OK,
             session_id="sbx_ndjson",
@@ -536,7 +516,6 @@ class DiffDispatcherIntegrationTests:
 
     def test_dispatcher_raw_format(self, capsys: pytest.CaptureFixture[str]) -> None:
         dispatcher = UiDispatcher()
-        register_diff_formatters(dispatcher)
         result = DiffResult(
             status=DiffStatus.OK,
             session_id="sbx_raw_dispatch",
@@ -554,9 +533,8 @@ class DiffDispatcherIntegrationTests:
 class WorkspaceInitDispatcherIntegrationTests:
     """Integration tests for UiDispatcher workspace init formatters and JSON/terminal output."""
 
-    def test_register_init_formatters_custom_dispatcher(self) -> None:
+    def test_custom_dispatcher_has_init_registrations(self) -> None:
         dispatcher = UiDispatcher()
-        register_init_formatters(dispatcher)
 
         assert WorkspaceInitResult in dispatcher._registry
         assert isinstance(dispatcher._registry[WorkspaceInitResult], WorkspaceInitFormatter)
@@ -568,7 +546,6 @@ class WorkspaceInitDispatcherIntegrationTests:
 
     def test_dispatcher_json_format_ndjson(self, fs: FileSystem, capsys: pytest.CaptureFixture[str]) -> None:
         dispatcher = UiDispatcher()
-        register_init_formatters(dispatcher)
         result = WorkspaceInitResult(
             bootstrap_result=BootstrapResult(root_path=fs.base_path / ".worktree", root_created=True),
             config_result=ConfigGenerationResult(config_path=fs.base_path / ".worktree" / "config.json", created=True),
@@ -649,9 +626,8 @@ def _sample_status_result() -> WorktreeStatusResult:
 class StatusDispatcherIntegrationTests:
     """Integration tests for UiDispatcher status formatters and JSON/terminal output."""
 
-    def test_register_status_formatters_custom_dispatcher(self) -> None:
+    def test_custom_dispatcher_has_status_registrations(self) -> None:
         dispatcher = UiDispatcher()
-        register_status_formatters(dispatcher)
 
         assert WorktreeStatusResult in dispatcher._registry
         assert isinstance(dispatcher._registry[WorktreeStatusResult], WorktreeStatusFormatter)
@@ -662,7 +638,6 @@ class StatusDispatcherIntegrationTests:
 
     def test_dispatcher_json_format_ndjson(self, capsys: pytest.CaptureFixture[str]) -> None:
         dispatcher = UiDispatcher()
-        register_status_formatters(dispatcher)
         result = _sample_status_result()
 
         dispatcher.dispatch(result, output_format="json")
