@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from rich.console import Group
 from rich.text import Text
 
@@ -32,7 +30,3 @@ class PromptFormatter(ComponentFormatter[PromptEvent]):
         renderables.append(Text(""))
 
         return Group(*renderables)
-
-    def to_json_serializable(self, data: PromptEvent) -> dict[str, Any]:
-        """Convert PromptEvent to dictionary for JSON serialization."""
-        return data.model_dump(mode="json")

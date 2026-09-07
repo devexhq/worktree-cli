@@ -38,7 +38,3 @@ class SandboxCreateFormatter(ComponentFormatter[SandboxCreateResult]):
             "Sandbox creation failed.",
             data.fixes,
         )
-
-    def to_json_serializable(self, data: SandboxCreateResult) -> dict[str, Any]:
-        """Convert SandboxCreateResult to primitive dictionary for JSON serialization."""
-        return data.model_dump(mode="json")

@@ -30,7 +30,3 @@ class SandboxDiffFormatter(ComponentFormatter[SandboxDiffResult]):
         if data.stat_text:
             return Text(data.stat_text.strip())
         return Syntax(data.diff_text.strip(), "diff", word_wrap=True)
-
-    def to_json_serializable(self, data: SandboxDiffResult) -> dict[str, Any]:
-        """Convert SandboxDiffResult to primitive dictionary for JSON serialization."""
-        return data.model_dump(mode="json")

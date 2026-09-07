@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from rich.text import Text
 
 from worktree.cli.ui.events import WarningEvent
@@ -16,7 +14,3 @@ class WarningFormatter(ComponentFormatter[WarningEvent]):
     def to_rich(self, data: WarningEvent) -> Text:
         """Render warning notice in yellow."""
         return Text.from_markup(f"[yellow]Warning:[/] {data.message}")
-
-    def to_json_serializable(self, data: WarningEvent) -> dict[str, Any]:
-        """Convert WarningEvent to dictionary for JSON serialization."""
-        return data.model_dump(mode="json")

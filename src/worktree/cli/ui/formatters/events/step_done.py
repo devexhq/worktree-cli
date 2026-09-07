@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from rich.text import Text
 
 from worktree.cli.ui.events import StepDoneEvent
@@ -20,7 +18,3 @@ class StepDoneFormatter(ComponentFormatter[StepDoneEvent]):
             return Text.from_markup(f"[bold green][STEP {data.idx}/{data.total}] {step_label} COMPLETED[/]")
         msg = data.error_message or f"exit code {data.exit_code}"
         return Text.from_markup(f"[bold red][STEP {data.idx}/{data.total}] {step_label} FAILED[/]: {msg}")
-
-    def to_json_serializable(self, data: StepDoneEvent) -> dict[str, Any]:
-        """Convert StepDoneEvent to dictionary for JSON serialization."""
-        return data.model_dump(mode="json")

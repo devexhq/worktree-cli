@@ -31,7 +31,3 @@ class CatalogDeleteFormatter(ComponentFormatter[CatalogDeleteResult]):
             return Text(f"Deleted catalog blueprint '{data.item.sha}' ({data.item.path}).")
 
         return Text("")
-
-    def to_json_serializable(self, data: CatalogDeleteResult) -> dict[str, Any]:
-        """Convert CatalogDeleteResult to primitive dictionary for JSON serialization."""
-        return data.model_dump(mode="json")

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from rich.text import Text
 
 from worktree.cli.ui.events import MessageEvent
@@ -18,7 +16,3 @@ class MessageFormatter(ComponentFormatter[MessageEvent]):
         if data.style is not None:
             return Text(data.message, style=data.style)
         return Text.from_markup(data.message)
-
-    def to_json_serializable(self, data: MessageEvent) -> dict[str, Any]:
-        """Convert MessageEvent to dictionary for JSON serialization."""
-        return data.model_dump(mode="json")

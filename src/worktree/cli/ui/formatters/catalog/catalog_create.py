@@ -29,7 +29,3 @@ class CatalogCreateFormatter(ComponentFormatter[CatalogCreateResult]):
         t_type = enum_value(data.item.item_type)
         rel_path = Path(".worktree") / "catalog" / data.item.path
         return Text(f"Created catalog blueprint '{data.item.sha}' (type: {t_type}) at '{rel_path}'.")
-
-    def to_json_serializable(self, data: CatalogCreateResult) -> dict[str, Any]:
-        """Convert CatalogCreateResult to primitive dictionary for JSON serialization."""
-        return data.model_dump(mode="json")

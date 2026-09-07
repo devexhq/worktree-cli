@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from rich.panel import Panel
 from rich.text import Text
 
@@ -21,7 +19,3 @@ class WelcomeBannerFormatter(ComponentFormatter[WelcomeBannerEvent]):
         banner_text.append(f"v{data.version}\n", style="dim cyan")
         banner_text.append("Isolated Git Workspaces & Agent Workflows", style="italic dim")
         return Panel(banner_text, border_style="green", expand=False, padding=(1, 4))
-
-    def to_json_serializable(self, data: WelcomeBannerEvent) -> dict[str, Any]:
-        """Convert WelcomeBannerEvent to dictionary for JSON serialization."""
-        return data.model_dump(mode="json")

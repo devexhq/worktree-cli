@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from rich.text import Text
 
 from worktree.cli.ui.events import LoopLifecycleEvent
@@ -26,7 +24,3 @@ class LoopLifecycleFormatter(ComponentFormatter[LoopLifecycleEvent]):
                 return Text(f"[{data.loop_id}] Loop completed successfully in {data.turn} iteration(s).")
             return Text(f"[{data.loop_id}] Loop terminated with status '{data.status}' after {data.turn} iteration(s).")
         return Text(data.message or f"[{data.loop_id}] {data.action}")
-
-    def to_json_serializable(self, data: LoopLifecycleEvent) -> dict[str, Any]:
-        """Convert LoopLifecycleEvent to dictionary for JSON serialization."""
-        return data.model_dump(mode="json")

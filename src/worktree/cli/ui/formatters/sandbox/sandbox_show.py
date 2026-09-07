@@ -57,7 +57,3 @@ class SandboxShowFormatter(ComponentFormatter[SandboxShowResult]):
             return table
 
         return _format_show_error_panel(data)
-
-    def to_json_serializable(self, data: SandboxShowResult) -> dict[str, Any]:
-        """Convert SandboxShowResult to primitive dictionary for JSON serialization."""
-        return data.model_dump(mode="json")

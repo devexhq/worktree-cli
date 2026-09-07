@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 from rich.panel import Panel
 
@@ -24,7 +23,3 @@ class LockWaitFormatter(ComponentFormatter[LockWaitEvent]):
             title="[bold yellow]Lock Held[/bold yellow]",
             border_style="yellow",
         )
-
-    def to_json_serializable(self, data: LockWaitEvent) -> dict[str, Any]:
-        """Convert LockWaitEvent to dictionary for JSON serialization."""
-        return data.model_dump(mode="json")

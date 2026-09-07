@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from rich.text import Text
 
 from worktree.cli.ui.events import RunSuccessEvent
@@ -20,7 +18,3 @@ class RunSuccessFormatter(ComponentFormatter[RunSuccessEvent]):
             f"[bold green]{kind_str} Run Completed:[/] {data.blueprint_name} "
             f"(session: {data.session_id}, status: {data.status.value})"
         )
-
-    def to_json_serializable(self, data: RunSuccessEvent) -> dict[str, Any]:
-        """Convert RunSuccessEvent to dictionary for JSON serialization."""
-        return data.model_dump(mode="json")
