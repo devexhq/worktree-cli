@@ -5,10 +5,8 @@ from __future__ import annotations
 import ast
 import importlib
 import inspect
-import json
 import pkgutil
 import re
-from collections.abc import Callable
 from enum import Enum
 from pathlib import Path
 from typing import Any, Final
@@ -16,50 +14,9 @@ from typing import Any, Final
 from pydantic import BaseModel
 
 import worktree.cli.ui.formatters as formatters_pkg
-from tests.helpers import make_status_result
-from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
-from worktree.cli.ui.events import (
-    ErrorPanelEvent,
-    LockWaitEvent,
-    LoopLifecycleEvent,
-    MessageEvent,
-    PromptEvent,
-    PromptOption,
-    RunSuccessEvent,
-    SandboxLifecycleEvent,
-    StepDoneEvent,
-    StepOutputEvent,
-    StepStartEvent,
-    WarningEvent,
-    WelcomeBannerEvent,
-)
+from worktree.cli.ui.dispatcher import ui_dispatcher
 from worktree.cli.ui.formatters import FORMATTER_REGISTRY
 from worktree.common.types import ComponentFormatter
-from worktree.core.config.loader import ConfigLoadResult, ConfigLoadStatus
-from worktree.core.config.models import ProjectConfig, WorktreeConfig
-from worktree.core.config.mutate import ConfigSetResult, ConfigSetStatus
-from worktree.core.config.validate import ConfigValidationResult, ConfigValidationStatus
-from worktree.core.db import BlueprintKind, RunStatus
-from worktree.core.diff.models import DiffResult, DiffStatus
-from worktree.core.history.models import HistoryShowResult, HistoryShowStatus
-from worktree.core.sandbox.models import (
-    PruneAction,
-    PrunedItem,
-    SandboxApplyResult,
-    SandboxApplyStatus,
-    SandboxCreateResult,
-    SandboxCreateStatus,
-    SandboxDeleteResult,
-    SandboxDeleteStatus,
-    SandboxDiffResult,
-    SandboxDiffStatus,
-    SandboxListResult,
-    SandboxListStatus,
-    SandboxShowResult,
-    SandboxShowStatus,
-    StaleSandboxCategory,
-)
-from worktree.core.status.models import WorktreeStatusResult
 
 SRC_ROOT: Final[Path] = Path(__file__).parent.parent.parent / "src" / "worktree"
 FORMATTERS_DIR: Final[Path] = SRC_ROOT / "cli" / "ui" / "formatters"
