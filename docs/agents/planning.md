@@ -127,10 +127,13 @@ does not need, so a reviewer can tell the difference between "not needed" and
   top-level group. Exact flag names, exact `help=` copy, `raise typer.Exit(code=1)`
   when `not result.ok`.
 - **Formatter** -> `cli/ui/formatters/<domain>/<name>.py`, exactly one
-  `*Formatter` class per module, implementing `to_rich` and
-  `to_json_serializable`; shared table builders go in that domain's `common.py`.
-  Wire it into `register_<domain>_formatters` and `__all__` in the domain
-  `__init__.py`, which `register_all_formatters` already chains.
+  `*Formatter` class per module, implementing `transform` and `to_rich`.
+  `to_json_serializable` is inherited from `ComponentFormatter` and must not be
+  overridden. Presentation view models live in
+  `cli/ui/formatters/<domain>/<domain>_views.py` (or `<name>_view.py`) and are a
+  required artifact for any formatter that derives values; shared table builders
+  go in that domain's `common.py`. Wire it into `register_<domain>_formatters` and
+  `__all__` in the domain `__init__.py`, which `register_all_formatters` already chains.
 - **Config key** -> `core/config/models.py` plus `schemas/v1/config.json` plus
   the defaults generator, and state the default value.
 - **JSON / YAML schema** -> `src/worktree/schemas/v1/*.json`, keeping
@@ -138,8 +141,9 @@ does not need, so a reviewer can tell the difference between "not needed" and
 - **DB model or migration** -> `core/db/models.py` plus an Alembic version. A
   new table or column needs a real caller in the same change set.
 - **Tests** -> mirrored path under `tests/`, with the tier named per artifact:
-  Tier 1 domain behavior, Tier 2 formatter (two tests: exact JSON dict and
-  model-derived Rich values), Tier 3 CLI wiring (`*RootTests` and
+  Tier 1 domain behavior, Tier 2 presentation contracts (three tests per formatter:
+  transform equality against view model, exact literal JSON dict wire format, and
+  view-derived Rich values), Tier 3 CLI wiring (`*RootTests` and
   `*CliIntegrationTests` are both required per command), Tier 4 `tests/lint/`
   invariants.
 - **Docs** -> only the gates AGENTS.md lists: `docs/cli/` for user-visible

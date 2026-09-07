@@ -108,6 +108,83 @@ mix them in one test.
   Read expectations directly from `case.view` so Rich assertions cannot drift from the
   transform test. Never assert a label, border, glyph, padding, or a full sentence.
 
+#### Canonical Tier 2 Test Structure
+
+Tier 2 tests use `tests.helpers.FormatterCase` to define presentation scenarios once, feeding three focused test functions:
+
+```python
+from typing import Any
+import pytest
+from tests.helpers import FormatterCase, render_rich
+from worktree.cli.ui.formatters.status import WorktreeStatusFormatter
+from worktree.cli.ui.formatters.status.status_view import StatusHealth, StatusView
+from worktree.core.status.models import WorktreeStatusResult
+
+STATUS_CASES = [
+    pytest.param(
+        FormatterCase(
+            data=make_status_result(),
+            view=StatusView(
+                health=StatusHealth.OK,
+                root_dir=Path("/workspace/my-repo"),
+                project_name="worktree-cli",
+                ...,
+            ),
+        ),
+        id="healthy_workspace",
+    ),
+]
+
+STATUS_PAYLOAD_CASES = [
+    pytest.param(
+        STATUS_CASES[0].values[0],
+        {
+            "health": "ok",
+            "root_dir": "/workspace/my-repo",
+            "project_name": "worktree-cli",
+            ...,
+        },
+        id="healthy_workspace",
+    ),
+]
+
+
+class WorktreeStatusFormatterTests:
+    @pytest.mark.parametrize("case", STATUS_CASES)
+    def test_transform_derives_expected_view(
+        self, case: FormatterCase[WorktreeStatusResult, StatusView]
+    ) -> None:
+        """Verify transform derives the exact typed view model."""
+        assert WorktreeStatusFormatter().transform(case.data) == case.view
+
+    @pytest.mark.parametrize(("case", "expected_payload"), STATUS_PAYLOAD_CASES)
+    def test_json_payload_matches_published_shape(
+        self,
+        case: FormatterCase[WorktreeStatusResult, StatusView],
+        expected_payload: dict[str, Any],
+    ) -> None:
+        """Verify wire format matches published schema as an exact literal dict."""
+        assert WorktreeStatusFormatter().to_json_serializable(case.data) == expected_payload
+
+    @pytest.mark.parametrize("case", STATUS_CASES)
+    def test_rich_render_shows_every_view_value(
+        self, case: FormatterCase[WorktreeStatusResult, StatusView]
+    ) -> None:
+        """Verify all non-null semantic view model values reach the Rich output."""
+        rendered = render_rich(WorktreeStatusFormatter().to_rich(case.data))
+        view = case.view
+
+        if view.project_name is not None:
+            assert view.project_name in rendered
+        for warning in view.warnings:
+            assert warning in rendered
+```
+
+Rules for Tier 2 tests:
+- **No subclass overrides `to_json_serializable`**: formatters inherit this implementation from `ComponentFormatter` (`src/worktree/common/types.py`), which delegates to `self.transform(data).model_dump(mode="json")`. Overriding it in a subclass is forbidden and enforced by `tests/lint/test_formatter_contracts.py`.
+- **Iterating collections inside a case**: statements like `for warning in case.view.warnings: assert warning in rendered` verify items within a single test scenario. This is permitted and is not the banned `for`-loop-over-scenarios pattern.
+- **Wire format literals**: `test_json_payload_matches_published_shape` must assert against an exact literal dictionary, never `== case.view.model_dump(...)`, to guarantee serialization stability for field names, enum values, and null representations.
+
 ### Tier 3 - CLI wiring (`CliRunner`, four per command)
 
 Happy path exit 0; one failure path with the right non-zero exit;

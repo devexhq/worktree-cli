@@ -1,0 +1,68 @@
+---
+description: Test methodology for worktree-cli - contracts over implementation
+globs: ["tests/**/*.py"]
+alwaysApply: true
+---
+
+# Tests: assert contracts, not implementation
+
+Full guide: [docs/agents/testing.md](../../docs/agents/testing.md).
+A contract is a `BaseResult`, a JSON payload, an exit code, a file, a git ref.
+Everything else (layout, private helpers, call order, constructor assignment)
+is implementation. Do not assert on it.
+
+## Never
+
+- **A stub production doesn't use.** If production passes `Console`, pass
+  `Console`. Never build a double whose interface is the union of a `hasattr`
+  chain - tests and production then take different branches, and the test hides
+  the bug.
+- **A production parameter that exists for tests.** No kwarg, callback, or field
+  that production never reads. That is dead code with a test attached.
+- **A test as the sole consumer of a production symbol.** If deleting the test
+  orphans the code, the code is dead. Delete both.
+- **`obj._private` assertions or `from x import _y`.** Make it public or test it
+  through its caller.
+- **A name that promises more than the body checks.** If it says "terminates the
+  child process tree", point at the line proving the child died. When you copy a
+  test, change the **inputs**, not just the name - a renamed duplicate is how an
+  untested branch hides.
+- **`assert x is not None` as the only assertion.** Unfinished test.
+- **`assert isinstance(...)`** unless it distinguishes two real code paths.
+- **Help-text or label wording.** Assert Click metadata and registration, not
+  copy.
+- **A `for` loop over scenarios.** Use `@pytest.mark.parametrize` so you know
+  which case failed.
+- **8 asserts on one object's fields.** Compare the object once:
+  `assert result == Expected(...)` or `assert result.model_dump() == {...}`.
+  Stronger (catches extra fields too) and gives a real diff.
+- **`time.sleep`.** Monkeypatch the clock.
+- **A value derived inside `to_rich`.** If the renderer computes it, it belongs
+  in `transform()` or in `core/`.
+- **A JSON assertion written as `== transform(...).model_dump(...)`.** Write the
+  exact literal dict.
+
+## Always
+
+- **Three tests per formatter:** `transform()` equality against the view model,
+  `to_json_serializable()` as an **exact literal dict**, and a Rich render at
+  pinned width asserting **only view-derived values** (never labels, borders,
+  glyphs, padding, sentences), reading expectations from `case.view`.
+- **Machine output byte-exact, human output by data presence.** `--raw`,
+  `--output-format json`, and anything pipeable gets `==`, not `in`.
+- **Four `CliRunner` tests per command:** exit 0, one failure exit code,
+  `--output-format json` parses, any confirm/abort path. Direct `*_command()`
+  calls are allowed *in addition*, never *instead*.
+- **Prove the wiring, not the storage.** A callback is untested until a test
+  shows a real caller invoking it.
+- **Cover every branch** of a factory or dispatch chain. A covered *line* in a
+  two-branch function proves nothing.
+- **Move the test when the module moves.** `tests/core/**` must never import
+  `worktree.cli.*`.
+- **Add the invariant instead of the instance** when a whole category can be
+  checked in `tests/lint/`.
+
+## Model file
+
+`tests/core/config/test_config_schema.py` - canonical valid input, mutate one
+field, assert path-qualified failure via a custom helper. Copy its method.

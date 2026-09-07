@@ -109,10 +109,13 @@ Operations that can fail return a Pydantic result object subclassing `BaseResult
   parts of this; they currently exempt only `dispatcher.py` and do not detect
   `console.print`, `input`, or `typer.confirm`.
 - Formatters reside under `src/worktree/cli/ui/formatters/<domain>/<name>.py`, strictly one `*Formatter` class per module.
-- Presentation view model definitions reside under `src/worktree/cli/ui/formatters/<domain>/<name>_view.py`.
+- Presentation view models reside under `src/worktree/cli/ui/formatters/<domain>/<domain>_views.py` (or `<domain>_view.py` for single-formatter domains), one per formatter that derives anything.
+- A view model carries no Rich markup and no sentence composed from fields it also carries separately. Severity and codes, not colors and prose. Enforced by `tests/lint/test_formatter_contracts.py`.
+- `to_rich` derives nothing. It reads `transform(data)` and lays it out.
+- `to_raw` bypasses the view entirely and returns bytes the caller asked for; `DiffResultFormatter` is the only implementation.
 - Domain shared table builders reside in `src/worktree/cli/ui/formatters/<domain>/common.py`.
 - No `renderers.py` modules exist anywhere in the codebase.
-- Construct `errors` and `warnings` messages using inline f-strings or literals at call sites. Do not create private single-message formatting wrappers.
+- Construct `errors` and `warnings` messages using inline f-strings or literals at call sites. Do not create private single-message formatting wrappers (domain lookup tables of constant remediation strings, such as `REMEDIATION_MAP` in `core/status/services/collector.py`, are permitted as tables of literals).
 
 ---
 
