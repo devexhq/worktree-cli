@@ -176,6 +176,80 @@ class TestDispatcherFailurePrompter:
         decision = prompter.prompt_step_failure(step=step, result=result, diagnostic="")
         assert decision == FailurePromptDecision.ABORT
 
+    def test_prompt_text_visible_before_step_input_blocks(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Prompt text is in the output buffer before input() is called, not after.
+
+        Regression guard: an earlier commit buffered the prompt without flushing,
+        so users saw nothing until after they typed. This asserts ordering, not just
+        presence.
+        """
+        dispatcher, buffer = make_dispatcher_with_buffer(force_terminal=True)
+        prompter = DispatcherFailurePrompter(dispatcher, kind="task")
+
+        step = StepDefinition(id="step_1", name="Build Step", run="make build")
+        result = StepResult(
+            step_id="step_1",
+            status="failed",
+            exit_code=2,
+            stdout="",
+            stderr="compile error",
+            duration_seconds=0.5,
+        )
+
+        snapshot_at_input_call: list[str] = []
+
+        def capturing_input(prompt: str) -> str:
+            """Capture buffer contents at the moment input() is invoked."""
+            snapshot_at_input_call.append(buffer.getvalue())
+            return "a"
+
+        monkeypatch.setattr("builtins.input", capturing_input)
+        decision = prompter.prompt_step_failure(
+            step=step,
+            result=result,
+            diagnostic="Compilation failed on line 10",
+        )
+
+        assert decision == FailurePromptDecision.ABORT
+        assert len(snapshot_at_input_call) == 1, "input() must be called exactly once"
+        snapshot = snapshot_at_input_call[0]
+        assert "Step 'Build Step' failed (exit code 2)." in snapshot
+        assert "Compilation failed on line 10" in snapshot
+        assert "Task paused waiting for user input." in snapshot
+
+    def test_prompt_text_visible_before_loop_input_blocks(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Loop prompt text is in the output buffer before input() is called."""
+        dispatcher, buffer = make_dispatcher_with_buffer(force_terminal=True)
+        prompter = DispatcherFailurePrompter(dispatcher, kind="workflow")
+
+        loop = LoopStepBlock(
+            id="loop_1",
+            type="loop",
+            max_iterations=5,
+            until=["steps.s1.exit_code == 0"],
+            do=[StepDefinition(id="s1", run="echo 1")],
+        )
+
+        snapshot_at_input_call: list[str] = []
+
+        def capturing_input(prompt: str) -> str:
+            snapshot_at_input_call.append(buffer.getvalue())
+            return "a"
+
+        monkeypatch.setattr("builtins.input", capturing_input)
+        decision = prompter.prompt_loop_max_iterations(
+            loop=loop,
+            iteration=5,
+            diagnostic="Condition not met",
+            grant_count=4,
+        )
+
+        assert decision == LoopPromptDecision.ABORT
+        assert len(snapshot_at_input_call) == 1
+        snapshot = snapshot_at_input_call[0]
+        assert "[loop_1] Reached max_iterations (5)" in snapshot
+        assert "Grant 4 additional iterations" in snapshot
+
 
 class TestPromptFormatter:
     """Tests for PromptFormatter."""
