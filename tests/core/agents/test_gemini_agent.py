@@ -160,3 +160,48 @@ class GeminiAdapterTests:
         assert resp.status == AgentResponseStatus.PROPOSED_PATCH
         assert resp.ok
         assert resp.mutation_baseline_ref is not None
+
+    def test_gate_violation_discards_edits(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Discard agent edits and restore sandbox to committed tip on gate violation."""
+        _git(["init"], cwd=sandbox)
+        _git(["config", "user.email", "test@example.com"], cwd=sandbox)
+        _git(["config", "user.name", "Test"], cwd=sandbox)
+        (sandbox / "a.txt").write_text("original\n", encoding="utf-8")
+        _git(["add", "-A"], cwd=sandbox)
+        _git(["commit", "-m", "init"], cwd=sandbox)
+
+        def fake_gemini_run(request: CliMutationRunRequest) -> CliMutationOutcome:
+            (request.sandbox_path / "a.txt").write_text("edit 1\n", encoding="utf-8")
+            (request.sandbox_path / "b.txt").write_text("edit 2\n", encoding="utf-8")
+            return CliMutationOutcome(status="finished", result_text="done")
+
+        monkeypatch.setattr("worktree.core.agents.gemini.default_gemini_run", fake_gemini_run)
+        adapter = GeminiAgentAdapter()
+        resp = adapter.propose_fix(_request(sandbox, max_files=1))
+        assert resp.status == AgentResponseStatus.PROVIDER_ERROR
+        assert any("max_files" in err for err in resp.errors)
+        assert (sandbox / "a.txt").read_text(encoding="utf-8") == "original\n"
+        assert not (sandbox / "b.txt").exists()
+
+    def test_gate_violation_preserves_wip(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Discard agent edits while preserving pre-existing uncommitted WIP on gate violation."""
+        _git(["init"], cwd=sandbox)
+        _git(["config", "user.email", "test@example.com"], cwd=sandbox)
+        _git(["config", "user.name", "Test"], cwd=sandbox)
+        (sandbox / "a.txt").write_text("original\n", encoding="utf-8")
+        _git(["add", "-A"], cwd=sandbox)
+        _git(["commit", "-m", "init"], cwd=sandbox)
+        (sandbox / "a.txt").write_text("wip content\n", encoding="utf-8")
+
+        def fake_gemini_run(request: CliMutationRunRequest) -> CliMutationOutcome:
+            (request.sandbox_path / "a.txt").write_text("edit 1\n", encoding="utf-8")
+            (request.sandbox_path / "b.txt").write_text("edit 2\n", encoding="utf-8")
+            return CliMutationOutcome(status="finished", result_text="done")
+
+        monkeypatch.setattr("worktree.core.agents.gemini.default_gemini_run", fake_gemini_run)
+        adapter = GeminiAgentAdapter()
+        resp = adapter.propose_fix(_request(sandbox, max_files=1))
+        assert resp.status == AgentResponseStatus.PROVIDER_ERROR
+        assert any("max_files" in err for err in resp.errors)
+        assert (sandbox / "a.txt").read_text(encoding="utf-8") == "wip content\n"
+        assert not (sandbox / "b.txt").exists()
