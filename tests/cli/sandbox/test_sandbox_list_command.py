@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -321,3 +322,20 @@ class SandboxListCliTests:
         result = runner.invoke(app, ["sandbox", "list"])
         assert result.exit_code == 1
         assert "CONFIG_NOT_FOUND" in result.stdout or "Config Error" in result.stdout
+
+    def test_sandbox_list_json_format_emits_ndjson_event(
+        self,
+        git_fs: GitFileSystem,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.chdir(git_fs.base_path)
+        git_fs.init_repo()
+
+        result = runner.invoke(app, ["sandbox", "list", "--format", "json"])
+
+        assert result.exit_code == 0
+        lines = [line for line in result.stdout.splitlines() if line.strip()]
+        assert len(lines) == 1
+        parsed = json.loads(lines[0])
+        assert parsed["event_type"] == "SandboxListResult"
+        assert parsed["payload"]["status"] == "ok"

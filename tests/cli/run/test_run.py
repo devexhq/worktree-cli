@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 from typer.testing import CliRunner
 
@@ -285,6 +287,30 @@ class RunCliTests:
         ).execute()
         assert outcome.run_record is not None
         assert outcome.run_record.status == RunStatus.PAUSED
+
+    def test_run_json_format_emits_ndjson_stream(
+        self,
+        fs: FileSystem,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        fs.create_config_file()
+        monkeypatch.chdir(fs.base_path)
+        fs.create_task_file(
+            "json-task",
+            use_sandbox=False,
+            steps=[{"id": "step-1", "run": "echo ok"}],
+        )
+
+        result = runner.invoke(app, ["run", "json-task", "--no-sandbox", "--format", "json"])
+
+        assert result.exit_code == 0
+        lines = [line for line in result.stdout.splitlines() if line.strip()]
+        # run emits multiple NDJSON lines (MessageEvent, step events, RunSuccessEvent)
+        parsed_events = [json.loads(line) for line in lines]
+        event_types = [e["event_type"] for e in parsed_events]
+        assert "RunSuccessEvent" in event_types
+        success_event = next(e for e in parsed_events if e["event_type"] == "RunSuccessEvent")
+        assert success_event["payload"]["status"] == "completed"
 
 
 class RunCommandDirectTests:

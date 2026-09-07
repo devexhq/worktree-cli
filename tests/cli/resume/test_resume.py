@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 from typer.testing import CliRunner
 
@@ -462,6 +464,40 @@ class ResumeCliTests:
         result = runner.invoke(app, ["resume", "task-cancel"])
         assert result.exit_code == 1
         assert "Cancelled by user." in result.output
+
+    def test_resume_json_format_emits_ndjson_stream(
+        self,
+        fs: FileSystem,
+        monkeypatch: pytest.MonkeyPatch,
+        mock_interactive_prompter: _RetryPrompter,
+    ) -> None:
+        fs.create_config_file()
+        monkeypatch.chdir(fs.base_path)
+        fs.create_task_file(
+            "resume-json-task",
+            use_sandbox=False,
+            steps=[
+                {"id": "step-1", "run": "echo step1"},
+                {"id": "step-2", "run": "echo step2", "on_failure": "prompt_user"},
+            ],
+        )
+        db = WorktreeDb(path=fs.base_path)
+        _seed_paused_run(
+            db.runs,
+            session_id="resume_json_1",
+            blueprint_name="resume-json-task",
+            kind=BlueprintKind.TASK,
+        )
+
+        result = runner.invoke(app, ["resume", "resume_json_1", "--format", "json"])
+
+        assert result.exit_code == 0
+        lines = [line for line in result.stdout.splitlines() if line.strip()]
+        parsed_events = [json.loads(line) for line in lines]
+        event_types = [e["event_type"] for e in parsed_events]
+        assert "RunSuccessEvent" in event_types
+        success_event = next(e for e in parsed_events if e["event_type"] == "RunSuccessEvent")
+        assert success_event["payload"]["status"] == "completed"
 
 
 class ResumeCommandDirectTests:

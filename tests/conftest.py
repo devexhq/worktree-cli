@@ -9,11 +9,13 @@ import pytest
 
 from tests.helpers import FileSystem, GitFileSystem
 from worktree.common.filesystem import Filesystem
-from worktree.core.config import Config
+from worktree.core.config import Config, ConfigGenerationResult
 from worktree.core.config.generator import generate_default_config
 from worktree.core.config.loader import clear_config_cache
 from worktree.core.db import (
     RunsRepository,
+    SandboxesRepository,
+    WorktreeDb,
 )
 
 
@@ -90,7 +92,7 @@ def git_fs(tmp_path: Path, _git_repo_template: Path) -> GitFileSystem:
 
 
 @pytest.fixture
-def worktree_config(tmp_path: Path):
+def worktree_config(tmp_path: Path) -> Path:
     """Handles creating the test config file at the given path."""
     config_file = tmp_path / ".worktree" / "config.json"
     config_file.parent.mkdir(parents=True, exist_ok=True)
@@ -99,7 +101,10 @@ def worktree_config(tmp_path: Path):
 
 
 @pytest.fixture
-def runs_repository(worktree_config, tmp_path):
-    """Provides a clean, isolated RunsRepository for the test."""
-    # Pass the temporary path or setup requirements to your repository
-    return RunsRepository(path=tmp_path)
+def worktree_db(fs: FileSystem) -> WorktreeDb:
+    return WorktreeDb(path=fs.base_path)
+
+
+@pytest.fixture
+def git_worktree_db(git_fs: GitFileSystem) -> WorktreeDb:
+    return WorktreeDb(path=git_fs.base_path)
