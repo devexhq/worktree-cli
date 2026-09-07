@@ -67,15 +67,24 @@ class LoopBlockRunner:
 
     def _notify_start(self, max_iterations: int) -> None:
         if self.observer is not None and hasattr(self.observer, "on_loop_start"):
-            self.observer.on_loop_start(self.loop.id, max_iterations)
+            try:
+                self.observer.on_loop_start(self.loop.id, max_iterations)
+            except Exception:
+                pass
 
     def _notify_turn(self, turn: int, max_iterations: int) -> None:
         if self.observer is not None and hasattr(self.observer, "on_loop_turn_start"):
-            self.observer.on_loop_turn_start(self.loop.id, turn, max_iterations)
+            try:
+                self.observer.on_loop_turn_start(self.loop.id, turn, max_iterations)
+            except Exception:
+                pass
 
     def _notify_done(self, status: str, turns: int) -> None:
         if self.observer is not None and hasattr(self.observer, "on_loop_done"):
-            self.observer.on_loop_done(self.loop.id, status, turns)
+            try:
+                self.observer.on_loop_done(self.loop.id, status, turns)
+            except Exception:
+                pass
 
     def _notify_conditions(
         self,
@@ -84,12 +93,51 @@ class LoopBlockRunner:
         next_turn: int | None,
     ) -> None:
         if self.observer is not None and hasattr(self.observer, "on_loop_conditions_evaluated"):
-            self.observer.on_loop_conditions_evaluated(
-                self.loop.id,
-                results,
-                all_passed,
-                next_turn=next_turn,
-            )
+            try:
+                self.observer.on_loop_conditions_evaluated(
+                    self.loop.id,
+                    results,
+                    all_passed,
+                    next_turn=next_turn,
+                )
+            except Exception:
+                pass
+
+    def _notify_sub_step_start(self, sub_idx: int, sub_step: StepDefinition) -> None:
+        if self.observer is not None:
+            try:
+                self.observer.on_step_start(sub_idx, len(self.loop.do), sub_step)
+            except Exception:
+                pass
+
+    def _notify_sub_step_done(self, sub_idx: int, result: StepResult) -> None:
+        if self.observer is not None:
+            try:
+                self.observer.on_step_done(sub_idx, len(self.loop.do), result)
+            except Exception:
+                pass
+
+    def _notify_sub_step_output(
+        self,
+        sub_idx: int,
+        sub_step: StepDefinition,
+        stream_name: str,
+        line: str,
+    ) -> None:
+        if self.observer is not None:
+            try:
+                self.observer.on_step_output(sub_idx, len(self.loop.do), sub_step, line, stream=stream_name)
+            except Exception:
+                pass
+
+    def _resolve_sub_step_output_callback(
+        self,
+        sub_idx: int,
+        sub_step: StepDefinition,
+    ) -> Callable[[str, str], None] | None:
+        if self.observer is not None:
+            return lambda stream, line: self._notify_sub_step_output(sub_idx, sub_step, stream, line)
+        return self.on_output
 
     def _build_step_context(self, turn: int) -> dict[str, Any]:
         step_context = dict(self.context)
@@ -105,18 +153,8 @@ class LoopBlockRunner:
         attempt: int,
         historical_steps: Sequence[PreviousStepMetadata],
     ) -> StepResult:
-        obs = self.observer
-        if obs is not None:
-            obs.on_step_start(sub_idx, len(self.loop.do), sub_step)
-        on_output: Callable[[str, str], None] | None = (
-            (
-                lambda stream_name, line: obs.on_step_output(
-                    sub_idx, len(self.loop.do), sub_step, line, stream=stream_name
-                )
-            )
-            if obs is not None
-            else self.on_output
-        )
+        self._notify_sub_step_start(sub_idx, sub_step)
+        on_output = self._resolve_sub_step_output_callback(sub_idx, sub_step)
         from worktree.core.step.models import FailureSpec
 
         isolated_sub_step = sub_step.model_copy(update={"on_failure": FailureSpec(action=FailurePolicy.ABORT)})
@@ -134,8 +172,7 @@ class LoopBlockRunner:
             )
         )
         result = execution.run()
-        if obs is not None:
-            obs.on_step_done(sub_idx, len(self.loop.do), result)
+        self._notify_sub_step_done(sub_idx, result)
         return result
 
     def _prompt_sub_step_failure(

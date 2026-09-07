@@ -43,12 +43,18 @@ from worktree.core.step.services.metadata import previous_step_metadata_from_res
 
 def _notify_sandbox_ready(context: RunContext, path: Path, *, active: bool) -> None:
     if context.observer is not None:
-        context.observer.on_sandbox_ready(path, active)
+        try:
+            context.observer.on_sandbox_ready(path, active)
+        except Exception:
+            pass
 
 
 def _notify_step_start(context: RunContext, idx: int, total: int, step: StepDefinition) -> None:
     if context.observer is not None:
-        context.observer.on_step_start(idx, total, step)
+        try:
+            context.observer.on_step_start(idx, total, step)
+        except Exception:
+            pass
 
 
 def _notify_step_output(
@@ -61,17 +67,26 @@ def _notify_step_output(
     stream: str = "stdout",
 ) -> None:
     if context.observer is not None:
-        context.observer.on_step_output(idx, total, step, line, stream=stream)
+        try:
+            context.observer.on_step_output(idx, total, step, line, stream=stream)
+        except Exception:
+            pass
 
 
 def _notify_step_done(context: RunContext, idx: int, total: int, result: StepResult) -> None:
     if context.observer is not None:
-        context.observer.on_step_done(idx, total, result)
+        try:
+            context.observer.on_step_done(idx, total, result)
+        except Exception:
+            pass
 
 
 def _notify_sandbox_cleanup(context: RunContext, *, kept: bool, path: Path) -> None:
     if context.observer is not None:
-        context.observer.on_sandbox_cleanup(kept, path)
+        try:
+            context.observer.on_sandbox_cleanup(kept, path)
+        except Exception:
+            pass
 
 
 def _session_from_checkpoint(checkpoint: RunCheckpoint, path: Path) -> SandboxSession:
