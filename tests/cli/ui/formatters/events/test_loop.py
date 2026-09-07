@@ -27,6 +27,7 @@ LOOP_START = FormatterCase(
         status=None,
         message=None,
     ),
+    render_expectations=["loop_1"],
 )
 
 TURN_START = FormatterCase(
@@ -46,6 +47,7 @@ TURN_START = FormatterCase(
         status=None,
         message=None,
     ),
+    render_expectations=["loop_1"],
 )
 
 CONDITIONS_EVALUATED = FormatterCase(
@@ -65,6 +67,7 @@ CONDITIONS_EVALUATED = FormatterCase(
         status=None,
         message="Evaluated 1 condition(s)",
     ),
+    render_expectations=["Evaluated 1 condition(s)"],
 )
 
 LOOP_DONE = FormatterCase(
@@ -84,6 +87,7 @@ LOOP_DONE = FormatterCase(
         status="completed",
         message=None,
     ),
+    render_expectations=["loop_1"],
 )
 
 LOOP_CASES = [
@@ -168,12 +172,5 @@ class LoopLifecycleFormatterTests:
     ) -> None:
         """Verify that all non-null semantic view model values reach the Rich renderable output."""
         rendered = render_rich(LoopLifecycleFormatter().to_rich(case.data))
-        view = case.view
-
-        if view.action == "conditions_evaluated":
-            if view.message is not None:
-                assert view.message in rendered
-            else:
-                assert view.loop_id in rendered
-        else:
-            assert view.loop_id in rendered
+        for expected in case.render_expectations:
+            assert expected in rendered

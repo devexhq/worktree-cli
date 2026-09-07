@@ -13,11 +13,13 @@ from worktree.cli.ui.formatters.events.error_panel import ErrorPanelFormatter
 DEFAULT_BORDER = FormatterCase(
     data=ErrorPanelEvent(title="Custom Error", message="Something broke", border_style="red"),
     view=ErrorPanelEvent(title="Custom Error", message="Something broke", border_style="red"),
+    render_expectations=["Custom Error", "Something broke"],
 )
 
 CUSTOM_BORDER = FormatterCase(
     data=ErrorPanelEvent(title="Fatal Failure", message="Git executable missing", border_style="bold red"),
     view=ErrorPanelEvent(title="Fatal Failure", message="Git executable missing", border_style="bold red"),
+    render_expectations=["Fatal Failure", "Git executable missing"],
 )
 
 ERROR_PANEL_CASES = [
@@ -68,5 +70,5 @@ class ErrorPanelFormatterTests:
     def test_rich_render_shows_every_view_value(self, case: FormatterCase[ErrorPanelEvent, ErrorPanelEvent]) -> None:
         """Verify that all non-null semantic view model values reach the Rich renderable output."""
         rendered = render_rich(ErrorPanelFormatter().to_rich(case.data))
-        assert case.view.title in rendered
-        assert case.view.message in rendered
+        for expected in case.render_expectations:
+            assert expected in rendered

@@ -24,6 +24,7 @@ TASK_COMPLETED = FormatterCase(
         kind=BlueprintKind.TASK,
         status=RunStatus.COMPLETED,
     ),
+    render_expectations=["my_task", "sess_123", "completed"],
 )
 
 WORKFLOW_COMPLETED = FormatterCase(
@@ -39,6 +40,7 @@ WORKFLOW_COMPLETED = FormatterCase(
         kind=BlueprintKind.WORKFLOW,
         status=RunStatus.COMPLETED,
     ),
+    render_expectations=["deploy-flow", "sess_456", "completed"],
 )
 
 RUN_SUCCESS_CASES = [
@@ -91,8 +93,5 @@ class RunSuccessFormatterTests:
     def test_rich_render_shows_every_view_value(self, case: FormatterCase[RunSuccessEvent, RunSuccessEvent]) -> None:
         """Verify that all non-null semantic view model values reach the Rich renderable output."""
         rendered = render_rich(RunSuccessFormatter().to_rich(case.data))
-        view = case.view
-
-        assert view.blueprint_name in rendered
-        assert view.session_id in rendered
-        assert view.status.value in rendered
+        for expected in case.render_expectations:
+            assert expected in rendered

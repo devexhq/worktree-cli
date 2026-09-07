@@ -24,6 +24,7 @@ DELETED = FormatterCase(
         sandbox_id="sbx_del",
         deleted=True,
     ),
+    render_expectations=["sbx_del"],
 )
 
 ALREADY_CLEANED = FormatterCase(
@@ -37,6 +38,7 @@ ALREADY_CLEANED = FormatterCase(
         sandbox_id="sbx_del",
         deleted=False,
     ),
+    render_expectations=["sbx_del"],
 )
 
 ABORTED = FormatterCase(
@@ -50,6 +52,7 @@ ABORTED = FormatterCase(
         sandbox_id="sbx_del",
         deleted=False,
     ),
+    render_expectations=[],
 )
 
 NOT_FOUND = FormatterCase(
@@ -67,6 +70,7 @@ NOT_FOUND = FormatterCase(
         errors=["Sandbox 'sbx_missing' not found."],
         fixes=["Run `wt sandbox list` to see known sandboxes"],
     ),
+    render_expectations=["sbx_missing"],
 )
 
 SANDBOX_DELETE_CASES = [
@@ -159,8 +163,8 @@ class SandboxDeleteFormatterTests:
         rendered = render_rich(SandboxDeleteFormatter().to_rich(case.data))
         view = case.view
 
-        if view.sandbox_id is not None and view.status != SandboxDeleteStatus.ABORTED:
-            assert view.sandbox_id in rendered
+        for expected in case.render_expectations:
+            assert expected in rendered
 
         for error in view.errors:
             assert error in rendered

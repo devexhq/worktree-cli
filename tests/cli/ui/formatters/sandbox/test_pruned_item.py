@@ -31,6 +31,7 @@ DRY_RUN_STALE_BRANCH = FormatterCase(
         is_dry_run=True,
         reason="Would prune stale branch",
     ),
+    render_expectations=["feature/1", "stale branch"],
 )
 
 PRUNED_ORPHANED_DIRECTORY = FormatterCase(
@@ -50,6 +51,7 @@ PRUNED_ORPHANED_DIRECTORY = FormatterCase(
         path=Path("/tmp/sbx_12345678"),
         reason="Cleaned up orphaned directory",
     ),
+    render_expectations=["sbx_12345678", "orphaned directory"],
 )
 
 SKIPPED_DIRTY_DIRECTORY = FormatterCase(
@@ -69,6 +71,7 @@ SKIPPED_DIRTY_DIRECTORY = FormatterCase(
         path=Path("/tmp/sbx_dirty"),
         reason="Contains uncommitted changes",
     ),
+    render_expectations=["sbx_dirty", "orphaned directory"],
 )
 
 FAILED_STALE_WORKTREE_REF = FormatterCase(
@@ -86,6 +89,7 @@ FAILED_STALE_WORKTREE_REF = FormatterCase(
         is_dry_run=False,
         error="Permission denied",
     ),
+    render_expectations=["/tmp/sbx", "stale worktree ref", "Permission denied"],
 )
 
 STALE_DB_RECORD = FormatterCase(
@@ -107,6 +111,7 @@ STALE_DB_RECORD = FormatterCase(
         branch_name="feature/test",
         reason="Removed dead record",
     ),
+    render_expectations=["sbx_rec", "stale db record"],
 )
 
 PRUNED_ITEM_CASES = [
@@ -174,9 +179,5 @@ class PrunedItemFormatterTests:
     def test_rich_render_shows_every_view_value(self, case: FormatterCase[PrunedItem, PrunedItemView]) -> None:
         """Verify that all non-null semantic view model values reach the Rich renderable output."""
         rendered = render_rich(PrunedItemFormatter().to_rich(case.data))
-        view = case.view
-
-        assert view.identifier in rendered
-        assert view.category_label in rendered
-        if view.error is not None:
-            assert view.error in rendered
+        for expected in case.render_expectations:
+            assert expected in rendered

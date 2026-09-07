@@ -26,6 +26,7 @@ _RECORD = CatalogRecord(
 CREATED_WORKFLOW = FormatterCase(
     data=CatalogCreateResult(item=_RECORD),
     view=CatalogCreateResult(item=_RECORD),
+    render_expectations=[_RECORD.sha, _RECORD.item_type.value],
 )
 
 CREATION_ERROR = FormatterCase(
@@ -39,6 +40,7 @@ CREATION_ERROR = FormatterCase(
         errors=["Naming collision on blueprint."],
         fixes=["Choose a different name"],
     ),
+    render_expectations=[],
 )
 
 CATALOG_CREATE_CASES = [
@@ -106,9 +108,8 @@ class CatalogCreateFormatterTests:
         rendered = render_rich(CatalogCreateFormatter().to_rich(case.data))
         view = case.view
 
-        if view.item is not None:
-            assert view.item.sha in rendered
-            assert view.item.item_type.value in rendered
+        for expected in case.render_expectations:
+            assert expected in rendered
 
         for error in view.errors:
             assert error in rendered

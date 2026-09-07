@@ -90,6 +90,7 @@ COMPLETED_RUN = FormatterCase(
         run=_sample_run_record(),
     ),
     view=_make_history_show_view(),
+    render_expectations=["sess-12345678", "deploy-task", "feature/test", format_run_duration(10.0)],
 )
 
 FAILED_RUN_WITH_ERROR = FormatterCase(
@@ -107,6 +108,13 @@ FAILED_RUN_WITH_ERROR = FormatterCase(
             error_message="Step 'checkout' failed with exit code 1.",
         )
     ),
+    render_expectations=[
+        "sess-12345678",
+        "deploy-task",
+        "feature/test",
+        format_run_duration(10.0),
+        "Step 'checkout' failed with exit code 1.",
+    ],
 )
 
 _STEP_RESULT = StepResult(
@@ -154,6 +162,15 @@ PAUSED_RUN_WITH_CHECKPOINT = FormatterCase(
             ],
         ),
     ),
+    render_expectations=[
+        "sess-12345678",
+        "deploy-task",
+        "feature/test",
+        "step-2",
+        "Waiting for approval",
+        "step-1",
+        "1.23s",
+    ],
 )
 
 _RAW_JSON = json.dumps({"custom_field": "custom_val"})
@@ -164,6 +181,13 @@ RUN_WITH_RAW_CHECKPOINT_FALLBACK = FormatterCase(
         run=_sample_run_record(checkpoint_json=_RAW_JSON),
     ),
     view=_make_history_show_view(checkpoint_raw=_RAW_JSON),
+    render_expectations=[
+        "sess-12345678",
+        "deploy-task",
+        "feature/test",
+        format_run_duration(10.0),
+        "custom_field",
+    ],
 )
 
 NOT_FOUND = FormatterCase(
@@ -176,6 +200,7 @@ NOT_FOUND = FormatterCase(
         session_id="nonexistent-sess",
         run=None,
     ),
+    render_expectations=["nonexistent-sess"],
 )
 
 SHOW_ERROR = FormatterCase(
@@ -189,6 +214,7 @@ SHOW_ERROR = FormatterCase(
         run=None,
         errors=["Database locked"],
     ),
+    render_expectations=[],
 )
 
 HISTORY_SHOW_CASES = [
@@ -340,57 +366,6 @@ HISTORY_SHOW_PAYLOAD_CASES = [
 ]
 
 
-def _assert_run_view_rendered(run: RunSummaryView | None, rendered: str) -> None:
-    if run is None:
-        return
-    assert run.session_id in rendered
-    assert run.blueprint_name in rendered
-    if run.branch_name is not None:
-        assert run.branch_name in rendered
-    if run.duration_seconds is not None:
-        assert format_run_duration(run.duration_seconds) in rendered
-    if run.error_message is not None:
-        assert run.error_message in rendered
-
-
-def _assert_checkpoint_step_rendered(step: CheckpointStepView, rendered: str) -> None:
-    assert step.step_id in rendered
-    assert f"{step.duration_seconds:.2f}s" in rendered
-    if step.error_message is not None:
-        assert step.error_message in rendered
-
-
-def _assert_checkpoint_view_rendered(checkpoint: CheckpointDetailsView | None, rendered: str) -> None:
-    if checkpoint is None:
-        return
-    assert checkpoint.pending_step_id in rendered
-    if checkpoint.diagnostic is not None:
-        assert checkpoint.diagnostic in rendered
-    for step in checkpoint.step_results:
-        _assert_checkpoint_step_rendered(step, rendered)
-
-
-def _assert_checkpoint_raw_rendered(checkpoint_raw: str | None, rendered: str) -> None:
-    if checkpoint_raw is None:
-        return
-    try:
-        raw_payload = json.loads(checkpoint_raw)
-        if isinstance(raw_payload, dict):
-            for key in raw_payload:
-                assert str(key) in rendered
-        else:
-            assert checkpoint_raw in rendered
-    except Exception:
-        assert checkpoint_raw in rendered
-
-
-def _assert_view_errors_rendered(view: HistoryShowView, rendered: str) -> None:
-    if view.status == HistoryShowStatus.NOT_FOUND and view.session_id is not None:
-        assert view.session_id in rendered
-    for error in view.errors:
-        assert error in rendered
-
-
 class HistoryShowFormatterTests:
     """Tier 2 presentation contract tests for HistoryShowFormatter."""
 
@@ -412,7 +387,7 @@ class HistoryShowFormatterTests:
     def test_rich_render_shows_every_view_value(self, case: FormatterCase[HistoryShowResult, HistoryShowView]) -> None:
         """Verify that all non-null semantic view model values reach the Rich renderable output."""
         rendered = render_rich(HistoryShowFormatter().to_rich(case.data))
-        _assert_run_view_rendered(case.view.run, rendered)
-        _assert_checkpoint_view_rendered(case.view.checkpoint, rendered)
-        _assert_checkpoint_raw_rendered(case.view.checkpoint_raw, rendered)
-        _assert_view_errors_rendered(case.view, rendered)
+        for expected in case.render_expectations:
+            assert expected in rendered
+        for error in case.view.errors:
+            assert error in rendered

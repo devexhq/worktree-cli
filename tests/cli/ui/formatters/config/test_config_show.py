@@ -28,6 +28,7 @@ DEFAULT_CONFIG_CASE = FormatterCase(
             agent=AgentConfig(model="gemini-2.5-pro"),
         ),
     ),
+    render_expectations=[RESOLVED_CONFIG_PATH.as_posix(), "valid", "test-show-app", "gemini-2.5-pro"],
 )
 
 CUSTOM_CONFIG_CASE = FormatterCase(
@@ -43,6 +44,7 @@ CUSTOM_CONFIG_CASE = FormatterCase(
             project=ProjectConfig(name="custom-project"),
         ),
     ),
+    render_expectations=[RESOLVED_CONFIG_PATH.as_posix(), "valid", "custom-project"],
 )
 
 SHOW_CASES = [
@@ -191,10 +193,6 @@ class ConfigShowFormatterTests:
     def test_rich_render_shows_every_view_value(self, case: FormatterCase[WorktreeConfig, ConfigShowView]) -> None:
         """Verify that all non-null semantic view model values reach the Rich renderable output."""
         rendered = render_rich(ConfigShowFormatter().to_rich(case.data))
-        view = case.view
 
-        assert view.config_path.as_posix() in rendered
-        assert view.status in rendered
-        assert view.config.project.name in rendered
-        if view.config.agent.model is not None:
-            assert view.config.agent.model in rendered
+        for expected in case.render_expectations:
+            assert expected in rendered

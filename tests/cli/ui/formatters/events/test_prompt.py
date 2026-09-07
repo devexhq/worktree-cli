@@ -32,6 +32,7 @@ WITH_DIAGNOSTIC = FormatterCase(
         options=[_CONTINUE_OPTION],
         default="c",
     ),
+    render_expectations=["Action Needed", "Step timed out"],
 )
 
 WITHOUT_DIAGNOSTIC = FormatterCase(
@@ -51,6 +52,7 @@ WITHOUT_DIAGNOSTIC = FormatterCase(
         diagnostic=None,
         options=[_ABORT_OPTION],
     ),
+    render_expectations=["Workflow Prompt"],
 )
 
 PROMPT_CASES = [
@@ -123,9 +125,8 @@ class PromptFormatterTests:
         rendered = render_rich(PromptFormatter().to_rich(case.data))
         view = case.view
 
-        assert view.title in rendered
-        if view.diagnostic is not None:
-            assert view.diagnostic in rendered
+        for expected in case.render_expectations:
+            assert expected in rendered
 
         for opt in view.options:
             assert opt.key in rendered

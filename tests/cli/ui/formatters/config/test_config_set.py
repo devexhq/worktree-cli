@@ -34,6 +34,8 @@ SUCCESS_STR_CASE = FormatterCase(
         warnings=[],
         fixes=[],
     ),
+    # key, value_str, value_type
+    render_expectations=["agent.model", "qwen2.5-coder", "str"],
 )
 
 SUCCESS_BOOL_CASE = FormatterCase(
@@ -57,6 +59,8 @@ SUCCESS_BOOL_CASE = FormatterCase(
         warnings=[],
         fixes=[],
     ),
+    # key, value_str, value_type
+    render_expectations=["telemetry.enabled", "true", "bool"],
 )
 
 SUCCESS_INT_CASE = FormatterCase(
@@ -80,6 +84,8 @@ SUCCESS_INT_CASE = FormatterCase(
         warnings=[],
         fixes=[],
     ),
+    # key, value_str, value_type
+    render_expectations=["sandbox.max_active_sandboxes", "5", "int"],
 )
 
 SUCCESS_DICT_CASE = FormatterCase(
@@ -103,6 +109,8 @@ SUCCESS_DICT_CASE = FormatterCase(
         warnings=[],
         fixes=[],
     ),
+    # key, value_str, value_type
+    render_expectations=["project", '{"name": "my-app"}', "dict"],
 )
 
 ERROR_SCHEMA_INVALID_CASE = FormatterCase(
@@ -126,6 +134,7 @@ ERROR_SCHEMA_INVALID_CASE = FormatterCase(
         warnings=[],
         fixes=["Run `wt config validate` for details"],
     ),
+    render_expectations=["Config Error"],
 )
 
 SET_CASES = [
@@ -208,11 +217,11 @@ class ConfigSetFormatterTests:
         rendered = render_rich(ConfigSetFormatter().to_rich(case.data))
         view = case.view
 
-        if view.status == ConfigSetStatus.OK:
-            assert view.key in rendered
-            assert view.value_str in rendered
-            assert view.value_type in rendered
+        for expected in case.render_expectations:
+            assert expected in rendered
+
         for error in view.errors:
             assert error in rendered
+
         for fix in view.fixes:
             assert fix in rendered

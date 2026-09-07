@@ -29,6 +29,7 @@ APPLIED_SQUASH = FormatterCase(
         commit_sha="abc1234",
         cleaned_up=True,
     ),
+    render_expectations=["sbx_1", "squash", "abc1234"],
 )
 
 APPLIED_PATCH = FormatterCase(
@@ -46,6 +47,7 @@ APPLIED_PATCH = FormatterCase(
         touched_files=["src/main.py"],
         cleaned_up=False,
     ),
+    render_expectations=["sbx_2", "patch"],
 )
 
 FAILED_CONFLICT = FormatterCase(
@@ -65,6 +67,7 @@ FAILED_CONFLICT = FormatterCase(
         errors=["Merge conflict in src/conflict.py"],
         fixes=["Resolve manually"],
     ),
+    render_expectations=[],
 )
 
 SANDBOX_APPLY_CASES = [
@@ -150,11 +153,8 @@ class SandboxApplyFormatterTests:
         rendered = render_rich(SandboxApplyFormatter().to_rich(case.data))
         view = case.view
 
-        if view.ok:
-            assert view.sandbox_id in rendered
-            assert view.strategy.value in rendered
-            if view.commit_sha is not None:
-                assert view.commit_sha in rendered
+        for expected in case.render_expectations:
+            assert expected in rendered
 
         for error in view.errors:
             assert error in rendered

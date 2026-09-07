@@ -82,6 +82,7 @@ POPULATED_RUNS = FormatterCase(
         runs=[_sample_run_record()],
     ),
     view=_make_history_list_view(),
+    render_expectations=["sess-12345678", "deploy-task", format_run_duration(10.0)],
 )
 
 EMPTY_RUNS = FormatterCase(
@@ -90,6 +91,7 @@ EMPTY_RUNS = FormatterCase(
         runs=[],
     ),
     view=_make_history_list_view(runs=[], total_runs=0),
+    render_expectations=[],
 )
 
 WARNINGS_RUNS = FormatterCase(
@@ -101,6 +103,7 @@ WARNINGS_RUNS = FormatterCase(
     view=_make_history_list_view(
         warnings=["Reconciled 1 interrupted session (session_id: sess-stale)."],
     ),
+    render_expectations=["sess-12345678", "deploy-task", format_run_duration(10.0)],
 )
 
 ERRORS_RUNS = FormatterCase(
@@ -113,6 +116,7 @@ ERRORS_RUNS = FormatterCase(
         total_runs=0,
         errors=["Database query failed."],
     ),
+    render_expectations=[],
 )
 
 HISTORY_LIST_CASES = [
@@ -221,11 +225,8 @@ class HistoryListFormatterTests:
         rendered = render_rich(HistoryListFormatter().to_rich(case.data))
         view = case.view
 
-        for run in view.runs:
-            assert run.session_id in rendered
-            assert run.blueprint_name in rendered
-            if run.duration_seconds is not None:
-                assert format_run_duration(run.duration_seconds) in rendered
+        for expected in case.render_expectations:
+            assert expected in rendered
         for warning in view.warnings:
             assert warning in rendered
         for error in view.errors:

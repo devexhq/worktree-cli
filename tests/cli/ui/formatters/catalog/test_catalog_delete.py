@@ -26,11 +26,13 @@ _RECORD = CatalogRecord(
 DELETED = FormatterCase(
     data=CatalogDeleteResult(item=_RECORD, deleted=True, cancelled=False),
     view=CatalogDeleteResult(item=_RECORD, deleted=True, cancelled=False),
+    render_expectations=[_RECORD.sha, str(_RECORD.path)],
 )
 
 CANCELLED = FormatterCase(
     data=CatalogDeleteResult(item=None, deleted=False, cancelled=True, errors=["Deletion cancelled."]),
     view=CatalogDeleteResult(item=None, deleted=False, cancelled=True, errors=["Deletion cancelled."]),
+    render_expectations=[],
 )
 
 DELETE_ERROR = FormatterCase(
@@ -48,6 +50,7 @@ DELETE_ERROR = FormatterCase(
         errors=["Catalog blueprint 'missing' not found."],
         fixes=["Run `wt catalog list` to inspect available items"],
     ),
+    render_expectations=[],
 )
 
 CATALOG_DELETE_CASES = [
@@ -132,9 +135,8 @@ class CatalogDeleteFormatterTests:
         rendered = render_rich(CatalogDeleteFormatter().to_rich(case.data))
         view = case.view
 
-        if view.deleted and view.item is not None:
-            assert view.item.sha in rendered
-            assert str(view.item.path) in rendered
+        for expected in case.render_expectations:
+            assert expected in rendered
 
         for error in view.errors:
             assert error in rendered

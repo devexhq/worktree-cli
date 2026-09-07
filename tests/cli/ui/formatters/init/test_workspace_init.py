@@ -68,6 +68,12 @@ INITIALIZED = FormatterCase(
         ),
     ),
     view=make_init_view(),
+    render_expectations=[
+        ".worktree",
+        ".worktree/config.json",
+        ".worktree/sessions",
+        ".worktree/workflows/test.yml",
+    ],
 )
 
 REPAIRED = FormatterCase(
@@ -94,6 +100,13 @@ REPAIRED = FormatterCase(
         seeded_files=[],
         skipped_seed_files=[".worktree/workflows/fix-tests.yml"],
     ),
+    render_expectations=[
+        ".worktree",
+        ".worktree/config.json",
+        ".worktree/sessions",
+        "telemetry.enabled",
+        ".worktree/workflows/fix-tests.yml",
+    ],
 )
 
 ALREADY_INITIALIZED_OVERWRITTEN = FormatterCase(
@@ -119,6 +132,7 @@ ALREADY_INITIALIZED_OVERWRITTEN = FormatterCase(
         seeded_files=[],
         overwritten_seed_files=[".worktree/workflows/x.yml"],
     ),
+    render_expectations=[".worktree", ".worktree/config.json"],
 )
 
 CONFIG_SKIPPED_EXISTING = FormatterCase(
@@ -140,6 +154,7 @@ CONFIG_SKIPPED_EXISTING = FormatterCase(
         config_skipped_existing=True,
         seeded_files=[],
     ),
+    render_expectations=[".worktree", ".worktree/config.json"],
 )
 
 NO_CONFIG_PATH = FormatterCase(
@@ -158,6 +173,7 @@ NO_CONFIG_PATH = FormatterCase(
         config_path_relative=None,
         seeded_files=[],
     ),
+    render_expectations=[".worktree"],
 )
 
 SEEDING_ERROR = FormatterCase(
@@ -176,6 +192,7 @@ SEEDING_ERROR = FormatterCase(
         seeded_files=[],
         errors=["could not seed"],
     ),
+    render_expectations=[".worktree", ".worktree/config.json"],
 )
 
 PREFLIGHT_FAILURE = FormatterCase(
@@ -197,6 +214,7 @@ PREFLIGHT_FAILURE = FormatterCase(
         errors=["The current directory is not a valid Git repository."],
         fixes=["Run 'git init' before running 'wt init'."],
     ),
+    render_expectations=[],
 )
 
 BOOTSTRAP_FAILURE = FormatterCase(
@@ -221,6 +239,7 @@ BOOTSTRAP_FAILURE = FormatterCase(
         errors=["path conflict: .worktree is a file"],
         fixes=["Remove the conflicting file."],
     ),
+    render_expectations=[],
 )
 
 CONFIG_GENERATION_FAILURE = FormatterCase(
@@ -246,6 +265,7 @@ CONFIG_GENERATION_FAILURE = FormatterCase(
         errors=["CONFIG_WRITE_FAILED: permission denied"],
         fixes=["Check file permissions for .worktree/config.json."],
     ),
+    render_expectations=[],
 )
 
 INIT_CASES = [
@@ -336,22 +356,6 @@ INIT_PAYLOAD_CASES = [
 ]
 
 
-def _assert_view_collections_in_rendered(view: WorkspaceInitView, rendered: str) -> None:
-    """Assert all path and key collections in the view appear in rendered output."""
-    items = view.dirs_created + view.inserted_keys + view.seeded_files + view.skipped_seed_files
-    for item in items:
-        assert item in rendered
-
-
-def _assert_success_view_values_in_rendered(view: WorkspaceInitView, rendered: str) -> None:
-    """Assert non-null success view values appear in rendered output."""
-    if view.root_path_relative is not None:
-        assert view.root_path_relative in rendered
-    if view.config_path_relative is not None:
-        assert view.config_path_relative in rendered
-    _assert_view_collections_in_rendered(view, rendered)
-
-
 def _assert_messages_in_rendered(messages: list[str], rendered: str) -> None:
     """Assert all messages in a list appear in rendered output."""
     for message in messages:
@@ -383,8 +387,8 @@ class WorkspaceInitFormatterTests:
         rendered = render_rich(WorkspaceInitFormatter().to_rich(case.data))
         view = case.view
 
-        if view.failure_mode is None:
-            _assert_success_view_values_in_rendered(view, rendered)
+        for expected in case.render_expectations:
+            assert expected in rendered
 
         _assert_messages_in_rendered(view.errors, rendered)
         _assert_messages_in_rendered(view.fixes, rendered)

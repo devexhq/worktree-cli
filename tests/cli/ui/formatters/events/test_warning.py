@@ -13,11 +13,13 @@ from worktree.cli.ui.formatters.events.warning import WarningFormatter
 STANDARD_WARNING = FormatterCase(
     data=WarningEvent(message="Low disk space"),
     view=WarningEvent(message="Low disk space"),
+    render_expectations=["Low disk space"],
 )
 
 STALE_WARNING = FormatterCase(
     data=WarningEvent(message="Stale worktrees detected: 3"),
     view=WarningEvent(message="Stale worktrees detected: 3"),
+    render_expectations=["Stale worktrees detected: 3"],
 )
 
 WARNING_CASES = [
@@ -52,4 +54,5 @@ class WarningFormatterTests:
     def test_rich_render_shows_every_view_value(self, case: FormatterCase[WarningEvent, WarningEvent]) -> None:
         """Verify that all non-null semantic view model values reach the Rich renderable output."""
         rendered = render_rich(WarningFormatter().to_rich(case.data))
-        assert case.view.message in rendered
+        for expected in case.render_expectations:
+            assert expected in rendered
