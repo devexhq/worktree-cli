@@ -69,7 +69,7 @@ Walk [conventions-checklist.md](conventions-checklist.md) against the changed hu
 
 Two passes that must be deliberate:
 
-- **Every new or changed identifier**, in production and tests: locals, parameters, attributes, fixtures, loop variables. A cryptic truncation is a `code-conventions.md` violation regardless of how obvious it reads in context. `buf` must be `buffer`, `res` must be `result`, `err_msg` must be `error_message`.
+- **Every new or changed identifier**, in production and tests: check against `code-conventions.md#variable-naming`. Standard abbreviations and common iteration constructs (`k, v`, `req`, `res`, `fn`, `idx`, `mod`, `loc`, `tmp`, `str`, `arr`, `num`, `rel_path`, etc.) are permitted; flag only cryptic or arbitrary truncations that harm readability.
 - **Every new test**: name format and outcome, tier, mocking policy, and whether it asserts a contract or an implementation detail.
 
 Each finding names the rule and the doc it comes from. If you cannot cite a rule, it is a Suggestion or a Nit, not Blocking.

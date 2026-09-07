@@ -21,9 +21,17 @@ Coding standards and patterns for the Worktree CLI codebase.
 
 ## Variable Naming
 
-- Prefer clear, self-explanatory names over arbitrary abbreviations.
-- **Acceptable**: Standard conventions (`exc`, `rel_path`, `i`/`v` in comprehensions, `fs`, `cwd`, `db`).
-- **Unacceptable**: Cryptic truncations (e.g. `val_res` -> `validation_result`, `err_msg` -> `error_message`, `res` -> `result`).
+Prioritize clarity and readability: code should read naturally and unambiguously.
+
+- **Comprehensions and generator expressions**: Single-letter variables (e.g. `p`, `x`, `i`, `v`, `c`, `k, v`) are standard and encouraged for short, local scopes.
+- **Accepted common abbreviations and idioms**: Widely recognized programming idioms and domain abbreviations are permitted when they keep code concise without hurting readability:
+  - Key/value and loop constructs: `k, v` (in dict iteration or comprehensions), `i, v` (in enumerate).
+  - Standard programming idioms: `req`, `res`, `fn` / `fn_node`, `idx`, `mod` / `mod_name`, `loc`, `tmp` / `temp`, `str`, `arr`, `num`, `len`, `val`, `msg`.
+  - Established domain conventions: `exc`, `rel_path`, `fs`, `cwd`, `db`, `ctx`.
+- **Disallowed**:
+  - Cryptic, arbitrary, or idiosyncratic truncations that harm readability (e.g. `val_res` instead of `validation_result` or `result`, `err_msg` instead of `error_message`, or arbitrary letter-dropping like `acc` when context is ambiguous).
+  - Arbitrary single-letter variables that carry no conventional meaning in context.
+- **Readability rule of thumb**: Does the line of code still read easily with the abbreviation? If an abbreviation is widely understood in the context of the function and does not force the reader to pause or guess its meaning, it is acceptable. If it obscures intent or requires deciphering, write the full word.
 
 ---
 
