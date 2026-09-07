@@ -163,3 +163,34 @@ def test_core_and_common_have_zero_ui_dependencies() -> None:
                         )
 
     assert not violations, "Found UI dependencies inside core/ or common/:\n" + "\n".join(violations)
+
+
+def _check_import_node(node: ast.AST, rel_path: Path) -> list[str]:
+    if isinstance(node, ast.Import):
+        return [
+            f"{rel_path}:{node.lineno} imports '{alias.name}'"
+            for alias in node.names
+            if alias.name.startswith("worktree.cli")
+        ]
+    if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("worktree.cli"):
+        return [f"{rel_path}:{node.lineno} imports from '{node.module}'"]
+    return []
+
+
+def _find_cli_import_violations(file_path: Path, relative_to: Path) -> list[str]:
+    rel_path = file_path.relative_to(relative_to)
+    tree = ast.parse(file_path.read_text(encoding="utf-8"), filename=str(file_path))
+    violations: list[str] = []
+    for node in ast.walk(tree):
+        violations.extend(_check_import_node(node, rel_path))
+    return violations
+
+
+def test_core_tests_have_zero_cli_dependencies() -> None:
+    """Ensure tests/core has zero imports of worktree.cli."""
+    tests_core_dir = Path(__file__).parent.parent / "core"
+    violations: list[str] = []
+    for file_path in _iter_python_files(tests_core_dir):
+        violations.extend(_find_cli_import_violations(file_path, relative_to=tests_core_dir))
+
+    assert not violations, "Found prohibited 'worktree.cli' imports inside tests/core:\n" + "\n".join(violations)
