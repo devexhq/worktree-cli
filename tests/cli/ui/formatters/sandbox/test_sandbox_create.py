@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
-from tests.helpers import render_rich
+import pytest
+
+from tests.helpers import FormatterCase, render_rich
 from worktree.cli.ui.formatters.sandbox.sandbox_create import SandboxCreateFormatter
 from worktree.core.sandbox.models import (
     SandboxCreateResult,
@@ -12,22 +15,41 @@ from worktree.core.sandbox.models import (
     SandboxSession,
 )
 
+_SESSION = SandboxSession(
+    session_id="sbx_create123",
+    target_branch="worktree/sandbox-create123",
+    sandbox_path=Path("/tmp/sbx_create123"),
+    base_commit="def5678",
+    created_at="2026-08-31T20:00:00Z",
+)
 
-class SandboxCreateFormatterTests:
-    """Presentation contract tests for SandboxCreateFormatter."""
+CREATED_OK = FormatterCase(
+    data=SandboxCreateResult(status=SandboxCreateStatus.OK, session=_SESSION),
+    view=SandboxCreateResult(status=SandboxCreateStatus.OK, session=_SESSION),
+)
 
-    def test_to_json_serializable_returns_exact_dict(self) -> None:
-        formatter = SandboxCreateFormatter()
-        session = SandboxSession(
-            session_id="sbx_create123",
-            target_branch="worktree/sandbox-create123",
-            sandbox_path=Path("/tmp/sbx_create123"),
-            base_commit="def5678",
-            created_at="2026-08-31T20:00:00Z",
-        )
-        result = SandboxCreateResult(status=SandboxCreateStatus.OK, session=session)
-        dumped = formatter.to_json_serializable(result)
-        assert dumped == {
+FAILED_GIT = FormatterCase(
+    data=SandboxCreateResult(
+        status=SandboxCreateStatus.GIT_FAILED,
+        errors=["Git checkout failed."],
+        fixes=["Check git status and branch name"],
+    ),
+    view=SandboxCreateResult(
+        status=SandboxCreateStatus.GIT_FAILED,
+        errors=["Git checkout failed."],
+        fixes=["Check git status and branch name"],
+    ),
+)
+
+SANDBOX_CREATE_CASES = [
+    pytest.param(CREATED_OK, id="created_ok"),
+    pytest.param(FAILED_GIT, id="failed_git"),
+]
+
+SANDBOX_CREATE_PAYLOAD_CASES = [
+    pytest.param(
+        CREATED_OK,
+        {
             "status": "ok",
             "session": {
                 "session_id": "sbx_create123",
@@ -43,30 +65,59 @@ class SandboxCreateFormatterTests:
             "warnings": [],
             "errors": [],
             "fixes": [],
-        }
+        },
+        id="created_ok",
+    ),
+    pytest.param(
+        FAILED_GIT,
+        {
+            "status": "git_failed",
+            "session": None,
+            "warnings": [],
+            "errors": ["Git checkout failed."],
+            "fixes": ["Check git status and branch name"],
+        },
+        id="failed_git",
+    ),
+]
 
-    def test_to_rich_when_created_contains_session_id(self) -> None:
-        formatter = SandboxCreateFormatter()
-        session = SandboxSession(
-            session_id="sbx_create123",
-            target_branch="worktree/sandbox-create123",
-            sandbox_path=Path("/tmp/sbx_create123"),
-            base_commit="def5678",
-            created_at="2026-08-31T20:00:00Z",
-        )
-        result_ok = SandboxCreateResult(status=SandboxCreateStatus.OK, session=session)
-        rich_ok = formatter.to_rich(result_ok)
-        assert rich_ok is not None
-        rendered_ok = render_rich(rich_ok)
-        assert "sbx_create123" in rendered_ok
 
-    def test_to_rich_failure_contains_errors(self) -> None:
-        formatter = SandboxCreateFormatter()
-        result_fail = SandboxCreateResult(
-            status=SandboxCreateStatus.GIT_FAILED,
-            errors=["Git checkout failed."],
-        )
-        rich_fail = formatter.to_rich(result_fail)
-        assert rich_fail is not None
-        rendered_fail = render_rich(rich_fail)
-        assert "Git checkout failed." in rendered_fail
+class SandboxCreateFormatterTests:
+    """Tier 2 presentation contract tests for SandboxCreateFormatter."""
+
+    @pytest.mark.parametrize("case", SANDBOX_CREATE_CASES)
+    def test_transform_derives_expected_view(
+        self, case: FormatterCase[SandboxCreateResult, SandboxCreateResult]
+    ) -> None:
+        """Verify transform derives the identity view representation."""
+        assert SandboxCreateFormatter().transform(case.data) == case.view
+
+    @pytest.mark.parametrize(("case", "expected_payload"), SANDBOX_CREATE_PAYLOAD_CASES)
+    def test_json_payload_matches_published_shape(
+        self,
+        case: FormatterCase[SandboxCreateResult, SandboxCreateResult],
+        expected_payload: dict[str, Any],
+    ) -> None:
+        """Verify to_json_serializable matches the exact published wire-format literal dict."""
+        assert SandboxCreateFormatter().to_json_serializable(case.data) == expected_payload
+
+    @pytest.mark.parametrize("case", SANDBOX_CREATE_CASES)
+    def test_rich_render_shows_every_view_value(
+        self, case: FormatterCase[SandboxCreateResult, SandboxCreateResult]
+    ) -> None:
+        """Verify that all non-null semantic view model values reach the Rich renderable output."""
+        rendered = render_rich(SandboxCreateFormatter().to_rich(case.data))
+        view = case.view
+
+        if view.session is not None:
+            assert view.session.session_id in rendered
+            assert view.session.target_branch in rendered
+
+        for error in view.errors:
+            assert error in rendered
+
+        for fix in view.fixes:
+            assert fix in rendered
+
+        for warning in view.warnings:
+            assert warning in rendered

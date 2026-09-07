@@ -3,59 +3,63 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
-from tests.helpers import render_rich
+import pytest
+
+from tests.helpers import FormatterCase, render_rich
 from worktree.cli.ui.formatters.catalog.catalog_delete import CatalogDeleteFormatter
 from worktree.core.catalog.models import CatalogDeleteResult
 from worktree.core.db import CatalogItemType, CatalogRecord
 
+_RECORD = CatalogRecord(
+    id=1,
+    sha="workflow_1234567",
+    item_type=CatalogItemType.WORKFLOW,
+    name="test-workflow",
+    path=Path("workflows/test-workflow.yml"),
+    checksum="1234567890abcdef",
+    created_at="2026-08-17T00:00:00Z",
+    updated_at="2026-08-17T00:00:00Z",
+)
 
-def _sample_catalog_record() -> CatalogRecord:
-    return CatalogRecord(
-        id=1,
-        sha="workflow_1234567",
-        item_type=CatalogItemType.WORKFLOW,
-        name="test-workflow",
-        path=Path("workflows/test-workflow.yml"),
-        checksum="1234567890abcdef",
-        created_at="2026-08-17T00:00:00Z",
-        updated_at="2026-08-17T00:00:00Z",
-    )
+DELETED = FormatterCase(
+    data=CatalogDeleteResult(item=_RECORD, deleted=True, cancelled=False),
+    view=CatalogDeleteResult(item=_RECORD, deleted=True, cancelled=False),
+)
 
+CANCELLED = FormatterCase(
+    data=CatalogDeleteResult(item=None, deleted=False, cancelled=True, errors=["Deletion cancelled."]),
+    view=CatalogDeleteResult(item=None, deleted=False, cancelled=True, errors=["Deletion cancelled."]),
+)
 
-class CatalogDeleteFormatterTests:
-    """Tests for CatalogDeleteFormatter."""
+DELETE_ERROR = FormatterCase(
+    data=CatalogDeleteResult(
+        item=None,
+        deleted=False,
+        cancelled=False,
+        errors=["Catalog blueprint 'missing' not found."],
+        fixes=["Run `wt catalog list` to inspect available items"],
+    ),
+    view=CatalogDeleteResult(
+        item=None,
+        deleted=False,
+        cancelled=False,
+        errors=["Catalog blueprint 'missing' not found."],
+        fixes=["Run `wt catalog list` to inspect available items"],
+    ),
+)
 
-    def test_to_rich_when_deleted_renders_sha_and_path(self) -> None:
-        formatter = CatalogDeleteFormatter()
-        item = _sample_catalog_record()
-        result = CatalogDeleteResult(item=item, deleted=True)
+CATALOG_DELETE_CASES = [
+    pytest.param(DELETED, id="deleted"),
+    pytest.param(CANCELLED, id="cancelled"),
+    pytest.param(DELETE_ERROR, id="delete_error"),
+]
 
-        rendered = render_rich(formatter.to_rich(result))
-        assert item.sha in rendered
-        assert str(item.path) in rendered
-
-    def test_to_rich_when_cancelled_renders_cancellation_message(self) -> None:
-        formatter = CatalogDeleteFormatter()
-        result = CatalogDeleteResult(cancelled=True, errors=["Deletion cancelled."])
-
-        rendered = render_rich(formatter.to_rich(result))
-        assert "Deletion cancelled." in rendered
-
-    def test_to_rich_when_errors_renders_error_message(self) -> None:
-        formatter = CatalogDeleteFormatter()
-        result = CatalogDeleteResult(errors=["Catalog blueprint 'not-found' not found."])
-
-        rendered = render_rich(formatter.to_rich(result))
-        assert "Catalog blueprint 'not-found' not found." in rendered
-
-    def test_to_json_serializable_returns_exact_dict(self) -> None:
-        formatter = CatalogDeleteFormatter()
-        item = _sample_catalog_record()
-        result = CatalogDeleteResult(item=item, deleted=True)
-
-        dumped = formatter.to_json_serializable(result)
-        assert dumped == {
+CATALOG_DELETE_PAYLOAD_CASES = [
+    pytest.param(
+        DELETED,
+        {
             "errors": [],
             "warnings": [],
             "fixes": [],
@@ -71,4 +75,69 @@ class CatalogDeleteFormatterTests:
             },
             "deleted": True,
             "cancelled": False,
-        }
+        },
+        id="deleted",
+    ),
+    pytest.param(
+        CANCELLED,
+        {
+            "errors": ["Deletion cancelled."],
+            "warnings": [],
+            "fixes": [],
+            "item": None,
+            "deleted": False,
+            "cancelled": True,
+        },
+        id="cancelled",
+    ),
+    pytest.param(
+        DELETE_ERROR,
+        {
+            "errors": ["Catalog blueprint 'missing' not found."],
+            "warnings": [],
+            "fixes": ["Run `wt catalog list` to inspect available items"],
+            "item": None,
+            "deleted": False,
+            "cancelled": False,
+        },
+        id="delete_error",
+    ),
+]
+
+
+class CatalogDeleteFormatterTests:
+    """Tier 2 presentation contract tests for CatalogDeleteFormatter."""
+
+    @pytest.mark.parametrize("case", CATALOG_DELETE_CASES)
+    def test_transform_derives_expected_view(
+        self, case: FormatterCase[CatalogDeleteResult, CatalogDeleteResult]
+    ) -> None:
+        """Verify transform derives the identity view representation."""
+        assert CatalogDeleteFormatter().transform(case.data) == case.view
+
+    @pytest.mark.parametrize(("case", "expected_payload"), CATALOG_DELETE_PAYLOAD_CASES)
+    def test_json_payload_matches_published_shape(
+        self,
+        case: FormatterCase[CatalogDeleteResult, CatalogDeleteResult],
+        expected_payload: dict[str, Any],
+    ) -> None:
+        """Verify to_json_serializable matches the exact published wire-format literal dict."""
+        assert CatalogDeleteFormatter().to_json_serializable(case.data) == expected_payload
+
+    @pytest.mark.parametrize("case", CATALOG_DELETE_CASES)
+    def test_rich_render_shows_every_view_value(
+        self, case: FormatterCase[CatalogDeleteResult, CatalogDeleteResult]
+    ) -> None:
+        """Verify that all non-null semantic view model values reach the Rich renderable output."""
+        rendered = render_rich(CatalogDeleteFormatter().to_rich(case.data))
+        view = case.view
+
+        if view.deleted and view.item is not None:
+            assert view.item.sha in rendered
+            assert str(view.item.path) in rendered
+
+        for error in view.errors:
+            assert error in rendered
+
+        for fix in view.fixes:
+            assert fix in rendered
