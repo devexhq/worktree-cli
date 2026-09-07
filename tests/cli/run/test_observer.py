@@ -57,9 +57,11 @@ class DispatcherRunObserverTests:
             StepStartEvent(idx=1, total=2, step_id="s1", name="lint", command="ruff check")
         )
 
-        # Step output
+        # Step output (trailing newlines stripped)
         observer.on_step_output(1, 2, step, "output line 1\n", stream="stdout")
-        dispatcher.dispatch.assert_called_with(StepOutputEvent(step_id="s1", line="output line 1\n", stream="stdout"))
+        dispatcher.dispatch.assert_called_with(StepOutputEvent(step_id="s1", line="output line 1", stream="stdout"))
+        observer.on_step_output(1, 2, step, "output line 2\r\n", stream="stderr")
+        dispatcher.dispatch.assert_called_with(StepOutputEvent(step_id="s1", line="output line 2", stream="stderr"))
 
         # Step done
         result = StepResult(

@@ -74,7 +74,13 @@ class DispatcherRunObserver(RunObserver):
         stream: str = "stdout",
     ) -> None:
         """Dispatch live step output event."""
-        self._dispatcher.dispatch(StepOutputEvent(step_id=step.id, line=line, stream=stream))
+        self._dispatcher.dispatch(
+            StepOutputEvent(
+                step_id=step.id,
+                line=line.rstrip("\r\n"),
+                stream=stream,
+            )
+        )
 
     def on_step_done(self, idx: int, total: int, result: StepResult) -> None:
         """Dispatch step completion or failure event."""
