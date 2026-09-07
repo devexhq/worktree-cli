@@ -153,3 +153,71 @@ class CopilotAdapterTests:
         resp = adapter.propose_fix(_request(sandbox))
         assert resp.status == AgentResponseStatus.NO_OP
         assert resp.mutation_baseline_ref is not None
+
+    def test_proposed_patch(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Capture diff and propose patch when Copilot run succeeds with edits."""
+        _git(["init"], cwd=sandbox)
+        _git(["config", "user.email", "test@example.com"], cwd=sandbox)
+        _git(["config", "user.name", "Test"], cwd=sandbox)
+        (sandbox / "a.txt").write_text("original\n", encoding="utf-8")
+        _git(["add", "-A"], cwd=sandbox)
+        _git(["commit", "-m", "init"], cwd=sandbox)
+
+        def fake_copilot_run(request: CliMutationRunRequest) -> CliMutationOutcome:
+            (request.sandbox_path / "a.txt").write_text("fixed\n", encoding="utf-8")
+            return CliMutationOutcome(status="finished", result_text="done")
+
+        monkeypatch.setattr("worktree.core.agents.copilot.default_copilot_run", fake_copilot_run)
+        adapter = CopilotAgentAdapter()
+        resp = adapter.propose_fix(_request(sandbox))
+        assert resp.status == AgentResponseStatus.PROPOSED_PATCH
+        assert resp.ok
+        assert resp.unified_diff is not None
+        assert "fixed" in resp.unified_diff
+        assert resp.mutation_baseline_ref is not None
+        assert (sandbox / "a.txt").read_text(encoding="utf-8") == "fixed\n"
+
+    def test_gate_violation_discards_edits(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Discard agent edits and restore sandbox on gate violation."""
+        _git(["init"], cwd=sandbox)
+        _git(["config", "user.email", "test@example.com"], cwd=sandbox)
+        _git(["config", "user.name", "Test"], cwd=sandbox)
+        (sandbox / "a.txt").write_text("original\n", encoding="utf-8")
+        _git(["add", "-A"], cwd=sandbox)
+        _git(["commit", "-m", "init"], cwd=sandbox)
+
+        def fake_copilot_run(request: CliMutationRunRequest) -> CliMutationOutcome:
+            (request.sandbox_path / "a.txt").write_text("edit 1\n", encoding="utf-8")
+            (request.sandbox_path / "b.txt").write_text("edit 2\n", encoding="utf-8")
+            return CliMutationOutcome(status="finished", result_text="done")
+
+        monkeypatch.setattr("worktree.core.agents.copilot.default_copilot_run", fake_copilot_run)
+        adapter = CopilotAgentAdapter()
+        resp = adapter.propose_fix(_request(sandbox, max_files=1))
+        assert resp.status == AgentResponseStatus.PROVIDER_ERROR
+        assert any("max_files" in err for err in resp.errors)
+        assert (sandbox / "a.txt").read_text(encoding="utf-8") == "original\n"
+        assert not (sandbox / "b.txt").exists()
+
+    def test_gate_violation_preserves_wip(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Preserve pre-existing uncommitted WIP when Copilot edits are rejected by gate."""
+        _git(["init"], cwd=sandbox)
+        _git(["config", "user.email", "test@example.com"], cwd=sandbox)
+        _git(["config", "user.name", "Test"], cwd=sandbox)
+        (sandbox / "a.txt").write_text("original\n", encoding="utf-8")
+        _git(["add", "-A"], cwd=sandbox)
+        _git(["commit", "-m", "init"], cwd=sandbox)
+        (sandbox / "a.txt").write_text("wip content\n", encoding="utf-8")
+
+        def fake_copilot_run(request: CliMutationRunRequest) -> CliMutationOutcome:
+            (request.sandbox_path / "a.txt").write_text("edit 1\n", encoding="utf-8")
+            (request.sandbox_path / "b.txt").write_text("edit 2\n", encoding="utf-8")
+            return CliMutationOutcome(status="finished", result_text="done")
+
+        monkeypatch.setattr("worktree.core.agents.copilot.default_copilot_run", fake_copilot_run)
+        adapter = CopilotAgentAdapter()
+        resp = adapter.propose_fix(_request(sandbox, max_files=1))
+        assert resp.status == AgentResponseStatus.PROVIDER_ERROR
+        assert any("max_files" in err for err in resp.errors)
+        assert (sandbox / "a.txt").read_text(encoding="utf-8") == "wip content\n"
+        assert not (sandbox / "b.txt").exists()

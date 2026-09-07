@@ -25,8 +25,12 @@ def resolve_cursor_api_key(env: dict[str, str] | None = None) -> str | None:
     return key.strip()
 
 
-def _cancel_cursor_run(run: object) -> None:
-    """Best-effort cancel for a timed-out Cursor SDK run handle."""
+def cancel_cursor_run(run: object) -> None:
+    """Best-effort cancel for a timed-out Cursor SDK run handle.
+
+    Args:
+        run: Cursor SDK run handle with optional cancel() method.
+    """
     try:
         cancel = getattr(run, "cancel", None)
         if callable(cancel):
@@ -37,8 +41,15 @@ def _cancel_cursor_run(run: object) -> None:
         pass
 
 
-def _cursor_outcome_from_result(result: object) -> CliMutationOutcome:
-    """Map a finished Cursor SDK wait() result into a CliMutationOutcome."""
+def cursor_outcome_from_result(result: object) -> CliMutationOutcome:
+    """Map a finished Cursor SDK wait() result into a CliMutationOutcome.
+
+    Args:
+        result: Result object returned by Cursor SDK run.wait().
+
+    Returns:
+        Structured mutation outcome with classified status.
+    """
     raw_status = str(getattr(result, "status", "error"))
     text = getattr(result, "result", None)
     text_str = text if isinstance(text, str) else None
@@ -91,7 +102,7 @@ def _run_cursor_agent_thread(
     if thread.is_alive():
         run = outcome.get("run")
         if run is not None:
-            _cancel_cursor_run(run)
+            cancel_cursor_run(run)
         thread.join(timeout=5)
         outcome["timed_out"] = True
     return outcome
@@ -131,7 +142,7 @@ def default_cursor_run(request: CliMutationRunRequest) -> CliMutationOutcome:
     result = outcome.get("result")
     if result is None:
         return CliMutationOutcome(status="error", error_detail="no run result")
-    return _cursor_outcome_from_result(result)
+    return cursor_outcome_from_result(result)
 
 
 class CursorAgentAdapter(CliDirectMutationAdapter):

@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import email.message
+import io
 import json
+import urllib.request
 from importlib import resources
 from pathlib import Path
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 
 import pytest
 
@@ -23,6 +26,7 @@ from worktree.core.agents.ollama import (
     MODEL_OUTPUT_UNPARSEABLE,
     OLLAMA_HOST_ENV,
     build_ollama_messages,
+    default_http_post,
     extract_json_object,
     parse_ollama_model_text,
     resolve_ollama_endpoint,
@@ -82,6 +86,66 @@ class FactoryOllamaTests:
         msg = str(exc.value)
         assert "local" in msg
         assert "ollama" in msg
+
+
+class DefaultHttpPostTests:
+    """Direct tests for default_http_post helper."""
+
+    def test_http_post_success_returns_status_and_body(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Return HTTP status code and response body on 2xx responses."""
+
+        class _MockResp:
+            status = 200
+
+            def __enter__(self) -> _MockResp:
+                return self
+
+            def __exit__(self, *args: object) -> None:
+                pass
+
+            def read(self) -> bytes:
+                return b'{"ok": true}'
+
+        monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout: _MockResp())
+        status, text = default_http_post("http://localhost:11434/api/chat", b"{}", 5.0)
+        assert status == 200
+        assert text == '{"ok": true}'
+
+    def test_http_post_handles_http_error_with_body(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Extract HTTP error code and error response body when HTTPError is raised."""
+        err = HTTPError(
+            "http://localhost:11434/api/chat",
+            404,
+            "Not Found",
+            email.message.Message(),
+            io.BytesIO(b"model not found"),
+        )
+
+        def _fail(req: object, timeout: float) -> object:
+            raise err
+
+        monkeypatch.setattr(urllib.request, "urlopen", _fail)
+        status, text = default_http_post("http://localhost:11434/api/chat", b"{}", 5.0)
+        assert status == 404
+        assert text == "model not found"
+
+    def test_http_post_handles_http_error_without_body(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Handle HTTPError without read attribute gracefully returning empty string."""
+        err = HTTPError(
+            "http://localhost:11434/api/chat",
+            500,
+            "Internal Server Error",
+            email.message.Message(),
+            None,
+        )
+
+        def _fail(req: object, timeout: float) -> object:
+            raise err
+
+        monkeypatch.setattr(urllib.request, "urlopen", _fail)
+        status, text = default_http_post("http://localhost:11434/api/chat", b"{}", 5.0)
+        assert status == 500
+        assert text == ""
 
 
 class ResolveEndpointTests:
@@ -234,6 +298,45 @@ class OllamaAdapterTests:
         assert resp.status == AgentResponseStatus.TIMEOUT
         assert any("timed out" in e.lower() for e in resp.errors)
         assert any("ollama" in e.lower() for e in resp.errors)
+
+    def test_non_object_json_body_returns_provider_error(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Return provider error when Ollama chat API returns a JSON array or scalar."""
+        monkeypatch.setattr("worktree.core.agents.ollama.default_http_post", lambda *a, **k: (200, "[1, 2, 3]"))
+        resp = OllamaAgentAdapter().propose_fix(_request(sandbox))
+        assert resp.status == AgentResponseStatus.PROVIDER_ERROR
+        assert any("non-object" in e for e in resp.errors)
+
+    def test_missing_message_content_returns_provider_error(
+        self, sandbox: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Return provider error when Ollama chat API response omits message.content."""
+        monkeypatch.setattr(
+            "worktree.core.agents.ollama.default_http_post",
+            lambda *a, **k: (200, '{"message": {"role": "assistant"}}'),
+        )
+        resp = OllamaAgentAdapter().propose_fix(_request(sandbox))
+        assert resp.status == AgentResponseStatus.PROVIDER_ERROR
+        assert any("missing message.content" in e for e in resp.errors)
+
+    def test_invalid_json_http_body_returns_provider_error(
+        self, sandbox: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Return provider error when Ollama chat API returns malformed JSON."""
+        monkeypatch.setattr("worktree.core.agents.ollama.default_http_post", lambda *a, **k: (200, "invalid json {"))
+        resp = OllamaAgentAdapter().propose_fix(_request(sandbox))
+        assert resp.status == AgentResponseStatus.PROVIDER_ERROR
+        assert any("invalid JSON from Ollama chat API" in e for e in resp.errors)
+
+    def test_generic_url_error_returns_provider_error(self, sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Return provider error when connection fails with non-timeout URLError."""
+
+        def http_post(url: str, body: bytes, timeout: float) -> tuple[int, str]:
+            raise URLError("connection reset")
+
+        monkeypatch.setattr("worktree.core.agents.ollama.default_http_post", http_post)
+        resp = OllamaAgentAdapter().propose_fix(_request(sandbox))
+        assert resp.status == AgentResponseStatus.PROVIDER_ERROR
+        assert any("failed to reach Ollama" in e for e in resp.errors)
 
 
 class SchemaOllamaTests:

@@ -18,6 +18,7 @@ from worktree.core.agents.cli_mutation import (
     build_mutation_prompt,
 )
 from worktree.core.agents.models import AgentFailurePayload
+from worktree.core.agents.mutation_git import MutationGitError
 
 
 def _git(args: list[str], *, cwd: Path) -> None:
@@ -155,6 +156,37 @@ class SharedMutationAdapterTests:
         assert resp.status == AgentResponseStatus.PROVIDER_ERROR
         assert any("max_files" in err for err in resp.errors)
         assert (sandbox / "a.txt").read_text(encoding="utf-8") == "original\n"
+        assert not (sandbox / "b.txt").exists()
+
+    def test_gate_violation_discard_git_error_appends_to_errors(
+        self, sandbox: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Append discard failure message onto gate errors when discard_since raises MutationGitError."""
+        adapter = UnitTestAdapter(run_fn=_fake_run(edits={"a.txt": "1\n", "b.txt": "2\n"}))
+
+        def _fail_discard(*a: object, **k: object) -> None:
+            raise MutationGitError("git reset failed: index locked")
+
+        monkeypatch.setattr("worktree.core.agents.cli_mutation.discard_since", _fail_discard)
+
+        resp = adapter.propose_fix(_request(sandbox, max_files=1))
+
+        assert resp.status == AgentResponseStatus.PROVIDER_ERROR
+        assert not resp.ok
+        assert any("max_files" in err for err in resp.errors)
+        assert any(
+            "failed to discard rejected sandbox edit: git reset failed: index locked" in err for err in resp.errors
+        )
+
+    def test_gate_violation_preserves_wip(self, sandbox: Path) -> None:
+        """Preserve uncommitted WIP when rejected edits are discarded."""
+        (sandbox / "a.txt").write_text("wip content\n", encoding="utf-8")
+        adapter = UnitTestAdapter(run_fn=_fake_run(edits={"a.txt": "edit 1\n", "b.txt": "edit 2\n"}))
+
+        resp = adapter.propose_fix(_request(sandbox, max_files=1))
+
+        assert resp.status == AgentResponseStatus.PROVIDER_ERROR
+        assert (sandbox / "a.txt").read_text(encoding="utf-8") == "wip content\n"
         assert not (sandbox / "b.txt").exists()
 
     def test_preflight_blocks_before_baseline(self, sandbox: Path) -> None:
