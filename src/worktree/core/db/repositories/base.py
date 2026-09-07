@@ -69,14 +69,14 @@ class BaseRepository:
         with get_session(self.db_engine) as sess:
             yield sess
 
-    def _commit(self, session: Session, record: RecordT, conflict_message: str) -> RecordT:
+    def _commit(self, session: Session, record: RecordT, conflict_message: str | None = None) -> RecordT:
         """Add record, commit transaction, rollback and raise ValueError on IntegrityError, and refresh record."""
         session.add(record)
         try:
             session.commit()
         except IntegrityError as exc:
             session.rollback()
-            raise ValueError(conflict_message) from exc
+            raise ValueError(conflict_message or "Database operation failed") from exc
         session.refresh(record)
         return record
 

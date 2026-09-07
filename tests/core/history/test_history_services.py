@@ -6,10 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from tests.helpers import FileSystem, make_run
+from tests.helpers import FileSystem, RunFactory, make_run
 from worktree.core.blueprint import BlueprintKind
 from worktree.core.config.generator import generate_default_config
-from worktree.core.db import RunStatus, WorktreeDb
+from worktree.core.db import RunsRepository, RunStatus, WorktreeDb
 from worktree.core.history.models import (
     HistoryListStatus,
     HistoryShowStatus,
@@ -177,20 +177,21 @@ class HistoryShowServiceTests:
         assert result.status is HistoryShowStatus.NOT_FOUND
         assert result.run is None
 
-    def test_execute_found_renders_metadata(self, fs: FileSystem) -> None:
-        make_run(
-            self.db.runs,
+    def test_execute_found_renders_metadata(self, fs: FileSystem, runs_repository: RunsRepository) -> None:
+        completed_run = RunFactory.create(
+            runs_repository,
             session_id="run-show-exec",
             blueprint_name="show-task",
             kind=BlueprintKind.TASK,
             status=RunStatus.COMPLETED,
         )
-        service = HistoryShowService(session_id="run-show-exec", path=fs.base_path, db=self.db.runs)
+
+        service = HistoryShowService(session_id=completed_run.session_id, path=fs.base_path, db=runs_repository)
         result = service.execute()
         assert result.ok
         assert result.run is not None
-        assert result.run.session_id == "run-show-exec"
-        assert result.run.blueprint_name == "show-task"
+        assert result.run.session_id == completed_run.session_id
+        assert result.run.blueprint_name == completed_run.blueprint_name
 
     def test_execute_not_found_renders_panel(self, fs: FileSystem) -> None:
         _init_workspace(fs.base_path)
