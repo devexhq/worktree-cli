@@ -5,8 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
+from pydantic import ValidationError
+
 from worktree.core.runtime.loop_runner import LoopBlockRunner
 from worktree.core.runtime.models import (
+    FailurePromptDecision,
+    FailurePrompter,
     LoopPromptDecision,
     RunObserver,
     StepLoopState,
@@ -231,3 +236,227 @@ class TestLoopBlockRunner:
         observer.on_loop_turn_start.assert_called_once_with("observed-loop", 1, 2)
         assert observer.on_loop_conditions_evaluated.call_count == 1
         observer.on_loop_done.assert_called_once_with("observed-loop", "completed", 1)
+
+    def test_nested_loops_rejected_by_model(self) -> None:
+        """Verify that nested loops inside LoopStepBlock.do are rejected by the schema.
+
+        Nested loops are deliberately disallowed by design: LoopStepBlock.do accepts
+        only StepDefinition sequences, keeping turn execution flat and deterministic.
+        """
+        with pytest.raises(ValidationError):
+            LoopStepBlock.model_validate(
+                {
+                    "id": "outer",
+                    "type": "loop",
+                    "until": ["steps.inner.exit_code == 0"],
+                    "do": [
+                        {
+                            "id": "inner",
+                            "type": "loop",
+                            "until": ["steps.check.exit_code == 0"],
+                            "do": [{"id": "check", "type": "command", "command": "echo 1"}],
+                        }
+                    ],
+                }
+            )
+
+    def test_observer_exceptions_do_not_abort_loop(self, tmp_path: Path) -> None:
+        observer = MagicMock(spec=RunObserver)
+        observer.on_loop_start.side_effect = RuntimeError("observer start exploded")
+        observer.on_loop_turn_start.side_effect = RuntimeError("observer turn exploded")
+        observer.on_loop_conditions_evaluated.side_effect = RuntimeError("observer conditions exploded")
+        observer.on_loop_done.side_effect = RuntimeError("observer done exploded")
+        observer.on_step_start.side_effect = RuntimeError("observer step start exploded")
+        observer.on_step_output.side_effect = RuntimeError("observer output exploded")
+        observer.on_step_done.side_effect = RuntimeError("observer step done exploded")
+
+        loop = LoopStepBlock(
+            id="fault-tolerant-loop",
+            type="loop",
+            max_iterations=2,
+            until=["steps.poll.exit_code == 0"],
+            do=[_make_step("poll", command="echo ok")],
+        )
+        state = StepLoopState(target_dir=tmp_path, session=None)
+        runner = LoopBlockRunner(loop, sandbox_path=tmp_path, observer=observer)
+
+        action, result, error = runner.run(state)
+
+        assert action == "continue"
+        assert result is None
+        assert error is None
+        assert len(state.step_results) == 1
+        assert state.step_results[0].exit_code == 0
+
+    def test_prompter_raises_keyboard_interrupt_during_step_failure(self, tmp_path: Path) -> None:
+        prompter = MagicMock(spec=FailurePrompter)
+        prompter.prompt_step_failure.side_effect = KeyboardInterrupt
+
+        loop = LoopStepBlock(
+            id="interrupt-step-loop",
+            type="loop",
+            max_iterations=2,
+            until=["steps.poll.exit_code == 0"],
+            do=[_make_step("poll", command="exit 1", on_failure=FailurePolicy.PROMPT_USER)],
+        )
+        state = StepLoopState(target_dir=tmp_path, session=None)
+        runner = LoopBlockRunner(loop, sandbox_path=tmp_path, failure_prompter=prompter)
+
+        with pytest.raises(KeyboardInterrupt):
+            runner.run(state)
+
+    def test_prompter_raises_keyboard_interrupt_during_max_iterations(self, tmp_path: Path) -> None:
+        prompter = MagicMock(spec=FailurePrompter)
+        prompter.prompt_loop_max_iterations.side_effect = KeyboardInterrupt
+
+        loop = LoopStepBlock(
+            id="interrupt-max-loop",
+            type="loop",
+            max_iterations=1,
+            until=["steps.poll.exit_code == 0"],
+            do=[_make_step("poll", command="exit 1", on_failure=FailurePolicy.CONTINUE)],
+            on_max_iterations=FailurePolicy.PROMPT_USER,
+        )
+        state = StepLoopState(target_dir=tmp_path, session=None)
+        runner = LoopBlockRunner(loop, sandbox_path=tmp_path, failure_prompter=prompter)
+
+        with pytest.raises(KeyboardInterrupt):
+            runner.run(state)
+
+        assert len(state.step_results) == 1
+
+    def test_prompter_raises_runtime_error_during_step_failure(self, tmp_path: Path) -> None:
+        prompter = MagicMock(spec=FailurePrompter)
+        prompter.prompt_step_failure.side_effect = RuntimeError("terminal disconnected")
+
+        loop = LoopStepBlock(
+            id="error-step-loop",
+            type="loop",
+            max_iterations=2,
+            until=["steps.poll.exit_code == 0"],
+            do=[_make_step("poll", command="exit 1", on_failure=FailurePolicy.PROMPT_USER)],
+        )
+        state = StepLoopState(target_dir=tmp_path, session=None)
+        runner = LoopBlockRunner(loop, sandbox_path=tmp_path, failure_prompter=prompter)
+
+        with pytest.raises(RuntimeError, match="terminal disconnected"):
+            runner.run(state)
+
+    def test_prompter_raises_runtime_error_during_max_iterations(self, tmp_path: Path) -> None:
+        prompter = MagicMock(spec=FailurePrompter)
+        prompter.prompt_loop_max_iterations.side_effect = RuntimeError("terminal disconnected")
+
+        loop = LoopStepBlock(
+            id="error-max-loop",
+            type="loop",
+            max_iterations=1,
+            until=["steps.poll.exit_code == 0"],
+            do=[_make_step("poll", command="exit 1", on_failure=FailurePolicy.CONTINUE)],
+            on_max_iterations=FailurePolicy.PROMPT_USER,
+        )
+        state = StepLoopState(target_dir=tmp_path, session=None)
+        runner = LoopBlockRunner(loop, sandbox_path=tmp_path, failure_prompter=prompter)
+
+        with pytest.raises(RuntimeError, match="terminal disconnected"):
+            runner.run(state)
+
+    def test_sub_step_prompt_retry_succeeds_on_second_attempt(self, tmp_path: Path) -> None:
+        prompter = MagicMock(spec=FailurePrompter)
+        prompter.prompt_step_failure.return_value = FailurePromptDecision.RETRY
+
+        cmd = "if [ $WT_STEP_ATTEMPT -eq 2 ]; then exit 0; else exit 1; fi"
+        loop = LoopStepBlock(
+            id="substep-retry-loop",
+            type="loop",
+            max_iterations=2,
+            until=["steps.poll.exit_code == 0"],
+            do=[_make_step("poll", command=cmd, on_failure=FailurePolicy.PROMPT_USER)],
+        )
+        state = StepLoopState(target_dir=tmp_path, session=None)
+        runner = LoopBlockRunner(loop, sandbox_path=tmp_path, failure_prompter=prompter)
+
+        action, _, _ = runner.run(state)
+
+        assert action == "continue"
+        assert prompter.prompt_step_failure.call_count == 1
+        assert len(state.step_results) == 1
+        assert state.step_results[0].ok is True
+        assert state.step_results[0].attempts == 2
+
+    def test_sub_step_prompt_continue_marks_continued(self, tmp_path: Path) -> None:
+        prompter = MagicMock(spec=FailurePrompter)
+        prompter.prompt_step_failure.return_value = FailurePromptDecision.CONTINUE
+
+        loop = LoopStepBlock(
+            id="substep-continue-loop",
+            type="loop",
+            max_iterations=1,
+            until=["steps.poll.exit_code == 1"],
+            do=[_make_step("poll", command="exit 1", on_failure=FailurePolicy.PROMPT_USER)],
+        )
+        state = StepLoopState(target_dir=tmp_path, session=None)
+        runner = LoopBlockRunner(loop, sandbox_path=tmp_path, failure_prompter=prompter)
+
+        action, _, _ = runner.run(state)
+
+        assert action == "continue"
+        assert prompter.prompt_step_failure.call_count == 1
+        assert len(state.step_results) == 1
+        assert state.step_results[0].status == "ignored"
+
+    def test_sub_step_prompt_abort_stops_loop(self, tmp_path: Path) -> None:
+        prompter = MagicMock(spec=FailurePrompter)
+        prompter.prompt_step_failure.return_value = FailurePromptDecision.ABORT
+
+        loop = LoopStepBlock(
+            id="substep-abort-loop",
+            type="loop",
+            max_iterations=2,
+            until=["steps.poll.exit_code == 0"],
+            do=[_make_step("poll", command="exit 1", on_failure=FailurePolicy.PROMPT_USER)],
+        )
+        state = StepLoopState(target_dir=tmp_path, session=None)
+        runner = LoopBlockRunner(loop, sandbox_path=tmp_path, failure_prompter=prompter)
+
+        action, _, error = runner.run(state)
+
+        assert action == "abort"
+        assert error is not None
+        assert "aborted by user" in error
+
+    def test_sub_step_prompt_non_interactive_aborts_with_warning(self, tmp_path: Path) -> None:
+        loop = LoopStepBlock(
+            id="non-interactive-loop",
+            type="loop",
+            max_iterations=2,
+            until=["steps.poll.exit_code == 0"],
+            do=[_make_step("poll", command="exit 1", on_failure=FailurePolicy.PROMPT_USER)],
+        )
+        state = StepLoopState(target_dir=tmp_path, session=None)
+        runner = LoopBlockRunner(loop, sandbox_path=tmp_path, non_interactive=True)
+
+        action, _, error = runner.run(state)
+
+        assert action == "abort"
+        assert error is not None
+        assert "failed in loop" in error
+        assert len(state.warnings) == 1
+        assert "requested prompt_user but run is non-interactive" in state.warnings[0]
+
+    def test_max_iterations_non_interactive_aborts_with_message(self, tmp_path: Path) -> None:
+        loop = LoopStepBlock(
+            id="max-iter-non-interactive-loop",
+            type="loop",
+            max_iterations=1,
+            until=["steps.poll.exit_code == 0"],
+            do=[_make_step("poll", command="exit 1", on_failure=FailurePolicy.CONTINUE)],
+            on_max_iterations=FailurePolicy.PROMPT_USER,
+        )
+        state = StepLoopState(target_dir=tmp_path, session=None)
+        runner = LoopBlockRunner(loop, sandbox_path=tmp_path, non_interactive=True)
+
+        action, _, error = runner.run(state)
+
+        assert action == "abort"
+        assert error is not None
+        assert "reached max_iterations (1) and run is non-interactive" in error

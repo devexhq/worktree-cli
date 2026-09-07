@@ -20,18 +20,30 @@ from worktree.core.db import RunStatus
 from worktree.core.runtime import (
     USER_CONTINUED_MARKER,
     FailurePromptDecision,
+    FailurePrompter,
     RunCheckpoint,
     RunContext,
     RunObserver,
     run_steps,
 )
-from worktree.core.step import FailurePolicy, FailureSpec, StepDefinition, StepResult
+from worktree.core.sandbox import (
+    Sandbox,
+    SandboxApplyResult,
+    SandboxApplyStatus,
+)
+from worktree.core.step import (
+    FailurePolicy,
+    FailureSpec,
+    LoopStepBlock,
+    StepDefinition,
+    StepResult,
+)
 
 
 def make_run_context(
     *,
     fs: FileSystem,
-    steps: list[StepDefinition] | None = None,
+    steps: Sequence[StepDefinition | LoopStepBlock] | None = None,
     **kwargs: Any,
 ) -> RunContext:
     """Build a RunContext with test-friendly defaults; override via kwargs."""
@@ -600,3 +612,191 @@ class RuntimeEnginePauseAndResumeTests:
         assert prompter.calls == 1
         assert [result.step_id for result in outcome.step_results] == ["ok", "fail", "later"]
         assert outcome.step_results[1].status == "ignored"
+
+
+class RuntimeEngineConcurrencyAndRobustnessTests:
+    """Tests for observer error isolation, concurrency constraints, loop dispatch, and cleanup failure."""
+
+    def test_observer_exceptions_do_not_abort_run_steps(self, fs: FileSystem) -> None:
+        observer = MagicMock(spec=RunObserver)
+        observer.on_sandbox_ready.side_effect = RuntimeError("observer sandbox ready exploded")
+        observer.on_step_start.side_effect = RuntimeError("observer step start exploded")
+        observer.on_step_output.side_effect = RuntimeError("observer step output exploded")
+        observer.on_step_done.side_effect = RuntimeError("observer step done exploded")
+        observer.on_sandbox_cleanup.side_effect = RuntimeError("observer cleanup exploded")
+
+        step1 = make_cmd_step(step_id="s1", command="echo one")
+        step2 = make_cmd_step(step_id="s2", command="echo two")
+        outcome = run_steps(
+            make_run_context(
+                fs=fs,
+                steps=[step1, step2],
+                observer=observer,
+            )
+        )
+
+        assert outcome.ok is True
+        assert len(outcome.step_results) == 2
+        assert all(r.ok for r in outcome.step_results)
+
+    def test_sandbox_cleanup_failure_after_step_failure(
+        self,
+        git_fs: GitFileSystem,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        git_fs.init_repo()
+        failing_step = make_cmd_step(step_id="fail", command="exit 1", on_failure=FailurePolicy.ABORT)
+
+        def _exploding_cleanup(self: object, session: object) -> list[str]:
+            raise RuntimeError("Cleanup filesystem removal failed")
+
+        monkeypatch.setattr(Sandbox, "cleanup", _exploding_cleanup)
+
+        outcome = run_steps(
+            make_run_context(
+                fs=git_fs,
+                steps=[failing_step],
+                use_sandbox=True,
+            )
+        )
+
+        assert outcome.status == RunStatus.FAILED
+        assert len(outcome.step_results) == 1
+        assert outcome.step_results[0].step_id == "fail"
+        assert outcome.step_results[0].ok is False
+        assert any("Step 'fail' failed" in err for err in outcome.errors)
+        assert outcome.sandbox_kept is False
+
+    def test_steps_execute_serially_against_sandbox(
+        self,
+        fs: FileSystem,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Verify that step execution within run_steps is strictly serial, not concurrent.
+
+        The runtime engine is deliberately single-threaded and strictly serial:
+        concurrent step execution against a shared sandbox is prohibited because
+        concurrent operations on a single git working tree corrupt index state (.git/index.lock)
+        and break sequential step dependency invariants.
+        """
+        active_concurrency = 0
+        max_concurrency = 0
+
+        def _timed_execute(step: StepDefinition) -> StepResult:
+            nonlocal active_concurrency, max_concurrency
+            active_concurrency += 1
+            if active_concurrency > max_concurrency:
+                max_concurrency = active_concurrency
+            active_concurrency -= 1
+            return make_ok_result(step_id=step.id)
+
+        patch_execute(monkeypatch, _timed_execute)
+
+        outcome = run_steps(
+            make_run_context(
+                fs=fs,
+                steps=[
+                    make_cmd_step(step_id="step1"),
+                    make_cmd_step(step_id="step2"),
+                    make_cmd_step(step_id="step3"),
+                ],
+            )
+        )
+
+        assert outcome.ok is True
+        assert max_concurrency == 1
+        assert active_concurrency == 0
+        assert len(outcome.step_results) == 3
+
+    def test_run_steps_loop_prompter_keyboard_interrupt_cancels_run(
+        self,
+        fs: FileSystem,
+    ) -> None:
+        prompter = MagicMock(spec=FailurePrompter)
+        prompter.prompt_step_failure.side_effect = KeyboardInterrupt
+
+        loop = LoopStepBlock(
+            id="interrupt-loop",
+            type="loop",
+            max_iterations=3,
+            until=["steps.check.exit_code == 0"],
+            do=[make_cmd_step(step_id="check", command="exit 1", on_failure="prompt_user")],
+        )
+
+        outcome = run_steps(
+            make_run_context(
+                fs=fs,
+                steps=[loop],
+                failure_prompter=prompter,
+            )
+        )
+
+        assert outcome.status == RunStatus.CANCELLED
+        assert any("Execution cancelled by user." in err for err in outcome.errors)
+
+    def test_run_steps_with_sequential_loop_blocks(
+        self,
+        fs: FileSystem,
+    ) -> None:
+        step1 = make_cmd_step(step_id="setup", name="Setup Step", command="echo ready")
+        loop1 = LoopStepBlock(
+            id="loop-one",
+            type="loop",
+            max_iterations=3,
+            until=["steps.poll1.exit_code == 0"],
+            do=[make_cmd_step(step_id="poll1", name="Poll One", command="echo p1")],
+        )
+        loop2 = LoopStepBlock(
+            id="loop-two",
+            type="loop",
+            max_iterations=3,
+            until=["steps.poll2.exit_code == 0"],
+            do=[make_cmd_step(step_id="poll2", name="Poll Two", command="echo p2")],
+        )
+        step2 = make_cmd_step(step_id="teardown", name="Teardown Step", command="echo done")
+
+        observer = MagicMock(spec=RunObserver)
+        outcome = run_steps(
+            make_run_context(
+                fs=fs,
+                steps=[step1, loop1, loop2, step2],
+                observer=observer,
+            )
+        )
+
+        assert outcome.ok is True
+        step_ids = [r.step_id for r in outcome.step_results]
+        assert step_ids == ["setup", "poll1", "poll2", "teardown"]
+        observer.on_loop_start.assert_any_call("loop-one", 3)
+        observer.on_loop_start.assert_any_call("loop-two", 3)
+
+    def test_run_steps_auto_apply_failure_marks_run_failed(
+        self,
+        git_fs: GitFileSystem,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        git_fs.init_repo()
+
+        fake_result = SandboxApplyResult(
+            sandbox_id="test-session",
+            status=SandboxApplyStatus.CONFLICT,
+            errors=["Patch merge conflict in sandbox apply"],
+            warnings=["Patch hunk rejected"],
+        )
+
+        monkeypatch.setattr(Sandbox, "apply", lambda *args, **kwargs: fake_result)
+
+        step = make_cmd_step(step_id="s1", command="echo change")
+        outcome = run_steps(
+            make_run_context(
+                fs=git_fs,
+                steps=[step],
+                use_sandbox=True,
+                auto_apply=True,
+            )
+        )
+
+        assert outcome.status == RunStatus.FAILED
+        assert any("Patch merge conflict" in err for err in outcome.errors)
+        assert any("Patch hunk rejected" in warn for warn in outcome.warnings)
+        assert outcome.sandbox_kept is True
