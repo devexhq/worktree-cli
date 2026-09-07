@@ -50,7 +50,3 @@ class SandboxDeleteFormatter(ComponentFormatter[SandboxDeleteResult]):
         if data.status == SandboxDeleteStatus.DELETED or data.deleted:
             return Text(f"Sandbox deleted: {data.sandbox_id}", style="green")
         return _format_delete_error_panel(data)
-
-    def to_json_serializable(self, data: SandboxDeleteResult) -> dict[str, Any]:
-        """Convert SandboxDeleteResult to primitive dictionary for JSON serialization."""
-        return data.model_dump(mode="json")

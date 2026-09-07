@@ -49,7 +49,3 @@ class SandboxApplyFormatter(ComponentFormatter[SandboxApplyResult]):
             "Sandbox apply failed.",
             data.fixes,
         )
-
-    def to_json_serializable(self, data: SandboxApplyResult) -> dict[str, Any]:
-        """Convert SandboxApplyResult to primitive dictionary for JSON serialization."""
-        return data.model_dump(mode="json")

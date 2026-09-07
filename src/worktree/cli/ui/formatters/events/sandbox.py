@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from rich.text import Text
 
 from worktree.cli.ui.events import SandboxLifecycleEvent
@@ -24,7 +22,3 @@ class SandboxLifecycleFormatter(ComponentFormatter[SandboxLifecycleEvent]):
                 return Text(f"Sandbox: Retained ({data.path})")
             return Text("Sandbox: Cleaned")
         return Text(f"Sandbox: {data.action} ({data.path})")
-
-    def to_json_serializable(self, data: SandboxLifecycleEvent) -> dict[str, Any]:
-        """Convert SandboxLifecycleEvent to dictionary for JSON serialization."""
-        return data.model_dump(mode="json")

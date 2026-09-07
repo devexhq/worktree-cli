@@ -30,7 +30,3 @@ class SandboxListFormatter(ComponentFormatter[SandboxListResult]):
             return Text("No sandboxes found.")
 
         return build_sandbox_table(data.sandboxes)
-
-    def to_json_serializable(self, data: SandboxListResult) -> dict[str, Any]:
-        """Convert SandboxListResult to primitive dictionary for JSON serialization."""
-        return data.model_dump(mode="json")

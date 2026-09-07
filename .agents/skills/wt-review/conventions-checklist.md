@@ -6,8 +6,10 @@ Run this as a sweep over the changed hunks, not as a vibe check. A finding cites
 
 ## Naming (the most-missed category)
 
-- **No cryptic truncations.** `buf` -> `buffer`, `res` -> `result`, `val_res` -> `validation_result`, `err_msg` -> `error_message`, `cfg` -> `config`, `tmpl` -> `template`, `idx` -> `index`, `ctx` -> `context` outside an established `CliContext` parameter name. Check **every** new or renamed identifier: locals, parameters, attributes, fixtures, and loop variables.
-- **Accepted conventions only:** `exc`, `rel_path`, `fs`, `cwd`, `db`, and single letters strictly inside a comprehension or generator expression.
+- **Readability first.** Check every new or renamed identifier (locals, parameters, attributes, fixtures, loop variables) against `docs/agents/code-conventions.md#variable-naming`. Code must read clearly and naturally.
+- **Single-letter variables and standard iteration constructs:** Permitted in comprehensions and generator expressions (`p`, `x`, `i`, `v`, `c`), as well as standard iteration idioms (`k, v` in dict iteration, `i, v` in enumerate).
+- **Commonly accepted abbreviations allowed:** Standard abbreviations that keep code concise without sacrificing readability are permitted: `req`, `res`, `fn` / `fn_node`, `idx`, `mod` / `mod_name`, `loc`, `tmp` / `temp`, `str`, `arr`, `num`, `len`, `val`, `msg`, `exc`, `rel_path`, `fs`, `cwd`, `db`, `ctx`.
+- **Disallow cryptic or arbitrary truncations:** Reject abbreviations that obscure meaning or force guessing (e.g. `val_res` -> `validation_result`, `err_msg` -> `error_message`, arbitrary truncations like `acc` when ambiguous).
 - Naming hazard to watch for: `core/runtime/engine.py` (`run_steps`) and `core/engine/engine.py` (`Engine`) are different modules. Check that a new import targets the intended one.
 
 ## Models and results

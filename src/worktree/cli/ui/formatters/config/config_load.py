@@ -23,7 +23,3 @@ class ConfigLoadFormatter(ComponentFormatter[ConfigLoadResult]):
 
         fallback = f"Configuration failed to load ({data.status.value.upper()})."
         return build_error_panel("Config Error", data.errors, fallback, data.fixes)
-
-    def to_json_serializable(self, data: ConfigLoadResult) -> dict[str, Any]:
-        """Convert ConfigLoadResult to primitive dictionary for JSON serialization."""
-        return data.model_dump(mode="json")
