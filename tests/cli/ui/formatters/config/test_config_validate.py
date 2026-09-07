@@ -38,6 +38,7 @@ VALID_CASE = FormatterCase(
         warnings=[],
         fixes=[],
     ),
+    render_expectations=[CONFIG_PATH.as_posix(), "valid"],
 )
 
 VALID_WITH_WARNINGS_CASE = FormatterCase(
@@ -58,6 +59,7 @@ VALID_WITH_WARNINGS_CASE = FormatterCase(
         warnings=["agent.provider is not 'local' but agent.model is missing (CONFIG_WARN_AGENT_MODEL_MISSING)."],
         fixes=["Set agent.model in .worktree/config.json"],
     ),
+    render_expectations=[CONFIG_PATH.as_posix(), "valid with warnings"],
 )
 
 INVALID_CASE = FormatterCase(
@@ -77,6 +79,7 @@ INVALID_CASE = FormatterCase(
         warnings=[],
         fixes=["Use a plain relative path string without newlines or NUL bytes"],
     ),
+    render_expectations=[],
 )
 
 INVALID_WITH_WARNINGS_CASE = FormatterCase(
@@ -96,6 +99,7 @@ INVALID_WITH_WARNINGS_CASE = FormatterCase(
         warnings=["warning message (CONFIG_WARN)."],
         fixes=[],
     ),
+    render_expectations=[],
 )
 
 VALIDATION_CASES = [
@@ -213,9 +217,8 @@ class ConfigValidateFormatterTests:
         rendered = render_rich(ConfigValidateFormatter().to_rich(case.data))
         view = case.view
 
-        if view.status == ConfigValidationStatus.VALID:
-            assert view.config_path.as_posix() in rendered
-            assert view.status_label in rendered
+        for expected in case.render_expectations:
+            assert expected in rendered
         for error in view.errors:
             assert error in rendered
         for warning in view.warnings:

@@ -13,11 +13,13 @@ from worktree.cli.ui.formatters.events.message import MessageFormatter
 STYLED_MESSAGE = FormatterCase(
     data=MessageEvent(message="Operation finished", style="bold"),
     view=MessageEvent(message="Operation finished", style="bold"),
+    render_expectations=["Operation finished"],
 )
 
 PLAIN_MESSAGE = FormatterCase(
     data=MessageEvent(message="Running task 'build'...", style=None),
     view=MessageEvent(message="Running task 'build'...", style=None),
+    render_expectations=["Running task 'build'..."],
 )
 
 MESSAGE_CASES = [
@@ -66,4 +68,5 @@ class MessageFormatterTests:
     def test_rich_render_shows_every_view_value(self, case: FormatterCase[MessageEvent, MessageEvent]) -> None:
         """Verify that all non-null semantic view model values reach the Rich renderable output."""
         rendered = render_rich(MessageFormatter().to_rich(case.data))
-        assert case.view.message in rendered
+        for expected in case.render_expectations:
+            assert expected in rendered

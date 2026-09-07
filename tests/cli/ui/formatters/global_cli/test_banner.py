@@ -13,11 +13,13 @@ from worktree.cli.ui.formatters.global_cli.banner import WelcomeBannerFormatter
 STANDARD_VERSION = FormatterCase(
     data=WelcomeBannerEvent(version="0.1.0"),
     view=WelcomeBannerEvent(version="0.1.0"),
+    render_expectations=["v0.1.0"],
 )
 
 PRERELEASE_VERSION = FormatterCase(
     data=WelcomeBannerEvent(version="1.2.3-rc.1"),
     view=WelcomeBannerEvent(version="1.2.3-rc.1"),
+    render_expectations=["v1.2.3-rc.1"],
 )
 
 BANNER_CASES = [
@@ -54,4 +56,5 @@ class WelcomeBannerFormatterTests:
     ) -> None:
         """Verify non-null semantic view model values reach the Rich renderable output."""
         rendered = render_rich(WelcomeBannerFormatter().to_rich(case.data))
-        assert f"v{case.view.version}" in rendered
+        for expected in case.render_expectations:
+            assert expected in rendered

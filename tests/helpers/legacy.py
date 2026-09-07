@@ -357,6 +357,7 @@ class FormatterCase[T, V](NamedTuple):
 
     data: T
     view: V
+    render_expectations: list[str]
 
 
 def make_status_result(

@@ -13,21 +13,25 @@ from worktree.cli.ui.formatters.events.sandbox import SandboxLifecycleFormatter
 READY_ACTIVE = FormatterCase(
     data=SandboxLifecycleEvent(action="ready", path="/tmp/sbx1", active=True, kept=None),
     view=SandboxLifecycleEvent(action="ready", path="/tmp/sbx1", active=True, kept=None),
+    render_expectations=["/tmp/sbx1"],
 )
 
 READY_IN_PLACE = FormatterCase(
     data=SandboxLifecycleEvent(action="ready", path="", active=False, kept=None),
     view=SandboxLifecycleEvent(action="ready", path="", active=False, kept=None),
+    render_expectations=[],
 )
 
 CLEANUP_RETAINED = FormatterCase(
     data=SandboxLifecycleEvent(action="cleanup", path="/tmp/sbx2", active=None, kept=True),
     view=SandboxLifecycleEvent(action="cleanup", path="/tmp/sbx2", active=None, kept=True),
+    render_expectations=["/tmp/sbx2"],
 )
 
 CLEANUP_CLEANED = FormatterCase(
     data=SandboxLifecycleEvent(action="cleanup", path="", active=None, kept=False),
     view=SandboxLifecycleEvent(action="cleanup", path="", active=None, kept=False),
+    render_expectations=[],
 )
 
 SANDBOX_CASES = [
@@ -106,12 +110,5 @@ class SandboxLifecycleFormatterTests:
     ) -> None:
         """Verify that all non-null semantic view model values reach the Rich renderable output."""
         rendered = render_rich(SandboxLifecycleFormatter().to_rich(case.data))
-        view = case.view
-
-        if view.action == "ready" and view.active:
-            assert view.path in rendered
-        elif view.action == "cleanup" and view.kept:
-            assert view.path in rendered
-        elif view.action not in ("ready", "cleanup"):
-            assert view.action in rendered
-            assert view.path in rendered
+        for expected in case.render_expectations:
+            assert expected in rendered

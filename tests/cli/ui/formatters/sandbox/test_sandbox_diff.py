@@ -24,6 +24,7 @@ OK_WITH_DIFF = FormatterCase(
         sandbox_id="sbx_diff",
         diff_text="+new_line",
     ),
+    render_expectations=["+new_line"],
 )
 
 EMPTY_DIFF = FormatterCase(
@@ -35,6 +36,7 @@ EMPTY_DIFF = FormatterCase(
         status=SandboxDiffStatus.EMPTY_DIFF,
         sandbox_id="sbx_empty",
     ),
+    render_expectations=["sbx_empty"],
 )
 
 NOT_FOUND = FormatterCase(
@@ -50,6 +52,7 @@ NOT_FOUND = FormatterCase(
         errors=["Sandbox 'sbx_missing' not found."],
         fixes=["Run `wt sandbox list` to see known sandboxes"],
     ),
+    render_expectations=[],
 )
 
 SANDBOX_DIFF_CASES = [
@@ -129,12 +132,11 @@ class SandboxDiffFormatterTests:
         rendered = render_rich(SandboxDiffFormatter().to_rich(case.data))
         view = case.view
 
-        if view.status == SandboxDiffStatus.EMPTY_DIFF:
-            assert view.sandbox_id in rendered
-        elif not view.ok:
-            for error in view.errors:
-                assert error in rendered
-            for fix in view.fixes:
-                assert fix in rendered
-        elif view.diff_text:
-            assert view.diff_text.strip() in rendered
+        for expected in case.render_expectations:
+            assert expected in rendered
+
+        for error in view.errors:
+            assert error in rendered
+
+        for fix in view.fixes:
+            assert fix in rendered

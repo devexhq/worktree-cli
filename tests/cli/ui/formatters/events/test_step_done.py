@@ -29,6 +29,7 @@ STEP_SUCCESS = FormatterCase(
         duration_seconds=1.5,
         error_message=None,
     ),
+    render_expectations=["step-1", "1", "3"],
 )
 
 STEP_FAILURE = FormatterCase(
@@ -50,6 +51,7 @@ STEP_FAILURE = FormatterCase(
         duration_seconds=0.8,
         error_message="Process crashed",
     ),
+    render_expectations=["step-2", "2", "3", "Process crashed"],
 )
 
 STEP_DONE_CASES = [
@@ -108,13 +110,5 @@ class StepDoneFormatterTests:
     def test_rich_render_shows_every_view_value(self, case: FormatterCase[StepDoneEvent, StepDoneEvent]) -> None:
         """Verify that all non-null semantic view model values reach the Rich renderable output."""
         rendered = render_rich(StepDoneFormatter().to_rich(case.data))
-        view = case.view
-
-        assert view.step_id in rendered
-        assert str(view.idx) in rendered
-        assert str(view.total) in rendered
-        if not view.ok:
-            if view.error_message is not None:
-                assert view.error_message in rendered
-            else:
-                assert str(view.exit_code) in rendered
+        for expected in case.render_expectations:
+            assert expected in rendered

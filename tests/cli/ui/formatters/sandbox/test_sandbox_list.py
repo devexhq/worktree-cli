@@ -28,11 +28,13 @@ _RECORD = SandboxRecord(
 WITH_SANDBOXES = FormatterCase(
     data=SandboxListResult(status=SandboxListStatus.OK, sandboxes=[_RECORD]),
     view=SandboxListResult(status=SandboxListStatus.OK, sandboxes=[_RECORD]),
+    render_expectations=[_RECORD.id, "list-sandbox", _RECORD.branch_name],
 )
 
 EMPTY_SANDBOXES = FormatterCase(
     data=SandboxListResult(status=SandboxListStatus.OK, sandboxes=[]),
     view=SandboxListResult(status=SandboxListStatus.OK, sandboxes=[]),
+    render_expectations=[],
 )
 
 NOT_INITIALIZED = FormatterCase(
@@ -48,6 +50,7 @@ NOT_INITIALIZED = FormatterCase(
         errors=["Worktree workspace is not initialized."],
         fixes=["Run `wt init` to create `.worktree/config.json`"],
     ),
+    render_expectations=[],
 )
 
 SANDBOX_LIST_CASES = [
@@ -129,11 +132,8 @@ class SandboxListFormatterTests:
         rendered = render_rich(SandboxListFormatter().to_rich(case.data))
         view = case.view
 
-        for record in view.sandboxes:
-            assert record.id in rendered
-            if record.name is not None:
-                assert record.name in rendered
-            assert record.branch_name in rendered
+        for expected in case.render_expectations:
+            assert expected in rendered
 
         for error in view.errors:
             assert error in rendered

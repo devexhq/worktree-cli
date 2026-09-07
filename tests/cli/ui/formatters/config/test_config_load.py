@@ -25,6 +25,7 @@ VALID_CONFIG = FormatterCase(
         config_path=_CONFIG_PATH,
         config=WorktreeConfig(version=1, project=ProjectConfig(name="test-project")),
     ),
+    render_expectations=["test-project", _CONFIG_PATH.as_posix()],
 )
 
 NOT_FOUND = FormatterCase(
@@ -40,6 +41,7 @@ NOT_FOUND = FormatterCase(
         errors=["Configuration file not found at '/workspace/.worktree/config.json' (CONFIG_NOT_FOUND)."],
         fixes=["Run `wt init` to initialize Worktree"],
     ),
+    render_expectations=[],
 )
 
 CONFIG_LOAD_CASES = [
@@ -149,11 +151,10 @@ class ConfigLoadFormatterTests:
         rendered = render_rich(ConfigLoadFormatter().to_rich(case.data))
         view = case.view
 
-        if view.ok and view.config is not None:
-            assert view.config.project.name in rendered
-            assert view.config_path.as_posix() in rendered
-        else:
-            for error in view.errors:
-                assert error in rendered
-            for fix in view.fixes:
-                assert fix in rendered
+        for expected in case.render_expectations:
+            assert expected in rendered
+
+        for error in view.errors:
+            assert error in rendered
+        for fix in view.fixes:
+            assert fix in rendered

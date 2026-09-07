@@ -50,6 +50,14 @@ BLUEPRINT_FOUND = FormatterCase(
         content="name: test-workflow\nversion: 1\n",
         catalog_path_relative=".worktree/catalog/workflows/test-workflow.yml",
     ),
+    render_expectations=[
+        _sample_catalog_record().name,
+        _sample_catalog_record().sha,
+        _sample_catalog_record().item_type,
+        _sample_catalog_record().checksum,
+        f".worktree/catalog/{_sample_catalog_record().path}",
+        *("name: test-workflow\nversion: 1\n".strip().splitlines()),
+    ],
 )
 
 
@@ -62,6 +70,7 @@ TEMPLATE_MATCH = FormatterCase(
         content="name: default-workflow\n",
         template_matches=[CatalogTemplateView(item_type="template", path="workflows/default.yml")],
     ),
+    render_expectations=["workflows/default.yml", *("name: default-workflow\n".strip().splitlines())],
 )
 
 
@@ -72,6 +81,7 @@ ERRORS = FormatterCase(
     view=CatalogShowView(
         errors=["Catalog blueprint 'missing' not found."],
     ),
+    render_expectations=[],
 )
 
 
@@ -157,18 +167,8 @@ class CatalogShowFormatterTests:
         rendered = render_rich(CatalogShowFormatter().to_rich(case.data))
         view = case.view
 
-        if view.item is not None:
-            assert view.item.name in rendered
-            assert view.item.sha in rendered
-            assert view.item.item_type in rendered
-            assert view.item.checksum in rendered
-
-        if view.catalog_path_relative is not None:
-            assert view.catalog_path_relative in rendered
-
-        if view.content is not None:
-            for line in view.content.strip().splitlines():
-                assert line in rendered
+        for expected in case.render_expectations:
+            assert expected in rendered
 
         for template in view.template_matches:
             assert template.path in rendered

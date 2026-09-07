@@ -54,6 +54,7 @@ def make_status_view(**overrides: Any) -> StatusView:
 HEALTHY = FormatterCase(
     data=make_status_result(root_dir=ROOT),
     view=make_status_view(),
+    render_expectations=["worktree-cli", "feature/status-cmd", "gemini-2.5-flash", "1", "5", "2", "2"],
 )
 
 UNINITIALIZED_NON_GIT = FormatterCase(
@@ -89,6 +90,7 @@ UNINITIALIZED_NON_GIT = FormatterCase(
             "Run 'git init' or navigate to a Git repository.",
         ],
     ),
+    render_expectations=[],
 )
 
 DEGRADED_SCHEMA_INVALID = FormatterCase(
@@ -118,6 +120,7 @@ DEGRADED_SCHEMA_INVALID = FormatterCase(
             "Run 'wt config validate' to inspect schema errors or 'wt init --repair' to insert missing keys."
         ],
     ),
+    render_expectations=["feature/status-cmd"],
 )
 
 DEGRADED_MALFORMED_JSON = FormatterCase(
@@ -145,6 +148,7 @@ DEGRADED_MALFORMED_JSON = FormatterCase(
         warnings=["Malformed config.json"],
         remediations=["Repair JSON syntax in .worktree/config.json or restore from backup."],
     ),
+    render_expectations=["feature/status-cmd"],
 )
 
 DEGRADED_ROOT_NOT_OBJECT = FormatterCase(
@@ -172,6 +176,7 @@ DEGRADED_ROOT_NOT_OBJECT = FormatterCase(
         warnings=["Malformed config.json: root must be an object"],
         remediations=["Ensure .worktree/config.json contains a JSON object root."],
     ),
+    render_expectations=["feature/status-cmd"],
 )
 
 DEGRADED_PATH_IS_DIRECTORY = FormatterCase(
@@ -199,6 +204,7 @@ DEGRADED_PATH_IS_DIRECTORY = FormatterCase(
         warnings=["Config path is a directory, not a file"],
         remediations=["Remove directory at .worktree/config.json and run 'wt init'."],
     ),
+    render_expectations=["feature/status-cmd"],
 )
 
 DEGRADED_UNREADABLE = FormatterCase(
@@ -226,6 +232,7 @@ DEGRADED_UNREADABLE = FormatterCase(
         warnings=["Unable to read config.json: Permission denied"],
         remediations=["Check file permissions for .worktree/config.json."],
     ),
+    render_expectations=["feature/status-cmd"],
 )
 
 DIRTY_BRANCH = FormatterCase(
@@ -238,6 +245,7 @@ DIRTY_BRANCH = FormatterCase(
         git_is_dirty=True,
         uncommitted_files=3,
     ),
+    render_expectations=["worktree-cli", "feature/dirty-branch", "gemini-2.5-flash", "1", "5", "2", "2"],
 )
 
 NOT_A_GIT_REPO = FormatterCase(
@@ -251,6 +259,7 @@ NOT_A_GIT_REPO = FormatterCase(
         git_branch=None,
         remediations=["Run 'git init' or navigate to a Git repository."],
     ),
+    render_expectations=["worktree-cli", "gemini-2.5-flash", "1", "5", "2", "2"],
 )
 
 UNNAMED_PROJECT = FormatterCase(
@@ -270,6 +279,7 @@ UNNAMED_PROJECT = FormatterCase(
     view=make_status_view(
         project_name=None,
     ),
+    render_expectations=["feature/status-cmd", "gemini-2.5-flash", "1", "5", "2", "2"],
 )
 
 AGENT_MODEL_UNSET = FormatterCase(
@@ -289,6 +299,7 @@ AGENT_MODEL_UNSET = FormatterCase(
     view=make_status_view(
         agent_model=None,
     ),
+    render_expectations=["worktree-cli", "feature/status-cmd", "1", "5", "2", "2"],
 )
 
 EMPTY_CATALOG = FormatterCase(
@@ -309,6 +320,7 @@ EMPTY_CATALOG = FormatterCase(
         valid_catalog_items=0,
         total_catalog_items=0,
     ),
+    render_expectations=["worktree-cli", "feature/status-cmd", "gemini-2.5-flash", "1", "5", "0", "0"],
 )
 
 INVALID_CATALOG_ITEMS = FormatterCase(
@@ -330,6 +342,7 @@ INVALID_CATALOG_ITEMS = FormatterCase(
         valid_catalog_items=3,
         total_catalog_items=5,
     ),
+    render_expectations=["worktree-cli", "feature/status-cmd", "gemini-2.5-flash", "1", "5", "3", "5"],
 )
 
 WITH_WARNINGS_AND_FIXES = FormatterCase(
@@ -342,6 +355,7 @@ WITH_WARNINGS_AND_FIXES = FormatterCase(
         warnings=["max_active_sandboxes (10) is unusually high."],
         remediations=["Reduce max_active_sandboxes in .worktree/config.json."],
     ),
+    render_expectations=["worktree-cli", "feature/status-cmd", "gemini-2.5-flash", "1", "5", "2", "2"],
 )
 
 DEGRADED_RAW_CONFIG_PROJECT = FormatterCase(
@@ -370,6 +384,7 @@ DEGRADED_RAW_CONFIG_PROJECT = FormatterCase(
         warnings=["Invalid schema"],
         remediations=["Fix schema errors"],
     ),
+    render_expectations=["raw-project", "feature/status-cmd"],
 )
 
 STATUS_CASES = [
@@ -464,18 +479,8 @@ class WorktreeStatusFormatterTests:
         rendered = render_rich(WorktreeStatusFormatter().to_rich(case.data))
         view = case.view
 
-        if view.project_name is not None:
-            assert view.project_name in rendered
-        if view.git_branch is not None:
-            assert view.git_branch in rendered
-        if view.agent_model is not None:
-            assert view.agent_model in rendered
-        if view.active_sandboxes is not None:
-            assert str(view.active_sandboxes) in rendered
-            assert str(view.max_active_sandboxes) in rendered
-        if view.valid_catalog_items is not None:
-            assert str(view.valid_catalog_items) in rendered
-            assert str(view.total_catalog_items) in rendered
+        for expected in case.render_expectations:
+            assert expected in rendered
         for warning in view.warnings:
             assert warning in rendered
         for remediation in view.remediations:

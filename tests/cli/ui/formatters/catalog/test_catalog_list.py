@@ -48,6 +48,12 @@ WITH_ITEMS = FormatterCase(
         ],
         total_items=1,
     ),
+    render_expectations=[
+        _sample_catalog_record().name,
+        _sample_catalog_record().sha,
+        "workflow",
+        "workflows/test-workflow.yml",
+    ],
 )
 
 
@@ -57,6 +63,7 @@ EMPTY_ITEMS = FormatterCase(
         items=[],
         total_items=0,
     ),
+    render_expectations=[],
 )
 
 
@@ -66,6 +73,10 @@ TEMPLATES = FormatterCase(
         templates=[CatalogTemplateView(item_type="workflow", path="workflows/default.yml")],
         total_items=0,
     ),
+    render_expectations=[
+        "workflow",
+        "workflows/default.yml",
+    ],
 )
 
 
@@ -76,6 +87,7 @@ EMPTY_TEMPLATES = FormatterCase(
         templates=[],
         total_items=0,
     ),
+    render_expectations=[],
 )
 
 
@@ -85,6 +97,7 @@ WITH_ERRORS = FormatterCase(
         errors=["Invalid --type argument 'invalid'."],
         total_items=0,
     ),
+    render_expectations=[],
 )
 
 
@@ -106,6 +119,12 @@ WITH_WARNINGS = FormatterCase(
         total_items=1,
         warnings=["Failed to parse corrupted.yml"],
     ),
+    render_expectations=[
+        _sample_catalog_record().name,
+        _sample_catalog_record().sha,
+        "workflow",
+        "workflows/test-workflow.yml",
+    ],
 )
 
 
@@ -233,13 +252,8 @@ class CatalogListFormatterTests:
         rendered = render_rich(CatalogListFormatter().to_rich(case.data))
         view = case.view
 
-        for item in view.items:
-            assert item.name in rendered
-            assert item.sha in rendered
-
-        for template in view.templates:
-            assert template.item_type in rendered
-            assert template.path in rendered
+        for expected in case.render_expectations:
+            assert expected in rendered
 
         for error in view.errors:
             assert error in rendered

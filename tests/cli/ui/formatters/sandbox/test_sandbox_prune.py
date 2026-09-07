@@ -39,6 +39,7 @@ EMPTY_PRUNE = FormatterCase(
         warnings=[],
         fixes=[],
     ),
+    render_expectations=["No stale sandboxes found."],
 )
 
 PRUNED_MULTIPLE_ITEMS = FormatterCase(
@@ -105,6 +106,7 @@ PRUNED_MULTIPLE_ITEMS = FormatterCase(
         warnings=[],
         fixes=[],
     ),
+    render_expectations=["feature/stale", "sbx_dirty", "/tmp/sbx_ref"],
 )
 
 DRY_RUN_PRUNE = FormatterCase(
@@ -142,6 +144,7 @@ DRY_RUN_PRUNE = FormatterCase(
         warnings=[],
         fixes=[],
     ),
+    render_expectations=["feature/dry"],
 )
 
 WITH_WARNINGS_AND_FIXES = FormatterCase(
@@ -164,6 +167,7 @@ WITH_WARNINGS_AND_FIXES = FormatterCase(
         warnings=["Warning message"],
         fixes=["Fix suggestion"],
     ),
+    render_expectations=["No stale sandboxes found."],
 )
 
 PRUNE_CASES = [
@@ -271,9 +275,7 @@ class SandboxPruneFormatterTests:
         rendered = render_rich(SandboxPruneFormatter().to_rich(case.data))
         view = case.view
 
-        if not view.items and not view.errors:
-            assert "No stale sandboxes found." in rendered
-        for item in view.items:
-            assert item.identifier in rendered
+        for expected in case.render_expectations:
+            assert expected in rendered
         for error in view.errors:
             assert error in rendered

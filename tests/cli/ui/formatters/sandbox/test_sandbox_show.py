@@ -36,6 +36,7 @@ FOUND_ACTIVE = FormatterCase(
         sandbox=_RECORD,
         disk_present=True,
     ),
+    render_expectations=[_RECORD.id, "test-sandbox", _RECORD.branch_name, _RECORD.base_commit],
 )
 
 RECONCILED_MISSING_DISK = FormatterCase(
@@ -51,6 +52,7 @@ RECONCILED_MISSING_DISK = FormatterCase(
         disk_present=False,
         reconciled=True,
     ),
+    render_expectations=[_RECORD.id, "test-sandbox", _RECORD.branch_name, _RECORD.base_commit],
 )
 
 NOT_FOUND = FormatterCase(
@@ -64,6 +66,7 @@ NOT_FOUND = FormatterCase(
         errors=["Sandbox 'sbx_missing' not found."],
         fixes=["Run `wt sandbox list` to see known sandboxes"],
     ),
+    render_expectations=[],
 )
 
 SANDBOX_SHOW_CASES = [
@@ -158,12 +161,8 @@ class SandboxShowFormatterTests:
         rendered = render_rich(SandboxShowFormatter().to_rich(case.data))
         view = case.view
 
-        if view.sandbox is not None:
-            assert view.sandbox.id in rendered
-            if view.sandbox.name is not None:
-                assert view.sandbox.name in rendered
-            assert view.sandbox.branch_name in rendered
-            assert view.sandbox.base_commit in rendered
+        for expected in case.render_expectations:
+            assert expected in rendered
 
         for error in view.errors:
             assert error in rendered

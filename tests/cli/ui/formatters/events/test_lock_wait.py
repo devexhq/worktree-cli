@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 import pytest
@@ -14,11 +13,13 @@ from worktree.cli.ui.formatters.events.lock_wait import LockWaitFormatter
 WITH_HOLDER = FormatterCase(
     data=LockWaitEvent(lock_path="/path/to/.worktree/.lock", holder_pid="12345", timeout_seconds=30.0),
     view=LockWaitEvent(lock_path="/path/to/.worktree/.lock", holder_pid="12345", timeout_seconds=30.0),
+    render_expectations=[".lock", "30.0s", "12345"],
 )
 
 WITHOUT_HOLDER = FormatterCase(
     data=LockWaitEvent(lock_path="/path/to/.worktree/.lock", holder_pid=None, timeout_seconds=15.0),
     view=LockWaitEvent(lock_path="/path/to/.worktree/.lock", holder_pid=None, timeout_seconds=15.0),
+    render_expectations=[".lock", "15.0s"],
 )
 
 LOCK_WAIT_CASES = [
@@ -69,9 +70,5 @@ class LockWaitFormatterTests:
     def test_rich_render_shows_every_view_value(self, case: FormatterCase[LockWaitEvent, LockWaitEvent]) -> None:
         """Verify that all non-null semantic view model values reach the Rich renderable output."""
         rendered = render_rich(LockWaitFormatter().to_rich(case.data))
-        view = case.view
-
-        assert Path(view.lock_path).name in rendered
-        assert f"{view.timeout_seconds:.1f}s" in rendered
-        if view.holder_pid is not None:
-            assert view.holder_pid in rendered
+        for expected in case.render_expectations:
+            assert expected in rendered

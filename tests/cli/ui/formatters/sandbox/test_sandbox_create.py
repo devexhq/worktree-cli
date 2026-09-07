@@ -26,6 +26,7 @@ _SESSION = SandboxSession(
 CREATED_OK = FormatterCase(
     data=SandboxCreateResult(status=SandboxCreateStatus.OK, session=_SESSION),
     view=SandboxCreateResult(status=SandboxCreateStatus.OK, session=_SESSION),
+    render_expectations=[_SESSION.session_id, _SESSION.target_branch],
 )
 
 FAILED_GIT = FormatterCase(
@@ -39,6 +40,7 @@ FAILED_GIT = FormatterCase(
         errors=["Git checkout failed."],
         fixes=["Check git status and branch name"],
     ),
+    render_expectations=[],
 )
 
 SANDBOX_CREATE_CASES = [
@@ -109,9 +111,8 @@ class SandboxCreateFormatterTests:
         rendered = render_rich(SandboxCreateFormatter().to_rich(case.data))
         view = case.view
 
-        if view.session is not None:
-            assert view.session.session_id in rendered
-            assert view.session.target_branch in rendered
+        for expected in case.render_expectations:
+            assert expected in rendered
 
         for error in view.errors:
             assert error in rendered

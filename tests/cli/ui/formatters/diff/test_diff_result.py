@@ -61,6 +61,11 @@ OK_POPULATED = FormatterCase(
         total_lines=6,
         warnings=["Non-critical warning"],
     ),
+    render_expectations=[
+        "sbx_fmt_1",
+        "/repo/.worktree/sessions/sbx_fmt_1/diff.patch",
+        *(line.strip() for line in _SAMPLE_DIFF.splitlines()),
+    ],
 )
 
 EMPTY_DIFF_DATA = DiffResult(
@@ -79,6 +84,7 @@ EMPTY_DIFF = FormatterCase(
         diff_text="",
         total_lines=0,
     ),
+    render_expectations=["sbx_fmt_empty", "No changes recorded"],
 )
 
 SESSION_NOT_FOUND_DATA = DiffResult(
@@ -99,6 +105,7 @@ SESSION_NOT_FOUND = FormatterCase(
         errors=["Session 'sbx_missing_99' not found under .worktree/sessions/."],
         fixes=["Run `wt sandbox list` or check .worktree/sessions/ for valid session IDs"],
     ),
+    render_expectations=["sbx_missing_99"],
 )
 
 NO_SESSIONS_DATA = DiffResult(
@@ -117,6 +124,7 @@ NO_SESSIONS_FOUND = FormatterCase(
         total_lines=0,
         errors=["No loop run sessions found."],
     ),
+    render_expectations=[],
 )
 
 DIFF_NOT_FOUND_DATA = DiffResult(
@@ -137,6 +145,7 @@ DIFF_NOT_FOUND = FormatterCase(
         errors=["Session 'sbx_no_patch_artifact' has no diff artifact."],
         fixes=["Verify the session generated a diff artifact at .worktree/sessions/sbx_no_patch_artifact/diff.patch"],
     ),
+    render_expectations=["sbx_no_patch_artifact"],
 )
 
 READ_FAILURE_DATA = DiffResult(
@@ -157,6 +166,7 @@ READ_FAILURE = FormatterCase(
         errors=["Failed to read diff artifact: Permission denied"],
         fixes=["Check file permissions and that the artifact is readable"],
     ),
+    render_expectations=[],
 )
 
 RAW_DIFF_DATA = DiffResult(
@@ -177,6 +187,7 @@ RAW_DIFF = FormatterCase(
         raw=True,
         total_lines=6,
     ),
+    render_expectations=[],
 )
 
 DIFF_MAX_LINES_DATA = DiffResult(
@@ -197,6 +208,11 @@ DIFF_WITH_MAX_LINES = FormatterCase(
         max_lines=10,
         total_lines=6,
     ),
+    render_expectations=[
+        "sbx_max_lines",
+        "/repo/.worktree/sessions/sbx_max_lines/diff.patch",
+        *(line.strip() for line in _SAMPLE_DIFF.splitlines()),
+    ],
 )
 
 DIFF_FULL_DATA = DiffResult(
@@ -217,6 +233,11 @@ DIFF_FULL_FLAG = FormatterCase(
         full=True,
         total_lines=6,
     ),
+    render_expectations=[
+        "sbx_full",
+        "/repo/.worktree/sessions/sbx_full/diff.patch",
+        *(line.strip() for line in _SAMPLE_DIFF.splitlines()),
+    ],
 )
 
 GENERAL_ERROR_DATA = DiffResult(
@@ -234,6 +255,7 @@ GENERAL_ERROR = FormatterCase(
         total_lines=0,
         errors=["Unexpected internal failure"],
     ),
+    render_expectations=[],
 )
 
 DIFF_TRUNCATED_TRUE_DATA = DiffResult(
@@ -256,6 +278,12 @@ DIFF_WITH_TRUNCATED_TRUE = FormatterCase(
         truncated=True,
         truncated_lines=2,
     ),
+    render_expectations=[
+        "sbx_truncated_true",
+        "/repo/.worktree/sessions/sbx_truncated_true/diff.patch",
+        "2",
+        "6",
+    ],
 )
 
 
@@ -337,30 +365,6 @@ DIFF_PAYLOAD_CASES = [
 ]
 
 
-def _assert_rendered_session_and_messages(rendered: str, view: DiffResultView) -> None:
-    """Assert session ID, error messages, and remediation hints reach rendered text."""
-    if view.session_id is not None and not view.raw and view.status != DiffStatus.READ_FAILURE:
-        assert view.session_id in rendered
-    for error in view.errors:
-        assert error in rendered
-    for fix in view.fixes:
-        assert fix in rendered
-
-
-def _assert_rendered_diff_content(rendered: str, view: DiffResultView) -> None:
-    """Assert relative path, patch lines, and empty diff notices reach rendered text."""
-    if view.status == DiffStatus.OK and not view.raw and view.relative_path:
-        assert view.relative_path in rendered
-    if view.status == DiffStatus.OK and view.diff_text and not view.truncated:
-        for line in view.diff_text.splitlines():
-            assert line.strip() in rendered
-    if view.truncated:
-        assert str(view.truncated_lines) in rendered
-        assert str(view.total_lines) in rendered
-    if view.status == DiffStatus.EMPTY_DIFF:
-        assert "No changes recorded" in rendered
-
-
 class DiffResultFormatterTests:
     """Tier 2 presentation contract tests for DiffResultFormatter."""
 
@@ -384,8 +388,12 @@ class DiffResultFormatterTests:
         """Verify that all non-null semantic view model values reach the Rich renderable output."""
         formatter = DiffResultFormatter(console=Console(force_terminal=True))
         rendered = render_rich(formatter.to_rich(case.data))
-        _assert_rendered_session_and_messages(rendered, case.view)
-        _assert_rendered_diff_content(rendered, case.view)
+        for expected in case.render_expectations:
+            assert expected in rendered
+        for error in case.view.errors:
+            assert error in rendered
+        for fix in case.view.fixes:
+            assert fix in rendered
 
     def test_transform_when_non_terminal_bypasses_truncation(self) -> None:
         formatter = DiffResultFormatter(console=Console(force_terminal=False))

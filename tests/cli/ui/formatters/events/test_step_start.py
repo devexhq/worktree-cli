@@ -25,6 +25,7 @@ WITH_NAME_AND_COMMAND = FormatterCase(
         name="Run Tests",
         command="pytest",
     ),
+    render_expectations=["1", "3", "Run Tests", "pytest"],
 )
 
 WITHOUT_NAME_AND_COMMAND = FormatterCase(
@@ -42,6 +43,7 @@ WITHOUT_NAME_AND_COMMAND = FormatterCase(
         name=None,
         command=None,
     ),
+    render_expectations=["2", "3", "step-2"],
 )
 
 STEP_START_CASES = [
@@ -96,13 +98,5 @@ class StepStartFormatterTests:
     def test_rich_render_shows_every_view_value(self, case: FormatterCase[StepStartEvent, StepStartEvent]) -> None:
         """Verify that all non-null semantic view model values reach the Rich renderable output."""
         rendered = render_rich(StepStartFormatter().to_rich(case.data))
-        view = case.view
-
-        assert str(view.idx) in rendered
-        assert str(view.total) in rendered
-        if view.name is not None:
-            assert view.name in rendered
-        else:
-            assert view.step_id in rendered
-        if view.command is not None:
-            assert view.command in rendered
+        for expected in case.render_expectations:
+            assert expected in rendered
