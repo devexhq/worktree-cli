@@ -9,12 +9,10 @@ import pytest
 
 from tests.helpers import FileSystem, GitFileSystem
 from worktree.common.filesystem import Filesystem
-from worktree.core.config import Config, ConfigGenerationResult
+from worktree.core.config import Config
 from worktree.core.config.generator import generate_default_config
 from worktree.core.config.loader import clear_config_cache
 from worktree.core.db import (
-    RunsRepository,
-    SandboxesRepository,
     WorktreeDb,
 )
 

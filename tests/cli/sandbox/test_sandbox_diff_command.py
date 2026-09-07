@@ -91,7 +91,9 @@ class SandboxDiffCommandDirectTests:
 class SandboxDiffCliInvocationTests:
     """Typer runner integration tests for `wt sandbox diff`."""
 
-    def test_cli_diff_default(self, git_fs: GitFileSystem, git_worktree_db: WorktreeDb, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_cli_diff_default(
+        self, git_fs: GitFileSystem, git_worktree_db: WorktreeDb, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         git_fs.init_repo()
         monkeypatch.chdir(git_fs.base_path)
         manager = Sandbox(path=git_fs.base_path, db=git_worktree_db.sandboxes)
@@ -105,7 +107,9 @@ class SandboxDiffCliInvocationTests:
         assert "cli_diff.txt" in result.stdout
         manager.cleanup(session)
 
-    def test_cli_diff_stat(self, git_fs: GitFileSystem, git_worktree_db: WorktreeDb, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_cli_diff_stat(
+        self, git_fs: GitFileSystem, git_worktree_db: WorktreeDb, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         git_fs.init_repo()
         monkeypatch.chdir(git_fs.base_path)
         manager = Sandbox(path=git_fs.base_path, db=git_worktree_db.sandboxes)
