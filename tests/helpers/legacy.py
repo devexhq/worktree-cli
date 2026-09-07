@@ -25,7 +25,6 @@ from worktree.core.db import (
     SandboxRecord,
     WorktreeDb,
 )
-from worktree.core.runtime import RunCheckpoint
 from worktree.core.status.models import (
     CatalogStatusInfo,
     ConfigStatusInfo,
@@ -34,7 +33,7 @@ from worktree.core.status.models import (
     SandboxStatusInfo,
     WorktreeStatusResult,
 )
-from worktree.core.step import StepDefinition, StepResult
+from worktree.core.step import StepDefinition
 
 
 def make_cli_context(cwd: Path | None = None) -> CliContext:
@@ -148,46 +147,6 @@ class GitFileSystem(FileSystem):
         return config_path
 
 
-def make_step_result(
-    *,
-    step_id: str = "step-1",
-    status: str = "completed",
-    exit_code: int = 0,
-    stdout: str = "ok",
-    stderr: str = "",
-    duration_seconds: float = 0.01,
-    **overrides: Any,
-) -> StepResult:
-    """Generate a valid StepResult with defaults for test assertions."""
-    defaults: dict[str, Any] = {
-        "step_id": step_id,
-        "status": status,
-        "exit_code": exit_code,
-        "stdout": stdout,
-        "stderr": stderr,
-        "duration_seconds": duration_seconds,
-    }
-    defaults.update(overrides)
-    return StepResult(**defaults)
-
-
-def make_ok_result(*, step_id: str = "step-1", **overrides: Any) -> StepResult:
-    """Convenience helper for a successful completed StepResult."""
-    return make_step_result(step_id=step_id, status="completed", exit_code=0, stdout="ok", stderr="", **overrides)
-
-
-def make_failed_result(*, step_id: str = "step-1", **overrides: Any) -> StepResult:
-    """Convenience helper for a failed StepResult."""
-    defaults: dict[str, Any] = {
-        "status": "failed",
-        "exit_code": 1,
-        "stdout": "",
-        "stderr": "boom",
-    }
-    defaults.update(overrides)
-    return make_step_result(step_id=step_id, **defaults)
-
-
 def make_cmd_step(
     *,
     step_id: str = "s1",
@@ -204,23 +163,6 @@ def make_cmd_step(
     }
     defaults.update(overrides)
     return StepDefinition.model_validate(defaults)
-
-
-def make_checkpoint(*, step_id: str = "step-1", **overrides: Any) -> RunCheckpoint:
-    """Generate a valid RunCheckpoint instance with test defaults."""
-    defaults: dict[str, Any] = {
-        "version": 1,
-        "next_step_index": 1,
-        "step_results": [make_ok_result(step_id=step_id)],
-        "sandbox_path": None,
-        "use_sandbox": False,
-        "keep": False,
-        "pending_step_id": "step-2",
-        "diagnostic": "",
-        "pending_result": None,
-    }
-    defaults.update(overrides)
-    return RunCheckpoint.model_validate(defaults)
 
 
 def make_run(

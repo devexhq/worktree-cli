@@ -8,11 +8,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from tests.helpers import FileSystem, make_cmd_step
+from tests.helpers import FileSystem, make_cmd_step, make_run_outcome, make_step_result
 from worktree.core.blueprint import Blueprint, BlueprintDefinition, BlueprintKind
 from worktree.core.catalog import Catalog
 from worktree.core.db import RunsRepository, RunStatus, WorktreeDb
-from worktree.core.engine import Engine, EngineInputError, RunRequest
+from worktree.core.engine import Engine, EngineInputError, RunRequest, load_session_run
 from worktree.core.inputs import InputType, ParameterInput
 from worktree.core.runtime import RunContext, RunOutcome
 from worktree.core.step import LoopStepBlock, StepDefinition
@@ -92,6 +92,41 @@ class EngineRunDelegationTests:
     def setup_method(self, fs: FileSystem, worktree_db: WorktreeDb) -> None:
         fs.create_config_file()
         self.catalog = Catalog(path=fs.base_path, db=worktree_db.catalog)
+
+    @pytest.mark.slow
+    def test_run_unstubbed_executes_step_and_records_result(self, fs: FileSystem, worktree_db: WorktreeDb) -> None:
+        """Verify Engine.run executes a real step end to end without stubbing run_steps."""
+        step = make_cmd_step(step_id="echo_step", command="echo delegation-ok")
+        blueprint = _task_blueprint(steps=[step], use_sandbox=False)
+        run_request = RunRequest(use_sandbox=False, session_id="task_unstubbed_step")
+        outcome = Engine(fs.base_path, db=worktree_db.runs, catalog=self.catalog).run(blueprint, run_request)
+        session_json = load_session_run(fs.base_path, "task_unstubbed_step")
+
+        normalized_outcome = outcome.model_copy(
+            update={"step_results": [s.model_copy(update={"duration_seconds": 0.05}) for s in outcome.step_results]}
+        )
+        expected_step_result = make_step_result(step_id="echo_step", stdout="delegation-ok\n")
+        expected_run_outcome = make_run_outcome(
+            step_results=[expected_step_result], sandbox_path=fs.base_path, session_id="task_unstubbed_step"
+        )
+
+        # Assert run outcome
+        assert normalized_outcome.ok is True
+        assert normalized_outcome == expected_run_outcome
+
+        # Assert DB run record
+        record = worktree_db.runs.get(session_id="task_unstubbed_step")
+        assert record is not None
+        assert record.status == RunStatus.COMPLETED
+        assert record.completed_at is not None
+
+        # Assert session run JSON
+        assert session_json is not None
+        normalized_session_json = session_json.model_copy(
+            update={"step_results": [s.model_copy(update={"duration_seconds": 0.05}) for s in outcome.step_results]}
+        )
+        assert normalized_session_json.status == RunStatus.COMPLETED
+        assert normalized_session_json.step_results == expected_run_outcome.step_results
 
     def test_run_delegates_to_run_steps(
         self, monkeypatch: pytest.MonkeyPatch, fs: FileSystem, worktree_db: WorktreeDb
