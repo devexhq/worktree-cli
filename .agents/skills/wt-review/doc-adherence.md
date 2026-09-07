@@ -15,7 +15,7 @@ Read the doc named by any gate that fires before judging whether it was satisfie
 | `core/db/` schema, table, or migration touched | migration hygiene checklist followed; a new table or column has a real caller in the same change, or an explicit note on why it lands ahead of one | `docs/agents/ci-and-tooling.md#migration-hygiene` |
 | New agent provider added | provider procedure followed and its setup failure modes documented | `architecture.md#adding-a-new-agent-provider` plus `docs/agents/troubleshooting.md` |
 | A package or subsystem removed | removal procedure followed | `docs/agents/ci-and-tooling.md#removing-dead-code` |
-| A production symbol deleted whose only caller was a test | the test deleted in the same change, coverage expected to fall, no backfilled tests holding the percentage | `AGENTS.md`, `docs/agents/testing.md` |
+| A production symbol deleted whose only caller was a test | the test deleted in the same change, coverage expected to fall, no backfilled tests holding the percentage, and no negative existence tests (`assert not hasattr(...)`) added | `AGENTS.md`, `docs/agents/testing.md` |
 | How to write Python here changed (placement, `Result`/`Outcome`, error or DRY rules) | conventions doc updated | `docs/agents/code-conventions.md` |
 | Commit or PR opened as part of the change | commit and PR conventions followed | `docs/agents/git-and-pr-conventions.md` |
 | A GitHub issue created or updated | issue structure, tone, and required sections followed | `docs/agents/github-issues.md` |

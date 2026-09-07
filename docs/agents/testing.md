@@ -228,6 +228,12 @@ not instances. Grow this directory.
 - **No test may be the sole consumer of a production symbol.** If deleting the
   test would make production code unreachable, the production code is dead.
   Delete both.
+- **Never write negative existence tests for deleted symbols.** Tests assert the
+  contracts and behaviors of the current codebase, not the historical outcome
+  of a refactor. When dead or obsolete functions, classes, or aliases are
+  removed from production, delete the tests that called them. Do not replace
+  them with assertions checking that the symbol is gone (`assert not hasattr(mod, "old_fn")`).
+  Negative existence tests add maintenance drag without testing live system contracts.
 - **No reaching into private state.** No `obj._attr` assertions, no importing
   underscore-prefixed symbols. If a private helper is worth testing, it is worth
   making public.

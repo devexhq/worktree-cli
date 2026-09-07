@@ -56,11 +56,14 @@ percentage. Prefer tests that lock real behavior and regressions; see
 
 Tests assert **contracts** (`BaseResult` objects, JSON payloads, exit codes,
 files, git refs), never implementation (rendered layout, private state, call
-order). Two rules an agent gets wrong by default: a test double must be a type
-production actually passes, and a production parameter that only tests supply is
-dead code. Cover every branch of a factory or dispatch chain - a covered line in
-a two-branch function proves nothing. A coverage drop from deleting dead code is
-a success. Full rules: [docs/agents/testing.md](docs/agents/testing.md).
+order). Three rules an agent gets wrong by default: a test double must be a type
+production actually passes, a production parameter that only tests supply is
+dead code, and never write negative existence tests for deleted symbols
+(`assert not hasattr(mod, 'old_fn')`) — tests prove what the live codebase does,
+never the historical outcome of a refactor. Cover every branch of a factory or
+dispatch chain - a covered line in a two-branch function proves nothing. A
+coverage drop from deleting dead code is a success. Full rules:
+[docs/agents/testing.md](docs/agents/testing.md).
 
 Lint/format config lives in `pyproject.toml` under `[tool.ruff]` (no separate
 `ruff.toml`).

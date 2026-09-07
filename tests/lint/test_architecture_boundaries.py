@@ -94,7 +94,9 @@ def test_no_direct_output_outside_dispatcher() -> None:
 
 
 def _is_exempt_formatter_file(file_path: Path) -> bool:
-    return file_path.name in ("__init__.py", "common.py") or file_path.name.endswith(("_view.py", "_views.py"))
+    return file_path.name in ("__init__.py", "common.py", "registry.py") or file_path.name.endswith(
+        ("_view.py", "_views.py")
+    )
 
 
 def _find_formatter_classes(tree: ast.AST) -> list[str]:

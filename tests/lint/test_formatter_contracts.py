@@ -17,7 +17,7 @@ from pydantic import BaseModel
 
 import worktree.cli.ui.formatters as formatters_pkg
 from tests.helpers import make_status_result
-from worktree.cli.ui.dispatcher import UiDispatcher
+from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
 from worktree.cli.ui.events import (
     ErrorPanelEvent,
     LockWaitEvent,
@@ -33,6 +33,7 @@ from worktree.cli.ui.events import (
     WarningEvent,
     WelcomeBannerEvent,
 )
+from worktree.cli.ui.formatters import FORMATTER_REGISTRY
 from worktree.common.types import ComponentFormatter
 from worktree.core.config.loader import ConfigLoadResult, ConfigLoadStatus
 from worktree.core.config.models import ProjectConfig, WorktreeConfig
@@ -417,11 +418,17 @@ def test_to_rich_does_not_derive_from_domain_model() -> None:
     assert not violations, "Found violations of derivation separation in to_rich:\n" + "\n".join(violations)
 
 
-def test_every_formatter_is_registered_in_dispatcher() -> None:
-    """Ensure every concrete ComponentFormatter subclass is registered in UiDispatcher."""
-    subclasses = _get_all_formatter_subclasses()
-    dispatcher = UiDispatcher()
-    registered_formatter_classes = {type(fmt) for fmt in dispatcher._registry.values()}
+def test_formatter_registry_structure() -> None:
+    """Ensure FORMATTER_REGISTRY contains valid model and formatter mappings."""
+    assert len(FORMATTER_REGISTRY) == 33
+    for model_cls, formatter_cls in FORMATTER_REGISTRY.items():
+        assert issubclass(model_cls, BaseModel)
+        assert issubclass(formatter_cls, ComponentFormatter)
 
-    missing = [cls.__name__ for cls in subclasses if cls not in registered_formatter_classes]
-    assert not missing, f"Formatters missing from UiDispatcher registration: {missing}"
+
+def test_ui_dispatcher_registers_all_registry_formatters() -> None:
+    """Ensure default ui_dispatcher wires every mapping in FORMATTER_REGISTRY."""
+    assert len(ui_dispatcher._registry) == len(FORMATTER_REGISTRY)
+    for model_cls, formatter_cls in FORMATTER_REGISTRY.items():
+        assert model_cls in ui_dispatcher._registry
+        assert type(ui_dispatcher._registry[model_cls]) is formatter_cls

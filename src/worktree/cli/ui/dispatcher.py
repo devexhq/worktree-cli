@@ -41,7 +41,7 @@ class UiDispatcher:
         """Register all default component formatters."""
         from worktree.cli.ui.formatters import register_all_formatters
 
-        register_all_formatters(self)
+        register_all_formatters(self, console=self._custom_console)
 
     @property
     def _console(self) -> Console:

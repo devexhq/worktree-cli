@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-from worktree.cli.ui.formatters.common import DispatcherProtocol
-from worktree.core.history.models import HistoryListResult, HistoryShowResult
-
 from .history_list import HistoryListFormatter
 from .history_show import HistoryShowFormatter
 from .history_views import (
@@ -15,13 +12,6 @@ from .history_views import (
     RunSummaryView,
 )
 
-
-def register_history_formatters(dispatcher: DispatcherProtocol) -> None:
-    """Register all history formatters on the provided dispatcher."""
-    dispatcher.register(HistoryListResult, HistoryListFormatter())
-    dispatcher.register(HistoryShowResult, HistoryShowFormatter())
-
-
 __all__ = [
     "CheckpointDetailsView",
     "CheckpointStepView",
@@ -30,5 +20,4 @@ __all__ = [
     "HistoryShowFormatter",
     "HistoryShowView",
     "RunSummaryView",
-    "register_history_formatters",
 ]

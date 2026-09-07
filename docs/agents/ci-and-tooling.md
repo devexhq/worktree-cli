@@ -78,6 +78,7 @@ Four CI jobs run on pushes to `main` and on pull requests:
 
 - Verify zero call sites in `src/` prior to removing obsolete modules.
 - Remove related exception types, re-exports, and tests in the same change set.
+- Do not write negative existence tests (e.g. `assert not hasattr(...)`) for removed symbols.
 - Update documentation in the same PR to reflect removed subsystems.
 
 ---
