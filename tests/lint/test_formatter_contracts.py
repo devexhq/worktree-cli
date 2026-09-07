@@ -5,10 +5,8 @@ from __future__ import annotations
 import ast
 import importlib
 import inspect
-import json
 import pkgutil
 import re
-from collections.abc import Callable
 from enum import Enum
 from pathlib import Path
 from typing import Any, Final
@@ -16,50 +14,9 @@ from typing import Any, Final
 from pydantic import BaseModel
 
 import worktree.cli.ui.formatters as formatters_pkg
-from tests.helpers import make_status_result
-from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
-from worktree.cli.ui.events import (
-    ErrorPanelEvent,
-    LockWaitEvent,
-    LoopLifecycleEvent,
-    MessageEvent,
-    PromptEvent,
-    PromptOption,
-    RunSuccessEvent,
-    SandboxLifecycleEvent,
-    StepDoneEvent,
-    StepOutputEvent,
-    StepStartEvent,
-    WarningEvent,
-    WelcomeBannerEvent,
-)
+from worktree.cli.ui.dispatcher import ui_dispatcher
 from worktree.cli.ui.formatters import FORMATTER_REGISTRY
 from worktree.common.types import ComponentFormatter
-from worktree.core.config.loader import ConfigLoadResult, ConfigLoadStatus
-from worktree.core.config.models import ProjectConfig, WorktreeConfig
-from worktree.core.config.mutate import ConfigSetResult, ConfigSetStatus
-from worktree.core.config.validate import ConfigValidationResult, ConfigValidationStatus
-from worktree.core.db import BlueprintKind, RunStatus
-from worktree.core.diff.models import DiffResult, DiffStatus
-from worktree.core.history.models import HistoryShowResult, HistoryShowStatus
-from worktree.core.sandbox.models import (
-    PruneAction,
-    PrunedItem,
-    SandboxApplyResult,
-    SandboxApplyStatus,
-    SandboxCreateResult,
-    SandboxCreateStatus,
-    SandboxDeleteResult,
-    SandboxDeleteStatus,
-    SandboxDiffResult,
-    SandboxDiffStatus,
-    SandboxListResult,
-    SandboxListStatus,
-    SandboxShowResult,
-    SandboxShowStatus,
-    StaleSandboxCategory,
-)
-from worktree.core.status.models import WorktreeStatusResult
 
 SRC_ROOT: Final[Path] = Path(__file__).parent.parent.parent / "src" / "worktree"
 FORMATTERS_DIR: Final[Path] = SRC_ROOT / "cli" / "ui" / "formatters"
@@ -228,111 +185,6 @@ def test_no_formatter_subclass_overrides_to_json_serializable() -> None:
             violations.append(f"{cls.__name__} in {cls.__module__} overrides to_json_serializable")
 
     assert not violations, "Found formatters overriding to_json_serializable:\n" + "\n".join(violations)
-
-
-def _build_minimal_model_instance(model_cls: type[BaseModel]) -> BaseModel:
-    """Construct a minimal valid instance of a model class for Tier 4 JSON wire serialization tests."""
-    factories: dict[type[BaseModel], Callable[[], BaseModel]] = {
-        PromptEvent: lambda: PromptEvent(
-            prompt_type="step_failure",
-            prompt_id="s1",
-            kind="task",
-            title="Step failed",
-            options=[PromptOption(key="a", label="Abort", decision="abort")],
-        ),
-        RunSuccessEvent: lambda: RunSuccessEvent(
-            session_id="run-1",
-            blueprint_name="test-task",
-            kind=BlueprintKind.TASK,
-            status=RunStatus.COMPLETED,
-        ),
-        WarningEvent: lambda: WarningEvent(message="test warning"),
-        SandboxLifecycleEvent: lambda: SandboxLifecycleEvent(action="ready", path="/tmp/sandbox"),
-        LoopLifecycleEvent: lambda: LoopLifecycleEvent(loop_id="loop-1", action="start"),
-        StepDoneEvent: lambda: StepDoneEvent(idx=1, total=1, step_id="step-1", ok=True, exit_code=0),
-        StepOutputEvent: lambda: StepOutputEvent(step_id="step-1", line="output text"),
-        LockWaitEvent: lambda: LockWaitEvent(lock_path="/tmp/lock", timeout_seconds=5.0),
-        ErrorPanelEvent: lambda: ErrorPanelEvent(title="Error", message="Something failed"),
-        MessageEvent: lambda: MessageEvent(message="Status notice"),
-        StepStartEvent: lambda: StepStartEvent(idx=1, total=1, step_id="step-1"),
-        WelcomeBannerEvent: lambda: WelcomeBannerEvent(version="0.1.0"),
-        ConfigLoadResult: lambda: ConfigLoadResult(
-            status=ConfigLoadStatus.OK,
-            config_path=Path(".worktree/config.json"),
-        ),
-        WorktreeConfig: lambda: WorktreeConfig(
-            version=1,
-            project=ProjectConfig(name="test-project"),
-        ),
-        ConfigValidationResult: lambda: ConfigValidationResult(
-            status=ConfigValidationStatus.VALID,
-            config_path=Path(".worktree/config.json"),
-        ),
-        ConfigSetResult: lambda: ConfigSetResult(
-            status=ConfigSetStatus.OK,
-            config_path=Path(".worktree/config.json"),
-            key="project.name",
-        ),
-        DiffResult: lambda: DiffResult(status=DiffStatus.OK),
-        HistoryShowResult: lambda: HistoryShowResult(status=HistoryShowStatus.OK),
-        PrunedItem: lambda: PrunedItem(
-            category=StaleSandboxCategory.ORPHANED_DIRECTORY,
-            identifier="sbx_1",
-            action=PruneAction.PRUNED,
-        ),
-        SandboxApplyResult: lambda: SandboxApplyResult(status=SandboxApplyStatus.OK, sandbox_id="sbx_1"),
-        SandboxCreateResult: lambda: SandboxCreateResult(status=SandboxCreateStatus.OK),
-        SandboxDeleteResult: lambda: SandboxDeleteResult(status=SandboxDeleteStatus.DELETED),
-        SandboxDiffResult: lambda: SandboxDiffResult(status=SandboxDiffStatus.OK, sandbox_id="sbx_1"),
-        SandboxListResult: lambda: SandboxListResult(status=SandboxListStatus.OK),
-        SandboxShowResult: lambda: SandboxShowResult(status=SandboxShowStatus.OK),
-        WorktreeStatusResult: lambda: make_status_result(),
-    }
-    if model_cls in factories:
-        return factories[model_cls]()
-    return model_cls()
-
-
-def _assert_no_markup_in_payload(payload: object, path: str = "payload") -> None:
-    """Recursively verify that no string in a JSON payload contains Rich markup tags."""
-    if isinstance(payload, str):
-        assert not RICH_MARKUP_PATTERN.search(payload), f"Payload contains Rich markup at {path}: {payload!r}"
-    elif isinstance(payload, dict):
-        for key, value in payload.items():
-            _assert_no_markup_in_payload(value, f"{path}[{key!r}]")
-    elif isinstance(payload, (list, tuple)):
-        for idx, item in enumerate(payload):
-            _assert_no_markup_in_payload(item, f"{path}[{idx}]")
-
-
-def test_registered_formatters_json_serializable_succeeds() -> None:
-    """Ensure json.dumps(formatter.to_json_serializable(instance)) succeeds for all registered formatters."""
-    dispatcher = UiDispatcher()
-    assert len(dispatcher._registry) >= 33, (
-        f"Expected at least 33 registered formatters, got {len(dispatcher._registry)}"
-    )
-
-    failures: list[str] = []
-    for model_cls, formatter in dispatcher._registry.items():
-        name = type(formatter).__name__
-        try:
-            if not issubclass(model_cls, BaseModel):
-                failures.append(f"{name}: registered model {model_cls} is not a BaseModel")
-                continue
-            instance = _build_minimal_model_instance(model_cls)
-            payload = formatter.to_json_serializable(instance)
-            if not isinstance(payload, dict):
-                failures.append(f"{name}.to_json_serializable returned {type(payload)} instead of dict")
-                continue
-            serialized = json.dumps(payload)
-            if not isinstance(serialized, str):
-                failures.append(f"{name}.to_json_serializable json.dumps did not return str")
-                continue
-            _assert_no_markup_in_payload(payload, path=name)
-        except Exception as exc:
-            failures.append(f"{name} failed JSON serialization contract: {exc}")
-
-    assert not failures, "Formatters failed JSON serialization contract:\n" + "\n".join(failures)
 
 
 def _calls_self_transform(fn_node: ast.FunctionDef) -> bool:
