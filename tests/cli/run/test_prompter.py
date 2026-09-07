@@ -176,9 +176,7 @@ class TestDispatcherFailurePrompter:
         decision = prompter.prompt_step_failure(step=step, result=result, diagnostic="")
         assert decision == FailurePromptDecision.ABORT
 
-    def test_prompt_text_visible_before_step_input_blocks(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_prompt_text_visible_before_step_input_blocks(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Prompt text is in the output buffer before input() is called, not after.
 
         Regression guard: an earlier commit buffered the prompt without flushing,
@@ -219,10 +217,7 @@ class TestDispatcherFailurePrompter:
         assert "Compilation failed on line 10" in snapshot
         assert "Task paused waiting for user input." in snapshot
 
-
-    def test_prompt_text_visible_before_loop_input_blocks(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_prompt_text_visible_before_loop_input_blocks(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Loop prompt text is in the output buffer before input() is called."""
         dispatcher, buffer = make_dispatcher_with_buffer(force_terminal=True)
         prompter = DispatcherFailurePrompter(dispatcher, kind="workflow")
@@ -254,7 +249,6 @@ class TestDispatcherFailurePrompter:
         snapshot = snapshot_at_input_call[0]
         assert "[loop_1] Reached max_iterations (5)" in snapshot
         assert "Grant 4 additional iterations" in snapshot
-
 
 
 class TestPromptFormatter:
