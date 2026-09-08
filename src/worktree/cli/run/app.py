@@ -92,8 +92,8 @@ def run_callback(
         no_tty=no_tty,
         auto_apply=auto_apply,
         cli_args=list(ctx.args),
-        output_format=format.value,
-        display_format=display.value,
+        output_format=format,
+        display_format=display,
     )
     if not result.ok:
         raise typer.Exit(code=1)

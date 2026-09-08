@@ -40,8 +40,6 @@ def resume_callback(
 ) -> None:
     """Resume a paused blueprint execution session (task or workflow)."""
     context: CliContext = ctx.obj["context"]
-    result = resume_command(
-        context, session_id=session_id, no_tty=no_tty, output_format=format.value, display_format=display.value
-    )
+    result = resume_command(context, session_id=session_id, no_tty=no_tty, output_format=format, display_format=display)
     if not result.ok:
         raise typer.Exit(code=1)
