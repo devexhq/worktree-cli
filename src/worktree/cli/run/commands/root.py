@@ -12,6 +12,7 @@ from worktree.cli.ui import (
     WarningEvent,
     ui_dispatcher,
 )
+from worktree.common.models import DisplayFormatOptions, OutputFormatOptions
 from worktree.core.blueprint.models import BlueprintKind, BlueprintRunResult
 from worktree.core.catalog import Catalog
 from worktree.core.db import RunRecord, RunStatus
@@ -72,8 +73,8 @@ def run_command(
     no_tty: bool = False,
     auto_apply: bool = False,
     cli_args: list[str] | None = None,
-    output_format: str = "terminal",
-    display_format: str = "",
+    output_format: OutputFormatOptions = OutputFormatOptions.TERMINAL,
+    display_format: DisplayFormatOptions = DisplayFormatOptions.ANSI,
 ) -> BlueprintRunResult:
     """Execute a task or workflow blueprint."""
     ui_dispatcher.set_output_format(output_format)
@@ -84,6 +85,7 @@ def run_command(
         ui_dispatcher,
         no_tty=no_tty,
         output_format=output_format,
+        display_format=display_format,
     )
     with observer:
         result = BlueprintRunService(

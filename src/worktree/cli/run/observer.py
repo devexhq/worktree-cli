@@ -13,6 +13,7 @@ from worktree.cli.ui.events import (
     StepOutputEvent,
     StepStartEvent,
 )
+from worktree.common.models import DisplayFormatOptions, OutputFormatOptions
 from worktree.core.runtime.models import RunObserver
 from worktree.core.step import ConditionEvaluationResult, StepDefinition, StepResult
 
@@ -152,7 +153,8 @@ def resolve_cli_observer(
     dispatcher: UiDispatcher,
     *,
     no_tty: bool = False,
-    output_format: str = "terminal",
+    output_format: OutputFormatOptions,
+    display_format: DisplayFormatOptions,
 ) -> DispatcherRunObserver:
     """Return DispatcherRunObserver configured for the execution session.
 
@@ -160,9 +162,12 @@ def resolve_cli_observer(
         dispatcher: The active UiDispatcher instance.
         no_tty: Whether non-interactive execution is requested.
         output_format: Output format ('terminal' or 'json').
+        display_format: Display formata ('ansi' or 'live')
 
     Returns:
         A DispatcherRunObserver instance with live mode enabled if supported.
     """
-    enable_live = output_format == "terminal" and not no_tty and dispatcher.is_interactive
-    return DispatcherRunObserver(dispatcher, live=enable_live)
+    is_terminal_tty = output_format == OutputFormatOptions.TERMINAL and not no_tty and dispatcher.is_interactive
+    if is_terminal_tty and display_format == DisplayFormatOptions.LIVE:
+        return DispatcherRunObserver(dispatcher, live=True)
+    return DispatcherRunObserver(dispatcher, live=False)

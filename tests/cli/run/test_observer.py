@@ -15,6 +15,7 @@ from worktree.cli.ui.events import (
     StepOutputEvent,
     StepStartEvent,
 )
+from worktree.common.models import DisplayFormatOptions, OutputFormatOptions
 from worktree.core.step import ConditionEvaluationResult, StepDefinition, StepResult
 
 
@@ -160,32 +161,51 @@ class ResolveCliObserverTests:
 
     def test_terminal_tty_enables_live(self) -> None:
         dispatcher, _ = make_dispatcher_with_buffer(force_terminal=True)
-        observer = resolve_cli_observer(dispatcher, no_tty=False, output_format="terminal")
+        observer = resolve_cli_observer(
+            dispatcher,
+            no_tty=False,
+            output_format=OutputFormatOptions.TERMINAL,
+            display_format=DisplayFormatOptions.LIVE,
+        )
         assert isinstance(observer, DispatcherRunObserver)
         assert observer._live is True
 
     def no_tty(self) -> None:
         dispatcher, _ = make_dispatcher_with_buffer(force_terminal=True)
-        observer = resolve_cli_observer(dispatcher, no_tty=True, output_format="terminal")
+        observer = resolve_cli_observer(
+            dispatcher,
+            no_tty=True,
+            output_format=OutputFormatOptions.TERMINAL,
+            display_format=DisplayFormatOptions.LIVE,
+        )
         assert isinstance(observer, DispatcherRunObserver)
         assert observer._live is False
 
     def test_json_format_disables_live(self) -> None:
         dispatcher, _ = make_dispatcher_with_buffer(force_terminal=True)
-        observer = resolve_cli_observer(dispatcher, no_tty=False, output_format="json")
+        observer = resolve_cli_observer(
+            dispatcher, no_tty=False, output_format=OutputFormatOptions.JSON, display_format=DisplayFormatOptions.LIVE
+        )
         assert isinstance(observer, DispatcherRunObserver)
         assert observer._live is False
 
     def test_non_terminal_console_disables_live(self) -> None:
         dispatcher, _ = make_dispatcher_with_buffer(force_terminal=False)
-        observer = resolve_cli_observer(dispatcher, no_tty=False, output_format="terminal")
+        observer = resolve_cli_observer(
+            dispatcher,
+            no_tty=False,
+            output_format=OutputFormatOptions.TERMINAL,
+            display_format=DisplayFormatOptions.LIVE,
+        )
         assert isinstance(observer, DispatcherRunObserver)
         assert observer._live is False
 
     def test_live_mode_emits_terminal_output(self) -> None:
         """Verify resolve_cli_observer with live=True emits step, sandbox, and loop lifecycle output."""
         dispatcher, buffer = make_dispatcher_with_buffer(force_terminal=True)
-        observer = resolve_cli_observer(dispatcher, output_format="terminal")
+        observer = resolve_cli_observer(
+            dispatcher, output_format=OutputFormatOptions.TERMINAL, display_format=DisplayFormatOptions.LIVE
+        )
         assert observer._live is True
 
         with observer:

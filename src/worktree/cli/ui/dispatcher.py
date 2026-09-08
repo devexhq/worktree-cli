@@ -15,6 +15,7 @@ from worktree.cli.ui.events import (
     StepStartEvent,
 )
 from worktree.cli.ui.live import LiveDisplayManager
+from worktree.cli.ui.tail import CollapsingTailDisplay
 from worktree.common.types import ComponentFormatter
 
 T = TypeVar("T")
@@ -35,6 +36,7 @@ class UiDispatcher:
         self._registry: dict[type[Any], ComponentFormatter[Any]] = {}
         self._output_format: str = output_format
         self._live_display: LiveDisplayManager | None = None
+        self._tail_display: CollapsingTailDisplay | None = None
         self._register_default_formatters()
 
     def _register_default_formatters(self) -> None:
@@ -139,16 +141,29 @@ class UiDispatcher:
         elif effective_format == "raw":
             sys.stdout.write(formatter.to_raw(data))
             sys.stdout.flush()
-        elif self._live_display is not None and self._live_display.is_active:
-            if isinstance(data, PromptEvent):
-                self.stop_live()
-                rich_renderable = formatter.to_rich(data)
-                self._console.print(rich_renderable)
-            else:
-                self._dispatch_live(data, formatter)
-        else:
+        elif not self._dispatch_interactive(data, formatter):
             rich_renderable = formatter.to_rich(data)
             self._console.print(rich_renderable)
+
+    def _dispatch_interactive(self, data: Any, formatter: ComponentFormatter[Any]) -> bool:
+        """Route event to active live or collapsing-tail display if one is running."""
+        if self._live_display is not None and self._live_display.is_active:
+            if isinstance(data, PromptEvent):
+                self.stop_live()
+                self._console.print(formatter.to_rich(data))
+            else:
+                self._dispatch_live(data, formatter)
+            return True
+
+        if self._tail_display is not None:
+            if isinstance(data, PromptEvent):
+                self.stop_collapsing_tail()
+                self._console.print(formatter.to_rich(data))
+            else:
+                self._dispatch_collapsing_tail(data, formatter)
+            return True
+
+        return False
 
     def start_live(self) -> None:
         """Start interactive live display if terminal output format is active."""
@@ -161,6 +176,36 @@ class UiDispatcher:
         if self._live_display is not None:
             self._live_display.stop()
             self._live_display = None
+
+    def start_collapsing_tail(self) -> None:
+        """Start the ANSI collapsing-tail display if terminal output format is active."""
+        if not self.is_terminal_format or not self.is_interactive or self._tail_display is not None:
+            return
+        self._tail_display = CollapsingTailDisplay(self._console)
+
+    def stop_collapsing_tail(self) -> None:
+        """Stop the active collapsing-tail display."""
+        self._tail_display = None
+
+    def _dispatch_collapsing_tail(self, data: object, formatter: ComponentFormatter[Any]) -> None:
+        """Route events through the active collapsing-tail display.
+
+        Args:
+            data: The event object being dispatched.
+            formatter: The registered ComponentFormatter for data's type.
+        """
+        if self._tail_display is None:
+            return
+        if isinstance(data, StepStartEvent):
+            self._tail_display.handle_step_start(data)
+        elif isinstance(data, StepOutputEvent):
+            self._tail_display.handle_step_output(data)
+        elif isinstance(data, StepDoneEvent):
+            self._tail_display.handle_step_done(data)
+        elif isinstance(data, SandboxLifecycleEvent):
+            self._tail_display.handle_sandbox(data, formatter.to_rich(data))
+        else:
+            self._tail_display.print_above(formatter.to_rich(data))
 
     def _dispatch_live(self, data: Any, formatter: ComponentFormatter[Any]) -> None:
         """Route events through active live display session."""

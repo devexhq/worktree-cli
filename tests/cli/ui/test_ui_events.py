@@ -21,6 +21,7 @@ from worktree.cli.ui.events import (
     StepStartEvent,
     WarningEvent,
 )
+from worktree.common.models import DisplayFormatOptions, OutputFormatOptions
 from worktree.core.db import BlueprintKind, RunStatus
 
 
@@ -411,7 +412,9 @@ def test_dispatcher_format_and_interactive_properties() -> None:
 
 def test_dispatcher_live_mode_routing() -> None:
     dispatcher, buffer = make_dispatcher_with_buffer(force_terminal=True)
-    observer = resolve_cli_observer(dispatcher, output_format="terminal")
+    observer = resolve_cli_observer(
+        dispatcher, output_format=OutputFormatOptions.TERMINAL, display_format=DisplayFormatOptions.LIVE
+    )
 
     with observer:
         assert dispatcher._live_display is not None
