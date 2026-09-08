@@ -3,6 +3,11 @@ from __future__ import annotations
 from .factories import (
     BaseFactory,
     RunFactory,
+    make_checkpoint,
+    make_failed_result,
+    make_ok_result,
+    make_run_outcome,
+    make_step_result,
 )
 from .legacy import (
     FileSystem,
@@ -11,15 +16,11 @@ from .legacy import (
     get_subcommand,
     get_subgroup,
     list_subcommands,
-    make_checkpoint,
     make_cli_context,
     make_cmd_step,
     make_dispatcher_with_buffer,
-    make_failed_result,
-    make_ok_result,
     make_run,
     make_status_result,
-    make_step_result,
     render_rich,
     seed_sandbox,
 )
@@ -40,6 +41,7 @@ __all__ = [
     "make_failed_result",
     "make_ok_result",
     "make_run",
+    "make_run_outcome",
     "make_status_result",
     "make_step_result",
     "render_rich",

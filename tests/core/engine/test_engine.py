@@ -8,11 +8,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from tests.helpers import FileSystem, make_cmd_step
+from tests.helpers import FileSystem, make_cmd_step, make_run_outcome, make_step_result
 from worktree.core.blueprint import Blueprint, BlueprintDefinition, BlueprintKind
 from worktree.core.catalog import Catalog
 from worktree.core.db import RunsRepository, RunStatus, WorktreeDb
-from worktree.core.engine import Engine, EngineInputError, RunRequest
+from worktree.core.engine import Engine, EngineInputError, RunRequest, load_session_run
 from worktree.core.inputs import InputType, ParameterInput
 from worktree.core.runtime import RunContext, RunOutcome
 from worktree.core.step import LoopStepBlock, StepDefinition
@@ -86,16 +86,51 @@ class EngineConstructTests:
 class EngineRunDelegationTests:
     """Unit tests for Engine.run execution, persistence, and error handling."""
 
-    db: WorktreeDb
     catalog: Catalog
 
     @pytest.fixture(autouse=True)
-    def setup_method(self, fs: FileSystem) -> None:
+    def setup_method(self, fs: FileSystem, worktree_db: WorktreeDb) -> None:
         fs.create_config_file()
-        self.db = WorktreeDb(path=fs.base_path)
-        self.catalog = Catalog(path=fs.base_path, db=self.db.catalog)
+        self.catalog = Catalog(path=fs.base_path, db=worktree_db.catalog)
 
-    def test_run_delegates_to_run_steps(self, monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
+    @pytest.mark.slow
+    def test_run_unstubbed_executes_step_and_records_result(self, fs: FileSystem, worktree_db: WorktreeDb) -> None:
+        """Verify Engine.run executes a real step end to end without stubbing run_steps."""
+        step = make_cmd_step(step_id="echo_step", command="echo delegation-ok")
+        blueprint = _task_blueprint(steps=[step], use_sandbox=False)
+        run_request = RunRequest(use_sandbox=False, session_id="task_unstubbed_step")
+        outcome = Engine(fs.base_path, db=worktree_db.runs, catalog=self.catalog).run(blueprint, run_request)
+        session_json = load_session_run(fs.base_path, "task_unstubbed_step")
+
+        normalized_outcome = outcome.model_copy(
+            update={"step_results": [s.model_copy(update={"duration_seconds": 0.05}) for s in outcome.step_results]}
+        )
+        expected_step_result = make_step_result(step_id="echo_step", stdout="delegation-ok\n")
+        expected_run_outcome = make_run_outcome(
+            step_results=[expected_step_result], sandbox_path=fs.base_path, session_id="task_unstubbed_step"
+        )
+
+        # Assert run outcome
+        assert normalized_outcome.ok is True
+        assert normalized_outcome == expected_run_outcome
+
+        # Assert DB run record
+        record = worktree_db.runs.get(session_id="task_unstubbed_step")
+        assert record is not None
+        assert record.status == RunStatus.COMPLETED
+        assert record.completed_at is not None
+
+        # Assert session run JSON
+        assert session_json is not None
+        normalized_session_json = session_json.model_copy(
+            update={"step_results": [s.model_copy(update={"duration_seconds": 0.05}) for s in outcome.step_results]}
+        )
+        assert normalized_session_json.status == RunStatus.COMPLETED
+        assert normalized_session_json.step_results == expected_run_outcome.step_results
+
+    def test_run_delegates_to_run_steps(
+        self, monkeypatch: pytest.MonkeyPatch, fs: FileSystem, worktree_db: WorktreeDb
+    ) -> None:
         steps = [make_cmd_step(step_id="one"), make_cmd_step(step_id="two")]
         blueprint = _task_blueprint(steps=steps, use_sandbox=True)
         observer = MagicMock()
@@ -108,7 +143,7 @@ class EngineRunDelegationTests:
 
         monkeypatch.setattr("worktree.core.engine.engine.run_steps", fake_run_steps)
 
-        outcome = Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).run(
+        outcome = Engine(fs.base_path, db=worktree_db.runs, catalog=self.catalog).run(
             blueprint,
             RunRequest(
                 use_sandbox=True,
@@ -151,6 +186,7 @@ class EngineRunDelegationTests:
         self,
         monkeypatch: pytest.MonkeyPatch,
         fs: FileSystem,
+        worktree_db: WorktreeDb,
         caller_use_sandbox: bool | None,
         definition_use_sandbox: bool,
         expected: bool,
@@ -163,52 +199,54 @@ class EngineRunDelegationTests:
 
         monkeypatch.setattr("worktree.core.engine.engine.run_steps", fake_run_steps)
 
-        Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).run(
+        Engine(fs.base_path, db=worktree_db.runs, catalog=self.catalog).run(
             _task_blueprint(use_sandbox=definition_use_sandbox),
             RunRequest(use_sandbox=caller_use_sandbox, session_id="task_sandbox"),
         )
 
         assert captured["context"].use_sandbox is expected
 
-    def test_run_persists_completed_task_row(self, fs: FileSystem) -> None:
-        outcome = Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).run(
+    def test_run_persists_completed_task_row(self, fs: FileSystem, worktree_db: WorktreeDb) -> None:
+        outcome = Engine(fs.base_path, db=worktree_db.runs, catalog=self.catalog).run(
             _task_blueprint(use_sandbox=False),
             RunRequest(use_sandbox=False, session_id="task_persist"),
         )
 
         assert outcome.ok
-        record = self.db.runs.get("task_persist")
+        record = worktree_db.runs.get("task_persist")
         assert record is not None
         assert record.blueprint_name == "lint"
         assert record.kind == BlueprintKind.TASK
         assert record.status is RunStatus.COMPLETED
         assert record.completed_at is not None
 
-    def test_run_persists_workflow_row_with_empty_branch(self, fs: FileSystem) -> None:
-        outcome = Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).run(
+    def test_run_persists_workflow_row_with_empty_branch(self, fs: FileSystem, worktree_db: WorktreeDb) -> None:
+        outcome = Engine(fs.base_path, db=worktree_db.runs, catalog=self.catalog).run(
             _workflow_blueprint(),
             RunRequest(use_sandbox=False, session_id="workflow_persist"),
         )
 
         assert outcome.ok
-        record = self.db.runs.get("workflow_persist")
+        record = worktree_db.runs.get("workflow_persist")
         assert record is not None
         assert record.blueprint_name == "ship"
         assert record.kind == BlueprintKind.WORKFLOW
         assert record.branch_name == ""
         assert record.status is RunStatus.COMPLETED
 
-    def test_run_accepts_loop_steps_in_workflow(self, fs: FileSystem) -> None:
-        outcome = Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).run(
+    def test_run_accepts_loop_steps_in_workflow(self, fs: FileSystem, worktree_db: WorktreeDb) -> None:
+        outcome = Engine(fs.base_path, db=worktree_db.runs, catalog=self.catalog).run(
             _workflow_blueprint(loop=True), RunRequest(session_id="workflow_loop")
         )
 
         assert outcome.status is RunStatus.COMPLETED
-        record = self.db.runs.get("workflow_loop")
+        record = worktree_db.runs.get("workflow_loop")
         assert record is not None
         assert record.status is RunStatus.COMPLETED
 
-    def test_insert_failure_warns_and_still_runs(self, monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
+    def test_insert_failure_warns_and_still_runs(
+        self, monkeypatch: pytest.MonkeyPatch, fs: FileSystem, worktree_db: WorktreeDb
+    ) -> None:
         captured: dict[str, RunContext] = {}
 
         def fake_run_steps(context: RunContext) -> RunOutcome:
@@ -221,15 +259,17 @@ class EngineRunDelegationTests:
         monkeypatch.setattr("worktree.core.engine.engine.run_steps", fake_run_steps)
         monkeypatch.setattr("worktree.core.db.repositories.runs.RunsRepository.create", boom)
 
-        outcome = Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).run(
+        outcome = Engine(fs.base_path, db=worktree_db.runs, catalog=self.catalog).run(
             _task_blueprint(), RunRequest(session_id="task_insert_fail")
         )
 
         assert captured["context"].pause_store is None
         assert any(warning.startswith("Failed to record run start in database:") for warning in outcome.warnings)
-        assert self.db.runs.get("task_insert_fail") is None
+        assert worktree_db.runs.get("task_insert_fail") is None
 
-    def test_update_failure_warns_and_returns_outcome(self, monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
+    def test_update_failure_warns_and_returns_outcome(
+        self, monkeypatch: pytest.MonkeyPatch, fs: FileSystem, worktree_db: WorktreeDb
+    ) -> None:
         expected = RunOutcome(status=RunStatus.COMPLETED, sandbox_path=fs.base_path, warnings=["step note"])
 
         monkeypatch.setattr(
@@ -241,28 +281,30 @@ class EngineRunDelegationTests:
             lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("locked")),
         )
 
-        outcome = Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).run(
+        outcome = Engine(fs.base_path, db=worktree_db.runs, catalog=self.catalog).run(
             _task_blueprint(), RunRequest(session_id="task_update_fail")
         )
 
         assert outcome is not expected
         assert outcome.warnings[0] == "step note"
         assert any(warning.startswith("Failed to update run status in database:") for warning in outcome.warnings)
-        record = self.db.runs.get("task_update_fail")
+        record = worktree_db.runs.get("task_update_fail")
         assert record is not None
         assert record.status is RunStatus.RUNNING
 
-    def test_omitted_session_id_uses_kind_prefix(self, monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
+    def test_omitted_session_id_uses_kind_prefix(
+        self, monkeypatch: pytest.MonkeyPatch, fs: FileSystem, worktree_db: WorktreeDb
+    ) -> None:
         monkeypatch.setattr(
             "worktree.core.engine.engine.run_steps",
             lambda _context: RunOutcome(status=RunStatus.COMPLETED, sandbox_path=fs.base_path),
         )
 
-        outcome = Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).run(
+        outcome = Engine(fs.base_path, db=worktree_db.runs, catalog=self.catalog).run(
             _task_blueprint(use_sandbox=False), RunRequest(use_sandbox=False)
         )
 
-        records = self.db.runs.list()
+        records = worktree_db.runs.list()
         assert len(records) == 1
         assert records[0].session_id.startswith("task_")
         assert len(records[0].session_id) == len("task_") + 8
