@@ -3,11 +3,6 @@ from __future__ import annotations
 from .factories import (
     BaseFactory,
     RunFactory,
-    make_checkpoint,
-    make_failed_result,
-    make_ok_result,
-    make_run_outcome,
-    make_step_result,
 )
 from .legacy import (
     FileSystem,
@@ -23,6 +18,13 @@ from .legacy import (
     make_status_result,
     render_rich,
     seed_sandbox,
+)
+from .make import (
+    make_checkpoint,
+    make_failed_result,
+    make_ok_result,
+    make_run_outcome,
+    make_step_result,
 )
 
 __all__ = [
