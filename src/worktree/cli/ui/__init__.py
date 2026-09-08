@@ -14,8 +14,10 @@ from worktree.cli.ui.events import (
     WarningEvent,
     WelcomeBannerEvent,
 )
+from worktree.cli.ui.tail import CollapsingTailDisplay
 
 __all__ = [
+    "CollapsingTailDisplay",
     "ErrorPanelEvent",
     "LockWaitEvent",
     "LoopLifecycleEvent",

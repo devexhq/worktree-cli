@@ -13,6 +13,7 @@ from worktree.cli.ui import (
     WarningEvent,
     ui_dispatcher,
 )
+from worktree.common.models import DisplayFormatOptions, OutputFormatOptions
 from worktree.core.blueprint.models import BlueprintKind, BlueprintRunResult
 from worktree.core.db import RunRecord, RunStatus
 from worktree.core.engine import BlueprintResumeService
@@ -67,16 +68,15 @@ def resume_command(
     session_id: str | None = None,
     *,
     no_tty: bool = False,
-    output_format: str = "terminal",
+    output_format: str = OutputFormatOptions.TERMINAL,
+    display_format: str = DisplayFormatOptions.ANSI,
 ) -> BlueprintRunResult:
     """Resume a paused task or workflow blueprint execution session."""
     ui_dispatcher.set_output_format(output_format)
     _emit_resume_start_notice(context, session_id)
 
     observer = resolve_cli_observer(
-        ui_dispatcher,
-        no_tty=no_tty,
-        output_format=output_format,
+        ui_dispatcher, no_tty=no_tty, output_format=output_format, display_format=display_format
     )
     with observer:
         result = BlueprintResumeService(

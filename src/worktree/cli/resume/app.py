@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from typing import Annotated
+
 import typer
 
 from worktree.cli.context import CliContext
+from worktree.common.models import DisplayFormatOptions, OutputFormatOptions
 
 from .commands.root import resume_command
 
@@ -28,20 +31,17 @@ def resume_callback(
         "--no-tty",
         help="Disable interactive prompts; prompt_user failures abort the run.",
     ),
-    format: str = typer.Option(
-        "terminal",
-        "--format",
-        "-f",
-        help="Output format: 'terminal' or 'json'.",
-    ),
+    format: Annotated[
+        OutputFormatOptions, typer.Option(help="Output format: 'terminal' or 'json'.")
+    ] = OutputFormatOptions.TERMINAL,
+    display: Annotated[
+        DisplayFormatOptions, typer.Option(help="Display format: 'ansi' or 'live'")
+    ] = DisplayFormatOptions.ANSI,
 ) -> None:
     """Resume a paused blueprint execution session (task or workflow)."""
     context: CliContext = ctx.obj["context"]
     result = resume_command(
-        context,
-        session_id=session_id,
-        no_tty=no_tty,
-        output_format=format,
+        context, session_id=session_id, no_tty=no_tty, output_format=format.value, display_format=display.value
     )
     if not result.ok:
         raise typer.Exit(code=1)
