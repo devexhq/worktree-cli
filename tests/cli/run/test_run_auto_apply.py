@@ -59,6 +59,6 @@ class RunAutoApplyTests:
         )
         scan_and_index_catalog(path=git_fs.base_path)
 
-        result = runner.invoke(app, ["run", "failing-task", "--auto-apply", "--non-interactive"])
+        result = runner.invoke(app, ["run", "failing-task", "--auto-apply", "--no-tty"])
         assert result.exit_code == 1
         assert not (git_fs.base_path / "bad.txt").exists()

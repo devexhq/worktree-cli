@@ -69,10 +69,11 @@ def run_command(
     keep: bool = False,
     agent: str | None = None,
     session_id: str | None = None,
-    non_interactive: bool = False,
+    no_tty: bool = False,
     auto_apply: bool = False,
     cli_args: list[str] | None = None,
     output_format: str = "terminal",
+    display_format: str = "",
 ) -> BlueprintRunResult:
     """Execute a task or workflow blueprint."""
     ui_dispatcher.set_output_format(output_format)
@@ -81,7 +82,7 @@ def run_command(
 
     observer = resolve_cli_observer(
         ui_dispatcher,
-        non_interactive=non_interactive,
+        no_tty=no_tty,
         output_format=output_format,
     )
     with observer:
@@ -96,7 +97,7 @@ def run_command(
             agent=agent,
             session_id=session_id,
             cli_args=cli_args,
-            non_interactive=non_interactive,
+            no_tty=no_tty,
             auto_apply=auto_apply,
             observer=observer,
             failure_prompter=DispatcherFailurePrompter(ui_dispatcher, kind=kind_label),

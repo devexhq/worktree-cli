@@ -424,7 +424,7 @@ class TestLoopBlockRunner:
         assert error is not None
         assert "aborted by user" in error
 
-    def test_sub_step_prompt_non_interactive_aborts_with_warning(self, tmp_path: Path) -> None:
+    def test_sub_step_prompt_no_tty_aborts_with_warning(self, tmp_path: Path) -> None:
         loop = LoopStepBlock(
             id="non-interactive-loop",
             type="loop",
@@ -433,7 +433,7 @@ class TestLoopBlockRunner:
             do=[_make_step("poll", command="exit 1", on_failure=FailurePolicy.PROMPT_USER)],
         )
         state = StepLoopState(target_dir=tmp_path, session=None)
-        runner = LoopBlockRunner(loop, sandbox_path=tmp_path, non_interactive=True)
+        runner = LoopBlockRunner(loop, sandbox_path=tmp_path, no_tty=True)
 
         action, _, error = runner.run(state)
 
@@ -443,7 +443,7 @@ class TestLoopBlockRunner:
         assert len(state.warnings) == 1
         assert "requested prompt_user but run is non-interactive" in state.warnings[0]
 
-    def test_max_iterations_non_interactive_aborts_with_message(self, tmp_path: Path) -> None:
+    def test_max_iterations_no_tty_aborts_with_message(self, tmp_path: Path) -> None:
         loop = LoopStepBlock(
             id="max-iter-non-interactive-loop",
             type="loop",
@@ -453,7 +453,7 @@ class TestLoopBlockRunner:
             on_max_iterations=FailurePolicy.PROMPT_USER,
         )
         state = StepLoopState(target_dir=tmp_path, session=None)
-        runner = LoopBlockRunner(loop, sandbox_path=tmp_path, non_interactive=True)
+        runner = LoopBlockRunner(loop, sandbox_path=tmp_path, no_tty=True)
 
         action, _, error = runner.run(state)
 

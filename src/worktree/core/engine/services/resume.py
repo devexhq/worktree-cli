@@ -28,7 +28,7 @@ class BlueprintResumeService:
     db: RunsRepository
     catalog_db: CatalogRepository
     session_id: str | None = None
-    non_interactive: bool = False
+    no_tty: bool = False
     observer: RunObserver | None = None
     failure_prompter: FailurePrompter | None = None
     warnings: list[str] = field(default_factory=list)
@@ -46,7 +46,7 @@ class BlueprintResumeService:
                 target_session_id,
                 observer=self.observer,
                 failure_prompter=self.failure_prompter,
-                non_interactive=self.non_interactive,
+                no_tty=self.no_tty,
             )
         except (EngineResumeError, EngineRuntimeError) as exc:
             return self._fail(str(exc))

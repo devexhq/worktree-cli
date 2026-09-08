@@ -66,7 +66,7 @@ def resume_command(
     context: CliContext,
     session_id: str | None = None,
     *,
-    non_interactive: bool = False,
+    no_tty: bool = False,
     output_format: str = "terminal",
 ) -> BlueprintRunResult:
     """Resume a paused task or workflow blueprint execution session."""
@@ -75,7 +75,7 @@ def resume_command(
 
     observer = resolve_cli_observer(
         ui_dispatcher,
-        non_interactive=non_interactive,
+        no_tty=no_tty,
         output_format=output_format,
     )
     with observer:
@@ -84,7 +84,7 @@ def resume_command(
             db=context.db.runs,
             catalog_db=context.db.catalog,
             session_id=session_id,
-            non_interactive=non_interactive,
+            no_tty=no_tty,
             observer=observer,
             failure_prompter=DispatcherFailurePrompter(ui_dispatcher),
         ).execute()

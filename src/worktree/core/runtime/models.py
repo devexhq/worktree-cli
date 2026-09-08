@@ -130,7 +130,7 @@ class RunContext:
     observer: RunObserver | None = None
     inputs: dict[str, str | int | bool] | None = None
     identity: ExecutionIdentity | None = None
-    non_interactive: bool = False
+    no_tty: bool = False
     failure_prompter: FailurePrompter | None = None
     pause_store: RunPauseStore | None = None
     resume_from: RunCheckpoint | None = None

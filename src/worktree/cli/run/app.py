@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
 import typer
 from typer.core import TyperGroup
 
 from worktree.cli.context import CliContext
+from worktree.common.models import DisplayFormatOptions, OutputFormatOptions
 
 from .commands.root import run_command
 
@@ -62,9 +63,9 @@ def run_callback(
         "--session-id",
         help="Explicit session identifier.",
     ),
-    non_interactive: bool = typer.Option(
+    no_tty: bool = typer.Option(
         False,
-        "--non-interactive",
+        "--no-tty",
         help="Disable interactive prompts; prompt_user failures abort the run.",
     ),
     auto_apply: bool = typer.Option(
@@ -72,12 +73,12 @@ def run_callback(
         "--auto-apply",
         help="Automatically apply sandbox changes to the main workspace on successful completion.",
     ),
-    format: str = typer.Option(
-        "terminal",
-        "--format",
-        "-f",
-        help="Output format: 'terminal' or 'json'.",
-    ),
+    format: Annotated[
+        OutputFormatOptions, typer.Option(help="Output format: 'terminal' or 'json'.")
+    ] = OutputFormatOptions.TERMINAL,
+    display: Annotated[
+        DisplayFormatOptions, typer.Option(help="Display format: 'ansi' or 'live'")
+    ] = DisplayFormatOptions.ANSI,
 ) -> None:
     """Execute a task or workflow blueprint."""
     context: CliContext = ctx.obj["context"]
@@ -88,10 +89,11 @@ def run_callback(
         keep=keep,
         agent=agent,
         session_id=session_id,
-        non_interactive=non_interactive,
+        no_tty=no_tty,
         auto_apply=auto_apply,
         cli_args=list(ctx.args),
-        output_format=format,
+        output_format=format.value,
+        display_format=display.value,
     )
     if not result.ok:
         raise typer.Exit(code=1)

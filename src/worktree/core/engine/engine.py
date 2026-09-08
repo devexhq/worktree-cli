@@ -91,7 +91,7 @@ class Engine:
                 observer=req.observer,
                 inputs=resolved.values,
                 identity=identity,
-                non_interactive=req.non_interactive,
+                no_tty=req.no_tty,
                 failure_prompter=req.failure_prompter,
                 pause_store=pause_store,
                 auto_apply=req.auto_apply,
@@ -117,7 +117,7 @@ class Engine:
         blueprint: Blueprint | None = None,
         observer: RunObserver | None = None,
         failure_prompter: FailurePrompter | None = None,
-        non_interactive: bool = False,
+        no_tty: bool = False,
     ) -> RunOutcome:
         """Classify a paused session, rebuild ``RunContext``, and re-enter ``run_steps``."""
         loaded, db, checkpoint = ResumableRun.load(
@@ -153,7 +153,7 @@ class Engine:
                 observer=observer,
                 inputs=checkpoint.inputs or None,
                 identity=identity,
-                non_interactive=non_interactive,
+                no_tty=no_tty,
                 failure_prompter=failure_prompter,
                 pause_store=pause_store,
                 resume_from=checkpoint,

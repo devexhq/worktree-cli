@@ -8,10 +8,10 @@ Worktree blueprints can be executed inside Continuous Integration (CI) pipelines
 
 When executing Worktree in automated environments:
 * `--no-sandbox`: Disables Git worktree branch creation and executes steps directly in the runner workspace.
-* `--non-interactive`: Ensures `prompt_user` failure directives degrade safely to `abort` rather than hanging on standard input.
+* `--no-tty`: Ensures `prompt_user` failure directives degrade safely to `abort` rather than hanging on standard input.
 
 ```bash
-wt run build-and-test --no-sandbox --non-interactive
+wt run build-and-test --no-sandbox --no-tty
 ```
 
 ---
@@ -57,7 +57,7 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          wt run lint-and-test --no-sandbox --non-interactive
+          wt run lint-and-test --no-sandbox --no-tty
 ```
 
 ---

@@ -230,8 +230,8 @@ class RunCliTests:
         assert result.exit_code == 1
         assert "Task Run Failed" in result.output
 
-    def test_run_cli_non_interactive_aborts_prompt_user(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Verify --non-interactive aborts on prompt_user and exits 1."""
+    def test_run_cli_no_tty_aborts_prompt_user(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Verify --no-tty aborts on prompt_user and exits 1."""
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
         fs.create_task_file(
@@ -242,7 +242,7 @@ class RunCliTests:
 
         result = runner.invoke(
             app,
-            ["run", "prompt-task", "--no-sandbox", "--non-interactive"],
+            ["run", "prompt-task", "--no-sandbox", "--no-tty"],
         )
         assert result.exit_code == 1
 

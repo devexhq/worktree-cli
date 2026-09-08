@@ -110,7 +110,7 @@ class EngineResumeExecutionTests:
             "task_resume",
             blueprint=_task_blueprint(),
             observer=observer,
-            non_interactive=True,
+            no_tty=True,
             failure_prompter=None,
         )
 
@@ -123,7 +123,7 @@ class EngineResumeExecutionTests:
         assert context.agent == "copilot"
         assert context.observer is observer
         assert context.inputs == {"name": "demo"}
-        assert context.non_interactive is True
+        assert context.no_tty is True
         assert context.failure_prompter is None
         assert context.pause_store is not None
         assert context.resume_from == checkpoint

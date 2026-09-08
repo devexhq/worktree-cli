@@ -160,25 +160,25 @@ class ResolveCliObserverTests:
 
     def test_terminal_tty_enables_live(self) -> None:
         dispatcher, _ = make_dispatcher_with_buffer(force_terminal=True)
-        observer = resolve_cli_observer(dispatcher, non_interactive=False, output_format="terminal")
+        observer = resolve_cli_observer(dispatcher, no_tty=False, output_format="terminal")
         assert isinstance(observer, DispatcherRunObserver)
         assert observer._live is True
 
-    def test_non_interactive_disables_live(self) -> None:
+    def no_tty(self) -> None:
         dispatcher, _ = make_dispatcher_with_buffer(force_terminal=True)
-        observer = resolve_cli_observer(dispatcher, non_interactive=True, output_format="terminal")
+        observer = resolve_cli_observer(dispatcher, no_tty=True, output_format="terminal")
         assert isinstance(observer, DispatcherRunObserver)
         assert observer._live is False
 
     def test_json_format_disables_live(self) -> None:
         dispatcher, _ = make_dispatcher_with_buffer(force_terminal=True)
-        observer = resolve_cli_observer(dispatcher, non_interactive=False, output_format="json")
+        observer = resolve_cli_observer(dispatcher, no_tty=False, output_format="json")
         assert isinstance(observer, DispatcherRunObserver)
         assert observer._live is False
 
     def test_non_terminal_console_disables_live(self) -> None:
         dispatcher, _ = make_dispatcher_with_buffer(force_terminal=False)
-        observer = resolve_cli_observer(dispatcher, non_interactive=False, output_format="terminal")
+        observer = resolve_cli_observer(dispatcher, no_tty=False, output_format="terminal")
         assert isinstance(observer, DispatcherRunObserver)
         assert observer._live is False
 
