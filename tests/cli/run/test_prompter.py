@@ -166,7 +166,7 @@ class TestDispatcherFailurePrompter:
         assert len(payload["options"]) == 3
         assert payload["default"] == "abort"
 
-    def test_non_interactive_terminal_aborts_immediately(self) -> None:
+    def test_no_tty_terminal_aborts_immediately(self) -> None:
         dispatcher, _ = make_dispatcher_with_buffer(force_terminal=False)
         prompter = DispatcherFailurePrompter(dispatcher)
 

@@ -41,7 +41,7 @@ class BlueprintRunService:
     agent: str | None = None
     session_id: str | None = None
     cli_args: list[str] | None = None
-    non_interactive: bool = False
+    no_tty: bool = False
     auto_apply: bool = False
     observer: RunObserver | None = None
     failure_prompter: FailurePrompter | None = None
@@ -76,7 +76,7 @@ class BlueprintRunService:
                     session_id=self.session_id,
                     observer=self.observer,
                     failure_prompter=self.failure_prompter,
-                    non_interactive=self.non_interactive,
+                    no_tty=self.no_tty,
                     auto_apply=self.auto_apply,
                 ),
             )

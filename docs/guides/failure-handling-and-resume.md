@@ -112,13 +112,13 @@ Worktree will reload the sandbox and re-execute the pending step without re-runn
 
 In automated environments (such as CI pipelines or background cron jobs), interactive prompts cannot block on standard input.
 
-Pass the `--non-interactive` flag:
+Pass the `--no-tty` flag:
 
 ```bash
-wt run test-suite --non-interactive
+wt run test-suite --no-tty
 ```
 
-When `--non-interactive` is enabled, any `prompt_user` policy automatically degrades to `abort` and emits a warning.
+When `--no-tty` is enabled, any `prompt_user` policy automatically degrades to `abort` and emits a warning.
 
 ---
 

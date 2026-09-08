@@ -18,7 +18,7 @@ wt run <name> [OPTIONS] [-- <input-overrides>]
 | `--auto-apply` | Automatically apply sandbox changes to the main workspace on successful completion. |
 | `--agent <name>` | Override the default target agent adapter. |
 | `--session-id <id>` | Explicit session identifier. |
-| `--non-interactive` | Disable interactive prompts; prompt_user failures abort the run instead of blocking for input. |
+| `--no-tty` | Disable interactive prompts; prompt_user failures abort the run instead of blocking for input. |
 
 Trailing CLI arguments (after options) are forwarded to declared blueprint inputs.
 
@@ -54,5 +54,5 @@ wt run test-suite --target src/worktree --verbose true
 Run non-interactively in CI:
 
 ```bash
-wt run lint-all --non-interactive
+wt run lint-all --no-tty
 ```

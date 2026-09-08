@@ -4,6 +4,16 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
+class DisplayFormatOptions(StrEnum):
+    ANSI = "ansi"
+    LIVE = "live"
+
+
+class OutputFormatOptions(StrEnum):
+    JSON = "json"
+    TERMINAL = "terminal"
+
+
 class DefinitionResolutionStatus(StrEnum):
     """Classified outcomes for resolving a domain definition by name."""
 

@@ -36,7 +36,7 @@ class RunRequest:
     session_id: str | None = None
     observer: RunObserver | None = None
     failure_prompter: FailurePrompter | None = None
-    non_interactive: bool = False
+    no_tty: bool = False
     auto_apply: bool = False
 
 

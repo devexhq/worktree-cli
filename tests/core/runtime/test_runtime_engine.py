@@ -444,7 +444,7 @@ class RuntimeEngineFailurePromptTests:
         ("ctx_kwargs", "prompter", "warning_substr"),
         [
             pytest.param(
-                {"non_interactive": True},
+                {"no_tty": True},
                 _BoomPrompter(),
                 "non-interactive",
                 id="non-interactive",
@@ -536,7 +536,7 @@ class RuntimeEnginePauseAndResumeTests:
         assert store.cleared == 1
         assert outcome.status == RunStatus.FAILED
 
-    def test_run_steps_non_interactive_never_pauses(
+    def test_run_steps_no_tty_never_pauses(
         self,
         fs: FileSystem,
         monkeypatch: pytest.MonkeyPatch,
@@ -547,7 +547,7 @@ class RuntimeEnginePauseAndResumeTests:
             make_run_context(
                 fs=fs,
                 steps=[make_cmd_step(step_id="fail", on_failure="prompt_user")],
-                non_interactive=True,
+                no_tty=True,
                 pause_store=store,
             )
         )

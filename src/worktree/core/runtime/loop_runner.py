@@ -47,7 +47,7 @@ class LoopBlockRunner:
         on_output: Callable[[str, str], None] | None = None,
         observer: RunObserver | None = None,
         failure_prompter: FailurePrompter | None = None,
-        non_interactive: bool = False,
+        no_tty: bool = False,
         pause_store: RunPauseStore | None = None,
         step_index: int = 1,
         identity: ExecutionIdentity | None = None,
@@ -59,7 +59,7 @@ class LoopBlockRunner:
         self.on_output = on_output
         self.observer = observer
         self.failure_prompter = failure_prompter
-        self.non_interactive = non_interactive
+        self.no_tty = no_tty
         self.pause_store = pause_store
         self.step_index = step_index
         self.identity = identity
@@ -181,7 +181,7 @@ class LoopBlockRunner:
         result: StepResult,
         state: StepLoopState,
     ) -> tuple[str, StepResult | None, str | None]:
-        if self.non_interactive or self.failure_prompter is None:
+        if self.no_tty or self.failure_prompter is None:
             warning = f"Warning: step '{sub_step.id}' requested prompt_user but run is non-interactive; aborting."
             state.warnings.append(warning)
             return LoopPromptDecision.ABORT, result, f"Step '{sub_step.id}' failed in loop '{self.loop.id}'."
@@ -277,7 +277,7 @@ class LoopBlockRunner:
         turn: int,
         max_iterations: int,
     ) -> tuple[str, int, str | None]:
-        if self.non_interactive or self.failure_prompter is None:
+        if self.no_tty or self.failure_prompter is None:
             msg = f"Loop '{self.loop.id}' reached max_iterations ({max_iterations}) and run is non-interactive."
             return LoopPromptDecision.ABORT, max_iterations, msg
 

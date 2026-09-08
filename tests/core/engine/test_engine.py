@@ -152,7 +152,7 @@ class EngineRunDelegationTests:
                 session_id="task_demo",
                 observer=observer,
                 inputs={"message": "hi"},
-                non_interactive=True,
+                no_tty=True,
                 failure_prompter=None,
             ),
         )
@@ -166,7 +166,7 @@ class EngineRunDelegationTests:
         assert context.agent == "copilot"
         assert context.observer is observer
         assert context.inputs == {"message": "hi"}
-        assert context.non_interactive is True
+        assert context.no_tty is True
         assert context.failure_prompter is None
         assert context.pause_store is not None
         assert context.resume_from is None

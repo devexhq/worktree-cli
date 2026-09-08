@@ -96,11 +96,11 @@ All operations that can fail return a Pydantic result object subclassing `BaseRe
 
 ### Runtime & Process Engine Models
 **Relevant sources:** `src/worktree/core/runtime/models.py`, `src/worktree/core/engine/models.py`.
-- `RunContext`: Immutable execution input bundle (`steps`, `cwd`, `use_sandbox`, `keep`, `agent`, `observer`, `inputs`, `non_interactive`, `failure_prompter`, `pause_store`, `resume_from`).
+- `RunContext`: Immutable execution input bundle (`steps`, `cwd`, `use_sandbox`, `keep`, `agent`, `observer`, `inputs`, `no_tty`, `failure_prompter`, `pause_store`, `resume_from`).
 - `RunOutcome`: Terminal run result (`status`, `step_results`, `errors`, `warnings`, `sandbox_kept`, `sandbox_path`, `session_id`, `ok`).
 - `RunStatus`: `StrEnum` (`pending`, `running`, `completed`, `failed`, `paused`, `cancelled`).
 - `RunCheckpoint`: JSON-serializable state for paused runs (`sandbox_path`, `sandbox_id`, `sandbox_branch`, `use_sandbox`, `keep`, `agent`, `inputs`, `pending_step_id`, `pending_result`, `diagnostic`, `next_step_index`).
-- `RunRequest`: Facade execution parameters for `Engine.run` (`inputs`, `cli_args`, `use_sandbox`, `keep`, `agent`, `session_id`, `observer`, `failure_prompter`, `non_interactive`).
+- `RunRequest`: Facade execution parameters for `Engine.run` (`inputs`, `cli_args`, `use_sandbox`, `keep`, `agent`, `session_id`, `observer`, `failure_prompter`, `no_tty`).
 - `ResumableRun`: Non-raising inspector and loader for paused runs.
 - `EngineResumeStatus`: `StrEnum` (`ok`, `not_found`, `wrong_status`, `missing_sandbox`, `corrupt_checkpoint`, `failed`).
 

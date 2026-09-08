@@ -251,8 +251,8 @@ def _prompt_user_decision(
 ) -> tuple[FailurePromptDecision, str | None]:
     """Resolve a ``prompt_user`` decision, degrading to abort when non-interactive."""
     diagnostic = step_failure_diagnostic(result)
-    if context.non_interactive or context.failure_prompter is None:
-        if context.non_interactive:
+    if context.no_tty or context.failure_prompter is None:
+        if context.no_tty:
             warning = f"Warning: step '{step.id}' requested prompt_user but the run is non-interactive; aborting."
         else:
             warning = (
@@ -478,7 +478,7 @@ def _dispatch_step(
             context=step_context,
             observer=context.observer,
             failure_prompter=context.failure_prompter,
-            non_interactive=context.non_interactive,
+            no_tty=context.no_tty,
             pause_store=context.pause_store,
             step_index=step_index + 1,
             identity=context.identity,

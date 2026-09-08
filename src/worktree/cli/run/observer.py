@@ -151,18 +151,18 @@ class DispatcherRunObserver(RunObserver):
 def resolve_cli_observer(
     dispatcher: UiDispatcher,
     *,
-    non_interactive: bool = False,
+    no_tty: bool = False,
     output_format: str = "terminal",
 ) -> DispatcherRunObserver:
     """Return DispatcherRunObserver configured for the execution session.
 
     Args:
         dispatcher: The active UiDispatcher instance.
-        non_interactive: Whether non-interactive execution is requested.
+        no_tty: Whether non-interactive execution is requested.
         output_format: Output format ('terminal' or 'json').
 
     Returns:
         A DispatcherRunObserver instance with live mode enabled if supported.
     """
-    enable_live = output_format == "terminal" and not non_interactive and dispatcher.is_interactive
+    enable_live = output_format == "terminal" and not no_tty and dispatcher.is_interactive
     return DispatcherRunObserver(dispatcher, live=enable_live)

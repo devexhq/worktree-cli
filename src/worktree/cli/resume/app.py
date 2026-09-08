@@ -23,9 +23,9 @@ def resume_callback(
         None,
         help="Session identifier to resume. If omitted, the latest paused session is resumed.",
     ),
-    non_interactive: bool = typer.Option(
+    no_tty: bool = typer.Option(
         False,
-        "--non-interactive",
+        "--no-tty",
         help="Disable interactive prompts; prompt_user failures abort the run.",
     ),
     format: str = typer.Option(
@@ -40,7 +40,7 @@ def resume_callback(
     result = resume_command(
         context,
         session_id=session_id,
-        non_interactive=non_interactive,
+        no_tty=no_tty,
         output_format=format,
     )
     if not result.ok:

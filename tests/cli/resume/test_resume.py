@@ -420,7 +420,7 @@ class ResumeCliTests:
         result = runner.invoke(app, ["resume", "task-fail-run"])
         assert result.exit_code == 1
 
-    def test_resume_cli_non_interactive_aborts_prompt(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    def no_tty(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify non-interactive mode aborts failure prompts cleanly."""
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
@@ -434,7 +434,7 @@ class ResumeCliTests:
         )
         _seed_paused_run(self.db.runs, "task-non-int", "non-int-task", BlueprintKind.TASK)
 
-        result = runner.invoke(app, ["resume", "task-non-int", "--non-interactive"])
+        result = runner.invoke(app, ["resume", "task-non-int", "--no-tty"])
         assert result.exit_code == 1
         assert "Resume Failed" in result.output
 

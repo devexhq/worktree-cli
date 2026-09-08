@@ -18,7 +18,7 @@ wt resume [session_id] [OPTIONS]
 
 | Flag | Description |
 | --- | --- |
-| `--non-interactive` | Disable interactive prompts; prompt_user failures abort the run instead of prompting. |
+| `--no-tty` | Disable interactive prompts; prompt_user failures abort the run instead of prompting. |
 
 ### Behavior
 
@@ -49,5 +49,5 @@ wt resume task_a1b2c3d4
 Resume non-interactively (e.g. in automated scripts):
 
 ```bash
-wt resume --non-interactive
+wt resume --no-tty
 ```
