@@ -68,6 +68,7 @@ CANONICAL_V1_DEFAULTS: dict[str, Any] = {
 }
 
 
+# @TODO: Move this to models.py
 class ConfigGenerationResult(BaseResult):
     """Outcome of attempting to create, skip, repair, or overwrite config."""
 
