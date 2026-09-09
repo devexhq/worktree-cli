@@ -26,6 +26,14 @@ class CatalogItemType(StrEnum):
     STEP = "step"
 
 
+class CatalogItemTypeDirectory(StrEnum):
+    """Catalog item type directories."""
+
+    WORKFLOW = "workflows"
+    TASK = "tasks"
+    STEP = "steps"
+
+
 class RunStatus(StrEnum):
     """Lifecycle status for workflow and task execution sessions."""
 
@@ -193,6 +201,7 @@ class CatalogRecord(SQLModel, table=True):
     sha: str = Field(unique=True)
     item_type: CatalogItemType = Field(sa_type=CatalogItemTypeType, index=True)
     name: str
+    namespace: str | None = Field(default=None)
     path: Path = Field(sa_type=PathType, unique=True)
     checksum: str
     created_at: str = Field(default_factory=_now_utc_str)

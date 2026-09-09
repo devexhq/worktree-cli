@@ -68,39 +68,3 @@ def _find_step_by_scan(steps_dir: Path, step_id_or_name: str) -> StepDefinition 
         if _step_matches(step, step_id_or_name):
             return step
     return None
-
-
-def load_step_by_id(step_id_or_name: str, path: Path) -> StepDefinition:
-    """Resolve a StepDefinition from ``.worktree/catalog/steps/`` by ID or name.
-
-    Direct path resolution joins ``step_id_or_name`` under the steps directory
-    (so ``wt/<name>`` maps to ``.worktree/catalog/steps/wt/<name>.yml``). When no
-    direct file exists, YAML files under the steps tree (including ``wt/``) are
-    scanned for a matching ``id`` or ``name``.
-
-    Args:
-        step_id_or_name: Identifier, name slug, or ``wt/<name>`` catalog path.
-        path: Working directory root.
-
-    Returns:
-        Resolved StepDefinition instance.
-
-    Raises:
-        StepNotFoundError: If step directory does not exist or step is not found.
-        StepValidationError: If matching file has schema validation errors.
-    """
-    root_dir = path.resolve()
-    steps_dir = root_dir / ".worktree" / "catalog" / "steps"
-
-    if not steps_dir.exists() or not steps_dir.is_dir():
-        raise StepNotFoundError(f"Step '{step_id_or_name}' not found. Directory '{steps_dir}' does not exist.")
-
-    direct_path = _direct_step_path(steps_dir, step_id_or_name)
-    if direct_path is not None:
-        return load_step_definition(direct_path)
-
-    matched = _find_step_by_scan(steps_dir, step_id_or_name)
-    if matched is not None:
-        return matched
-
-    raise StepNotFoundError(f"Step '{step_id_or_name}' not found in '{steps_dir}'.")

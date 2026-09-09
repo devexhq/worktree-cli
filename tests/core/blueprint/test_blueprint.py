@@ -14,6 +14,7 @@ from worktree.core.blueprint import (
     BlueprintValidationError,
 )
 from worktree.core.catalog import Catalog
+from worktree.core.db import CatalogItemType
 from worktree.core.inputs import InputType, ParameterInput
 from worktree.core.step import LoopStepBlock, StepDefinition
 
@@ -122,14 +123,14 @@ class BlueprintLoadCatalogTests:
 
     def test_load_task_from_catalog_name(self, fs: FileSystem) -> None:
         fs.write_file(".worktree/catalog/tasks/lint.yml", _task_payload())
-        blueprint = Blueprint.load("lint", catalog=Catalog(fs.base_path))
+        blueprint = Blueprint.load("lint", item_type=CatalogItemType.TASK, catalog=Catalog(fs.base_path))
 
         assert blueprint.kind is BlueprintKind.TASK
         assert blueprint.name == "lint"
         assert len(blueprint.steps) == 1
         assert isinstance(blueprint.steps[0], StepDefinition)
         assert blueprint.dump()["kind"] == "task"
-        raw = Catalog(fs.base_path).resolve("lint").raw
+        raw = Catalog(fs.base_path).resolve("lint", item_type=CatalogItemType.TASK).raw
         assert raw is not None
         assert "kind" not in raw
 
@@ -137,7 +138,7 @@ class BlueprintLoadCatalogTests:
         fs.write_file(".worktree/catalog/workflows/ship.yml", _workflow_payload())
         catalog = Catalog(fs.base_path)
         sha = catalog.list(kind="workflow").items[0].sha
-        blueprint = Blueprint.load(sha, catalog=catalog)
+        blueprint = Blueprint.load(sha, catalog=catalog, item_type=CatalogItemType.WORKFLOW)
 
         assert blueprint.kind is BlueprintKind.WORKFLOW
         assert blueprint.name == "ship"
@@ -147,43 +148,38 @@ class BlueprintLoadCatalogTests:
         fs.write_file(".worktree/catalog/tasks/lint.yml", _task_payload())
         monkeypatch.chdir(fs.base_path)
 
-        blueprint = Blueprint.load("lint")
+        blueprint = Blueprint.load("lint", item_type=CatalogItemType.TASK)
 
         assert blueprint.name == "lint"
         assert blueprint.kind is BlueprintKind.TASK
 
     def test_load_unknown_name_raises_not_found(self, fs: FileSystem) -> None:
         with pytest.raises(BlueprintNotFoundError, match=r"Blueprint 'missing-task' not found in catalog\."):
-            Blueprint.load("missing-task", catalog=Catalog(fs.base_path))
-
-    def test_load_step_only_name_raises_not_found(self, fs: FileSystem) -> None:
-        fs.write_file(".worktree/catalog/steps/git-check.yml", {"id": "git-check", "run": "git status"})
-        with pytest.raises(BlueprintNotFoundError, match=r"Blueprint 'git-check' not found in catalog\."):
-            Blueprint.load("git-check", catalog=Catalog(fs.base_path))
+            Blueprint.load("missing-task", catalog=Catalog(fs.base_path), item_type=CatalogItemType.TASK)
 
     def test_load_malformed_catalog_yaml_raises_load_error(self, fs: FileSystem) -> None:
         fs.write_file(".worktree/catalog/tasks/bad.yml", "invalid: yaml: [")
         with pytest.raises(BlueprintLoadError, match="Failed to load blueprint 'bad' from catalog"):
-            Blueprint.load("bad", catalog=Catalog(fs.base_path))
+            Blueprint.load("bad", catalog=Catalog(fs.base_path), item_type=CatalogItemType.TASK)
 
     def test_load_non_object_catalog_yaml_raises_load_error(self, fs: FileSystem) -> None:
         fs.write_file(".worktree/catalog/tasks/list.yml", "- just\n- a list\n")
         with pytest.raises(BlueprintLoadError, match="Failed to load blueprint 'list' from catalog"):
-            Blueprint.load("list", catalog=Catalog(fs.base_path))
+            Blueprint.load("list", catalog=Catalog(fs.base_path), item_type=CatalogItemType.TASK)
 
     def test_load_invalid_document_raises_validation_error(self, fs: FileSystem) -> None:
         fs.write_file(".worktree/catalog/tasks/broken.yml", {"name": ""})
         with pytest.raises(BlueprintValidationError, match="kind='task'"):
-            Blueprint.load("broken", catalog=Catalog(fs.base_path))
+            Blueprint.load("broken", catalog=Catalog(fs.base_path), item_type=CatalogItemType.TASK)
 
     def test_load_task_with_loop_step_raises_validation_error(self, fs: FileSystem) -> None:
         fs.write_file(".worktree/catalog/tasks/looped.yml", _workflow_payload(name="looped"))
         with pytest.raises(BlueprintValidationError, match="kind=task cannot contain loop steps"):
-            Blueprint.load("looped", catalog=Catalog(fs.base_path))
+            Blueprint.load("looped", catalog=Catalog(fs.base_path), item_type=CatalogItemType.TASK)
 
     def test_load_ignores_authored_yaml_kind(self, fs: FileSystem) -> None:
         fs.write_file(".worktree/catalog/tasks/lint.yml", _task_payload(kind="workflow"))
-        blueprint = Blueprint.load("lint", catalog=Catalog(fs.base_path))
+        blueprint = Blueprint.load("lint", catalog=Catalog(fs.base_path), item_type=CatalogItemType.TASK)
 
         assert blueprint.kind is BlueprintKind.TASK
         assert blueprint.dump()["kind"] == "task"

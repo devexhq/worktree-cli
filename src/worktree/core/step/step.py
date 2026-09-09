@@ -1,0 +1,281 @@
+"""Step domain facade."""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Any
+
+from pydantic import ValidationError
+
+from worktree.core.catalog import Catalog, CatalogFileNotFoundError, CatalogResolveStatus, CatalogYamlError
+from worktree.core.db import CatalogItemType
+from worktree.core.step.assertions import evaluate_assertions
+from worktree.core.step.models import (
+    AssertionResult,
+    ConditionEvaluationResult,
+    ExecutionIdentity,
+    ExecutionMetadata,
+    PreviousStepMetadata,
+    StepAssert,
+    StepDefinition,
+    StepResult,
+    StepType,
+)
+from worktree.core.step.services.conditions import (
+    ParsedCondition,
+    evaluate_condition,
+    parse_condition_expression,
+    validate_condition_expression,
+)
+from worktree.core.step.services.metadata import (
+    build_execution_metadata,
+    metadata_to_env,
+    previous_step_metadata_from_result,
+)
+
+
+class Step:
+    """Unified entrypoint for step definition, resolution, and execution."""
+
+    definition_cls = StepDefinition
+    definition_type = CatalogItemType.STEP
+    instance: StepDefinition
+
+    def __init__(self, *, instance: StepDefinition | None = None, definition: dict[str, Any] | None = None):
+        if instance is not None:
+            self.instance = instance
+        elif definition is not None:
+            self.instance = self.definition_cls.model_validate(definition)
+        else:
+            raise ValueError("Step requires an instance or definition.")
+
+    @classmethod
+    def load(cls, source: dict[str, Any] | Path | str, *, path: Path | None = None) -> Step | None:
+        """Load a step from a dictionary, file path, or catalog step ID."""
+        if isinstance(source, dict):
+            return cls(definition=source)
+        if isinstance(source, Path) or (Path(source).is_file()):
+            return cls.load_by_path(Path(source))
+        return cls.load_by_name(source, path=path or Path("."))
+
+    @classmethod
+    def load_by_name(cls, name: str, *, path: Path) -> Step | None:
+        """Resolve a catalog step by name, returning None when it cannot be loaded."""
+        steps_dir = path / ".worktree" / "catalog" / "steps"
+        if not steps_dir.is_dir():
+            return None
+
+        return (
+            cls._load_direct(name, steps_dir) or cls._load_catalog(name, path) or cls._scan_for_match(name, steps_dir)
+        )
+
+    @classmethod
+    def _load_direct(cls, name: str, steps_dir: Path) -> Step | None:
+        """Load a step that directly matches the requested filename."""
+        for suffix in (".yaml", ".yml"):
+            direct_path = steps_dir / f"{name}{suffix}"
+            if direct_path.is_file():
+                return cls.load_by_path(direct_path)
+        return None
+
+    @classmethod
+    def _load_catalog(cls, name: str, path: Path) -> Step | None:
+        """Load a step through the catalog index by its catalog name."""
+        result = Catalog(path).resolve(name, item_type=cls.definition_type)
+        if result.status is not CatalogResolveStatus.OK or result.raw is None:
+            return None
+        try:
+            return cls(definition=result.raw)
+        except ValidationError:
+            return None
+
+    @classmethod
+    def _scan_for_match(cls, name: str, steps_dir: Path) -> Step | None:
+        """Find a step whose YAML-defined ID or name matches the request."""
+        for candidate in sorted(steps_dir.rglob("*")):
+            if candidate.suffix not in (".yaml", ".yml") or not candidate.is_file():
+                continue
+            step = cls.load_by_path(candidate)
+            if step is not None and (step.instance.id == name or step.instance.name == name):
+                return step
+        return None
+
+    @classmethod
+    def load_by_path(cls, path: str | Path) -> Step | None:
+        """Resolve a catalog item by path, returning None when it cannot be loaded."""
+        try:
+            return cls(definition=Catalog.read_yaml(Path(path)))
+        except (CatalogFileNotFoundError, CatalogYamlError, ValidationError):
+            return None
+
+    # @TODO: Replace `resolve_step_definition` with this so we have a consistent `resolve` function for blueprints
+    def resolve(self, *, path: Path | None = None) -> StepDefinition | None:
+        """Resolve shorthand step fields (e.g. `uses: ...` or `run: ...`)."""
+        return self.resolve_step_definition(path=path)
+
+    # @staticmethod
+    # def run(
+    #     step: StepDefinition,
+    #     sandbox_path: Path,
+    #     *,
+    #     context: dict[str, Any] | None = None,
+    #     on_output: Callable[[str, str], None] | None = None,
+    #     step_index: int = 1,
+    #     initial_attempt: int = 1,
+    #     iteration_index: int = 1,
+    #     identity: ExecutionIdentity | None = None,
+    #     previous_step: PreviousStepMetadata | None = None,
+    #     steps: Sequence[PreviousStepMetadata] | None = None,
+    # ) -> StepResult:
+    #     """Execute a step synchronously within a sandbox directory."""
+    #     exec_context = StepExecutionContext(
+    #         step=step,
+    #         sandbox_path=sandbox_path,
+    #         context=context,
+    #         on_output=on_output,
+    #         step_index=step_index,
+    #         initial_attempt=initial_attempt,
+    #         iteration_index=iteration_index,
+    #         identity=identity,
+    #         previous_step=previous_step,
+    #         steps=steps,
+    #     )
+    #     return StepExecution(exec_context).run()
+
+    @staticmethod
+    def evaluate_assertions(
+        assert_config: StepAssert,
+        *,
+        exit_code: int = 0,
+        stdout: str = "",
+        stderr: str = "",
+        sandbox_path: Path = Path("."),
+    ) -> AssertionResult:
+        """Evaluate a step's assert criteria."""
+        return evaluate_assertions(
+            assert_config,
+            exit_code=exit_code,
+            stdout=stdout,
+            stderr=stderr,
+            sandbox_path=sandbox_path,
+        )
+
+    @staticmethod
+    def evaluate_condition(
+        expression: str,
+        *,
+        iteration_index: int = 1,
+        step_results: dict[str, StepResult] | None = None,
+    ) -> ConditionEvaluationResult:
+        """Parse and evaluate a single condition expression."""
+        return evaluate_condition(
+            expression,
+            iteration_index=iteration_index,
+            step_results=step_results,
+        )
+
+    @staticmethod
+    def parse_condition(expression: str) -> ParsedCondition | None:
+        """Parse condition string into structured ParsedCondition."""
+        return parse_condition_expression(expression)
+
+    @staticmethod
+    def validate_condition(
+        expression: str,
+        known_step_ids: set[str] | None = None,
+    ) -> list[str]:
+        """Validate condition expression syntax and step references."""
+        return validate_condition_expression(expression, known_step_ids=known_step_ids)
+
+    @staticmethod
+    def build_metadata(
+        step: StepDefinition,
+        *,
+        step_index: int = 1,
+        attempt: int = 1,
+        iteration_index: int = 1,
+        identity: ExecutionIdentity | None = None,
+        previous_step: PreviousStepMetadata | None = None,
+        steps: Sequence[PreviousStepMetadata] | None = None,
+    ) -> ExecutionMetadata:
+        """Build execution metadata container for step interpolation and environment."""
+        return build_execution_metadata(
+            step,
+            step_index=step_index,
+            attempt=attempt,
+            iteration_index=iteration_index,
+            identity=identity,
+            previous_step=previous_step,
+            steps=steps,
+        )
+
+    @staticmethod
+    def metadata_to_env(metadata: ExecutionMetadata) -> dict[str, str]:
+        """Convert step execution metadata to environment variables map."""
+        return metadata_to_env(metadata)
+
+    @staticmethod
+    def previous_step_metadata(result: StepResult, *, step_index: int = 1) -> PreviousStepMetadata:
+        """Construct PreviousStepMetadata from a completed StepResult."""
+        return previous_step_metadata_from_result(result, step_index=step_index)
+
+    def resolve_step_definition(self, *, path: Path | None = None) -> StepDefinition | None:
+        """Resolve a step, following its dependencies if any."""
+        if self.instance.run is not None:
+            return self._resolve_run()
+
+        if self.instance.uses is not None:
+            return self._resolve_from_uses(path=path)
+
+        if self.instance.type is not None:
+            return self.instance
+
+        return None
+
+    def _resolve_run(self) -> StepDefinition:
+        return StepDefinition.model_validate(
+            {
+                "id": self.instance.id,
+                "name": self.instance.name,
+                "description": self.instance.description,
+                "type": StepType.COMMAND,
+                "command": self.instance.run,
+                "env": self.instance.env,
+                "timeout_seconds": self.instance.timeout_seconds,
+                "assert": self.instance.assert_,
+                "on_failure": self.instance.on_failure,
+            }
+        )
+
+    def _resolve_from_uses(self, path: Path | None = None) -> StepDefinition | None:
+        """Load the referenced step and apply only the fields the referencing step explicitly set."""
+        if path is None:
+            return None
+        base_step = Step.load_by_name(str(self.instance.uses), path=path)
+        if base_step is None:
+            return None
+        base_definition = base_step.instance
+        fields_set = self.instance.model_fields_set
+
+        def _pick(field_name: str) -> object:
+            return (
+                getattr(self.instance, field_name) if field_name in fields_set else getattr(base_definition, field_name)
+            )
+
+        return StepDefinition.model_validate(
+            {
+                "id": self.instance.id,
+                "name": _pick("name"),
+                "type": base_definition.type,
+                "description": _pick("description"),
+                "command": base_definition.command,
+                "prompt": _pick("prompt"),
+                "script_path": _pick("script_path"),
+                "tools": _pick("tools"),
+                "env": {**base_definition.env, **self.instance.env},
+                "timeout_seconds": _pick("timeout_seconds"),
+                "assert": _pick("assert_"),
+                "on_failure": _pick("on_failure"),
+            }
+        )

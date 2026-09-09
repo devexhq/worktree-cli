@@ -7,6 +7,8 @@ from tests.helpers import FileSystem, make_cli_context
 from worktree.cli import app
 from worktree.core.blueprint import Blueprint
 from worktree.core.catalog import Catalog
+from worktree.core.db import CatalogItemType
+from worktree.core.db.models import BlueprintKind
 from worktree.core.engine import BlueprintRunService
 
 runner = CliRunner()
@@ -27,7 +29,7 @@ class NoSandboxCliTests:
             },
         )
 
-        blueprint = Blueprint.load("in-place-task", catalog=Catalog(fs.base_path))
+        blueprint = Blueprint.load("in-place-task", catalog=Catalog(fs.base_path), item_type=CatalogItemType.TASK)
         assert blueprint.use_sandbox is False
 
     def test_run_command_no_sandbox_flag(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -52,10 +54,12 @@ class NoSandboxCliTests:
             runs_db=ctx.db.runs,
             catalog_db=ctx.db.catalog,
             no_sandbox=True,
+            kind=BlueprintKind.TASK,
         ).execute()
         assert res.ok
 
         # CLI test
         result = runner.invoke(app, ["run", "sample-task", "--no-sandbox"])
+        print(result.__dict__)
         assert result.exit_code == 0
         assert "Sandbox: In-place (workspace)" in result.output

@@ -5,7 +5,7 @@ from __future__ import annotations
 from tests.helpers import GitFileSystem
 from worktree.core.blueprint import Blueprint
 from worktree.core.catalog import Catalog
-from worktree.core.db import RunStatus, WorktreeDb
+from worktree.core.db import CatalogItemType, RunStatus, WorktreeDb
 from worktree.core.engine import Engine, load_session_run
 from worktree.core.engine.models import RunRequest
 
@@ -34,7 +34,7 @@ class EngineSessionPersistenceTests:
         catalog = Catalog(git_fs.base_path, db=db.catalog)
         engine = Engine(git_fs.base_path, db=db.runs, catalog=catalog)
 
-        blueprint = Blueprint.load("test-task", catalog=catalog)
+        blueprint = Blueprint.load("test-task", catalog=catalog, item_type=CatalogItemType.TASK)
 
         request = RunRequest(session_id="task_persisted_1", use_sandbox=True)
         outcome = engine.run(blueprint, request)

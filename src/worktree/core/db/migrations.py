@@ -13,7 +13,7 @@ from worktree.core.db.connection import (
 )
 
 INITIAL_SCHEMA_REVISION = "0001_initial_schema"
-LATEST_SCHEMA_REVISION = "0002_add_run_pid"
+LATEST_SCHEMA_REVISION = "0003_add_catalog_namespace"
 
 
 def init_database(

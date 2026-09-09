@@ -93,7 +93,7 @@ def run_command(
             path=context.cwd,
             runs_db=context.db.runs,
             catalog_db=context.db.catalog,
-            kind=None,
+            kind=default_kind,
             no_sandbox=no_sandbox,
             keep=keep,
             agent=agent,

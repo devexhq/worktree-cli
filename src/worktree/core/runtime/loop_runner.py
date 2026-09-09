@@ -20,6 +20,7 @@ from worktree.core.runtime.models import (
     RunPauseStore,
     StepLoopState,
 )
+from worktree.core.step import StepExecution
 from worktree.core.step.models import (
     ConditionEvaluationResult,
     ExecutionIdentity,
@@ -30,7 +31,6 @@ from worktree.core.step.models import (
     StepExecutionContext,
     StepResult,
 )
-from worktree.core.step.runner import StepExecution
 from worktree.core.step.services.conditions import evaluate_condition
 from worktree.core.step.services.metadata import previous_step_metadata_from_result
 

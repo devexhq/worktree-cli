@@ -1,7 +1,6 @@
 """Core step package for loading, resolving, and executing step primitives."""
 
 from worktree.core.step.exceptions import StepNotFoundError, StepValidationError
-from worktree.core.step.facade import Step
 from worktree.core.step.models import (
     DEFAULT_STEP_TIMEOUT_SECONDS,
     AssertionResult,
@@ -18,13 +17,15 @@ from worktree.core.step.models import (
     StepDefinition,
     StepExecutionContext,
     StepMetadata,
+    StepResult,
     StepType,
     TaskMetadata,
     WorkflowMetadata,
     apply_on_failure_default,
     extract_defaults_on_failure,
 )
-from worktree.core.step.runner import StepExecution, StepResult
+from worktree.core.step.runner import StepExecution
+from worktree.core.step.step import Step
 
 __all__ = [
     "DEFAULT_STEP_TIMEOUT_SECONDS",

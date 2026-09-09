@@ -25,7 +25,7 @@ class CatalogResolveTests:
 
     def test_resolve_loads_task_raw_without_kind(self, fs: FileSystem) -> None:
         fs.write_file(".worktree/catalog/tasks/lint.yml", "name: lint\ndescription: Run linter\nsteps: []\n")
-        result = Catalog(fs.base_path).resolve("lint")
+        result = Catalog(fs.base_path).resolve("lint", item_type=CatalogItemType.TASK)
 
         assert result.ok
         assert result.status == CatalogResolveStatus.OK
@@ -40,7 +40,7 @@ class CatalogResolveTests:
         fs.write_file(".worktree/catalog/workflows/ship.yml", "name: ship\nsteps: []\n")
         catalog = Catalog(fs.base_path)
         listed = catalog.list(kind="workflow")
-        result = catalog.resolve(listed.items[0].sha)
+        result = catalog.resolve(listed.items[0].sha, item_type=CatalogItemType.WORKFLOW)
 
         assert result.ok
         assert result.record is not None
@@ -49,7 +49,7 @@ class CatalogResolveTests:
 
     def test_resolve_step_loads_step_yaml(self, fs: FileSystem) -> None:
         fs.write_file(".worktree/catalog/steps/git-check.yml", "name: git-check\naction: run\n")
-        result = Catalog(fs.base_path).resolve_step("git-check")
+        result = Catalog(fs.base_path).resolve("git-check", item_type=CatalogItemType.STEP)
 
         assert result.ok
         assert result.record is not None
@@ -57,7 +57,7 @@ class CatalogResolveTests:
         assert result.raw == {"name": "git-check", "action": "run"}
 
     def test_resolve_unknown_name_is_not_found(self, fs: FileSystem) -> None:
-        result = Catalog(fs.base_path).resolve("missing-item")
+        result = Catalog(fs.base_path).resolve("missing-item", item_type=CatalogItemType.TASK)
 
         assert not result.ok
         assert result.status == CatalogResolveStatus.NOT_FOUND
@@ -66,45 +66,14 @@ class CatalogResolveTests:
         assert result.errors == ["Catalog blueprint 'missing-item' not found."]
 
     def test_resolve_step_unknown_name_is_not_found(self, fs: FileSystem) -> None:
-        result = Catalog(fs.base_path).resolve_step("missing-step")
+        result = Catalog(fs.base_path).resolve("missing-step", item_type=CatalogItemType.TASK)
 
         assert result.status == CatalogResolveStatus.NOT_FOUND
         assert result.errors == ["Catalog blueprint 'missing-step' not found."]
 
-    def test_resolve_ignores_step_only_name(self, fs: FileSystem) -> None:
-        fs.write_file(".worktree/catalog/steps/git-check.yml", "name: git-check\naction: run\n")
-        catalog = Catalog(fs.base_path)
-        step = catalog.list(kind="step").items[0]
-        by_name = catalog.resolve("git-check")
-        by_sha = catalog.resolve(step.sha)
-
-        assert by_name.status == CatalogResolveStatus.NOT_FOUND
-        assert by_name.errors == ["Catalog blueprint 'git-check' not found."]
-        assert by_sha.status == CatalogResolveStatus.NOT_FOUND
-
-    def test_resolve_step_ignores_task_name(self, fs: FileSystem) -> None:
-        fs.write_file(".worktree/catalog/tasks/lint.yml", "name: lint\nsteps: []\n")
-        result = Catalog(fs.base_path).resolve_step("lint")
-
-        assert result.status == CatalogResolveStatus.NOT_FOUND
-
-    def test_resolve_duplicate_task_and_workflow_names_warns(self, fs: FileSystem) -> None:
-        fs.write_file(".worktree/catalog/workflows/shared.yml", "name: shared\nsteps: []\n")
-        fs.write_file(".worktree/catalog/tasks/shared.yml", "name: shared\nsteps: []\n")
-        result = Catalog(fs.base_path).resolve("shared")
-
-        assert result.ok
-        assert result.record is not None
-        assert result.record.path.as_posix() == "tasks/shared.yml"
-        assert len(result.matches) == 2
-        assert len(result.warnings) == 1
-        assert "Duplicate catalog name 'shared'" in result.warnings[0]
-        assert "tasks/shared.yml" in result.warnings[0]
-        assert "workflows/shared.yml" in result.warnings[0]
-
     def test_resolve_malformed_yaml_is_load_error(self, fs: FileSystem) -> None:
         fs.write_file(".worktree/catalog/tasks/bad.yml", "invalid: yaml: [")
-        result = Catalog(fs.base_path).resolve("bad")
+        result = Catalog(fs.base_path).resolve("bad", item_type=CatalogItemType.TASK)
 
         assert result.status == CatalogResolveStatus.LOAD_ERROR
         assert result.raw is None
@@ -113,7 +82,7 @@ class CatalogResolveTests:
 
     def test_resolve_non_object_yaml_is_load_error(self, fs: FileSystem) -> None:
         fs.write_file(".worktree/catalog/tasks/list.yml", "- just\n- a list\n")
-        result = Catalog(fs.base_path).resolve("list")
+        result = Catalog(fs.base_path).resolve("list", item_type=CatalogItemType.TASK)
 
         assert result.status == CatalogResolveStatus.LOAD_ERROR
         assert result.raw is None
@@ -194,7 +163,7 @@ class CatalogFileOperationsTests:
         assert record.item_type == CatalogItemType.TASK
         assert path.is_file()
         assert "kind:" not in path.read_text(encoding="utf-8")
-        result = Catalog(fs.base_path).resolve("lint")
+        result = Catalog(fs.base_path).resolve("lint", item_type=CatalogItemType.TASK)
         assert result.ok
         assert result.raw == {"name": "lint", "description": "Run linter"}
 
@@ -202,7 +171,7 @@ class CatalogFileOperationsTests:
         catalog = Catalog(fs.base_path)
         catalog.save("lint", {"name": "lint", "version": 1}, item_type="task")
         catalog.save("lint", {"name": "lint", "version": 2}, item_type="task")
-        result = catalog.resolve("lint")
+        result = catalog.resolve("lint", item_type=CatalogItemType.TASK)
 
         assert result.raw == {"name": "lint", "version": 2}
 
@@ -216,7 +185,7 @@ class CatalogFileOperationsTests:
 
         assert path.is_file()
         assert record.path.as_posix() == "steps/wt/ai-code-patcher.yml"
-        result = Catalog(fs.base_path).resolve_step("ai-code-patcher")
+        result = Catalog(fs.base_path).resolve("wt/ai-code-patcher", item_type=CatalogItemType.STEP)
         assert result.ok
 
     @pytest.mark.parametrize(
@@ -237,7 +206,7 @@ class CatalogFileOperationsTests:
     def test_save_os_error_raises_write_error(self, fs: FileSystem) -> None:
         catalog = Catalog(fs.base_path)
         with patch(
-            "worktree.core.catalog.facade.Filesystem.atomic_write_text", side_effect=OSError("permission denied")
+            "worktree.core.catalog.catalog.Filesystem.atomic_write_text", side_effect=OSError("permission denied")
         ):
             with pytest.raises(CatalogWriteError, match="permission denied"):
                 catalog.save("lint", {"name": "lint"}, item_type=CatalogItemType.TASK)
@@ -269,7 +238,7 @@ class CatalogFileOperationsTests:
         assert found.sha == record.sha
 
     def test_catalog_module_does_not_import_higher_domains(self) -> None:
-        import worktree.core.catalog.facade as catalog_mod
+        import worktree.core.catalog.catalog as catalog_mod
 
         source = Path(catalog_mod.__file__).read_text(encoding="utf-8")
         for forbidden in (

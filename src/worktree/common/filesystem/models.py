@@ -15,6 +15,7 @@ class YamlFile(BaseModel):
 
     name: str
     path: Path
+    namespace: str | None = None
     error: str | None = None
     parsed: Any | None = None
     content: str | None = ""
@@ -32,6 +33,9 @@ class FilesystemPaths(BaseModel):
     config_file: Path
     db_file: Path
     catalog_dir: Path
+    catalog_workflows_dir: Path
+    catalog_steps_dir: Path
+    catalog_tasks_dir: Path
     logs_dir: Path
     sessions_dir: Path
     artifacts_dir: Path
@@ -54,6 +58,9 @@ class FilesystemPaths(BaseModel):
             config_file=wt / "config.json",
             db_file=wt / "data.db",
             catalog_dir=wt / "catalog",
+            catalog_workflows_dir=wt / "catalog" / "workflows",
+            catalog_steps_dir=wt / "catalog" / "steps",
+            catalog_tasks_dir=wt / "catalog" / "tasks",
             logs_dir=wt / "logs",
             sessions_dir=wt / "sessions",
             artifacts_dir=wt / "artifacts",

@@ -29,14 +29,16 @@ class CatalogRepository(BaseRepository):
         sha: str,
         item_type: CatalogItemType | str,
         name: str,
+        namespace: str | None,
         path: Path | str,
         checksum: str,
     ) -> CatalogRecord:
         """Insert a new catalog record or update fields on ``path`` match.
 
         If a record with the same ``path`` already exists, its ``sha``,
-        ``item_type``, ``name``, ``checksum``, and ``updated_at`` are updated
-        in-place and the existing ``id`` / ``created_at`` are preserved.
+        ``item_type``, ``name``, ``namespace``, ``checksum``, and ``updated_at``
+        are updated in-place and the existing ``id`` / ``created_at`` are
+        preserved.
 
         Returns:
             The committed `CatalogRecord`.
@@ -57,6 +59,7 @@ class CatalogRepository(BaseRepository):
                 existing.sha = sha
                 existing.item_type = type_enum
                 existing.name = name
+                existing.namespace = namespace
                 existing.checksum = checksum
                 existing.updated_at = now_utc
                 record = existing
@@ -65,6 +68,7 @@ class CatalogRepository(BaseRepository):
                     sha=sha,
                     item_type=type_enum,
                     name=name,
+                    namespace=namespace,
                     path=coerced_path,
                     checksum=checksum,
                     created_at=now_utc,
@@ -103,15 +107,36 @@ class CatalogRepository(BaseRepository):
         self,
         name: str,
         item_type: CatalogItemType | str | None = None,
+        namespace: str | None = None,
     ) -> list[CatalogRecord]:
         """Return all catalog records matching ``name`` (and optional ``item_type``), ordered by path ASC."""
         with self.session() as session:
-            statement = select(CatalogRecord).where(CatalogRecord.name == name)
+            statement = select(CatalogRecord).where(CatalogRecord.name == name, CatalogRecord.namespace == namespace)
             if item_type is not None:
                 type_enum = _coerce_item_type(item_type)
                 statement = statement.where(CatalogRecord.item_type == type_enum)
             statement = statement.order_by(col(CatalogRecord.path).asc())
             return list(session.exec(statement).all())
+
+    def find_catalog_matches(
+        self,
+        sha_or_name: str,
+        item_type: CatalogItemType | str | None,
+        namespace: str | None = None,
+    ) -> list[CatalogRecord]:
+        """Return all catalog records matching ``sha_or_name`` (and optional ``item_type``), ordered by path ASC."""
+        item_type_string = (
+            item_type.value
+            if isinstance(item_type, CatalogItemType)
+            else (str(item_type).lower() if item_type is not None else None)
+        )
+
+        item_by_sha = self.get_by_sha(sha_or_name)
+        if item_by_sha is not None:
+            if item_type_string is None or item_by_sha.item_type.value == item_type_string:
+                return [item_by_sha]
+            return []
+        return self.list_by_name(sha_or_name, item_type=item_type, namespace=namespace)
 
     def delete(self, sha: str) -> bool:
         """Delete a catalog record by ``sha``. Returns ``True`` if a row was deleted."""

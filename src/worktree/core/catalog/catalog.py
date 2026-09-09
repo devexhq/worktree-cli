@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Protocol
 
 import yaml
 
+from worktree.common.exceptions import DefinitionLoadError, DefinitionValidationError
 from worktree.common.filesystem import Filesystem
 from worktree.common.lock import WorkspaceLock
-from worktree.common.models import DefinitionResolutionResult
+from worktree.common.models import DefinitionResolutionResult, DefinitionResolutionStatus
 from worktree.core.catalog.exceptions import (
     CatalogFileNotFoundError,
     CatalogWriteError,
@@ -23,6 +24,8 @@ from worktree.core.catalog.models import (
     CatalogResolveStatus,
     CatalogScanResult,
     CatalogShowResult,
+    DefinitionValidationOutcome,
+    YamlParseOutcome,
 )
 from worktree.core.catalog.services.inventory import (
     create_catalog_item,
@@ -30,7 +33,6 @@ from worktree.core.catalog.services.inventory import (
     ensure_catalog_dirs,
     find_packaged_templates,
     get_catalog_dir,
-    get_catalog_item,
     list_packaged_template_defaults,
     scan_and_index_catalog,
 )
@@ -45,6 +47,13 @@ from worktree.core.db import (
 )
 
 
+class _PydanticModel(Protocol):
+    """Minimal protocol for catalog definition classes validated via Pydantic."""
+
+    @classmethod
+    def model_validate(cls, obj: Any) -> Any: ...
+
+
 class Catalog:
     """Unified entrypoint for blueprint catalog inventory and management."""
 
@@ -57,6 +66,11 @@ class Catalog:
         self.path = path.resolve()
         self.cwd = self.path
         self.db = db if db is not None else CatalogRepository(self.path)
+
+    @property
+    def root_dir(self):
+        """Return the root catalogs direcotry path."""
+        return Filesystem(self.path).catalog_dir
 
     def list(
         self,
@@ -117,25 +131,94 @@ class Catalog:
 
         return CatalogShowResult(item=item, content=content)
 
-    def resolve(self, name: str) -> CatalogResolveResult:
+    def resolve(self, name: str, item_type: CatalogItemType) -> CatalogResolveResult:
         """Load a task or workflow YAML by SHA or catalog name."""
-        return self._resolve(name, self._TASK_AND_WORKFLOW)
+        """Reindex, find typed matches, and load the winning YAML object."""
+        scan_and_index_catalog(self.path, db=self.db)
+        non_namespaced_name, namespace = self._split_name_and_namespace(name)
+        matches = self._find_typed_matches(non_namespaced_name, [item_type], namespace=namespace)
+        if not matches:
+            return CatalogResolveResult(
+                status=CatalogResolveStatus.NOT_FOUND,
+                name=name,
+                errors=[f"Catalog blueprint '{name}' not found."],
+            )
+        winner = matches[0]
+        warnings = [self._duplicate_name_warning(name, winner, matches)] if len(matches) > 1 else []
+        raw, parse_errors = self._parse_catalog_yaml(get_catalog_dir(self.path) / winner.path, winner.path)
+        if parse_errors or raw is None:
+            return CatalogResolveResult(
+                status=CatalogResolveStatus.LOAD_ERROR,
+                name=name,
+                record=winner,
+                matches=matches,
+                errors=parse_errors,
+                warnings=warnings,
+            )
+        return CatalogResolveResult(
+            status=CatalogResolveStatus.OK,
+            name=name,
+            raw=raw,
+            record=winner,
+            matches=matches,
+            warnings=warnings,
+        )
 
-    def resolve_step(self, name: str) -> CatalogResolveResult:
-        """Load a reusable step YAML by SHA or catalog name."""
-        return self._resolve(name, self._STEP_ONLY)
+    def _split_name_and_namespace(self, name: str) -> tuple[str, str | None]:
+        if "/" not in name:
+            return name, None
+        namespace_parts = name.split("/")
+        namespace = "/".join(namespace_parts[:-1])
+        non_namespaced_name = name.strip(f"{namespace}/")
+        return non_namespaced_name, namespace
 
-    def get(
+    def get[T](
         self,
         sha_or_name: str,
         item_type: CatalogItemType | str | None = None,
+        definition_cls: type[_PydanticModel] | None = None,
     ) -> DefinitionResolutionResult[CatalogRecord]:
         """Retrieve indexed catalog record by SHA or name."""
-        return get_catalog_item(
-            sha_or_name,
-            type_filter=item_type,
-            path=self.path,
-            db=self.db,
+        """Retrieve catalog blueprint record by SHA or name, optionally validating its content into ``definition_cls``."""
+        self.sync()
+        non_namespaced_name, namespace = self._split_name_and_namespace(sha_or_name)
+        matches = self.db.find_catalog_matches(non_namespaced_name, item_type, namespace=namespace)
+
+        if not matches:
+            return DefinitionResolutionResult(
+                status=DefinitionResolutionStatus.NOT_FOUND,
+                requested_name=sha_or_name,
+                resolved=None,
+                matches=[],
+                errors=[f"Catalog blueprint '{sha_or_name}' not found."],
+            )
+
+        winner = matches[0]
+        warnings: list[str] = []
+        if len(matches) > 1:
+            other_matching_paths = ", ".join(m.path.as_posix() for m in matches if m.path != winner.path)
+            warnings.append(
+                f"Duplicate catalog name '{sha_or_name}'; using '{winner.path.as_posix()}' (also found in: {other_matching_paths})."
+            )
+
+        definition: Any | None = None
+        errors: list[str] = []
+        status = DefinitionResolutionStatus.OK
+
+        if definition_cls is not None:
+            validation_outcome = self._validate_definition(winner, definition_cls, sha_or_name)
+            definition = validation_outcome.definition
+            status = validation_outcome.status
+            errors = validation_outcome.errors
+
+        return DefinitionResolutionResult(
+            status=status,
+            requested_name=sha_or_name,
+            resolved=winner,
+            definition=definition,
+            matches=matches,
+            errors=errors,
+            warnings=warnings,
         )
 
     def create(
@@ -221,37 +304,6 @@ class Catalog:
             raise CatalogYamlError(f"Failed to load catalog blueprint '{path}': {detail}")
         return yaml_file.parsed
 
-    def _resolve(self, name: str, allowed_types: frozenset[CatalogItemType]) -> CatalogResolveResult:
-        """Reindex, find typed matches, and load the winning YAML object."""
-        scan_and_index_catalog(self.path, db=self.db)
-        matches = self._find_typed_matches(name, allowed_types)
-        if not matches:
-            return CatalogResolveResult(
-                status=CatalogResolveStatus.NOT_FOUND,
-                name=name,
-                errors=[f"Catalog blueprint '{name}' not found."],
-            )
-        winner = matches[0]
-        warnings = [self._duplicate_name_warning(name, winner, matches)] if len(matches) > 1 else []
-        raw, parse_errors = self._parse_catalog_yaml(get_catalog_dir(self.path) / winner.path, winner.path)
-        if parse_errors or raw is None:
-            return CatalogResolveResult(
-                status=CatalogResolveStatus.LOAD_ERROR,
-                name=name,
-                record=winner,
-                matches=matches,
-                errors=parse_errors,
-                warnings=warnings,
-            )
-        return CatalogResolveResult(
-            status=CatalogResolveStatus.OK,
-            name=name,
-            raw=raw,
-            record=winner,
-            matches=matches,
-            warnings=warnings,
-        )
-
     @staticmethod
     def _coerce_item_type(value: CatalogItemType | str) -> CatalogItemType:
         """Parse a catalog item type or raise ValueError with allowed choices."""
@@ -272,7 +324,9 @@ class Catalog:
             return name[:-4]
         return name
 
-    def _find_typed_matches(self, name: str, allowed_types: frozenset[CatalogItemType]) -> list[CatalogRecord]:
+    def _find_typed_matches(
+        self, name: str, allowed_types: list[CatalogItemType], namespace: str | None = None
+    ) -> list[CatalogRecord]:
         """Return SHA or name matches restricted to ``allowed_types``, path-ascending."""
         by_sha = self.db.get_by_sha(name)
         if by_sha is not None:
@@ -281,7 +335,7 @@ class Catalog:
             return []
         matches: list[CatalogRecord] = []
         for item_type in allowed_types:
-            matches.extend(self.db.list_by_name(name, item_type=item_type))
+            matches.extend(self.db.list_by_name(name, item_type=item_type, namespace=namespace))
         return sorted(matches, key=lambda record: record.path.as_posix())
 
     @staticmethod
@@ -304,3 +358,53 @@ class Catalog:
     def _record_for_rel_path(self, rel_path: Path) -> CatalogRecord | None:
         """Return the indexed record whose path equals ``rel_path``."""
         return self.db.get_by_path(rel_path)
+
+    def _read_and_parse_yaml(self, file_path: Path, rel_path: Path) -> YamlParseOutcome:
+        yaml_file = Filesystem.read_yaml_file(file_path)
+        if yaml_file.error or yaml_file.parsed is None or not isinstance(yaml_file.parsed, dict):
+            error_message = (
+                yaml_file.error or f"Failed to load catalog blueprint '{rel_path}': invalid or non-object YAML content."
+            )
+            return YamlParseOutcome(parsed_data=None, errors=[error_message])
+        return YamlParseOutcome(parsed_data=yaml_file.parsed, errors=[])
+
+    def _validate_definition(
+        self,
+        winner: CatalogRecord,
+        definition_cls: type[_PydanticModel],
+        sha_or_name: str,
+    ) -> DefinitionValidationOutcome:
+        file_path = self.root_dir / winner.path
+        parse_outcome = self._read_and_parse_yaml(file_path, winner.path)
+        if parse_outcome.errors or parse_outcome.parsed_data is None:
+            return DefinitionValidationOutcome(
+                definition=None,
+                status=DefinitionResolutionStatus.LOAD_ERROR,
+                errors=parse_outcome.errors,
+            )
+
+        parsed_data = parse_outcome.parsed_data
+        schema_validator = getattr(definition_cls, "schema_validator", None)
+        if schema_validator is not None and hasattr(schema_validator, "validate"):
+            validation_result = schema_validator.validate(parsed_data)
+            if hasattr(validation_result, "ok") and not validation_result.ok:
+                validation_errors = list(getattr(validation_result, "errors", [str(validation_result)]))
+                return DefinitionValidationOutcome(
+                    definition=None,
+                    status=DefinitionResolutionStatus.LOAD_ERROR,
+                    errors=validation_errors,
+                )
+
+        try:
+            definition = definition_cls.model_validate(parsed_data)
+            return DefinitionValidationOutcome(
+                definition=definition,
+                status=DefinitionResolutionStatus.OK,
+                errors=[],
+            )
+        except (Exception, DefinitionLoadError, DefinitionValidationError) as exc:
+            return DefinitionValidationOutcome(
+                definition=None,
+                status=DefinitionResolutionStatus.LOAD_ERROR,
+                errors=[f"Model validation failed for '{sha_or_name}': {exc}"],
+            )
