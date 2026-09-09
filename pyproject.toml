@@ -22,6 +22,7 @@ dependencies = [
     "pydantic>=2.0.0",
     "sqlmodel>=0.0.22",
     "alembic>=1.13.0",
+    "pre-commit>=4.6.2",
 ]
 
 [project.urls]
@@ -161,6 +162,13 @@ docstring-code-line-length = "dynamic"
 dev = [
     "basedpyright>=1.39.10",
 ]
+
+[tool.complexipy]
+max-complexity-allowed = 10       # Fails the hook if any function is over 12 (default is 15)
+output-format = "json"            # Change reporting style
+check-script = true               # Score module-level/top-level logic, not just functions
+suggest-refactors = false          # Show deterministic Rust AST-based refactor plans
+failed = true
 
 [tool.basedpyright]
 # Source and test suites type-checked under recommended mode.

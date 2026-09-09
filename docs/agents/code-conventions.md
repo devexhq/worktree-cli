@@ -100,9 +100,9 @@ Operations that can fail return a Pydantic result object subclassing `BaseResult
 ---
 
 ## Console Output and Terminal Formatting
- 
+
 **Relevant sources:** `src/worktree/cli/ui/`
- 
+
 - Terminal output must route through `ui_dispatcher.dispatch(result)`. Direct
   `print()`, `rich` imports, `typer.echo`, and console writes belong only in
   `src/worktree/cli/ui/`. Ruff (`T20`, `TID251`) and the AST suite enforce

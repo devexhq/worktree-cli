@@ -56,6 +56,7 @@ def make_run_context(
     return RunContext(**defaults)
 
 
+# complexipy: ignore (Needs to be refactored at a later date)
 def patch_execute(
     monkeypatch: pytest.MonkeyPatch,
     behavior: Any = None,
@@ -119,6 +120,7 @@ def patch_execute(
     return calls
 
 
+# complexipy:ignore (Needs to be refactored but this is not happening today)
 def _resolve_execute_behavior(
     step: StepDefinition,
     behavior: Any,
