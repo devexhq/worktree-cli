@@ -66,17 +66,20 @@ class ConfigV1SchemaAcceptTests:
         result = CONFIG_VALIDATOR.validate(copy.deepcopy(CANONICAL_V1_DEFAULTS))
         assert result.ok, result.errors
 
-    @pytest.mark.parametrize("provider", [
-        pytest.param("local", id="local"),
-        pytest.param("ollama", id="ollama"),
-        pytest.param("cursor", id="cursor"),
-        pytest.param("gemini", id="gemini"),
-        pytest.param("copilot", id="copilot"),
-        pytest.param("openai", id="openai"),
-        pytest.param("anthropic", id="anthropic"),
-        pytest.param("azure_openai", id="azure_openai"),
-        pytest.param("custom", id="custom"),
-    ])
+    @pytest.mark.parametrize(
+        "provider",
+        [
+            pytest.param("local", id="local"),
+            pytest.param("ollama", id="ollama"),
+            pytest.param("cursor", id="cursor"),
+            pytest.param("gemini", id="gemini"),
+            pytest.param("copilot", id="copilot"),
+            pytest.param("openai", id="openai"),
+            pytest.param("anthropic", id="anthropic"),
+            pytest.param("azure_openai", id="azure_openai"),
+            pytest.param("custom", id="custom"),
+        ],
+    )
     def test_all_allowed_providers(self, provider: str) -> None:
         data = _mutate("agent.provider", provider)
         assert CONFIG_VALIDATOR.validate(data).ok, provider
