@@ -227,4 +227,3 @@ steps:
 - Learn how to pass arguments in [Parameter Inputs & Expressions](passing-inputs.md).
 - Configure assertions and retry policies in [Failure Handling & Resumption](failure-handling-and-resume.md).
 - Read the [Step Schema Reference](../reference/step-schema.md) for full syntax specifications.
-

@@ -42,7 +42,7 @@ inv complexity --paths <changed-file1>,<changed-file2> --plain   # complexity ga
 
 ## Testing / Code Quality
 
-Use `uv run inv test` during development. Prefer scoping to the test module/function during quick iterations. 
+Use `uv run inv test` during development. Prefer scoping to the test module/function during quick iterations.
 Before committing, all of these must pass:
 `inv test -c` (coverage, **≥ 80%** via `fail_under` in `pyproject.toml`),
 `ruff format`, `ruff check`, `basedpyright src tests --level error`,

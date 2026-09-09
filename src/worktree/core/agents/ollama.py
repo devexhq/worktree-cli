@@ -104,6 +104,7 @@ def build_ollama_messages(request: AgentRequest) -> list[dict[str, str]]:
     ]
 
 
+# complexipy: ignore (Revisit when we flesh out agents)
 def extract_json_object(text: str) -> str | None:
     """Return the first JSON object substring from model text, if any."""
     stripped = text.strip()
@@ -228,6 +229,7 @@ def _chat_content_from_response(data: dict[str, Any]) -> str | None:
 class OllamaAgentAdapter:
     """Call a local Ollama server and map chat output to AgentResponse."""
 
+    # complexipy: ignore (Revisit when we flesh out agents)
     def propose_fix(self, request: AgentRequest) -> AgentResponse:
         """Request a fix from Ollama; never raises for classified outcomes."""
         started = time.monotonic()

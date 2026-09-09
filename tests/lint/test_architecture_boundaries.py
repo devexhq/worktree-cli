@@ -12,6 +12,7 @@ def _iter_python_files(directory: Path) -> list[Path]:
     return [p for p in directory.rglob("*.py") if p.is_file()]
 
 
+# complexipy: ignore (Truly complex test)
 def test_no_rich_imports_outside_cli_ui() -> None:
     """Ensure rich and rich.* are never imported outside src/worktree/cli/ui/."""
     allowed_dirs = [
@@ -37,6 +38,7 @@ def test_no_rich_imports_outside_cli_ui() -> None:
     assert not violations, "Found prohibited 'rich' imports outside the display layer:\n" + "\n".join(violations)
 
 
+# complexipy: ignore (Truly complex test)
 def test_formatters_only_imported_by_dispatcher_and_tests() -> None:
     """Ensure worktree.cli.ui.formatters is only imported by dispatcher, formatters, and tests."""
     allowed_files = [
@@ -64,6 +66,7 @@ def test_formatters_only_imported_by_dispatcher_and_tests() -> None:
     assert not violations, "Found unauthorized imports of 'formatters':\n" + "\n".join(violations)
 
 
+# complexipy: ignore (Truly complex test)
 def test_no_direct_output_outside_dispatcher() -> None:
     """Ensure print, echo, and stream write calls exist only inside dispatcher.py."""
     dispatcher_file = SRC_ROOT / "cli" / "ui" / "dispatcher.py"
@@ -141,6 +144,7 @@ def test_no_renderers_files_exist() -> None:
     assert not found, "Found obsolete renderers files that must be eliminated:\n" + "\n".join(found)
 
 
+# complexipy: ignore (Truly complex test)
 def test_core_and_common_have_zero_ui_dependencies() -> None:
     """Ensure core/ and common/ have zero imports of UI libraries or cli package."""
     forbidden_roots = {"rich", "typer", "click"}

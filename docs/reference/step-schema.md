@@ -106,4 +106,3 @@ Step executions receive structured runtime context through `WT_*` environment va
 1. Explicit step `env` key
 2. `WT_*` metadata env
 3. Ambient process env
-

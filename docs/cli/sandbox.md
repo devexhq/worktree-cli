@@ -101,5 +101,3 @@ View diffstat summary:
 ```bash
 wt sandbox diff sbx_8f2a1b9c --stat
 ```
-
-

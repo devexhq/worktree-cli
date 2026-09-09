@@ -173,6 +173,8 @@ poetry.toml
 # LSP config files
 pyrightconfig.json
 
+complexipy-results.json
+
 # End of https://www.toptal.com/developers/gitignore/api/python
 
 # Worktree CLI cache and local databases
