@@ -30,7 +30,8 @@ from worktree.core.step.models import (
     StepType,
 )
 from worktree.core.step.services.metadata import build_execution_metadata, metadata_to_env
-from worktree.core.step.services.resolver import resolve_step_definition
+
+from .step import Step
 
 
 def _failed_dispatch(
@@ -59,7 +60,7 @@ class StepExecution:
     """Synchronous executor for a single StepDefinition within a sandbox directory."""
 
     def __init__(self, metadata: StepExecutionContext) -> None:
-        self.step = metadata.step
+        self.step: Step = Step(instance=metadata.step)
         self.sandbox_path = metadata.sandbox_path.resolve()
         self.context = metadata.context or {}
         self.on_output = metadata.on_output
@@ -73,40 +74,49 @@ class StepExecution:
             metadata.previous_step or self.context.get("previous_step") or (self.steps[-1] if self.steps else None)
         )
         self.max_attempts = 1
-        self._uninterpolated_step = metadata.step
+        self._uninterpolated_step: Step = Step(instance=metadata.step)
 
     def run(self) -> StepResult:
         """Execute the step definition within sandbox_path and return its StepResult."""
         if not self.sandbox_path.exists() or not self.sandbox_path.is_dir():
             outcome = _failed_dispatch(f"Sandbox path '{self.sandbox_path}' does not exist or is not a directory.")
-            return _step_result(self.step.id, outcome, 0.0)
+            return _step_result(self.step.instance.id, outcome, 0.0)
 
-        self._prepare()
+        if not self._prepare():
+            outcome = _failed_dispatch(f"Could not resolve step '{self.step.instance.id}'.")
+            return _step_result(self.step.instance.id, outcome, 0.0)
+
         start_time = time.monotonic()
         outcome = self._run_attempts()
         duration = time.monotonic() - start_time
 
         if outcome.status == "completed":
-            return _step_result(self.step.id, outcome, duration, status="completed", exit_code=0)
+            return _step_result(self.step.instance.id, outcome, duration, status="completed", exit_code=0)
         return self._finalize_failure(outcome, duration)
 
-    def _prepare(self) -> None:
+    def _prepare(self) -> bool:
         """Resolve shorthand aliases and compute retry budget."""
-        if self.step.uses is not None or self.step.run is not None:
-            self.step = resolve_step_definition(self.step, path=self.sandbox_path)
-        self._uninterpolated_step = self.step
+        if self.step.instance.uses is not None or self.step.instance.run is not None:
+            resolved = self.step.resolve(path=self.sandbox_path)
+            if resolved is None:
+                return False
+            self.step = Step(instance=resolved)
+        self._uninterpolated_step = Step(instance=self.step.instance)
         self.max_attempts = (
-            self.step.on_failure.max_retries if self.step.on_failure.action == FailurePolicy.RETRY else 1
+            self.step.instance.on_failure.max_retries
+            if self.step.instance.on_failure.action == FailurePolicy.RETRY
+            else 1
         )
+        return True
 
     def _run_attempts(self) -> StepDispatchOutcome:
         """Dispatch primitive up to max_attempts times, sleeping backoff_ms between failures."""
-        backoff_ms = self._uninterpolated_step.on_failure.backoff_ms
+        backoff_ms = self._uninterpolated_step.instance.on_failure.backoff_ms
         outcome = _failed_dispatch("Step did not run.")
         for attempt_offset in range(self.max_attempts):
             attempt = self.initial_attempt + attempt_offset
             metadata = build_execution_metadata(
-                self._uninterpolated_step,
+                self._uninterpolated_step.instance,
                 step_index=self.step_index,
                 attempt=attempt,
                 iteration_index=self.iteration_index,
@@ -116,11 +126,13 @@ class StepExecution:
             )
             inputs = self.context.get("inputs")
             inputs_dict = inputs if isinstance(inputs, dict) else None
-            self.step = interpolate_step_fields(
-                self._uninterpolated_step,
+            interpolated_step_definition = interpolate_step_fields(
+                self._uninterpolated_step.instance,
                 inputs=inputs_dict,
                 metadata=metadata,
             )
+            # Replace the step
+            self.step = Step(instance=interpolated_step_definition)
             outcome = self._dispatch_primitive(metadata)
             outcome = outcome.model_copy(update={"attempts": attempt})
             outcome = self._apply_assertions(outcome)
@@ -132,22 +144,22 @@ class StepExecution:
 
     def _dispatch_primitive(self, metadata: ExecutionMetadata) -> StepDispatchOutcome:
         """Run the step's primitive type once and return its dispatch outcome."""
-        if self.step.type == StepType.COMMAND:
+        if self.step.instance.type == StepType.COMMAND:
             return self._execute_command(metadata)
-        if self.step.type == StepType.SCRIPT:
+        if self.step.instance.type == StepType.SCRIPT:
             return self._execute_script(metadata)
-        if self.step.type == StepType.AGENT:
+        if self.step.instance.type == StepType.AGENT:
             return self._execute_agent()
-        return _failed_dispatch(f"Unsupported step primitive type '{self.step.type}'.")
+        return _failed_dispatch(f"Unsupported step primitive type '{self.step.instance.type}'.")
 
     def _execute_command(self, metadata: ExecutionMetadata) -> StepDispatchOutcome:
         """Execute a COMMAND step inside sandbox_path."""
-        if not self.step.command:
+        if not self.step.instance.command:
             return _failed_dispatch("Command step has no command string defined.")
         return self._run_process(
-            self.step.command,
+            self.step.instance.command,
             shell=True,
-            timeout_seconds=self.step.timeout_seconds,
+            timeout_seconds=self.step.instance.timeout_seconds,
             failure_label="Command",
             step_kind="Command",
             metadata=metadata,
@@ -155,18 +167,18 @@ class StepExecution:
 
     def _execute_script(self, metadata: ExecutionMetadata) -> StepDispatchOutcome:
         """Execute a SCRIPT step inside sandbox_path."""
-        if not self.step.script_path:
+        if not self.step.instance.script_path:
             return _failed_dispatch("Script step has no script_path defined.")
 
-        script_file = self.sandbox_path / self.step.script_path
+        script_file = self.sandbox_path / self.step.instance.script_path
         if not script_file.exists() or not script_file.is_file():
-            return _failed_dispatch(f"Script file not found at '{self.step.script_path}'.")
+            return _failed_dispatch(f"Script file not found at '{self.step.instance.script_path}'.")
 
         cmd, shell = _resolve_script_invocation(script_file)
         return self._run_process(
             cmd,
             shell=shell,
-            timeout_seconds=self.step.timeout_seconds,
+            timeout_seconds=self.step.instance.timeout_seconds,
             failure_label="Script",
             step_kind="Script",
             metadata=metadata,
@@ -177,7 +189,7 @@ class StepExecution:
         provider = self.context.get("agent") or "local"
         try:
             _ = get_agent_adapter(provider)
-            stdout = f"Agent prompt executed with tools: {self.step.tools}"
+            stdout = f"Agent prompt executed with tools: {self.step.instance.tools}"
             if self.on_output is not None:
                 try:
                     self.on_output("stdout", stdout)
@@ -191,7 +203,7 @@ class StepExecution:
         """Merge environment variables: explicit step env > WT_* metadata > ambient env."""
         process_env = os.environ.copy()
         process_env.update(metadata_to_env(metadata))
-        process_env.update(self.step.env)
+        process_env.update(self.step.instance.env)
         return process_env
 
     def _dispatch_pipe_line(
@@ -342,11 +354,11 @@ class StepExecution:
 
     def _apply_assertions(self, outcome: StepDispatchOutcome) -> StepDispatchOutcome:
         """Downgrade a completed attempt to failed when step.assert_ checks do not pass."""
-        if outcome.status != "completed" or self.step.assert_ is None:
+        if outcome.status != "completed" or self.step.instance.assert_ is None:
             return outcome
 
         result = evaluate_assertions(
-            self.step.assert_,
+            self.step.instance.assert_,
             exit_code=outcome.exit_code,
             stdout=outcome.stdout,
             stderr=outcome.stderr,
@@ -358,18 +370,18 @@ class StepExecution:
         return outcome.model_copy(
             update={
                 "status": "failed",
-                "error_message": _format_assertion_failure(self.step, result.failed_conditions),
+                "error_message": _format_assertion_failure(self.step.instance, result.failed_conditions),
             }
         )
 
     def _finalize_failure(self, outcome: StepDispatchOutcome, duration: float) -> StepResult:
         """Apply the on_failure escalation once retries (if any) are exhausted."""
-        on_failure = self._uninterpolated_step.on_failure
+        on_failure = self._uninterpolated_step.instance.on_failure
         escalation = on_failure.on_max_retries if on_failure.action == FailurePolicy.RETRY else on_failure.action
 
         if escalation == FailurePolicy.CONTINUE:
-            return _step_result(self.step.id, outcome, duration, status="ignored", exit_code=0)
-        return _step_result(self.step.id, outcome, duration, status="failed")
+            return _step_result(self.step.instance.id, outcome, duration, status="ignored", exit_code=0)
+        return _step_result(self.step.instance.id, outcome, duration, status="failed")
 
 
 def _resolve_script_invocation(script_file: Path) -> tuple[str | list[str], bool]:

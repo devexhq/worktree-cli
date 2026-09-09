@@ -51,13 +51,14 @@ class Blueprint:
     def load(
         cls,
         name: str,
+        item_type: CatalogItemType,
         catalog: Catalog | None = None,
         *,
         path: Path | None = None,
     ) -> Blueprint:
         """Build a handle from a catalog task/workflow name or SHA."""
         cat = catalog if catalog is not None else (Catalog(path) if path is not None else Catalog())
-        result = cat.resolve(name)
+        result = cat.resolve(name, item_type=item_type)
         if result.status == CatalogResolveStatus.NOT_FOUND:
             raise BlueprintNotFoundError(f"Blueprint '{name}' not found in catalog.")
         if result.status == CatalogResolveStatus.LOAD_ERROR or result.raw is None or result.record is None:

@@ -71,6 +71,7 @@ CATALOG_DELETE_PAYLOAD_CASES = [
                 "sha": "workflow_1234567",
                 "item_type": "workflow",
                 "name": "test-workflow",
+                "namespace": None,
                 "path": "workflows/test-workflow.yml",
                 "checksum": "1234567890abcdef",
                 "created_at": "2026-08-17T00:00:00Z",

@@ -44,7 +44,7 @@ def test_blueprint_facade_load_and_from_path(fs: FileSystem):
         item_type=CatalogItemType.WORKFLOW,
     )
 
-    bp = Blueprint.load("build", catalog=catalog)
+    bp = Blueprint.load("build", catalog=catalog, item_type=CatalogItemType.WORKFLOW)
     assert bp.name == "build"
     assert bp.kind == BlueprintKind.WORKFLOW
 

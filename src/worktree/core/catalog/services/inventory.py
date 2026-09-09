@@ -23,6 +23,7 @@ from worktree.core.db import (
     CatalogRecord,
     CatalogRepository,
 )
+from worktree.core.db.models import CatalogItemTypeDirectory
 
 
 class _PydanticModel(Protocol):
@@ -54,6 +55,17 @@ def compute_catalog_sha(item_type: CatalogItemType | str, content: str) -> tuple
     return sha, checksum
 
 
+def _catalog_namespace(file_path: Path, item_type_dir: CatalogItemTypeDirectory) -> str | None:
+    """Return the directory path below a catalog item-type directory, if any."""
+    try:
+        type_directory_index = file_path.parts.index(item_type_dir.value)
+    except ValueError as exc:
+        raise ValueError(f"Catalog file path '{file_path}' is not inside '{item_type_dir.value}'.") from exc
+
+    namespace_parts = file_path.parts[type_directory_index + 1 : -1]
+    return "/".join(namespace_parts) if namespace_parts else None
+
+
 def _index_catalog_entry(
     db: CatalogRepository,
     item_type: CatalogItemType,
@@ -65,12 +77,14 @@ def _index_catalog_entry(
         return None, file_entry.error
     sha, checksum = compute_catalog_sha(item_type, str(file_entry.content))
     rel_path = file_entry.path.relative_to(catalog_dir)
+    namespace = _catalog_namespace(file_entry.path, CatalogItemTypeDirectory[item_type.name])
 
     try:
         record = db.upsert(
             sha=sha,
             item_type=item_type,
             name=file_entry.name,
+            namespace=namespace,
             path=rel_path,
             checksum=checksum,
         )
@@ -142,6 +156,7 @@ def scan_and_index_catalog(
 
         # Remove stale DB records for files no longer on disk
         try:
+            # @TODO: GLOBAL - Filter by project
             db_items = database.list()
             for record in db_items:
                 if record.sha not in scan_result.scanned_shas:
@@ -197,16 +212,19 @@ def create_catalog_item(
 
         sha, checksum = compute_catalog_sha(type_enum, content)
         rel_path = target_path.relative_to(catalog_dir)
+        namespace = _catalog_namespace(target_path, CatalogItemTypeDirectory[type_enum.name])
 
         return database.upsert(
             sha=sha,
             item_type=type_enum,
             name=stem,
+            namespace=namespace,
             path=rel_path,
             checksum=checksum,
         )
 
 
+# @TODO: Move to repository
 def _find_catalog_matches(
     sha_or_name: str,
     type_filter: CatalogItemType | str | None,

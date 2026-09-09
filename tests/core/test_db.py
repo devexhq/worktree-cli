@@ -1,4 +1,5 @@
 """Tests for SQLite database tables, BaseRepository, repository classes, and WorktreeDb facade."""
+# @TODO: Need tests covering `namespace`
 
 from __future__ import annotations
 
@@ -231,6 +232,7 @@ class TestCatalogRepository:
             sha="workflow_1234567",
             item_type=CatalogItemType.WORKFLOW,
             name="workflow_a",
+            namespace=None,
             path=path,
             checksum="hash1",
         )
@@ -269,6 +271,7 @@ class TestCatalogRepository:
             sha="task_1111111",
             item_type=CatalogItemType.TASK,
             name="task_b",
+            namespace=None,
             path=path,
             checksum="chk1",
         )
@@ -279,6 +282,7 @@ class TestCatalogRepository:
             sha="task_2222222",
             item_type=CatalogItemType.TASK,
             name="task_b_v2",
+            namespace=None,
             path=path,
             checksum="chk2",
         )
@@ -297,13 +301,18 @@ class TestCatalogRepository:
 
     def test_list_catalog_items_filtering(self, fs: FileSystem) -> None:
         self.db.catalog.upsert(
-            sha="w1", item_type=CatalogItemType.WORKFLOW, name="wf1", path=Path("w1.yaml"), checksum="c1"
+            sha="w1",
+            item_type=CatalogItemType.WORKFLOW,
+            name="wf1",
+            namespace=None,
+            path=Path("w1.yaml"),
+            checksum="c1",
         )
         self.db.catalog.upsert(
-            sha="t1", item_type=CatalogItemType.TASK, name="task1", path=Path("t1.yaml"), checksum="c2"
+            sha="t1", item_type=CatalogItemType.TASK, name="task1", namespace=None, path=Path("t1.yaml"), checksum="c2"
         )
         self.db.catalog.upsert(
-            sha="s1", item_type=CatalogItemType.STEP, name="step1", path=Path("s1.yaml"), checksum="c3"
+            sha="s1", item_type=CatalogItemType.STEP, name="step1", namespace=None, path=Path("s1.yaml"), checksum="c3"
         )
 
         all_items = self.db.catalog.list()
@@ -319,10 +328,20 @@ class TestCatalogRepository:
 
     def test_list_by_name(self, fs: FileSystem) -> None:
         self.db.catalog.upsert(
-            sha="n1", item_type=CatalogItemType.WORKFLOW, name="shared", path=Path("a/shared.yaml"), checksum="c1"
+            sha="n1",
+            item_type=CatalogItemType.WORKFLOW,
+            name="shared",
+            namespace=None,
+            path=Path("a/shared.yaml"),
+            checksum="c1",
         )
         self.db.catalog.upsert(
-            sha="n2", item_type=CatalogItemType.TASK, name="shared", path=Path("b/shared.yaml"), checksum="c2"
+            sha="n2",
+            item_type=CatalogItemType.TASK,
+            name="shared",
+            namespace=None,
+            path=Path("b/shared.yaml"),
+            checksum="c2",
         )
 
         all_shared = self.db.catalog.list_by_name("shared")
@@ -338,6 +357,7 @@ class TestCatalogRepository:
                 sha="invalid",
                 item_type="invalid_type",  # pyright: ignore[reportArgumentType]
                 name="invalid",
+                namespace=None,
                 path=Path("invalid.yaml"),
                 checksum="c",
             )
@@ -353,6 +373,7 @@ class TestCatalogRepository:
             sha="to_delete",
             item_type=CatalogItemType.WORKFLOW,
             name="delete_item",
+            namespace=None,
             path=Path("delete.yaml"),
             checksum="c_del",
         )
@@ -401,6 +422,7 @@ class TestWorktreeDbFacade:
             sha="c_facade",
             item_type=CatalogItemType.WORKFLOW,
             name="wf_cat",
+            namespace=None,
             path=Path("wf_cat.yaml"),
             checksum="c",
         )

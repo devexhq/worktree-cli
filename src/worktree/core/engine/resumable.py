@@ -11,7 +11,7 @@ from worktree.core.blueprint.exceptions import (
     BlueprintValidationError,
 )
 from worktree.core.catalog import Catalog
-from worktree.core.db import RunRecord, RunsRepository, RunStatus
+from worktree.core.db import CatalogItemType, RunRecord, RunsRepository, RunStatus
 from worktree.core.engine.exceptions import EngineResumeError
 from worktree.core.engine.models import EngineResumeStatus
 from worktree.core.runtime import RunCheckpoint, parse_checkpoint
@@ -212,7 +212,7 @@ class ResumableRun:
         name = row.blueprint_name
 
         try:
-            return Blueprint.load(name, catalog=catalog)
+            return Blueprint.load(name, catalog=catalog, item_type=CatalogItemType[row.kind.name])
         except (BlueprintNotFoundError, BlueprintLoadError, BlueprintValidationError):
             return cls._rejected(
                 session_id,

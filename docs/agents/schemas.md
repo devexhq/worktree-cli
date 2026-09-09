@@ -132,7 +132,7 @@ All operations that can fail return a Pydantic result object subclassing `BaseRe
 **Relevant sources:** `src/worktree/core/db/models.py`.
 - `SandboxRecord`: Persisted sandbox rows in `sandboxes` table.
 - `RunRecord`: Persisted blueprint run rows in `runs` table (including `checkpoint_json`).
-- `CatalogRecord`: Persisted catalog index rows in `catalog_items` table.
+- `CatalogRecord`: Persisted catalog index rows in the `catalog` table, including an optional path-derived namespace.
 - `CostRecord`: Persisted token and execution cost tracking in `costs` table.
 
 ### History, Diff, and Status Models

@@ -304,6 +304,7 @@ class ResumeCliTests:
         _seed_paused_run(self.db.runs, "task-latest-1", "latest-task", BlueprintKind.TASK)
 
         result = runner.invoke(app, ["resume"])
+        print(result.__dict__)
         assert result.exit_code == 0
         assert "task-latest-1" in result.output
 

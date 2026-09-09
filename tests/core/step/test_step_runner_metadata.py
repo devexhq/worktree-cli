@@ -113,6 +113,7 @@ class StepExecutionMetadataIntegrationTests:
         ).run()
 
         assert result.ok is True
+        print(result.stdout)
         assert "FIRST=setup_step" in result.stdout
         assert "LAST=completed" in result.stdout
         assert "BUILD_CODE=0" in result.stdout
