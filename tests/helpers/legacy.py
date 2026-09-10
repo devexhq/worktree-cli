@@ -99,41 +99,22 @@ class FileSystem:
             config_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
         return config_path
 
-    def create_workflow_file(
+    def create_blueprint_file(
         self,
-        name: str = "default-workflow",
+        name: str = "default-blueprint",
         *,
-        dir: str | Path = ".worktree/catalog/workflows",
+        dir: str | Path = ".worktree/catalog/blueprints",
         filename: str | None = None,
         **overrides: Any,
     ) -> Path:
         defaults = {
             "version": 1,
             "name": name,
-            "description": "Test workflow",
+            "description": "Test blueprint",
             "steps": [{"id": "step-1", "type": "command", "command": "echo hi"}],
         }
         body = _deep_merge(defaults, overrides)
         return self.write_file(Path(dir) / (filename or f"{name}.yml"), body)
-
-    def create_task_file(
-        self,
-        task_id: str = "default-task",
-        *,
-        dir: str | Path = ".worktree/catalog/tasks",
-        filename: str | None = None,
-        **overrides: Any,
-    ) -> Path:
-        """Write a task blueprint matching blueprint task shape."""
-        defaults = {
-            "name": task_id,
-            "description": "Test task",
-            "summary": "",
-            "use_sandbox": True,
-            "steps": [{"id": "step-1", "run": "echo hi"}],
-        }
-        body = _deep_merge(defaults, overrides)
-        return self.write_file(Path(dir) / (filename or f"{task_id}.yml"), body)
 
 
 class GitFileSystem(FileSystem):

@@ -31,19 +31,18 @@ class RunsRepository(BaseRepository):
         self,
         session_id: str,
         blueprint_name: str,
-        kind: BlueprintKind | str,
+        blueprint_key: str,
         branch_name: str = "",
         status: RunStatus | str = RunStatus.RUNNING,
         pid: int | None = None,
     ) -> RunRecord:
         """Insert a new run record and return the committed instance."""
-        kind_enum = BlueprintKind(kind) if isinstance(kind, str) else kind
         status_enum = RunStatus(status) if isinstance(status, str) else status
 
         record = RunRecord(
             session_id=session_id,
             blueprint_name=blueprint_name,
-            kind=kind_enum,
+            blueprint_key=blueprint_key,
             branch_name=branch_name,
             status=status_enum,
             pid=pid,
@@ -122,7 +121,6 @@ class RunsRepository(BaseRepository):
         self,
         limit: int | None = None,
         status: RunStatus | str | None = None,
-        kind: BlueprintKind | str | None = None,
     ) -> list[RunRecord]:
         """List run records ordered by started_at DESC, id DESC with optional filters."""
         with self.session() as session:
@@ -131,10 +129,6 @@ class RunsRepository(BaseRepository):
             status_enum = _coerce_status(status)
             if status_enum is not None:
                 statement = statement.where(RunRecord.status == status_enum)
-
-            kind_enum = _coerce_kind(kind)
-            if kind_enum is not None:
-                statement = statement.where(RunRecord.kind == kind_enum)
 
             statement = statement.order_by(col(RunRecord.started_at).desc(), col(RunRecord.id).desc())
 

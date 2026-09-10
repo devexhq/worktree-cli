@@ -64,7 +64,7 @@ class TestDispatcherFailurePrompter:
         rendered = buffer.getvalue()
         assert "Step 'Build Step' failed (exit code 2)." in rendered
         assert "Compilation failed on line 10" in rendered
-        assert "Task paused waiting for user input." in rendered
+        assert "Blueprint paused waiting for user input." in rendered
         assert "Options:" in rendered
 
     def test_prompt_step_failure_invalid_then_valid(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -215,7 +215,7 @@ class TestDispatcherFailurePrompter:
         snapshot = snapshot_at_input_call[0]
         assert "Step 'Build Step' failed (exit code 2)." in snapshot
         assert "Compilation failed on line 10" in snapshot
-        assert "Task paused waiting for user input." in snapshot
+        assert "Blueprint paused waiting for user input." in snapshot
 
     def test_prompt_text_visible_before_loop_input_blocks(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Loop prompt text is in the output buffer before input() is called."""

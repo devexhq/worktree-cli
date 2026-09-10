@@ -132,7 +132,7 @@ class Catalog:
         return CatalogShowResult(item=item, content=content)
 
     def resolve(self, name: str, item_type: CatalogItemType) -> CatalogResolveResult:
-        """Load a task or workflow YAML by SHA or catalog name."""
+        """Load a task or blueprint YAML by SHA or catalog name."""
         """Reindex, find typed matches, and load the winning YAML object."""
         scan_and_index_catalog(self.path, db=self.db)
         non_namespaced_name, namespace = self._split_name_and_namespace(name)

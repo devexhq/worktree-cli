@@ -6,6 +6,7 @@ import json
 from collections.abc import Sequence
 
 from worktree.core.step.models import (
+    BlueprintMetadata,
     ExecutionIdentity,
     ExecutionMetadata,
     IterationMetadata,
@@ -13,8 +14,6 @@ from worktree.core.step.models import (
     StepDefinition,
     StepMetadata,
     StepResult,
-    TaskMetadata,
-    WorkflowMetadata,
 )
 
 
@@ -35,13 +34,10 @@ def build_execution_metadata(
         index=step_index,
         attempt=attempt,
     )
-    task_metadata = (
-        TaskMetadata(name=identity.task_name, sha=identity.task_sha) if identity is not None else TaskMetadata()
-    )
-    workflow_metadata = (
-        WorkflowMetadata(name=identity.workflow_name, sha=identity.workflow_sha)
+    blueprint_metadata = (
+        BlueprintMetadata(name=identity.blueprint_name, key=identity.blueprint_key)
         if identity is not None
-        else WorkflowMetadata()
+        else BlueprintMetadata()
     )
     historical_steps = list(steps) if steps is not None else []
     if previous_step is not None:
@@ -53,8 +49,7 @@ def build_execution_metadata(
 
     return ExecutionMetadata(
         step=step_metadata,
-        task=task_metadata,
-        workflow=workflow_metadata,
+        blueprint=blueprint_metadata,
         previous_step=prior_metadata,
         steps=historical_steps,
         iteration=IterationMetadata(index=iteration_index),
@@ -62,17 +57,15 @@ def build_execution_metadata(
 
 
 def metadata_to_env(metadata: ExecutionMetadata) -> dict[str, str]:
-    """Format full WT_* process environment variable map. All 15 keys always present."""
+    """Format full WT_* process environment variable map."""
     return {
         "WT_STEP_ID": metadata.step.id,
         "WT_STEP_NAME": metadata.step.name,
         "WT_STEP_INDEX": str(metadata.step.index),
         "WT_STEP_ATTEMPT": str(metadata.step.attempt),
         "WT_ITERATION_INDEX": str(metadata.iteration.index),
-        "WT_TASK_NAME": metadata.task.name,
-        "WT_TASK_SHA": metadata.task.sha,
-        "WT_WORKFLOW_NAME": metadata.workflow.name,
-        "WT_WORKFLOW_SHA": metadata.workflow.sha,
+        "WT_BLUEPRINT_NAME": metadata.blueprint.name,
+        "WT_BLUEPRINT_SHA": metadata.blueprint.key,
         "WT_PREVIOUS_STEP_ID": metadata.previous_step.id,
         "WT_PREVIOUS_STEP_NAME": metadata.previous_step.name,
         "WT_PREVIOUS_STEP_INDEX": metadata.previous_step.index,

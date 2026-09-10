@@ -130,7 +130,7 @@ def _dispatch_local_command(
                 f"Agent timed out after {request.timeout_seconds}s "
                 f"(provider=local).\n"
                 "Fix:\n"
-                "- raise agent.timeout_seconds on the workflow"
+                "- raise agent.timeout_seconds on the blueprint"
             ],
         )
     except (FileNotFoundError, OSError) as exc:

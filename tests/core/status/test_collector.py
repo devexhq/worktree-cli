@@ -45,8 +45,8 @@ class TestStatusCollector:
             agent={"model": "gpt-4o", "provider": "openai"},
             sandbox={"max_active_sandboxes": 3},
         )
-        git_fs.create_workflow_file("deploy")
-        git_fs.create_task_file("lint-task")
+        git_fs.create_blueprint_file("deploy")
+        git_fs.create_blueprint_file("lint-blueprint")
         git_fs.create_step_file("test-step")
 
         # Initialize DB and insert a run

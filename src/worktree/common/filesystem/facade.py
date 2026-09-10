@@ -84,7 +84,7 @@ class Filesystem:
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
     def __repr__(self) -> str:
-        return f"Filesystem(root={self.paths.root_dir!r})"
+        return f"Filesystem(root={self.paths.root_path!r})"
 
     # Bound instance methods
     def write_text(self, path: Path, text: str) -> None:
@@ -114,7 +114,7 @@ class Filesystem:
 
     def is_git_repo(self, path: Path | None = None) -> bool:
         """Check whether the given directory contains a .git directory or file."""
-        target = path if path is not None else self.paths.root_dir
+        target = path if path is not None else self.paths.root_path
         return _is_git_repository(target)
 
     def checksum(self, content: str) -> str:

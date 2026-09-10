@@ -39,16 +39,16 @@ def get_catalog_dir(path: Path) -> Path:
 
 
 def ensure_catalog_dirs(path: Path) -> Path:
-    """Ensure standard `.worktree/catalog/{workflows,tasks,steps}` subdirectories exist and return catalog root."""
+    """Ensure standard `.worktree/catalog/{blueprints,steps,...}` subdirectories exist and return catalog root."""
     catalog_dir = get_catalog_dir(path)
-    (catalog_dir / "workflows").mkdir(parents=True, exist_ok=True)
+    (catalog_dir / "blueprints").mkdir(parents=True, exist_ok=True)
     (catalog_dir / "tasks").mkdir(parents=True, exist_ok=True)
     (catalog_dir / "steps").mkdir(parents=True, exist_ok=True)
     return catalog_dir
 
 
 def compute_catalog_sha(item_type: CatalogItemType | str, content: str) -> tuple[str, str]:
-    """Compute SHA-256 checksum and formatted SHA string (e.g. `workflow_a1b2c3d`)."""
+    """Compute SHA-256 checksum and formatted SHA string (e.g. `blueprint_a1b2c3d`)."""
     type_str = item_type.value if isinstance(item_type, CatalogItemType) else str(item_type)
     checksum = Filesystem.compute_checksum(content)
     sha = f"{type_str}_{checksum[:7]}"
@@ -147,8 +147,7 @@ def scan_and_index_catalog(
         database = db if db is not None else CatalogRepository(path)
 
         subdirs: list[tuple[CatalogItemType, Path]] = [
-            (CatalogItemType.WORKFLOW, catalog_dir / "workflows"),
-            (CatalogItemType.TASK, catalog_dir / "tasks"),
+            (CatalogItemType.BLUEPRINT, catalog_dir / "blueprints"),
             (CatalogItemType.STEP, catalog_dir / "steps"),
         ]
         scan_result = _scan_catalog_subdirectories(db=database, catalog_dir=catalog_dir, subdirs=subdirs)
@@ -173,11 +172,11 @@ def _get_initial_template_content(type_enum: CatalogItemType, stem: str) -> str:
     template_path = Filesystem().catalog_templates_dir / f"{type_enum.value}s" / "default.yml"
     try:
         content = template_path.read_text(encoding="utf-8")
-        return content.replace("my-workflow", stem).replace("my-task", stem).replace("my-step", stem)
+        return content.replace("my-blueprint", stem).replace("my-task", stem).replace("my-step", stem)
     except Exception:
         # Defensive fallback if the packaged resource is unreadable
-        if type_enum == CatalogItemType.WORKFLOW:
-            return f'version: "1.0"\nname: {stem}\ndescription: Custom workflow blueprint\nsteps: []\n'
+        if type_enum == CatalogItemType.BLUEPRINT:
+            return f'version: "1.0"\nname: {stem}\ndescription: Custom blueprint blueprint\nsteps: []\n'
         if type_enum == CatalogItemType.TASK:
             return f"name: {stem}\ndescription: Custom task blueprint\nuse_sandbox: false\nsteps: []\n"
         return f"name: {stem}\ndescription: Custom step blueprint\naction: run\n"
@@ -384,7 +383,7 @@ def find_packaged_templates(sha_or_name: str) -> list[tuple[str, str]]:
     """Return (relative_path, content) pairs for packaged templates matching `sha_or_name`."""
     root = Filesystem().catalog_templates_dir
     found: list[tuple[str, str]] = []
-    for type_dir in ("workflows", "tasks", "steps"):
+    for type_dir in ("blueprints", "tasks", "steps"):
         candidate = (
             (root / type_dir / "default.yml")
             if sha_or_name == "default"

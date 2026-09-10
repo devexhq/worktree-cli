@@ -1,4 +1,3 @@
-import copy
 import re
 from collections.abc import Callable, Sequence
 from enum import StrEnum
@@ -7,110 +6,10 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from worktree.common.models import BaseResult
+from worktree.common.models import BaseResult, FailurePolicy, OnFailureSpec
 
 _DRIVE_PATH_RE = re.compile(r"^[A-Za-z]:/")
 DEFAULT_STEP_TIMEOUT_SECONDS = 120
-
-
-class FailurePolicy(StrEnum):
-    """Canonical failure-handling vocabulary shared by steps and loop blocks."""
-
-    ABORT = "abort"
-    CONTINUE = "continue"
-    PROMPT_USER = "prompt_user"
-    RETRY = "retry"
-
-    @classmethod
-    def context(cls, name: str) -> frozenset["FailurePolicy"]:
-        """Return the allowed FailurePolicy subset for a given usage context."""
-        if name == "terminal":
-            return frozenset({cls.ABORT, cls.CONTINUE, cls.PROMPT_USER})
-        return frozenset(cls)
-
-
-class FailureSpec(BaseModel):
-    """Normalized on_failure directive: action, retry tuning, and post-retry escalation."""
-
-    model_config = {"extra": "forbid"}
-
-    action: FailurePolicy
-    max_retries: int = Field(default=3, ge=1)
-    backoff_ms: int = Field(default=0, ge=0)
-    on_max_retries: FailurePolicy = FailurePolicy.ABORT
-
-    @field_validator("action", "on_max_retries", mode="before")
-    @classmethod
-    def parse_policy(cls, val: Any) -> Any:
-        """Coerce string values to FailurePolicy enum instances."""
-        if isinstance(val, str):
-            try:
-                return FailurePolicy(val)
-            except ValueError:
-                pass
-        return val
-
-    @model_validator(mode="after")
-    def validate_on_max_retries_context(self) -> "FailureSpec":
-        """on_max_retries must be terminal (no RETRY-on-RETRY-exhaustion)."""
-        allowed = FailurePolicy.context("terminal")
-        if self.on_max_retries not in allowed:
-            raise ValueError(f"on_max_retries must be one of {sorted(allowed)}, got {self.on_max_retries!r}.")
-        return self
-
-
-def _coerce_on_failure_value(val: Any) -> Any:
-    """Accept bare policy string or full FailureSpec object payload."""
-    if val is None:
-        return None
-    return {"action": val} if isinstance(val, str) else val
-
-
-class BlueprintDefaults(BaseModel):
-    """Optional task/workflow blueprint defaults applied fill-if-omitted to steps."""
-
-    model_config = {"extra": "forbid"}
-
-    on_failure: FailureSpec | None = None
-
-    @field_validator("on_failure", mode="before")
-    @classmethod
-    def coerce_on_failure(cls, val: Any) -> Any:
-        """Match StepDefinition.on_failure string-or-object coercion."""
-        return _coerce_on_failure_value(val)
-
-
-def apply_on_failure_default(
-    step_data: dict[str, Any],
-    on_failure_default: Any | None,
-) -> dict[str, Any]:
-    """Copy blueprint ``on_failure`` onto a step dict when the step omits it.
-
-    Fill-if-omitted only: an explicit step ``on_failure`` is never merged or
-    replaced. Loop blocks are left unchanged (nested ``do`` fill is separate).
-    """
-    if on_failure_default is None or "on_failure" in step_data:
-        return step_data
-    if step_data.get("type") == "loop":
-        return step_data
-
-    filled = dict(step_data)
-    if isinstance(on_failure_default, FailureSpec):
-        filled["on_failure"] = on_failure_default.model_dump(mode="json")
-    else:
-        filled["on_failure"] = copy.deepcopy(on_failure_default)
-    return filled
-
-
-def extract_defaults_on_failure(raw_defaults: Any) -> Any | None:
-    """Return raw ``defaults.on_failure`` from a blueprint payload, if present."""
-    if raw_defaults is None:
-        return None
-    if isinstance(raw_defaults, BlueprintDefaults):
-        return raw_defaults.on_failure
-    if isinstance(raw_defaults, dict):
-        return raw_defaults.get("on_failure")
-    return None
 
 
 class StepType(StrEnum):
@@ -119,24 +18,6 @@ class StepType(StrEnum):
     COMMAND = "command"
     AGENT = "agent"
     SCRIPT = "script"
-
-
-def _is_unsafe_assert_path(path: str) -> bool:
-    """Return True when ``path`` is absolute, empty, or contains a ``..`` segment."""
-    normalized = path.replace("\\", "/")
-    if not normalized or normalized.startswith("/") or _DRIVE_PATH_RE.match(normalized):
-        return True
-    return any(part == ".." for part in normalized.split("/"))
-
-
-def _validate_assert_paths(value: str | list[str] | None, field_name: str) -> None:
-    """Reject empty, absolute, or parent-traversal paths in file-system asserts."""
-    if value is None:
-        return
-    entries = [value] if isinstance(value, str) else value
-    for entry in entries:
-        if _is_unsafe_assert_path(entry):
-            raise ValueError(f"{field_name} path must be a non-empty relative path without '..' segments: {entry!r}")
 
 
 class StepAssert(BaseModel):
@@ -156,10 +37,28 @@ class StepAssert(BaseModel):
     @model_validator(mode="after")
     def validate_file_assert_paths(self) -> "StepAssert":
         """Reject absolute paths and parent-directory traversal in file asserts."""
-        _validate_assert_paths(self.file_exists, "file_exists")
-        _validate_assert_paths(self.file_not_exists, "file_not_exists")
-        _validate_assert_paths(self.file_not_empty, "file_not_empty")
+        self._validate_assert_paths(self.file_exists, "file_exists")
+        self._validate_assert_paths(self.file_not_exists, "file_not_exists")
+        self._validate_assert_paths(self.file_not_empty, "file_not_empty")
         return self
+
+    def _validate_assert_paths(self, value: str | list[str] | None, field_name: str) -> None:
+        """Reject empty, absolute, or parent-traversal paths in file-system asserts."""
+        if value is None:
+            return
+        entries = [value] if isinstance(value, str) else value
+        for entry in entries:
+            if self._is_unsafe_assert_path(entry):
+                raise ValueError(
+                    f"{field_name} path must be a non-empty relative path without '..' segments: {entry!r}"
+                )
+
+    def _is_unsafe_assert_path(self, path: str) -> bool:
+        """Return True when ``path`` is absolute, empty, or contains a ``..`` segment."""
+        normalized = path.replace("\\", "/")
+        if not normalized or normalized.startswith("/") or _DRIVE_PATH_RE.match(normalized):
+            return True
+        return any(part == ".." for part in normalized.split("/"))
 
 
 class AssertionResult(BaseResult):
@@ -206,7 +105,7 @@ class StepDefinition(BaseModel):
     env: dict[str, str] = Field(default_factory=dict)
     timeout_seconds: int = Field(default=DEFAULT_STEP_TIMEOUT_SECONDS, gt=0)
     assert_: StepAssert | None = Field(default=None, validation_alias="assert", serialization_alias="assert")
-    on_failure: FailureSpec = Field(default_factory=lambda: FailureSpec(action=FailurePolicy.ABORT))
+    on_failure: OnFailureSpec = Field(default_factory=lambda: OnFailureSpec(action=FailurePolicy.ABORT))
 
     @field_validator("type", mode="before")
     @classmethod
@@ -223,7 +122,9 @@ class StepDefinition(BaseModel):
     @classmethod
     def coerce_on_failure(cls, val: Any) -> Any:
         """Accept bare 'abort' string or full {action, max_retries, backoff_ms, on_max_retries} object."""
-        return _coerce_on_failure_value(val)
+        if val is None:
+            return None
+        return {"action": val} if isinstance(val, str) else val
 
     @model_validator(mode="after")
     def validate_step_shape(self) -> "StepDefinition":
@@ -292,22 +193,13 @@ class StepMetadata(BaseModel):
     attempt: int = Field(default=1, ge=1)
 
 
-class TaskMetadata(BaseModel):
-    """Execution metadata for the parent task (if any)."""
+class BlueprintMetadata(BaseModel):
+    """Execution metadata for the parent blueprint (if any)."""
 
     model_config = {"extra": "forbid", "strict": True}
 
     name: str = ""
-    sha: str = ""
-
-
-class WorkflowMetadata(BaseModel):
-    """Execution metadata for the parent workflow (if any)."""
-
-    model_config = {"extra": "forbid", "strict": True}
-
-    name: str = ""
-    sha: str = ""
+    key: str = ""
 
 
 class PreviousStepMetadata(BaseModel):
@@ -323,14 +215,12 @@ class PreviousStepMetadata(BaseModel):
 
 
 class ExecutionIdentity(BaseModel):
-    """Optional run-level task or workflow identity passed into RunContext."""
+    """Optional run-level identity passed into RunContext."""
 
     model_config = {"extra": "forbid", "strict": True}
 
-    task_name: str = ""
-    task_sha: str = ""
-    workflow_name: str = ""
-    workflow_sha: str = ""
+    blueprint_name: str = ""
+    blueprint_key: str = ""
 
 
 class IterationMetadata(BaseModel):
@@ -347,8 +237,7 @@ class ExecutionMetadata(BaseModel):
     model_config = {"extra": "forbid", "strict": True}
 
     step: StepMetadata
-    task: TaskMetadata = Field(default_factory=TaskMetadata)
-    workflow: WorkflowMetadata = Field(default_factory=WorkflowMetadata)
+    blueprint: BlueprintMetadata = Field(default_factory=BlueprintMetadata)
     previous_step: PreviousStepMetadata = Field(default_factory=PreviousStepMetadata)
     steps: list[PreviousStepMetadata] = Field(default_factory=list)
     iteration: IterationMetadata = Field(default_factory=IterationMetadata)

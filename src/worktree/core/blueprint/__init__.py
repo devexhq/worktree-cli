@@ -1,4 +1,4 @@
-"""Shared task and workflow blueprint schemas, loading, and validation."""
+"""Shared task and blueprint blueprint schemas, loading, and validation."""
 
 from worktree.core.blueprint.exceptions import (
     BlueprintLoadError,

@@ -17,7 +17,7 @@ def get_agent_adapter(provider: str, *, config: AgentConfig | None = None) -> Ag
     """Return an adapter for ``provider``.
 
     Args:
-        provider: Provider id from workflow/config (v1: ``local``, ``ollama``,
+        provider: Provider id from blueprint/config (v1: ``local``, ``ollama``,
             ``cursor``, ``gemini``, ``copilot``).
         config: Optional agent config; unused by current adapters (request
             fields are populated by the runner from config).

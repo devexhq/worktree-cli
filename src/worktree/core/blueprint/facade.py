@@ -2,22 +2,9 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any, ClassVar
 
-from worktree.core.blueprint.exceptions import (
-    BlueprintLoadError,
-    BlueprintNotFoundError,
-    BlueprintValidationError,
-)
-from worktree.core.blueprint.models import BlueprintDefinition, BlueprintKind
-from worktree.core.catalog import (
-    Catalog,
-    CatalogFileNotFoundError,
-    CatalogResolveStatus,
-    CatalogYamlError,
-)
-from worktree.core.db import CatalogItemType
+from worktree.core.blueprint.models import BlueprintDefinition
 from worktree.core.inputs import (
     InputResolveResult,
     Inputs,
@@ -27,17 +14,9 @@ from worktree.core.step import LoopStepBlock, StepDefinition
 
 
 class Blueprint:
-    """Load, inspect, and dump a unified task/workflow document."""
+    """Load, inspect, and dump a unified task/blueprint document."""
 
     spec: ClassVar[type[BlueprintDefinition]] = BlueprintDefinition
-    _KIND_FROM_ITEM_TYPE: ClassVar[dict[CatalogItemType, BlueprintKind]] = {
-        CatalogItemType.TASK: BlueprintKind.TASK,
-        CatalogItemType.WORKFLOW: BlueprintKind.WORKFLOW,
-    }
-    _KIND_FROM_FOLDER: ClassVar[dict[str, BlueprintKind]] = {
-        "tasks": BlueprintKind.TASK,
-        "workflows": BlueprintKind.WORKFLOW,
-    }
 
     def __init__(self, instance: BlueprintDefinition) -> None:
         self._instance = instance
@@ -47,52 +26,15 @@ class Blueprint:
         """Return the underlying wrapped BlueprintDefinition instance."""
         return self._instance
 
-    @classmethod
-    def load(
-        cls,
-        name: str,
-        item_type: CatalogItemType,
-        catalog: Catalog | None = None,
-        *,
-        path: Path | None = None,
-    ) -> Blueprint:
-        """Build a handle from a catalog task/workflow name or SHA."""
-        cat = catalog if catalog is not None else (Catalog(path) if path is not None else Catalog())
-        result = cat.resolve(name, item_type=item_type)
-        if result.status == CatalogResolveStatus.NOT_FOUND:
-            raise BlueprintNotFoundError(f"Blueprint '{name}' not found in catalog.")
-        if result.status == CatalogResolveStatus.LOAD_ERROR or result.raw is None or result.record is None:
-            detail = "; ".join(result.errors) if result.errors else "no YAML object"
-            raise BlueprintLoadError(f"Failed to load blueprint '{name}' from catalog: {detail}")
-        kind = cls._kind_from_item_type(result.record.item_type)
-        return cls(cls.spec.from_document(result.raw, kind=kind))
-
-    @classmethod
-    def from_path(cls, path: Path) -> Blueprint:
-        """Build a handle from a YAML file, inferring kind from a parent folder."""
-        resolved = path.resolve()
-        kind = cls._kind_from_path(resolved)
-        try:
-            raw = Catalog.read_yaml(resolved)
-        except (CatalogFileNotFoundError, CatalogYamlError) as exc:
-            raise BlueprintLoadError(f"Failed to load blueprint from '{resolved}': {exc}") from exc
-        return cls(cls.spec.from_document(raw, kind=kind))
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any], kind: BlueprintKind | str) -> Blueprint:
-        """Build a handle from an in-memory dictionary and explicit kind."""
-        blueprint_kind = BlueprintKind(kind) if isinstance(kind, str) else kind
-        return cls(cls.spec.from_document(data, kind=blueprint_kind))
-
-    @property
-    def kind(self) -> BlueprintKind:
-        """Return the derived task/workflow kind."""
-        return self._instance.kind
-
     @property
     def name(self) -> str:
         """Return the blueprint name."""
         return self._instance.name
+
+    @property
+    def key(self) -> str:
+        """Return the blueprint key."""
+        return self._instance.key
 
     @property
     def steps(self) -> list[StepDefinition | LoopStepBlock]:
@@ -121,22 +63,3 @@ class Blueprint:
     ) -> InputResolveResult:
         """Parse CLI args against this blueprint's declared inputs."""
         return Inputs.resolve(self.inputs, cli_args=cli_args, overrides=overrides)
-
-    @classmethod
-    def _kind_from_item_type(cls, item_type: CatalogItemType) -> BlueprintKind:
-        """Map a catalog item type to a blueprint kind, or raise."""
-        kind = cls._KIND_FROM_ITEM_TYPE.get(item_type)
-        if kind is None:
-            raise BlueprintValidationError(f"Cannot derive blueprint kind from catalog item type '{item_type}'.")
-        return kind
-
-    @classmethod
-    def _kind_from_path(cls, path: Path) -> BlueprintKind:
-        """Infer kind from the nearest ``tasks`` or ``workflows`` ancestor folder."""
-        for parent in path.parents:
-            kind = cls._KIND_FROM_FOLDER.get(parent.name)
-            if kind is not None:
-                return kind
-        raise BlueprintValidationError(
-            f"Cannot infer blueprint kind from path '{path}'; expected a parent 'tasks/' or 'workflows/' segment."
-        )

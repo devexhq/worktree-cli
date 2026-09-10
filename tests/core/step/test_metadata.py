@@ -6,14 +6,13 @@ import pytest
 from pydantic import ValidationError
 
 from worktree.core.step import (
+    BlueprintMetadata,
     ExecutionIdentity,
     PreviousStepMetadata,
     StepDefinition,
     StepMetadata,
     StepResult,
     StepType,
-    TaskMetadata,
-    WorkflowMetadata,
 )
 from worktree.core.step.services.metadata import (
     build_execution_metadata,
@@ -33,10 +32,8 @@ class StepExecutionMetadataTests:
         assert metadata.step.name == ""
         assert metadata.step.index == 1
         assert metadata.step.attempt == 1
-        assert metadata.task.name == ""
-        assert metadata.task.sha == ""
-        assert metadata.workflow.name == ""
-        assert metadata.workflow.sha == ""
+        assert metadata.blueprint.name == ""
+        assert metadata.blueprint.key == ""
         assert metadata.previous_step.id == ""
         assert metadata.previous_step.name == ""
         assert metadata.previous_step.index == ""
@@ -46,10 +43,8 @@ class StepExecutionMetadataTests:
     def test_build_execution_metadata_with_identity_and_previous(self) -> None:
         step = StepDefinition(id="step-deploy", name="Deploy Artifact", type=StepType.COMMAND, command="echo deploy")
         identity = ExecutionIdentity(
-            task_name="release-task",
-            task_sha="task_run_123",
-            workflow_name="release-flow",
-            workflow_sha="flow_run_456",
+            blueprint_name="release-task",
+            blueprint_key="task_run_123",
         )
         previous = PreviousStepMetadata(
             id="step-build",
@@ -71,10 +66,8 @@ class StepExecutionMetadataTests:
         assert metadata.step.name == "Deploy Artifact"
         assert metadata.step.index == 2
         assert metadata.step.attempt == 3
-        assert metadata.task.name == "release-task"
-        assert metadata.task.sha == "task_run_123"
-        assert metadata.workflow.name == "release-flow"
-        assert metadata.workflow.sha == "flow_run_456"
+        assert metadata.blueprint.name == "release-blueprint"
+        assert metadata.blueprint.key == "blueprint_run_123"
         assert metadata.previous_step.id == "step-build"
         assert metadata.previous_step.name == "Build Artifact"
         assert metadata.previous_step.index == "1"
@@ -133,7 +126,7 @@ class StepExecutionMetadataTests:
             step,
             step_index=2,
             attempt=4,
-            identity=ExecutionIdentity(task_name="t1", task_sha="sha1"),
+            identity=ExecutionIdentity(blueprint_name="t1", blueprint_key="sha1"),
             previous_step=step1_meta,
             steps=[step1_meta],
         )
@@ -191,9 +184,7 @@ class StepExecutionMetadataTests:
         with pytest.raises(ValidationError):
             StepMetadata(id="s1", index=1, attempt=1, extra_field="bad")  # pyright: ignore[reportCallIssue]
         with pytest.raises(ValidationError):
-            TaskMetadata(name="t", extra_field="bad")  # pyright: ignore[reportCallIssue]
-        with pytest.raises(ValidationError):
-            WorkflowMetadata(name="w", extra_field="bad")  # pyright: ignore[reportCallIssue]
+            BlueprintMetadata(name="t", extra_field="bad")  # pyright: ignore[reportCallIssue]
         with pytest.raises(ValidationError):
             PreviousStepMetadata(id="p", extra_field="bad")  # pyright: ignore[reportCallIssue]
         with pytest.raises(ValidationError):

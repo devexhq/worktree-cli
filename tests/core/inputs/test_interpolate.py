@@ -4,14 +4,13 @@ from __future__ import annotations
 
 from worktree.core.inputs.services.interpolate import interpolate_step_fields, interpolate_string
 from worktree.core.step import (
+    BlueprintMetadata,
     ExecutionIdentity,
     ExecutionMetadata,
     PreviousStepMetadata,
     StepDefinition,
     StepMetadata,
     StepType,
-    TaskMetadata,
-    WorkflowMetadata,
 )
 from worktree.core.step.services.metadata import build_execution_metadata
 
@@ -40,8 +39,7 @@ class InputInterpolateTests:
     def test_interpolate_string_with_execution_metadata(self) -> None:
         metadata = ExecutionMetadata(
             step=StepMetadata(id="step-build", name="Build Step", index=2, attempt=1),
-            task=TaskMetadata(name="my-task", sha="sess_123"),
-            workflow=WorkflowMetadata(name="ci-flow", sha="flow_456"),
+            blueprint=BlueprintMetadata(name="ci-flow", key="flow_456"),
             previous_step=PreviousStepMetadata(
                 id="step-init",
                 name="Init Step",
@@ -100,7 +98,7 @@ class InputInterpolateTests:
             step,
             step_index=2,
             attempt=3,
-            identity=ExecutionIdentity(task_name="task-1", task_sha="sha123"),
+            identity=ExecutionIdentity(blueprint_name="task-1", blueprint_key="sha123"),
             previous_step=PreviousStepMetadata(id="s0", status="completed", exit_code="0", index="1"),
         )
         updated = interpolate_step_fields(step, inputs={"msg": "run"}, metadata=metadata)

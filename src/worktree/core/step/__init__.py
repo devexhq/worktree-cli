@@ -4,12 +4,10 @@ from worktree.core.step.exceptions import StepNotFoundError, StepValidationError
 from worktree.core.step.models import (
     DEFAULT_STEP_TIMEOUT_SECONDS,
     AssertionResult,
-    BlueprintDefaults,
+    BlueprintMetadata,
     ConditionEvaluationResult,
     ExecutionIdentity,
     ExecutionMetadata,
-    FailurePolicy,
-    FailureSpec,
     IterationMetadata,
     LoopStepBlock,
     PreviousStepMetadata,
@@ -19,10 +17,6 @@ from worktree.core.step.models import (
     StepMetadata,
     StepResult,
     StepType,
-    TaskMetadata,
-    WorkflowMetadata,
-    apply_on_failure_default,
-    extract_defaults_on_failure,
 )
 from worktree.core.step.runner import StepExecution
 from worktree.core.step.step import Step
@@ -30,12 +24,10 @@ from worktree.core.step.step import Step
 __all__ = [
     "DEFAULT_STEP_TIMEOUT_SECONDS",
     "AssertionResult",
-    "BlueprintDefaults",
+    "BlueprintMetadata",
     "ConditionEvaluationResult",
     "ExecutionIdentity",
     "ExecutionMetadata",
-    "FailurePolicy",
-    "FailureSpec",
     "IterationMetadata",
     "LoopStepBlock",
     "PreviousStepMetadata",
@@ -49,8 +41,4 @@ __all__ = [
     "StepResult",
     "StepType",
     "StepValidationError",
-    "TaskMetadata",
-    "WorkflowMetadata",
-    "apply_on_failure_default",
-    "extract_defaults_on_failure",
 ]

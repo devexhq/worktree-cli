@@ -20,9 +20,8 @@ class PromptFormatter(ComponentFormatter[PromptEvent]):
         if data.diagnostic:
             renderables.append(Text.from_markup(f"[dim]{data.diagnostic}[/dim]"))
 
-        paused = "Task paused" if data.kind == "task" else "Workflow paused"
         renderables.append(Text(""))
-        renderables.append(Text.from_markup(f"[yellow]{paused} waiting for user input.[/yellow]"))
+        renderables.append(Text.from_markup("[yellow]Blueprint paused waiting for user input.[/yellow]"))
         renderables.append(Text(""))
         renderables.append(Text.from_markup("[bold]Options:[/bold]"))
         for opt in data.options:

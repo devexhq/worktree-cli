@@ -24,9 +24,9 @@ class RunAutoApplyTests:
         git_fs.init_repo()
         monkeypatch.chdir(git_fs.base_path)
 
-        git_fs.create_task_file(
-            "auto-task",
-            description="Auto apply task",
+        git_fs.create_blueprint_file(
+            "auto-blueprint",
+            description="Auto apply blueprint",
             use_sandbox=True,
             steps=[
                 {"id": "step-1", "run": "echo 'generated content' > gen.txt"},
@@ -48,9 +48,9 @@ class RunAutoApplyTests:
         git_fs.init_repo()
         monkeypatch.chdir(git_fs.base_path)
 
-        git_fs.create_task_file(
-            "failing-task",
-            description="Failing task",
+        git_fs.create_blueprint_file(
+            "failing-blueprint",
+            description="Failing blueprint",
             use_sandbox=True,
             steps=[
                 {"id": "step-1", "run": "echo 'should not apply' > bad.txt"},

@@ -71,7 +71,7 @@ def resume_command(
     output_format: OutputFormatOptions = OutputFormatOptions.TERMINAL,
     display_format: DisplayFormatOptions = DisplayFormatOptions.ANSI,
 ) -> BlueprintRunResult:
-    """Resume a paused task or workflow blueprint execution session."""
+    """Resume a paused blueprint execution session."""
     ui_dispatcher.set_output_format(output_format)
     _emit_resume_start_notice(context, session_id)
 

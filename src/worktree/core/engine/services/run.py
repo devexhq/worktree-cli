@@ -7,7 +7,6 @@ from pathlib import Path
 
 from worktree.core.blueprint import (
     Blueprint,
-    BlueprintKind,
     BlueprintLoadError,
     BlueprintNotFoundError,
     BlueprintRunResult,
@@ -35,7 +34,6 @@ class BlueprintRunService:
     path: Path
     runs_db: RunsRepository
     catalog_db: CatalogRepository
-    kind: BlueprintKind | None = None
     no_sandbox: bool = False
     keep: bool = False
     agent: str | None = None
@@ -47,10 +45,6 @@ class BlueprintRunService:
     failure_prompter: FailurePrompter | None = None
     warnings: list[str] = field(default_factory=list)
 
-    @property
-    def _kind_label(self) -> str:
-        return self.kind.value if self.kind is not None else "blueprint"
-
     def execute(self) -> BlueprintRunResult:
         """Run the full execution pipeline and return the outcome."""
         reconciliation_result = reconcile_stale_runs(self.runs_db, path=self.path)
@@ -60,10 +54,7 @@ class BlueprintRunService:
         catalog = Catalog(path=self.path, db=self.catalog_db)
         blueprint, fail_outcome = self._load_blueprint(catalog)
         if fail_outcome is not None or blueprint is None:
-            return fail_outcome or self._fail(f"Failed to load {self._kind_label} '{self.name}'.")
-
-        if self.kind is None:
-            self.kind = blueprint.kind
+            return fail_outcome or self._fail(f"Failed to load Blueprint '{self.name}'.")
 
         try:
             run_outcome = Engine(self.path, db=self.runs_db, catalog=catalog).run(
@@ -83,7 +74,6 @@ class BlueprintRunService:
         except EngineInputError as exc:
             return self._fail(
                 format_input_error_message(
-                    kind=self._kind_label,
                     name=self.name,
                     result=exc.result,
                     declarations=blueprint.inputs,
@@ -102,7 +92,6 @@ class BlueprintRunService:
         )
 
     def _load_blueprint(self, catalog: Catalog) -> tuple[Blueprint | None, BlueprintRunResult | None]:
-        kind_str = self.kind.value if self.kind else "blueprint"
         item_type = self._resolve_item_type(catalog)
         if item_type is None:
             return None, self._fail(f"Blueprint '{self.name}' not found in catalog.")
@@ -114,30 +103,18 @@ class BlueprintRunService:
                 item_type=item_type,
             )
         except (BlueprintNotFoundError, BlueprintLoadError) as exc:
-            msg = str(exc) if str(exc) else f"Failed to resolve {kind_str}."
+            msg = str(exc) if str(exc) else "Failed to resolve blueprint."
             return None, self._fail(msg)
         except BlueprintValidationError as exc:
-            msg = str(exc) if str(exc) else f"{kind_str.capitalize()} definition is invalid."
-            return None, self._fail(msg)
-
-        if self.kind is not None and blueprint.kind is not self.kind:
-            msg = (
-                f"Blueprint '{self.name}' is a {blueprint.kind.value}; "
-                f"wt {self.kind.value} run requires a {self.kind.value}."
-            )
+            msg = str(exc) if str(exc) else "Blueprint definition is invalid."
             return None, self._fail(msg)
 
         return blueprint, None
 
     def _resolve_item_type(self, catalog: Catalog) -> CatalogItemType | None:
         """Return the requested or catalog-discovered blueprint item type."""
-        if self.kind is not None:
-            return CatalogItemType[self.kind.name]
-
         catalog_item = catalog.get(self.name)
         if not catalog_item.ok or catalog_item.resolved is None:
-            return None
-        if catalog_item.resolved.item_type not in (CatalogItemType.TASK, CatalogItemType.WORKFLOW):
             return None
         return catalog_item.resolved.item_type
 
@@ -158,7 +135,6 @@ class BlueprintRunService:
             id=-1,
             session_id=session_id,
             blueprint_name=self.name,
-            kind=self.kind or BlueprintKind.TASK,
             branch_name="",
             status=status,
             started_at="",

@@ -13,7 +13,7 @@ from worktree.core.db import CatalogItemType, CatalogRecord
 
 
 class CatalogResolveStatus(StrEnum):
-    """Classified outcomes for Catalog.resolve / resolve_step."""
+    """Classified outcomes for Catalog resolution."""
 
     OK = "ok"
     NOT_FOUND = "not_found"

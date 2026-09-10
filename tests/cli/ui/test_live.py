@@ -88,12 +88,12 @@ class TestLiveRenderers:
     def test_build_live_step_table_empty(self) -> None:
         table = build_live_step_table([])
         rendered = _render_to_text(table)
-        assert "Task Execution Progress" in rendered
+        assert "Blueprint Execution Progress" in rendered
         assert "Status" in rendered
 
     def test_build_live_step_table_with_sandbox(self) -> None:
         table = build_live_step_table([], sandbox_info="Active (/tmp/sbx)")
-        assert table.title == "Task Execution Progress (Active (/tmp/sbx))"
+        assert table.title == "Blueprint Execution Progress (Active (/tmp/sbx))"
         rendered = _render_to_text(table)
         assert "Active" in rendered
 

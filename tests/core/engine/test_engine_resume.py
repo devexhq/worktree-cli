@@ -163,7 +163,7 @@ class EngineResumeExecutionTests:
         assert record.status is RunStatus.COMPLETED
 
     def test_resume_omitted_blueprint_loads_from_catalog(self, monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
-        fs.create_task_file(
+        fs.create_blueprint_file(
             "lint",
             use_sandbox=False,
             steps=[

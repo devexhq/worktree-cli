@@ -11,7 +11,7 @@ from worktree.common.lock import WorkspaceLock
 from worktree.core.blueprint import Blueprint
 from worktree.core.catalog import Catalog
 from worktree.core.config import Config
-from worktree.core.db import BlueprintKind, RunsRepository, RunStatus
+from worktree.core.db import RunsRepository, RunStatus
 from worktree.core.engine.exceptions import EngineInputError
 from worktree.core.engine.models import RunRequest, SessionRunPayload
 from worktree.core.engine.resumable import ResumableRun
@@ -70,15 +70,11 @@ class Engine:
         req = request or RunRequest()
         steps = blueprint.steps
         resolved = self._resolve_run_inputs(blueprint, req)
-        sid = req.session_id or f"{blueprint.kind.value}_{uuid.uuid4().hex[:8]}"
+        sid = req.session_id or f"blueprint_{uuid.uuid4().hex[:8]}"
         engine_warnings: list[str] = list(resolved.warnings)
         pause_store = self._start_run(blueprint, sid, engine_warnings)
         caller_sandbox = True if req.use_sandbox is None else req.use_sandbox
-        identity = (
-            ExecutionIdentity(task_name=blueprint.name, task_sha=sid)
-            if blueprint.kind == BlueprintKind.TASK
-            else ExecutionIdentity(workflow_name=blueprint.name, workflow_sha=sid)
-        )
+        identity = ExecutionIdentity(blueprint_name=blueprint.name, blueprint_key=blueprint.key)
 
         start_time = datetime.now(UTC).isoformat()
         outcome = run_steps(
@@ -132,15 +128,7 @@ class Engine:
         pause_store = _DbPauseStore(db, session_id)
         engine_warnings: list[str] = []
         self._mark_running(pause_store, engine_warnings)
-        identity = (
-            checkpoint.identity
-            if checkpoint.identity is not None
-            else (
-                ExecutionIdentity(task_name=loaded.name, task_sha=session_id)
-                if loaded.kind == BlueprintKind.TASK
-                else ExecutionIdentity(workflow_name=loaded.name, workflow_sha=session_id)
-            )
-        )
+        identity = ExecutionIdentity(blueprint_name=loaded.name, blueprint_key=loaded.key)
 
         start_time = datetime.now(UTC).isoformat()
         outcome = run_steps(
@@ -201,7 +189,6 @@ class Engine:
             payload = SessionRunPayload(
                 version=1,
                 session_id=session_id,
-                kind=blueprint.kind.value,
                 name=blueprint.name,
                 status=outcome.status.value,
                 started_at=started_at,
@@ -244,7 +231,7 @@ class Engine:
         self.db.create(
             session_id=session_id,
             blueprint_name=blueprint.name,
-            kind=blueprint.kind,
+            blueprint_key=blueprint.key,
             branch_name="",
             status=RunStatus.RUNNING,
             pid=os.getpid(),

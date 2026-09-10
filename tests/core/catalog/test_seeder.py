@@ -14,7 +14,7 @@ class SeedCatalogTemplatesTests:
     """Tests for `seed_catalog_templates`."""
 
     def test_creates_missing_files(self, fs: FileSystem) -> None:
-        result = seed_catalog_templates(CatalogItemType.WORKFLOW, path=fs.base_path)
+        result = seed_catalog_templates(CatalogItemType.BLUEPRINT, path=fs.base_path)
 
         assert result.ok
         assert {path.name for path in result.created_files} == {
@@ -31,7 +31,7 @@ class SeedCatalogTemplatesTests:
         target = target_dir / "fix-tests.yml"
         target.write_text("custom\n", encoding="utf-8")
 
-        result = seed_catalog_templates(CatalogItemType.WORKFLOW, path=fs.base_path)
+        result = seed_catalog_templates(CatalogItemType.BLUEPRINT, path=fs.base_path)
 
         assert result.ok
         assert target in result.skipped_existing_files
@@ -43,7 +43,7 @@ class SeedCatalogTemplatesTests:
         target = target_dir / "review-fix.yml"
         target.write_text("custom\n", encoding="utf-8")
 
-        result = seed_catalog_templates(CatalogItemType.WORKFLOW, path=fs.base_path, force=True)
+        result = seed_catalog_templates(CatalogItemType.BLUEPRINT, path=fs.base_path, force=True)
 
         assert result.ok
         assert target in result.overwritten_files
@@ -55,7 +55,7 @@ class SeedCatalogTemplatesTests:
         existing = target_dir / "fix-tests.yml"
         existing.write_text("custom\n", encoding="utf-8")
 
-        result = seed_catalog_templates(CatalogItemType.WORKFLOW, path=fs.base_path)
+        result = seed_catalog_templates(CatalogItemType.BLUEPRINT, path=fs.base_path)
 
         assert result.ok
         assert existing in result.skipped_existing_files
@@ -67,15 +67,15 @@ class SeedCatalogTemplatesTests:
         collision = target_dir / "fix-tests.yml"
         collision.mkdir()
 
-        result = seed_catalog_templates(CatalogItemType.WORKFLOW, path=fs.base_path)
+        result = seed_catalog_templates(CatalogItemType.BLUEPRINT, path=fs.base_path)
 
         assert not result.ok
         assert any(str(collision) in error for error in result.errors)
         assert (target_dir / "review-fix.yml") in result.created_files
 
     def test_no_source_wt_dir_is_a_no_op(self, fs: FileSystem) -> None:
-        """Tasks currently have no curated `wt/` seed files."""
-        result = seed_catalog_templates(CatalogItemType.TASK, path=fs.base_path)
+        """Blueprint currently have no curated `wt/` seed files."""
+        result = seed_catalog_templates(CatalogItemType.BLUEPRINT, path=fs.base_path)
 
         assert result.ok
         assert result.created_files == []

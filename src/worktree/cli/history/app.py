@@ -42,7 +42,7 @@ def history_callback(
         typer.Option(
             "--kind",
             "-k",
-            help="Filter by blueprint kind (task, workflow).",
+            help="Filter by item type (blueprint, step).",
             case_sensitive=False,
         ),
     ] = None,
@@ -89,7 +89,7 @@ def history_list(
         typer.Option(
             "--kind",
             "-k",
-            help="Filter by blueprint kind (task, workflow).",
+            help="Filter by item type (blueprint, step).",
             case_sensitive=False,
         ),
     ] = None,

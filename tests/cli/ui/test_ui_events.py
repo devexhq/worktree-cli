@@ -27,23 +27,23 @@ from worktree.core.db import BlueprintKind, RunStatus
 
 def test_error_panel_event_terminal() -> None:
     dispatcher, buffer = make_dispatcher_with_buffer()
-    event = ErrorPanelEvent(title="Task Run Failed", message="Command failed with exit code 1.")
+    event = ErrorPanelEvent(title="Blueprint Run Failed", message="Command failed with exit code 1.")
     dispatcher.dispatch(event, output_format="terminal")
     output = buffer.getvalue()
-    assert "Task Run Failed" in output
+    assert "Blueprint Run Failed" in output
     assert "Command failed with exit code 1." in output
 
 
 def test_error_panel_event_json(capsys: pytest.CaptureFixture[str]) -> None:
     dispatcher = UiDispatcher()
-    event = ErrorPanelEvent(title="Task Run Failed", message="Command failed with exit code 1.")
+    event = ErrorPanelEvent(title="Blueprint Run Failed", message="Command failed with exit code 1.")
     dispatcher.dispatch(event, output_format="json")
     captured = capsys.readouterr()
     parsed = json.loads(captured.out.strip())
     assert parsed == {
         "event_type": "ErrorPanelEvent",
         "payload": {
-            "title": "Task Run Failed",
+            "title": "Blueprint Run Failed",
             "message": "Command failed with exit code 1.",
             "border_style": "red",
         },
@@ -139,7 +139,7 @@ def test_run_success_event_terminal() -> None:
     )
     dispatcher.dispatch(event, output_format="terminal")
     output = buffer.getvalue()
-    assert "Task Run Completed:" in output
+    assert "Blueprint Run Completed:" in output
     assert "build" in output
     assert "session: task_12345678" in output
     assert "status: completed" in output

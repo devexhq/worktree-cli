@@ -69,12 +69,12 @@ def render_seed_lines(view: WorkspaceInitView) -> list[Any]:
     """Render template seed result lines."""
     renderables: list[Any] = [Text("")]
     if view.seeded_files:
-        renderables.append(Text.from_markup("[bold green]✔  Seeded starter workflows[/bold green]"))
+        renderables.append(Text.from_markup("[bold green]✔  Seeded starter blueprints[/bold green]"))
         renderables.extend(render_string_bullets(view.seeded_files, "Created"))
     elif view.overwritten_seed_files:
-        renderables.append(Text.from_markup("[bold green]✔  Refreshed starter workflows[/bold green]"))
+        renderables.append(Text.from_markup("[bold green]✔  Refreshed starter blueprints[/bold green]"))
     else:
-        renderables.append(Text.from_markup("[bold green]✔  Starter workflows already present[/bold green]"))
+        renderables.append(Text.from_markup("[bold green]✔  Starter blueprints already present[/bold green]"))
 
     if view.skipped_seed_files:
         renderables.extend(render_string_bullets(view.skipped_seed_files, "Skipped existing"))
@@ -83,7 +83,7 @@ def render_seed_lines(view: WorkspaceInitView) -> list[Any]:
         lines = "\n".join(f"- {error}" for error in view.errors)
         renderables.append(
             Panel.fit(
-                f"[bold red]Starter workflow seeding failed:[/bold red]\n{lines}",
+                f"[bold red]Starter blueprint seeding failed:[/bold red]\n{lines}",
                 border_style="red",
             )
         )

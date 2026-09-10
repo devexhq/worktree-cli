@@ -72,7 +72,7 @@ def build_live_step_table(
     now: float | None = None,
 ) -> Table:
     """Build the Rich table displaying dynamic step execution progress."""
-    title = f"Task Execution Progress ({sandbox_info})" if sandbox_info else "Task Execution Progress"
+    title = f"Blueprint Execution Progress ({sandbox_info})" if sandbox_info else "Blueprint Execution Progress"
     table = Table(title=title, title_justify="left", show_header=True)
     table.add_column("Status", width=6, justify="center")
     table.add_column("Step")

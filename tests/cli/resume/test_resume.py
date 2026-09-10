@@ -86,10 +86,10 @@ class BlueprintResumeServiceTests:
         monkeypatch: pytest.MonkeyPatch,
         mock_interactive_prompter: _RetryPrompter,
     ) -> None:
-        """Verify BlueprintResumeService successfully resumes a paused task session."""
+        """Verify BlueprintResumeService successfully resumes a paused blueprint session."""
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
-            "sample-task",
+        fs.create_blueprint_file(
+            "sample-blueprint",
             use_sandbox=False,
             steps=[
                 {"id": "step-1", "run": "echo step1"},
@@ -160,8 +160,8 @@ class BlueprintResumeServiceTests:
     ) -> None:
         """Verify BlueprintResumeService auto-picks the most recent paused run when session_id is omitted."""
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
-            "task-auto",
+        fs.create_blueprint_file(
+            "blueprint-auto",
             use_sandbox=False,
             steps=[
                 {"id": "step-1", "run": "echo auto1"},
@@ -244,8 +244,8 @@ class ResumeCliTests:
         """Verify CLI 'wt resume <session_id>' resumes an explicit task run."""
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
-            "cli-task",
+        fs.create_blueprint_file(
+            "cli-blueprint",
             use_sandbox=False,
             steps=[
                 {"id": "step-1", "run": "echo step1"},
@@ -293,8 +293,8 @@ class ResumeCliTests:
         """Verify CLI 'wt resume' with no arguments auto-resumes the latest paused session."""
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
-            "latest-task",
+        fs.create_blueprint_file(
+            "latest-blueprint",
             use_sandbox=False,
             steps=[
                 {"id": "step-1", "run": "echo 1"},
@@ -312,8 +312,8 @@ class ResumeCliTests:
         """Verify CLI 'wt resume' fails when the target session is not in 'paused' status."""
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
-            "sample-task",
+        fs.create_blueprint_file(
+            "sample-blueprint",
             use_sandbox=False,
             steps=[{"id": "step-1", "run": "echo 1"}],
         )
@@ -328,8 +328,8 @@ class ResumeCliTests:
         """Verify CLI 'wt resume' fails when sandbox directory was deleted."""
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
-            "sandbox-task",
+        fs.create_blueprint_file(
+            "sandbox-blueprint",
             use_sandbox=False,
             steps=[{"id": "step-1", "run": "echo 1"}, {"id": "step-2", "run": "echo 2"}],
         )
@@ -345,8 +345,8 @@ class ResumeCliTests:
         """Verify CLI 'wt resume' fails cleanly on corrupt checkpoint JSON."""
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
-            "corrupt-task",
+        fs.create_blueprint_file(
+            "corrupt-blueprint",
             use_sandbox=False,
             steps=[{"id": "step-1", "run": "echo 1"}, {"id": "step-2", "run": "echo 2"}],
         )
@@ -364,8 +364,8 @@ class ResumeCliTests:
         """Verify a resumed run that pauses again exits with code 0."""
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
-            "pause-again-task",
+        fs.create_blueprint_file(
+            "pause-again-blueprint",
             use_sandbox=False,
             steps=[
                 {"id": "step-1", "run": "echo 1"},
@@ -408,8 +408,8 @@ class ResumeCliTests:
         """Verify a resumed run that ends in failed status exits with code 1."""
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
-            "fail-task",
+        fs.create_blueprint_file(
+            "fail-blueprint",
             use_sandbox=False,
             steps=[
                 {"id": "step-1", "run": "echo 1"},
@@ -425,8 +425,8 @@ class ResumeCliTests:
         """Verify non-interactive mode aborts failure prompts cleanly."""
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
-            "non-int-task",
+        fs.create_blueprint_file(
+            "non-int-blueprint",
             use_sandbox=False,
             steps=[
                 {"id": "step-1", "run": "echo 1"},
@@ -443,8 +443,8 @@ class ResumeCliTests:
         """Verify CLI 'wt resume' handles cancelled status cleanly."""
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
-            "cancel-task",
+        fs.create_blueprint_file(
+            "cancel-blueprint",
             use_sandbox=False,
             steps=[
                 {"id": "step-1", "run": "echo 1"},
@@ -474,8 +474,8 @@ class ResumeCliTests:
     ) -> None:
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
-            "resume-json-task",
+        fs.create_blueprint_file(
+            "resume-json-blueprint",
             use_sandbox=False,
             steps=[
                 {"id": "step-1", "run": "echo step1"},
@@ -513,8 +513,8 @@ class ResumeCommandDirectTests:
         """Verify resume_command resumes a paused session via context."""
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
-            "direct-res-task",
+        fs.create_blueprint_file(
+            "direct-res-blueprint",
             use_sandbox=False,
             steps=[
                 {"id": "step-1", "run": "echo 1"},
