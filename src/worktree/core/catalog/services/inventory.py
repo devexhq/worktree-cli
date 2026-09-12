@@ -308,7 +308,7 @@ def get_catalog_item[T](
     matches = _find_catalog_matches(sha_or_name, type_filter, db=database)
 
     if not matches:
-        return DefinitionResolutionResult(
+        return DefinitionResolutionResult[CatalogRecord](
             status=DefinitionResolutionStatus.NOT_FOUND,
             requested_name=sha_or_name,
             resolved=None,
@@ -334,7 +334,7 @@ def get_catalog_item[T](
         status = validation_outcome.status
         errors = validation_outcome.errors
 
-    return DefinitionResolutionResult(
+    return DefinitionResolutionResult[CatalogRecord](
         status=status,
         requested_name=sha_or_name,
         resolved=winner,

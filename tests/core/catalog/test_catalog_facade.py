@@ -3,57 +3,139 @@
 from __future__ import annotations
 
 from tests.helpers import FileSystem
+from tests.types import AssertModel
 from worktree.core.catalog import Catalog
 from worktree.core.db import CatalogItemType
 
 
-def test_catalog_facade_create_get_delete(fs: FileSystem) -> None:
-    catalog = Catalog(fs.base_path)
+class CatalogTests:
+    def test_catalog_create(self, fs: FileSystem, assert_model: AssertModel) -> None:
+        catalog = Catalog(fs.base_path)
+        blueprint = catalog.create(CatalogItemType.BLUEPRINT, "my-new-task")
 
-    create_res = catalog.create(CatalogItemType.BLUEPRINT, "my-new-task")
-    assert create_res.ok
-    assert create_res.item is not None
-    assert create_res.item.name == "my-new-task"
-    assert create_res.item.item_type == CatalogItemType.BLUEPRINT
-    assert create_res.item.key == "my-new-task"
+        assert_model(
+            blueprint,
+            {
+                "errors": [],
+                "warnings": [],
+                "fixes": [],
+                "item": {
+                    "item_type": "blueprint",
+                    "id": 1,
+                    "namespace": None,
+                    "key": "my-new-task",
+                    "name": "my-new-task",
+                },
+            },
+        )
 
-    res = catalog.get("my-new-task")
-    assert res.ok
-    assert res.resolved is not None
-    assert res.resolved.name == "my-new-task"
-    assert res.resolved.key == "my-new-task"
+    def test_catalog_get(self, fs: FileSystem, assert_model: AssertModel) -> None:
+        catalog = Catalog(fs.base_path)
+        catalog.create(CatalogItemType.BLUEPRINT, "my-new-task")
+        result = catalog.get("my-new-task")
 
-    show_res = catalog.show("my-new-task")
-    assert show_res.ok
-    assert show_res.item is not None
-    assert show_res.item.name == "my-new-task"
-    assert show_res.content is not None
+        expected_blueprint = {
+            "item_type": "blueprint",
+            "id": 1,
+            "namespace": None,
+            "key": "my-new-task",
+            "name": "my-new-task",
+        }
 
-    list_res = catalog.list(kind=CatalogItemType.BLUEPRINT)
-    assert list_res.ok
-    assert any(i.name == "my-new-task" for i in list_res.items)
+        assert_model(
+            result,
+            {
+                "errors": [],
+                "warnings": [],
+                "fixes": [],
+                "definition": None,
+                "matches": [expected_blueprint],
+                "requested_name": "my-new-task",
+                "resolved": expected_blueprint,
+                "status": "ok",
+            },
+        )
 
-    del_res = catalog.delete("my-new-task")
-    assert del_res.ok
-    assert del_res.deleted
-    assert del_res.item is not None
-    assert del_res.item.name == "my-new-task"
+    def test_catalog_show(self, fs: FileSystem, assert_model: AssertModel) -> None:
+        catalog = Catalog(fs.base_path)
+        catalog.create(CatalogItemType.BLUEPRINT, "my-new-task")
+        result = catalog.show("my-new-task")
+        assert_model(
+            result,
+            {
+                "errors": [],
+                "warnings": [],
+                "fixes": [],
+                "item": {
+                    "item_type": "blueprint",
+                    "id": 1,
+                    "namespace": None,
+                    "key": "my-new-task",
+                    "name": "my-new-task",
+                },
+                "content": "\n".join(
+                    ['version: "1.0"', "name: my-new-task", "description: Custom blueprint", "steps: []", ""]
+                ),
+                "template_matches": [],
+            },
+        )
 
-    res_after = catalog.get("my-new-task")
-    assert not res_after.ok
+    def test_catalog_list(self, fs: FileSystem, assert_model: AssertModel) -> None:
+        catalog = Catalog(fs.base_path)
+        catalog.create(CatalogItemType.BLUEPRINT, "my-new-task")
+        result = catalog.list(kind=CatalogItemType.BLUEPRINT)
 
+        assert_model(
+            result,
+            {
+                "errors": [],
+                "warnings": [],
+                "fixes": [],
+                "items": [
+                    {"item_type": "blueprint", "id": 1, "namespace": None, "key": "my-new-task", "name": "my-new-task"}
+                ],
+                "type_filter": "blueprint",
+                "templates": [],
+            },
+        )
 
-def test_catalog_facade_templates_and_seed(fs: FileSystem) -> None:
-    catalog = Catalog(fs.base_path)
+    def test_catalog_delete(self, fs: FileSystem, assert_model: AssertModel) -> None:
+        catalog = Catalog(fs.base_path)
+        catalog.create(CatalogItemType.BLUEPRINT, "my-new-task")
+        result = catalog.delete("my-new-task")
 
-    templates = Catalog.list_packaged_templates()
-    assert len(templates) > 0
+        assert_model(
+            result,
+            {
+                "errors": [],
+                "warnings": [],
+                "fixes": [],
+                "item": {
+                    "item_type": "blueprint",
+                    "id": 1,
+                    "namespace": None,
+                    "key": "my-new-task",
+                    "name": "my-new-task",
+                },
+                "deleted": True,
+                "cancelled": False,
+            },
+        )
 
-    defaults = Catalog.find_packaged_templates("default")
-    assert len(defaults) > 0
+        get_result = catalog.get("my-new-task")
+        assert not get_result.ok
 
-    seed_res = catalog.seed()
-    assert seed_res.ok
+    def test_catalog_facade_templates_and_seed(self, fs: FileSystem) -> None:
+        catalog = Catalog(fs.base_path)
 
-    sync_res = catalog.sync()
-    assert sync_res.ok
+        templates = Catalog.list_packaged_templates()
+        assert len(templates) > 0
+
+        defaults = Catalog.find_packaged_templates("default")
+        assert len(defaults) > 0
+
+        seed_res = catalog.seed()
+        assert seed_res.ok
+
+        sync_res = catalog.sync()
+        assert sync_res.ok

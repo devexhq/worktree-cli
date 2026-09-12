@@ -4,17 +4,34 @@ import shutil
 import subprocess
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
 import pytest
+from pydantic import BaseModel
 
 from tests.helpers import CatalogHelper, FileSystem, GitFileSystem, RunFactory
+from tests.helpers.mask_generator import build_exclude_mask
+from tests.types import AssertModel
 from worktree.common.filesystem import Filesystem
 from worktree.core.config import Config
 from worktree.core.config.generator import generate_default_config
 from worktree.core.config.loader import clear_config_cache
-from worktree.core.db import (
-    WorktreeDb,
-)
+from worktree.core.db import WorktreeDb
+
+
+@pytest.fixture
+def assert_model() -> AssertModel:
+    def _assert(actual: BaseModel, expected: dict[str, Any]):
+        # 1. Dynamically generate the perfect nested mask for this specific model class
+        exclude_mask = build_exclude_mask(actual.__class__)
+
+        # 2. Dump using the generated mask
+        actual_dict = actual.model_dump(mode="json", exclude=exclude_mask)
+
+        # 3. Assert
+        assert actual_dict == expected
+
+    return _assert
 
 
 @pytest.fixture(autouse=True)
