@@ -119,13 +119,13 @@ Every formatter under `src/worktree/cli/ui/formatters/<domain>/` must have three
 
 #### Canonical Tier 2 Test Structure
 
-Tier 2 tests use `tests.helpers.FormatterCase` (or `tests.harness.formatter.FormatterCase`) to define presentation scenarios once, feeding three focused test functions:
+Tier 2 tests use `tests.harness.formatter.FormatterCase` (or `tests.harness.FormatterCase`) to define presentation scenarios once, feeding three focused test functions:
 
 ```python
 from pathlib import Path
 from typing import Any
 import pytest
-from tests.helpers import FormatterCase, render_rich
+from tests.harness.formatter import FormatterCase, render_rich
 from worktree.cli.ui.formatters.status import WorktreeStatusFormatter
 from worktree.cli.ui.formatters.status.status_view import StatusHealth, StatusView
 from worktree.core.status.models import (

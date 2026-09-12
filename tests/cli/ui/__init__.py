@@ -1,0 +1,1 @@
+"""CLI UI test suite."""
