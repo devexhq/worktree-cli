@@ -4,13 +4,15 @@
 developer workflows and AI agent workspaces, backed by a local `.worktree/` state
 directory.
 
-## Always-on docs
-There are a subset of docs that must always be read for context before starting a task. **Open these files, read the docs  for context and treat their directives as authority**.
-- docs/agents/architecture.md
-- docs/agents/code-conventions.md
-- docs/agents/schemas.md
-- docs/agents/glossary.md
-- docs/agents/testing.md
+## Domain rules (RULES.md)
+
+Do not read broad always-on documentation before starting a task. Instead, read and apply the domain-specific `RULES.md` corresponding to the section of the codebase being modified:
+
+- If editing files under `src/worktree/cli/`, read and apply the rules under `src/worktree/cli/docs/RULES.md`.
+- If editing files under `src/worktree/common/`, read and apply the rules under `src/worktree/common/docs/RULES.md`.
+- If editing files under `src/worktree/core/`, read and apply the rules under `src/worktree/core/docs/RULES.md`.
+- If editing files under `tests/`, read and apply the rules under `tests/docs/RULES.md`.
+
 
 ## Agentic process
 
@@ -38,6 +40,7 @@ ruff check .                    # lint
 ruff format .                   # format
 basedpyright src tests          # typecheck package and tests (errors must be 0)
 inv complexity --paths <changed-file1>,<changed-file2> --plain   # complexity gate for changed files
+uv run python scripts/compile_rules.py   # recompile RULES.md after editing rules_spec.yaml
 ```
 
 ## Testing / Code Quality
@@ -151,6 +154,12 @@ Update docs in the same PR only when the change matches one of these gates:
 - **Deleting a production symbol whose only caller was a test**: delete the test
   in the same PR and expect coverage to fall. Do not backfill tests to hold the
   percentage.
+- **Architectural invariants, domain rules, or planner constraints**: update
+  [`docs/agents/rules_spec.yaml`](docs/agents/rules_spec.yaml) only if needed.
+  Avoid useless churn: only relevant changes, deletions, and additions are
+  acceptable. When updating `rules_spec.yaml`, always run
+  `uv run python scripts/compile_rules.py` after to regenerate the compiled rule
+  artifacts (`**/docs/RULES.md` and `docs/agents/PLANNER_RULES.md`).
 
 Keep docs lean: no update is better than busywork. Prefer **deleting stale
 bullets** over appending a parallel truth. Pure refactors that do not change
@@ -197,4 +206,5 @@ the source is trust, and that only holds if the doc holds up.
 | [docs/agents/git-and-pr-conventions.md](docs/agents/git-and-pr-conventions.md) | Committing changes or opening a PR |
 | [docs/agents/github-issues.md](docs/agents/github-issues.md) | Creating or updating GitHub issues (structure, tone, required sections) |
 | [docs/agents/ci-and-tooling.md](docs/agents/ci-and-tooling.md) | Understanding lint/CI requirements or release versioning |
+| [docs/agents/rules_spec.yaml](docs/agents/rules_spec.yaml) | Source specification for domain rules and invariants (recompile with `compile_rules.py` after changes) |
 | [docs/cli/](docs/cli/) | Per-command reference (`wt catalog`, `wt run`, `wt config`, etc.) for user-facing behavior and flags |
