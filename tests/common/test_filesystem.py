@@ -2,34 +2,43 @@
 
 from __future__ import annotations
 
+import importlib.resources
 from pathlib import Path
 
 import pytest
 
 from tests.helpers import FileSystem
+from tests.types import AssertModel
 from worktree.common.filesystem import Filesystem, FilesystemPaths, YamlFile
 
 
 class TestFilesystemPaths:
     """Unit tests for FilesystemPaths model."""
 
-    def test_from_root_creates_all_paths(self, fs: FileSystem) -> None:
+    def test_from_root_creates_all_paths(self, fs: FileSystem, assert_model: AssertModel) -> None:
         root = fs.base_path.resolve()
         paths = FilesystemPaths.from_root(root)
 
-        assert paths.root_dir == root
-        assert paths.worktree_dir == root / ".worktree"
-        assert paths.config_file == root / ".worktree" / "config.json"
-        assert paths.db_file == root / ".worktree" / "data.db"
-        assert paths.catalog_dir == root / ".worktree" / "catalog"
-        assert paths.logs_dir == root / ".worktree" / "logs"
-        assert paths.sessions_dir == root / ".worktree" / "sessions"
-        assert paths.artifacts_dir == root / ".worktree" / "artifacts"
-        assert paths.tmp_dir == root / ".worktree" / "tmp"
-        assert paths.sandboxes_dir == root / ".worktree" / "sandboxes"
-        assert paths.lock_file == root / ".worktree" / "worktree.lock"
-        assert paths.gitignore_file == root / ".gitignore"
-        assert paths.catalog_templates_dir is not None
+        assert_model(
+            paths,
+            {
+                "root_dir": str(root),
+                "worktree_dir": str(root / ".worktree"),
+                "config_file": str(root / ".worktree" / "config.json"),
+                "db_file": str(root / ".worktree" / "data.db"),
+                "catalog_dir": str(root / ".worktree" / "catalog"),
+                "logs_dir": str(root / ".worktree" / "logs"),
+                "sessions_dir": str(root / ".worktree" / "sessions"),
+                "artifacts_dir": str(root / ".worktree" / "artifacts"),
+                "tmp_dir": str(root / ".worktree" / "tmp"),
+                "sandboxes_dir": str(root / ".worktree" / "sandboxes"),
+                "catalog_blueprints_dir": str(root / ".worktree" / "catalog" / "blueprints"),
+                "catalog_steps_dir": str(root / ".worktree" / "catalog" / "steps"),
+                "lock_file": str(root / ".worktree" / "worktree.lock"),
+                "gitignore_file": str(root / ".gitignore"),
+                "catalog_templates_dir": str(importlib.resources.files("worktree.core.catalog.templates")),
+            },
+        )
 
     def test_session_dir_and_sandbox_dir(self, fs: FileSystem) -> None:
         root = fs.base_path.resolve()
@@ -75,9 +84,13 @@ class TestFilesystemFacade:
 
     def test_dynamic_getattr_delegates_to_paths(self, fs: FileSystem) -> None:
         filesystem = Filesystem(fs.base_path)
-        assert filesystem.session_dir("sess_1") == fs.base_path.resolve() / ".worktree" / "sessions" / "sess_1"
-        assert filesystem.sandbox_dir("sbx_1") == fs.base_path.resolve() / ".worktree" / "sandboxes" / "sbx_1"
-        assert filesystem.rel_to_root(fs.base_path / "foo.txt") == Path("foo.txt")
+        session_fn = getattr(filesystem, "session_dir")  # noqa: B009
+        sandbox_fn = getattr(filesystem, "sandbox_dir")  # noqa: B009
+        rel_fn = getattr(filesystem, "rel_to_root")  # noqa: B009
+
+        assert session_fn("sess_1") == fs.base_path.resolve() / ".worktree" / "sessions" / "sess_1"
+        assert sandbox_fn("sbx_1") == fs.base_path.resolve() / ".worktree" / "sandboxes" / "sbx_1"
+        assert rel_fn(fs.base_path / "foo.txt") == Path("foo.txt")
 
     def test_getattr_raises_attribute_error_for_unknown(self, fs: FileSystem) -> None:
         filesystem = Filesystem(fs.base_path)
