@@ -355,12 +355,12 @@
     },
     {
       "id": "TEST-006",
-      "name": "Single Behavior Parameterization",
+      "name": "Parameterization-First for Sibling Variations",
       "severity": "BLOCKER",
       "domain": "tests",
       "scope": "tests/",
-      "evaluation_criteria": "Scan test bodies for `for item in items:` loops over test cases.",
-      "bad_pattern": "for code in [0, 1]: assert check(code)"
+      "evaluation_criteria": "Flag copy-pasted or near-identical sibling test methods differing only by input parameters or expected outcomes. Scan test bodies for `for item in items:` loops over test cases.",
+      "bad_pattern": "def test_eval_model(self): ...; def test_eval_dict(self): ...  # duplicate sibling methods"
     },
     {
       "id": "TEST-007",
