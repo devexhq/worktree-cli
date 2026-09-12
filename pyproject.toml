@@ -81,7 +81,11 @@ testpaths = ["tests"]
 pythonpath = ["."]
 python_classes = ["Test*", "*Tests"]
 markers = [
-    "slow: real subprocess, git, or multi-process tests",
+    "unit: Fast in-memory tests (< 5ms) without subprocesses, disk SQLite, or real Git commands",
+    "integration: Real subsystem boundary tests (real Git worktrees, SQLite disk transactions, file locks)",
+    "cli: Typer CLI command routing, option parsing, and dispatcher output tests",
+    "invariant: Static AST and architectural boundary enforcement tests",
+    "slow: Long-running tests involving process group signal escalation, locks, or timeouts",
 ]
 filterwarnings = [
     "error",
