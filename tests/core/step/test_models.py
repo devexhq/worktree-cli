@@ -5,20 +5,18 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
+from worktree.common.models import BlueprintDefaults, FailurePolicy, OnFailureSpec
+from worktree.core.blueprint.models import apply_on_failure_default
 from worktree.core.step import (
-    BlueprintDefaults,
-    FailurePolicy,
-    FailureSpec,
     LoopStepBlock,
     StepAssert,
     StepDefinition,
     StepType,
-    apply_on_failure_default,
 )
 
 
 class FailurePolicyModelTests:
-    """Unit tests for FailurePolicy, FailureSpec, and default propagation."""
+    """Unit tests for FailurePolicy, OnFailureSpec, and default propagation."""
 
     def test_failure_policy_context_terminal_excludes_retry(self) -> None:
         assert FailurePolicy.context("terminal") == {
@@ -31,23 +29,23 @@ class FailurePolicyModelTests:
         assert FailurePolicy.context("anything-else") == set(FailurePolicy)
 
     def test_failure_spec_defaults(self) -> None:
-        spec = FailureSpec(action=FailurePolicy.ABORT)
+        spec = OnFailureSpec(action=FailurePolicy.ABORT)
         assert spec.max_retries == 3
         assert spec.backoff_ms == 0
         assert spec.on_max_retries == FailurePolicy.ABORT
 
     def test_failure_spec_coerces_string_actions(self) -> None:
-        spec = FailureSpec.model_validate({"action": "retry", "on_max_retries": "continue"})
+        spec = OnFailureSpec.model_validate({"action": "retry", "on_max_retries": "continue"})
         assert spec.action == FailurePolicy.RETRY
         assert spec.on_max_retries == FailurePolicy.CONTINUE
 
     def test_failure_spec_rejects_retry_on_max_retries(self) -> None:
         with pytest.raises(ValidationError, match="on_max_retries must be one of"):
-            FailureSpec(action=FailurePolicy.RETRY, on_max_retries=FailurePolicy.RETRY)
+            OnFailureSpec(action=FailurePolicy.RETRY, on_max_retries=FailurePolicy.RETRY)
 
     def test_failure_spec_forbids_extra_keys(self) -> None:
         with pytest.raises(ValidationError):
-            FailureSpec.model_validate(
+            OnFailureSpec.model_validate(
                 {
                     "action": FailurePolicy.ABORT,
                     "unknown_key": "nope",
@@ -69,7 +67,7 @@ class FailurePolicyModelTests:
 
         from_spec = apply_on_failure_default(
             {"id": "a", "run": "true"},
-            FailureSpec(action=FailurePolicy.CONTINUE),
+            OnFailureSpec(action=FailurePolicy.CONTINUE),
         )
         assert from_spec["on_failure"] == {
             "action": "continue",
@@ -102,13 +100,13 @@ class StepDefinitionModelTests:
             description="Run pytest suite",
             command="pytest tests/",
             timeout_seconds=60,
-            on_failure=FailureSpec(action=FailurePolicy.ABORT),
+            on_failure=OnFailureSpec(action=FailurePolicy.ABORT),
         )
         assert step.id == "step_pytest"
         assert step.type == StepType.COMMAND
         assert step.command == "pytest tests/"
         assert step.timeout_seconds == 60
-        assert step.on_failure == FailureSpec(action=FailurePolicy.ABORT)
+        assert step.on_failure == OnFailureSpec(action=FailurePolicy.ABORT)
 
     def test_step_definition_agent_valid(self) -> None:
         step = StepDefinition(

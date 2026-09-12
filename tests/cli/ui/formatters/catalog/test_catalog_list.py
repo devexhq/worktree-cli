@@ -21,10 +21,12 @@ from worktree.core.db import CatalogItemType, CatalogRecord
 def _sample_catalog_record() -> CatalogRecord:
     return CatalogRecord(
         id=1,
-        sha="workflow_1234567",
-        item_type=CatalogItemType.WORKFLOW,
-        name="test-workflow",
-        path=Path("workflows/test-workflow.yml"),
+        key="test-blueprint",
+        sha="blueprint_1234567",
+        item_type=CatalogItemType.BLUEPRINT,
+        name="test-blueprint",
+        namespace=None,
+        path=Path("blueprints/test-blueprint.yml"),
         checksum="1234567890abcdef",
         created_at="2026-08-17T00:00:00Z",
         updated_at="2026-08-17T00:00:00Z",
@@ -37,10 +39,10 @@ WITH_ITEMS = FormatterCase(
         items=[
             CatalogItemView(
                 id=1,
-                sha="workflow_1234567",
-                item_type="workflow",
-                name="test-workflow",
-                path="workflows/test-workflow.yml",
+                sha="blueprint_1234567",
+                item_type="blueprint",
+                name="test-blueprint",
+                path="blueprints/test-blueprint.yml",
                 checksum="1234567890abcdef",
                 created_at="2026-08-17T00:00:00Z",
                 updated_at="2026-08-17T00:00:00Z",
@@ -48,58 +50,35 @@ WITH_ITEMS = FormatterCase(
         ],
         total_items=1,
     ),
-    render_expectations=[
-        _sample_catalog_record().name,
-        _sample_catalog_record().sha,
-        "workflow",
-        "workflows/test-workflow.yml",
-    ],
+    render_expectations=["test-blueprint", "blueprint_1234567", "blueprint", "blueprints/test-blueprint.yml"],
 )
-
 
 EMPTY_ITEMS = FormatterCase(
     data=CatalogListResult(items=[]),
-    view=CatalogListView(
-        items=[],
-        total_items=0,
-    ),
+    view=CatalogListView(items=[], total_items=0),
     render_expectations=[],
 )
 
-
 TEMPLATES = FormatterCase(
-    data=CatalogListResult(templates=[("workflow", "workflows/default.yml")]),
+    data=CatalogListResult(templates=[("blueprint", "blueprints/default.yml")]),
     view=CatalogListView(
-        templates=[CatalogTemplateView(item_type="workflow", path="workflows/default.yml")],
+        templates=[CatalogTemplateView(item_type="blueprint", path="blueprints/default.yml")],
         total_items=0,
     ),
-    render_expectations=[
-        "workflow",
-        "workflows/default.yml",
-    ],
+    render_expectations=["blueprint", "blueprints/default.yml"],
 )
-
 
 EMPTY_TEMPLATES = FormatterCase(
     data=CatalogListResult(type_filter="template", templates=[]),
-    view=CatalogListView(
-        type_filter="template",
-        templates=[],
-        total_items=0,
-    ),
+    view=CatalogListView(type_filter="template", templates=[], total_items=0),
     render_expectations=[],
 )
-
 
 WITH_ERRORS = FormatterCase(
     data=CatalogListResult(errors=["Invalid --type argument 'invalid'."]),
-    view=CatalogListView(
-        errors=["Invalid --type argument 'invalid'."],
-        total_items=0,
-    ),
+    view=CatalogListView(errors=["Invalid --type argument 'invalid'."], total_items=0),
     render_expectations=[],
 )
-
 
 WITH_WARNINGS = FormatterCase(
     data=CatalogListResult(items=[_sample_catalog_record()], warnings=["Failed to parse corrupted.yml"]),
@@ -107,10 +86,10 @@ WITH_WARNINGS = FormatterCase(
         items=[
             CatalogItemView(
                 id=1,
-                sha="workflow_1234567",
-                item_type="workflow",
-                name="test-workflow",
-                path="workflows/test-workflow.yml",
+                sha="blueprint_1234567",
+                item_type="blueprint",
+                name="test-blueprint",
+                path="blueprints/test-blueprint.yml",
                 checksum="1234567890abcdef",
                 created_at="2026-08-17T00:00:00Z",
                 updated_at="2026-08-17T00:00:00Z",
@@ -119,14 +98,8 @@ WITH_WARNINGS = FormatterCase(
         total_items=1,
         warnings=["Failed to parse corrupted.yml"],
     ),
-    render_expectations=[
-        _sample_catalog_record().name,
-        _sample_catalog_record().sha,
-        "workflow",
-        "workflows/test-workflow.yml",
-    ],
+    render_expectations=["test-blueprint", "blueprint_1234567", "blueprint", "blueprints/test-blueprint.yml"],
 )
-
 
 LIST_CASES = [
     pytest.param(WITH_ITEMS, id="with_items"),
@@ -136,7 +109,6 @@ LIST_CASES = [
     pytest.param(WITH_ERRORS, id="with_errors"),
     pytest.param(WITH_WARNINGS, id="with_warnings"),
 ]
-
 
 PAYLOAD_CASES = [
     pytest.param(
@@ -148,10 +120,10 @@ PAYLOAD_CASES = [
             "items": [
                 {
                     "id": 1,
-                    "sha": "workflow_1234567",
-                    "item_type": "workflow",
-                    "name": "test-workflow",
-                    "path": "workflows/test-workflow.yml",
+                    "sha": "blueprint_1234567",
+                    "item_type": "blueprint",
+                    "name": "test-blueprint",
+                    "path": "blueprints/test-blueprint.yml",
                     "checksum": "1234567890abcdef",
                     "created_at": "2026-08-17T00:00:00Z",
                     "updated_at": "2026-08-17T00:00:00Z",
@@ -184,12 +156,7 @@ PAYLOAD_CASES = [
             "fixes": [],
             "items": [],
             "type_filter": None,
-            "templates": [
-                {
-                    "item_type": "workflow",
-                    "path": "workflows/default.yml",
-                }
-            ],
+            "templates": [{"item_type": "blueprint", "path": "blueprints/default.yml"}],
             "total_items": 0,
         },
         id="templates_payload",
@@ -216,10 +183,10 @@ PAYLOAD_CASES = [
             "items": [
                 {
                     "id": 1,
-                    "sha": "workflow_1234567",
-                    "item_type": "workflow",
-                    "name": "test-workflow",
-                    "path": "workflows/test-workflow.yml",
+                    "sha": "blueprint_1234567",
+                    "item_type": "blueprint",
+                    "name": "test-blueprint",
+                    "path": "blueprints/test-blueprint.yml",
                     "checksum": "1234567890abcdef",
                     "created_at": "2026-08-17T00:00:00Z",
                     "updated_at": "2026-08-17T00:00:00Z",

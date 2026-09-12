@@ -10,7 +10,7 @@ from worktree.common.exceptions import (
 
 
 class BlueprintNotFoundError(DefinitionNotFoundError):
-    """Raised when a blueprint name/SHA is not in the task/workflow catalog."""
+    """Raised when a blueprint name/SHA is not in the task/blueprint catalog."""
 
 
 class BlueprintLoadError(DefinitionLoadError):

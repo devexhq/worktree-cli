@@ -108,20 +108,19 @@ def _collect_catalog_status(root_dir: Path) -> CatalogStatusInfo:
             item_names=[],
         )
 
-    workflows_count, invalid_workflows, workflow_names = _scan_catalog_category(catalog_dir / "workflows")
-    tasks_count, invalid_tasks, task_names = _scan_catalog_category(catalog_dir / "tasks")
+    blueprints_count, invalid_blueprints, blueprint_names = _scan_catalog_category(catalog_dir / "blueprints")
     steps_count, invalid_steps, step_names = _scan_catalog_category(catalog_dir / "steps")
 
-    total_items = workflows_count + tasks_count + steps_count
-    invalid_items = invalid_workflows + invalid_tasks + invalid_steps
-    item_names = [*workflow_names, *task_names, *step_names]
+    total_items = blueprints_count + steps_count
+    invalid_items = invalid_blueprints + invalid_steps
+    item_names = [*blueprint_names, *step_names]
 
     return CatalogStatusInfo(
         exists=True,
         catalog_dir=catalog_dir,
         total_items=total_items,
-        workflows_count=workflows_count,
-        tasks_count=tasks_count,
+        workflows_count=0,
+        tasks_count=0,
         steps_count=steps_count,
         invalid_items=invalid_items,
         item_names=item_names,

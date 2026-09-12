@@ -19,7 +19,6 @@ from worktree.core.db.migrations import (
     init_database,
 )
 from worktree.core.db.models import (
-    BlueprintKind,
     CatalogItemType,
     CatalogRecord,
     RunRecord,
@@ -42,7 +41,6 @@ __all__ = [
     "INITIAL_SCHEMA_REVISION",
     "LATEST_SCHEMA_REVISION",
     "BaseRepository",
-    "BlueprintKind",
     "CatalogItemType",
     "CatalogRecord",
     "CatalogRepository",

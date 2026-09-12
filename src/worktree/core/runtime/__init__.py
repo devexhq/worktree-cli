@@ -17,12 +17,11 @@ from worktree.core.runtime.models import (
     parse_checkpoint,
 )
 from worktree.core.step import (
+    BlueprintMetadata,
     ExecutionIdentity,
     ExecutionMetadata,
     PreviousStepMetadata,
     StepMetadata,
-    TaskMetadata,
-    WorkflowMetadata,
 )
 from worktree.core.step.services.metadata import (
     build_execution_metadata,
@@ -32,6 +31,7 @@ from worktree.core.step.services.metadata import (
 
 __all__ = [
     "USER_CONTINUED_MARKER",
+    "BlueprintMetadata",
     "ExecutionIdentity",
     "ExecutionMetadata",
     "FailurePromptDecision",
@@ -47,8 +47,6 @@ __all__ = [
     "RunPauseStore",
     "StepLoopState",
     "StepMetadata",
-    "TaskMetadata",
-    "WorkflowMetadata",
     "build_execution_metadata",
     "effective_terminal_policy",
     "metadata_to_env",

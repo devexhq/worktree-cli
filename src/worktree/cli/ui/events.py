@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
-from worktree.core.db import BlueprintKind, RunStatus
+from worktree.core.db import RunStatus
 
 
 class ErrorPanelEvent(BaseModel):
@@ -51,7 +51,6 @@ class RunSuccessEvent(BaseModel):
 
     session_id: str
     blueprint_name: str
-    kind: BlueprintKind
     status: RunStatus
 
 
@@ -140,7 +139,6 @@ class PromptEvent(BaseModel):
 
     prompt_type: str  # "step_failure" | "loop_max_iterations"
     prompt_id: str  # step ID or loop ID
-    kind: str  # "task" | "workflow"
     title: str
     diagnostic: str | None = None
     options: list[PromptOption]

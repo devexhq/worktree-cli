@@ -255,7 +255,6 @@ def test_dispatcher_collapsing_tail_prompt_stops_tail() -> None:
     prompt = PromptEvent(
         prompt_type="step_failure",
         prompt_id="s1",
-        kind="task",
         title="Step Failed",
         options=[PromptOption(key="a", label="Abort", decision="abort")],
     )

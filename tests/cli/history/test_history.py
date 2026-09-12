@@ -18,7 +18,6 @@ from worktree.cli.ui.formatters.history.common import (
     format_run_duration,
     format_run_status,
 )
-from worktree.core.blueprint import BlueprintKind
 from worktree.core.config.generator import generate_default_config
 from worktree.core.db import RunStatus, WorktreeDb
 from worktree.core.history.models import (
@@ -76,7 +75,6 @@ class HistoryFormattersTests:
             self.db.runs,
             session_id="sess-dur-test",
             blueprint_name="sample-task",
-            kind=BlueprintKind.TASK,
             status=RunStatus.COMPLETED,
             started_at="2026-08-19 01:00:00",
             completed_at="2026-08-19 01:00:10",
@@ -92,7 +90,6 @@ class HistoryFormattersTests:
             self.db.runs,
             session_id="sess-12345678",
             blueprint_name="sample-task",
-            kind=BlueprintKind.TASK,
             status=RunStatus.COMPLETED,
             started_at="2026-08-19 01:00:00",
             completed_at="2026-08-19 01:00:10",
@@ -110,7 +107,6 @@ class HistoryFormattersTests:
             self.db.runs,
             session_id="sess-show-123",
             blueprint_name="show-task",
-            kind=BlueprintKind.TASK,
             status=RunStatus.COMPLETED,
             started_at="2026-08-19 01:00:00",
             completed_at="2026-08-19 01:00:10",
@@ -135,26 +131,23 @@ class HistoryServiceDirectTests:
         self.db = WorktreeDb(path=fs.base_path)
 
     def test_collect_history_list_filters(self, fs: FileSystem) -> None:
-        """Verify HistoryListService filters by status, kind, and limit."""
+        """Verify HistoryListService filters by status and limit."""
         make_run(
             self.db.runs,
             session_id="run-1",
             blueprint_name="task-a",
-            kind=BlueprintKind.TASK,
             status=RunStatus.COMPLETED,
         )
         make_run(
             self.db.runs,
             session_id="run-2",
             blueprint_name="wf-b",
-            kind=BlueprintKind.WORKFLOW,
             status=RunStatus.FAILED,
         )
         make_run(
             self.db.runs,
             session_id="run-3",
             blueprint_name="task-c",
-            kind=BlueprintKind.TASK,
             status=RunStatus.PAUSED,
         )
 
@@ -169,12 +162,6 @@ class HistoryServiceDirectTests:
         assert len(failed_res.runs) == 1
         assert failed_res.runs[0].session_id == "run-2"
 
-        # Filter kind
-        wf_res = HistoryListService(path=fs.base_path, db=self.db.runs, kind="workflow").collect()
-        assert wf_res.ok
-        assert len(wf_res.runs) == 1
-        assert wf_res.runs[0].session_id == "run-2"
-
         # Limit
         limit_res = HistoryListService(path=fs.base_path, db=self.db.runs, limit=2).collect()
         assert limit_res.ok
@@ -186,7 +173,6 @@ class HistoryServiceDirectTests:
             self.db.runs,
             session_id="run-show-1",
             blueprint_name="my-task",
-            kind=BlueprintKind.TASK,
             status=RunStatus.COMPLETED,
         )
 
@@ -206,7 +192,6 @@ class HistoryServiceDirectTests:
             self.db.runs,
             session_id="svc-run-1",
             blueprint_name="svc-task",
-            kind=BlueprintKind.TASK,
             status=RunStatus.COMPLETED,
         )
 
@@ -250,7 +235,6 @@ class HistoryCliTests:
             self.db.runs,
             session_id="sess-12345678",
             blueprint_name="sample-task",
-            kind=BlueprintKind.TASK,
             status=RunStatus.COMPLETED,
             started_at="2026-08-19 01:00:00",
             completed_at="2026-08-19 01:00:10",
@@ -261,7 +245,6 @@ class HistoryCliTests:
         assert "Execution History" in result.output
         assert "sess-12345678" in result.output
         assert "sample-task" in result.output
-        assert "task" in result.output
         assert "completed" in result.output
         assert "10.00s" in result.output
 
@@ -274,7 +257,6 @@ class HistoryCliTests:
             self.db.runs,
             session_id="sess-stale-test",
             blueprint_name="abrupt-task",
-            kind=BlueprintKind.TASK,
             status=RunStatus.RUNNING,
             pid=9999999,
         )
@@ -286,7 +268,7 @@ class HistoryCliTests:
         assert "failed" in result.output
 
     def test_cli_history_filtering_options(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Verify 'wt history' options --status, --kind, and --limit."""
+        """Verify 'wt history' options --status, and --limit."""
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
 
@@ -294,21 +276,18 @@ class HistoryCliTests:
             self.db.runs,
             session_id="sess-task-ok",
             blueprint_name="task-1",
-            kind=BlueprintKind.TASK,
             status=RunStatus.COMPLETED,
         )
         make_run(
             self.db.runs,
             session_id="sess-task-fail",
             blueprint_name="task-2",
-            kind=BlueprintKind.TASK,
             status=RunStatus.FAILED,
         )
         make_run(
             self.db.runs,
             session_id="sess-wf-ok",
             blueprint_name="wf-1",
-            kind=BlueprintKind.WORKFLOW,
             status=RunStatus.COMPLETED,
         )
 
@@ -323,17 +302,6 @@ class HistoryCliTests:
         res_status_short = runner.invoke(app, ["history", "-s", "failed"])
         assert res_status_short.exit_code == 0
         assert "sess-task-fail" in res_status_short.output
-
-        # Filter kind: workflow
-        res_kind = runner.invoke(app, ["history", "--kind", "workflow"])
-        assert res_kind.exit_code == 0
-        assert "sess-wf-ok" in res_kind.output
-        assert "sess-task-ok" not in res_kind.output
-
-        # Short flag -k
-        res_kind_short = runner.invoke(app, ["history", "-k", "workflow"])
-        assert res_kind_short.exit_code == 0
-        assert "sess-wf-ok" in res_kind_short.output
 
         # Limit
         res_limit = runner.invoke(app, ["history", "--limit", "1"])
@@ -353,7 +321,6 @@ class HistoryCliTests:
             self.db.runs,
             session_id="sess-json-1",
             blueprint_name="json-task",
-            kind=BlueprintKind.TASK,
             status=RunStatus.COMPLETED,
         )
 
@@ -374,7 +341,6 @@ class HistoryCliTests:
             self.db.runs,
             session_id="sess-list-1",
             blueprint_name="list-task",
-            kind=BlueprintKind.TASK,
             status=RunStatus.COMPLETED,
         )
 
@@ -418,7 +384,6 @@ class HistoryShowCliTests:
             self.db.runs,
             session_id="show-json-1",
             blueprint_name="json-task",
-            kind=BlueprintKind.TASK,
             status=RunStatus.COMPLETED,
         )
 
@@ -440,7 +405,6 @@ class HistoryShowCliTests:
             self.db.runs,
             session_id="show-session-1",
             blueprint_name="deploy-production",
-            kind=BlueprintKind.WORKFLOW,
             status=RunStatus.COMPLETED,
             branch_name="feature/deploy",
             started_at="2026-08-19 01:00:00",
@@ -451,7 +415,6 @@ class HistoryShowCliTests:
         assert result.exit_code == 0
         assert "Session Metadata: show-session-1" in result.output
         assert "deploy-production" in result.output
-        assert "workflow" in result.output
         assert "feature/deploy" in result.output
         assert "completed" in result.output
         assert "1m 15.0s" in result.output
@@ -464,7 +427,6 @@ class HistoryShowCliTests:
             self.db.runs,
             session_id="show-error-1",
             blueprint_name="faulty-task",
-            kind=BlueprintKind.TASK,
             status=RunStatus.FAILED,
             error_message="Step 'test-step' failed with exit code 127.",
         )
@@ -497,7 +459,6 @@ class HistoryShowCliTests:
             self.db.runs,
             session_id="show-checkpoint-1",
             blueprint_name="paused-task",
-            kind=BlueprintKind.TASK,
             status=RunStatus.PAUSED,
             checkpoint_json=checkpoint.model_dump_json(),
         )
@@ -522,7 +483,6 @@ class HistoryShowCliTests:
             self.db.runs,
             session_id="show-raw-chk-1",
             blueprint_name="raw-task",
-            kind=BlueprintKind.TASK,
             status=RunStatus.PAUSED,
             checkpoint_json=raw_payload,
         )

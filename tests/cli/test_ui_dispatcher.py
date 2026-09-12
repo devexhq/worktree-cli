@@ -33,7 +33,6 @@ from worktree.cli.ui.formatters.status import (
     WorktreeStatusFormatter,
 )
 from worktree.common.types import ComponentFormatter
-from worktree.core.blueprint import BlueprintKind
 from worktree.core.bootstrap import (
     BootstrapResult,
     WorkspaceInitResult,
@@ -190,10 +189,12 @@ def test_dispatcher_set_output_format(capsys: pytest.CaptureFixture[str]) -> Non
 def _sample_catalog_record() -> CatalogRecord:
     return CatalogRecord(
         id=1,
-        sha="workflow_1234567",
-        item_type=CatalogItemType.WORKFLOW,
-        name="test-workflow",
-        path=Path("workflows/test-workflow.yml"),
+        key="test-blueprint",
+        sha="blueprint_1234567",
+        item_type=CatalogItemType.BLUEPRINT,
+        name="test-blueprint",
+        namespace=None,
+        path=Path("blueprints/test-blueprint.yml"),
         checksum="1234567890abcdef",
         created_at="2026-08-17T00:00:00Z",
         updated_at="2026-08-17T00:00:00Z",
@@ -220,7 +221,7 @@ class CatalogDispatcherIntegrationTests:
     def test_dispatcher_list_ndjson(self, capsys: pytest.CaptureFixture[str]) -> None:
         dispatcher = UiDispatcher()
         item = _sample_catalog_record()
-        result = CatalogListResult(items=[item], type_filter="workflow")
+        result = CatalogListResult(items=[item], type_filter="blueprint")
 
         dispatcher.dispatch(result, output_format="json")
 
@@ -231,7 +232,7 @@ class CatalogDispatcherIntegrationTests:
         payload = json.loads(lines[0])
         assert payload["event_type"] == "CatalogListResult"
         assert len(payload["payload"]["items"]) == 1
-        assert payload["payload"]["items"][0]["name"] == "test-workflow"
+        assert payload["payload"]["items"][0]["name"] == "test-blueprint"
 
     def test_dispatcher_show_ndjson(self, capsys: pytest.CaptureFixture[str]) -> None:
         dispatcher = UiDispatcher()
@@ -276,7 +277,7 @@ class CatalogDispatcherIntegrationTests:
 
         payload = json.loads(lines[0])
         assert payload["event_type"] == "CatalogCreateResult"
-        assert payload["payload"]["item"]["name"] == "test-workflow"
+        assert payload["payload"]["item"]["name"] == "test-blueprint"
 
     def test_dispatcher_terminal_format(self) -> None:
         dispatcher, buffer = make_dispatcher_with_buffer(force_terminal=True)
@@ -286,8 +287,8 @@ class CatalogDispatcherIntegrationTests:
         dispatcher.dispatch(result, output_format="terminal")
 
         output = buffer.getvalue()
-        assert "test-workflow" in output
-        assert "workflow_1234567" in output
+        assert "test-blueprint" in output
+        assert "blueprint_1234567" in output
 
 
 class ConfigRegistrationAndDispatchTests:
@@ -388,7 +389,7 @@ def _sample_run_record() -> RunRecord:
         id=1,
         session_id="sess-12345678",
         blueprint_name="deploy-task",
-        kind=BlueprintKind.TASK,
+        blueprint_key="deploy-task",
         status=RunStatus.COMPLETED,
         branch_name="feature/test",
         started_at="2026-08-19 01:00:00",

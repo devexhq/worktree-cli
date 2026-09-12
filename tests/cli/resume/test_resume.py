@@ -3,48 +3,46 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
 
 from tests.helpers import (
+    BlueprintHelper,
+    CatalogHelper,
     FileSystem,
     GitFileSystem,
+    RunFactory,
     make_checkpoint,
     make_cli_context,
+    make_run_outcome,
 )
 from worktree.cli import app
 from worktree.cli.resume.commands.root import resume_command
-from worktree.core.blueprint import BlueprintKind
-from worktree.core.catalog.services.inventory import scan_and_index_catalog
-from worktree.core.db import RunsRepository, RunStatus, WorktreeDb
+from worktree.core.db import RunStatus, WorktreeDb
 from worktree.core.engine import BlueprintResumeService
-from worktree.core.runtime import FailurePromptDecision, LoopPromptDecision, RunCheckpoint
+from worktree.core.runtime import FailurePromptDecision, LoopPromptDecision
 
 runner = CliRunner()
 
 
-def _seed_paused_run(
-    db: RunsRepository,
-    session_id: str,
-    blueprint_name: str,
-    kind: BlueprintKind,
-    checkpoint: RunCheckpoint | None = None,
+def _save_resume_blueprint(
+    catalog: CatalogHelper,
     *,
-    status: RunStatus = RunStatus.PAUSED,
-) -> None:
-    db.create(
-        session_id=session_id,
-        blueprint_name=blueprint_name,
-        kind=kind,
-        branch_name="wt/resume",
-        status=RunStatus.RUNNING,
-    )
-    if status is RunStatus.PAUSED:
-        raw = checkpoint.model_dump_json() if checkpoint is not None else make_checkpoint().model_dump_json()
-        db.save_pause(session_id, raw, "paused")
-    else:
-        db.update_status(session_id, status)
+    key: str = "resume",
+    **overrides: object,
+) -> BlueprintHelper:
+    """Save a valid blueprint definition and return its transparent test handle."""
+    blueprint = catalog.blueprint(key=key, **overrides)
+    catalog.save(blueprint)
+    return blueprint
+
+
+@pytest.fixture
+def resume_blueprint(catalog: CatalogHelper) -> BlueprintHelper:
+    """Save and return the canonical blueprint for successful resume tests."""
+    return _save_resume_blueprint(catalog)
 
 
 class _RetryPrompter:
@@ -76,27 +74,22 @@ class BlueprintResumeServiceTests:
     db: WorktreeDb
 
     @pytest.fixture(autouse=True)
-    def setup_method(self, fs: FileSystem) -> None:
+    def setup_method(self, fs: FileSystem, catalog: CatalogHelper, runs: RunFactory) -> None:
         fs.create_config_file()
         self.db = WorktreeDb(path=fs.base_path)
+        self.catalog = catalog
+        self.runs = runs
 
     def test_blueprint_resume_service_resumes_task(
         self,
         fs: FileSystem,
         monkeypatch: pytest.MonkeyPatch,
         mock_interactive_prompter: _RetryPrompter,
+        resume_blueprint: BlueprintHelper,
     ) -> None:
-        """Verify BlueprintResumeService successfully resumes a paused task session."""
+        """Verify BlueprintResumeService successfully resumes a paused blueprint session."""
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
-            "sample-task",
-            use_sandbox=False,
-            steps=[
-                {"id": "step-1", "run": "echo step1"},
-                {"id": "step-2", "run": "echo step2", "on_failure": "prompt_user"},
-            ],
-        )
-        _seed_paused_run(self.db.runs, "task-res-1", "sample-task", BlueprintKind.TASK)
+        self.runs.create_paused(session_id="task-res-1", blueprint=resume_blueprint.catalog_item)
 
         ctx = make_cli_context(cwd=fs.base_path)
         outcome = BlueprintResumeService(
@@ -109,7 +102,6 @@ class BlueprintResumeServiceTests:
         assert outcome.ok
         assert outcome.run_record is not None
         assert outcome.run_record.status == RunStatus.COMPLETED
-        assert outcome.run_record.kind == BlueprintKind.TASK
 
         record = self.db.runs.get("task-res-1")
         assert record is not None
@@ -124,16 +116,9 @@ class BlueprintResumeServiceTests:
         """Verify BlueprintResumeService successfully resumes a paused workflow session."""
         git_fs.init_repo()
         monkeypatch.chdir(git_fs.base_path)
-        git_fs.create_workflow_file(
-            "deploy-wf",
-            steps=[
-                {"id": "step-1", "run": "echo wf1"},
-                {"id": "step-2", "run": "echo wf2", "on_failure": "prompt_user"},
-            ],
-        )
-        scan_and_index_catalog(path=git_fs.base_path)
+        blueprint = _save_resume_blueprint(CatalogHelper(git_fs))
         git_db = WorktreeDb(path=git_fs.base_path)
-        _seed_paused_run(git_db.runs, "wf-res-1", "deploy-wf", BlueprintKind.WORKFLOW)
+        RunFactory(git_db.runs).create_paused(session_id="wf-res-1", blueprint=blueprint.catalog_item)
 
         ctx = make_cli_context(cwd=git_fs.base_path)
         outcome = BlueprintResumeService(
@@ -146,7 +131,6 @@ class BlueprintResumeServiceTests:
         assert outcome.ok
         assert outcome.run_record is not None
         assert outcome.run_record.status == RunStatus.COMPLETED
-        assert outcome.run_record.kind == BlueprintKind.WORKFLOW
 
         record = git_db.runs.get("wf-res-1")
         assert record is not None
@@ -157,19 +141,12 @@ class BlueprintResumeServiceTests:
         fs: FileSystem,
         monkeypatch: pytest.MonkeyPatch,
         mock_interactive_prompter: _RetryPrompter,
+        resume_blueprint: BlueprintHelper,
     ) -> None:
         """Verify BlueprintResumeService auto-picks the most recent paused run when session_id is omitted."""
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
-            "task-auto",
-            use_sandbox=False,
-            steps=[
-                {"id": "step-1", "run": "echo auto1"},
-                {"id": "step-2", "run": "echo auto2", "on_failure": "prompt_user"},
-            ],
-        )
-        _seed_paused_run(self.db.runs, "task-old", "task-auto", BlueprintKind.TASK)
-        _seed_paused_run(self.db.runs, "task-new", "task-auto", BlueprintKind.TASK)
+        self.runs.create_paused(session_id="task-old", blueprint=resume_blueprint.catalog_item)
+        self.runs.create_paused(session_id="task-new", blueprint=resume_blueprint.catalog_item)
 
         ctx = make_cli_context(cwd=fs.base_path)
         outcome = BlueprintResumeService(
@@ -203,18 +180,18 @@ class BlueprintResumeServiceTests:
     ) -> None:
         """Verify exceptions in _load_record during resolution are captured as warnings."""
         monkeypatch.chdir(fs.base_path)
-        monkeypatch.setattr(
-            self.db.runs,
-            "get",
-            lambda sid: (_ for _ in ()).throw(RuntimeError("DB query failed")),
-        )
+
+        def raise_db_query_error(_session_id: str) -> None:
+            raise RuntimeError("DB query failed")
+
+        monkeypatch.setattr(self.db.runs, "get", raise_db_query_error)
         monkeypatch.setattr(
             "worktree.core.engine.services.resume.Engine.resume",
-            lambda *args, **kwargs: type(
-                "RunOutcome",
-                (),
-                {"ok": False, "status": RunStatus.FAILED, "errors": ["Run failed"], "warnings": []},
-            )(),
+            lambda *_args, **_kwargs: make_run_outcome(
+                status=RunStatus.FAILED,
+                errors=["Run failed"],
+                sandbox_path=Path(".worktree/sandboxes/sbx-run-1"),
+            ),
         )
         ctx = make_cli_context(cwd=fs.base_path)
         outcome = BlueprintResumeService(
@@ -232,8 +209,10 @@ class ResumeCliTests:
     db: WorktreeDb
 
     @pytest.fixture(autouse=True)
-    def setup_method(self, fs: FileSystem) -> None:
+    def setup_method(self, fs: FileSystem, catalog: CatalogHelper, runs: RunFactory) -> None:
         self.db = WorktreeDb(path=fs.base_path)
+        self.catalog = catalog
+        self.runs = runs
 
     def test_resume_cli_explicit_session_task(
         self,
@@ -244,20 +223,12 @@ class ResumeCliTests:
         """Verify CLI 'wt resume <session_id>' resumes an explicit task run."""
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
-            "cli-task",
-            use_sandbox=False,
-            steps=[
-                {"id": "step-1", "run": "echo step1"},
-                {"id": "step-2", "run": "echo step2", "on_failure": "prompt_user"},
-            ],
-        )
-        _seed_paused_run(self.db.runs, "task-explicit-1", "cli-task", BlueprintKind.TASK)
+        blueprint = _save_resume_blueprint(self.catalog)
+        self.runs.create_paused(session_id="task-explicit-1", blueprint=blueprint.catalog_item)
 
         result = runner.invoke(app, ["resume", "task-explicit-1"])
         assert result.exit_code == 0
         assert "task-explicit-1" in result.output
-        assert "cli-task" in result.output
 
     def test_resume_cli_explicit_session_workflow(
         self,
@@ -268,21 +239,13 @@ class ResumeCliTests:
         """Verify CLI 'wt resume <session_id>' resumes an explicit workflow run."""
         git_fs.init_repo()
         monkeypatch.chdir(git_fs.base_path)
-        git_fs.create_workflow_file(
-            "cli-wf",
-            steps=[
-                {"id": "step-1", "run": "echo wf1"},
-                {"id": "step-2", "run": "echo wf2", "on_failure": "prompt_user"},
-            ],
-        )
-        scan_and_index_catalog(path=git_fs.base_path)
+        blueprint = _save_resume_blueprint(CatalogHelper(git_fs))
         git_db = WorktreeDb(path=git_fs.base_path)
-        _seed_paused_run(git_db.runs, "wf-explicit-1", "cli-wf", BlueprintKind.WORKFLOW)
+        RunFactory(git_db.runs).create_paused(session_id="wf-explicit-1", blueprint=blueprint.catalog_item)
 
         result = runner.invoke(app, ["resume", "wf-explicit-1"])
         assert result.exit_code == 0
         assert "wf-explicit-1" in result.output
-        assert "cli-wf" in result.output
 
     def test_resume_cli_auto_resumes_latest_paused(
         self,
@@ -293,31 +256,26 @@ class ResumeCliTests:
         """Verify CLI 'wt resume' with no arguments auto-resumes the latest paused session."""
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
-            "latest-task",
-            use_sandbox=False,
-            steps=[
-                {"id": "step-1", "run": "echo 1"},
-                {"id": "step-2", "run": "echo 2", "on_failure": "prompt_user"},
-            ],
-        )
-        _seed_paused_run(self.db.runs, "task-latest-1", "latest-task", BlueprintKind.TASK)
+        blueprint = _save_resume_blueprint(self.catalog)
+        self.runs.create_paused(session_id="task-latest-1", blueprint=blueprint.catalog_item)
+        self.runs.create_paused(session_id="task-latest-2", blueprint=blueprint.catalog_item)
 
         result = runner.invoke(app, ["resume"])
-        print(result.__dict__)
         assert result.exit_code == 0
-        assert "task-latest-1" in result.output
+        assert "task-latest-2" in result.output
 
     def test_resume_cli_not_paused_exits_1(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify CLI 'wt resume' fails when the target session is not in 'paused' status."""
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
-            "sample-task",
-            use_sandbox=False,
-            steps=[{"id": "step-1", "run": "echo 1"}],
+        blueprint = _save_resume_blueprint(self.catalog)
+        self.runs.create(
+            session_id="task-running",
+            blueprint_name=blueprint.instance.name,
+            blueprint_key=blueprint.catalog_item.key,
+            status=RunStatus.RUNNING,
+            completed_at=None,
         )
-        _seed_paused_run(self.db.runs, "task-running", "sample-task", BlueprintKind.TASK, status=RunStatus.RUNNING)
 
         result = runner.invoke(app, ["resume", "task-running"])
         assert result.exit_code == 1
@@ -328,13 +286,13 @@ class ResumeCliTests:
         """Verify CLI 'wt resume' fails when sandbox directory was deleted."""
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
-            "sandbox-task",
-            use_sandbox=False,
-            steps=[{"id": "step-1", "run": "echo 1"}, {"id": "step-2", "run": "echo 2"}],
-        )
+        blueprint = _save_resume_blueprint(self.catalog)
         checkpoint = make_checkpoint(sandbox_path="/tmp/nonexistent-sandbox-dir", use_sandbox=True)
-        _seed_paused_run(self.db.runs, "task-bad-box", "sandbox-task", BlueprintKind.TASK, checkpoint=checkpoint)
+        self.runs.create_paused(
+            session_id="task-bad-box",
+            blueprint=blueprint.catalog_item,
+            checkpoint=checkpoint,
+        )
 
         result = runner.invoke(app, ["resume", "task-bad-box"])
         assert result.exit_code == 1
@@ -345,13 +303,13 @@ class ResumeCliTests:
         """Verify CLI 'wt resume' fails cleanly on corrupt checkpoint JSON."""
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
-            "corrupt-task",
-            use_sandbox=False,
-            steps=[{"id": "step-1", "run": "echo 1"}, {"id": "step-2", "run": "echo 2"}],
-        )
-        self.db.runs.create(
-            session_id="task-corrupt", blueprint_name="corrupt-task", kind=BlueprintKind.TASK, status=RunStatus.RUNNING
+        blueprint = _save_resume_blueprint(self.catalog)
+        self.runs.create(
+            session_id="task-corrupt",
+            blueprint_name=blueprint.instance.name,
+            blueprint_key=blueprint.catalog_item.key,
+            status=RunStatus.RUNNING,
+            completed_at=None,
         )
         self.db.runs.save_pause("task-corrupt", "not-valid-json", "paused")
 
@@ -364,15 +322,14 @@ class ResumeCliTests:
         """Verify a resumed run that pauses again exits with code 0."""
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
-            "pause-again-task",
-            use_sandbox=False,
+        blueprint = _save_resume_blueprint(
+            self.catalog,
             steps=[
                 {"id": "step-1", "run": "echo 1"},
                 {"id": "step-2", "run": "exit 1", "on_failure": "prompt_user"},
             ],
         )
-        _seed_paused_run(self.db.runs, "task-pause-again", "pause-again-task", BlueprintKind.TASK)
+        self.runs.create_paused(session_id="task-pause-again", blueprint=blueprint.catalog_item)
 
         class _InterruptPrompter:
             is_interactive: bool = True
@@ -408,32 +365,30 @@ class ResumeCliTests:
         """Verify a resumed run that ends in failed status exits with code 1."""
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
-            "fail-task",
-            use_sandbox=False,
+        blueprint = _save_resume_blueprint(
+            self.catalog,
             steps=[
                 {"id": "step-1", "run": "echo 1"},
                 {"id": "step-2", "run": "exit 42"},
             ],
         )
-        _seed_paused_run(self.db.runs, "task-fail-run", "fail-task", BlueprintKind.TASK)
+        self.runs.create_paused(session_id="task-fail-run", blueprint=blueprint.catalog_item)
 
         result = runner.invoke(app, ["resume", "task-fail-run"])
         assert result.exit_code == 1
 
-    def no_tty(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_resume_cli_no_tty_aborts_prompt_user(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify non-interactive mode aborts failure prompts cleanly."""
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
-            "non-int-task",
-            use_sandbox=False,
+        blueprint = _save_resume_blueprint(
+            self.catalog,
             steps=[
                 {"id": "step-1", "run": "echo 1"},
                 {"id": "step-2", "run": "exit 1", "on_failure": "prompt_user"},
             ],
         )
-        _seed_paused_run(self.db.runs, "task-non-int", "non-int-task", BlueprintKind.TASK)
+        self.runs.create_paused(session_id="task-non-int", blueprint=blueprint.catalog_item)
 
         result = runner.invoke(app, ["resume", "task-non-int", "--no-tty"])
         assert result.exit_code == 1
@@ -443,23 +398,23 @@ class ResumeCliTests:
         """Verify CLI 'wt resume' handles cancelled status cleanly."""
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
-            "cancel-task",
-            use_sandbox=False,
-            steps=[
-                {"id": "step-1", "run": "echo 1"},
-                {"id": "step-2", "run": "echo 2", "on_failure": "prompt_user"},
-            ],
-        )
-        _seed_paused_run(self.db.runs, "task-cancel", "cancel-task", BlueprintKind.TASK)
+        blueprint = _save_resume_blueprint(self.catalog)
+        self.runs.create_paused(session_id="task-cancel", blueprint=blueprint.catalog_item)
+
+        def cancel_resume(*_args: object, **_kwargs: object):
+            record = self.db.runs.get("task-cancel")
+            assert record is not None
+            self.db.runs.update_status("task-cancel", RunStatus.CANCELLED, error_message="Cancelled by user.")
+            return make_run_outcome(
+                status=RunStatus.CANCELLED,
+                errors=["Cancelled by user."],
+                session_id="task-cancel",
+                sandbox_path=Path(".worktree/sandboxes/sbx-run-1"),
+            )
 
         monkeypatch.setattr(
             "worktree.core.engine.services.resume.Engine.resume",
-            lambda *args, **kwargs: type(
-                "RunOutcome",
-                (),
-                {"ok": False, "status": RunStatus.CANCELLED, "errors": ["Cancelled by user."], "warnings": []},
-            )(),
+            cancel_resume,
         )
 
         result = runner.invoke(app, ["resume", "task-cancel"])
@@ -474,21 +429,8 @@ class ResumeCliTests:
     ) -> None:
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
-            "resume-json-task",
-            use_sandbox=False,
-            steps=[
-                {"id": "step-1", "run": "echo step1"},
-                {"id": "step-2", "run": "echo step2", "on_failure": "prompt_user"},
-            ],
-        )
-        db = WorktreeDb(path=fs.base_path)
-        _seed_paused_run(
-            db.runs,
-            session_id="resume_json_1",
-            blueprint_name="resume-json-task",
-            kind=BlueprintKind.TASK,
-        )
+        blueprint = _save_resume_blueprint(self.catalog)
+        self.runs.create_paused(session_id="resume_json_1", blueprint=blueprint.catalog_item)
 
         result = runner.invoke(app, ["resume", "resume_json_1", "--format", "json"])
 
@@ -509,20 +451,14 @@ class ResumeCommandDirectTests:
         fs: FileSystem,
         monkeypatch: pytest.MonkeyPatch,
         mock_interactive_prompter: None,
+        catalog: CatalogHelper,
+        runs: RunFactory,
     ) -> None:
         """Verify resume_command resumes a paused session via context."""
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
-            "direct-res-task",
-            use_sandbox=False,
-            steps=[
-                {"id": "step-1", "run": "echo 1"},
-                {"id": "step-2", "run": "echo 2", "on_failure": "prompt_user"},
-            ],
-        )
-        db = WorktreeDb(path=fs.base_path)
-        _seed_paused_run(db.runs, "direct-res-1", "direct-res-task", BlueprintKind.TASK)
+        blueprint = _save_resume_blueprint(catalog)
+        runs.create_paused(session_id="direct-res-1", blueprint=blueprint.catalog_item)
 
         ctx = make_cli_context(cwd=fs.base_path)
         outcome = resume_command(ctx, session_id="direct-res-1")

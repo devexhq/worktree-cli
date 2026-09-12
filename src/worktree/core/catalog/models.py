@@ -4,16 +4,64 @@ from __future__ import annotations
 
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from worktree.common.models import BaseResult, DefinitionResolutionStatus
 from worktree.core.db import CatalogItemType, CatalogRecord
 
 
+class CatalogItem[T](BaseModel):
+    """A validated definition paired with its catalog-relative location."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    _ITEM_TYPES_BY_DIRECTORY: ClassVar[dict[str, CatalogItemType]] = {
+        "blueprints": CatalogItemType.BLUEPRINT,
+        "steps": CatalogItemType.STEP,
+    }
+
+    path: Path
+    definition: T
+
+    @field_validator("path")
+    @classmethod
+    def validate_catalog_relative_path(cls, path: Path) -> Path:
+        """Require a relative YAML path rooted in a supported catalog directory."""
+        if path.is_absolute() or ".." in path.parts:
+            raise ValueError("Catalog item path must be relative and cannot contain '..' segments.")
+        if len(path.parts) < 2 or path.parts[0] not in cls._ITEM_TYPES_BY_DIRECTORY:
+            allowed_directories = ", ".join(sorted(cls._ITEM_TYPES_BY_DIRECTORY))
+            raise ValueError(f"Catalog item path must start with one of: {allowed_directories}.")
+        if path.suffix not in {".yml", ".yaml"} or path.stem == path.suffix:
+            raise ValueError("Catalog item path must name a .yml or .yaml file.")
+        return path
+
+    @property
+    def item_type(self) -> CatalogItemType:
+        """Return the item type determined by the catalog root directory."""
+        return self._ITEM_TYPES_BY_DIRECTORY[self.path.parts[0]]
+
+    @property
+    def file_stem(self) -> str:
+        """Return the YAML filename stem."""
+        return self.path.stem
+
+    @property
+    def namespace(self) -> str | None:
+        """Return the nested catalog directory below the item-type root."""
+        parts = self.path.parts[1:-1]
+        return "/".join(parts) if parts else None
+
+    @property
+    def key(self) -> str:
+        """Return the catalog lookup key derived from path and namespace."""
+        return f"{self.namespace}/{self.file_stem}" if self.namespace else self.file_stem
+
+
 class CatalogResolveStatus(StrEnum):
-    """Classified outcomes for Catalog.resolve / resolve_step."""
+    """Classified outcomes for Catalog resolution."""
 
     OK = "ok"
     NOT_FOUND = "not_found"

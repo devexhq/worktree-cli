@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from tests.helpers import FileSystem, make_cmd_step, make_run_outcome, make_step_result
-from worktree.core.blueprint import Blueprint, BlueprintDefinition, BlueprintKind
+from worktree.core.blueprint import Blueprint, BlueprintDefinition
 from worktree.core.catalog import Catalog
 from worktree.core.db import RunsRepository, RunStatus, WorktreeDb
 from worktree.core.engine import Engine, EngineInputError, RunRequest, load_session_run
@@ -26,7 +26,6 @@ def _task_blueprint(
 ) -> Blueprint:
     return Blueprint(
         BlueprintDefinition(
-            kind=BlueprintKind.TASK,
             name=name,
             use_sandbox=use_sandbox,
             steps=list(steps) if steps is not None else [make_cmd_step()],
@@ -49,7 +48,6 @@ def _workflow_blueprint(*, name: str = "ship", loop: bool = False) -> Blueprint:
         )
     return Blueprint(
         BlueprintDefinition(
-            kind=BlueprintKind.WORKFLOW,
             name=name,
             use_sandbox=False,
             steps=steps,
@@ -60,7 +58,6 @@ def _workflow_blueprint(*, name: str = "ship", loop: bool = False) -> Blueprint:
 def _input_blueprint() -> Blueprint:
     return Blueprint(
         BlueprintDefinition(
-            kind=BlueprintKind.TASK,
             name="commit",
             use_sandbox=False,
             inputs={
@@ -125,7 +122,7 @@ class EngineRunDelegationTests:
         normalized_session_json = session_json.model_copy(
             update={"step_results": [s.model_copy(update={"duration_seconds": 0.05}) for s in outcome.step_results]}
         )
-        assert normalized_session_json.status == RunStatus.COMPLETED
+        assert normalized_session_json.status == RunStatus.COMPLETED.value
         assert normalized_session_json.step_results == expected_run_outcome.step_results
 
     def test_run_delegates_to_run_steps(
@@ -216,7 +213,7 @@ class EngineRunDelegationTests:
         record = worktree_db.runs.get("task_persist")
         assert record is not None
         assert record.blueprint_name == "lint"
-        assert record.kind == BlueprintKind.TASK
+        assert record.blueprint_key == "lint"
         assert record.status is RunStatus.COMPLETED
         assert record.completed_at is not None
 
@@ -230,7 +227,7 @@ class EngineRunDelegationTests:
         record = worktree_db.runs.get("workflow_persist")
         assert record is not None
         assert record.blueprint_name == "ship"
-        assert record.kind == BlueprintKind.WORKFLOW
+        assert record.blueprint_key == "ship"
         assert record.branch_name == ""
         assert record.status is RunStatus.COMPLETED
 
@@ -292,7 +289,7 @@ class EngineRunDelegationTests:
         assert record is not None
         assert record.status is RunStatus.RUNNING
 
-    def test_omitted_session_id_uses_kind_prefix(
+    def test_omitted_session_id_uses_blueprint_prefix(
         self, monkeypatch: pytest.MonkeyPatch, fs: FileSystem, worktree_db: WorktreeDb
     ) -> None:
         monkeypatch.setattr(
@@ -306,8 +303,8 @@ class EngineRunDelegationTests:
 
         records = worktree_db.runs.list()
         assert len(records) == 1
-        assert records[0].session_id.startswith("task_")
-        assert len(records[0].session_id) == len("task_") + 8
+        assert records[0].session_id.startswith("blueprint_")
+        assert len(records[0].session_id) == len("blueprint_") + 8
         assert outcome.session_id == records[0].session_id
 
 
@@ -336,7 +333,7 @@ class EngineRunInputsTests:
 
         assert captured["context"].inputs == {}
         assert outcome.session_id is not None
-        assert outcome.session_id.startswith("task_")
+        assert outcome.session_id.startswith("blueprint_")
 
     def test_run_applies_input_defaults(self, monkeypatch: pytest.MonkeyPatch, fs: FileSystem) -> None:
         captured: dict[str, RunContext] = {}
@@ -380,7 +377,6 @@ class EngineRunInputsTests:
             Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).run(
                 Blueprint(
                     BlueprintDefinition(
-                        kind=BlueprintKind.TASK,
                         name="count",
                         use_sandbox=False,
                         inputs={"n": ParameterInput(type=InputType.INTEGER, required=True)},

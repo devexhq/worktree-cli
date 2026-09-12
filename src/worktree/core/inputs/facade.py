@@ -77,14 +77,13 @@ class Inputs:
     @staticmethod
     def format_error(
         *,
-        kind: str,
         name: str,
         result: InputResolveResult,
         declarations: dict[str, ParameterInput],
+        kind: str | None = None,
     ) -> str:
         """Return the first parse error, or the structured missing-input body."""
         return format_input_error_message(
-            kind=kind,
             name=name,
             result=result,
             declarations=declarations,
@@ -93,14 +92,13 @@ class Inputs:
     @staticmethod
     def format_missing_error(
         *,
-        kind: str,
         name: str,
         missing: list[str],
         declarations: dict[str, ParameterInput],
+        kind: str | None = None,
     ) -> str:
         """Build the structured missing-input failure message with usage hints."""
         return format_missing_inputs_error(
-            kind=kind,
             name=name,
             missing=missing,
             declarations=declarations,

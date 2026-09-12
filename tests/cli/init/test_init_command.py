@@ -85,8 +85,8 @@ class InitCommandGuardrailTests:
         assert root.is_dir()
         for name in (
             ".meta",
-            "workflows",
             "sessions",
+            "catalog",
             "artifacts",
             "tmp",
             "logs",
@@ -102,8 +102,8 @@ class InitCommandGuardrailTests:
         assert meta["initialized_at"]
 
         assert (root / "config.json").is_file()
-        assert (root / "catalog" / "workflows" / "wt" / "fix-tests.yml").is_file()
-        assert (root / "catalog" / "workflows" / "wt" / "review-fix.yml").is_file()
+        assert (root / "catalog" / "blueprints" / "wt" / "fix-tests.yml").is_file()
+        assert (root / "catalog" / "blueprints" / "wt" / "review-fix.yml").is_file()
         assert "/.worktree/" in (git_fs.base_path / ".gitignore").read_text(encoding="utf-8")
 
     def test_second_init_is_non_destructive(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -111,9 +111,9 @@ class InitCommandGuardrailTests:
         init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
 
         config_path = git_fs.base_path / ".worktree" / "config.json"
-        workflow_path = git_fs.base_path / ".worktree" / "catalog" / "workflows" / "wt" / "fix-tests.yml"
+        blueprint_path = git_fs.base_path / ".worktree" / "catalog" / "blueprints" / "wt" / "fix-tests.yml"
         config_before = config_path.read_text(encoding="utf-8")
-        workflow_path.write_text("edited by user\n", encoding="utf-8")
+        blueprint_path.write_text("edited by user\n", encoding="utf-8")
         meta_before = json.loads(
             (git_fs.base_path / ".worktree" / ".meta" / "bootstrap.json").read_text(encoding="utf-8")
         )
@@ -121,7 +121,7 @@ class InitCommandGuardrailTests:
         init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
 
         assert config_path.read_text(encoding="utf-8") == config_before
-        assert workflow_path.read_text(encoding="utf-8") == "edited by user\n"
+        assert blueprint_path.read_text(encoding="utf-8") == "edited by user\n"
         meta_after = json.loads(
             (git_fs.base_path / ".worktree" / ".meta" / "bootstrap.json").read_text(encoding="utf-8")
         )
@@ -141,32 +141,32 @@ class InitCommandGuardrailTests:
         assert meta["status"] == "repaired"
 
 
-class InitCommandWorkflowSeedingTests:
-    """Tests for starter workflow seeding behavior triggered by `wt init`."""
+class InitCommandBlueprintsSeedingTests:
+    """Tests for starter blueprints seeding behavior triggered by `wt init`."""
 
-    def test_init_seeds_starter_workflows_in_fresh_repo(
+    def test_init_seeds_starter_blueprints_in_fresh_repo(
         self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
 
         init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
 
-        workflows_dir = git_fs.base_path / ".worktree" / "catalog" / "workflows" / "wt"
-        assert (workflows_dir / "fix-tests.yml").is_file()
-        assert (workflows_dir / "review-fix.yml").is_file()
+        blueprints_dir = git_fs.base_path / ".worktree" / "catalog" / "blueprints" / "wt"
+        assert (blueprints_dir / "fix-tests.yml").is_file()
+        assert (blueprints_dir / "review-fix.yml").is_file()
 
-    def test_init_does_not_overwrite_edited_workflow_files(
+    def test_init_does_not_overwrite_edited_blueprint_files(
         self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.chdir(git_fs.base_path)
 
         init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
-        workflow_path = git_fs.base_path / ".worktree" / "catalog" / "workflows" / "wt" / "fix-tests.yml"
-        workflow_path.write_text("edited by user\n", encoding="utf-8")
+        blueprint_path = git_fs.base_path / ".worktree" / "catalog" / "blueprints" / "wt" / "fix-tests.yml"
+        blueprint_path.write_text("edited by user\n", encoding="utf-8")
 
         init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
 
-        assert workflow_path.read_text(encoding="utf-8") == "edited by user\n"
+        assert blueprint_path.read_text(encoding="utf-8") == "edited by user\n"
 
 
 class InitCommandFailureTests:
@@ -222,7 +222,7 @@ class InitCommandFailureTests:
         outcome = init_command(make_cli_context(cwd=git_fs.base_path), tool_version="0.1.1")
         assert not outcome.ok
 
-    def test_workflow_seed_failure_exits(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_blueprint_seed_failure_exits(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(git_fs.base_path)
 
         def bad_seed(*args, **kwargs):

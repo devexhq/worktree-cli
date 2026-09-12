@@ -7,7 +7,6 @@ from pydantic import ValidationError
 from sqlmodel import SQLModel
 
 from worktree.core.db import (
-    BlueprintKind,
     CatalogItemType,
     CatalogRecord,
     RunRecord,
@@ -70,42 +69,44 @@ class TestSQLModelRecords:
     def test_catalog_record_field_validation_and_path_coercion(self) -> None:
         """Verify CatalogRecord coerces str paths to Path and supports enum types."""
         record = CatalogRecord(
+            key="my-task",
             sha="sha_12345",
-            item_type=CatalogItemType.TASK,
+            item_type=CatalogItemType.BLUEPRINT,
             name="my-task",
-            path="tasks/my-task.yml",
+            path="blueprints/my-task.yml",
             checksum="chk_123",
         )
         assert isinstance(record.path, Path)
-        assert record.path == Path("tasks/my-task.yml")
-        assert record.item_type == CatalogItemType.TASK
+        assert record.path == Path("blueprints/my-task.yml")
+        assert record.item_type == CatalogItemType.BLUEPRINT
         assert record.id is None
         assert record.created_at
         assert record.updated_at
 
         record_with_id = CatalogRecord(
             id=42,
+            key="my-wf",
             sha="sha_67890",
-            item_type="workflow",
+            item_type="blueprint",
             name="my-wf",
-            path=Path("workflows/my-wf.yml"),
+            path=Path("blueprints/my-wf.yml"),
             checksum="chk_456",
         )
         assert record_with_id.id == 42
-        assert record_with_id.item_type == CatalogItemType.WORKFLOW
+        assert record_with_id.item_type == CatalogItemType.BLUEPRINT
         assert isinstance(record_with_id.path, Path)
 
     def test_run_record_defaults_and_validation(self) -> None:
-        """Verify RunRecord default values, status, and kind enums."""
+        """Verify RunRecord default values and status enum."""
         record = RunRecord(
             session_id="session_100",
             blueprint_name="build-flow",
-            kind=BlueprintKind.WORKFLOW,
+            blueprint_key="build-flow",
         )
         assert record.id is None
         assert record.session_id == "session_100"
         assert record.blueprint_name == "build-flow"
-        assert record.kind == BlueprintKind.WORKFLOW
+        assert record.blueprint_key == "build-flow"
         assert record.branch_name == ""
         assert record.status == RunStatus.RUNNING
         assert record.started_at

@@ -29,7 +29,7 @@ class RunTyperGroup(TyperGroup):
 run_app = typer.Typer(
     cls=RunTyperGroup,
     name="run",
-    help="Execute any blueprint by name (task or workflow).",
+    help="Execute any blueprint by name.",
     invoke_without_command=True,
     context_settings={
         "allow_interspersed_args": True,
@@ -42,7 +42,7 @@ run_app = typer.Typer(
 @run_app.callback(invoke_without_command=True)
 def run_callback(
     ctx: typer.Context,
-    name: str = typer.Argument(..., help="Blueprint name to run (task or workflow)."),
+    name: str = typer.Argument(..., help="Blueprint name to run."),
     no_sandbox: bool = typer.Option(
         False,
         "--no-sandbox",
@@ -80,7 +80,7 @@ def run_callback(
         DisplayFormatOptions, typer.Option(help="Display format: 'ansi' or 'live'")
     ] = DisplayFormatOptions.ANSI,
 ) -> None:
-    """Execute a task or workflow blueprint."""
+    """Execute a blueprint."""
     context: CliContext = ctx.obj["context"]
     result = run_command(
         context,

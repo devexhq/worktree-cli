@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Literal
-
 from worktree.cli.ui.dispatcher import UiDispatcher
 from worktree.cli.ui.events import MessageEvent, PromptEvent, PromptOption
 from worktree.core.runtime.models import FailurePromptDecision, FailurePrompter, LoopPromptDecision
@@ -34,17 +32,13 @@ class DispatcherFailurePrompter(FailurePrompter):
     def __init__(
         self,
         dispatcher: UiDispatcher,
-        *,
-        kind: Literal["task", "workflow"] | str = "task",
     ) -> None:
         """Initialize prompter.
 
         Args:
             dispatcher: UiDispatcher instance to route prompt events through.
-            kind: Blueprint kind ('task' or 'workflow').
         """
         self._dispatcher = dispatcher
-        self._kind = kind
 
     def prompt_step_failure(
         self,
@@ -63,7 +57,6 @@ class DispatcherFailurePrompter(FailurePrompter):
         event = PromptEvent(
             prompt_type="step_failure",
             prompt_id=step.id,
-            kind=self._kind,
             title=f"Step '{step_label}' failed (exit code {result.exit_code}).",
             diagnostic=diagnostic or None,
             options=options,
@@ -99,13 +92,12 @@ class DispatcherFailurePrompter(FailurePrompter):
         """Dispatch loop max iterations prompt and resolve user decision."""
         options = [
             PromptOption(key="g", label=f"Grant {grant_count} additional iterations", decision="grant"),
-            PromptOption(key="c", label="Continue workflow past loop block", decision="continue"),
-            PromptOption(key="a", label="Abort workflow run", decision="abort"),
+            PromptOption(key="c", label="Continue run past loop block", decision="continue"),
+            PromptOption(key="a", label="Abort run", decision="abort"),
         ]
         event = PromptEvent(
             prompt_type="loop_max_iterations",
             prompt_id=loop.id,
-            kind=self._kind,
             title=f"\\[{loop.id}] Reached max_iterations ({loop.max_iterations}) without meeting 'until' conditions.",
             diagnostic=diagnostic or None,
             options=options,

@@ -239,14 +239,13 @@ def resolve_inputs(
 
 def format_missing_inputs_error(
     *,
-    kind: str,
     name: str,
     missing: list[str],
     declarations: dict[str, ParameterInput],
 ) -> str:
     """Build the structured missing-input failure message with usage hints."""
     primary = missing[0]
-    lines = [f"Missing required input '{primary}' for {kind} '{name}'."]
+    lines = [f"Missing required input '{primary}' for '{name}'."]
     if len(missing) > 1:
         extras = ", ".join(f"'{item}'" for item in missing[1:])
         lines.append(f"Also missing: {extras}.")
@@ -256,14 +255,13 @@ def format_missing_inputs_error(
         spec = declarations[input_name]
         alias = next((a for a in spec.aliases if a.startswith("-")), None)
         if alias is not None:
-            lines.append(f"  wt {kind} run {name} {alias} <value>")
-        lines.append(f"  wt {kind} run {name} -i {input_name}=<value>")
+            lines.append(f"  wt run {name} {alias} <value>")
+        lines.append(f"  wt run {name} -i {input_name}=<value>")
     return "\n".join(lines)
 
 
 def format_input_error_message(
     *,
-    kind: str,
     name: str,
     result: InputResolveResult,
     declarations: dict[str, ParameterInput],
@@ -272,7 +270,6 @@ def format_input_error_message(
     if result.errors:
         return result.errors[0]
     return format_missing_inputs_error(
-        kind=kind,
         name=name,
         missing=result.missing,
         declarations=declarations,

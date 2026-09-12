@@ -57,7 +57,7 @@ class WorktreeDb:
 
     @property
     def runs(self) -> RunsRepository:
-        """Repository managing task and workflow execution runs."""
+        """Repository managing blueprint execution runs."""
         if self._runs is None:
             self._runs = RunsRepository(
                 self.path, db_rel_path=self.db_rel_path, auto_init=True, db_engine=self.db_engine

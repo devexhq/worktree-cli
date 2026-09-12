@@ -19,7 +19,6 @@ from worktree.core.db import RunRecord, RunStatus
 _SESSION_SHOW_FIELDS = (
     "Session ID",
     "Blueprint Name",
-    "Kind",
     "Branch",
     "Status",
     "Start time",
@@ -60,7 +59,6 @@ def build_run_summary(run: RunRecord) -> RunSummaryView:
     """Derive a presentation-ready RunSummaryView from a RunRecord domain model."""
     return RunSummaryView(
         session_id=run.session_id,
-        kind=enum_value(run.kind),
         blueprint_name=run.blueprint_name,
         status=enum_value(run.status),
         branch_name=run.branch_name if run.branch_name else None,
@@ -75,7 +73,6 @@ def build_history_table(runs: Sequence[RunSummaryView]) -> Table:
     """Build the Rich table displaying execution history runs."""
     table = Table(title="Execution History", title_justify="left", show_header=True)
     table.add_column("SESSION ID", style="cyan", no_wrap=True)
-    table.add_column("KIND", no_wrap=True)
     table.add_column("BLUEPRINT")
     table.add_column("STATUS")
     table.add_column("STARTED")
@@ -87,7 +84,6 @@ def build_history_table(runs: Sequence[RunSummaryView]) -> Table:
         duration = format_run_duration(row.duration_seconds)
         table.add_row(
             row.session_id,
-            enum_value(row.kind),
             row.blueprint_name,
             status_colored,
             row.started_at or "-",
@@ -103,7 +99,6 @@ def build_metadata_table(run: RunSummaryView) -> Table:
     values = {
         "Session ID": run.session_id,
         "Blueprint Name": run.blueprint_name,
-        "Kind": enum_value(run.kind),
         "Branch": run.branch_name if run.branch_name else "-",
         "Status": format_run_status(run.status),
         "Start time": run.started_at or "-",

@@ -13,7 +13,6 @@ from tests.helpers import FileSystem
 from worktree.core.db import (
     LATEST_SCHEMA_REVISION,
     BaseRepository,
-    BlueprintKind,
     RunRecord,
     RunStatus,
     SandboxRecord,
@@ -58,7 +57,7 @@ class TestEngineAndPragmas:
             record = RunRecord(
                 session_id="s_test",
                 blueprint_name="bp_test",
-                kind=BlueprintKind.TASK,
+                blueprint_key="bp_test",
                 status=RunStatus.RUNNING,
             )
             session.add(record)

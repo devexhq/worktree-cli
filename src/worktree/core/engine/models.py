@@ -47,7 +47,6 @@ class SessionRunPayload(BaseModel):
 
     version: int = 1
     session_id: str
-    kind: str  # "task" | "workflow"
     name: str
     status: str
     started_at: str

@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 
 from sqlmodel import col, select
 
-from worktree.core.db.models import BlueprintKind, RunRecord, RunStatus
+from worktree.core.db.models import RunRecord, RunStatus
 from worktree.core.db.repositories.base import BaseRepository
 
 
@@ -17,13 +17,6 @@ def _coerce_status(status: RunStatus | str | None) -> RunStatus | str | None:
     return RunStatus(status) if isinstance(status, str) and status in RunStatus._value2member_map_ else status
 
 
-def _coerce_kind(kind: BlueprintKind | str | None) -> BlueprintKind | str | None:
-    """Coerce kind string to BlueprintKind enum if valid member, else return as-is."""
-    if kind is None:
-        return None
-    return BlueprintKind(kind) if isinstance(kind, str) and kind in BlueprintKind._value2member_map_ else kind
-
-
 class RunsRepository(BaseRepository):
     """Repository managing unified blueprint execution tracking CRUD operations using SQLModel."""
 
@@ -31,19 +24,18 @@ class RunsRepository(BaseRepository):
         self,
         session_id: str,
         blueprint_name: str,
-        kind: BlueprintKind | str,
+        blueprint_key: str,
         branch_name: str = "",
         status: RunStatus | str = RunStatus.RUNNING,
         pid: int | None = None,
     ) -> RunRecord:
         """Insert a new run record and return the committed instance."""
-        kind_enum = BlueprintKind(kind) if isinstance(kind, str) else kind
         status_enum = RunStatus(status) if isinstance(status, str) else status
 
         record = RunRecord(
             session_id=session_id,
             blueprint_name=blueprint_name,
-            kind=kind_enum,
+            blueprint_key=blueprint_key,
             branch_name=branch_name,
             status=status_enum,
             pid=pid,
@@ -122,7 +114,6 @@ class RunsRepository(BaseRepository):
         self,
         limit: int | None = None,
         status: RunStatus | str | None = None,
-        kind: BlueprintKind | str | None = None,
     ) -> list[RunRecord]:
         """List run records ordered by started_at DESC, id DESC with optional filters."""
         with self.session() as session:
@@ -131,10 +122,6 @@ class RunsRepository(BaseRepository):
             status_enum = _coerce_status(status)
             if status_enum is not None:
                 statement = statement.where(RunRecord.status == status_enum)
-
-            kind_enum = _coerce_kind(kind)
-            if kind_enum is not None:
-                statement = statement.where(RunRecord.kind == kind_enum)
 
             statement = statement.order_by(col(RunRecord.started_at).desc(), col(RunRecord.id).desc())
 

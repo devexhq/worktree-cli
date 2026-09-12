@@ -13,20 +13,9 @@ from worktree.cli.ui import (
     ui_dispatcher,
 )
 from worktree.common.models import DisplayFormatOptions, OutputFormatOptions
-from worktree.core.blueprint.models import BlueprintKind, BlueprintRunResult
-from worktree.core.catalog import Catalog
+from worktree.core.blueprint.models import BlueprintRunResult
 from worktree.core.db import RunRecord, RunStatus
 from worktree.core.engine import BlueprintRunService
-
-
-def _resolve_blueprint_label(context: CliContext, name: str) -> tuple[str, BlueprintKind]:
-    catalog = Catalog(context.cwd, db=context.db.catalog)
-    res = catalog.get(name)
-    if res.ok and res.resolved is not None and res.resolved.item_type.value in ("task", "workflow"):
-        kind_label = res.resolved.item_type.value
-        kind_val = BlueprintKind.WORKFLOW if kind_label == "workflow" else BlueprintKind.TASK
-        return kind_label, kind_val
-    return "task", BlueprintKind.TASK
 
 
 def _first_error(result: BlueprintRunResult, fallback: str) -> str:
@@ -36,7 +25,6 @@ def _first_error(result: BlueprintRunResult, fallback: str) -> str:
 def _dispatch_run_outcome(
     result: BlueprintRunResult,
     record: RunRecord | None,
-    kind_title: str,
 ) -> None:
     """Dispatch the appropriate UI event for a completed blueprint run."""
     if result.ok and record is not None:
@@ -44,22 +32,21 @@ def _dispatch_run_outcome(
             RunSuccessEvent(
                 session_id=record.session_id,
                 blueprint_name=record.blueprint_name,
-                kind=record.kind or BlueprintKind.TASK,
                 status=record.status,
             )
         )
     elif record is not None and record.status == RunStatus.PAUSED:
-        ui_dispatcher.dispatch(MessageEvent(message=_first_error(result, f"{kind_title} paused; checkpoint saved.")))
+        ui_dispatcher.dispatch(MessageEvent(message=_first_error(result, "Blueprint paused; checkpoint saved.")))
     elif record is not None and record.status == RunStatus.CANCELLED:
         ui_dispatcher.dispatch(
             ErrorPanelEvent(
-                title=f"{kind_title} Run Cancelled",
+                title="Blueprint Run Cancelled",
                 message=_first_error(result, "Cancelled by user."),
             )
         )
     else:
-        msg = "\n\n".join(result.errors) if result.errors else f"{kind_title} execution failed."
-        ui_dispatcher.dispatch(ErrorPanelEvent(title=f"{kind_title} Run Failed", message=msg))
+        msg = "\n\n".join(result.errors) if result.errors else "Blueprint execution failed."
+        ui_dispatcher.dispatch(ErrorPanelEvent(title="Run Failed", message=msg))
 
 
 def run_command(
@@ -76,10 +63,9 @@ def run_command(
     output_format: OutputFormatOptions = OutputFormatOptions.TERMINAL,
     display_format: DisplayFormatOptions = DisplayFormatOptions.ANSI,
 ) -> BlueprintRunResult:
-    """Execute a task or workflow blueprint."""
+    """Execute a blueprint."""
     ui_dispatcher.set_output_format(output_format)
-    kind_label, default_kind = _resolve_blueprint_label(context, name)
-    ui_dispatcher.dispatch(MessageEvent(message=f"Running {kind_label} '{name}'..."))
+    ui_dispatcher.dispatch(MessageEvent(message=f"Running blueprint '{name}'..."))
 
     observer = resolve_cli_observer(
         ui_dispatcher,
@@ -93,7 +79,6 @@ def run_command(
             path=context.cwd,
             runs_db=context.db.runs,
             catalog_db=context.db.catalog,
-            kind=default_kind,
             no_sandbox=no_sandbox,
             keep=keep,
             agent=agent,
@@ -102,14 +87,12 @@ def run_command(
             no_tty=no_tty,
             auto_apply=auto_apply,
             observer=observer,
-            failure_prompter=DispatcherFailurePrompter(ui_dispatcher, kind=kind_label),
+            failure_prompter=DispatcherFailurePrompter(ui_dispatcher),
         ).execute()
 
     for warning in result.warnings:
         ui_dispatcher.dispatch(WarningEvent(message=warning))
 
     record = result.run_record
-    effective_kind = record.kind if record is not None and record.kind is not None else default_kind
-    kind_title = effective_kind.value.capitalize()
-    _dispatch_run_outcome(result, record, kind_title)
+    _dispatch_run_outcome(result, record)
     return result

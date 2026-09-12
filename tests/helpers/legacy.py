@@ -17,7 +17,6 @@ from worktree.core.config.generator import generate_default_config
 from worktree.core.config.loader import ConfigLoadStatus
 from worktree.core.config.models import AgentConfig, ProjectConfig, WorktreeConfig
 from worktree.core.db import (
-    BlueprintKind,
     RunRecord,
     RunsRepository,
     RunStatus,
@@ -62,9 +61,9 @@ class FileSystem:
     def __init__(self, base_path: Path) -> None:
         self.base_path = base_path
 
-    def write_file(self, rel_path: str | Path, content: str | dict[str, Any] | list[Any]) -> Path:
+    def write_file(self, path: str | Path, content: str | dict[str, Any] | list[Any]) -> Path:
         """Write content under base_path, creating parent dirs. Serializes dict/list by file suffix (.yaml/.yml/.json); str is written as-is."""
-        path = self.base_path / rel_path
+        path = self.base_path / path
         path.parent.mkdir(parents=True, exist_ok=True)
         if isinstance(content, str):
             text = content
@@ -99,41 +98,22 @@ class FileSystem:
             config_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
         return config_path
 
-    def create_workflow_file(
+    def create_blueprint_file(
         self,
-        name: str = "default-workflow",
+        name: str = "default-blueprint",
         *,
-        dir: str | Path = ".worktree/catalog/workflows",
+        dir: str | Path = ".worktree/catalog/blueprints",
         filename: str | None = None,
         **overrides: Any,
     ) -> Path:
         defaults = {
             "version": 1,
             "name": name,
-            "description": "Test workflow",
+            "description": "Test blueprint",
             "steps": [{"id": "step-1", "type": "command", "command": "echo hi"}],
         }
         body = _deep_merge(defaults, overrides)
         return self.write_file(Path(dir) / (filename or f"{name}.yml"), body)
-
-    def create_task_file(
-        self,
-        task_id: str = "default-task",
-        *,
-        dir: str | Path = ".worktree/catalog/tasks",
-        filename: str | None = None,
-        **overrides: Any,
-    ) -> Path:
-        """Write a task blueprint matching blueprint task shape."""
-        defaults = {
-            "name": task_id,
-            "description": "Test task",
-            "summary": "",
-            "use_sandbox": True,
-            "steps": [{"id": "step-1", "run": "echo hi"}],
-        }
-        body = _deep_merge(defaults, overrides)
-        return self.write_file(Path(dir) / (filename or f"{task_id}.yml"), body)
 
 
 class GitFileSystem(FileSystem):
@@ -170,7 +150,7 @@ def make_run(
     session_id: str = "run-1",
     *,
     blueprint_name: str = "task-1",
-    kind: BlueprintKind = BlueprintKind.TASK,
+    blueprint_key: str = "task-1",
     status: RunStatus = RunStatus.COMPLETED,
     branch_name: str = "main",
     pid: int | None = None,
@@ -187,7 +167,7 @@ def make_run(
     db.create(
         session_id=session_id,
         blueprint_name=blueprint_name,
-        kind=kind,
+        blueprint_key=blueprint_key,
         branch_name=branch_name,
         status=RunStatus.RUNNING,
         pid=pid,

@@ -9,6 +9,7 @@ from worktree.common.lock import WorkspaceLock
 from worktree.common.utils import display_path
 from worktree.core.catalog.models import SeedResult
 from worktree.core.db import CatalogItemType
+from worktree.core.db.models import CatalogItemTypeDirectory
 
 
 def _iter_source_files(source_dir: Path) -> list[Path]:
@@ -44,15 +45,15 @@ def seed_catalog_templates(
     *,
     force: bool = False,
 ) -> SeedResult:
-    """Copy curated `wt/` seed files for `item_type` into `.worktree/catalog/<type>s/wt/`."""
+    """Copy curated `wt/` seed files for `item_type` into `.worktree/catalog/<type>/wt/`."""
     with WorkspaceLock(path):
         result = SeedResult()
 
-        source_dir = Filesystem().catalog_templates_dir / f"{item_type.value}s" / "wt"
+        source_dir = Filesystem().paths.catalog_templates_dir / CatalogItemTypeDirectory[item_type.name] / "wt"
         if not source_dir.is_dir():
             return result
 
-        target_dir = Filesystem(path).catalog_dir / f"{item_type.value}s" / "wt"
+        target_dir = Filesystem(path).paths.catalog_dir / CatalogItemTypeDirectory[item_type.name] / "wt"
 
         for source_file in _iter_source_files(Path(str(source_dir))):
             rel_name = source_file.relative_to(Path(str(source_dir)))
@@ -67,11 +68,14 @@ def seed_all_catalog_templates(
     *,
     force: bool = False,
 ) -> SeedResult:
-    """Seed curated `wt/` templates for workflows, tasks, and steps; aggregate the results."""
+    """Seed curated `wt/` templates for blueprints, and steps; aggregate the results."""
     with WorkspaceLock(path):
         aggregate = SeedResult()
 
-        for item_type in (CatalogItemType.WORKFLOW, CatalogItemType.TASK, CatalogItemType.STEP):
+        for item_type in (
+            CatalogItemType.BLUEPRINT,
+            CatalogItemType.STEP,
+        ):
             result = seed_catalog_templates(item_type, path=path, force=force)
             aggregate.created_files.extend(result.created_files)
             aggregate.skipped_existing_files.extend(result.skipped_existing_files)

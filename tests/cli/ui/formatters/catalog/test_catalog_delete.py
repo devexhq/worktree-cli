@@ -14,10 +14,12 @@ from worktree.core.db import CatalogItemType, CatalogRecord
 
 _RECORD = CatalogRecord(
     id=1,
-    sha="workflow_1234567",
-    item_type=CatalogItemType.WORKFLOW,
-    name="test-workflow",
-    path=Path("workflows/test-workflow.yml"),
+    key="test-blueprint",
+    sha="blueprint_1234567",
+    item_type=CatalogItemType.BLUEPRINT,
+    name="test-blueprint",
+    namespace=None,
+    path=Path("blueprints/test-blueprint.yml"),
     checksum="1234567890abcdef",
     created_at="2026-08-17T00:00:00Z",
     updated_at="2026-08-17T00:00:00Z",
@@ -68,11 +70,12 @@ CATALOG_DELETE_PAYLOAD_CASES = [
             "fixes": [],
             "item": {
                 "id": 1,
-                "sha": "workflow_1234567",
-                "item_type": "workflow",
-                "name": "test-workflow",
+                "key": "test-blueprint",
+                "sha": "blueprint_1234567",
+                "item_type": "blueprint",
+                "name": "test-blueprint",
                 "namespace": None,
-                "path": "workflows/test-workflow.yml",
+                "path": "blueprints/test-blueprint.yml",
                 "checksum": "1234567890abcdef",
                 "created_at": "2026-08-17T00:00:00Z",
                 "updated_at": "2026-08-17T00:00:00Z",
@@ -116,7 +119,6 @@ class CatalogDeleteFormatterTests:
     def test_transform_derives_expected_view(
         self, case: FormatterCase[CatalogDeleteResult, CatalogDeleteResult]
     ) -> None:
-        """Verify transform derives the identity view representation."""
         assert CatalogDeleteFormatter().transform(case.data) == case.view
 
     @pytest.mark.parametrize(("case", "expected_payload"), CATALOG_DELETE_PAYLOAD_CASES)
@@ -125,14 +127,12 @@ class CatalogDeleteFormatterTests:
         case: FormatterCase[CatalogDeleteResult, CatalogDeleteResult],
         expected_payload: dict[str, Any],
     ) -> None:
-        """Verify to_json_serializable matches the exact published wire-format literal dict."""
         assert CatalogDeleteFormatter().to_json_serializable(case.data) == expected_payload
 
     @pytest.mark.parametrize("case", CATALOG_DELETE_CASES)
     def test_rich_render_shows_every_view_value(
         self, case: FormatterCase[CatalogDeleteResult, CatalogDeleteResult]
     ) -> None:
-        """Verify that all non-null semantic view model values reach the Rich renderable output."""
         rendered = render_rich(CatalogDeleteFormatter().to_rich(case.data))
         view = case.view
 

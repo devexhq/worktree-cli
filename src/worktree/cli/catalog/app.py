@@ -20,7 +20,7 @@ def catalog_callback(
     type: str | None = typer.Option(
         None,
         "--type",
-        help="Filter catalog blueprints by type (workflow, task, step).",
+        help="Filter catalog items by type (blueprint, step).",
     ),
     format: str = typer.Option(
         "terminal",
@@ -42,7 +42,7 @@ def catalog_list(
     type: str | None = typer.Option(
         None,
         "--type",
-        help="Filter catalog blueprints by type (workflow, task, step).",
+        help="Filter catalog items by type (blueprint, step).",
     ),
     format: str = typer.Option(
         "terminal",
@@ -60,7 +60,7 @@ def catalog_list(
 @catalog_app.command("create")
 def catalog_create(
     ctx: typer.Context,
-    type: str = typer.Argument(..., help="Blueprint item type (workflow, task, step)."),
+    type: str = typer.Argument(..., help="Item type (blueprint, step)."),
     name: str = typer.Option(..., "--name", help="Name for the catalog blueprint file."),
     format: str = typer.Option(
         "terminal",

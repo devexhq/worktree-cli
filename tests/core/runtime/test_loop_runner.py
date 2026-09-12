@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 from pydantic import ValidationError
 
+from worktree.common.models import FailurePolicy, OnFailureSpec
 from worktree.core.runtime.loop_runner import LoopBlockRunner
 from worktree.core.runtime.models import (
     FailurePromptDecision,
@@ -17,8 +18,6 @@ from worktree.core.runtime.models import (
     StepLoopState,
 )
 from worktree.core.step.models import (
-    FailurePolicy,
-    FailureSpec,
     LoopStepBlock,
     StepDefinition,
     StepType,
@@ -35,7 +34,7 @@ def _make_step(
         id=step_id,
         type=StepType.COMMAND,
         command=command,
-        on_failure=FailureSpec(action=on_failure),
+        on_failure=OnFailureSpec(action=on_failure),
     )
 
 

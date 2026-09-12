@@ -14,7 +14,7 @@ from worktree.cli.ui import (
     ui_dispatcher,
 )
 from worktree.common.models import DisplayFormatOptions, OutputFormatOptions
-from worktree.core.blueprint.models import BlueprintKind, BlueprintRunResult
+from worktree.core.blueprint.models import BlueprintRunResult
 from worktree.core.db import RunRecord, RunStatus
 from worktree.core.engine import BlueprintResumeService
 
@@ -40,7 +40,6 @@ def _resume_failure_msg(result: BlueprintRunResult, session_id: str | None) -> s
 def _dispatch_resume_outcome(
     result: BlueprintRunResult,
     record: RunRecord | None,
-    kind_title: str,
     session_id: str | None,
 ) -> None:
     """Dispatch the appropriate UI event for a completed resume operation."""
@@ -49,12 +48,11 @@ def _dispatch_resume_outcome(
             RunSuccessEvent(
                 session_id=record.session_id,
                 blueprint_name=record.blueprint_name,
-                kind=record.kind or BlueprintKind.TASK,
                 status=record.status,
             )
         )
     elif record is not None and record.status == RunStatus.PAUSED:
-        ui_dispatcher.dispatch(MessageEvent(message=_first_error(result, f"{kind_title} paused; checkpoint saved.")))
+        ui_dispatcher.dispatch(MessageEvent(message=_first_error(result, "Blueprint paused; checkpoint saved.")))
     elif record is not None and record.status == RunStatus.CANCELLED:
         ui_dispatcher.dispatch(
             ErrorPanelEvent(title="Resume Cancelled", message=_first_error(result, "Cancelled by user."))
@@ -71,7 +69,7 @@ def resume_command(
     output_format: OutputFormatOptions = OutputFormatOptions.TERMINAL,
     display_format: DisplayFormatOptions = DisplayFormatOptions.ANSI,
 ) -> BlueprintRunResult:
-    """Resume a paused task or workflow blueprint execution session."""
+    """Resume a paused blueprint execution session."""
     ui_dispatcher.set_output_format(output_format)
     _emit_resume_start_notice(context, session_id)
 
@@ -93,7 +91,5 @@ def resume_command(
         ui_dispatcher.dispatch(WarningEvent(message=warning))
 
     record = result.run_record
-    effective_kind = record.kind if record is not None and record.kind is not None else BlueprintKind.TASK
-    kind_title = effective_kind.value.capitalize()
-    _dispatch_resume_outcome(result, record, kind_title, session_id)
+    _dispatch_resume_outcome(result, record, session_id)
     return result

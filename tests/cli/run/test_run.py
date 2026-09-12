@@ -10,7 +10,6 @@ from typer.testing import CliRunner
 from tests.helpers import FileSystem, GitFileSystem, make_cli_context
 from worktree.cli import app
 from worktree.cli.run.commands.root import run_command
-from worktree.core.blueprint import BlueprintKind
 from worktree.core.catalog.services.inventory import scan_and_index_catalog
 from worktree.core.db import RunStatus, WorktreeDb
 from worktree.core.engine import BlueprintRunService
@@ -29,11 +28,11 @@ class BlueprintRunServiceTests:
         self.db = WorktreeDb(path=fs.base_path)
 
     def test_blueprint_run_service_executes_task(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Verify BlueprintRunService successfully executes a task blueprint when kind=None."""
+        """Verify BlueprintRunService successfully executes a blueprint by key."""
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
+        fs.create_blueprint_file(
             "build-task",
-            description="Build task",
+            description="Build blueprint",
             summary="Build task",
             use_sandbox=False,
             steps=[
@@ -53,20 +52,18 @@ class BlueprintRunServiceTests:
         assert res.ok
         assert res.run_record is not None
         assert res.run_record.status == RunStatus.COMPLETED
-        assert res.run_record.kind == BlueprintKind.TASK
 
         record = self.db.runs.get("test_run_task_1")
         assert record is not None
         assert record.status == RunStatus.COMPLETED
-        assert record.kind == BlueprintKind.TASK
 
-    def test_blueprint_run_service_executes_workflow(
+    def test_blueprint_run_service_executes_blueprint(
         self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Verify BlueprintRunService successfully executes a workflow blueprint when kind=None."""
+        """Verify BlueprintRunService successfully executes a blueprint when kind=None."""
         git_fs.init_repo()
         monkeypatch.chdir(git_fs.base_path)
-        git_fs.create_workflow_file(
+        git_fs.create_blueprint_file(
             "deploy-flow",
             steps=[{"id": "step-1", "run": "echo deploy step 1"}],
         )
@@ -84,19 +81,16 @@ class BlueprintRunServiceTests:
         assert res.ok
         assert res.run_record is not None
         assert res.run_record.status == RunStatus.COMPLETED
-        assert res.run_record.kind == BlueprintKind.WORKFLOW
-
         record = WorktreeDb(path=git_fs.base_path).runs.get("test_run_wf_1")
         assert record is not None
         assert record.status == RunStatus.COMPLETED
-        assert record.kind == BlueprintKind.WORKFLOW
 
     def test_blueprint_run_service_reconciles_stale_runs(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify BlueprintRunService reconciles dead running runs before starting execution."""
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
+        fs.create_blueprint_file(
             "quick-task",
-            description="Quick task",
+            description="Quick blueprint",
             summary="Quick task",
             use_sandbox=False,
             steps=[{"id": "step-1", "run": "echo done"}],
@@ -105,7 +99,7 @@ class BlueprintRunServiceTests:
         self.db.runs.create(
             session_id="dead_prior_run",
             blueprint_name="old_task",
-            kind="task",
+            blueprint_key="old_task",
             pid=9999999,
         )
 
@@ -137,7 +131,7 @@ class RunCliTests:
         """Verify CLI 'wt run <task-name>' options and output."""
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
+        fs.create_blueprint_file(
             "format-task",
             description="Format code",
             summary="Format code",
@@ -150,14 +144,14 @@ class RunCliTests:
             ["run", "format-task", "--no-sandbox", "--agent", "claude-3-5-sonnet"],
         )
         assert result.exit_code == 0
-        assert "Task Run Completed:" in result.output
+        assert "Blueprint Run Completed:" in result.output
         assert "Sandbox: In-place (workspace)" in result.output
 
-    def test_run_cli_workflow_invocation(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Verify CLI 'wt run <workflow-name>' options and output."""
+    def test_run_cli_blueprint_invocation(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Verify CLI 'wt run <blueprint-name>' options and output."""
         git_fs.init_repo()
         monkeypatch.chdir(git_fs.base_path)
-        git_fs.create_workflow_file(
+        git_fs.create_blueprint_file(
             "audit-flow",
             steps=[{"id": "audit-step", "run": "echo auditing"}],
         )
@@ -168,17 +162,17 @@ class RunCliTests:
             ["run", "audit-flow", "--no-sandbox", "--session-id", "audit_session_1"],
         )
         assert result.exit_code == 0
-        assert "Workflow Run Completed:" in result.output
+        assert "Blueprint Run Completed:" in result.output
         assert "audit_session_1" in result.output
 
     def test_run_cli_input_forwarding(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify trailing CLI args are forwarded to blueprint declared inputs."""
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
+        fs.create_blueprint_file(
             "greet-task",
             inputs={"target": {"type": "string", "default": "world"}},
-            steps=[{"id": "greet", "run": "echo Hello $TARGET"}],
+            steps=[{"id": "greet", "run": "echo Hello ${{ inputs.target }}"}],
             use_sandbox=False,
         )
 
@@ -187,13 +181,13 @@ class RunCliTests:
             ["run", "greet-task", "--no-sandbox", "--target", "Antigravity"],
         )
         assert result.exit_code == 0
-        assert "Task Run Completed:" in result.output
+        assert "Blueprint Run Completed:" in result.output
 
     def test_run_cli_keep_flag(self, git_fs: GitFileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify --keep preserves the sandbox worktree."""
         git_fs.init_repo()
         monkeypatch.chdir(git_fs.base_path)
-        git_fs.create_workflow_file(
+        git_fs.create_blueprint_file(
             "sandbox-flow",
             steps=[{"id": "sbx-step", "run": "echo sandbox"}],
         )
@@ -220,7 +214,7 @@ class RunCliTests:
         """Verify a failing blueprint step returns exit code 1."""
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
+        fs.create_blueprint_file(
             "failing-task",
             use_sandbox=False,
             steps=[{"id": "fail-step", "run": "exit 1", "on_failure": "abort"}],
@@ -228,13 +222,13 @@ class RunCliTests:
 
         result = runner.invoke(app, ["run", "failing-task", "--no-sandbox"])
         assert result.exit_code == 1
-        assert "Task Run Failed" in result.output
+        assert "Run Failed" in result.output
 
     def test_run_cli_no_tty_aborts_prompt_user(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify --no-tty aborts on prompt_user and exits 1."""
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
+        fs.create_blueprint_file(
             "prompt-task",
             use_sandbox=False,
             steps=[{"id": "prompt-step", "run": "exit 1", "on_failure": "prompt_user"}],
@@ -254,7 +248,7 @@ class RunCliTests:
         """Verify a paused run exits with code 0 and logs checkpoint notice."""
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
+        fs.create_blueprint_file(
             "pause-task",
             use_sandbox=False,
             steps=[{"id": "pause-step", "run": "exit 1", "on_failure": "prompt_user"}],
@@ -295,7 +289,7 @@ class RunCliTests:
     ) -> None:
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
+        fs.create_blueprint_file(
             "json-task",
             use_sandbox=False,
             steps=[{"id": "step-1", "run": "echo ok"}],
@@ -320,7 +314,7 @@ class RunCommandDirectTests:
         """Verify run_command executes a blueprint via context."""
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
-        fs.create_task_file(
+        fs.create_blueprint_file(
             "direct-task",
             use_sandbox=False,
             steps=[{"id": "step-1", "run": "echo direct"}],

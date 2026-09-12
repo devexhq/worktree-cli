@@ -51,19 +51,10 @@ def test_inputs_facade_format_helpers():
     spec = Inputs.format_spec("my_param", declarations["my_param"])
     assert "default='default_val'" in spec
 
-    missing_err = Inputs.format_missing_error(
-        kind="workflow",
-        name="test-flow",
-        missing=["my_param"],
-        declarations=declarations,
-    )
-    assert "Missing required input" in missing_err
+    missing_err = Inputs.format_missing_error(name="test-flow", missing=["my_param"], declarations=declarations)
+    assert "Missing required input 'my_param' for 'test-flow'." in missing_err
+    assert "wt run test-flow -i my_param=<value>" in missing_err
 
     res = InputResolveResult(errors=["Invalid parameter type"])
-    err = Inputs.format_error(
-        kind="workflow",
-        name="test-flow",
-        result=res,
-        declarations=declarations,
-    )
+    err = Inputs.format_error(name="test-flow", result=res, declarations=declarations)
     assert "Invalid parameter type" in err

@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+from .catalog import (
+    BaseCatalogHelper,
+    BlueprintHelper,
+    CatalogHelper,
+    StepHelper,
+)
 from .factories import (
     BaseFactory,
     RunFactory,
@@ -28,11 +34,15 @@ from .make import (
 )
 
 __all__ = [
+    "BaseCatalogHelper",
     "BaseFactory",
+    "BlueprintHelper",
+    "CatalogHelper",
     "FileSystem",
     "FormatterCase",
     "GitFileSystem",
     "RunFactory",
+    "StepHelper",
     "get_subcommand",
     "get_subgroup",
     "list_subcommands",

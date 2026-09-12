@@ -283,7 +283,7 @@ class OllamaAgentAdapter:
                     f"Agent timed out after {request.timeout_seconds}s "
                     f"(provider=ollama).\n"
                     "Fix:\n"
-                    "- raise agent.timeout_seconds on the workflow"
+                    "- raise agent.timeout_seconds on the blueprint"
                 ],
             )
         except urllib.error.URLError as exc:
@@ -297,7 +297,7 @@ class OllamaAgentAdapter:
                         f"Agent timed out after {request.timeout_seconds}s "
                         f"(provider=ollama).\n"
                         "Fix:\n"
-                        "- raise agent.timeout_seconds on the workflow"
+                        "- raise agent.timeout_seconds on the blueprint"
                     ],
                 )
             return AgentResponse(
@@ -315,7 +315,7 @@ class OllamaAgentAdapter:
                         f"Agent timed out after {request.timeout_seconds}s "
                         f"(provider=ollama).\n"
                         "Fix:\n"
-                        "- raise agent.timeout_seconds on the workflow"
+                        "- raise agent.timeout_seconds on the blueprint"
                     ],
                 )
             return AgentResponse(

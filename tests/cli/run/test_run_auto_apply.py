@@ -24,9 +24,9 @@ class RunAutoApplyTests:
         git_fs.init_repo()
         monkeypatch.chdir(git_fs.base_path)
 
-        git_fs.create_task_file(
-            "auto-task",
-            description="Auto apply task",
+        git_fs.create_blueprint_file(
+            "auto-blueprint",
+            description="Auto apply blueprint",
             use_sandbox=True,
             steps=[
                 {"id": "step-1", "run": "echo 'generated content' > gen.txt"},
@@ -34,7 +34,7 @@ class RunAutoApplyTests:
         )
         scan_and_index_catalog(path=git_fs.base_path)
 
-        result = runner.invoke(app, ["run", "auto-task", "--auto-apply"], catch_exceptions=False)
+        result = runner.invoke(app, ["run", "auto-blueprint", "--auto-apply"], catch_exceptions=False)
         assert result.exit_code == 0
         assert (git_fs.base_path / "gen.txt").exists()
         assert "generated content" in (git_fs.base_path / "gen.txt").read_text(encoding="utf-8")
@@ -48,9 +48,9 @@ class RunAutoApplyTests:
         git_fs.init_repo()
         monkeypatch.chdir(git_fs.base_path)
 
-        git_fs.create_task_file(
-            "failing-task",
-            description="Failing task",
+        git_fs.create_blueprint_file(
+            "failing-blueprint",
+            description="Failing blueprint",
             use_sandbox=True,
             steps=[
                 {"id": "step-1", "run": "echo 'should not apply' > bad.txt"},
@@ -59,6 +59,6 @@ class RunAutoApplyTests:
         )
         scan_and_index_catalog(path=git_fs.base_path)
 
-        result = runner.invoke(app, ["run", "failing-task", "--auto-apply", "--no-tty"])
+        result = runner.invoke(app, ["run", "failing-blueprint", "--auto-apply", "--no-tty"])
         assert result.exit_code == 1
         assert not (git_fs.base_path / "bad.txt").exists()

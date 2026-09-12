@@ -69,7 +69,7 @@ class SubdirectoryDiscoveryTests:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         git_fs.init_repo()
-        git_fs.create_workflow_file(name="sample-flow")
+        git_fs.create_blueprint_file("sample-flow")
         sub = git_fs.base_path / "a" / "b" / "c"
         sub.mkdir(parents=True)
         monkeypatch.chdir(sub)

@@ -19,7 +19,7 @@ def catalog_create_command(
 
     Args:
         context: CLI context instance.
-        item_type: Blueprint type (workflow, task, step).
+        item_type: Item type (blueprint, step).
         name: Blueprint name.
         output_format: Presentation format ("terminal" or "json").
 

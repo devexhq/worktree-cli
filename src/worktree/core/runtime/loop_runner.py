@@ -6,6 +6,7 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
+from worktree.common.models import FailurePolicy, OnFailureSpec
 from worktree.core.runtime.failure import (
     effective_terminal_policy,
     mark_continued_after_prompt,
@@ -24,7 +25,6 @@ from worktree.core.step import StepExecution
 from worktree.core.step.models import (
     ConditionEvaluationResult,
     ExecutionIdentity,
-    FailurePolicy,
     LoopStepBlock,
     PreviousStepMetadata,
     StepDefinition,
@@ -155,9 +155,8 @@ class LoopBlockRunner:
     ) -> StepResult:
         self._notify_sub_step_start(sub_idx, sub_step)
         on_output = self._resolve_sub_step_output_callback(sub_idx, sub_step)
-        from worktree.core.step.models import FailureSpec
 
-        isolated_sub_step = sub_step.model_copy(update={"on_failure": FailureSpec(action=FailurePolicy.ABORT)})
+        isolated_sub_step = sub_step.model_copy(update={"on_failure": OnFailureSpec(action=FailurePolicy.ABORT)})
         execution = StepExecution(
             StepExecutionContext(
                 step=isolated_sub_step,

@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from tests.helpers import FileSystem
-from worktree.core.step import FailurePolicy, FailureSpec, Step, StepDefinition, StepType
+from worktree.common.models import FailurePolicy, OnFailureSpec
+from worktree.core.step import Step, StepDefinition, StepType
 
 
 class StepResolverTests:
@@ -14,6 +15,7 @@ class StepResolverTests:
 
         resolved = step.resolve()
 
+        assert resolved is not None
         assert resolved.id == "run-tests"
         assert resolved.type == StepType.COMMAND
         assert resolved.command == "pytest tests/ -q"
@@ -34,6 +36,7 @@ class StepResolverTests:
 
         resolved = step.resolve(path=fs.base_path)
 
+        assert resolved is not None
         assert resolved.id == "lint-step"
         assert resolved.type == StepType.COMMAND
         assert resolved.command == "ruff check ."
@@ -46,6 +49,7 @@ class StepResolverTests:
 
         resolved = step.resolve(path=fs.base_path)
 
+        assert resolved is not None
         assert resolved.name == "derived-name"
         assert resolved.timeout_seconds == 90
         assert resolved.command == "echo base"
@@ -54,12 +58,12 @@ class StepResolverTests:
         fs.create_step_file(step_id="base", command="echo base", on_failure="continue")
 
         step = Step(
-            instance=StepDefinition(id="derived", uses="base", on_failure=FailureSpec(action=FailurePolicy.ABORT))
+            instance=StepDefinition(id="derived", uses="base", on_failure=OnFailureSpec(action=FailurePolicy.ABORT))
         )
 
         resolved = step.resolve(path=fs.base_path)
-
-        assert resolved.on_failure == FailureSpec(action=FailurePolicy.ABORT)
+        assert resolved is not None
+        assert resolved.on_failure == OnFailureSpec(action=FailurePolicy.ABORT)
 
     def test_resolve_step_without_run_uses_or_type_returns_none(self) -> None:
         step = Step(instance=StepDefinition.model_construct(id="broken", uses=None, run=None, type=None))

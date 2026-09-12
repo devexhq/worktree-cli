@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from worktree.core.db import BlueprintKind, RunsRepository, RunStatus
+from worktree.core.db import RunsRepository, RunStatus
 from worktree.core.engine.services.reconcile import reconcile_stale_runs
 
 from .models import (
@@ -24,7 +24,6 @@ class HistoryListService:
     db: RunsRepository
     limit: int | None = 20
     status: str | None = None
-    kind: str | None = None
 
     def collect(self) -> HistoryListResult:
         """Retrieve filtered execution runs from database."""
@@ -40,14 +39,7 @@ class HistoryListService:
             except ValueError:
                 status_filter = self.status
 
-        kind_filter: BlueprintKind | str | None = None
-        if self.kind is not None:
-            try:
-                kind_filter = BlueprintKind(self.kind.lower())
-            except ValueError:
-                kind_filter = self.kind
-
-        runs = self.db.list(limit=self.limit, status=status_filter, kind=kind_filter)
+        runs = self.db.list(limit=self.limit, status=status_filter)
         return HistoryListResult(status=HistoryListStatus.OK, runs=runs, warnings=warnings)
 
     def execute(self) -> HistoryListResult:

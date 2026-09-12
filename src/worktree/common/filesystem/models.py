@@ -33,9 +33,8 @@ class FilesystemPaths(BaseModel):
     config_file: Path
     db_file: Path
     catalog_dir: Path
-    catalog_workflows_dir: Path
     catalog_steps_dir: Path
-    catalog_tasks_dir: Path
+    catalog_blueprints_dir: Path
     logs_dir: Path
     sessions_dir: Path
     artifacts_dir: Path
@@ -50,24 +49,23 @@ class FilesystemPaths(BaseModel):
         """Construct canonical workspace path hierarchy rooted at root_dir."""
         canonical_root = root_dir.expanduser().resolve()
         wt = canonical_root if canonical_root.name == ".worktree" else canonical_root / ".worktree"
-        project_root = canonical_root.parent if canonical_root.name == ".worktree" else canonical_root
+        root_path = canonical_root.parent if canonical_root.name == ".worktree" else canonical_root
 
         return cls(
-            root_dir=project_root,
+            root_dir=root_path,
             worktree_dir=wt,
             config_file=wt / "config.json",
             db_file=wt / "data.db",
             catalog_dir=wt / "catalog",
-            catalog_workflows_dir=wt / "catalog" / "workflows",
             catalog_steps_dir=wt / "catalog" / "steps",
-            catalog_tasks_dir=wt / "catalog" / "tasks",
+            catalog_blueprints_dir=wt / "catalog" / "blueprints",
             logs_dir=wt / "logs",
             sessions_dir=wt / "sessions",
             artifacts_dir=wt / "artifacts",
             tmp_dir=wt / "tmp",
             sandboxes_dir=wt / "sandboxes",
             lock_file=wt / "worktree.lock",
-            gitignore_file=project_root / ".gitignore",
+            gitignore_file=root_path / ".gitignore",
             catalog_templates_dir=importlib.resources.files("worktree.core.catalog.templates"),
         )
 

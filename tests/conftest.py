@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.helpers import FileSystem, GitFileSystem
+from tests.helpers import CatalogHelper, FileSystem, GitFileSystem, RunFactory
 from worktree.common.filesystem import Filesystem
 from worktree.core.config import Config
 from worktree.core.config.generator import generate_default_config
@@ -101,6 +101,18 @@ def worktree_config(tmp_path: Path) -> Path:
 @pytest.fixture
 def worktree_db(fs: FileSystem) -> WorktreeDb:
     return WorktreeDb(path=fs.base_path)
+
+
+@pytest.fixture
+def catalog(fs: FileSystem) -> CatalogHelper:
+    """Create catalog test helpers rooted at the plain test filesystem."""
+    return CatalogHelper(fs)
+
+
+@pytest.fixture
+def runs(worktree_db: WorktreeDb) -> RunFactory:
+    """Create repository-backed run test helpers for the plain test database."""
+    return RunFactory(worktree_db.runs)
 
 
 @pytest.fixture

@@ -18,7 +18,7 @@ def catalog_list_command(
 
     Args:
         context: CLI context instance.
-        type_filter: Optional type filter (workflow, task, step).
+        type_filter: Optional type filter (blueprint, step).
         output_format: Presentation format ("terminal" or "json").
 
     Returns:

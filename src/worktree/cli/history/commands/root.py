@@ -12,7 +12,6 @@ def history_root_command(
     context: CliContext,
     limit: int | None = 20,
     status: str | None = None,
-    kind: str | None = None,
     output_format: str = "terminal",
 ) -> HistoryListResult:
     """Execute history list query and dispatch results via UiDispatcher.
@@ -30,7 +29,6 @@ def history_root_command(
     result = History(path=context.cwd, db=context.db.runs).list(
         limit=limit,
         status=status,
-        kind=kind,
     )
     ui_dispatcher.dispatch(result, output_format=output_format)
     return result

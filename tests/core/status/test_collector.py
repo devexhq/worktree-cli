@@ -11,7 +11,6 @@ import pytest
 from tests.helpers import FileSystem, GitFileSystem
 from worktree.core.config.loader import ConfigLoadStatus
 from worktree.core.db import (
-    BlueprintKind,
     RunsRepository,
     RunStatus,
     SandboxesRepository,
@@ -45,8 +44,8 @@ class TestStatusCollector:
             agent={"model": "gpt-4o", "provider": "openai"},
             sandbox={"max_active_sandboxes": 3},
         )
-        git_fs.create_workflow_file("deploy")
-        git_fs.create_task_file("lint-task")
+        git_fs.create_blueprint_file("deploy")
+        git_fs.create_blueprint_file("lint-blueprint")
         git_fs.create_step_file("test-step")
 
         # Initialize DB and insert a run
@@ -54,7 +53,7 @@ class TestStatusCollector:
         runs_repo.create(
             session_id="sess-001",
             blueprint_name="deploy",
-            kind=BlueprintKind.WORKFLOW,
+            blueprint_key="deploy",
             status=RunStatus.COMPLETED,
         )
 
@@ -87,13 +86,11 @@ class TestStatusCollector:
 
         # Catalog
         assert result.catalog.exists
-        assert result.catalog.workflows_count == 1
-        assert result.catalog.tasks_count == 1
         assert result.catalog.steps_count == 1
         assert result.catalog.total_items == 3
         assert result.catalog.invalid_items == 0
         assert "deploy" in result.catalog.item_names
-        assert "lint-task" in result.catalog.item_names
+        assert "lint-blueprint" in result.catalog.item_names
         assert "run-test-step" in result.catalog.item_names or "test-step" in result.catalog.item_names
 
         # Database
@@ -249,8 +246,6 @@ class TestStatusCollector:
 
         assert not result.catalog.exists
         assert result.catalog.total_items == 0
-        assert result.catalog.workflows_count == 0
-        assert result.catalog.tasks_count == 0
         assert result.catalog.steps_count == 0
         assert result.catalog.invalid_items == 0
         assert result.catalog.item_names == []
@@ -262,9 +257,9 @@ class TestStatusCollector:
         """Test catalog collection with invalid YAML blueprint files."""
         git_fs.create_config_file(agent={"model": "gpt-4o"})
         RunsRepository(git_fs.base_path)
-        git_fs.create_workflow_file("valid-wf")
+        git_fs.create_blueprint_file("valid-bp")
 
-        bad_file = git_fs.base_path / ".worktree" / "catalog" / "tasks" / "bad.yml"
+        bad_file = git_fs.base_path / ".worktree" / "catalog" / "blueprints" / "bad.yml"
         bad_file.parent.mkdir(parents=True, exist_ok=True)
         bad_file.write_text("invalid: [yaml: broken", encoding="utf-8")
 
@@ -273,8 +268,6 @@ class TestStatusCollector:
         assert not result.ok  # Because invalid_items > 0
         assert result.catalog.exists
         assert result.catalog.total_items == 2
-        assert result.catalog.workflows_count == 1
-        assert result.catalog.tasks_count == 1
         assert result.catalog.invalid_items == 1
         assert "1 invalid blueprint file(s) detected in catalog." in result.warnings
 
@@ -347,9 +340,9 @@ class TestStatusCollector:
         # 6. Invalid catalog items
         (git_fs.base_path / "dirty.txt").write_text("dirty content", encoding="utf-8")
 
-        catalog_tasks = git_fs.base_path / ".worktree" / "catalog" / "tasks"
-        catalog_tasks.mkdir(parents=True, exist_ok=True)
-        (catalog_tasks / "broken.yml").write_text("bad: [yaml", encoding="utf-8")
+        catalog_blueprints = git_fs.base_path / ".worktree" / "catalog" / "blueprints"
+        catalog_blueprints.mkdir(parents=True, exist_ok=True)
+        (catalog_blueprints / "broken.yml").write_text("bad: [yaml", encoding="utf-8")
 
         result = collect_status(git_fs.base_path)
 
@@ -425,7 +418,7 @@ class TestStatusCollector:
         runs_repo.create(
             session_id="sess-test",
             blueprint_name="test-bp",
-            kind=BlueprintKind.TASK,
+            blueprint_key="test-bp",
             status=RunStatus.COMPLETED,
         )
 

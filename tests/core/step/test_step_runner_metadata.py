@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 from tests.helpers import FileSystem
+from worktree.common.models import FailurePolicy, OnFailureSpec
 from worktree.core.step import (
     ExecutionIdentity,
-    FailurePolicy,
-    FailureSpec,
     PreviousStepMetadata,
     StepDefinition,
     StepExecution,
@@ -32,7 +31,7 @@ class StepExecutionMetadataIntegrationTests:
             status="completed",
             exit_code="0",
         )
-        identity = ExecutionIdentity(task_name="my_task", task_sha="sha_999")
+        identity = ExecutionIdentity(blueprint_name="my_task", blueprint_key="sha_999")
 
         result = StepExecution(
             StepExecutionContext(
@@ -53,7 +52,7 @@ class StepExecutionMetadataIntegrationTests:
             id="retry_command",
             type=StepType.COMMAND,
             command='if [ "$WT_STEP_ATTEMPT" -eq 1 ]; then echo "attempt 1 failed" >&2; exit 1; else echo "attempt 2 succeeded"; exit 0; fi',
-            on_failure=FailureSpec(action=FailurePolicy.RETRY, max_retries=3),
+            on_failure=OnFailureSpec(action=FailurePolicy.RETRY, max_retries=3),
         )
 
         result = StepExecution(StepExecutionContext(step=step, sandbox_path=fs.base_path)).run()

@@ -30,7 +30,7 @@ class InitializeWorkspaceTests:
         root = git_fs.base_path / ".worktree"
         assert (root / "config.json").is_file()
         assert (root / "data.db").is_file()
-        assert (root / "catalog" / "workflows" / "wt" / "fix-tests.yml").is_file()
+        assert (root / "catalog" / "blueprints" / "wt" / "fix-tests.yml").is_file()
 
     def test_initialize_workspace_not_git_repo(self, fs: FileSystem) -> None:
         result = initialize_workspace(fs.base_path, tool_version="0.1.1")

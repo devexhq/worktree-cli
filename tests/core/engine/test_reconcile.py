@@ -9,7 +9,7 @@ from unittest.mock import patch
 import pytest
 
 from tests.helpers import FileSystem
-from worktree.core.db import BlueprintKind, RunRecord, RunStatus, WorktreeDb
+from worktree.core.db import RunRecord, RunStatus, WorktreeDb
 from worktree.core.engine.services.reconcile import (
     STALE_RUN_ERROR_MESSAGE,
     _parse_timestamp,
@@ -68,7 +68,7 @@ class TestIsRunStale:
         completed_run = RunRecord(
             session_id="s_comp",
             blueprint_name="bp",
-            kind=BlueprintKind.TASK,
+            blueprint_key="bp",
             status=RunStatus.COMPLETED,
             pid=DEAD_PID,
         )
@@ -77,7 +77,7 @@ class TestIsRunStale:
         failed_run = RunRecord(
             session_id="s_fail",
             blueprint_name="bp",
-            kind=BlueprintKind.TASK,
+            blueprint_key="bp",
             status=RunStatus.FAILED,
             pid=DEAD_PID,
         )
@@ -87,7 +87,7 @@ class TestIsRunStale:
         orphan_run = RunRecord(
             session_id="s_orphan",
             blueprint_name="bp",
-            kind=BlueprintKind.TASK,
+            blueprint_key="bp",
             status=RunStatus.RUNNING,
             pid=None,
         )
@@ -97,7 +97,7 @@ class TestIsRunStale:
         dead_run = RunRecord(
             session_id="s_dead",
             blueprint_name="bp",
-            kind=BlueprintKind.TASK,
+            blueprint_key="bp",
             status=RunStatus.RUNNING,
             pid=DEAD_PID,
         )
@@ -107,7 +107,7 @@ class TestIsRunStale:
         active_run = RunRecord(
             session_id="s_active",
             blueprint_name="bp",
-            kind=BlueprintKind.TASK,
+            blueprint_key="bp",
             status=RunStatus.RUNNING,
             pid=os.getpid(),
             started_at=datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S"),
@@ -120,7 +120,7 @@ class TestIsRunStale:
         reused_run = RunRecord(
             session_id="s_reused",
             blueprint_name="bp",
-            kind=BlueprintKind.TASK,
+            blueprint_key="bp",
             status=RunStatus.RUNNING,
             pid=12345,
             started_at=old_session_start,
@@ -149,7 +149,7 @@ class TestReconcileStaleRuns:
         self.db.runs.create(
             session_id="stale_1",
             blueprint_name="task_stale",
-            kind=BlueprintKind.TASK,
+            blueprint_key="task_stale",
             status=RunStatus.RUNNING,
             pid=DEAD_PID,
         )
@@ -171,7 +171,7 @@ class TestReconcileStaleRuns:
         self.db.runs.create(
             session_id="stale_repo",
             blueprint_name="task_stale",
-            kind=BlueprintKind.TASK,
+            blueprint_key="task_stale",
             status=RunStatus.RUNNING,
             pid=DEAD_PID,
         )
@@ -186,14 +186,14 @@ class TestReconcileStaleRuns:
         self.db.runs.create(
             session_id="run_comp",
             blueprint_name="task1",
-            kind=BlueprintKind.TASK,
+            blueprint_key="task1",
             status=RunStatus.COMPLETED,
             pid=DEAD_PID,
         )
         self.db.runs.create(
             session_id="run_active",
             blueprint_name="task2",
-            kind=BlueprintKind.TASK,
+            blueprint_key="task2",
             status=RunStatus.RUNNING,
             pid=os.getpid(),
         )
@@ -213,14 +213,14 @@ class TestReconcileStaleRuns:
         self.db.runs.create(
             session_id="stale_a",
             blueprint_name="task_a",
-            kind=BlueprintKind.TASK,
+            blueprint_key="task_a",
             status=RunStatus.RUNNING,
             pid=DEAD_PID,
         )
         self.db.runs.create(
             session_id="stale_b",
             blueprint_name="task_b",
-            kind=BlueprintKind.TASK,
+            blueprint_key="task_b",
             status=RunStatus.RUNNING,
             pid=None,
         )
@@ -242,10 +242,10 @@ class TestReconcileStaleRuns:
     def test_format_reconciliation_warning(self) -> None:
         assert format_reconciliation_warning([]) is None
 
-        r1 = RunRecord(session_id="s1", blueprint_name="bp", kind=BlueprintKind.TASK, status=RunStatus.FAILED)
+        r1 = RunRecord(session_id="s1", blueprint_name="bp", blueprint_key="bp", status=RunStatus.FAILED)
         msg1 = format_reconciliation_warning([r1])
         assert msg1 == "Reconciled 1 interrupted session (session_id: s1)."
 
-        r2 = RunRecord(session_id="s2", blueprint_name="bp", kind=BlueprintKind.TASK, status=RunStatus.FAILED)
+        r2 = RunRecord(session_id="s2", blueprint_name="bp", blueprint_key="bp", status=RunStatus.FAILED)
         msg2 = format_reconciliation_warning([r1, r2])
         assert msg2 == "Reconciled 2 interrupted sessions (s1, s2)."

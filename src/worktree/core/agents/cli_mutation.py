@@ -128,7 +128,7 @@ class CliDirectMutationAdapter:
                     f"Agent timed out after {request.timeout_seconds}s "
                     f"(provider={self._provider_name()}).\n"
                     "Fix:\n"
-                    "- raise agent.timeout_seconds on the workflow"
+                    "- raise agent.timeout_seconds on the blueprint"
                 ],
             )
 

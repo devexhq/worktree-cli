@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from worktree.core.step import FailurePolicy, FailureSpec, StepResult
+from worktree.common.models import FailurePolicy, OnFailureSpec
+from worktree.core.step import StepResult
 
 USER_CONTINUED_MARKER = "user continued after prompt_user"
 
 
-def effective_terminal_policy(spec: FailureSpec) -> FailurePolicy:
+def effective_terminal_policy(spec: OnFailureSpec) -> FailurePolicy:
     """Resolve the terminal escalation after step-local recovery finishes.
 
     When ``action == retry``, step execution already exhausted its local budget;

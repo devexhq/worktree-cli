@@ -9,23 +9,15 @@ import pytest
 from tests.helpers import FormatterCase, render_rich
 from worktree.cli.ui.formatters.history.common import format_run_duration
 from worktree.cli.ui.formatters.history.history_list import HistoryListFormatter
-from worktree.cli.ui.formatters.history.history_views import (
-    HistoryListView,
-    RunSummaryView,
-)
-from worktree.core.blueprint import BlueprintKind
+from worktree.cli.ui.formatters.history.history_views import HistoryListView, RunSummaryView
 from worktree.core.db import RunRecord, RunStatus
-from worktree.core.history.models import (
-    HistoryListResult,
-    HistoryListStatus,
-)
+from worktree.core.history.models import HistoryListResult, HistoryListStatus
 
 
 def _sample_run_record(
     *,
     session_id: str = "sess-12345678",
-    blueprint_name: str = "deploy-task",
-    kind: BlueprintKind = BlueprintKind.TASK,
+    blueprint_name: str = "deploy-blueprint",
     status: RunStatus = RunStatus.COMPLETED,
     branch_name: str | None = "feature/test",
     started_at: str | None = "2026-08-19 01:00:00",
@@ -36,8 +28,8 @@ def _sample_run_record(
     return RunRecord(
         id=1,
         session_id=session_id,
+        blueprint_key=blueprint_name,
         blueprint_name=blueprint_name,
-        kind=kind,
         status=status,
         branch_name=branch_name or "",
         started_at=started_at,
@@ -50,8 +42,7 @@ def _sample_run_record(
 def _make_run_summary_view(**overrides: Any) -> RunSummaryView:
     defaults: dict[str, Any] = {
         "session_id": "sess-12345678",
-        "kind": "task",
-        "blueprint_name": "deploy-task",
+        "blueprint_name": "deploy-blueprint",
         "status": "completed",
         "branch_name": "feature/test",
         "started_at": "2026-08-19 01:00:00",
@@ -77,19 +68,13 @@ def _make_history_list_view(**overrides: Any) -> HistoryListView:
 
 
 POPULATED_RUNS = FormatterCase(
-    data=HistoryListResult(
-        status=HistoryListStatus.OK,
-        runs=[_sample_run_record()],
-    ),
+    data=HistoryListResult(status=HistoryListStatus.OK, runs=[_sample_run_record()]),
     view=_make_history_list_view(),
-    render_expectations=["sess-12345678", "deploy-task", format_run_duration(10.0)],
+    render_expectations=["sess-12345678", "deploy-blueprint", format_run_duration(10.0)],
 )
 
 EMPTY_RUNS = FormatterCase(
-    data=HistoryListResult(
-        status=HistoryListStatus.OK,
-        runs=[],
-    ),
+    data=HistoryListResult(status=HistoryListStatus.OK, runs=[]),
     view=_make_history_list_view(runs=[], total_runs=0),
     render_expectations=[],
 )
@@ -100,22 +85,13 @@ WARNINGS_RUNS = FormatterCase(
         runs=[_sample_run_record()],
         warnings=["Reconciled 1 interrupted session (session_id: sess-stale)."],
     ),
-    view=_make_history_list_view(
-        warnings=["Reconciled 1 interrupted session (session_id: sess-stale)."],
-    ),
-    render_expectations=["sess-12345678", "deploy-task", format_run_duration(10.0)],
+    view=_make_history_list_view(warnings=["Reconciled 1 interrupted session (session_id: sess-stale)."]),
+    render_expectations=["sess-12345678", "deploy-blueprint", format_run_duration(10.0)],
 )
 
 ERRORS_RUNS = FormatterCase(
-    data=HistoryListResult(
-        status=HistoryListStatus.OK,
-        errors=["Database query failed."],
-    ),
-    view=_make_history_list_view(
-        runs=[],
-        total_runs=0,
-        errors=["Database query failed."],
-    ),
+    data=HistoryListResult(status=HistoryListStatus.OK, errors=["Database query failed."]),
+    view=_make_history_list_view(runs=[], total_runs=0, errors=["Database query failed."]),
     render_expectations=[],
 )
 
@@ -134,8 +110,7 @@ HISTORY_LIST_PAYLOAD_CASES = [
             "runs": [
                 {
                     "session_id": "sess-12345678",
-                    "kind": "task",
-                    "blueprint_name": "deploy-task",
+                    "blueprint_name": "deploy-blueprint",
                     "status": "completed",
                     "branch_name": "feature/test",
                     "started_at": "2026-08-19 01:00:00",
@@ -170,8 +145,7 @@ HISTORY_LIST_PAYLOAD_CASES = [
             "runs": [
                 {
                     "session_id": "sess-12345678",
-                    "kind": "task",
-                    "blueprint_name": "deploy-task",
+                    "blueprint_name": "deploy-blueprint",
                     "status": "completed",
                     "branch_name": "feature/test",
                     "started_at": "2026-08-19 01:00:00",
@@ -203,11 +177,8 @@ HISTORY_LIST_PAYLOAD_CASES = [
 
 
 class HistoryListFormatterTests:
-    """Tier 2 presentation contract tests for HistoryListFormatter."""
-
     @pytest.mark.parametrize("case", HISTORY_LIST_CASES)
     def test_transform_derives_expected_view(self, case: FormatterCase[HistoryListResult, HistoryListView]) -> None:
-        """Verify transform derives the exact HistoryListView model representation."""
         assert HistoryListFormatter().transform(case.data) == case.view
 
     @pytest.mark.parametrize(("case", "expected_payload"), HISTORY_LIST_PAYLOAD_CASES)
@@ -216,12 +187,10 @@ class HistoryListFormatterTests:
         case: FormatterCase[HistoryListResult, HistoryListView],
         expected_payload: dict[str, Any],
     ) -> None:
-        """Verify to_json_serializable matches the exact published wire-format literal dict."""
         assert HistoryListFormatter().to_json_serializable(case.data) == expected_payload
 
     @pytest.mark.parametrize("case", HISTORY_LIST_CASES)
     def test_rich_render_shows_every_view_value(self, case: FormatterCase[HistoryListResult, HistoryListView]) -> None:
-        """Verify that all non-null semantic view model values reach the Rich renderable output."""
         rendered = render_rich(HistoryListFormatter().to_rich(case.data))
         view = case.view
 

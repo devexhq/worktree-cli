@@ -13,7 +13,7 @@ from .commands.root import resume_command
 
 resume_app = typer.Typer(
     name="resume",
-    help="Resume a paused blueprint execution session (task or workflow).",
+    help="Resume a paused blueprint execution session.",
     invoke_without_command=True,
     context_settings={"allow_interspersed_args": True},
 )
@@ -38,7 +38,7 @@ def resume_callback(
         DisplayFormatOptions, typer.Option(help="Display format: 'ansi' or 'live'")
     ] = DisplayFormatOptions.ANSI,
 ) -> None:
-    """Resume a paused blueprint execution session (task or workflow)."""
+    """Resume a paused blueprint execution session."""
     context: CliContext = ctx.obj["context"]
     result = resume_command(context, session_id=session_id, no_tty=no_tty, output_format=format, display_format=display)
     if not result.ok:

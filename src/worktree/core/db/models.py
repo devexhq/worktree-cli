@@ -21,34 +21,25 @@ class SandboxStatus(StrEnum):
 class CatalogItemType(StrEnum):
     """Supported catalog item classification types."""
 
-    WORKFLOW = "workflow"
-    TASK = "task"
+    BLUEPRINT = "blueprint"
     STEP = "step"
 
 
 class CatalogItemTypeDirectory(StrEnum):
     """Catalog item type directories."""
 
-    WORKFLOW = "workflows"
-    TASK = "tasks"
+    BLUEPRINT = "blueprints"
     STEP = "steps"
 
 
 class RunStatus(StrEnum):
-    """Lifecycle status for workflow and task execution sessions."""
+    """Lifecycle status for blueprint execution sessions."""
 
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
     PAUSED = "paused"
-
-
-class BlueprintKind(StrEnum):
-    """Derived catalog kind for a blueprint document."""
-
-    TASK = "task"
-    WORKFLOW = "workflow"
 
 
 def _now_utc_str() -> str:
@@ -131,25 +122,6 @@ class CatalogItemTypeType(TypeDecorator[CatalogItemType]):
         return CatalogItemType(value)
 
 
-class BlueprintKindType(TypeDecorator[BlueprintKind]):
-    """SQLAlchemy type for coercing BlueprintKind enums to strings and back."""
-
-    impl = String
-    cache_ok = True
-
-    def process_bind_param(self, value: BlueprintKind | str | None, dialect: Any) -> str | None:
-        """Coerce incoming BlueprintKind or str to string for SQLite storage."""
-        if value is None:
-            return None
-        return value.value if isinstance(value, BlueprintKind) else str(value)
-
-    def process_result_value(self, value: str | None, dialect: Any) -> BlueprintKind | None:
-        """Coerce retrieved database string value back into a BlueprintKind instance."""
-        if value is None:
-            return None
-        return BlueprintKind(value)
-
-
 class RunStatusType(TypeDecorator[RunStatus]):
     """SQLAlchemy type for coercing RunStatus enums to strings and back."""
 
@@ -198,6 +170,7 @@ class CatalogRecord(SQLModel, table=True):
     model_config = {"extra": "forbid"}
 
     id: int | None = Field(default=None, primary_key=True)
+    key: str = Field(unique=True)
     sha: str = Field(unique=True)
     item_type: CatalogItemType = Field(sa_type=CatalogItemTypeType, index=True)
     name: str
@@ -222,8 +195,8 @@ class RunRecord(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     session_id: str = Field(unique=True)
+    blueprint_key: str
     blueprint_name: str
-    kind: BlueprintKind = Field(sa_type=BlueprintKindType)
     branch_name: str = Field(default="")
     status: RunStatus = Field(default=RunStatus.RUNNING, sa_type=RunStatusType, index=True)
     pid: int | None = Field(default=None)
@@ -234,8 +207,6 @@ class RunRecord(SQLModel, table=True):
 
     def __init__(self, **data: Any) -> None:
         """Initialize RunRecord, coercing string enums to Enum instances."""
-        if "kind" in data and isinstance(data["kind"], str):
-            data["kind"] = BlueprintKind(data["kind"])
         if "status" in data and isinstance(data["status"], str):
             data["status"] = RunStatus(data["status"])
         super().__init__(**data)

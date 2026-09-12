@@ -4,14 +4,13 @@ from __future__ import annotations
 
 from worktree.core.inputs.services.interpolate import interpolate_step_fields, interpolate_string
 from worktree.core.step import (
+    BlueprintMetadata,
     ExecutionIdentity,
     ExecutionMetadata,
     PreviousStepMetadata,
     StepDefinition,
     StepMetadata,
     StepType,
-    TaskMetadata,
-    WorkflowMetadata,
 )
 from worktree.core.step.services.metadata import build_execution_metadata
 
@@ -40,8 +39,7 @@ class InputInterpolateTests:
     def test_interpolate_string_with_execution_metadata(self) -> None:
         metadata = ExecutionMetadata(
             step=StepMetadata(id="step-build", name="Build Step", index=2, attempt=1),
-            task=TaskMetadata(name="my-task", sha="sess_123"),
-            workflow=WorkflowMetadata(name="ci-flow", sha="flow_456"),
+            blueprint=BlueprintMetadata(name="ci-flow", key="flow_456"),
             previous_step=PreviousStepMetadata(
                 id="step-init",
                 name="Init Step",
@@ -53,14 +51,12 @@ class InputInterpolateTests:
 
         template = (
             "id={{ step.id }} name={{ step.name }} idx={{ step.index }} attempt={{ step.attempt }} "
-            "task={{ task.name }}:{{ task.sha }} flow={{ workflow.name }}:{{ workflow.sha }} "
+            "blueprint={{ blueprint.name }}:{{ blueprint.key }} "
             "prev={{ previous_step.id }}:{{ previous_step.status }}:{{ previous_step.exit_code }}"
         )
         rendered = interpolate_string(template, metadata=metadata)
         assert rendered == (
-            "id=step-build name=Build Step idx=2 attempt=1 "
-            "task=my-task:sess_123 flow=ci-flow:flow_456 "
-            "prev=step-init:completed:0"
+            "id=step-build name=Build Step idx=2 attempt=1 blueprint=ci-flow:flow_456 prev=step-init:completed:0"
         )
 
     def test_interpolate_string_with_dollar_metadata(self) -> None:
@@ -72,9 +68,9 @@ class InputInterpolateTests:
 
     def test_interpolate_string_empty_metadata_fields_resolve_to_empty(self) -> None:
         metadata = build_execution_metadata(StepDefinition(id="s1", type=StepType.COMMAND, command="echo hi"))
-        template = "t={{ task.name }} flow={{ workflow.name }} prev_status={{ previous_step.status }}"
+        template = "blueprint={{ blueprint.name }} key={{ blueprint.key }} prev_status={{ previous_step.status }}"
         rendered = interpolate_string(template, metadata=metadata)
-        assert rendered == "t= flow= prev_status="
+        assert rendered == "blueprint= key= prev_status="
 
     def test_interpolate_step_fields_updates_command_and_env(self) -> None:
         step = StepDefinition(
@@ -100,7 +96,7 @@ class InputInterpolateTests:
             step,
             step_index=2,
             attempt=3,
-            identity=ExecutionIdentity(task_name="task-1", task_sha="sha123"),
+            identity=ExecutionIdentity(blueprint_name="task-1", blueprint_key="sha123"),
             previous_step=PreviousStepMetadata(id="s0", status="completed", exit_code="0", index="1"),
         )
         updated = interpolate_step_fields(step, inputs={"msg": "run"}, metadata=metadata)

@@ -16,12 +16,8 @@ from worktree.cli.ui.formatters.history.history_views import (
     HistoryShowView,
     RunSummaryView,
 )
-from worktree.core.blueprint import BlueprintKind
 from worktree.core.db import RunRecord, RunStatus
-from worktree.core.history.models import (
-    HistoryShowResult,
-    HistoryShowStatus,
-)
+from worktree.core.history.models import HistoryShowResult, HistoryShowStatus
 from worktree.core.runtime import RunCheckpoint
 from worktree.core.step import StepResult
 
@@ -29,8 +25,7 @@ from worktree.core.step import StepResult
 def _sample_run_record(
     *,
     session_id: str = "sess-12345678",
-    blueprint_name: str = "deploy-task",
-    kind: BlueprintKind = BlueprintKind.TASK,
+    blueprint_name: str = "deploy-blueprint",
     status: RunStatus = RunStatus.COMPLETED,
     branch_name: str | None = "feature/test",
     started_at: str | None = "2026-08-19 01:00:00",
@@ -41,8 +36,8 @@ def _sample_run_record(
     return RunRecord(
         id=1,
         session_id=session_id,
+        blueprint_key=blueprint_name,
         blueprint_name=blueprint_name,
-        kind=kind,
         status=status,
         branch_name=branch_name or "",
         started_at=started_at,
@@ -55,8 +50,7 @@ def _sample_run_record(
 def _make_run_summary_view(**overrides: Any) -> RunSummaryView:
     defaults: dict[str, Any] = {
         "session_id": "sess-12345678",
-        "kind": "task",
-        "blueprint_name": "deploy-task",
+        "blueprint_name": "deploy-blueprint",
         "status": "completed",
         "branch_name": "feature/test",
         "started_at": "2026-08-19 01:00:00",
@@ -84,33 +78,23 @@ def _make_history_show_view(**overrides: Any) -> HistoryShowView:
 
 
 COMPLETED_RUN = FormatterCase(
-    data=HistoryShowResult(
-        status=HistoryShowStatus.OK,
-        session_id="sess-12345678",
-        run=_sample_run_record(),
-    ),
+    data=HistoryShowResult(status=HistoryShowStatus.OK, session_id="sess-12345678", run=_sample_run_record()),
     view=_make_history_show_view(),
-    render_expectations=["sess-12345678", "deploy-task", "feature/test", format_run_duration(10.0)],
+    render_expectations=["sess-12345678", "deploy-blueprint", "feature/test", format_run_duration(10.0)],
 )
 
 FAILED_RUN_WITH_ERROR = FormatterCase(
     data=HistoryShowResult(
         status=HistoryShowStatus.OK,
         session_id="sess-12345678",
-        run=_sample_run_record(
-            status=RunStatus.FAILED,
-            error_message="Step 'checkout' failed with exit code 1.",
-        ),
+        run=_sample_run_record(status=RunStatus.FAILED, error_message="Step 'checkout' failed with exit code 1."),
     ),
     view=_make_history_show_view(
-        run=_make_run_summary_view(
-            status="failed",
-            error_message="Step 'checkout' failed with exit code 1.",
-        )
+        run=_make_run_summary_view(status="failed", error_message="Step 'checkout' failed with exit code 1.")
     ),
     render_expectations=[
         "sess-12345678",
-        "deploy-task",
+        "deploy-blueprint",
         "feature/test",
         format_run_duration(10.0),
         "Step 'checkout' failed with exit code 1.",
@@ -137,17 +121,11 @@ PAUSED_RUN_WITH_CHECKPOINT = FormatterCase(
         status=HistoryShowStatus.OK,
         session_id="sess-12345678",
         run=_sample_run_record(
-            status=RunStatus.PAUSED,
-            completed_at=None,
-            checkpoint_json=_CHECKPOINT.model_dump_json(),
+            status=RunStatus.PAUSED, completed_at=None, checkpoint_json=_CHECKPOINT.model_dump_json()
         ),
     ),
     view=_make_history_show_view(
-        run=_make_run_summary_view(
-            status="paused",
-            completed_at=None,
-            duration_seconds=None,
-        ),
+        run=_make_run_summary_view(status="paused", completed_at=None, duration_seconds=None),
         checkpoint=CheckpointDetailsView(
             pending_step_id="step-2",
             next_step_index=1,
@@ -164,7 +142,7 @@ PAUSED_RUN_WITH_CHECKPOINT = FormatterCase(
     ),
     render_expectations=[
         "sess-12345678",
-        "deploy-task",
+        "deploy-blueprint",
         "feature/test",
         "step-2",
         "Waiting for approval",
@@ -183,7 +161,7 @@ RUN_WITH_RAW_CHECKPOINT_FALLBACK = FormatterCase(
     view=_make_history_show_view(checkpoint_raw=_RAW_JSON),
     render_expectations=[
         "sess-12345678",
-        "deploy-task",
+        "deploy-blueprint",
         "feature/test",
         format_run_duration(10.0),
         "custom_field",
@@ -191,29 +169,14 @@ RUN_WITH_RAW_CHECKPOINT_FALLBACK = FormatterCase(
 )
 
 NOT_FOUND = FormatterCase(
-    data=HistoryShowResult(
-        status=HistoryShowStatus.NOT_FOUND,
-        session_id="nonexistent-sess",
-    ),
-    view=_make_history_show_view(
-        status=HistoryShowStatus.NOT_FOUND,
-        session_id="nonexistent-sess",
-        run=None,
-    ),
+    data=HistoryShowResult(status=HistoryShowStatus.NOT_FOUND, session_id="nonexistent-sess"),
+    view=_make_history_show_view(status=HistoryShowStatus.NOT_FOUND, session_id="nonexistent-sess", run=None),
     render_expectations=["nonexistent-sess"],
 )
 
 SHOW_ERROR = FormatterCase(
-    data=HistoryShowResult(
-        status=HistoryShowStatus.OK,
-        session_id="sess-1",
-        errors=["Database locked"],
-    ),
-    view=_make_history_show_view(
-        session_id="sess-1",
-        run=None,
-        errors=["Database locked"],
-    ),
+    data=HistoryShowResult(status=HistoryShowStatus.OK, session_id="sess-1", errors=["Database locked"]),
+    view=_make_history_show_view(session_id="sess-1", run=None, errors=["Database locked"]),
     render_expectations=[],
 )
 
@@ -234,8 +197,7 @@ HISTORY_SHOW_PAYLOAD_CASES = [
             "session_id": "sess-12345678",
             "run": {
                 "session_id": "sess-12345678",
-                "kind": "task",
-                "blueprint_name": "deploy-task",
+                "blueprint_name": "deploy-blueprint",
                 "status": "completed",
                 "branch_name": "feature/test",
                 "started_at": "2026-08-19 01:00:00",
@@ -258,8 +220,7 @@ HISTORY_SHOW_PAYLOAD_CASES = [
             "session_id": "sess-12345678",
             "run": {
                 "session_id": "sess-12345678",
-                "kind": "task",
-                "blueprint_name": "deploy-task",
+                "blueprint_name": "deploy-blueprint",
                 "status": "failed",
                 "branch_name": "feature/test",
                 "started_at": "2026-08-19 01:00:00",
@@ -282,8 +243,7 @@ HISTORY_SHOW_PAYLOAD_CASES = [
             "session_id": "sess-12345678",
             "run": {
                 "session_id": "sess-12345678",
-                "kind": "task",
-                "blueprint_name": "deploy-task",
+                "blueprint_name": "deploy-blueprint",
                 "status": "paused",
                 "branch_name": "feature/test",
                 "started_at": "2026-08-19 01:00:00",
@@ -318,8 +278,7 @@ HISTORY_SHOW_PAYLOAD_CASES = [
             "session_id": "sess-12345678",
             "run": {
                 "session_id": "sess-12345678",
-                "kind": "task",
-                "blueprint_name": "deploy-task",
+                "blueprint_name": "deploy-blueprint",
                 "status": "completed",
                 "branch_name": "feature/test",
                 "started_at": "2026-08-19 01:00:00",
@@ -367,11 +326,8 @@ HISTORY_SHOW_PAYLOAD_CASES = [
 
 
 class HistoryShowFormatterTests:
-    """Tier 2 presentation contract tests for HistoryShowFormatter."""
-
     @pytest.mark.parametrize("case", HISTORY_SHOW_CASES)
     def test_transform_derives_expected_view(self, case: FormatterCase[HistoryShowResult, HistoryShowView]) -> None:
-        """Verify transform derives the exact HistoryShowView model representation."""
         assert HistoryShowFormatter().transform(case.data) == case.view
 
     @pytest.mark.parametrize(("case", "expected_payload"), HISTORY_SHOW_PAYLOAD_CASES)
@@ -380,14 +336,15 @@ class HistoryShowFormatterTests:
         case: FormatterCase[HistoryShowResult, HistoryShowView],
         expected_payload: dict[str, Any],
     ) -> None:
-        """Verify to_json_serializable matches the exact published wire-format literal dict."""
         assert HistoryShowFormatter().to_json_serializable(case.data) == expected_payload
 
     @pytest.mark.parametrize("case", HISTORY_SHOW_CASES)
     def test_rich_render_shows_every_view_value(self, case: FormatterCase[HistoryShowResult, HistoryShowView]) -> None:
-        """Verify that all non-null semantic view model values reach the Rich renderable output."""
         rendered = render_rich(HistoryShowFormatter().to_rich(case.data))
+        view = case.view
+
         for expected in case.render_expectations:
             assert expected in rendered
-        for error in case.view.errors:
+
+        for error in view.errors:
             assert error in rendered

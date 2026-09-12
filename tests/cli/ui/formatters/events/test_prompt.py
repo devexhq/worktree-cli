@@ -17,7 +17,6 @@ WITH_DIAGNOSTIC = FormatterCase(
     data=PromptEvent(
         prompt_type="step_failure",
         prompt_id="step-1",
-        kind="task",
         title="Action Needed",
         diagnostic="Step timed out",
         options=[_CONTINUE_OPTION],
@@ -26,7 +25,6 @@ WITH_DIAGNOSTIC = FormatterCase(
     view=PromptEvent(
         prompt_type="step_failure",
         prompt_id="step-1",
-        kind="task",
         title="Action Needed",
         diagnostic="Step timed out",
         options=[_CONTINUE_OPTION],
@@ -39,20 +37,18 @@ WITHOUT_DIAGNOSTIC = FormatterCase(
     data=PromptEvent(
         prompt_type="step_failure",
         prompt_id="step-2",
-        kind="workflow",
-        title="Workflow Prompt",
+        title="Blueprint Prompt",
         diagnostic=None,
         options=[_ABORT_OPTION],
     ),
     view=PromptEvent(
         prompt_type="step_failure",
         prompt_id="step-2",
-        kind="workflow",
-        title="Workflow Prompt",
+        title="Blueprint Prompt",
         diagnostic=None,
         options=[_ABORT_OPTION],
     ),
-    render_expectations=["Workflow Prompt"],
+    render_expectations=["Blueprint Prompt"],
 )
 
 PROMPT_CASES = [
@@ -66,16 +62,9 @@ PROMPT_PAYLOAD_CASES = [
         {
             "prompt_type": "step_failure",
             "prompt_id": "step-1",
-            "kind": "task",
             "title": "Action Needed",
             "diagnostic": "Step timed out",
-            "options": [
-                {
-                    "key": "c",
-                    "label": "Continue",
-                    "decision": "continue",
-                }
-            ],
+            "options": [{"key": "c", "label": "Continue", "decision": "continue"}],
             "default": "c",
         },
         id="with_diagnostic",
@@ -85,16 +74,9 @@ PROMPT_PAYLOAD_CASES = [
         {
             "prompt_type": "step_failure",
             "prompt_id": "step-2",
-            "kind": "workflow",
-            "title": "Workflow Prompt",
+            "title": "Blueprint Prompt",
             "diagnostic": None,
-            "options": [
-                {
-                    "key": "a",
-                    "label": "Abort",
-                    "decision": "abort",
-                }
-            ],
+            "options": [{"key": "a", "label": "Abort", "decision": "abort"}],
             "default": "abort",
         },
         id="without_diagnostic",
@@ -103,11 +85,8 @@ PROMPT_PAYLOAD_CASES = [
 
 
 class PromptFormatterTests:
-    """Tier 2 presentation contract tests for PromptFormatter."""
-
     @pytest.mark.parametrize("case", PROMPT_CASES)
     def test_transform_derives_expected_view(self, case: FormatterCase[PromptEvent, PromptEvent]) -> None:
-        """Verify transform derives the identity view representation."""
         assert PromptFormatter().transform(case.data) == case.view
 
     @pytest.mark.parametrize(("case", "expected_payload"), PROMPT_PAYLOAD_CASES)
@@ -116,12 +95,10 @@ class PromptFormatterTests:
         case: FormatterCase[PromptEvent, PromptEvent],
         expected_payload: dict[str, Any],
     ) -> None:
-        """Verify to_json_serializable matches the exact published wire-format literal dict."""
         assert PromptFormatter().to_json_serializable(case.data) == expected_payload
 
     @pytest.mark.parametrize("case", PROMPT_CASES)
     def test_rich_render_shows_every_view_value(self, case: FormatterCase[PromptEvent, PromptEvent]) -> None:
-        """Verify that all non-null semantic view model values reach the Rich renderable output."""
         rendered = render_rich(PromptFormatter().to_rich(case.data))
         view = case.view
 

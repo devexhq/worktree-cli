@@ -16,6 +16,7 @@ from tests.helpers import (
     make_failed_result,
     make_ok_result,
 )
+from worktree.common.models import FailurePolicy, OnFailureSpec
 from worktree.core.db import RunStatus
 from worktree.core.runtime import (
     USER_CONTINUED_MARKER,
@@ -32,8 +33,6 @@ from worktree.core.sandbox import (
     SandboxApplyStatus,
 )
 from worktree.core.step import (
-    FailurePolicy,
-    FailureSpec,
     LoopStepBlock,
     StepDefinition,
     StepResult,
@@ -496,7 +495,7 @@ class RuntimeEngineFailurePromptTests:
                     make_cmd_step(
                         step_id="fail",
                         command="exit 1",
-                        on_failure=FailureSpec(
+                        on_failure=OnFailureSpec(
                             action=FailurePolicy.RETRY,
                             max_retries=2,
                             on_max_retries=FailurePolicy.PROMPT_USER,
