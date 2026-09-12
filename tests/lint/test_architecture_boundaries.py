@@ -198,3 +198,68 @@ def test_core_tests_have_zero_cli_dependencies() -> None:
         violations.extend(_find_cli_import_violations(file_path, relative_to=tests_core_dir))
 
     assert not violations, "Found prohibited 'worktree.cli' imports inside tests/core:\n" + "\n".join(violations)
+
+
+# complexipy: ignore (Truly complex test)
+def test_core_and_common_never_import_cli_context_or_worktree_db() -> None:
+    """Ensure core/ and common/ never import CliContext or monolithic WorktreeDb (outside core/db/)."""
+    violations: list[str] = []
+
+    for sub_dir in (SRC_ROOT / "core", SRC_ROOT / "common"):
+        for file_path in _iter_python_files(sub_dir):
+            is_db_pkg = file_path.is_relative_to(SRC_ROOT / "core" / "db")
+            tree = ast.parse(file_path.read_text(encoding="utf-8"), filename=str(file_path))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        if "CliContext" in alias.name:
+                            violations.append(f"{file_path.relative_to(SRC_ROOT)}:{node.lineno} imports '{alias.name}'")
+                        if not is_db_pkg and "WorktreeDb" in alias.name:
+                            violations.append(f"{file_path.relative_to(SRC_ROOT)}:{node.lineno} imports '{alias.name}'")
+                elif isinstance(node, ast.ImportFrom):
+                    if node.module and "CliContext" in node.module:
+                        violations.append(
+                            f"{file_path.relative_to(SRC_ROOT)}:{node.lineno} imports from '{node.module}'"
+                        )
+                    for alias in node.names:
+                        if alias.name == "CliContext":
+                            violations.append(f"{file_path.relative_to(SRC_ROOT)}:{node.lineno} imports 'CliContext'")
+                        if not is_db_pkg and alias.name == "WorktreeDb":
+                            violations.append(f"{file_path.relative_to(SRC_ROOT)}:{node.lineno} imports 'WorktreeDb'")
+
+    assert not violations, "Found prohibited CliContext or WorktreeDb imports in core/ or common/:\n" + "\n".join(
+        violations
+    )
+
+
+# complexipy: ignore (Truly complex test)
+def test_no_cwd_in_core() -> None:
+    """Ensure Path.cwd() and os.getcwd() are never called inside src/worktree/core/."""
+    violations: list[str] = []
+    core_dir = SRC_ROOT / "core"
+
+    for file_path in _iter_python_files(core_dir):
+        tree = ast.parse(file_path.read_text(encoding="utf-8"), filename=str(file_path))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                func = node.func
+                if (
+                    isinstance(func, ast.Attribute)
+                    and func.attr == "cwd"
+                    and isinstance(func.value, ast.Name)
+                    and func.value.id == "Path"
+                ):
+                    violations.append(f"{file_path.relative_to(SRC_ROOT)}:{node.lineno} calls 'Path.cwd()'")
+                elif (
+                    isinstance(func, ast.Attribute)
+                    and func.attr == "getcwd"
+                    and isinstance(func.value, ast.Name)
+                    and func.value.id == "os"
+                ):
+                    violations.append(f"{file_path.relative_to(SRC_ROOT)}:{node.lineno} calls 'os.getcwd()'")
+                elif isinstance(func, ast.Name) and func.id == "getcwd":
+                    violations.append(f"{file_path.relative_to(SRC_ROOT)}:{node.lineno} calls 'getcwd()'")
+
+    assert not violations, (
+        "Found prohibited cwd calls inside core/ (services must receive path arguments):\n" + "\n".join(violations)
+    )

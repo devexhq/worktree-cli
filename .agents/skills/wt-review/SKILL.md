@@ -1,26 +1,30 @@
 ---
 name: wt-review
 description: >-
-  Review a change set in the worktree-cli repo on three axes, fidelity to the
-  plan, implementation quality, and adherence to every rule in AGENTS.md and
-  docs/agents/*.md, then write the verdict to .agentic/review.md plus a
-  machine-readable .agentic/review.json. Runs no tests
-  or tooling. Use when asked to review a pull request, local pending changes, or
-  commits on a branch, to run a pre-commit review gate, or to check whether a
-  change obeys or should have updated the agent docs. Invoked as /wt-review
-  [<pr-number>] [--post]. Runs in GitHub Copilot CLI, Gemini CLI, and any Agent
-  Skills client.
+  Meticulous compliance review agent for worktree-cli. Audits diffs against
+  docs/agents/REVIEW_CHECKLIST.json, checking plan fidelity, implementation
+  quality, and architectural invariants. Rejects with line-level findings if any
+  BLOCKER rule is breached. Invoked as /wt-review [<pr-number>] [--post].
 ---
 
 # wt-review
 
-Review a change set in `worktree-cli` on three axes:
+You are a meticulous compliance review agent. Review a change set in `worktree-cli` on three axes:
 
 1. **Plan fidelity**: does the code implement `.agentic/plan.md`'s contracts, no more and no less.
-2. **Implementation**: does the code hold up (correctness, layering, typing, tests).
+2. **Implementation & invariant compliance**: does the code hold up (correctness, layering, typing, tests, performance, DB hygiene).
 3. **Doc adherence**: does it obey every directive in `AGENTS.md` and `docs/agents/*.md`, and does it update the docs this change was required to update.
 
-Output goes to `.agentic/review.md`, which `/wt-code review` consumes.
+Output goes to `.agentic/review.md`, which `/wt-code review` consumes, paired with `.agentic/review.json`.
+
+## Core compliance protocol
+
+As a meticulous compliance review agent, follow this non-negotiable sequence:
+
+1. **Inspect modified code**: Run `git diff` (or resolve scope via `git diff origin/<base>...origin/<head>`) to inspect modified code and collect all modified files and hunks.
+2. **Read review checklist**: Read `docs/agents/REVIEW_CHECKLIST.json` using your file-read tool.
+3. **Audit against evaluation criteria**: For each rule matching the target paths (`scope`) or modified package domain (`domain`) in the diff, audit the changes against `evaluation_criteria`.
+4. **Enforce blocker gate**: If any rule with `severity == "BLOCKER"` is breached, reject the review with line-level findings (`verdict: CHANGES REQUIRED`).
 
 ## Hard boundaries
 
@@ -46,6 +50,7 @@ Do not review from memory of this repo. Read:
 
 - `AGENTS.md`, the authority and the index of which doc governs what
 - the always-on docs it names: `docs/agents/architecture.md`, `docs/agents/code-conventions.md`, `docs/agents/schemas.md`, `docs/agents/glossary.md`, `docs/agents/testing.md`
+- the compiled invariants: the domain-scoped `RULES.md` files (e.g. `src/worktree/core/docs/RULES.md`) and machine-readable `docs/agents/REVIEW_CHECKLIST.json`
 - whichever conditional doc each tripped gate names (see [doc-adherence.md](doc-adherence.md))
 - `.agentic/plan.md` if it exists, as the change's contract
 
@@ -61,18 +66,25 @@ Skip this axis only when `.agentic/plan.md` is absent, and say so in the report.
 - Every planned test exists, at the planned tier, asserting the stated contract.
 - Where the code deviates, the deviation was surfaced rather than absorbed silently.
 
-## 4. Sweep the mechanical rules
+## 4. Sweep the mechanical rules and invariant checklist
 
 The rules that get missed are the ones no linter enforces, and they are missed because reviewers read for design and skim identifiers. So do this as an explicit pass, not a byproduct.
 
-Walk [conventions-checklist.md](conventions-checklist.md) against the changed hunks. It enumerates every hand-checked rule from `code-conventions.md`, `testing.md`, and `architecture.md`.
+Walk `docs/agents/REVIEW_CHECKLIST.json` and [conventions-checklist.md](conventions-checklist.md) against the changed hunks:
+1. **Match rule scope**: For each changed file path in the diff, filter the checklist for rules whose `scope` pattern encompasses that file (e.g., `src/worktree/core/` matches `ARCH-001`, `src/worktree/cli/ui/formatters/` matches `RENDER-*`, `src/worktree/**/models.py` matches `MODEL-*`).
+2. **Audit against `evaluation_criteria`**: For every matching rule, inspect the changed code line-by-line against the rule's specific `evaluation_criteria`.
+3. **Classify severity**:
+   - **`BLOCKER`**: Architectural drift, concurrency risks, raw DB instantiation in loops/helpers, boundary leaks, runtime crashes, or `assert` in `src/`. **If any rule with `severity == "BLOCKER"` is breached, reject the review (`verdict: CHANGES REQUIRED`) with line-level findings.**
+   - **`WARNING`**: High-impact convention or type degradation. Flagged as advisory findings for developer resolution.
+   - **`SUGGESTION`**: Constructive improvements or optimization suggestions.
+   - **`NIT`**: Minor formatting or cosmetic observations.
 
 Two passes that must be deliberate:
 
 - **Every new or changed identifier**, in production and tests: check against `code-conventions.md#variable-naming`. Standard abbreviations and common iteration constructs (`k, v`, `req`, `res`, `fn`, `idx`, `mod`, `loc`, `tmp`, `str`, `arr`, `num`, `rel_path`, etc.) are permitted; flag only cryptic or arbitrary truncations that harm readability.
 - **Every new test**: name format and outcome, tier, mocking policy, and whether it asserts a contract or an implementation detail.
 
-Each finding names the rule and the doc it comes from. If you cannot cite a rule, it is a Suggestion or a Nit, not Blocking.
+Each finding names the rule ID (e.g. `ARCH-001`) and the doc it comes from. If you cannot cite a rule, it is a Suggestion or a Nit, not Blocking.
 
 ## 5. Check doc adherence
 
@@ -103,8 +115,15 @@ Write this to `.agentic/review.md` (create `.agentic/` if needed), overwriting a
 
 ### Blocking
 - `path:line`
-  - Issue: what is wrong and the rule it breaks (`<doc>#<section>`).
+  - Rule: `ARCH-001` (Strict Layered Import Flow)
+  - Issue: what is wrong and the rule it breaks (`<package>/docs/RULES.md#ARCH-001` or `<doc>#<section>`).
   - Fix: the concrete fix.
+
+### Warnings
+- `path:line`
+  - Rule: `TYPE-001` (No Bare Any on Public Functions)
+  - Issue: what could be improved or is advisory.
+  - Fix: the suggested change.
 
 ### Suggestions
 - `path:line`
@@ -126,10 +145,17 @@ Write this to `.agentic/review.md` (create `.agentic/` if needed), overwriting a
 - Gates were not run by this skill. Risks read from the diff: <complexity, coverage, typing risks, or "none">
 ```
 
-Severity: **Blocking** is a defect, a broken user-facing contract, a deviation from a plan contract, a suppression hiding a real type error, a test asserting implementation, a violation of a stated doc rule, or a missing required doc update. **Suggestion** is a real improvement that need not land now. **Nit** is style or wording with no rule behind it. Say `APPROVE` only with zero Blocking items. An empty section stays, marked `none`.
+Severity:
+- **Blocking (`BLOCKER`)**: Hard failure. Architectural drift, concurrency risks, raw DB instantiation in loops/helpers, boundary leaks, runtime crashes, `assert` in `src/`, broken user-facing contract, deviation from a plan contract, suppression hiding a real type error, test asserting implementation, violation of a stated doc rule, or missing required doc update. **If any rule with `severity == "BLOCKER"` is breached, reject the review (`verdict: CHANGES REQUIRED`) with line-level findings.**
+- **Warning (`WARNING`)**: High-impact quality, typing, or convention deviation that is advisory and does not alone block the run.
+- **Suggestion (`SUGGESTION`)**: A real improvement that need not land now.
+- **Nit (`NIT`)**: Style or wording with no rule behind it.
 
-Format: Each issue under **Blocking**, **Suggestions**, and **Nits** is written as the file name and line number (`path:line`, or `path` for file-level) followed by a 2-bullet list:
-- `Issue`: what is wrong and the rule it breaks (`<doc>#<section>` for blocking items).
+Say `APPROVE` only with zero Blocking items. If any rule with `severity == "BLOCKER"` is breached, reject the review with line-level findings. An empty section stays, marked `none`.
+
+Format: Each issue under **Blocking**, **Warnings**, **Suggestions**, and **Nits** is written as the file name and line number (`path:line`, or `path` for file-level) followed by a bulleted list:
+- `Rule`: the rule ID (e.g. `ARCH-001`) or `<doc>#<section>` for blocking/warning items.
+- `Issue`: what is wrong based on `evaluation_criteria`.
 - `Fix`: the concrete fix.
 
 With `--post` and a PR scope, post the same content as a comment review: `gh pr review <n> --comment --body-file .agentic/review.md`. Never `--approve` or `--request-changes`, and do not add reviewers.
@@ -146,14 +172,14 @@ Write `.agentic/review.json` alongside the markdown, and print the same object a
   "round": 1,
   "scope": { "kind": "pr", "ref": "364", "files": 7 },
   "plan": ".agentic/plan.md",
-  "counts": { "blocking": 2, "suggestions": 3, "nits": 1 },
+  "counts": { "blocking": 2, "warnings": 1, "suggestions": 3, "nits": 1 },
   "findings": [
     {
-      "severity": "blocking",
+      "severity": "BLOCKER",
       "path": "src/worktree/core/diff/services/render.py",
       "line": 42,
-      "rule": "code-conventions.md#variable-naming",
-      "summary": "Local named `buf`; cryptic truncation of `buffer`."
+      "rule": "ARCH-001",
+      "summary": "Core service imports CliContext directly."
     }
   ]
 }
@@ -162,10 +188,11 @@ Write `.agentic/review.json` alongside the markdown, and print the same object a
 Field contracts, since this is what a loop branches on:
 
 - `verdict` is exactly `APPROVE` or `CHANGES_REQUIRED`. Underscored, unlike the markdown heading, so it survives shell and condition matching untouched.
-- `verdict` is `APPROVE` if and only if `counts.blocking` is `0`. Never emit one without the other.
+- `verdict` is `APPROVE` if and only if `counts.blocking` is `0`. If any rule with `severity == "BLOCKER"` is breached, reject the review with `CHANGES_REQUIRED`. Never emit `APPROVE` with `blocking > 0`.
 - `scope.kind` is `pr`, `uncommitted`, or `branch`. `scope.ref` is the PR number, an empty string, or the compared range.
 - `plan` is the plan path, or `null` when `.agentic/plan.md` was absent.
-- `findings` carries every Blocking item and may omit Suggestions and Nits; `counts` always reflects the full report. `rule` is `<doc>#<section>` for anything Blocking, and `null` only for a Suggestion or Nit.
+- `counts` tracks `{ "blocking": <int>, "warnings": <int>, "suggestions": <int>, "nits": <int> }`.
+- `findings` carries every Blocking and Warning item with line-level detail, and may omit Suggestions and Nits; `counts` always reflects the full report. `rule` is the rule ID (e.g. `ARCH-001`) or `<doc>#<section>`.
 - `line` is an integer, or `null` for a file-level or repo-level finding.
 
 Keep this shape stable. It is the contract a driver script consumes today, and the `outputs` condition a `wt` blueprint will branch on later (`outputs` conditions parse a step's stdout as JSON), so a field renamed here breaks both.

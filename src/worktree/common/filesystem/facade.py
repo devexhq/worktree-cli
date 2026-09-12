@@ -77,8 +77,95 @@ class Filesystem:
             self._cached_paths = FilesystemPaths.from_root(resolved_root)
         return self._cached_paths
 
-    def __getattr__(self, name: str) -> Path | Traversable:
-        """Delegate path and helper lookups directly to self.paths."""
+    @property
+    def root_dir(self) -> Path:
+        """Workspace root directory."""
+        return self.paths.root_dir
+
+    @property
+    def worktree_dir(self) -> Path:
+        """Hidden .worktree workspace state directory."""
+        return self.paths.worktree_dir
+
+    @property
+    def config_file(self) -> Path:
+        """Path to config.json."""
+        return self.paths.config_file
+
+    @property
+    def db_file(self) -> Path:
+        """Path to SQLite database file."""
+        return self.paths.db_file
+
+    @property
+    def catalog_dir(self) -> Path:
+        """Path to catalog root directory."""
+        return self.paths.catalog_dir
+
+    @property
+    def catalog_steps_dir(self) -> Path:
+        """Path to catalog steps directory."""
+        return self.paths.catalog_steps_dir
+
+    @property
+    def catalog_blueprints_dir(self) -> Path:
+        """Path to catalog blueprints directory."""
+        return self.paths.catalog_blueprints_dir
+
+    @property
+    def logs_dir(self) -> Path:
+        """Path to execution logs directory."""
+        return self.paths.logs_dir
+
+    @property
+    def sessions_dir(self) -> Path:
+        """Path to session state directory."""
+        return self.paths.sessions_dir
+
+    @property
+    def artifacts_dir(self) -> Path:
+        """Path to generated artifacts directory."""
+        return self.paths.artifacts_dir
+
+    @property
+    def tmp_dir(self) -> Path:
+        """Path to temporary directory."""
+        return self.paths.tmp_dir
+
+    @property
+    def sandboxes_dir(self) -> Path:
+        """Path to sandboxes directory."""
+        return self.paths.sandboxes_dir
+
+    @property
+    def lock_file(self) -> Path:
+        """Path to workspace lock file."""
+        return self.paths.lock_file
+
+    @property
+    def gitignore_file(self) -> Path:
+        """Path to workspace .gitignore file."""
+        return self.paths.gitignore_file
+
+    @property
+    def catalog_templates_dir(self) -> Traversable:
+        """Traversable resource path to bundled catalog templates."""
+        return self.paths.catalog_templates_dir
+
+    def session_dir(self, session_id: str) -> Path:
+        """Return path to a specific session directory."""
+        return self.paths.session_dir(session_id)
+
+    def sandbox_dir(self, sandbox_id: str) -> Path:
+        """Return path to a specific sandbox directory."""
+        return self.paths.sandbox_dir(sandbox_id)
+
+    def rel_to_root(self, path: Path | str) -> Path:
+        """Return path relative to workspace root."""
+        return self.paths.rel_to_root(path)
+
+    def __getattr__(self, name: str) -> Any:
+        """Delegate fallback attribute lookups directly to self.paths."""
         paths = self.paths
         if hasattr(paths, name):
             return getattr(paths, name)

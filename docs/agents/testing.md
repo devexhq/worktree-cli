@@ -64,9 +64,9 @@ All tests must be categorized under one of the five registered markers declared 
 | `invariant` | Static AST and architectural boundary enforcement tests (`tests/lint/`). Verifies imports, complexity, and contract consistency. | Fast / AST scan | `pytest -m invariant` (instant architecture guard) |
 | `slow` | Long-running tests involving process group signal escalation, real process timeouts, cross-process locks, or network boundaries. | > 500ms | `pytest -m "not slow"` (runs suite excluding slow waits) |
 
-### Module-Level Tagging Pattern
+### Module-Level Tagging Pattern (Optional)
 
-Every test module **must** declare its primary marker at module top level using `pytestmark` immediately below the imports:
+Test modules may declare markers at module top level using `pytestmark` immediately below the imports:
 
 ```python
 import pytest
@@ -81,8 +81,6 @@ import pytest
 
 pytestmark = [pytest.mark.integration, pytest.mark.slow]
 ```
-
-Untagged test modules are prohibited and will be rejected in PR review.
 
 ### CLI Execution Recipes
 
@@ -332,8 +330,7 @@ python -m pytest -q <path>          # a specific file or directory
 Every pull request and ticket in this milestone touching tests must verify compliance with this document (`docs/agents/testing.md`) and `scratch/test-structure-proposal.md` (§12.1 Rule 7). Reviewers and implementers must audit tests against this checklist:
 
 1. **1:1 Parity**: Does the test file mirror `src/worktree/` exactly?
-2. **Pytest Marker Taxonomy**: Does the test module declare `pytestmark` with the appropriate marker (`unit`, `integration`, `cli`, `invariant`, `slow`)?
-3. **Execution Tiers**: Are CLI tests split into `*RootTests` and `*CliIntegrationTests`? Do formatters follow the 3-test `FormatterCase` protocol?
-4. **Naming**: Are classes named `*Tests` and methods named `test_<condition>_<outcome>` with banned vague names avoided?
-5. **Contract Assertions**: Are assertions checking contracts (`BaseResult`, exact JSON payload dicts, exit codes, disk state) without reaching into private attributes or scraping Rich formatting?
-6. **Harness Hygiene**: Are tests using standard fixtures (`tmp_path`, `GitWorkspaceHarness`) and shared assertion helpers rather than legacy helper modules?
+2. **Execution Tiers**: Are CLI tests split into `*RootTests` and `*CliIntegrationTests`? Do formatters follow the 3-test `FormatterCase` protocol?
+3. **Naming**: Are classes named `*Tests` and methods named `test_<condition>_<outcome>` with banned vague names avoided?
+4. **Contract Assertions**: Are assertions checking contracts (`BaseResult`, exact JSON payload dicts, exit codes, disk state) without reaching into private attributes or scraping Rich formatting?
+5. **Harness Hygiene**: Are tests using standard fixtures (`tmp_path`, `GitWorkspaceHarness`) and shared assertion helpers rather than legacy helper modules?

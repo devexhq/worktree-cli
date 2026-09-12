@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from worktree.common.lock import WorkspaceLock
-from worktree.core.db import RunRecord, RunsRepository, RunStatus, WorktreeDb
+from worktree.core.db import RunRecord, RunsRepository, RunStatus
 from worktree.core.engine.models import ReconciliationResult
 
 STALE_RUN_ERROR_MESSAGE = "Session interrupted by abnormal process termination"
@@ -94,13 +94,14 @@ def is_run_stale(run: RunRecord, current_pid: int | None = None) -> bool:
 
 
 def _resolve_runs_repo_and_root(
-    db: WorktreeDb | RunsRepository,
+    runs_repo: RunsRepository,
     path: Path | None,
 ) -> tuple[RunsRepository, Path]:
-    """Resolve RunsRepository and root path from input db target."""
-    if isinstance(db, RunsRepository):
-        return db, path or Path.cwd()
-    return db.runs, db.path
+    """Resolve RunsRepository and root path from input repository target."""
+    root = path or runs_repo.path
+    if root is None:
+        raise ValueError("A workspace path must be provided when passing a detached RunsRepository.")
+    return runs_repo, root
 
 
 def _reconcile_stale_records(runs_repo: RunsRepository) -> list[RunRecord]:
@@ -118,7 +119,7 @@ def _reconcile_stale_records(runs_repo: RunsRepository) -> list[RunRecord]:
     return reconciled
 
 
-def reconcile_stale_runs(db: WorktreeDb | RunsRepository, path: Path | None = None) -> ReconciliationResult:
+def reconcile_stale_runs(db: RunsRepository, path: Path | None = None) -> ReconciliationResult:
     """Inspect and reconcile stale RUNNING run records into FAILED status."""
     try:
         runs_repo, root_dir = _resolve_runs_repo_and_root(db, path)

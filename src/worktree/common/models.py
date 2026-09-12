@@ -75,7 +75,7 @@ class FailurePolicy(StrEnum):
 class OnFailureSpec(BaseModel):
     """Normalized/default on_failure directive: action, retry tuning, and post-retry escalation."""
 
-    model_config = {"extra": "forbid"}
+    model_config = {"extra": "forbid", "strict": True}
 
     action: FailurePolicy
     max_retries: int = Field(default=ON_FAILURE_MAX_RETRIES_DEFAULT, ge=ON_FAILURE_MAX_RETRIES_MINIMUM)

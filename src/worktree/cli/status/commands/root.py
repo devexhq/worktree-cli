@@ -19,7 +19,7 @@ def status_command(
         context: CLI context instance.
         output_format: Presentation format ("terminal" or "json").
     """
-    reconciliation_result = reconcile_stale_runs(context.db)
+    reconciliation_result = reconcile_stale_runs(context.db.runs, path=context.cwd)
 
     result = Status(context.cwd).collect()
 

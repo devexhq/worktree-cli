@@ -89,8 +89,8 @@ common/  ->  core/{db,git,sandbox,catalog,inputs,patch,history,diff,status}/  ->
 
 **Relevant sources:** `src/worktree/cli/`, `src/worktree/cli/ui/`, `src/worktree/cli/cli.py`
 
-1. Create `src/worktree/cli/<name>/` with `app.py` and `commands/<action>.py` (or `commands/root.py`). Do not create `formatters.py` or `renderers.py` modules in domain CLI folders.
-2. Add single-responsibility formatters in `src/worktree/cli/ui/formatters/<name>/<model>.py` (one `*Formatter` class per module) implementing `transform()` and `to_rich()`. Presentation view models reside in `src/worktree/cli/ui/formatters/<name>/<name>_views.py` (or `<name>_view.py` for single-formatter domains) for any formatter that derives values. Formatters inherit `to_json_serializable()` from `ComponentFormatter` and must not override it. Expose registration in `src/worktree/cli/ui/formatters/<name>/__init__.py`.
+1. Create `src/worktree/cli/<name>/` with `app.py` and `commands/<action>.py` (or `commands/root.py`).
+2. Add formatters in `src/worktree/cli/ui/formatters/<name>/<model>.py` implementing `transform()` and `to_rich()`. Presentation view models reside in `src/worktree/cli/ui/formatters/<name>/<name>_views.py` (or `<name>_view.py` for single-formatter domains) for formatters that derive values. Expose registration in `src/worktree/cli/ui/formatters/<name>/__init__.py`.
 3. Wire command logic directly to underlying domain services or facades (e.g. `BlueprintRunService`, `HistoryListService`), dispatching results via `ui_dispatcher.dispatch(result)`. Keep CLI packages free of business logic, DB queries, or direct filesystem scans.
 4. Register the command in [src/worktree/cli/cli.py](../../src/worktree/cli/cli.py).
 5. Add tests under `tests/cli/<name>/`.

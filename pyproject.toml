@@ -116,31 +116,74 @@ exclude = [
     ".venv",
     "venv",
     "bin",
+    "docs/agents/PLANNER_RULES.md",
+    "**/docs/RULES.md",
 ]
 
 [tool.ruff.lint]
 # E/W pycodestyle, F pyflakes, I isort, B bugbear, C4 comprehensions,
-# UP pyupgrade, RUF ruff, FA future-annotations, D pydocstyle (Google).
-select = ["E", "W", "F", "I", "B", "C4", "UP", "RUF", "FA", "D", "T20", "TID"]
+# UP pyupgrade, RUF ruff, FA future-annotations, D pydocstyle (Google),
+# S101 assert ban in prod, PGH scoped ignore/noqa, SLF001 private member ban,
+# PLR0913 max args <= 5, PLC0415 top-level imports only.
+select = [
+    "E", "W", "F", "I", "B", "C4", "UP", "RUF", "FA", "D", "T20", "TID",
+    "S101", "PGH", "SLF001", "PLR0913", "PLC0415"
+]
 # E501 handled by formatter; FA100 allow missing future annotations;
 # D100/D101/D104/D105/D107 skip noisy docstring requirements.
 ignore = ["E501", "FA100", "D100", "D104", "D105", "D107", "D101"]
 dummy-variable-rgx = "^_$"
 
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "parents"
+
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
+"typing.cast".msg = "Do not use cast() to silence the type checker; fix the type or model properly."
 "rich".msg = "Direct 'rich' imports are prohibited outside of 'src/worktree/cli/ui/'."
 "typer.echo".msg = "Direct console output via typer.echo is prohibited. Route output through ui_dispatcher.dispatch()."
 "typer.secho".msg = "Direct console output via typer.secho is prohibited. Route output through ui_dispatcher.dispatch()."
 "click.echo".msg = "Direct console output via click.echo is prohibited. Route output through ui_dispatcher.dispatch()."
 "click.secho".msg = "Direct console output via click.secho is prohibited. Route output through ui_dispatcher.dispatch()."
 
+[tool.ruff.lint.pylint]
+max-args = 5
+
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
-"tests/*" = ["D", "T201", "T203", "TID251"]
-"tasks.py" = ["T201"]
+"tests/*" = ["D", "T201", "T203", "TID251", "S101", "SLF001", "PLR0913", "PLC0415"]
+"tasks.py" = ["T201", "PLR0913"]
+"scripts/*" = ["PLR0913"]
 "src/worktree/cli/ui/**" = ["TID251"]
-"src/worktree/cli/ui/dispatcher.py" = ["TID251", "T201"]
+"src/worktree/cli/ui/dispatcher.py" = ["TID251", "T201", "PLC0415"]
 "src/worktree/cli/run/observer.py" = ["TID251"]
+
+# Legacy exceptions scoped for follow-up refactoring:
+"src/worktree/cli/cli.py" = ["SLF001"]
+"src/worktree/cli/context.py" = ["SLF001"]
+"src/worktree/cli/run/app.py" = ["SLF001", "PLR0913"]
+"src/worktree/core/db/facade.py" = ["SLF001"]
+"src/worktree/core/engine/engine.py" = ["SLF001"]
+"src/worktree/core/sandbox/services/lifecycle.py" = ["SLF001"]
+"src/worktree/cli/diff/commands/root.py" = ["PLR0913"]
+"src/worktree/cli/run/commands/root.py" = ["PLR0913"]
+"src/worktree/cli/sandbox/app.py" = ["PLR0913"]
+"src/worktree/cli/sandbox/commands/sandbox_apply.py" = ["PLR0913"]
+"src/worktree/cli/ui/formatters/common.py" = ["PLR0913"]
+"src/worktree/common/process.py" = ["PLR0913"]
+"src/worktree/core/db/repositories/*.py" = ["PLR0913"]
+"src/worktree/core/engine/resumable.py" = ["PLR0913"]
+"src/worktree/core/runtime/*.py" = ["PLR0913"]
+"src/worktree/core/sandbox/facade.py" = ["PLR0913"]
+"src/worktree/core/sandbox/services/patch.py" = ["PLR0913"]
+"src/worktree/core/step/**/*.py" = ["PLR0913"]
+"src/worktree/core/config/facade.py" = ["PLC0415"]
+"src/worktree/core/config/validate.py" = ["PLC0415"]
+"src/worktree/core/status/facade.py" = ["PLC0415"]
+"src/worktree/core/agents/cursor.py" = ["PLC0415"]
+"src/worktree/core/engine/services/reconcile.py" = ["PLC0415"]
+"src/worktree/core/db/alembic/env.py" = ["PLC0415"]
+"src/worktree/core/catalog/services/inventory.py" = ["TID251"]
+"src/worktree/common/types.py" = ["TID251"]
 
 [tool.ruff.lint.isort]
 combine-as-imports = true

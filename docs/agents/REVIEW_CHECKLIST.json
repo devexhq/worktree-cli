@@ -1,0 +1,537 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "AUTO-GENERATED FROM rules_spec.yaml. Static checklist for Review Agent.",
+  "rules": [
+    {
+      "id": "ARCH-001",
+      "name": "Strict Layered Import Flow",
+      "severity": "BLOCKER",
+      "domain": "all",
+      "scope": "src/worktree/",
+      "evaluation_criteria": "Scan imports. Verify common/ imports no core/ or cli/; core/ and common/ import no cli/ or rich; inputs/ and patch/ import no step, runtime, agents; agents/ imports no step or runtime; step/ imports no runtime; runtime/ imports no blueprint, engine, cli; blueprint/ imports no runtime, engine, cli; engine/ imports no cli.",
+      "bad_pattern": "from worktree.core.engine.engine import Engine  # upward import in core/runtime/"
+    },
+    {
+      "id": "ARCH-002",
+      "name": "CLI Logic Purity",
+      "severity": "BLOCKER",
+      "domain": "cli",
+      "scope": "src/worktree/cli/",
+      "evaluation_criteria": "Inspect CLI command handlers in src/worktree/cli/*/commands/. Flag direct SQL execution, domain orchestration, or business logic.",
+      "bad_pattern": "rows = context.db.connection.execute('SELECT * FROM sandboxes').fetchall()"
+    },
+    {
+      "id": "ARCH-003",
+      "name": "Domain Fact Origin Invariant",
+      "severity": "BLOCKER",
+      "domain": "cli",
+      "scope": "src/worktree/cli/ui/",
+      "evaluation_criteria": "Verify formatters only map existing fields from domain models without inventing new statuses, error categories, or domain rules.",
+      "bad_pattern": "if not result.git_status: result.warnings.append('Git not found')  # originates fact"
+    },
+    {
+      "id": "ARCH-004",
+      "name": "Standard Core Package Layout (Domain-Named Entrypoint)",
+      "severity": "BLOCKER",
+      "domain": "core",
+      "scope": "src/worktree/core/",
+      "evaluation_criteria": "Check package directory structure for new domains. Verify the entrypoint module is named after the domain (e.g. prune.py) rather than generic facade.py. Flag any monolithic single-file domain layout or public models defined in services/.",
+      "bad_pattern": "src/worktree/core/prune/ -> facade.py  # or monolithic prune.py mixing models & logic"
+    },
+    {
+      "id": "ARCH-005",
+      "name": "Engine Module Naming Disambiguation",
+      "severity": "BLOCKER",
+      "domain": "core",
+      "scope": "src/worktree/",
+      "evaluation_criteria": "Verify that callers of run_steps import from worktree.core.runtime.engine and callers of Engine import from worktree.core.engine.engine.",
+      "bad_pattern": "from worktree.core.engine.engine import run_steps  # aliasing confusion"
+    },
+    {
+      "id": "ARCH-006",
+      "name": "Secrets Environment Resolution",
+      "severity": "BLOCKER",
+      "domain": "core",
+      "scope": "src/worktree/core/agents/, src/worktree/core/config/",
+      "evaluation_criteria": "Search for API key field additions in WorktreeConfig or SQLite models. Ensure environment resolution helpers are used.",
+      "bad_pattern": "api_key = config.agent.cursor_api_key  # serializing secrets in static config"
+    },
+    {
+      "id": "RENDER-001",
+      "name": "Stateful Builder Pattern for RichOutput",
+      "severity": "BLOCKER",
+      "domain": "cli",
+      "scope": "src/worktree/cli/, src/worktree/core/",
+      "evaluation_criteria": "Ensure core services never instantiate RichOutput or Console. Verify .print() is only called at the CLI command/orchestrator level, not inside core services.",
+      "bad_pattern": "output = RichOutput(); output.console.print('failed')"
+    },
+    {
+      "id": "RENDER-002",
+      "name": "Pure Layout in to_rich",
+      "severity": "BLOCKER",
+      "domain": "cli",
+      "scope": "src/worktree/cli/ui/formatters/",
+      "evaluation_criteria": "Inspect to_rich() implementations. Flag any business logic, status calculations, or string manipulations that do not come directly from the view model.",
+      "bad_pattern": "color = 'green' if len(data.errors) == 0 else 'red'; return Panel(Text(color))"
+    },
+    {
+      "id": "RENDER-003",
+      "name": "Inline Error and Warning String Construction",
+      "severity": "SUGGESTION",
+      "domain": "all",
+      "scope": "src/worktree/",
+      "evaluation_criteria": "Flag private helper functions whose sole purpose is formatting a single error or warning string.",
+      "bad_pattern": "errors.append(self._format_validation_error(path, err))"
+    },
+    {
+      "id": "MODEL-001",
+      "name": "Scoped Model Exceptions with Justifying Comment",
+      "severity": "BLOCKER",
+      "domain": "all",
+      "scope": "src/worktree/",
+      "evaluation_criteria": "Flag any model using extra='ignore' or omitting strict=True outside the approved list or without a justifying comment.",
+      "bad_pattern": "model_config = {'extra': 'ignore'}  # missing justifying comment"
+    },
+    {
+      "id": "MODEL-002",
+      "name": "Result/Outcome Pattern over Exceptions",
+      "severity": "BLOCKER",
+      "domain": "core",
+      "scope": "src/worktree/core/",
+      "evaluation_criteria": "Inspect service methods. Flag methods that raise exceptions for business/operational failures instead of returning a BaseResult.",
+      "bad_pattern": "raise SandboxNotFoundError('Sandbox does not exist')"
+    },
+    {
+      "id": "MODEL-003",
+      "name": "Reachable and Tested Status Enums",
+      "severity": "BLOCKER",
+      "domain": "core",
+      "scope": "src/worktree/core/*/models.py",
+      "evaluation_criteria": "Check all enum values of StrEnum classes in models.py. Ensure each variant is emitted in src/ and asserted in tests/.",
+      "bad_pattern": "class PruneStatus(StrEnum): UNKNOWN = 'unknown'  # never emitted in src/"
+    },
+    {
+      "id": "MODEL-004",
+      "name": "Definition Exception Hierarchy",
+      "severity": "BLOCKER",
+      "domain": "core",
+      "scope": "src/worktree/core/*/exceptions.py",
+      "evaluation_criteria": "Inspect domain exception inheritance. Flag exceptions that inherit directly from Exception or ValueError instead of the Definition base hierarchy.",
+      "bad_pattern": "class BlueprintLoadError(Exception): \"\"\"YAML syntax error.\"\"\""
+    },
+    {
+      "id": "CODE-001",
+      "name": "Identifier Readability and Approved Abbreviations",
+      "severity": "BLOCKER",
+      "domain": "all",
+      "scope": "src/, tests/",
+      "evaluation_criteria": "Inspect new or modified variable, parameter, attribute, and function names. Flag arbitrary letter-dropping.",
+      "bad_pattern": "val_res = validator.validate(document); acc = []"
+    },
+    {
+      "id": "CODE-002",
+      "name": "Logical Blank Lines Separation",
+      "severity": "NIT",
+      "domain": "all",
+      "scope": "src/",
+      "evaluation_criteria": "Check function bodies. Flag dense unseparated blocks or excessive random spacing.",
+      "bad_pattern": "record = SandboxRecord(...)\nself.db.sandboxes.save(record)\nreturn result"
+    },
+    {
+      "id": "TYPE-001",
+      "name": "Ban on -> Any Return Annotations",
+      "severity": "BLOCKER",
+      "domain": "all",
+      "scope": "src/, tests/",
+      "evaluation_criteria": "Scan function signatures for `-> Any`. Flag any occurrence on public functions.",
+      "bad_pattern": "def get_payload(self) -> Any: ..."
+    },
+    {
+      "id": "TYPE-002",
+      "name": "Strict Scoping of Permitted Any",
+      "severity": "BLOCKER",
+      "domain": "all",
+      "scope": "src/worktree/",
+      "evaluation_criteria": "Audit Any occurrences. Flag any usage outside the four permitted boundaries.",
+      "bad_pattern": "def execute_step(step: Any) -> StepResult: ..."
+    },
+    {
+      "id": "TYPE-003",
+      "name": "Banned Uses of Any",
+      "severity": "BLOCKER",
+      "domain": "all",
+      "scope": "src/, tests/",
+      "evaluation_criteria": "Scan for Any annotations that match the five banned categories.",
+      "bad_pattern": "proc: subprocess.Popen[Any] = ..."
+    },
+    {
+      "id": "TYPE-004",
+      "name": "Explicit ClassVar Typing for Table Names and Constants",
+      "severity": "NIT",
+      "domain": "core",
+      "scope": "src/worktree/core/db/models.py",
+      "evaluation_criteria": "Inspect SQLModel definitions. Verify __tablename__ and table constants are annotated as ClassVar[str].",
+      "bad_pattern": "__tablename__ = 'sandboxes'"
+    },
+    {
+      "id": "TYPE-005",
+      "name": "Precise Parameterization for Generator Types",
+      "severity": "NIT",
+      "domain": "all",
+      "scope": "src/, tests/",
+      "evaluation_criteria": "Scan typing annotations for `Generator[...]`. Verify all three parameters are specified (e.g. `Generator[YieldType, SendType, ReturnType]`).",
+      "bad_pattern": "def get_session() -> Generator[Session]: ..."
+    },
+    {
+      "id": "ENCAP-001",
+      "name": "Expose Public Query Properties",
+      "severity": "SUGGESTION",
+      "domain": "all",
+      "scope": "src/worktree/",
+      "evaluation_criteria": "Flag external callers inspecting internal private state; suggest adding a query property.",
+      "bad_pattern": "if runner._process is not None: ...  # caller inspecting private state"
+    },
+    {
+      "id": "ENCAP-002",
+      "name": "No Test Seams in Production Signatures",
+      "severity": "BLOCKER",
+      "domain": "all",
+      "scope": "src/worktree/",
+      "evaluation_criteria": "Inspect parameters of touched functions. If a parameter has a default and is only ever passed in tests, flag it.",
+      "bad_pattern": "def run(self, cwd: Path, _runner: GitRunner | None = None) -> RunOutcome: ..."
+    },
+    {
+      "id": "PERF-001",
+      "name": "No Ad-Hoc DB Instantiations in Loops",
+      "severity": "BLOCKER",
+      "domain": "all",
+      "scope": "All source and test files",
+      "evaluation_criteria": "Detect repository or WorktreeDb instantiations inside for/while loops or inside reusable helper functions.",
+      "bad_pattern": "for item in items: repo = RunsRepository(path); repo.create(item)"
+    },
+    {
+      "id": "PERF-002",
+      "name": "Database Migration Hygiene and Consumer Call Sites",
+      "severity": "BLOCKER",
+      "domain": "core",
+      "scope": "src/worktree/core/db/",
+      "evaluation_criteria": "Check Alembic migrations. Verify added columns/tables are actively queried and written by production services in the same PR.",
+      "bad_pattern": "# Migration adds column future_flag with zero callers in src/"
+    },
+    {
+      "id": "PERF-003",
+      "name": "Indexed Column Queries vs O(n) In-Memory Lookups",
+      "severity": "WARNING",
+      "domain": "core",
+      "scope": "src/worktree/core/db/, src/worktree/core/*/services/",
+      "evaluation_criteria": "Scan for in-memory list comprehensions or filter loops over full table fetches when an indexed query method could be used.",
+      "bad_pattern": "record = next((r for r in repo.list() if r.path == rel_path), None)"
+    },
+    {
+      "id": "API-001",
+      "name": "Sibling Repository CRUD Method Naming Consistency",
+      "severity": "WARNING",
+      "domain": "core",
+      "scope": "src/worktree/core/db/repositories/",
+      "evaluation_criteria": "Inspect repository public methods. Flag divergence in verb naming across sibling repository classes.",
+      "bad_pattern": "repo.insert(record)  # sibling repositories use .create()"
+    },
+    {
+      "id": "API-002",
+      "name": "Consistent Error Semantics Across Queries",
+      "severity": "WARNING",
+      "domain": "core",
+      "scope": "src/worktree/core/db/, src/worktree/core/*/services/",
+      "evaluation_criteria": "Audit repository query methods for divergent exception handling (e.g. bare except returning None vs structured Result error capture).",
+      "bad_pattern": "except ValidationError: return None  # inconsistently swallows error"
+    },
+    {
+      "id": "DRY-001",
+      "name": "Shared Repository Transaction Logic in BaseRepository",
+      "severity": "SUGGESTION",
+      "domain": "core",
+      "scope": "src/worktree/core/db/repositories/",
+      "evaluation_criteria": "Flag identical session commit/rollback and single-record deletion boilerplate repeated across sibling repositories.",
+      "bad_pattern": "with self.session() as s: s.query(...).delete(); s.commit()  # duplicated across repos"
+    },
+    {
+      "id": "DB-001",
+      "name": "Redundant Index Declaration on Unique Columns",
+      "severity": "NIT",
+      "domain": "core",
+      "scope": "src/worktree/core/db/models.py",
+      "evaluation_criteria": "Inspect SQLModel Field definitions. Flag fields specifying both `unique=True` and `index=True`.",
+      "bad_pattern": "session_id: str = Field(unique=True, index=True)"
+    },
+    {
+      "id": "FS-001",
+      "name": "Atomic File Writes via Temporary Sibling",
+      "severity": "BLOCKER",
+      "domain": "all",
+      "scope": "src/worktree/",
+      "evaluation_criteria": "Scan for direct open(..., 'w') or Path.write_text on state or configuration files.",
+      "bad_pattern": "with open(config_path, 'w') as f: json.dump(data, f)"
+    },
+    {
+      "id": "FS-002",
+      "name": "Advisory Cross-Process Locking",
+      "severity": "BLOCKER",
+      "domain": "all",
+      "scope": "src/worktree/",
+      "evaluation_criteria": "Check concurrent operations for advisory lock wrapping.",
+      "bad_pattern": "sandbox_service.create(...)  # mutating shared dir without acquiring lock"
+    },
+    {
+      "id": "COMPAT-001",
+      "name": "Strict Public-Only Backwards Compatibility",
+      "severity": "BLOCKER",
+      "domain": "all",
+      "scope": "src/worktree/",
+      "evaluation_criteria": "Inspect PR diffs. Flag breaking renames to CLI options, config keys, or published JSON outputs.",
+      "bad_pattern": "# Renaming user CLI option --timeout to --wait without alias"
+    },
+    {
+      "id": "COMPAT-002",
+      "name": "Ban on Internal Compatibility Shims and Aliases",
+      "severity": "BLOCKER",
+      "domain": "all",
+      "scope": "src/worktree/common/, src/worktree/core/, internal src/worktree/cli/",
+      "evaluation_criteria": "Scan internal classes for deprecated aliases or shim properties.",
+      "bad_pattern": "def _unlock_fd(self): ...\n_unlock = _unlock_fd  # internal shim alias"
+    },
+    {
+      "id": "COMPAT-003",
+      "name": "Greenfield Architecture Default",
+      "severity": "BLOCKER",
+      "domain": "all",
+      "scope": "src/worktree/",
+      "evaluation_criteria": "Flag dual implementations or fallback branches created without an explicit issue requirement.",
+      "bad_pattern": "if config.use_legacy: return LegacyLoader().load()  # unnecessary compatibility branch"
+    },
+    {
+      "id": "TEST-001",
+      "name": "Test at Contracts, Not Implementation",
+      "severity": "BLOCKER",
+      "domain": "tests",
+      "scope": "tests/",
+      "evaluation_criteria": "Inspect test assertions. Flag assertions checking internal mock call counts or private attributes.",
+      "bad_pattern": "assert service._internal_cache_size == 1; assert mock_parser.call_count == 1"
+    },
+    {
+      "id": "TEST-002",
+      "name": "1:1 Source Parity Layout",
+      "severity": "BLOCKER",
+      "domain": "tests",
+      "scope": "tests/",
+      "evaluation_criteria": "Check test file paths against source files. Flag missing __init__.py files.",
+      "bad_pattern": "tests/test_all_sandboxes.py  # unmirrored grab-bag test file"
+    },
+    {
+      "id": "TEST-003",
+      "name": "Standardized Test Naming and Vague Name Ban",
+      "severity": "BLOCKER",
+      "domain": "tests",
+      "scope": "tests/",
+      "evaluation_criteria": "Check test class and method names against the banned list and naming pattern.",
+      "bad_pattern": "class TestConfig:\n    def test_ok(self): ...\n    def test_should_timeout(self): ..."
+    },
+    {
+      "id": "TEST-004",
+      "name": "Dual-Tier CLI Matrix Testing",
+      "severity": "BLOCKER",
+      "domain": "tests",
+      "scope": "tests/cli/",
+      "evaluation_criteria": "Check tests for CLI commands. Flag any command module lacking either handler unit tests or runner integration tests.",
+      "bad_pattern": "# Only runner.invoke tested; handler logic not unit tested directly"
+    },
+    {
+      "id": "TEST-005",
+      "name": "Three Tests Per Formatter Protocol",
+      "severity": "BLOCKER",
+      "domain": "tests",
+      "scope": "tests/cli/ui/formatters/",
+      "evaluation_criteria": "Inspect formatter test files. Flag formatters that do not implement all three tests or assert to_json_serializable == case.view.model_dump().",
+      "bad_pattern": "assert 'healthy' in render_rich(formatter.to_rich(data))  # only 1 test"
+    },
+    {
+      "id": "TEST-006",
+      "name": "Single Behavior Parameterization",
+      "severity": "BLOCKER",
+      "domain": "tests",
+      "scope": "tests/",
+      "evaluation_criteria": "Scan test bodies for `for item in items:` loops over test cases.",
+      "bad_pattern": "for code in [0, 1]: assert check(code)"
+    },
+    {
+      "id": "TEST-007",
+      "name": "Whole Object Comparison",
+      "severity": "BLOCKER",
+      "domain": "tests",
+      "scope": "tests/",
+      "evaluation_criteria": "Flag tests asserting more than 3 individual fields of a returned Pydantic model.",
+      "bad_pattern": "assert result.status == StepStatus.OK; assert result.exit_code == 0; assert result.duration == 1.2"
+    },
+    {
+      "id": "TEST-008",
+      "name": "Test Double Realism and Production Types",
+      "severity": "BLOCKER",
+      "domain": "tests",
+      "scope": "tests/",
+      "evaluation_criteria": "Inspect test doubles and stubs. Verify they inherit from production types or satisfy typing.Protocol.",
+      "bad_pattern": "class MockAdapter: def __getattr__(self, name): return MagicMock()"
+    },
+    {
+      "id": "TEST-009",
+      "name": "Ban on Negative Existence Tests for Deleted Symbols",
+      "severity": "BLOCKER",
+      "domain": "tests",
+      "scope": "tests/",
+      "evaluation_criteria": "Grep for `assert not hasattr` in tests/. Flag any occurrence.",
+      "bad_pattern": "assert not hasattr(filesystem, 'old_helper')  # negative existence test"
+    },
+    {
+      "id": "TEST-010",
+      "name": "Complete Assertions Invariant",
+      "severity": "BLOCKER",
+      "domain": "tests",
+      "scope": "tests/",
+      "evaluation_criteria": "Flag tests where the sole check is `assert result is not None` or redundant `isinstance` checks.",
+      "bad_pattern": "assert result is not None; assert isinstance(result, RunOutcome)"
+    },
+    {
+      "id": "TEST-011",
+      "name": "Determinism and Clock Virtualization",
+      "severity": "BLOCKER",
+      "domain": "tests",
+      "scope": "tests/",
+      "evaluation_criteria": "Grep for `time.sleep` in tests/. Flag any unmocked OS sleeps.",
+      "bad_pattern": "time.sleep(2.0)  # waiting for process timeout"
+    },
+    {
+      "id": "TEST-012",
+      "name": "Rich Render Width Pinning",
+      "severity": "BLOCKER",
+      "domain": "tests",
+      "scope": "tests/",
+      "evaluation_criteria": "Scan for console render captures. Ensure render_rich with width=160 is used.",
+      "bad_pattern": "console = Console(); console.print(formatter.to_rich(data))  # unpinned width"
+    },
+    {
+      "id": "TEST-013",
+      "name": "No Sole Consumer Tests",
+      "severity": "BLOCKER",
+      "domain": "tests",
+      "scope": "src/, tests/",
+      "evaluation_criteria": "Verify that every touched production function or method has at least one real caller in src/.",
+      "bad_pattern": "# Sandbox.debug_dump() called ONLY in test_debug_dump()"
+    },
+    {
+      "id": "TEST-014",
+      "name": "Strict Typing on Test Helpers and Fixtures",
+      "severity": "BLOCKER",
+      "domain": "tests",
+      "scope": "tests/",
+      "evaluation_criteria": "Inspect type annotations in tests/helpers/ and fixture functions. Flag missing types or MagicMock in signatures.",
+      "bad_pattern": "def create_test_session(db: Any, mock_obj: MagicMock) -> Any: ..."
+    },
+    {
+      "id": "TEST-015",
+      "name": "Orchestration Path Test Coverage",
+      "severity": "WARNING",
+      "domain": "tests",
+      "scope": "tests/cli/, tests/core/engine/",
+      "evaluation_criteria": "Verify that PRs modifying command routing or multi-step orchestration include a test exercising the updated execution branch.",
+      "bad_pattern": "# PR modifying Engine.resume() without integration tests for resumed step loop"
+    },
+    {
+      "id": "DOC-001",
+      "name": "Architecture Doc Structural Gate",
+      "severity": "BLOCKER",
+      "domain": "all",
+      "scope": "docs/agents/architecture.md",
+      "evaluation_criteria": "Verify diff in docs/agents/architecture.md only modifies structure sections (layers tree, domain ownership, package boundaries).",
+      "bad_pattern": "# 100 lines of narrative prose explaining pruning heuristics in architecture.md"
+    },
+    {
+      "id": "DOC-002",
+      "name": "User-Visible Behavior Documentation Scope",
+      "severity": "BLOCKER",
+      "domain": "cli",
+      "scope": "docs/cli/",
+      "evaluation_criteria": "Verify new CLI options or behavioral changes are documented in docs/cli/.",
+      "bad_pattern": "# Documenting user CLI flag --keep-on-failure inside architecture.md"
+    },
+    {
+      "id": "DOC-003",
+      "name": "Schema and Entity Documentation Gate",
+      "severity": "BLOCKER",
+      "domain": "all",
+      "scope": "docs/agents/schemas.md",
+      "evaluation_criteria": "Verify schemas.md is updated whenever new DTOs, Result models, or config fields are added in src/.",
+      "bad_pattern": "# Adding new Result model in core/models.py without updating schemas.md"
+    },
+    {
+      "id": "DOC-004",
+      "name": "Ban on Duplicating Source in Docs",
+      "severity": "SUGGESTION",
+      "domain": "all",
+      "scope": "docs/agents/",
+      "evaluation_criteria": "Flag doc changes that copy-paste field lists or enum members from source models without adding context.",
+      "bad_pattern": "| Field | Type | Default |\n| session_id | str | required |"
+    },
+    {
+      "id": "DOC-005",
+      "name": "Unavoidable Spec Tables Require Parity Tests",
+      "severity": "BLOCKER",
+      "domain": "tests",
+      "scope": "tests/lint/",
+      "evaluation_criteria": "Verify that specification tables in docs have an automated test in tests/lint/ asserting parity.",
+      "bad_pattern": "# Adding manual table of CLI flags or schemas with no automated parity test"
+    },
+    {
+      "id": "DOC-006",
+      "name": "Prefer Deletion Over Accretion",
+      "severity": "SUGGESTION",
+      "domain": "all",
+      "scope": "docs/",
+      "evaluation_criteria": "Review doc edits for conflicting old vs new statements.",
+      "bad_pattern": "# Appended new rule while leaving old formatters.py text intact"
+    },
+    {
+      "id": "DOC-007",
+      "name": "Canonical Terminology Invariant",
+      "severity": "SUGGESTION",
+      "domain": "all",
+      "scope": "docs/, src/",
+      "evaluation_criteria": "Check doc prose and code comments for misuse of terms (e.g. calling a workflow with loops a 'task').",
+      "bad_pattern": "'Task blueprint containing a loop block.'  # tasks are strictly linear"
+    },
+    {
+      "id": "CI-001",
+      "name": "Pre-Commit Quality Suite Gate",
+      "severity": "BLOCKER",
+      "domain": "all",
+      "scope": "Whole repository",
+      "evaluation_criteria": "Verify all 5 commands succeed before creating any commit.",
+      "bad_pattern": "git commit -m 'fix' with a failing basedpyright or complexity error"
+    },
+    {
+      "id": "CI-002",
+      "name": "Git and Pull Request Attribution Hygiene",
+      "severity": "BLOCKER",
+      "domain": "all",
+      "scope": "Git commits & PRs",
+      "evaluation_criteria": "Inspect commit message trailers and PR descriptions. Flag AI co-author trailers.",
+      "bad_pattern": "feat: prune sandboxes\n\nCo-authored-by: Cursor <cursor@cursor.sh>"
+    },
+    {
+      "id": "CI-003",
+      "name": "Agentic Process State Declaration",
+      "severity": "WARNING",
+      "domain": "all",
+      "scope": "Agent interactions",
+      "evaluation_criteria": "Check agent turns prior to tool execution for stated directive and scope. Flag tool execution lacking state declaration as advisory warning.",
+      "bad_pattern": "Running write_to_file without stating governing directive or target scope"
+    }
+  ]
+}

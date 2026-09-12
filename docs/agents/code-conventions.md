@@ -8,12 +8,7 @@ Coding standards and patterns for the Worktree CLI codebase.
 
 **Relevant sources:** `src/worktree/core/*/models.py`, `src/worktree/common/models.py`
 
-- Every Result, Outcome, and DTO model must specify:
-  ```python
-  model_config = {"extra": "forbid", "strict": True}
-  ```
-- Catches typos in constructed payloads and unexpected extra keys early.
-- Scoped exceptions (must carry a justifying comment):
+- Scoped exceptions allowing non-strict model configuration (must carry a justifying comment):
   - `OllamaModelStdout` (`core/agents/ollama.py`): leniency for LLM-generated JSON.
   - `BlueprintDefinition`, `BlueprintDefaults`, `LoopStepBlock` (`core/blueprint/models.py`, `core/step/models.py`): hand-authored YAML models using `extra: "ignore"`.
 
@@ -37,20 +32,12 @@ Prioritize clarity and readability: code should read naturally and unambiguously
 
 ## Structure and Complexity
 
-**Relevant sources:** `pyproject.toml`, `tasks.py`
-
-- Functions/classes with > 5 arguments should accept an environment/context/configuration object (frozen dataclass).
 - Avoid God-functions; decompose complex workflows into focused helpers.
-- Function complexity threshold: **Cognitive complexity <= 10** enforced by `complexipy` (`inv complexity`).
 - Do not add test seams to production function or class signatures.
 
 ### Blank Lines in Function Bodies
 - Separate distinct logical phases (setup, validate, persist, return) with a blank line.
 - Keep cohesive, tightly coupled lines together.
-
-### Assertions
-- Use `assert` **only in tests**.
-- Production code must raise domain exceptions or return structured Result/Outcome error objects.
 
 ---
 
@@ -103,30 +90,10 @@ Operations that can fail return a Pydantic result object subclassing `BaseResult
 
 **Relevant sources:** `src/worktree/cli/ui/`
 
-- Terminal output must route through `ui_dispatcher.dispatch(result)`. Direct
-  `print()`, `rich` imports, `typer.echo`, and console writes belong only in
-  `src/worktree/cli/ui/`. Ruff (`T20`, `TID251`) and the AST suite enforce
-  parts of this; they currently exempt only `dispatcher.py` and do not detect
-  `console.print`, `input`, or `typer.confirm`.
-- Formatters reside under `src/worktree/cli/ui/formatters/<domain>/<name>.py`, strictly one `*Formatter` class per module.
-- Presentation view models reside under `src/worktree/cli/ui/formatters/<domain>/<domain>_views.py` (or `<domain>_view.py` for single-formatter domains), one per formatter that derives anything.
-- A view model carries no Rich markup and no sentence composed from fields it also carries separately. Severity and codes, not colors and prose. Enforced by `tests/lint/test_formatter_contracts.py`.
-- `to_rich` derives nothing. It reads `transform(data)` and lays it out.
+- `to_rich` derives nothing. It reads `transform(data)` and lays it out into Rich renderables.
 - `to_raw` bypasses the view entirely and returns bytes the caller asked for; `DiffResultFormatter` is the only implementation.
 - Domain shared table builders reside in `src/worktree/cli/ui/formatters/<domain>/common.py`.
-- No `renderers.py` modules exist anywhere in the codebase.
 - Construct `errors` and `warnings` messages using inline f-strings or literals at call sites. Do not create private single-message formatting wrappers (domain lookup tables of constant remediation strings, such as `REMEDIATION_MAP` in `core/status/services/collector.py`, are permitted as tables of literals).
-
----
-
-## Docstrings and Imports
-
-**Relevant sources:** `pyproject.toml`
-
-- Docstrings follow the Google convention (enforced by Ruff `D` rules).
-- Use absolute imports (`worktree.*`) across packages. Relative imports are allowed only within the same directory (`from . import ...`).
-- Use `__all__` in package `__init__.py` files when re-exporting internal symbols into a public subpackage surface.
-- **Top-level imports**: Always place imports at the top of the module across both production code and test suites. Do **not** use inline imports inside functions, methods, or test cases unless strictly necessary to break circular dependencies or avoid expensive eager initialization (any scoped inline import must carry a justifying comment).
 
 ---
 
@@ -191,17 +158,7 @@ you can, name them.
 
 **Relevant sources:** `pyproject.toml` (`[tool.basedpyright]`)
 
-`basedpyright` honors only `# pyright: ignore[reportRuleName]`. A
-`# type: ignore` or `# type: ignore[code]` is a silent no-op: it looks
-acknowledged and suppresses nothing. Three of those no-ops already exist
-(`multiprocessing.Queue` in `tests/core/test_concurrent_sandbox.py` and
-`tests/common/test_lock.py`, and `# type: ignore[arg-type]` in
-`tests/core/blueprint/test_blueprint_models.py`); delete or convert them
-when those files are next opened, do not copy them.
-
-**Default: fix the type.** An ignore is a last resort, never a way to green
-`basedpyright --level error`. `cast(...)` is not an alternative: it lies to
-the checker and, when the target is `Any`, infects every use of the value.
+**Default: fix the type.** An ignore is a last resort, never a way to green `basedpyright --level error`. Every permitted ignore requires an explicit reason.
 
 ### Permitted, do not "fix" these
 
@@ -243,10 +200,7 @@ by accident, fix it. If you cannot tell, it is an accident.
 
 ## Encapsulation and Private Members
 
-- **Forbid private member access in production code**: Never access private attributes or methods (names with a leading underscore `_`) across module or class boundaries in `src/`.
-- **Forbid importing private methods/functions**: Never import private functions, methods, or variables across modules in production code (`src/`).
 - **Expose query properties**: Expose public boolean query properties (e.g. `is_interactive`, `is_terminal_format`, `is_enabled`, `has_*`) on classes rather than referencing private members from external callers.
-- **Tests exemption**: Tests under `tests/` may assert against or inspect private members when strictly necessary to verify low-level internal implementation behavior.
 
 ---
 
