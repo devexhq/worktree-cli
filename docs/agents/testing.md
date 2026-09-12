@@ -255,10 +255,10 @@ blueprint = (
 
 ### Shared Contract Assertion Helpers (`tests/harness/assertions.py`)
 
-Standardize assertions on contracts using shared helpers (`scratch/test-structure-proposal.md` §3.4):
+Standardize assertions on contracts using shared helpers:
 
-- **`assert_result_ok(result, expected_status=None)`**: Asserts `result.ok is True`, `result.errors == []`, and verifies `result.status == expected_status` if specified.
-- **`assert_result_error(result, expected_status=None, expected_error=None)`**: Asserts `result.ok is False`, verifies `result.status == expected_status`, and asserts that `expected_error` is contained in `result.errors`.
+- **`assert_result_ok(result, expected_status=None)`**: Asserts `result.ok is True`, `len(result.errors) == 0`, and verifies `result.status == expected_status` if specified.
+- **`assert_result_error(result, expected_code=None, *, expected_status=None)`**: Asserts `result.ok is False`, `len(result.errors) > 0`, verifies `result.status == expected_status` if specified, and asserts that `expected_code` matches an error code or substring in `result.errors`.
 - **`assert_model_equal(actual, expected, *, exclude=None)`**: Compares Pydantic model instances directly or against an expected dictionary with clean mismatch diffs. If `exclude` is specified, it explicitly drops non-deterministic fields (e.g. timestamps, dynamic UUIDs) to prevent masking regressions.
 - **`assert_exact_json(actual, expected_dict)`**: Guarantees exact byte/key wire-format contracts without ignoring unexpected extra keys.
 
@@ -276,7 +276,10 @@ Standardize assertions on contracts using shared helpers (`scratch/test-structur
 
 ### Fixtures and Scope
 
-- **Prefer standard pytest fixtures & `GitWorkspaceHarness`:** Use `tmp_path` or `GitWorkspaceHarness` (`scratch/test-structure-proposal.md` §3.2) for isolated workspace environments.
+- **Shared fixtures in `tests/conftest.py`:**
+  - `isolated_workspace(tmp_path)`: Ephemeral workspace root directory initialized with `.worktree/` and its standard subdirectories (`.meta`, `sessions`, `artifacts`, `tmp`, `logs`, `sandboxes`, `catalog`).
+  - `git_repo(tmp_path)`: Clean Git repository on branch `main` with configured `user.name` ("Test User"), `user.email` ("test@example.com"), and an initial root commit containing `README.md`.
+  - `cli_runner()`: Preconfigured Typer `CliRunner` with `env={"NO_COLOR": "1", "COLUMNS": "160"}` to ensure deterministic terminal width and no ANSI escape sequences.
 - **Keep domain fixtures close to their tests:** When setup logic is specific to a single test module, define it locally in that module or class.
 - **Yield transparent handles:** Fixtures should establish baseline state and yield plain tuples or paths instead of opaque wrappers.
 - **Baseline + inline mutation:** Establish a valid working baseline in the fixture. Tests covering edge or error conditions explicitly mutate the handle in the test body.
@@ -284,9 +287,32 @@ Standardize assertions on contracts using shared helpers (`scratch/test-structur
 
 ---
 
+## Parameterization as Primary Approach
+
+Parameterization via `@pytest.mark.parametrize` is the primary, default approach for exercising contracts across varying conditions. "One test = one behaviour" means **one test function asserts one behavioral contract across its parameter space**, not *one Python function per scenario*.
+
+### Decision Heuristic: When to Parameterize vs. When to Split
+
+| Pattern | Approach | Rationale |
+|---|---|---|
+| **Input & Boundary Matrices** | `@pytest.mark.parametrize` | Testing the same function with varying valid/invalid inputs or boundary values. |
+| **Error / Code Permutations** | `@pytest.mark.parametrize` | Verifying that multiple invalid states each raise `AssertionError` or return specific error codes. |
+| **Type Polymorphism** | `@pytest.mark.parametrize` | Testing an operation against alternative supported representations (e.g. `BaseModel` vs `dict`). |
+| **Configuration / CLI Options** | `@pytest.mark.parametrize` | Testing flags or options that produce proportional, predictable variations in output. |
+| **Divergent Fixtures / State** | Separate `def test_*` | When one case requires a specialized fixture (e.g. initialized Git repo) while another runs in memory. |
+| **Different Lifecycles / Workflows** | Separate `def test_*` | Multi-step orchestration, cancellation flows vs normal completion, signal traps. |
+| **Protocol Trios (Tier 2)** | Separate `def test_*` | Pinned tripartite contracts (transform equality, JSON wire literal, Rich render) per formatter. |
+
+#### Parameterization Invariants
+- **Explicit, descriptive IDs:** Always wrap parameterized cases in `pytest.param(..., id="descriptive_case_id")` with a clear, descriptive `id`.
+- **Strict typing:** Annotate test signatures tightly without broad `Any` (e.g., `DummyModel | dict[str, object]`).
+- **No conditional assertion branching:** Do not combine fundamentally divergent assertion contracts into one parameterized test using complex `if/else` inside the test body; if the assertion topology diverges, split into distinct test methods.
+
+---
+
 ## Core Testing Rules
 
-- **One test = one behaviour.** Multiple scenarios go in `@pytest.mark.parametrize`, never a `for` loop and never four asserts in a row — you need to know *which* case failed. Always wrap parameterized cases in `pytest.param(..., id="descriptive_case_id")` with a clear, descriptive `id`.
+- **Parameterize sibling variations; separate tests for distinct behaviors.** One test asserts one contract across its parameter space. Multiple scenarios go in `@pytest.mark.parametrize`, never a `for` loop, never stacked assertions, and never copy-pasted sibling functions differing only by inputs. Always wrap parameterized cases in `pytest.param(..., id="descriptive_case_id")` with a clear, descriptive `id`.
 - **Compare the object, not its fields.** If you are about to assert 8 fields of one result, write `assert result == Expected(...)` or `assert_model_equal(result, expected)`. One comparison is stronger than N assertions (it also fails on unexpected extra fields) and gives a readable diff.
 - **No test seams in production code.** Never add a parameter, kwarg, or callback solely for test injection. Monkeypatch collaborators at module boundaries instead. A parameter production never reads is dead code with a test attached.
 - **A seam is not tested until a test proves a real caller uses it.** Asserting a callback was stored is not a test. Assert it fires, from the production path.

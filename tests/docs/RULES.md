@@ -204,12 +204,12 @@ class DiffCliIntegrationTests: ...  # runner invoke
 # ❌ DO NOT: assert 'healthy' in render_rich(formatter.to_rich(data))  # only 1 test
 ```
 
-- **[TEST-006] Single Behavior Parameterization (BLOCKER):**
-  One test asserts one behavior. Never use `for` loops over scenarios or stack redundant assertions. Use `@pytest.mark.parametrize` with explicit `pytest.param(..., id="...")` labels.
+- **[TEST-006] Parameterization-First for Sibling Variations (BLOCKER):**
+  Parameterization is the primary approach for testing variations of the same contract or function. Never duplicate test functions across input variants, polymorphic target types (e.g. BaseModel vs dict), or invalid payload permutations. Never use `for` loops or stacked assertions over scenarios. Use `@pytest.mark.parametrize` with explicit `pytest.param(..., id="...")` labels. Separate `def test_*` methods are reserved for fundamentally distinct lifecycles, differing fixture requirements, or divergent assertion contracts.
 
 ```python
-# ✅ DO: @pytest.mark.parametrize(("code", "expected"), [pytest.param(0, True, id="zero_is_ok")])
-# ❌ DO NOT: for code in [0, 1]: assert check(code)
+# ✅ DO: @pytest.mark.parametrize("target", [pytest.param(model, id="model"), pytest.param(dict, id="dict")])
+# ❌ DO NOT: def test_eval_model(self): ...; def test_eval_dict(self): ...  # duplicate sibling methods
 ```
 
 - **[TEST-007] Whole Object Comparison (BLOCKER):**

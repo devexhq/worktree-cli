@@ -517,17 +517,16 @@ rules:
   negative_example: 'assert ''healthy'' in render_rich(formatter.to_rich(data))  # only 1 test'
   citation: docs/agents/testing.md#tier-2---presentation-contracts-three-tests-per-formatter-never-one
 - id: TEST-006
-  title: Single Behavior Parameterization
+  title: Parameterization-First for Sibling Variations
   severity: BLOCKER
   category: Testing
   domain: tests
   scope: tests/
-  guideline: One test asserts one behavior. Never use `for` loops over scenarios or stack redundant assertions. Use `@pytest.mark.parametrize`
-    with explicit `pytest.param(..., id="...")` labels.
-  evaluation_criteria: Scan test bodies for `for item in items:` loops over test cases.
-  positive_example: '@pytest.mark.parametrize(("code", "expected"), [pytest.param(0, True, id="zero_is_ok")])'
-  negative_example: 'for code in [0, 1]: assert check(code)'
-  citation: docs/agents/testing.md#core-testing-rules
+  guideline: Parameterization is the primary approach for testing variations of the same contract or function. Never duplicate test functions across input variants, polymorphic target types (e.g. BaseModel vs dict), or invalid payload permutations. Never use `for` loops or stacked assertions over scenarios. Use `@pytest.mark.parametrize` with explicit `pytest.param(..., id="...")` labels. Separate `def test_*` methods are reserved for fundamentally distinct lifecycles, differing fixture requirements, or divergent assertion contracts.
+  evaluation_criteria: Flag copy-pasted or near-identical sibling test methods differing only by input parameters or expected outcomes. Scan test bodies for `for item in items:` loops over test cases.
+  positive_example: '@pytest.mark.parametrize("target", [pytest.param(model, id="model"), pytest.param(dict, id="dict")])'
+  negative_example: 'def test_eval_model(self): ...; def test_eval_dict(self): ...  # duplicate sibling methods'
+  citation: docs/agents/testing.md#parameterization-as-primary-approach
 - id: TEST-007
   title: Whole Object Comparison
   severity: BLOCKER
