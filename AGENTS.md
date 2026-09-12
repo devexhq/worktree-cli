@@ -4,13 +4,15 @@
 developer workflows and AI agent workspaces, backed by a local `.worktree/` state
 directory.
 
-## Always-on docs
-There are a subset of docs that must always be read for context before starting a task. **Open these files, read the docs  for context and treat their directives as authority**.
-- docs/agents/architecture.md
-- docs/agents/code-conventions.md
-- docs/agents/schemas.md
-- docs/agents/glossary.md
-- docs/agents/testing.md
+## Domain rules (RULES.md)
+
+Do not read broad always-on documentation before starting a task. Instead, read and apply the domain-specific `RULES.md` corresponding to the section of the codebase being modified:
+
+- If editing files under `src/worktree/cli/`, read and apply the rules under `src/worktree/cli/docs/RULES.md`.
+- If editing files under `src/worktree/common/`, read and apply the rules under `src/worktree/common/docs/RULES.md`.
+- If editing files under `src/worktree/core/`, read and apply the rules under `src/worktree/core/docs/RULES.md`.
+- If editing files under `tests/`, read and apply the rules under `tests/docs/RULES.md`.
+
 
 ## Agentic process
 
