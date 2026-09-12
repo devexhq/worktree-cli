@@ -22,7 +22,7 @@ from worktree.cli.ui.events import (
     WarningEvent,
 )
 from worktree.common.models import DisplayFormatOptions, OutputFormatOptions
-from worktree.core.db import BlueprintKind, RunStatus
+from worktree.core.db import RunStatus
 
 
 def test_error_panel_event_terminal() -> None:
@@ -134,7 +134,6 @@ def test_run_success_event_terminal() -> None:
     event = RunSuccessEvent(
         session_id="task_12345678",
         blueprint_name="build",
-        kind=BlueprintKind.TASK,
         status=RunStatus.COMPLETED,
     )
     dispatcher.dispatch(event, output_format="terminal")
@@ -150,7 +149,6 @@ def test_run_success_event_json(capsys: pytest.CaptureFixture[str]) -> None:
     event = RunSuccessEvent(
         session_id="wf_12345678",
         blueprint_name="deploy",
-        kind=BlueprintKind.WORKFLOW,
         status=RunStatus.COMPLETED,
     )
     dispatcher.dispatch(event, output_format="json")
@@ -161,7 +159,6 @@ def test_run_success_event_json(capsys: pytest.CaptureFixture[str]) -> None:
         "payload": {
             "session_id": "wf_12345678",
             "blueprint_name": "deploy",
-            "kind": "workflow",
             "status": "completed",
         },
     }

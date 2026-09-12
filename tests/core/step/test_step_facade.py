@@ -30,10 +30,12 @@ def test_step_facade_load_and_resolve(tmp_path: Path):
     step_file = tmp_path / "step.yaml"
     step_file.write_text(yaml.safe_dump(raw), encoding="utf-8")
     loaded_from_path = Step.load_by_path(step_file)
+    assert loaded_from_path is not None
     assert loaded_from_path.instance.id == "echo-test"
 
     # load from str path
     loaded_from_str = Step.load_by_path(str(step_file))
+    assert loaded_from_str is not None
     assert loaded_from_str.instance.id == "echo-test"
 
     # load by id from catalog directory
@@ -44,14 +46,17 @@ def test_step_facade_load_and_resolve(tmp_path: Path):
         encoding="utf-8",
     )
     loaded_by_id = Step.load_by_name("catalog-step", path=tmp_path)
+    assert loaded_by_id is not None
     assert loaded_by_id.instance.id == "catalog-step"
     loaded_via_load_str = Step.load("catalog-step", path=tmp_path)
+    assert loaded_via_load_str is not None
     assert loaded_via_load_str.instance.id == "catalog-step"
 
     with pytest.raises(TypeError):
         Step.load(123)  # pyright: ignore[reportArgumentType]
 
     resolved = step.resolve()
+    assert resolved is not None
     assert resolved.type == StepType.COMMAND
     assert resolved.command == "echo hello"
 
@@ -80,14 +85,16 @@ def test_step_facade_assertion_evaluation(tmp_path: Path):
 
 def test_step_facade_metadata_and_env():
     step_def = StepDefinition(id="test-meta", name="Test Meta", run="echo 1")
-    identity = ExecutionIdentity(workflow_name="my-workflow")
+    identity = ExecutionIdentity(blueprint_name="my-blueprint", blueprint_key="wt/my-blueprint")
     meta = Step.build_metadata(step_def, step_index=2, attempt=1, identity=identity)
     assert meta.step.id == "test-meta"
-    assert meta.workflow.name == "my-workflow"
+    assert meta.blueprint.name == "my-blueprint"
+    assert meta.blueprint.key == "wt/my-blueprint"
 
     env = Step.metadata_to_env(meta)
     assert env["WT_STEP_ID"] == "test-meta"
-    assert env["WT_WORKFLOW_NAME"] == "my-workflow"
+    assert env["WT_BLUEPRINT_NAME"] == "my-blueprint"
+    assert env["WT_BLUEPRINT_SHA"] == "wt/my-blueprint"
 
 
 # def test_step_facade_run(tmp_path: Path):

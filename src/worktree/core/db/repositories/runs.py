@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 
 from sqlmodel import col, select
 
-from worktree.core.db.models import BlueprintKind, RunRecord, RunStatus
+from worktree.core.db.models import RunRecord, RunStatus
 from worktree.core.db.repositories.base import BaseRepository
 
 
@@ -15,13 +15,6 @@ def _coerce_status(status: RunStatus | str | None) -> RunStatus | str | None:
     if status is None:
         return None
     return RunStatus(status) if isinstance(status, str) and status in RunStatus._value2member_map_ else status
-
-
-def _coerce_kind(kind: BlueprintKind | str | None) -> BlueprintKind | str | None:
-    """Coerce kind string to BlueprintKind enum if valid member, else return as-is."""
-    if kind is None:
-        return None
-    return BlueprintKind(kind) if isinstance(kind, str) and kind in BlueprintKind._value2member_map_ else kind
 
 
 class RunsRepository(BaseRepository):

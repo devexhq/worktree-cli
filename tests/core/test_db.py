@@ -10,7 +10,6 @@ import pytest
 from tests.helpers import FileSystem
 from worktree.core.db import (
     BaseRepository,
-    BlueprintKind,
     CatalogItemType,
     CatalogRecord,
     RunRecord,
@@ -230,7 +229,7 @@ class TestCatalogRepository:
         path = Path(".worktree/catalog/workflow_a.yaml")
         rec = self.db.catalog.upsert(
             sha="workflow_1234567",
-            item_type=CatalogItemType.WORKFLOW,
+            item_type=CatalogItemType.BLUEPRINT,
             name="workflow_a",
             namespace=None,
             path=path,
@@ -240,7 +239,7 @@ class TestCatalogRepository:
         assert isinstance(rec, CatalogRecord)
         assert rec.id == 1
         assert rec.sha == "workflow_1234567"
-        assert rec.item_type == CatalogItemType.WORKFLOW
+        assert rec.item_type == CatalogItemType.BLUEPRINT
         assert rec.name == "workflow_a"
         assert rec.path == path
         assert rec.checksum == "hash1"
@@ -255,7 +254,7 @@ class TestCatalogRepository:
 
         by_name_and_type = self.db.catalog.list_by_name(
             "workflow_a",
-            item_type=CatalogItemType.WORKFLOW,
+            item_type=CatalogItemType.BLUEPRINT,
         )
         assert by_name_and_type == [rec]
 
@@ -269,7 +268,7 @@ class TestCatalogRepository:
         path = Path(".worktree/catalog/task_b.yaml")
         first = self.db.catalog.upsert(
             sha="task_1111111",
-            item_type=CatalogItemType.TASK,
+            item_type=CatalogItemType.BLUEPRINT,
             name="task_b",
             namespace=None,
             path=path,
@@ -280,7 +279,7 @@ class TestCatalogRepository:
 
         second = self.db.catalog.upsert(
             sha="task_2222222",
-            item_type=CatalogItemType.TASK,
+            item_type=CatalogItemType.BLUEPRINT,
             name="task_b_v2",
             namespace=None,
             path=path,
@@ -302,14 +301,19 @@ class TestCatalogRepository:
     def test_list_catalog_items_filtering(self, fs: FileSystem) -> None:
         self.db.catalog.upsert(
             sha="w1",
-            item_type=CatalogItemType.WORKFLOW,
+            item_type=CatalogItemType.BLUEPRINT,
             name="wf1",
             namespace=None,
             path=Path("w1.yaml"),
             checksum="c1",
         )
         self.db.catalog.upsert(
-            sha="t1", item_type=CatalogItemType.TASK, name="task1", namespace=None, path=Path("t1.yaml"), checksum="c2"
+            sha="t1",
+            item_type=CatalogItemType.BLUEPRINT,
+            name="task1",
+            namespace=None,
+            path=Path("t1.yaml"),
+            checksum="c2",
         )
         self.db.catalog.upsert(
             sha="s1", item_type=CatalogItemType.STEP, name="step1", namespace=None, path=Path("s1.yaml"), checksum="c3"
@@ -318,9 +322,8 @@ class TestCatalogRepository:
         all_items = self.db.catalog.list()
         assert len(all_items) == 3
 
-        workflows = self.db.catalog.list(item_type=CatalogItemType.WORKFLOW)
-        assert len(workflows) == 1
-        assert workflows[0].sha == "w1"
+        workflows = self.db.catalog.list(item_type=CatalogItemType.BLUEPRINT)
+        assert len(workflows) == 2
 
         steps = self.db.catalog.list(item_type="step")
         assert len(steps) == 1
@@ -329,25 +332,25 @@ class TestCatalogRepository:
     def test_list_by_name(self, fs: FileSystem) -> None:
         self.db.catalog.upsert(
             sha="n1",
-            item_type=CatalogItemType.WORKFLOW,
+            item_type=CatalogItemType.BLUEPRINT,
             name="shared",
             namespace=None,
-            path=Path("a/shared.yaml"),
+            path=Path("a/shared_a.yaml"),
             checksum="c1",
         )
         self.db.catalog.upsert(
             sha="n2",
-            item_type=CatalogItemType.TASK,
+            item_type=CatalogItemType.STEP,
             name="shared",
             namespace=None,
-            path=Path("b/shared.yaml"),
+            path=Path("b/shared_b.yaml"),
             checksum="c2",
         )
 
         all_shared = self.db.catalog.list_by_name("shared")
         assert len(all_shared) == 2
 
-        wf_shared = self.db.catalog.list_by_name("shared", item_type=CatalogItemType.WORKFLOW)
+        wf_shared = self.db.catalog.list_by_name("shared", item_type=CatalogItemType.BLUEPRINT)
         assert len(wf_shared) == 1
         assert wf_shared[0].sha == "n1"
 
@@ -371,7 +374,7 @@ class TestCatalogRepository:
     def test_delete_catalog_item(self, fs: FileSystem) -> None:
         self.db.catalog.upsert(
             sha="to_delete",
-            item_type=CatalogItemType.WORKFLOW,
+            item_type=CatalogItemType.BLUEPRINT,
             name="delete_item",
             namespace=None,
             path=Path("delete.yaml"),
@@ -412,7 +415,7 @@ class TestWorktreeDbFacade:
         run = self.db.runs.create(
             session_id="run_facade",
             blueprint_name="demo",
-            kind=BlueprintKind.WORKFLOW,
+            blueprint_key="demo",
             branch_name="b",
         )
         assert isinstance(run, RunRecord)
@@ -420,7 +423,7 @@ class TestWorktreeDbFacade:
 
         cat = self.db.catalog.upsert(
             sha="c_facade",
-            item_type=CatalogItemType.WORKFLOW,
+            item_type=CatalogItemType.BLUEPRINT,
             name="wf_cat",
             namespace=None,
             path=Path("wf_cat.yaml"),

@@ -11,7 +11,6 @@ class RunSummaryView(BaseModel):
     model_config = {"extra": "forbid", "strict": True}
 
     session_id: str
-    kind: str
     blueprint_name: str
     status: str
     branch_name: str | None = None

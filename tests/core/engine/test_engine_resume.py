@@ -12,7 +12,7 @@ from tests.helpers import (
     make_checkpoint,
     make_cmd_step,
 )
-from worktree.core.blueprint import Blueprint, BlueprintDefinition, BlueprintKind
+from worktree.core.blueprint import Blueprint, BlueprintDefinition
 from worktree.core.catalog import Catalog
 from worktree.core.catalog.services.inventory import scan_and_index_catalog
 from worktree.core.db import RunsRepository, RunStatus, WorktreeDb
@@ -46,7 +46,6 @@ def _task_blueprint(*, name: str = "lint", loop: bool = False, publish_command: 
         )
     return Blueprint(
         BlueprintDefinition(
-            kind=BlueprintKind.WORKFLOW if loop else BlueprintKind.TASK,
             name=name,
             use_sandbox=False,
             steps=steps,
@@ -57,7 +56,6 @@ def _task_blueprint(*, name: str = "lint", loop: bool = False, publish_command: 
 def _workflow_blueprint(*, name: str = "ship") -> Blueprint:
     return Blueprint(
         BlueprintDefinition(
-            kind=BlueprintKind.WORKFLOW,
             name=name,
             use_sandbox=False,
             steps=[
@@ -70,14 +68,14 @@ def _workflow_blueprint(*, name: str = "ship") -> Blueprint:
 
 
 def _seed_paused_task(db: RunsRepository, session_id: str, checkpoint: RunCheckpoint, *, name: str = "lint") -> None:
-    db.create(session_id, blueprint_name=name, kind=BlueprintKind.TASK, status=RunStatus.RUNNING)
+    db.create(session_id, blueprint_name=name, blueprint_key=name, status=RunStatus.RUNNING)
     db.save_pause(session_id, checkpoint.model_dump_json(), checkpoint.diagnostic)
 
 
 def _seed_paused_workflow(
     db: RunsRepository, session_id: str, checkpoint: RunCheckpoint, *, name: str = "ship"
 ) -> None:
-    db.create(session_id, blueprint_name=name, kind=BlueprintKind.WORKFLOW, branch_name="", status=RunStatus.RUNNING)
+    db.create(session_id, blueprint_name=name, blueprint_key=name, branch_name="", status=RunStatus.RUNNING)
     db.save_pause(session_id, checkpoint.model_dump_json(), checkpoint.diagnostic)
 
 
@@ -266,7 +264,7 @@ class EngineResumeValidationTests:
         ],
     )
     def test_resume_wrong_status(self, fs: FileSystem, status: RunStatus) -> None:
-        self.db.runs.create("task_wrong", blueprint_name="lint", kind=BlueprintKind.TASK, status=status)
+        self.db.runs.create("task_wrong", blueprint_name="lint", blueprint_key="lint", status=status)
 
         with pytest.raises(EngineResumeError) as exc_info:
             Engine(fs.base_path, db=self.db.runs, catalog=self.catalog).resume(
@@ -279,7 +277,7 @@ class EngineResumeValidationTests:
         )
 
     def test_resume_corrupt_checkpoint(self, fs: FileSystem) -> None:
-        self.db.runs.create("task_bad", blueprint_name="lint", kind=BlueprintKind.TASK, status=RunStatus.RUNNING)
+        self.db.runs.create("task_bad", blueprint_name="lint", blueprint_key="lint", status=RunStatus.RUNNING)
         self.db.runs.save_pause("task_bad", "{nope", "paused")
 
         with pytest.raises(EngineResumeError, match="checkpoint is missing or corrupt") as exc_info:

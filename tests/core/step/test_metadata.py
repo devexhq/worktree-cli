@@ -66,15 +66,15 @@ class StepExecutionMetadataTests:
         assert metadata.step.name == "Deploy Artifact"
         assert metadata.step.index == 2
         assert metadata.step.attempt == 3
-        assert metadata.blueprint.name == "release-blueprint"
-        assert metadata.blueprint.key == "blueprint_run_123"
+        assert metadata.blueprint.name == "release-task"
+        assert metadata.blueprint.key == "task_run_123"
         assert metadata.previous_step.id == "step-build"
         assert metadata.previous_step.name == "Build Artifact"
         assert metadata.previous_step.index == "1"
         assert metadata.previous_step.status == "completed"
         assert metadata.previous_step.exit_code == "0"
 
-    def test_metadata_to_env_all_fifteen_keys_present_with_defaults(self) -> None:
+    def test_metadata_to_env_all_expected_keys_present_with_defaults(self) -> None:
         step = StepDefinition(id="s1", type=StepType.COMMAND, command="echo hi")
         metadata = build_execution_metadata(step)
         env_map = metadata_to_env(metadata)
@@ -85,10 +85,8 @@ class StepExecutionMetadataTests:
             "WT_STEP_INDEX",
             "WT_STEP_ATTEMPT",
             "WT_ITERATION_INDEX",
-            "WT_TASK_NAME",
-            "WT_TASK_SHA",
-            "WT_WORKFLOW_NAME",
-            "WT_WORKFLOW_SHA",
+            "WT_BLUEPRINT_NAME",
+            "WT_BLUEPRINT_SHA",
             "WT_PREVIOUS_STEP_ID",
             "WT_PREVIOUS_STEP_NAME",
             "WT_PREVIOUS_STEP_INDEX",
@@ -102,10 +100,8 @@ class StepExecutionMetadataTests:
         assert env_map["WT_STEP_INDEX"] == "1"
         assert env_map["WT_STEP_ATTEMPT"] == "1"
         assert env_map["WT_ITERATION_INDEX"] == "1"
-        assert env_map["WT_TASK_NAME"] == ""
-        assert env_map["WT_TASK_SHA"] == ""
-        assert env_map["WT_WORKFLOW_NAME"] == ""
-        assert env_map["WT_WORKFLOW_SHA"] == ""
+        assert env_map["WT_BLUEPRINT_NAME"] == ""
+        assert env_map["WT_BLUEPRINT_SHA"] == ""
         assert env_map["WT_PREVIOUS_STEP_ID"] == ""
         assert env_map["WT_PREVIOUS_STEP_NAME"] == ""
         assert env_map["WT_PREVIOUS_STEP_INDEX"] == ""
@@ -136,10 +132,8 @@ class StepExecutionMetadataTests:
         assert env_map["WT_STEP_NAME"] == "Second Step"
         assert env_map["WT_STEP_INDEX"] == "2"
         assert env_map["WT_STEP_ATTEMPT"] == "4"
-        assert env_map["WT_TASK_NAME"] == "t1"
-        assert env_map["WT_TASK_SHA"] == "sha1"
-        assert env_map["WT_WORKFLOW_NAME"] == ""
-        assert env_map["WT_WORKFLOW_SHA"] == ""
+        assert env_map["WT_BLUEPRINT_NAME"] == "t1"
+        assert env_map["WT_BLUEPRINT_SHA"] == "sha1"
         assert env_map["WT_PREVIOUS_STEP_ID"] == "s1"
         assert env_map["WT_PREVIOUS_STEP_NAME"] == "First Step"
         assert env_map["WT_PREVIOUS_STEP_INDEX"] == "1"
@@ -188,4 +182,4 @@ class StepExecutionMetadataTests:
         with pytest.raises(ValidationError):
             PreviousStepMetadata(id="p", extra_field="bad")  # pyright: ignore[reportCallIssue]
         with pytest.raises(ValidationError):
-            ExecutionIdentity(task_name="t", extra_field="bad")  # pyright: ignore[reportCallIssue]
+            ExecutionIdentity(blueprint_name="t", extra_field="bad")  # pyright: ignore[reportCallIssue]

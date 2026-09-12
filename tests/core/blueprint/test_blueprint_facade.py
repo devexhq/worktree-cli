@@ -1,54 +1,54 @@
-"""Tests for Blueprint domain facade."""
+"""Tests for the Blueprint domain facade."""
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from tests.helpers import FileSystem
-from worktree.core.blueprint import Blueprint, BlueprintKind
+from worktree.core.blueprint import Blueprint, BlueprintDefinition
 from worktree.core.catalog import Catalog
 from worktree.core.db import CatalogItemType
 
 
-def test_blueprint_facade_from_dict_and_dump():
-    data = {
-        "name": "lint-all",
-        "description": "Lint the whole repo",
-        "use_sandbox": False,
-        "steps": [{"id": "run-ruff", "run": "ruff check ."}],
-        "inputs": {"fix": {"type": "boolean", "default": False, "aliases": ["--fix"]}},
-    }
-    bp = Blueprint.from_dict(data, BlueprintKind.TASK)
-    assert bp.name == "lint-all"
-    assert bp.kind == BlueprintKind.TASK
-    assert not bp.use_sandbox
-    assert len(bp.steps) == 1
-    assert "fix" in bp.inputs
+def test_blueprint_facade_dump_and_resolve_inputs() -> None:
+    blueprint = Blueprint(
+        BlueprintDefinition.model_validate(
+            {
+                "name": "lint-all",
+                "description": "Lint the whole repo",
+                "use_sandbox": False,
+                "steps": [{"id": "run-ruff", "run": "ruff check ."}],
+                "inputs": {"fix": {"type": "boolean", "default": False, "aliases": ["--fix"]}},
+            }
+        ),
+        key="lint-all",
+    )
 
-    dumped = bp.dump()
-    assert dumped["name"] == "lint-all"
-    assert dumped["kind"] == "task"
+    assert blueprint.name == "lint-all"
+    assert blueprint.key == "lint-all"
+    assert blueprint.use_sandbox is False
+    assert len(blueprint.steps) == 1
+    assert "fix" in blueprint.inputs
+    assert blueprint.dump()["name"] == "lint-all"
 
-    res = bp.resolve_inputs(["--fix=true"])
-    assert res.ok
-    assert res.values == {"fix": True}
+    result = blueprint.resolve_inputs(["--fix=true"])
+    assert result.ok
+    assert result.values == {"fix": True}
 
 
-def test_blueprint_facade_load_and_from_path(fs: FileSystem):
+def test_blueprint_facade_load_uses_catalog_key_and_path(fs: FileSystem) -> None:
     catalog = Catalog(fs.base_path)
     catalog.save(
-        "build",
+        "wt/build",
         {
-            "name": "build",
             "version": "1.0",
             "steps": [{"id": "build-step", "run": "cargo build"}],
         },
-        item_type=CatalogItemType.WORKFLOW,
+        item_type=CatalogItemType.BLUEPRINT,
     )
 
-    bp = Blueprint.load("build", catalog=catalog, item_type=CatalogItemType.WORKFLOW)
-    assert bp.name == "build"
-    assert bp.kind == BlueprintKind.WORKFLOW
+    blueprint = Blueprint.load("wt/build", catalog=catalog)
 
-    path = fs.base_path / ".worktree" / "catalog" / "workflows" / "build.yml"
-    bp_from_path = Blueprint.from_path(path)
-    assert bp_from_path.name == "build"
-    assert bp_from_path.kind == BlueprintKind.WORKFLOW
+    assert blueprint.name == "wt/build"
+    assert blueprint.key == "wt/build"
+    assert blueprint.path == Path("blueprints/wt/build.yml")

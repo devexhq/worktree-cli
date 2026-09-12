@@ -49,11 +49,11 @@ def seed_catalog_templates(
     with WorkspaceLock(path):
         result = SeedResult()
 
-        source_dir = Filesystem().paths.catalog_templates_path / CatalogItemTypeDirectory[item_type.name] / "wt"
+        source_dir = Filesystem().paths.catalog_templates_dir / CatalogItemTypeDirectory[item_type.name] / "wt"
         if not source_dir.is_dir():
             return result
 
-        target_dir = Filesystem(path).paths.catalog_path / CatalogItemTypeDirectory[item_type.name] / "wt"
+        target_dir = Filesystem(path).paths.catalog_dir / CatalogItemTypeDirectory[item_type.name] / "wt"
 
         for source_file in _iter_source_files(Path(str(source_dir))):
             rel_name = source_file.relative_to(Path(str(source_dir)))

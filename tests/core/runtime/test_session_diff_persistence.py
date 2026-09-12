@@ -23,7 +23,7 @@ class SessionDiffPersistenceTests:
             run="echo 'modified content' > file.txt",
         )
 
-        identity = ExecutionIdentity(task_name="edit-task", task_sha="task_diff_1")
+        identity = ExecutionIdentity(blueprint_name="edit-task", blueprint_key="task_diff_1")
         outcome = run_steps(
             RunContext(
                 steps=[step],
@@ -56,7 +56,7 @@ class SessionDiffPersistenceTests:
             run="echo 'no files modified'",
         )
 
-        identity = ExecutionIdentity(task_name="read-task", task_sha="task_diff_empty")
+        identity = ExecutionIdentity(blueprint_name="read-task", blueprint_key="task_diff_empty")
         outcome = run_steps(
             RunContext(
                 steps=[step],
@@ -86,7 +86,7 @@ class SessionDiffPersistenceTests:
             run="exit 1",
         )
 
-        identity = ExecutionIdentity(task_name="fail-task", task_sha="task_diff_failed")
+        identity = ExecutionIdentity(blueprint_name="fail-task", blueprint_key="task_diff_failed")
         outcome = run_steps(
             RunContext(
                 steps=[step_1, step_2],

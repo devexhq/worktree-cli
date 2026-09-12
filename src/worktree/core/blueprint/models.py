@@ -89,10 +89,8 @@ class BlueprintDefinition(BaseModel):
     model_config = {"extra": "ignore", "populate_by_name": True}
 
     name: str = Field(min_length=1)
-    key: str = Field(min_length=1)
     description: str = ""
     summary: str = ""
-    id: str | None = None
     version: int | str = 1
     use_sandbox: bool = True
     timeout_seconds: int | None = Field(default=None, ge=1)
@@ -104,7 +102,11 @@ class BlueprintDefinition(BaseModel):
     @classmethod
     def from_document(cls, raw: dict[str, object], *, key: str) -> BlueprintDefinition:
         """Validate a Catalog-loaded document, defaulting an omitted name to key."""
+        if not isinstance(raw, dict):
+            raise BlueprintValidationError("Blueprint document must be a mapping.")
         payload = dict(raw)
+        if "name" not in payload:
+            payload["name"] = key
         try:
             return cls.model_validate(payload)
         except (ValidationError, ValueError) as exc:
@@ -135,10 +137,8 @@ class BlueprintDefinition(BaseModel):
         return payload
 
     @model_validator(mode="after")
-    def _apply_kind_rules(self) -> BlueprintDefinition:
-        """Default ``id`` to ``name``, reject loop steps on tasks, and validate loop conditions."""
-        if self.id is None:
-            self.id = self.name
+    def _validate_loops(self) -> BlueprintDefinition:
+        """Validate loop step conditions reference known step ids."""
         _validate_loop_steps(self.steps)
         return self
 

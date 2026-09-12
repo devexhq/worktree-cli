@@ -41,7 +41,7 @@ class TestDispatcherFailurePrompter:
         expected: FailurePromptDecision,
     ) -> None:
         dispatcher, buffer = make_dispatcher_with_buffer(force_terminal=True)
-        prompter = DispatcherFailurePrompter(dispatcher, kind="task")
+        prompter = DispatcherFailurePrompter(dispatcher)
 
         step = StepDefinition(id="step_1", name="Build Step", run="make build")
         result = StepResult(
@@ -69,7 +69,7 @@ class TestDispatcherFailurePrompter:
 
     def test_prompt_step_failure_invalid_then_valid(self, monkeypatch: pytest.MonkeyPatch) -> None:
         dispatcher, buffer = make_dispatcher_with_buffer(force_terminal=True)
-        prompter = DispatcherFailurePrompter(dispatcher, kind="task")
+        prompter = DispatcherFailurePrompter(dispatcher)
 
         step = StepDefinition(id="step_1", run="make")
         result = StepResult(step_id="step_1", status="failed", exit_code=1, stdout="", stderr="", duration_seconds=0.1)
@@ -97,7 +97,7 @@ class TestDispatcherFailurePrompter:
 
     def test_prompt_loop_max_iterations_terminal(self, monkeypatch: pytest.MonkeyPatch) -> None:
         dispatcher, buffer = make_dispatcher_with_buffer(force_terminal=True)
-        prompter = DispatcherFailurePrompter(dispatcher, kind="workflow")
+        prompter = DispatcherFailurePrompter(dispatcher)
 
         loop = LoopStepBlock(
             id="loop_1",
@@ -146,7 +146,7 @@ class TestDispatcherFailurePrompter:
         monkeypatch.setattr("sys.stdout", stdout_buffer)
 
         dispatcher = UiDispatcher(output_format="json")
-        prompter = DispatcherFailurePrompter(dispatcher, kind="task")
+        prompter = DispatcherFailurePrompter(dispatcher)
 
         step = StepDefinition(id="s1", name="lint", run="ruff check")
         result = StepResult(step_id="s1", status="failed", exit_code=1, stdout="", stderr="err", duration_seconds=0.2)
@@ -184,7 +184,7 @@ class TestDispatcherFailurePrompter:
         presence.
         """
         dispatcher, buffer = make_dispatcher_with_buffer(force_terminal=True)
-        prompter = DispatcherFailurePrompter(dispatcher, kind="task")
+        prompter = DispatcherFailurePrompter(dispatcher)
 
         step = StepDefinition(id="step_1", name="Build Step", run="make build")
         result = StepResult(
@@ -220,7 +220,7 @@ class TestDispatcherFailurePrompter:
     def test_prompt_text_visible_before_loop_input_blocks(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Loop prompt text is in the output buffer before input() is called."""
         dispatcher, buffer = make_dispatcher_with_buffer(force_terminal=True)
-        prompter = DispatcherFailurePrompter(dispatcher, kind="workflow")
+        prompter = DispatcherFailurePrompter(dispatcher)
 
         loop = LoopStepBlock(
             id="loop_1",
@@ -259,7 +259,6 @@ class TestPromptFormatter:
         event = PromptEvent(
             prompt_type="step_failure",
             prompt_id="s1",
-            kind="task",
             title="Step failed",
             diagnostic="detail",
             options=[PromptOption(key="r", label="Retry", decision="retry")],

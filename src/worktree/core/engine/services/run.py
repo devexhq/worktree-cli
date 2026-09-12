@@ -13,7 +13,7 @@ from worktree.core.blueprint import (
     BlueprintValidationError,
 )
 from worktree.core.catalog import Catalog
-from worktree.core.db import CatalogItemType, CatalogRepository, RunRecord, RunsRepository, RunStatus
+from worktree.core.db import CatalogRepository, RunRecord, RunsRepository, RunStatus
 from worktree.core.engine.engine import Engine
 from worktree.core.engine.exceptions import EngineInputError, EngineRuntimeError
 from worktree.core.engine.models import RunRequest
@@ -92,17 +92,12 @@ class BlueprintRunService:
         )
 
     def _load_blueprint(self, catalog: Catalog) -> tuple[Blueprint | None, BlueprintRunResult | None]:
-        item_type = self._resolve_item_type(catalog)
-        if item_type is None:
-            return None, self._fail(f"Blueprint '{self.name}' not found in catalog.")
-
         try:
-            blueprint = Blueprint.load(
-                self.name,
-                catalog=catalog,
-                item_type=item_type,
-            )
-        except (BlueprintNotFoundError, BlueprintLoadError) as exc:
+            blueprint = Blueprint.load(self.name, catalog=catalog)
+        except BlueprintNotFoundError as exc:
+            msg = str(exc) if str(exc) else f"Blueprint '{self.name}' not found in catalog."
+            return None, self._fail(msg)
+        except BlueprintLoadError as exc:
             msg = str(exc) if str(exc) else "Failed to resolve blueprint."
             return None, self._fail(msg)
         except BlueprintValidationError as exc:
@@ -110,13 +105,6 @@ class BlueprintRunService:
             return None, self._fail(msg)
 
         return blueprint, None
-
-    def _resolve_item_type(self, catalog: Catalog) -> CatalogItemType | None:
-        """Return the requested or catalog-discovered blueprint item type."""
-        catalog_item = catalog.get(self.name)
-        if not catalog_item.ok or catalog_item.resolved is None:
-            return None
-        return catalog_item.resolved.item_type
 
     def _load_record(self, session_id: str) -> RunRecord | None:
         try:

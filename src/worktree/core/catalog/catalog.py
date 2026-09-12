@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, ClassVar, Protocol
+from typing import Any, Protocol
 
 import yaml
 
@@ -56,11 +56,6 @@ class _PydanticModel(Protocol):
 
 class Catalog:
     """Unified entrypoint for blueprint catalog inventory and management."""
-
-    _TASK_AND_WORKFLOW: ClassVar[frozenset[CatalogItemType]] = frozenset(
-        {CatalogItemType.TASK, CatalogItemType.WORKFLOW}
-    )
-    _STEP_ONLY: ClassVar[frozenset[CatalogItemType]] = frozenset({CatalogItemType.STEP})
 
     def __init__(self, path: Path = Path("."), db: CatalogRepository | None = None) -> None:
         self.path = path.resolve()
@@ -219,6 +214,46 @@ class Catalog:
             matches=matches,
             errors=errors,
             warnings=warnings,
+        )
+
+    def get_by_key[T](
+        self,
+        key: str,
+        item_type: CatalogItemType,
+        definition_cls: type[_PydanticModel] | None = None,
+    ) -> DefinitionResolutionResult[CatalogRecord]:
+        """Retrieve an indexed catalog record by its globally unique key.
+
+        Unlike ``get``/``resolve``, this performs no SHA or ambiguous-name
+        matching: ``key`` must equal exactly one indexed record's ``key``.
+        """
+        self.sync()
+        record = self.db.get_by_key(key)
+        if record is None or record.item_type != item_type:
+            return DefinitionResolutionResult(
+                status=DefinitionResolutionStatus.NOT_FOUND,
+                requested_name=key,
+                resolved=None,
+                matches=[],
+                errors=[f"Catalog {item_type.value} '{key}' not found."],
+            )
+
+        definition: Any | None = None
+        errors: list[str] = []
+        status = DefinitionResolutionStatus.OK
+        if definition_cls is not None:
+            validation_outcome = self._validate_definition(record, definition_cls, key)
+            definition = validation_outcome.definition
+            status = validation_outcome.status
+            errors = validation_outcome.errors
+
+        return DefinitionResolutionResult(
+            status=status,
+            requested_name=key,
+            resolved=record,
+            definition=definition,
+            matches=[record],
+            errors=errors,
         )
 
     def create(
@@ -396,7 +431,11 @@ class Catalog:
                 )
 
         try:
-            definition = definition_cls.model_validate(parsed_data)
+            from_document = getattr(definition_cls, "from_document", None)
+            if callable(from_document):
+                definition = from_document(parsed_data, key=winner.key or sha_or_name)
+            else:
+                definition = definition_cls.model_validate(parsed_data)
             return DefinitionValidationOutcome(
                 definition=definition,
                 status=DefinitionResolutionStatus.OK,

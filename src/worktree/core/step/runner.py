@@ -11,6 +11,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import IO, Any
 
+from worktree.common.models import FailurePolicy
 from worktree.common.process import (
     get_isolated_process_kwargs,
     process_registry,
@@ -21,7 +22,6 @@ from worktree.core.inputs.services.interpolate import interpolate_step_fields
 from worktree.core.step.assertions import evaluate_assertions
 from worktree.core.step.models import (
     ExecutionMetadata,
-    FailurePolicy,
     PreviousStepMetadata,
     StepDefinition,
     StepDispatchOutcome,

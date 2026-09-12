@@ -25,10 +25,10 @@ class CatalogRenderTests:
     def test_build_catalog_table_columns(self, fs: FileSystem) -> None:
         item = CatalogItemView(
             id=1,
-            sha="workflow_1234567",
-            item_type="workflow",
-            name="test-wf",
-            path=str(fs.base_path / "workflows" / "test-wf.yml"),
+            sha="blueprint_1234567",
+            item_type="blueprint",
+            name="test-blueprint",
+            path=str(fs.base_path / "blueprints" / "test-blueprint.yml"),
             checksum="1234567890abcdef",
             created_at="2026-08-17T00:00:00Z",
             updated_at="2026-08-17T00:00:00Z",
@@ -49,12 +49,12 @@ class CatalogCommandDirectTests:
 
     def test_catalog_create_command_and_list_filtering(self, fs: FileSystem) -> None:
         cli_ctx = make_cli_context(cwd=fs.base_path)
-        create_res1 = catalog_create_command(cli_ctx, "workflow", name="wf-1")
+        create_res1 = catalog_create_command(cli_ctx, "blueprint", name="bp-1")
         assert create_res1.ok
         assert create_res1.item is not None
-        assert create_res1.item.item_type == CatalogItemType.WORKFLOW
+        assert create_res1.item.item_type == CatalogItemType.BLUEPRINT
 
-        create_res2 = catalog_create_command(cli_ctx, "task", name="task-1")
+        create_res2 = catalog_create_command(cli_ctx, "step", name="step-1")
         assert create_res2.ok
 
         # List all
@@ -62,17 +62,15 @@ class CatalogCommandDirectTests:
         assert list_all.ok
         assert len(list_all.items) == 2
 
-        # Filter workflow
-        list_wf = catalog_list_command(cli_ctx, type_filter="workflow")
-        assert list_wf.ok
-        assert len(list_wf.items) == 1
-        assert list_wf.items[0].name == "wf-1"
+        list_blueprint = catalog_list_command(cli_ctx, type_filter="blueprint")
+        assert list_blueprint.ok
+        assert len(list_blueprint.items) == 1
+        assert list_blueprint.items[0].name == "bp-1"
 
-        # Filter task
-        list_task = catalog_list_command(cli_ctx, type_filter=CatalogItemType.TASK)
-        assert list_task.ok
-        assert len(list_task.items) == 1
-        assert list_task.items[0].name == "task-1"
+        list_step = catalog_list_command(cli_ctx, type_filter=CatalogItemType.STEP)
+        assert list_step.ok
+        assert len(list_step.items) == 1
+        assert list_step.items[0].path.as_posix() == "steps/step-1.yml"
 
         # Filter invalid type
         list_invalid = catalog_list_command(cli_ctx, type_filter="invalid_type")
@@ -89,16 +87,16 @@ class CatalogCommandDirectTests:
         assert "collision" in res2.errors[0]
 
     def test_catalog_show_command(self, fs: FileSystem) -> None:
-        create_catalog_item("workflow", "show-wf", path=fs.base_path)
+        create_catalog_item("blueprint", "show-bp", path=fs.base_path)
         cli_ctx = make_cli_context(cwd=fs.base_path)
 
         # Show by name
-        show_name = catalog_show_command(cli_ctx, "show-wf")
+        show_name = catalog_show_command(cli_ctx, "show-bp")
         assert show_name.ok
         assert show_name.item is not None
         assert show_name.item.sha is not None
         assert show_name.content is not None
-        assert "show-wf" in show_name.content
+        assert "show-bp" in show_name.content
 
         # Show by SHA
         show_sha = catalog_show_command(cli_ctx, show_name.item.sha)
@@ -129,7 +127,7 @@ class CatalogCommandDirectTests:
         assert show_default.content is not None
 
     def test_catalog_delete_command(self, fs: FileSystem) -> None:
-        item = create_catalog_item("task", "del-task", path=fs.base_path)
+        item = create_catalog_item("blueprint", "del-blueprint", path=fs.base_path)
         cli_ctx = make_cli_context(cwd=fs.base_path)
 
         del_res = catalog_delete_command(cli_ctx, item.sha, force=True)
@@ -141,14 +139,14 @@ class CatalogCommandDirectTests:
         assert not del_missing.deleted
 
     def test_catalog_delete_command_confirmation(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
-        item1 = create_catalog_item("task", "del-task-1", path=fs.base_path)
+        item1 = create_catalog_item("blueprint", "del-blueprint-1", path=fs.base_path)
         cli_ctx = make_cli_context(cwd=fs.base_path)
         monkeypatch.setattr("typer.confirm", lambda *args, **kwargs: True)
         res_confirmed = catalog_delete_command(cli_ctx, item1.sha, force=False)
         assert res_confirmed.ok
         assert res_confirmed.deleted
 
-        item2 = create_catalog_item("task", "del-task-2", path=fs.base_path)
+        item2 = create_catalog_item("blueprint", "del-blueprint-2", path=fs.base_path)
         monkeypatch.setattr("typer.confirm", lambda *args, **kwargs: False)
         res_cancelled = catalog_delete_command(cli_ctx, item2.sha, force=False)
         assert not res_cancelled.ok
@@ -174,8 +172,7 @@ class CatalogCliTests:
         monkeypatch.chdir(fs.base_path)
         res = runner.invoke(app, ["catalog", "list", "--type", "template"])
         assert res.exit_code == 0
-        assert "workflows/default.yml" in res.output
-        assert "tasks/default.yml" in res.output
+        assert "blueprints/default.yml" in res.output
         assert "steps/default.yml" in res.output
 
     def test_cli_catalog_show_template_fallback(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -193,42 +190,35 @@ class CatalogCliTests:
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
 
-        # wt catalog create workflow --name cli-wf
-        res_create = runner.invoke(app, ["catalog", "create", "workflow", "--name", "cli-wf"])
+        res_create = runner.invoke(app, ["catalog", "create", "blueprint", "--name", "cli-blueprint"])
         assert res_create.exit_code == 0
         assert "Created catalog blueprint" in res_create.output
 
-        # wt catalog list
         res_list = runner.invoke(app, ["catalog", "list"])
         assert res_list.exit_code == 0
-        assert "cli-wf" in res_list.output
+        assert "cli-blueprint" in res_list.output
         assert "Catalog Blueprints:" in res_list.output
         assert "Name" in res_list.output
         assert "Type" in res_list.output
         assert "Path" in res_list.output
         assert "SHA" in res_list.output
 
-        # wt catalog list --type workflow
-        res_list_wf = runner.invoke(app, ["catalog", "list", "--type", "workflow"])
-        assert res_list_wf.exit_code == 0
-        assert "cli-wf" in res_list_wf.output
+        res_list_blueprint = runner.invoke(app, ["catalog", "list", "--type", "blueprint"])
+        assert res_list_blueprint.exit_code == 0
+        assert "cli-blueprint" in res_list_blueprint.output
 
-        # wt catalog show cli-wf
-        res_show = runner.invoke(app, ["catalog", "show", "cli-wf"])
+        res_show = runner.invoke(app, ["catalog", "show", "cli-blueprint"])
         assert res_show.exit_code == 0
         assert "Blueprint:" in res_show.output
 
-        # wt catalog delete cli-wf without force (interactive decline)
-        res_del_decline = runner.invoke(app, ["catalog", "delete", "cli-wf"], input="n\n")
+        res_del_decline = runner.invoke(app, ["catalog", "delete", "cli-blueprint"], input="n\n")
         assert res_del_decline.exit_code == 1
         assert "Deletion cancelled" in res_del_decline.output
 
-        # wt catalog delete cli-wf --force
-        res_del = runner.invoke(app, ["catalog", "delete", "cli-wf", "--force"])
+        res_del = runner.invoke(app, ["catalog", "delete", "cli-blueprint", "--force"])
         assert res_del.exit_code == 0
         assert "Deleted catalog blueprint" in res_del.output
 
-        # wt catalog delete non-existent
         res_del_fail = runner.invoke(app, ["catalog", "delete", "non-existent", "--force"])
         assert res_del_fail.exit_code == 1
 
@@ -238,33 +228,31 @@ class CatalogCliTests:
         fs.create_config_file()
         monkeypatch.chdir(fs.base_path)
 
-        # wt catalog create --format json
-        res_create = runner.invoke(app, ["catalog", "create", "workflow", "--name", "json-wf", "--format", "json"])
+        res_create = runner.invoke(
+            app, ["catalog", "create", "blueprint", "--name", "json-blueprint", "--format", "json"]
+        )
         assert res_create.exit_code == 0
         lines = [line for line in res_create.output.strip().split("\n") if line]
         payload = json.loads(lines[-1])
         assert payload["event_type"] == "CatalogCreateResult"
-        assert payload["payload"]["item"]["name"] == "json-wf"
+        assert payload["payload"]["item"]["name"] == "json-blueprint"
 
-        # wt catalog list --format json
         res_list = runner.invoke(app, ["catalog", "list", "--format", "json"])
         assert res_list.exit_code == 0
         lines = [line for line in res_list.output.strip().split("\n") if line]
         payload = json.loads(lines[-1])
         assert payload["event_type"] == "CatalogListResult"
         assert len(payload["payload"]["items"]) == 1
-        assert payload["payload"]["items"][0]["name"] == "json-wf"
+        assert payload["payload"]["items"][0]["name"] == "json-blueprint"
 
-        # wt catalog show --format json
-        res_show = runner.invoke(app, ["catalog", "show", "json-wf", "--format", "json"])
+        res_show = runner.invoke(app, ["catalog", "show", "json-blueprint", "--format", "json"])
         assert res_show.exit_code == 0
         lines = [line for line in res_show.output.strip().split("\n") if line]
         payload = json.loads(lines[-1])
         assert payload["event_type"] == "CatalogShowResult"
-        assert payload["payload"]["item"]["name"] == "json-wf"
+        assert payload["payload"]["item"]["name"] == "json-blueprint"
 
-        # wt catalog delete --format json
-        res_del = runner.invoke(app, ["catalog", "delete", "json-wf", "--force", "--format", "json"])
+        res_del = runner.invoke(app, ["catalog", "delete", "json-blueprint", "--force", "--format", "json"])
         assert res_del.exit_code == 0
         lines = [line for line in res_del.output.strip().split("\n") if line]
         payload = json.loads(lines[-1])

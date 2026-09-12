@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any, ClassVar
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, ClassVar
 
+from worktree.core.blueprint.exceptions import BlueprintLoadError, BlueprintNotFoundError
 from worktree.core.blueprint.models import BlueprintDefinition
+from worktree.core.db import CatalogItemType
 from worktree.core.inputs import (
     InputResolveResult,
     Inputs,
@@ -12,14 +15,36 @@ from worktree.core.inputs import (
 )
 from worktree.core.step import LoopStepBlock, StepDefinition
 
+if TYPE_CHECKING:
+    from worktree.core.catalog import Catalog
+
 
 class Blueprint:
     """Load, inspect, and dump a unified task/blueprint document."""
 
     spec: ClassVar[type[BlueprintDefinition]] = BlueprintDefinition
 
-    def __init__(self, instance: BlueprintDefinition) -> None:
+    def __init__(self, instance: BlueprintDefinition, *, key: str = "", path: Path | None = None) -> None:
         self._instance = instance
+        self._key = key or instance.name
+        self._path = path
+
+    @classmethod
+    def load(cls, key: str, *, catalog: Catalog) -> Blueprint:
+        """Load and validate one Blueprint by its globally unique catalog key.
+
+        Raises:
+            BlueprintNotFoundError: If no Blueprint record matches ``key``.
+            BlueprintLoadError: If the record's YAML is unreadable or invalid.
+        """
+        result = catalog.get_by_key(key, item_type=CatalogItemType.BLUEPRINT, definition_cls=BlueprintDefinition)
+        if not result.ok or result.definition is None or result.resolved is None:
+            message = "; ".join(result.errors) or f"Blueprint '{key}' not found."
+            if result.resolved is None:
+                raise BlueprintNotFoundError(message)
+            raise BlueprintLoadError(message)
+
+        return cls(result.definition, key=result.resolved.key, path=result.resolved.path)
 
     @property
     def definition(self) -> BlueprintDefinition:
@@ -33,8 +58,13 @@ class Blueprint:
 
     @property
     def key(self) -> str:
-        """Return the blueprint key."""
-        return self._instance.key
+        """Return the blueprint's globally unique catalog key."""
+        return self._key
+
+    @property
+    def path(self) -> Path | None:
+        """Return the blueprint's catalog-relative path, if loaded from the catalog."""
+        return self._path
 
     @property
     def steps(self) -> list[StepDefinition | LoopStepBlock]:

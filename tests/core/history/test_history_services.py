@@ -7,7 +7,6 @@ from pathlib import Path
 import pytest
 
 from tests.helpers import FileSystem, RunFactory, make_run
-from worktree.core.blueprint import BlueprintKind
 from worktree.core.config.generator import generate_default_config
 from worktree.core.db import RunStatus, WorktreeDb
 from worktree.core.history.models import (
@@ -34,14 +33,14 @@ class HistoryListServiceTests:
             worktree_db.runs,
             session_id="run-1",
             blueprint_name="task-1",
-            kind=BlueprintKind.TASK,
+            blueprint_key="task-1",
             status=RunStatus.COMPLETED,
         )
         make_run(
             worktree_db.runs,
             session_id="run-2",
             blueprint_name="wf-1",
-            kind=BlueprintKind.WORKFLOW,
+            blueprint_key="wf-1",
             status=RunStatus.FAILED,
         )
 
@@ -56,14 +55,14 @@ class HistoryListServiceTests:
             worktree_db.runs,
             session_id="run-ok",
             blueprint_name="task-1",
-            kind=BlueprintKind.TASK,
+            blueprint_key="task-1",
             status=RunStatus.COMPLETED,
         )
         make_run(
             worktree_db.runs,
             session_id="run-fail",
             blueprint_name="task-2",
-            kind=BlueprintKind.TASK,
+            blueprint_key="task-2",
             status=RunStatus.FAILED,
         )
 
@@ -80,34 +79,28 @@ class HistoryListServiceTests:
         assert result_invalid.ok
         assert len(result_invalid.runs) == 0
 
-    def test_collect_filter_by_kind(self, fs: FileSystem, worktree_db: WorktreeDb) -> None:
+    def test_collect_status_filter_includes_multiple_blueprint_kinds(
+        self, fs: FileSystem, worktree_db: WorktreeDb
+    ) -> None:
         make_run(
             worktree_db.runs,
             session_id="run-task",
             blueprint_name="task-1",
-            kind=BlueprintKind.TASK,
+            blueprint_key="task-1",
             status=RunStatus.COMPLETED,
         )
         make_run(
             worktree_db.runs,
             session_id="run-wf",
             blueprint_name="wf-1",
-            kind=BlueprintKind.WORKFLOW,
+            blueprint_key="wf-1",
             status=RunStatus.COMPLETED,
         )
 
-        # Kind matching enum
-        service = HistoryListService(path=fs.base_path, db=worktree_db.runs, kind="workflow")
+        service = HistoryListService(path=fs.base_path, db=worktree_db.runs, status="completed")
         result = service.collect()
         assert result.ok
-        assert len(result.runs) == 1
-        assert result.runs[0].session_id == "run-wf"
-
-        # Invalid kind string fallback
-        service_invalid = HistoryListService(path=fs.base_path, db=worktree_db.runs, kind="invalid_kind")
-        result_invalid = service_invalid.collect()
-        assert result_invalid.ok
-        assert len(result_invalid.runs) == 0
+        assert {run.session_id for run in result.runs} == {"run-task", "run-wf"}
 
     def test_collect_limit(self, fs: FileSystem, worktree_db: WorktreeDb) -> None:
         for i in range(5):
@@ -115,7 +108,7 @@ class HistoryListServiceTests:
                 worktree_db.runs,
                 session_id=f"run-{i}",
                 blueprint_name=f"task-{i}",
-                kind=BlueprintKind.TASK,
+                blueprint_key=f"task-{i}",
                 status=RunStatus.COMPLETED,
             )
 
@@ -129,7 +122,7 @@ class HistoryListServiceTests:
             worktree_db.runs,
             session_id="run-exec",
             blueprint_name="sample-task",
-            kind=BlueprintKind.TASK,
+            blueprint_key="sample-task",
             status=RunStatus.COMPLETED,
         )
         service = HistoryListService(path=fs.base_path, db=worktree_db.runs)
@@ -152,7 +145,7 @@ class HistoryShowServiceTests:
             worktree_db.runs,
             session_id="run-show",
             blueprint_name="show-task",
-            kind=BlueprintKind.TASK,
+            blueprint_key="show-task",
             status=RunStatus.COMPLETED,
         )
 
@@ -172,11 +165,10 @@ class HistoryShowServiceTests:
         assert result.run is None
 
     def test_execute_found_renders_metadata(self, fs: FileSystem, worktree_db: WorktreeDb) -> None:
-        completed_run = RunFactory.create(
-            worktree_db.runs,
+        completed_run = RunFactory(worktree_db.runs).create(
             session_id="run-show-exec",
             blueprint_name="show-task",
-            kind=BlueprintKind.TASK,
+            blueprint_key="show-task",
             status=RunStatus.COMPLETED,
         )
 

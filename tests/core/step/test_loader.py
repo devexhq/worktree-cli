@@ -175,6 +175,7 @@ command: echo other
 
         resolved = step.resolve_step_definition(path=fs.base_path)
 
+        assert resolved is not None
         assert resolved.id == "ai-fix"
         assert resolved.type == StepType.AGENT
         assert resolved.uses is None

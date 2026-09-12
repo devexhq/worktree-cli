@@ -5,10 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from worktree.core.blueprint import (
-    BlueprintKind,
-    BlueprintRunResult,
-)
+from worktree.core.blueprint import BlueprintRunResult
 from worktree.core.catalog import Catalog
 from worktree.core.db import CatalogRepository, RunRecord, RunsRepository
 from worktree.core.engine.engine import Engine
@@ -35,7 +32,7 @@ class BlueprintResumeService:
 
     def execute(self) -> BlueprintRunResult:
         """Find session if omitted, classify and resume via Engine."""
-        target_session_id, _, resolve_error = self._resolve_target_session()
+        target_session_id, resolve_error = self._resolve_target_session()
         if resolve_error is not None or not target_session_id:
             return self._fail(resolve_error or "No paused session found to resume.")
 
@@ -53,16 +50,15 @@ class BlueprintResumeService:
 
         return self._finalize(target_session_id, run_outcome)
 
-    def _resolve_target_session(self) -> tuple[str, BlueprintKind | None, str | None]:
+    def _resolve_target_session(self) -> tuple[str, str | None]:
         if not self.session_id:
             record = self.db.get_latest_paused()
             if record is None:
-                return "", None, "No paused session found to resume."
-            return record.session_id, record.kind, None
+                return "", "No paused session found to resume."
+            return record.session_id, None
 
         record = self._load_record(self.session_id)
-        target_kind = record.kind if record is not None else None
-        return self.session_id, target_kind, None
+        return self.session_id, None
 
     def _fail(self, message: str) -> BlueprintRunResult:
         return BlueprintRunResult(

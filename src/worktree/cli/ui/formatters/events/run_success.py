@@ -13,8 +13,7 @@ class RunSuccessFormatter(ComponentFormatter[RunSuccessEvent]):
 
     def to_rich(self, data: RunSuccessEvent) -> Text:
         """Render green success summary line."""
-        kind_str = data.kind.value.capitalize()
         return Text.from_markup(
-            f"[bold green]{kind_str} Run Completed:[/] {data.blueprint_name} "
+            f"[bold green]Blueprint Run Completed:[/] {data.blueprint_name} "
             f"(session: {data.session_id}, status: {data.status.value})"
         )

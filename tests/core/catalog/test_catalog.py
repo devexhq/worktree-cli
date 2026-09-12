@@ -17,34 +17,34 @@ from worktree.core.db import CatalogItemType
 
 
 class CatalogResolveTests:
-    """Unit tests for Catalog resolution logic across tasks, workflows, and steps."""
+    """Unit tests for Catalog resolution logic across blueprints and steps."""
 
     def test_catalog_cwd_is_resolved(self, fs: FileSystem) -> None:
         catalog = Catalog(fs.base_path)
         assert catalog.cwd == fs.base_path.resolve()
 
-    def test_resolve_loads_task_raw_without_kind(self, fs: FileSystem) -> None:
-        fs.write_file(".worktree/catalog/tasks/lint.yml", "name: lint\ndescription: Run linter\nsteps: []\n")
-        result = Catalog(fs.base_path).resolve("lint", item_type=CatalogItemType.TASK)
+    def test_resolve_loads_blueprint_raw_without_kind(self, fs: FileSystem) -> None:
+        fs.write_file(".worktree/catalog/blueprints/lint.yml", "name: lint\ndescription: Run linter\nsteps: []\n")
+        result = Catalog(fs.base_path).resolve("lint", item_type=CatalogItemType.BLUEPRINT)
 
         assert result.ok
         assert result.status == CatalogResolveStatus.OK
         assert result.raw == {"name": "lint", "description": "Run linter", "steps": []}
-        assert result.raw is not None
-        assert "kind" not in result.raw
         assert result.record is not None
-        assert result.record.item_type == CatalogItemType.TASK
+        assert result.record.item_type == CatalogItemType.BLUEPRINT
+        assert result.record.key == "lint"
         assert result.errors == []
 
-    def test_resolve_loads_workflow_by_sha(self, fs: FileSystem) -> None:
-        fs.write_file(".worktree/catalog/workflows/ship.yml", "name: ship\nsteps: []\n")
+    def test_resolve_loads_blueprint_by_sha(self, fs: FileSystem) -> None:
+        fs.write_file(".worktree/catalog/blueprints/ship.yml", "name: ship\nsteps: []\n")
         catalog = Catalog(fs.base_path)
-        listed = catalog.list(kind="workflow")
-        result = catalog.resolve(listed.items[0].sha, item_type=CatalogItemType.WORKFLOW)
+        listed = catalog.list(kind=CatalogItemType.BLUEPRINT)
+
+        result = catalog.resolve(listed.items[0].sha, item_type=CatalogItemType.BLUEPRINT)
 
         assert result.ok
         assert result.record is not None
-        assert result.record.item_type == CatalogItemType.WORKFLOW
+        assert result.record.item_type == CatalogItemType.BLUEPRINT
         assert result.raw == {"name": "ship", "steps": []}
 
     def test_resolve_step_loads_step_yaml(self, fs: FileSystem) -> None:
@@ -56,8 +56,8 @@ class CatalogResolveTests:
         assert result.record.item_type == CatalogItemType.STEP
         assert result.raw == {"name": "git-check", "action": "run"}
 
-    def test_resolve_unknown_name_is_not_found(self, fs: FileSystem) -> None:
-        result = Catalog(fs.base_path).resolve("missing-item", item_type=CatalogItemType.TASK)
+    def test_resolve_unknown_blueprint_is_not_found(self, fs: FileSystem) -> None:
+        result = Catalog(fs.base_path).resolve("missing-item", item_type=CatalogItemType.BLUEPRINT)
 
         assert not result.ok
         assert result.status == CatalogResolveStatus.NOT_FOUND
@@ -65,24 +65,25 @@ class CatalogResolveTests:
         assert result.raw is None
         assert result.errors == ["Catalog blueprint 'missing-item' not found."]
 
-    def test_resolve_step_unknown_name_is_not_found(self, fs: FileSystem) -> None:
-        result = Catalog(fs.base_path).resolve("missing-step", item_type=CatalogItemType.TASK)
+    def test_resolve_unknown_step_is_not_found(self, fs: FileSystem) -> None:
+        result = Catalog(fs.base_path).resolve("missing-step", item_type=CatalogItemType.STEP)
 
         assert result.status == CatalogResolveStatus.NOT_FOUND
         assert result.errors == ["Catalog blueprint 'missing-step' not found."]
 
     def test_resolve_malformed_yaml_is_load_error(self, fs: FileSystem) -> None:
-        fs.write_file(".worktree/catalog/tasks/bad.yml", "invalid: yaml: [")
-        result = Catalog(fs.base_path).resolve("bad", item_type=CatalogItemType.TASK)
+        fs.write_file(".worktree/catalog/blueprints/bad.yml", "invalid: yaml: [")
+        result = Catalog(fs.base_path).resolve("bad", item_type=CatalogItemType.BLUEPRINT)
 
         assert result.status == CatalogResolveStatus.LOAD_ERROR
         assert result.raw is None
         assert result.record is not None
-        assert len(result.errors) > 0
+        assert result.record.key == "bad"
+        assert result.errors
 
     def test_resolve_non_object_yaml_is_load_error(self, fs: FileSystem) -> None:
-        fs.write_file(".worktree/catalog/tasks/list.yml", "- just\n- a list\n")
-        result = Catalog(fs.base_path).resolve("list", item_type=CatalogItemType.TASK)
+        fs.write_file(".worktree/catalog/blueprints/list.yml", "- just\n- a list\n")
+        result = Catalog(fs.base_path).resolve("list", item_type=CatalogItemType.BLUEPRINT)
 
         assert result.status == CatalogResolveStatus.LOAD_ERROR
         assert result.raw is None
@@ -93,26 +94,24 @@ class CatalogListTests:
     """Unit tests for listing catalog items and packaged templates."""
 
     def test_list_returns_all_records(self, fs: FileSystem) -> None:
-        fs.write_file(".worktree/catalog/workflows/ship.yml", "name: ship\n")
-        fs.write_file(".worktree/catalog/tasks/lint.yml", "name: lint\n")
+        fs.write_file(".worktree/catalog/blueprints/ship.yml", "name: ship\n")
         fs.write_file(".worktree/catalog/steps/git-check.yml", "name: git-check\n")
         result = Catalog(fs.base_path).list()
         records = result.items
 
         assert {record.item_type for record in records} == {
-            CatalogItemType.WORKFLOW,
-            CatalogItemType.TASK,
+            CatalogItemType.BLUEPRINT,
             CatalogItemType.STEP,
         }
-        assert len(records) == 3
+        assert len(records) == 2
 
     def test_list_filters_by_kind(self, fs: FileSystem) -> None:
-        fs.write_file(".worktree/catalog/workflows/ship.yml", "name: ship\n")
-        fs.write_file(".worktree/catalog/tasks/lint.yml", "name: lint\n")
-        result = Catalog(fs.base_path).list(kind=CatalogItemType.TASK)
+        fs.write_file(".worktree/catalog/blueprints/ship.yml", "name: ship\n")
+        fs.write_file(".worktree/catalog/steps/git-check.yml", "name: git-check\n")
+        result = Catalog(fs.base_path).list(kind=CatalogItemType.BLUEPRINT)
 
         assert len(result.items) == 1
-        assert result.items[0].name == "lint"
+        assert result.items[0].name == "ship"
 
     def test_list_empty_catalog_returns_empty_list(self, fs: FileSystem) -> None:
         assert Catalog(fs.base_path).list().items == []
@@ -126,21 +125,21 @@ class CatalogListTests:
         from worktree.core.catalog.services.inventory import list_packaged_template_defaults
 
         defaults = list_packaged_template_defaults()
-        assert len(defaults) == 3
-        types = [t for t, _ in defaults]
-        assert "workflow" in types
-        assert "task" in types
-        assert "step" in types
+
+        assert defaults == [
+            ("blueprint", "blueprints/default.yml"),
+            ("step", "steps/default.yml"),
+        ]
 
     def test_find_packaged_templates_default(self) -> None:
         from worktree.core.catalog.services.inventory import find_packaged_templates
 
         found = find_packaged_templates("default")
-        assert len(found) == 3
-        paths = [p for p, _ in found]
-        assert "workflows/default.yml" in paths
-        assert "tasks/default.yml" in paths
-        assert "steps/default.yml" in paths
+
+        assert [path for path, _ in found] == [
+            "blueprints/default.yml",
+            "steps/default.yml",
+        ]
 
     def test_find_packaged_templates_missing(self) -> None:
         from worktree.core.catalog.services.inventory import find_packaged_templates
@@ -156,22 +155,24 @@ class CatalogFileOperationsTests:
         record = Catalog(fs.base_path).save(
             "lint",
             {"name": "lint", "description": "Run linter"},
-            item_type=CatalogItemType.TASK,
+            item_type=CatalogItemType.BLUEPRINT,
         )
-        path = fs.base_path / ".worktree" / "catalog" / "tasks" / "lint.yml"
+        path = fs.base_path / ".worktree" / "catalog" / "blueprints" / "lint.yml"
 
-        assert record.item_type == CatalogItemType.TASK
+        assert record.item_type == CatalogItemType.BLUEPRINT
+        assert record.key == "lint"
         assert path.is_file()
         assert "kind:" not in path.read_text(encoding="utf-8")
-        result = Catalog(fs.base_path).resolve("lint", item_type=CatalogItemType.TASK)
+
+        result = Catalog(fs.base_path).resolve("lint", item_type=CatalogItemType.BLUEPRINT)
         assert result.ok
         assert result.raw == {"name": "lint", "description": "Run linter"}
 
     def test_save_overwrites_existing_file(self, fs: FileSystem) -> None:
         catalog = Catalog(fs.base_path)
-        catalog.save("lint", {"name": "lint", "version": 1}, item_type="task")
-        catalog.save("lint", {"name": "lint", "version": 2}, item_type="task")
-        result = catalog.resolve("lint", item_type=CatalogItemType.TASK)
+        catalog.save("lint", {"name": "lint", "version": 1}, item_type=CatalogItemType.BLUEPRINT)
+        catalog.save("lint", {"name": "lint", "version": 2}, item_type=CatalogItemType.BLUEPRINT)
+        result = catalog.resolve("lint", item_type=CatalogItemType.BLUEPRINT)
 
         assert result.raw == {"name": "lint", "version": 2}
 
@@ -185,6 +186,8 @@ class CatalogFileOperationsTests:
 
         assert path.is_file()
         assert record.path.as_posix() == "steps/wt/ai-code-patcher.yml"
+        assert record.key == "wt/ai-code-patcher"
+
         result = Catalog(fs.base_path).resolve("wt/ai-code-patcher", item_type=CatalogItemType.STEP)
         assert result.ok
 
@@ -196,8 +199,8 @@ class CatalogFileOperationsTests:
         ],
     )
     def test_save_strips_yaml_suffix(self, fs: FileSystem, name: str) -> None:
-        Catalog(fs.base_path).save(name, {"name": "lint"}, item_type=CatalogItemType.TASK)
-        assert (fs.base_path / ".worktree" / "catalog" / "tasks" / "lint.yml").is_file()
+        Catalog(fs.base_path).save(name, {"name": "lint"}, item_type=CatalogItemType.BLUEPRINT)
+        assert (fs.base_path / ".worktree" / "catalog" / "blueprints" / "lint.yml").is_file()
 
     def test_save_invalid_item_type_raises(self, fs: FileSystem) -> None:
         with pytest.raises(ValueError, match="Allowed choices"):
@@ -206,13 +209,14 @@ class CatalogFileOperationsTests:
     def test_save_os_error_raises_write_error(self, fs: FileSystem) -> None:
         catalog = Catalog(fs.base_path)
         with patch(
-            "worktree.core.catalog.catalog.Filesystem.atomic_write_text", side_effect=OSError("permission denied")
+            "worktree.core.catalog.catalog.Filesystem.atomic_write_text",
+            side_effect=OSError("permission denied"),
         ):
             with pytest.raises(CatalogWriteError, match="permission denied"):
-                catalog.save("lint", {"name": "lint"}, item_type=CatalogItemType.TASK)
+                catalog.save("lint", {"name": "lint"}, item_type=CatalogItemType.BLUEPRINT)
 
     def test_read_yaml_returns_object(self, fs: FileSystem) -> None:
-        path = fs.write_file(".worktree/catalog/tasks/lint.yml", "name: lint\nsteps: []\n")
+        path = fs.write_file(".worktree/catalog/blueprints/lint.yml", "name: lint\nsteps: []\n")
         assert Catalog.read_yaml(path) == {"name": "lint", "steps": []}
 
     def test_read_yaml_missing_path_raises(self, fs: FileSystem) -> None:
@@ -227,13 +231,14 @@ class CatalogFileOperationsTests:
 
     def test_record_for_rel_path_uses_get_by_path(self, fs: FileSystem, monkeypatch: pytest.MonkeyPatch) -> None:
         catalog = Catalog(fs.base_path)
-        record = catalog.save("lint", {"name": "lint"}, item_type="task")
+        record = catalog.save("lint", {"name": "lint"}, item_type=CatalogItemType.BLUEPRINT)
 
         def _forbidden_list(*_args: object, **_kwargs: object) -> list[object]:
             raise AssertionError("CatalogRepository.list should not be called by _record_for_rel_path")
 
         monkeypatch.setattr(catalog.db, "list", _forbidden_list)
-        found = catalog._record_for_rel_path(Path("tasks/lint.yml"))
+        found = catalog._record_for_rel_path(Path("blueprints/lint.yml"))
+
         assert found is not None
         assert found.sha == record.sha
 

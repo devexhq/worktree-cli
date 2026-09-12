@@ -54,7 +54,7 @@ class StatusCommandTests:
         ctx.db.runs.create(
             session_id="sbx_status_stale",
             blueprint_name="my_task",
-            kind="task",
+            blueprint_key="my_task",
             pid=9999999,
         )
 

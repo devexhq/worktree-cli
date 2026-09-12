@@ -1,9 +1,8 @@
 import pytest
 
 from tests.helpers import FileSystem
+from worktree.common.models import FailurePolicy, OnFailureSpec
 from worktree.core.step import (
-    FailurePolicy,
-    FailureSpec,
     StepAssert,
     StepDefinition,
     StepExecution,
@@ -70,7 +69,7 @@ class StepRunnerExecutionTests:
             id="cmd_fail",
             type=StepType.COMMAND,
             command="exit 42",
-            on_failure=FailureSpec(action=FailurePolicy.ABORT),
+            on_failure=OnFailureSpec(action=FailurePolicy.ABORT),
         )
 
         res = StepExecution(StepExecutionContext(step=step, sandbox_path=fs.base_path)).run()
@@ -85,7 +84,7 @@ class StepRunnerExecutionTests:
             id="cmd_ignore",
             type=StepType.COMMAND,
             command="exit 1",
-            on_failure=FailureSpec(action=FailurePolicy.CONTINUE),
+            on_failure=OnFailureSpec(action=FailurePolicy.CONTINUE),
         )
 
         res = StepExecution(StepExecutionContext(step=step, sandbox_path=fs.base_path)).run()
@@ -203,7 +202,7 @@ class StepRunnerRetryTests:
             id="cmd_retry_fail",
             type=StepType.COMMAND,
             command="exit 1",
-            on_failure=FailureSpec(action=FailurePolicy.RETRY, max_retries=2),
+            on_failure=OnFailureSpec(action=FailurePolicy.RETRY, max_retries=2),
         )
 
         res = StepExecution(StepExecutionContext(step=step, sandbox_path=fs.base_path)).run()
@@ -216,7 +215,7 @@ class StepRunnerRetryTests:
             id="cmd_retry_continue",
             type=StepType.COMMAND,
             command="exit 1",
-            on_failure=FailureSpec(action=FailurePolicy.RETRY, max_retries=2, on_max_retries=FailurePolicy.CONTINUE),
+            on_failure=OnFailureSpec(action=FailurePolicy.RETRY, max_retries=2, on_max_retries=FailurePolicy.CONTINUE),
         )
 
         res = StepExecution(StepExecutionContext(step=step, sandbox_path=fs.base_path)).run()
@@ -244,7 +243,7 @@ class StepRunnerRetryTests:
             id="cmd_backoff",
             type=StepType.COMMAND,
             command="exit 1",
-            on_failure=FailureSpec(action=FailurePolicy.RETRY, max_retries=3, backoff_ms=250),
+            on_failure=OnFailureSpec(action=FailurePolicy.RETRY, max_retries=3, backoff_ms=250),
         )
 
         res = StepExecution(StepExecutionContext(step=step, sandbox_path=fs.base_path)).run()
@@ -264,7 +263,7 @@ class StepRunnerRetryTests:
             id="cmd_retry",
             type=StepType.COMMAND,
             command=cmd,
-            on_failure=FailureSpec(action=FailurePolicy.RETRY),
+            on_failure=OnFailureSpec(action=FailurePolicy.RETRY),
         )
 
         res = StepExecution(StepExecutionContext(step=step, sandbox_path=fs.base_path)).run()
@@ -312,7 +311,7 @@ class StepRunnerAssertionTests:
             type=StepType.COMMAND,
             command=cmd,
             assert_=StepAssert(file_exists="artifact.bin"),
-            on_failure=FailureSpec(action=FailurePolicy.RETRY, max_retries=3, backoff_ms=0),
+            on_failure=OnFailureSpec(action=FailurePolicy.RETRY, max_retries=3, backoff_ms=0),
         )
 
         res = StepExecution(StepExecutionContext(step=step, sandbox_path=fs.base_path)).run()
@@ -329,7 +328,7 @@ class StepRunnerAssertionTests:
             type=StepType.COMMAND,
             command="echo ok",
             assert_=StepAssert(file_exists="missing.bin"),
-            on_failure=FailureSpec(action=FailurePolicy.CONTINUE),
+            on_failure=OnFailureSpec(action=FailurePolicy.CONTINUE),
         )
 
         res = StepExecution(StepExecutionContext(step=step, sandbox_path=fs.base_path)).run()

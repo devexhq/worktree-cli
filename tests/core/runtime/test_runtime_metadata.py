@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from tests.helpers import FileSystem
+from worktree.common.models import FailurePolicy, OnFailureSpec
 from worktree.core.runtime import (
     FailurePromptDecision,
     LoopPromptDecision,
@@ -10,8 +11,6 @@ from worktree.core.runtime import (
     run_steps,
 )
 from worktree.core.step import (
-    FailurePolicy,
-    FailureSpec,
     StepDefinition,
     StepResult,
     StepType,
@@ -94,7 +93,7 @@ class RuntimeMetadataPropagationTests:
                     name="Failing Step",
                     type=StepType.COMMAND,
                     command="exit 3",
-                    on_failure=FailureSpec(action=FailurePolicy.CONTINUE),
+                    on_failure=OnFailureSpec(action=FailurePolicy.CONTINUE),
                 ),
                 StepDefinition(
                     id="next_step",
@@ -125,7 +124,7 @@ class RuntimeMetadataPropagationTests:
                     id="retry_on_prompt",
                     type=StepType.COMMAND,
                     command='if [ "$WT_STEP_ATTEMPT" -eq 1 ]; then echo "fail1" >&2; exit 1; else echo "success2"; exit 0; fi',
-                    on_failure=FailureSpec(action=FailurePolicy.PROMPT_USER),
+                    on_failure=OnFailureSpec(action=FailurePolicy.PROMPT_USER),
                 )
             ],
             cwd=fs.base_path,

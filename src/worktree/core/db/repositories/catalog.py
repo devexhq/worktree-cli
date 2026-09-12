@@ -21,6 +21,12 @@ def _coerce_item_type(item_type: CatalogItemType | str) -> CatalogItemType:
         raise ValueError(f"Invalid catalog item constraint violation: {exc}") from exc
 
 
+def _derive_catalog_key(namespace: str | None, path: Path) -> str:
+    """Derive the globally unique catalog key from namespace and file stem."""
+    stem = path.stem
+    return f"{namespace}/{stem}" if namespace else stem
+
+
 class CatalogRepository(BaseRepository):
     """Repository managing catalog index records CRUD operations using SQLModel."""
 
@@ -48,6 +54,7 @@ class CatalogRepository(BaseRepository):
         """
         coerced_path = Path(str(path))
         type_enum = _coerce_item_type(item_type)
+        key = _derive_catalog_key(namespace, coerced_path)
 
         now_utc = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
 
@@ -57,6 +64,7 @@ class CatalogRepository(BaseRepository):
 
             if existing is not None:
                 existing.sha = sha
+                existing.key = key
                 existing.item_type = type_enum
                 existing.name = name
                 existing.namespace = namespace
@@ -66,6 +74,7 @@ class CatalogRepository(BaseRepository):
             else:
                 record = CatalogRecord(
                     sha=sha,
+                    key=key,
                     item_type=type_enum,
                     name=name,
                     namespace=namespace,
@@ -76,6 +85,12 @@ class CatalogRepository(BaseRepository):
                 )
 
             return self._commit(session, record, "Invalid catalog item constraint violation")
+
+    def get_by_key(self, key: str) -> CatalogRecord | None:
+        """Fetch a catalog record by its globally unique key."""
+        with self.session() as session:
+            statement = select(CatalogRecord).where(CatalogRecord.key == key)
+            return session.exec(statement).first()
 
     def get_by_path(self, path: Path | str) -> CatalogRecord | None:
         """Fetch a catalog record by its relative or stored path."""

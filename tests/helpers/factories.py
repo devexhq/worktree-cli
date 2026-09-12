@@ -4,9 +4,10 @@ from typing import Any
 
 from sqlmodel import SQLModel
 
+from worktree.core.blueprint import BlueprintDefinition
+from worktree.core.catalog.models import CatalogItem
 from worktree.core.db import (
     BaseRepository,
-    BlueprintKind,
     CatalogItemType,
     CatalogRecord,
     CatalogRepository,
@@ -17,6 +18,9 @@ from worktree.core.db import (
     SandboxRecord,
     SandboxStatus,
 )
+from worktree.core.runtime import RunCheckpoint
+
+from .make import make_checkpoint
 
 
 class BaseFactory[ModelT: SQLModel, RepoT: BaseRepository]:
@@ -46,23 +50,83 @@ class BaseFactory[ModelT: SQLModel, RepoT: BaseRepository]:
         return instance
 
 
-class RunFactory(BaseFactory[RunRecord, RunsRepository]):
-    _model = RunRecord
+class RunFactory:
+    """Create and query persisted run records for tests."""
 
-    @classmethod
-    def defaults(cls) -> dict[str, Any]:
-        return {
-            "session_id": "sample-run-1",
-            "blueprint_name": "sample-task-1",
-            "kind": BlueprintKind.TASK,
-            "status": RunStatus.COMPLETED,
-            "branch_name": "main",
-            "pid": None,
-            "started_at": "2026-08-19 01:00:00",
-            "completed_at": "2026-08-19 01:00:15",
-            "error_message": None,
-            "checkpoint_json": None,
-        }
+    def __init__(self, repository: RunsRepository) -> None:
+        self._repository = repository
+
+    def create(
+        self,
+        *,
+        session_id: str = "sample-run-1",
+        blueprint_name: str = "sample-blueprint",
+        blueprint_key: str = "sample-blueprint",
+        status: RunStatus = RunStatus.COMPLETED,
+        branch_name: str = "main",
+        pid: int | None = None,
+        started_at: str = "2026-08-19 01:00:00",
+        completed_at: str | None = "2026-08-19 01:00:15",
+        error_message: str | None = None,
+        checkpoint_json: str | None = None,
+    ) -> RunRecord:
+        """Persist a run record with deterministic defaults for tests."""
+        record = RunRecord(
+            session_id=session_id,
+            blueprint_name=blueprint_name,
+            blueprint_key=blueprint_key,
+            status=status,
+            branch_name=branch_name,
+            pid=pid,
+            started_at=started_at,
+            completed_at=completed_at,
+            error_message=error_message,
+            checkpoint_json=checkpoint_json,
+        )
+        with self._repository.session() as session:
+            session.add(record)
+            session.commit()
+            session.refresh(record)
+        return record
+
+    def create_paused(
+        self,
+        *,
+        session_id: str,
+        blueprint: CatalogItem[BlueprintDefinition],
+        checkpoint: RunCheckpoint | None = None,
+        branch_name: str = "wt/resume",
+    ) -> RunRecord:
+        """Persist a paused run through the repository's pause transition."""
+        self.create(
+            session_id=session_id,
+            blueprint_name=blueprint.definition.name,
+            blueprint_key=blueprint.key,
+            status=RunStatus.RUNNING,
+            branch_name=branch_name,
+            completed_at=None,
+        )
+        paused = self._repository.save_pause(
+            session_id,
+            (checkpoint or make_checkpoint()).model_dump_json(),
+            "paused",
+        )
+        if paused is None:
+            raise RuntimeError(f"Failed to pause seeded run '{session_id}'.")
+        return paused
+
+    def get(self, session_id: str) -> RunRecord | None:
+        """Return the run matching a session ID."""
+        return self._repository.get(session_id)
+
+    def list(
+        self,
+        *,
+        limit: int | None = None,
+        status: RunStatus | str | None = None,
+    ) -> list[RunRecord]:
+        """Return persisted runs in repository order with optional filters."""
+        return self._repository.list(limit=limit, status=status)
 
 
 class CatalogFactory(BaseFactory[CatalogRecord, CatalogRepository]):
@@ -72,7 +136,7 @@ class CatalogFactory(BaseFactory[CatalogRecord, CatalogRepository]):
     def defaults(cls) -> dict[str, Any]:
         return {
             "sha": "sample-workflow-sha-1",
-            "item_type": CatalogItemType.WORKFLOW,
+            "item_type": CatalogItemType.BLUEPRINT,
             "name": "sample-workflow-1",
             "path": ".worktree/catalog/workflows/sample-workflow-1.yaml",
             "checksum": "sample-workflow-checksum-1",

@@ -34,7 +34,7 @@ class RunAutoApplyTests:
         )
         scan_and_index_catalog(path=git_fs.base_path)
 
-        result = runner.invoke(app, ["run", "auto-task", "--auto-apply"], catch_exceptions=False)
+        result = runner.invoke(app, ["run", "auto-blueprint", "--auto-apply"], catch_exceptions=False)
         assert result.exit_code == 0
         assert (git_fs.base_path / "gen.txt").exists()
         assert "generated content" in (git_fs.base_path / "gen.txt").read_text(encoding="utf-8")
@@ -59,6 +59,6 @@ class RunAutoApplyTests:
         )
         scan_and_index_catalog(path=git_fs.base_path)
 
-        result = runner.invoke(app, ["run", "failing-task", "--auto-apply", "--no-tty"])
+        result = runner.invoke(app, ["run", "failing-blueprint", "--auto-apply", "--no-tty"])
         assert result.exit_code == 1
         assert not (git_fs.base_path / "bad.txt").exists()

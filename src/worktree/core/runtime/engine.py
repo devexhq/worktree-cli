@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from pathlib import Path
 
+from worktree.common.models import FailurePolicy
 from worktree.common.process import process_registry
 from worktree.core.config import ConfigLoadError
 from worktree.core.db import RunStatus, SandboxesRepository
@@ -30,7 +31,6 @@ from worktree.core.sandbox import (
     SandboxSession,
 )
 from worktree.core.step import (
-    FailurePolicy,
     LoopStepBlock,
     PreviousStepMetadata,
     StepDefinition,
@@ -139,7 +139,7 @@ def _setup_sandbox(
     manager = Sandbox(context.cwd.resolve(), db=SandboxesRepository(context.cwd.resolve()))
     session_id = None
     if context.identity is not None:
-        session_id = context.identity.task_sha or context.identity.workflow_sha
+        session_id = context.identity.blueprint_key or None
     try:
         create_result = manager.create(session_id=session_id)
     except ConfigLoadError as exc:

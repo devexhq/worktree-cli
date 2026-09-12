@@ -11,7 +11,7 @@ from worktree.core.blueprint.exceptions import (
     BlueprintValidationError,
 )
 from worktree.core.catalog import Catalog
-from worktree.core.db import CatalogItemType, RunRecord, RunsRepository, RunStatus
+from worktree.core.db import RunRecord, RunsRepository, RunStatus
 from worktree.core.engine.exceptions import EngineResumeError
 from worktree.core.engine.models import EngineResumeStatus
 from worktree.core.runtime import RunCheckpoint, parse_checkpoint
@@ -169,7 +169,7 @@ class ResumableRun:
         row = db.get(session_id)
         if row is None:
             return None
-        if blueprint is not None and row.kind != blueprint.kind:
+        if blueprint is not None and row.blueprint_key != blueprint.key:
             return None
         return row
 
@@ -208,15 +208,15 @@ class ResumableRun:
         *,
         catalog: Catalog,
     ) -> Blueprint | ResumableRun:
-        """Load the catalog blueprint named by the paused row."""
-        name = row.blueprint_name
+        """Load the catalog blueprint keyed by the paused row."""
+        key = row.blueprint_key
 
         try:
-            return Blueprint.load(name, catalog=catalog, item_type=CatalogItemType[row.kind.name])
+            return Blueprint.load(key, catalog=catalog)
         except (BlueprintNotFoundError, BlueprintLoadError, BlueprintValidationError):
             return cls._rejected(
                 session_id,
                 path,
                 EngineResumeStatus.FAILED,
-                f"Cannot resume session '{session_id}': blueprint '{name}' not found.",
+                f"Cannot resume session '{session_id}': blueprint '{key}' not found.",
             )

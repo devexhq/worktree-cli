@@ -81,21 +81,19 @@ class InputResolveTests:
 
     def test_format_missing_inputs_error_includes_usage(self) -> None:
         message = format_missing_inputs_error(
-            kind="task",
             name="commit",
             missing=["message"],
             declarations=_commit_inputs(),
         )
-        assert "Missing required input 'message' for task 'commit'." in message
-        assert "wt task run commit -m <value>" in message
-        assert "wt task run commit -i message=<value>" in message
+        assert "Missing required input 'message' for 'commit'." in message
+        assert "wt run commit -m <value>" in message
+        assert "wt run commit -i message=<value>" in message
 
     def test_format_input_error_message(self) -> None:
         # Error branch
         err_result = InputResolveResult(errors=["Invalid value for option '--foo'."])
         assert (
             format_input_error_message(
-                kind="workflow",
                 name="demo",
                 result=err_result,
                 declarations=_commit_inputs(),
@@ -106,9 +104,8 @@ class InputResolveTests:
         # Missing branch
         missing_result = InputResolveResult(missing=["message"])
         msg = format_input_error_message(
-            kind="workflow",
             name="demo",
             result=missing_result,
             declarations=_commit_inputs(),
         )
-        assert "Missing required input 'message' for workflow 'demo'." in msg
+        assert "Missing required input 'message' for 'demo'." in msg

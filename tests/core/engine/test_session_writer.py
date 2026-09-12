@@ -60,7 +60,6 @@ class SessionWriterTests:
         payload = SessionRunPayload(
             version=1,
             session_id="sess_run_json",
-            kind="task",
             name="my-task",
             status="completed",
             started_at="2026-08-29T12:00:00Z",
@@ -75,7 +74,6 @@ class SessionWriterTests:
         loaded = load_session_run(fs.base_path, "sess_run_json")
         assert loaded is not None
         assert loaded.session_id == "sess_run_json"
-        assert loaded.kind == "task"
         assert loaded.name == "my-task"
         assert loaded.status == "completed"
         assert len(loaded.step_results) == 1

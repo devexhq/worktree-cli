@@ -21,10 +21,12 @@ from worktree.core.db import CatalogItemType, CatalogRecord
 def _sample_catalog_record() -> CatalogRecord:
     return CatalogRecord(
         id=1,
-        sha="workflow_1234567",
-        item_type=CatalogItemType.WORKFLOW,
-        name="test-workflow",
-        path=Path("workflows/test-workflow.yml"),
+        key="test-blueprint",
+        sha="blueprint_1234567",
+        item_type=CatalogItemType.BLUEPRINT,
+        name="test-blueprint",
+        namespace=None,
+        path=Path("blueprints/test-blueprint.yml"),
         checksum="1234567890abcdef",
         created_at="2026-08-17T00:00:00Z",
         updated_at="2026-08-17T00:00:00Z",
@@ -32,65 +34,55 @@ def _sample_catalog_record() -> CatalogRecord:
 
 
 BLUEPRINT_FOUND = FormatterCase(
-    data=CatalogShowResult(
-        item=_sample_catalog_record(),
-        content="name: test-workflow\nversion: 1\n",
-    ),
+    data=CatalogShowResult(item=_sample_catalog_record(), content="name: test-blueprint\nversion: 1\n"),
     view=CatalogShowView(
         item=CatalogItemView(
             id=1,
-            sha="workflow_1234567",
-            item_type="workflow",
-            name="test-workflow",
-            path="workflows/test-workflow.yml",
+            sha="blueprint_1234567",
+            item_type="blueprint",
+            name="test-blueprint",
+            path="blueprints/test-blueprint.yml",
             checksum="1234567890abcdef",
             created_at="2026-08-17T00:00:00Z",
             updated_at="2026-08-17T00:00:00Z",
         ),
-        content="name: test-workflow\nversion: 1\n",
-        catalog_path_relative=".worktree/catalog/workflows/test-workflow.yml",
+        content="name: test-blueprint\nversion: 1\n",
+        catalog_path_relative=".worktree/catalog/blueprints/test-blueprint.yml",
     ),
     render_expectations=[
-        _sample_catalog_record().name,
-        _sample_catalog_record().sha,
-        _sample_catalog_record().item_type,
-        _sample_catalog_record().checksum,
-        f".worktree/catalog/{_sample_catalog_record().path}",
-        *("name: test-workflow\nversion: 1\n".strip().splitlines()),
+        "test-blueprint",
+        "blueprint_1234567",
+        "blueprint",
+        "1234567890abcdef",
+        ".worktree/catalog/blueprints/test-blueprint.yml",
+        "name: test-blueprint",
+        "version: 1",
     ],
 )
 
-
 TEMPLATE_MATCH = FormatterCase(
     data=CatalogShowResult(
-        template_matches=[("workflows/default.yml", "name: default-workflow\n")],
-        content="name: default-workflow\n",
+        template_matches=[("blueprints/default.yml", "name: default-blueprint\n")],
+        content="name: default-blueprint\n",
     ),
     view=CatalogShowView(
-        content="name: default-workflow\n",
-        template_matches=[CatalogTemplateView(item_type="template", path="workflows/default.yml")],
+        content="name: default-blueprint\n",
+        template_matches=[CatalogTemplateView(item_type="template", path="blueprints/default.yml")],
     ),
-    render_expectations=["workflows/default.yml", *("name: default-workflow\n".strip().splitlines())],
+    render_expectations=["blueprints/default.yml", "name: default-blueprint"],
 )
-
 
 ERRORS = FormatterCase(
-    data=CatalogShowResult(
-        errors=["Catalog blueprint 'missing' not found."],
-    ),
-    view=CatalogShowView(
-        errors=["Catalog blueprint 'missing' not found."],
-    ),
+    data=CatalogShowResult(errors=["Catalog blueprint 'missing' not found."]),
+    view=CatalogShowView(errors=["Catalog blueprint 'missing' not found."]),
     render_expectations=[],
 )
-
 
 SHOW_CASES = [
     pytest.param(BLUEPRINT_FOUND, id="blueprint_found"),
     pytest.param(TEMPLATE_MATCH, id="template_match"),
     pytest.param(ERRORS, id="errors"),
 ]
-
 
 PAYLOAD_CASES = [
     pytest.param(
@@ -101,17 +93,17 @@ PAYLOAD_CASES = [
             "fixes": [],
             "item": {
                 "id": 1,
-                "sha": "workflow_1234567",
-                "item_type": "workflow",
-                "name": "test-workflow",
-                "path": "workflows/test-workflow.yml",
+                "sha": "blueprint_1234567",
+                "item_type": "blueprint",
+                "name": "test-blueprint",
+                "path": "blueprints/test-blueprint.yml",
                 "checksum": "1234567890abcdef",
                 "created_at": "2026-08-17T00:00:00Z",
                 "updated_at": "2026-08-17T00:00:00Z",
             },
-            "content": "name: test-workflow\nversion: 1\n",
+            "content": "name: test-blueprint\nversion: 1\n",
             "template_matches": [],
-            "catalog_path_relative": ".worktree/catalog/workflows/test-workflow.yml",
+            "catalog_path_relative": ".worktree/catalog/blueprints/test-blueprint.yml",
         },
         id="blueprint_found_payload",
     ),
@@ -135,13 +127,8 @@ PAYLOAD_CASES = [
             "warnings": [],
             "fixes": [],
             "item": None,
-            "content": "name: default-workflow\n",
-            "template_matches": [
-                {
-                    "item_type": "template",
-                    "path": "workflows/default.yml",
-                }
-            ],
+            "content": "name: default-blueprint\n",
+            "template_matches": [{"item_type": "template", "path": "blueprints/default.yml"}],
             "catalog_path_relative": None,
         },
         id="template_match_payload",

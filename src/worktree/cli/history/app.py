@@ -7,7 +7,7 @@ from typing import Annotated
 import typer
 
 from worktree.cli.context import CliContext
-from worktree.core.db import BlueprintKind, RunStatus
+from worktree.core.db import RunStatus
 
 from .commands.root import history_list_command, history_root_command
 from .commands.show import history_show_command
@@ -37,15 +37,6 @@ def history_callback(
             case_sensitive=False,
         ),
     ] = None,
-    kind: Annotated[
-        BlueprintKind | None,
-        typer.Option(
-            "--kind",
-            "-k",
-            help="Filter by item type (blueprint, step).",
-            case_sensitive=False,
-        ),
-    ] = None,
     format: str = typer.Option(
         "terminal",
         "--format",
@@ -59,7 +50,6 @@ def history_callback(
             context,
             limit=limit,
             status=status.value if status is not None else None,
-            kind=kind.value if kind is not None else None,
             output_format=format,
         )
         if not result.ok:
@@ -84,15 +74,6 @@ def history_list(
             case_sensitive=False,
         ),
     ] = None,
-    kind: Annotated[
-        BlueprintKind | None,
-        typer.Option(
-            "--kind",
-            "-k",
-            help="Filter by item type (blueprint, step).",
-            case_sensitive=False,
-        ),
-    ] = None,
     format: str = typer.Option(
         "terminal",
         "--format",
@@ -105,7 +86,6 @@ def history_list(
         context,
         limit=limit,
         status=status.value if status is not None else None,
-        kind=kind.value if kind is not None else None,
         output_format=format,
     )
     if not result.ok:

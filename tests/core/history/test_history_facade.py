@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from tests.helpers import GitFileSystem
-from worktree.core.db import BlueprintKind, RunsRepository, RunStatus
+from worktree.core.db import RunsRepository, RunStatus
 from worktree.core.history import History, HistoryListStatus, HistoryShowStatus
 
 
@@ -22,11 +22,11 @@ def test_history_facade_list_and_show(git_fs: GitFileSystem):
     db.create(
         session_id="test-session-123",
         blueprint_name="my-workflow",
-        kind=BlueprintKind.WORKFLOW,
+        blueprint_key="my-workflow",
         status=RunStatus.COMPLETED,
     )
 
-    list_res_after = history.list(kind="workflow", status="completed")
+    list_res_after = history.list(status="completed")
     assert list_res_after.ok
     assert len(list_res_after.runs) == 1
     assert list_res_after.runs[0].session_id == "test-session-123"

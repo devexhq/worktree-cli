@@ -39,10 +39,9 @@ def get_catalog_dir(path: Path) -> Path:
 
 
 def ensure_catalog_dirs(path: Path) -> Path:
-    """Ensure standard `.worktree/catalog/{blueprints,steps,...}` subdirectories exist and return catalog root."""
+    """Ensure standard `.worktree/catalog/{blueprints,steps}` subdirectories exist and return catalog root."""
     catalog_dir = get_catalog_dir(path)
     (catalog_dir / "blueprints").mkdir(parents=True, exist_ok=True)
-    (catalog_dir / "tasks").mkdir(parents=True, exist_ok=True)
     (catalog_dir / "steps").mkdir(parents=True, exist_ok=True)
     return catalog_dir
 
@@ -172,13 +171,11 @@ def _get_initial_template_content(type_enum: CatalogItemType, stem: str) -> str:
     template_path = Filesystem().catalog_templates_dir / f"{type_enum.value}s" / "default.yml"
     try:
         content = template_path.read_text(encoding="utf-8")
-        return content.replace("my-blueprint", stem).replace("my-task", stem).replace("my-step", stem)
+        return content.replace("my-blueprint", stem)
     except Exception:
         # Defensive fallback if the packaged resource is unreadable
         if type_enum == CatalogItemType.BLUEPRINT:
-            return f'version: "1.0"\nname: {stem}\ndescription: Custom blueprint blueprint\nsteps: []\n'
-        if type_enum == CatalogItemType.TASK:
-            return f"name: {stem}\ndescription: Custom task blueprint\nuse_sandbox: false\nsteps: []\n"
+            return f'version: "1.0"\nname: {stem}\ndescription: Custom blueprint\nsteps: []\n'
         return f"name: {stem}\ndescription: Custom step blueprint\naction: run\n"
 
 
@@ -369,10 +366,10 @@ def delete_catalog_item_by_sha_or_name(
 
 
 def list_packaged_template_defaults() -> list[tuple[str, str]]:
-    """Return (type, relative_path) pairs for the three packaged `default.yml` templates."""
+    """Return (type, relative_path) pairs for the packaged `default.yml` templates."""
     root = Filesystem().catalog_templates_dir
     rows: list[tuple[str, str]] = []
-    for item_type in (CatalogItemType.WORKFLOW, CatalogItemType.TASK, CatalogItemType.STEP):
+    for item_type in (CatalogItemType.BLUEPRINT, CatalogItemType.STEP):
         rel_path = f"{item_type.value}s/default.yml"
         if (root / rel_path).is_file():
             rows.append((item_type.value, rel_path))
@@ -383,7 +380,7 @@ def find_packaged_templates(sha_or_name: str) -> list[tuple[str, str]]:
     """Return (relative_path, content) pairs for packaged templates matching `sha_or_name`."""
     root = Filesystem().catalog_templates_dir
     found: list[tuple[str, str]] = []
-    for type_dir in ("blueprints", "tasks", "steps"):
+    for type_dir in ("blueprints", "steps"):
         candidate = (
             (root / type_dir / "default.yml")
             if sha_or_name == "default"

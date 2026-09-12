@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from tests.helpers import FileSystem
-from worktree.core.db import BlueprintKind, RunRecord, RunStatus, WorktreeDb, parse_timestamp
+from worktree.core.db import RunRecord, RunStatus, WorktreeDb, parse_timestamp
 
 DB_REL = ".worktree/data.db"
 
@@ -14,7 +14,6 @@ class ParseTimestampTests:
     """Tier 1 unit tests for core timestamp parsing."""
 
     def test_parse_timestamp_none_and_empty(self) -> None:
-        """Verify None and empty strings return None."""
         assert parse_timestamp(None) is None
         assert parse_timestamp("") is None
         assert parse_timestamp("   ") is None
@@ -22,7 +21,6 @@ class ParseTimestampTests:
         assert parse_timestamp("invalid") is None
 
     def test_parse_timestamp_iso_formats(self) -> None:
-        """Verify ISO-8601 format strings parse into UTC datetimes."""
         parsed = parse_timestamp("2026-08-19T01:00:00")
         assert parsed is not None
         assert parsed.year == 2026
@@ -33,7 +31,6 @@ class ParseTimestampTests:
         assert parsed_z.year == 2026
 
     def test_parse_timestamp_sqlite_formats(self) -> None:
-        """Verify SQLite timestamp strings parse into UTC datetimes."""
         parsed = parse_timestamp("2026-08-19 01:00:00")
         assert parsed is not None
         assert parsed.hour == 1
@@ -56,7 +53,7 @@ class RunsRepositoryTests:
         rec = self.db.runs.create(
             session_id="run_1",
             blueprint_name="lint",
-            kind=BlueprintKind.TASK,
+            blueprint_key="lint",
             branch_name="feature/lint",
             status=RunStatus.RUNNING,
         )
@@ -65,7 +62,7 @@ class RunsRepositoryTests:
         assert rec.id == 1
         assert rec.session_id == "run_1"
         assert rec.blueprint_name == "lint"
-        assert rec.kind == BlueprintKind.TASK
+        assert rec.blueprint_key == "lint"
         assert rec.branch_name == "feature/lint"
         assert rec.status is RunStatus.RUNNING
         assert rec.started_at
@@ -81,7 +78,7 @@ class RunsRepositoryTests:
         rec = self.db.runs.create(
             session_id="run_pid",
             blueprint_name="test_bp",
-            kind=BlueprintKind.TASK,
+            blueprint_key="test_bp",
             pid=12345,
         )
         assert rec.pid == 12345
@@ -94,28 +91,29 @@ class RunsRepositoryTests:
         assert updated is not None
         assert updated.pid == 67890
 
-    def test_create_with_defaults_and_string_enums(self, fs: FileSystem) -> None:
+    def test_create_with_defaults_and_string_status(self, fs: FileSystem) -> None:
         rec = self.db.runs.create(
-            session_id="run_wf",
+            session_id="run_blueprint",
             blueprint_name="ship",
-            kind="workflow",
+            blueprint_key="wt/ship",
+            status="running",
         )
 
-        assert rec.kind == BlueprintKind.WORKFLOW
+        assert rec.blueprint_key == "wt/ship"
         assert rec.branch_name == ""
         assert rec.status == RunStatus.RUNNING
 
     def test_create_duplicate_session_id_raises_value_error(self, fs: FileSystem) -> None:
-        self.db.runs.create(session_id="dup_sid", blueprint_name="task1", kind=BlueprintKind.TASK)
+        self.db.runs.create(session_id="dup_sid", blueprint_name="task1", blueprint_key="task1")
 
         with pytest.raises(ValueError, match="already exists"):
-            self.db.runs.create(session_id="dup_sid", blueprint_name="task2", kind=BlueprintKind.TASK)
+            self.db.runs.create(session_id="dup_sid", blueprint_name="task2", blueprint_key="task2")
 
     def test_get_missing_returns_none(self, fs: FileSystem) -> None:
         assert self.db.runs.get("missing_sid") is None
 
     def test_update_status_completed(self, fs: FileSystem) -> None:
-        self.db.runs.create(session_id="run_complete", blueprint_name="task1", kind=BlueprintKind.TASK)
+        self.db.runs.create(session_id="run_complete", blueprint_name="task1", blueprint_key="task1")
 
         updated = self.db.runs.update_status("run_complete", status=RunStatus.COMPLETED)
         assert updated is not None
@@ -124,7 +122,7 @@ class RunsRepositoryTests:
         assert updated.error_message is None
 
     def test_update_status_failed_with_error_and_explicit_completed_at(self, fs: FileSystem) -> None:
-        self.db.runs.create(session_id="run_fail", blueprint_name="task1", kind=BlueprintKind.TASK)
+        self.db.runs.create(session_id="run_fail", blueprint_name="task1", blueprint_key="task1")
 
         updated = self.db.runs.update_status(
             "run_fail",
@@ -141,13 +139,13 @@ class RunsRepositoryTests:
         assert self.db.runs.update_status("nonexistent", status=RunStatus.COMPLETED) is None
 
     def test_update_status_invalid_constraint_raises_value_error(self, fs: FileSystem) -> None:
-        self.db.runs.create(session_id="run_invalid", blueprint_name="task1", kind=BlueprintKind.TASK)
+        self.db.runs.create(session_id="run_invalid", blueprint_name="task1", blueprint_key="task1")
 
         with pytest.raises(ValueError, match="constraint"):
             self.db.runs.update_status("run_invalid", status="invalid_status")  # pyright: ignore[reportArgumentType]
 
     def test_save_pause(self, fs: FileSystem) -> None:
-        self.db.runs.create(session_id="run_pause", blueprint_name="task1", kind=BlueprintKind.TASK)
+        self.db.runs.create(session_id="run_pause", blueprint_name="task1", blueprint_key="task1")
 
         updated = self.db.runs.save_pause("run_pause", '{"step": 1}', error_message="Step 1 interrupted")
         assert updated is not None
@@ -157,19 +155,18 @@ class RunsRepositoryTests:
         assert updated.error_message == "Step 1 interrupted"
 
     def test_list_all_and_ordering(self, fs: FileSystem) -> None:
-        self.db.runs.create("s1", "task1", BlueprintKind.TASK)
-        self.db.runs.create("s2", "wf1", BlueprintKind.WORKFLOW)
-        self.db.runs.create("s3", "task2", BlueprintKind.TASK)
+        self.db.runs.create("s1", "task1", "task1")
+        self.db.runs.create("s2", "wf1", "wt/wf1")
+        self.db.runs.create("s3", "task2", "task2")
 
         runs = self.db.runs.list()
         assert len(runs) == 3
-        # Ordered by started_at DESC, id DESC
         assert [r.session_id for r in runs] == ["s3", "s2", "s1"]
 
     def test_list_filtering_by_status(self, fs: FileSystem) -> None:
-        self.db.runs.create("s1", "task1", BlueprintKind.TASK, status=RunStatus.RUNNING)
-        self.db.runs.create("s2", "task2", BlueprintKind.TASK, status=RunStatus.COMPLETED)
-        self.db.runs.create("s3", "task3", BlueprintKind.TASK, status=RunStatus.RUNNING)
+        self.db.runs.create("s1", "task1", "task1", status=RunStatus.RUNNING)
+        self.db.runs.create("s2", "task2", "task2", status=RunStatus.COMPLETED)
+        self.db.runs.create("s3", "task3", "task3", status=RunStatus.RUNNING)
 
         running = self.db.runs.list(status=RunStatus.RUNNING)
         assert len(running) == 2
@@ -179,22 +176,9 @@ class RunsRepositoryTests:
         assert len(completed) == 1
         assert completed[0].session_id == "s2"
 
-    def test_list_filtering_by_kind(self, fs: FileSystem) -> None:
-        self.db.runs.create("task_1", "lint", BlueprintKind.TASK)
-        self.db.runs.create("wf_1", "deploy", BlueprintKind.WORKFLOW)
-        self.db.runs.create("task_2", "format", BlueprintKind.TASK)
-
-        tasks = self.db.runs.list(kind=BlueprintKind.TASK)
-        assert len(tasks) == 2
-        assert {r.session_id for r in tasks} == {"task_1", "task_2"}
-
-        workflows = self.db.runs.list(kind="workflow")
-        assert len(workflows) == 1
-        assert workflows[0].session_id == "wf_1"
-
     def test_list_with_limit(self, fs: FileSystem) -> None:
         for i in range(5):
-            self.db.runs.create(f"s_{i}", f"task_{i}", BlueprintKind.TASK)
+            self.db.runs.create(f"s_{i}", f"task_{i}", f"task_{i}")
 
         limited = self.db.runs.list(limit=2)
         assert len(limited) == 2
@@ -204,8 +188,8 @@ class RunsRepositoryTests:
     def test_get_latest_paused(self, fs: FileSystem) -> None:
         assert self.db.runs.get_latest_paused() is None
 
-        self.db.runs.create("s1", "task1", BlueprintKind.TASK, status=RunStatus.RUNNING)
-        self.db.runs.create("s2", "wf1", BlueprintKind.WORKFLOW, status=RunStatus.RUNNING)
+        self.db.runs.create("s1", "task1", "task1", status=RunStatus.RUNNING)
+        self.db.runs.create("s2", "wf1", "wt/wf1", status=RunStatus.RUNNING)
         self.db.runs.save_pause("s1", '{"v": 1}')
         self.db.runs.save_pause("s2", '{"v": 2}')
 
@@ -218,7 +202,7 @@ class RunsRepositoryTests:
         record = RunRecord(
             session_id="dur_1",
             blueprint_name="task1",
-            kind=BlueprintKind.TASK,
+            blueprint_key="task1",
             started_at="2026-08-19 01:00:00",
             completed_at="2026-08-19 01:00:10",
         )
@@ -228,7 +212,7 @@ class RunsRepositoryTests:
         record = RunRecord(
             session_id="dur_2",
             blueprint_name="task1",
-            kind=BlueprintKind.TASK,
+            blueprint_key="task1",
             started_at="2026-08-19 01:00:00",
             completed_at=None,
         )
@@ -238,7 +222,7 @@ class RunsRepositoryTests:
         record = RunRecord(
             session_id="dur_3",
             blueprint_name="task1",
-            kind=BlueprintKind.TASK,
+            blueprint_key="task1",
             started_at="2026-08-19 01:00:10",
             completed_at="2026-08-19 01:00:00",
         )
