@@ -534,8 +534,8 @@ rules:
   domain: tests
   scope: tests/
   guideline: Compare whole objects (assert result == Expected(...) or assert_model_equal(result, expected)) rather than asserting
-    8 individual fields. One comparison fails on unexpected extra fields and gives clear diffs.
-  evaluation_criteria: Flag tests asserting more than 3 individual fields of a returned Pydantic model.
+    individual fields. One comparison fails on unexpected extra fields and gives clear diffs.
+  evaluation_criteria: Flag any test asserting on individual attributes or fields of a returned Pydantic model or BaseResult (e.g. `assert result.field == ...` or multiple field checks) instead of asserting whole-object equality (`assert result == Expected(...)` or `assert_model_equal(...)`).
   positive_example: assert result == StepResult(status=StepStatus.OK, exit_code=0, duration=1.2)
   negative_example: assert result.status == StepStatus.OK; assert result.exit_code == 0; assert result.duration == 1.2
   citation: docs/agents/testing.md#core-testing-rules
@@ -1014,7 +1014,7 @@ planner_rules:
   phase: Test Strategy
   scope: '### Tests section in .agentic/plan.md'
   requirement: For every planned test, state the test name, execution tier (Tier 1 Domain, Tier 2 Presentation, Tier 3 CLI
-    Wiring, Tier 4 Invariants), exact file path, and the EXACT contract asserted (exact JSON dict, exit code, BaseResult comparison).
+    Wiring, Tier 4 Invariants), exact file path, and the EXACT contract asserted (exact JSON dict, exit code, whole-object BaseResult or BaseModel comparison). Assertions on returned models must specify whole-object comparison (`result == ExpectedModel(...)`), never piecewise field checks.
     Never say 'Assert it works'.
   deliverable_contract: 'Markdown table: | Test | Tier | Path | Exact assertion |.'
   validation_check: Check that every test row has an exact assertion contract and designated tier.
@@ -1022,11 +1022,9 @@ planner_rules:
 
     | Test | Tier | Path | Exact assertion |
 
-    | `test_prune_empty_returns_nothing_to_prune` | Tier 1 | `tests/core/sandbox/services/test_prune.py` | `result.status
-    == SandboxPruneStatus.NOTHING_TO_PRUNE and result.pruned_items == []` |
+    | `test_prune_empty_returns_nothing_to_prune` | Tier 1 | `tests/core/sandbox/services/test_prune.py` | `result == SandboxPruneResult(status=SandboxPruneStatus.NOTHING_TO_PRUNE, pruned_items=[])` |
 
-    | `test_prune_cli_exit_zero` | Tier 3 | `tests/cli/sandbox/test_prune_command.py` | `runner.invoke() exit code == 0 and
-    json payload matches expected dict` |
+    | `test_prune_cli_exit_zero` | Tier 3 | `tests/cli/sandbox/test_prune_command.py` | `runner.invoke() exit code == 0 and json payload matches expected dict` |
 
     '
   negative_example: '| Test | Path |

@@ -368,7 +368,7 @@
       "severity": "BLOCKER",
       "domain": "tests",
       "scope": "tests/",
-      "evaluation_criteria": "Flag tests asserting more than 3 individual fields of a returned Pydantic model.",
+      "evaluation_criteria": "Flag any test asserting on individual attributes or fields of a returned Pydantic model or BaseResult (e.g. `assert result.field == ...` or multiple field checks) instead of asserting whole-object equality (`assert result == Expected(...)` or `assert_model_equal(...)`).",
       "bad_pattern": "assert result.status == StepStatus.OK; assert result.exit_code == 0; assert result.duration == 1.2"
     },
     {

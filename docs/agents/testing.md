@@ -241,14 +241,35 @@ Construct domain objects in tests using fluent builders rather than raw dictiona
 Example patterns:
 
 ```python
+# Workspace builder
+workspace = (
+    WorkspaceBuilder(tmp_path / "custom")
+    .with_project_name("demo-project")
+    .with_database()
+    .with_catalog_templates()
+    .with_git()
+    .build()
+)
+
 # Step builder
-step = StepBuilder.command("echo test").with_id("step-1").with_timeout(30).assert_exit_code(0).build()
+step = (
+    StepBuilder.command("echo test")
+    .with_id("step-1")
+    .with_timeout(30)
+    .with_retry(max_retries=3, backoff_ms=100)
+    .assert_exit_code(0)
+    .assert_output_contains("success")
+    .build()
+)
+
+# Step builder with template inheritance
+inherited_step = StepBuilder.uses("wt/ai-code-patcher").with_id("patch").build()
 
 # Blueprint builder
 blueprint = (
     BlueprintBuilder.workflow("build-and-test")
     .with_input("environment", default="production", required=True)
-    .add_step(step)
+    .with_step(StepBuilder.command("echo hi"))
     .build()
 )
 ```
@@ -313,7 +334,7 @@ Parameterization via `@pytest.mark.parametrize` is the primary, default approach
 ## Core Testing Rules
 
 - **Parameterize sibling variations; separate tests for distinct behaviors.** One test asserts one contract across its parameter space. Multiple scenarios go in `@pytest.mark.parametrize`, never a `for` loop, never stacked assertions, and never copy-pasted sibling functions differing only by inputs. Always wrap parameterized cases in `pytest.param(..., id="descriptive_case_id")` with a clear, descriptive `id`.
-- **Compare the object, not its fields.** If you are about to assert 8 fields of one result, write `assert result == Expected(...)` or `assert_model_equal(result, expected)`. One comparison is stronger than N assertions (it also fails on unexpected extra fields) and gives a readable diff.
+- **Compare the object, not its fields.** When testing operations that return a model or result, write `assert result == Expected(...)` or `assert_model_equal(result, expected)` rather than asserting individual fields. One comparison is stronger than N assertions (it also fails on unexpected extra fields) and gives a readable diff.
 - **No test seams in production code.** Never add a parameter, kwarg, or callback solely for test injection. Monkeypatch collaborators at module boundaries instead. A parameter production never reads is dead code with a test attached.
 - **A seam is not tested until a test proves a real caller uses it.** Asserting a callback was stored is not a test. Assert it fires, from the production path.
 - **Test doubles must be types production actually passes.** If production passes `Console`, tests pass `Console`. Never build a stub whose interface is the union of every branch in a `hasattr` chain. If a double is genuinely needed, it implements a Protocol production is typed against.
