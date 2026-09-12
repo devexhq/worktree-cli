@@ -1,4 +1,4 @@
-"""Tests for SQLite token usage and sandbox metadata helpers."""
+"""Tests for CostsDb token usage and cost accounting repository."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from worktree.core.db import (
 DB_REL = ".worktree/data.db"
 
 
-class DatabaseTests:
+class CostsDbTests:
     """Tests for init/record/aggregate token usage."""
 
     db: WorktreeDb

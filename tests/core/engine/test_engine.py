@@ -8,14 +8,21 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from tests.helpers import FileSystem, make_cmd_step, make_run_outcome, make_step_result
+from tests.helpers import (
+    CatalogHelper,
+    FileSystem,
+    GitFileSystem,
+    make_cmd_step,
+    make_run_outcome,
+    make_step_result,
+)
 from worktree.core.blueprint import Blueprint, BlueprintDefinition
 from worktree.core.catalog import Catalog
 from worktree.core.db import RunsRepository, RunStatus, WorktreeDb
 from worktree.core.engine import Engine, EngineInputError, RunRequest, load_session_run
 from worktree.core.inputs import InputType, ParameterInput
 from worktree.core.runtime import RunContext, RunOutcome
-from worktree.core.step import LoopStepBlock, StepDefinition
+from worktree.core.step import LoopStepBlock, StepDefinition, StepType
 
 
 def _task_blueprint(
@@ -388,3 +395,74 @@ class EngineRunInputsTests:
 
         assert exc_info.value.result.errors
         assert self.db.runs.list() == []
+
+
+class EngineExecutionMetadataTests:
+    """Tests verifying WT_BLUEPRINT_* env variables populated by Engine."""
+
+    def test_engine_run_populates_blueprint_metadata(self, fs: FileSystem) -> None:
+        fs.create_config_file()
+        step = StepDefinition(
+            id="task_step",
+            type=StepType.COMMAND,
+            command='echo "BLUEPRINT=$WT_BLUEPRINT_NAME KEY=$WT_BLUEPRINT_SHA"',
+        )
+        blueprint = Blueprint(
+            BlueprintDefinition(
+                name="my-test-task",
+                use_sandbox=False,
+                steps=[step],
+            )
+        )
+
+        db = RunsRepository(fs.base_path)
+        catalog = Catalog(fs.base_path)
+        engine = Engine(fs.base_path, db=db, catalog=catalog)
+        outcome = engine.run(blueprint, RunRequest(session_id="custom_sess_123", use_sandbox=False))
+
+        assert outcome.ok is True
+        assert len(outcome.step_results) == 1
+        output = outcome.step_results[0].stdout
+        assert "BLUEPRINT=my-test-task" in output
+        assert "KEY=my-test-task" in output
+
+
+class EngineSessionPersistenceTests:
+    """Integration tests verifying Engine persists run.json for runs and resumes."""
+
+    def test_engine_run_persists_run_json(self, git_fs: GitFileSystem) -> None:
+        """Verify Engine.run writes run.json with step results."""
+        git_fs.init_repo()
+        helper = CatalogHelper(git_fs)
+        helper.save(
+            helper.blueprint(
+                key="test-task",
+                name="test-task",
+                summary="Test task persistence",
+                steps=[
+                    {
+                        "id": "step-1",
+                        "name": "Echo step",
+                        "run": "echo 'session step complete'",
+                    }
+                ],
+            )
+        )
+        db = WorktreeDb(git_fs.base_path)
+        catalog = Catalog(git_fs.base_path, db=db.catalog)
+        engine = Engine(git_fs.base_path, db=db.runs, catalog=catalog)
+
+        blueprint = Blueprint.load("test-task", catalog=catalog)
+
+        request = RunRequest(session_id="task_persisted_1", use_sandbox=True)
+        outcome = engine.run(blueprint, request)
+
+        assert outcome.status == RunStatus.COMPLETED
+
+        payload = load_session_run(git_fs.base_path, "task_persisted_1")
+        assert payload is not None
+        assert payload.session_id == "task_persisted_1"
+        assert payload.name == "test-task"
+        assert payload.status == "completed"
+        assert len(payload.step_results) == 1
+        assert "session step complete" in payload.step_results[0].stdout

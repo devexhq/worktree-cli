@@ -7,13 +7,14 @@ from typing import Any
 
 import pytest
 
-from tests.helpers import FormatterCase, render_rich
+from tests.helpers import FileSystem, FormatterCase, render_rich
 from worktree.cli.ui.formatters.catalog.catalog_list import CatalogListFormatter
 from worktree.cli.ui.formatters.catalog.catalog_views import (
     CatalogItemView,
     CatalogListView,
     CatalogTemplateView,
 )
+from worktree.cli.ui.formatters.catalog.common import build_catalog_table
 from worktree.core.catalog.models import CatalogListResult
 from worktree.core.db import CatalogItemType, CatalogRecord
 
@@ -227,3 +228,18 @@ class CatalogListFormatterTests:
 
         for warning in view.warnings:
             assert warning in rendered
+
+    def test_build_catalog_table_columns(self, fs: FileSystem) -> None:
+        item = CatalogItemView(
+            id=1,
+            sha="blueprint_1234567",
+            item_type="blueprint",
+            name="test-blueprint",
+            path=str(fs.base_path / "blueprints" / "test-blueprint.yml"),
+            checksum="1234567890abcdef",
+            created_at="2026-08-17T00:00:00Z",
+            updated_at="2026-08-17T00:00:00Z",
+        )
+        table = build_catalog_table([item])
+        columns = [col.header for col in table.columns]
+        assert columns == ["Name", "Type", "Path", "SHA"]

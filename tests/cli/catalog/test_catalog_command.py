@@ -11,31 +11,10 @@ from worktree.cli.catalog.commands.catalog_create import catalog_create_command
 from worktree.cli.catalog.commands.catalog_delete import catalog_delete_command
 from worktree.cli.catalog.commands.catalog_list import catalog_list_command
 from worktree.cli.catalog.commands.catalog_show import catalog_show_command
-from worktree.cli.ui.formatters.catalog.catalog_views import CatalogItemView
-from worktree.cli.ui.formatters.catalog.common import build_catalog_table
 from worktree.core.catalog.services.inventory import create_catalog_item
 from worktree.core.db import CatalogItemType
 
 runner = CliRunner()
-
-
-class CatalogRenderTests:
-    """Tests for catalog Rich table rendering."""
-
-    def test_build_catalog_table_columns(self, fs: FileSystem) -> None:
-        item = CatalogItemView(
-            id=1,
-            sha="blueprint_1234567",
-            item_type="blueprint",
-            name="test-blueprint",
-            path=str(fs.base_path / "blueprints" / "test-blueprint.yml"),
-            checksum="1234567890abcdef",
-            created_at="2026-08-17T00:00:00Z",
-            updated_at="2026-08-17T00:00:00Z",
-        )
-        table = build_catalog_table([item])
-        columns = [col.header for col in table.columns]
-        assert columns == ["Name", "Type", "Path", "SHA"]
 
 
 class CatalogCommandDirectTests:
