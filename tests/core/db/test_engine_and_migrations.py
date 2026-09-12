@@ -6,13 +6,17 @@ import sqlite3
 from pathlib import Path
 
 import pytest
+from alembic import command
+from alembic.config import Config
 from sqlalchemy import text
-from sqlmodel import select
+from sqlmodel import Session, select
 
 from tests.helpers import FileSystem
 from worktree.core.db import (
     LATEST_SCHEMA_REVISION,
     BaseRepository,
+    CatalogItemType,
+    CatalogRecord,
     RunRecord,
     RunStatus,
     SandboxRecord,
@@ -90,6 +94,81 @@ class TestProgrammaticMigrations:
         assert version_row is not None
         assert version_row[0] == LATEST_SCHEMA_REVISION
         assert "pid" in columns
+
+    def test_upgrade_legacy_database_without_check_constraints_migrates_data_and_revisions(
+        self, tmp_path: Path
+    ) -> None:
+        db_path = tmp_path / "legacy.db"
+        conn = sqlite3.connect(db_path)
+        try:
+            conn.execute("CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL PRIMARY KEY);")
+            conn.execute("INSERT INTO alembic_version VALUES ('0003_add_catalog_namespace');")
+            conn.execute("""
+                CREATE TABLE catalog (
+                    id INTEGER PRIMARY KEY,
+                    sha TEXT UNIQUE,
+                    item_type TEXT,
+                    name TEXT,
+                    path TEXT UNIQUE,
+                    checksum TEXT,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    namespace TEXT
+                );
+            """)
+            conn.execute("""
+                CREATE TABLE runs (
+                    id INTEGER PRIMARY KEY,
+                    session_id TEXT UNIQUE,
+                    blueprint_name TEXT,
+                    kind TEXT,
+                    branch_name TEXT DEFAULT '',
+                    status TEXT DEFAULT 'running',
+                    started_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    completed_at TEXT,
+                    error_message TEXT,
+                    checkpoint_json TEXT,
+                    pid INTEGER
+                );
+            """)
+            conn.execute(
+                "INSERT INTO catalog (sha, item_type, name, path, checksum, namespace) "
+                "VALUES ('sha1', 'task', 'legacy-task', 'tasks/legacy.yml', 'cs1', NULL);"
+            )
+            conn.execute(
+                "INSERT INTO catalog (sha, item_type, name, path, checksum, namespace) "
+                "VALUES ('sha2', 'workflow', 'legacy-wf', 'workflows/wt/legacy.yml', 'cs2', 'wt');"
+            )
+            conn.execute(
+                "INSERT INTO runs (session_id, blueprint_name, kind) VALUES ('task_123', 'legacy-task', 'task');"
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        init_database(db_path=db_path)
+
+        engine = get_engine(db_path)
+        with Session(engine) as session:
+            task_rec = session.exec(select(CatalogRecord).where(CatalogRecord.key == "legacy-task")).first()
+            assert task_rec is not None
+            assert task_rec.item_type == CatalogItemType.BLUEPRINT
+
+            wf_rec = session.exec(select(CatalogRecord).where(CatalogRecord.key == "wt/legacy-wf")).first()
+            assert wf_rec is not None
+            assert wf_rec.item_type == CatalogItemType.BLUEPRINT
+
+            run_rec = session.exec(select(RunRecord).where(RunRecord.session_id == "task_123")).first()
+            assert run_rec is not None
+            assert run_rec.blueprint_key == "legacy-task"
+
+        alembic_cfg = Config()
+        alembic_dir = Path(__file__).parent.parent.parent.parent / "src" / "worktree" / "core" / "db" / "alembic"
+        alembic_cfg.set_main_option("script_location", str(alembic_dir))
+        alembic_cfg.set_main_option("sqlalchemy.url", sqlite_url(db_path))
+
+        command.downgrade(alembic_cfg, "-1")
+        command.upgrade(alembic_cfg, "head")
 
     def test_resolve_db_path_helper(self, tmp_path: Path) -> None:
         resolved = resolve_db_path(path=tmp_path, db_rel_path=".custom/my.db")

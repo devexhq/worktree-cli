@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from importlib.resources.abc import Traversable
 from pathlib import Path
 from typing import Any
 
@@ -76,7 +77,7 @@ class Filesystem:
             self._cached_paths = FilesystemPaths.from_root(resolved_root)
         return self._cached_paths
 
-    def __getattr__(self, name: str) -> Any:
+    def __getattr__(self, name: str) -> Path | Traversable:
         """Delegate path and helper lookups directly to self.paths."""
         paths = self.paths
         if hasattr(paths, name):
