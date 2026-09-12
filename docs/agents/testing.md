@@ -223,7 +223,12 @@ Both tiers are required per command. Direct handler calls cannot see option bind
 ### Tier 4 - Invariants (`tests/lint/`)
 
 - Static AST analysis and architectural boundary enforcement tests.
-- Checks: no `rich` imports outside `cli/ui/`, no `print`/`echo` outside `dispatcher.py`, formatter registration completeness, Result model hierarchy, and `wt --help` vs `README.md` command parity.
+- Checks:
+  - Layer isolation: `src/worktree/core/` and tests for core never import `worktree.cli.*`.
+  - Output routing: zero direct `print()`, `typer.echo()`, or `click.echo()` outside `src/worktree/cli/ui/dispatcher.py`.
+  - Result hierarchy: all `*Result` models inherit from `BaseResult`.
+  - Remediation capitalization: all remediation fix suggestions begin with a capital letter.
+  - Doc parity: `wt --help` command registration vs `README.md` command documentation parity.
 - Marker: `pytestmark = pytest.mark.invariant`.
 
 ---

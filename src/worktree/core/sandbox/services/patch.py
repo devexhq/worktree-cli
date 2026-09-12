@@ -105,7 +105,7 @@ class SandboxPatch:
                 status=SandboxApplyStatus.NOT_FOUND,
                 sandbox_id=sandbox_id,
                 errors=[f"Sandbox '{sandbox_id}' not found."],
-                fixes=["run `wt sandbox list` to see known sandboxes"],
+                fixes=["Run `wt sandbox list` to see known sandboxes"],
             )
 
         if not Path(record.sandbox_path).is_dir():
