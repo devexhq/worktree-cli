@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib
 import inspect
 from pathlib import Path
-from typing import Final
+from typing import Final, TypeIs
 
 import pytest
 from pydantic import BaseModel
@@ -27,7 +27,7 @@ WHITELISTED_MODELS: Final[frozenset[str]] = frozenset(
 pytestmark = pytest.mark.invariant
 
 
-def _is_target_model_class(obj: type, module_name: str) -> bool:
+def _is_target_model_class(obj: type, module_name: str) -> TypeIs[type[BaseModel]]:
     """Check if class is a project Pydantic model defined in module."""
     if not issubclass(obj, BaseModel):
         return False
