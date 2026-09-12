@@ -180,7 +180,7 @@ class Catalog:
         matches = self.db.find_catalog_matches(non_namespaced_name, item_type, namespace=namespace)
 
         if not matches:
-            return DefinitionResolutionResult(
+            return DefinitionResolutionResult[CatalogRecord](
                 status=DefinitionResolutionStatus.NOT_FOUND,
                 requested_name=sha_or_name,
                 resolved=None,
@@ -206,7 +206,7 @@ class Catalog:
             status = validation_outcome.status
             errors = validation_outcome.errors
 
-        return DefinitionResolutionResult(
+        return DefinitionResolutionResult[CatalogRecord](
             status=status,
             requested_name=sha_or_name,
             resolved=winner,
@@ -230,7 +230,7 @@ class Catalog:
         self.sync()
         record = self.db.get_by_key(key)
         if record is None or record.item_type != item_type:
-            return DefinitionResolutionResult(
+            return DefinitionResolutionResult[CatalogRecord](
                 status=DefinitionResolutionStatus.NOT_FOUND,
                 requested_name=key,
                 resolved=None,
@@ -247,7 +247,7 @@ class Catalog:
             status = validation_outcome.status
             errors = validation_outcome.errors
 
-        return DefinitionResolutionResult(
+        return DefinitionResolutionResult[CatalogRecord](
             status=status,
             requested_name=key,
             resolved=record,
