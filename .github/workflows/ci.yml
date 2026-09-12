@@ -60,17 +60,40 @@ jobs:
             uvx prek run --all-files
           fi
 
+  rules:
+    name: Rules Parity
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python Environment
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Check rules parity
+        run: uv run python scripts/compile_rules.py --check
+
   ci:
     name: CI Gate
     runs-on: ubuntu-latest
-    needs: [prek, test]
+    needs: [prek, test, rules]
     if: ${{ always() }}
     steps:
       - name: Check upstream job results
         run: |
           echo "prek result: ${{ needs.prek.result }}"
           echo "test result: ${{ needs.test.result }}"
-          if [ "${{ needs.prek.result }}" != "success" ] || [ "${{ needs.test.result }}" != "success" ]; then
+          echo "rules result: ${{ needs.rules.result }}"
+          if [ "${{ needs.prek.result }}" != "success" ] || [ "${{ needs.test.result }}" != "success" ] || [ "${{ needs.rules.result }}" != "success" ]; then
             echo "CI Gate failed because at least one dependency failed."
             exit 1
           fi

@@ -56,10 +56,11 @@ Guidelines and requirements for local quality gates and continuous integration.
 
 **Relevant sources:** `.github/workflows/ci.yml`
 
-Three CI jobs run on pushes to `main` and on pull requests:
+Four CI jobs run on pushes to `main` and on pull requests:
 - **test**: `uv sync --all-extras` and `pytest -n auto` with coverage (`fail_under = 80` in `pyproject.toml`).
 - **prek**: `prek` run against the PR base ref (`origin/${GITHUB_BASE_REF}`) on pull requests, or `--all-files` on `main`.
-- **ci**: Gate job requiring `test` and `prek` to succeed.
+- **rules**: `compile_rules.py --check` verifying generated agent rules and checklists match `rules_spec.yaml`.
+- **ci**: Gate job requiring `test`, `prek`, and `rules` to succeed.
 
 ---
 
