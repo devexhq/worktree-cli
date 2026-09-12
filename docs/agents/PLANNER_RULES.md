@@ -242,7 +242,7 @@ def prune_sandboxes(...) -> SandboxPruneResult: ...
 ## [PLAN-013] Multi-Tier Test Specification
 - **Phase:** `Test Strategy`
 - **Scope:** `### Tests section in .agentic/plan.md`
-- **Requirement:** For every planned test, state the test name, execution tier (Tier 1 Domain, Tier 2 Presentation, Tier 3 CLI Wiring, Tier 4 Invariants), exact file path, and the EXACT contract asserted (exact JSON dict, exit code, BaseResult comparison). Never say 'Assert it works'.
+- **Requirement:** For every planned test, state the test name, execution tier (Tier 1 Domain, Tier 2 Presentation, Tier 3 CLI Wiring, Tier 4 Invariants), exact file path, and the EXACT contract asserted (exact JSON dict, exit code, whole-object BaseResult or BaseModel comparison). Assertions on returned models must specify whole-object comparison (`result == ExpectedModel(...)`), never piecewise field checks. Never say 'Assert it works'.
 - **Deliverable Contract:** Markdown table: | Test | Tier | Path | Exact assertion |.
 - **Validation Check:** Check that every test row has an exact assertion contract and designated tier.
 
@@ -250,7 +250,7 @@ def prune_sandboxes(...) -> SandboxPruneResult: ...
 <!-- ✅ POSITIVE EXAMPLE -->
 ### Tests
 | Test | Tier | Path | Exact assertion |
-| `test_prune_empty_returns_nothing_to_prune` | Tier 1 | `tests/core/sandbox/services/test_prune.py` | `result.status == SandboxPruneStatus.NOTHING_TO_PRUNE and result.pruned_items == []` |
+| `test_prune_empty_returns_nothing_to_prune` | Tier 1 | `tests/core/sandbox/services/test_prune.py` | `result == SandboxPruneResult(status=SandboxPruneStatus.NOTHING_TO_PRUNE, pruned_items=[])` |
 | `test_prune_cli_exit_zero` | Tier 3 | `tests/cli/sandbox/test_prune_command.py` | `runner.invoke() exit code == 0 and json payload matches expected dict` |
 
 <!-- ❌ NEGATIVE EXAMPLE -->
