@@ -14,46 +14,39 @@ Run this as a sweep over the changed hunks, not as a vibe check. A finding cites
 
 ## Models and results
 
-- Every Result, Outcome, and DTO sets `model_config = {"extra": "forbid", "strict": True}`. A scoped exception (`extra: "ignore"` on hand-authored YAML models) carries a justifying comment.
+- Scoped exceptions allowing non-strict model configuration (`extra: "ignore"` on hand-authored YAML models) must carry a justifying comment.
 - A failable operation returns a `BaseResult` subclass with a `status` `StrEnum`, and inherits `warnings` / `errors` / `fixes`; callers check `.ok` and render `.errors`, they do not catch exceptions.
 - Every status enum value is reachable from production and covered by a test.
 - Error, warning, and fix strings are built with inline f-strings or literals at the call site. No private single-message formatting wrapper.
 
 ## Placement and boundaries
 
-- New domain types in `core/<domain>/models.py`; imperative operations in `core/<domain>/services/<verb>.py`; domain exceptions in `exceptions.py`; the single public entry point in `facade.py`. No logic at a package root, no public model defined in `services/`, no extension of the flat `config/` / `db/` layout to a new domain.
+- New domain types in `core/<domain>/models.py`; imperative operations in `core/<domain>/services/<verb>.py`; domain exceptions in `exceptions.py`; the single public entry point in `<domain>.py` (e.g., `prune.py`). No logic at a package root, no public model defined in `services/`, no extension of the flat `config/` / `db/` layout to a new domain.
 - Import direction: `common/` -> `core/{db,git,sandbox,catalog,inputs,patch,history,diff,status}/` -> `core/agents/` -> `core/step/` -> `{core/runtime/, core/blueprint/}` -> `core/engine/` -> `cli/`. Never upward.
 - Specific must-nots: `common/` imports no `core/` or `cli/`; `core/` and `common/` import no `cli/` and no `rich`; `inputs/` imports no step, runtime, agents, patch; `patch/` imports no agents, step, runtime; `agents/` imports no step or runtime; `step/` imports no runtime; `runtime/` imports no blueprint, engine, cli; `blueprint/` imports no runtime, engine, cli; `engine/` imports no cli.
-- Formatters live at `cli/ui/formatters/<domain>/<name>.py`, exactly one `*Formatter` class per module, registered in that domain's `__init__.py`. Shared table builders go in the domain's `common.py`. No `formatters.py` or `renderers.py` in a domain CLI package.
+- Shared table builders go in the domain's `common.py`.
 - CLI commands take `CliContext`, return the core `*Result`, and emit through `ui_dispatcher.dispatch(result, output_format=...)`. No business logic, DB query, or filesystem scan in a CLI package.
 
 ## Functions and control flow
 
-- More than 5 arguments means the function takes an environment, context, or configuration object (frozen dataclass) instead.
-- Cognitive complexity <= 10 per function. Judge this by reading: nested branches, `elif` chains, and comprehensions inside loops are where it goes over. Decomposition into named helpers is the fix, never a raised threshold.
-- No God functions; distinct logical phases (setup, validate, persist, return) separated by a blank line, cohesive lines kept together.
+- Avoid God functions; distinct logical phases (setup, validate, persist, return) separated by a blank line, cohesive lines kept together.
 - No test seam in a production signature: a parameter, kwarg, or callback production never reads is dead code.
-- `assert` appears only in tests. Production raises a domain exception or returns a structured result.
 
-## Writes, output, imports, docstrings
+## Writes and output
 
 - No in-place config or state write. Use `Filesystem.atomic_write_json` / `atomic_write_text` (tmp sibling, flush, `os.fsync`, `Path.replace`).
-- Terminal output routes through `ui_dispatcher.dispatch(result)`. `print()`, `rich` imports, and `typer.echo` belong only in `src/worktree/cli/ui/`. Ruff `T20`/`TID251` and the AST suite catch only part of this and **do not detect `console.print`, `input`, or `typer.confirm`**, so check for those by hand.
-- Absolute `worktree.*` imports across packages; relative imports only within the same directory. `__all__` present in `__init__.py` files that re-export.
-- Imports at module top level in both `src/` and `tests/`. An inline import inside a function needs a justifying comment naming the circular dependency or expensive initialization it avoids.
-- Google-convention docstrings in `src/` (Ruff `D`). `tests/` deliberately ignores `D`: a test docstring is optional and must not restate the test name.
+- Output routing: `ui_dispatcher.dispatch(result)` handles terminal output. Check by hand for `console.print`, `input`, or `typer.confirm` which bypass dispatcher.
 
 ## Typing and suppressions
 
 - `-> Any` on a public function is a defect unless the value is genuinely unconstrained. Prefer `object` for values only stored, compared, or passed through.
 - `Any` is permitted only in: a Pydantic `mode="before"` validator signature, a `dict[str, Any]` at a serialization boundary, a value read from a user document and only compared, and `**kwargs: Any` on a non-inspecting pass-through.
 - `Any` is banned when it dodges an import boundary, acts as a test seam, replaces a model that already exists, fills a third-party override (`ctx: Any` for `click.Context`), or fills a generic the code already knows (`Popen[Any]`).
-- A bare `# type: ignore` suppresses nothing here: it is a silent no-op and always a finding. `cast(...)` to dodge a checker error is equally a finding.
 - `# pyright: ignore[rule]` is permitted only for an intentional ill-typed test input whose subject is the raised error, a third-party stub conflict (the SQLModel `__tablename__` case), or a platform-gated import, and always with a one-line reason. Silencing `reportCallIssue`, `reportArgumentType`, or `reportIncompatibleVariableOverride` is a defect: the fixture, annotation, or override is wrong.
 
 ## Encapsulation and compatibility
 
-- No access to or import of a leading-underscore symbol across a module or class boundary in `src/`. Expose a public query property (`is_enabled`, `has_*`) instead. Tests may inspect private members when genuinely necessary.
+- Expose public query properties (`is_enabled`, `has_*`) instead of referencing private state from external callers.
 - Backwards compatibility is owed only to CLI surface (commands, subcommands, arguments, flags), user config and blueprint YAML keys, and stable machine-readable output. An internal alias, compatibility property, or shim in `common/`, `core/`, or `cli/` is a finding; callers should have been updated instead.
 - Greenfield default: no dual code path or deprecation window unless the issue demanded one.
 

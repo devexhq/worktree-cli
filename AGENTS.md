@@ -109,13 +109,11 @@ Every ignore needs a reason naming which one applies. Never use
 
 ## Keeping user-facing docs in sync
 
-`README.md`'s Quick start / command surface must match `wt --help` (i.e. the
+`README.md`'s command surface must match `wt --help` (i.e. the
 `add_typer`/`register_*` calls in
-[src/worktree/cli/cli.py](src/worktree/cli/cli.py)) exactly — no documented
-command that doesn't exist, no shipped command left undocumented. When a
-command is added, renamed, or removed in `cli.py`, update `README.md` in the
-same PR. Prefer generating the comparison (diff `wt --help`'s command list
-against the README) over eyeballing it.
+[src/worktree/cli/cli.py](src/worktree/cli/cli.py)) exactly — enforced by
+`tests/lint/test_doc_parity.py`. When a command is added, renamed, or removed in
+`cli.py`, update `README.md` in the same PR.
 
 ## Backwards compatibility
 

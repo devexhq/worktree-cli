@@ -1,12 +1,13 @@
 ---
 name: wt-code
 description: >-
-  Implement the approved plan in .agentic/plan.md for worktree-cli, running only
-  scoped tests while building and the full gate suite (tests with coverage,
-  ruff, basedpyright, complexity) once implementation is complete, without ever
-  committing or pushing. Invoked as /wt-code to implement the plan, or /wt-code
-  review [--fix blockers|suggestions|all] to address the findings in .agentic/review.md. Use when asked to
-  implement a plan, write the code for a planned change, or fix review findings.
+  Implement the approved plan in .agentic/plan.md for worktree-cli consulting
+  domain-scoped RULES.md, running only scoped tests while building and the full gate
+  suite (tests with coverage, ruff, basedpyright, complexity) once implementation is
+  complete, without ever committing or pushing. Invoked as /wt-code to implement the plan,
+  or /wt-code review [--fix blockers|warnings|suggestions|all] to address the findings in
+  .agentic/review.md. Use when asked to implement a plan, write the code for a planned
+  change, or fix review findings.
 ---
 
 # wt-code
@@ -18,7 +19,7 @@ Turn `.agentic/plan.md` into working code, or in review mode, turn `.agentic/rev
 | Invocation | Input | Job |
 |---|---|---|
 | `/wt-code` | `.agentic/plan.md` | Implement the plan |
-| `/wt-code review [--fix <scope>]` | `.agentic/review.md` | Fix review findings (`blockers`, `suggestions`, `all`) |
+| `/wt-code review [--fix <scope>]` | `.agentic/review.md` | Fix review findings (`blockers`, `warnings`, `suggestions`, `all`) |
 
 If the input file is missing, stop and say so. Do not reconstruct a plan from the conversation, and do not implement from memory of what was discussed: run `/wt-plan` first.
 
@@ -31,10 +32,19 @@ If the input file is missing, stop and say so. Do not reconstruct a plan from th
 
 ## Implementation loop
 
+Before writing or refactoring any code:
+1. Identify the target domain of the package being modified and consult its domain-scoped rules file (which includes both cross-cutting repo rules and package-specific invariants):
+   - `core/`: Load `src/worktree/core/docs/RULES.md`
+   - `common/`: Load `src/worktree/common/docs/RULES.md`
+   - `cli/`: Load `src/worktree/cli/docs/RULES.md`
+   - `tests/`: Load `tests/docs/RULES.md`
+2. Load that package's `RULES.md` into context to review non-negotiable architectural constraints and examples before editing files in that domain.
+3. Ensure new methods and imports follow the positive patterns defined for that file's scope (e.g. `ARCH-*` for `core/`, `RENDER-*` for formatters, `MODEL-*` for DTOs, `PERF-*` for queries).
+
 Work one FR (or one testable clause) at a time, in the plan's order. For each:
 
 1. Re-read the plan section, then re-read the current contents of every file you are about to touch.
-2. Write the production code, following the plan's artifact inventory for exact paths: domain types in `core/<domain>/models.py`, imperative operations in `core/<domain>/services/<verb>.py`, the domain's public entry point in `facade.py`, command handlers in `cli/<name>/commands/`, one `*Formatter` class per module under `cli/ui/formatters/<domain>/`.
+2. Write the production code, following the plan's artifact inventory for exact paths: domain types in `core/<domain>/models.py`, imperative operations in `core/<domain>/services/<verb>.py`, the domain's entrypoint in `<domain>.py`, command handlers in `cli/<name>/commands/`, one `*Formatter` class per module under `cli/ui/formatters/<domain>/`.
 3. Write the tests the plan names, at the tier it names, asserting the exact contract it states.
 4. Run **only the scoped tests** for what you just touched:
 
@@ -77,10 +87,11 @@ Loop until every gate is green, then report: what was implemented per FR, the ga
 ## Review mode (`/wt-code review`)
 
 1. Read `.agentic/review.md`. If it is absent, stop and say so.
-2. Determine which findings to address based on `--fix [suggestions, blockers, all]` (or user instruction):
-   - **`blockers`** (default): Fix every **Blocking** finding. Leave **Suggestions** and **Nits** alone unless you are already editing that line.
-   - **`suggestions`**: Fix every **Blocking** finding and address **Suggestions**. Leave **Nits** alone unless you are already editing that line.
-   - **`all`** (or `--all`): Fix all findings across all categories: **Blocking**, **Suggestions**, and **Nits**.
+2. Determine which findings to address based on `--fix [blockers, warnings, suggestions, all]` (or user instruction):
+   - **`blockers`** (default): Fix every **`BLOCKER`** finding. Leave **`WARNING`**, **`SUGGESTION`**, and **`NIT`** alone unless you are already editing that line.
+   - **`warnings`**: Fix every **`BLOCKER`** and **`WARNING`** finding. Leave **`SUGGESTION`** and **`NIT`** alone unless you are already editing that line.
+   - **`suggestions`**: Fix every **`BLOCKER`**, **`WARNING`**, and **`SUGGESTION`** finding. Leave **`NIT`** alone unless you are already editing that line.
+   - **`all`** (or `--all`): Fix all findings across all four tiers: **`BLOCKER`**, **`WARNING`**, **`SUGGESTION`**, and **`NIT`**.
 3. Re-read each cited file before editing it, since the review may describe a state that has since changed.
 4. Dispute rather than comply when a finding is wrong: state the finding, why it does not hold, and flag it 🚨 for the human. A finding you cannot verify in the code is not a finding.
 5. Run the same completion gate above once the fixes are in.

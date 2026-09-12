@@ -1,0 +1,1077 @@
+rules:
+- id: ARCH-001
+  title: Strict Layered Import Flow
+  severity: BLOCKER
+  category: Architecture
+  domain: all
+  scope: src/worktree/
+  guideline: 'Dependencies flow strictly one way: common/ -> core/{db,git,sandbox,catalog,inputs,patch,history,diff,status}/
+    -> core/agents/ -> core/step/ -> {core/runtime/, core/blueprint/} -> core/engine/ -> cli/. Upward imports are strictly
+    prohibited.'
+  evaluation_criteria: Scan imports. Verify common/ imports no core/ or cli/; core/ and common/ import no cli/ or rich; inputs/
+    and patch/ import no step, runtime, agents; agents/ imports no step or runtime; step/ imports no runtime; runtime/ imports
+    no blueprint, engine, cli; blueprint/ imports no runtime, engine, cli; engine/ imports no cli.
+  positive_example: 'from worktree.core.runtime.engine import run_steps  # in core/engine/'
+  negative_example: 'from worktree.core.engine.engine import Engine  # upward import in core/runtime/'
+  citation: docs/agents/architecture.md#package-boundaries-import-direction
+- id: ARCH-002
+  title: CLI Logic Purity
+  severity: BLOCKER
+  category: Architecture
+  domain: cli
+  scope: src/worktree/cli/
+  guideline: CLI command handlers take CliContext, invoke underlying domain services or facades, and return a BaseResult model.
+    CLI packages must remain completely free of business logic, direct SQLite queries, or direct filesystem scans.
+  evaluation_criteria: Inspect CLI command handlers in src/worktree/cli/*/commands/. Flag direct SQL execution, domain orchestration,
+    or business logic.
+  positive_example: result = context.facade.status.collect(context.root_dir); ui_dispatcher.dispatch(result)
+  negative_example: rows = context.db.connection.execute('SELECT * FROM sandboxes').fetchall()
+  citation: docs/agents/architecture.md#adding-a-new-command
+- id: ARCH-003
+  title: Domain Fact Origin Invariant
+  severity: BLOCKER
+  category: Architecture
+  domain: cli
+  scope: src/worktree/cli/ui/
+  guideline: cli/ui/ must not originate a domain fact. All domain facts, outcomes, warnings, and remediations originate in
+    core/ or common/; cli/ui/ only derives presentation views.
+  evaluation_criteria: Verify formatters only map existing fields from domain models without inventing new statuses, error
+    categories, or domain rules.
+  positive_example: view = StatusView(health=StatusHealth.OK if result.ok else StatusHealth.ERROR)
+  negative_example: 'if not result.git_status: result.warnings.append(''Git not found'')  # originates fact'
+  citation: docs/agents/architecture.md#package-boundaries-import-direction
+- id: ARCH-004
+  title: Standard Core Package Layout (Domain-Named Entrypoint)
+  severity: BLOCKER
+  category: Architecture
+  domain: core
+  scope: src/worktree/core/
+  guideline: 'Default layout for new domain code is core/<domain>/: models.py (types), exceptions.py (errors), <domain>.py
+    (entrypoint coordinator/service, e.g. prune.py, moving away from generic facade.py), and services/<verb>.py (imperative
+    operations). Do not use generic facade.py, do not put logic directly in package root without structured modules, do not
+    define public models in services/, and do not extend legacy flat layouts.'
+  evaluation_criteria: Check package directory structure for new domains. Verify the entrypoint module is named after the
+    domain (e.g. prune.py) rather than generic facade.py. Flag any monolithic single-file domain layout or public models defined
+    in services/.
+  positive_example: src/worktree/core/prune/ -> models.py, exceptions.py, prune.py, services/
+  negative_example: 'src/worktree/core/prune/ -> facade.py  # or monolithic prune.py mixing models & logic'
+  citation: docs/agents/architecture.md#adding-a-new-catalog-backed-domain
+- id: ARCH-005
+  title: Engine Module Naming Disambiguation
+  severity: BLOCKER
+  category: Architecture
+  domain: core
+  scope: src/worktree/
+  guideline: core/runtime/engine.py (run_steps) and core/engine/engine.py (Engine class) are two distinct modules sharing
+    the filename engine.py. Check import targets carefully.
+  evaluation_criteria: Verify that callers of run_steps import from worktree.core.runtime.engine and callers of Engine import
+    from worktree.core.engine.engine.
+  positive_example: from worktree.core.runtime.engine import run_steps; from worktree.core.engine.engine import Engine
+  negative_example: 'from worktree.core.engine.engine import run_steps  # aliasing confusion'
+  citation: docs/agents/architecture.md#layers
+- id: ARCH-006
+  title: Secrets Environment Resolution
+  severity: BLOCKER
+  category: Architecture
+  domain: core
+  scope: src/worktree/core/agents/, src/worktree/core/config/
+  guideline: API keys and secrets must be resolved from environment variables at call time via module-level resolve_<provider>_api_key().
+    Secrets must never be stored in config.json, persisted to data.db, or passed into prompt builders.
+  evaluation_criteria: Search for API key field additions in WorktreeConfig or SQLite models. Ensure environment resolution
+    helpers are used.
+  positive_example: 'api_key = resolve_cursor_api_key()  # reads environment dynamically'
+  negative_example: 'api_key = config.agent.cursor_api_key  # serializing secrets in static config'
+  citation: docs/agents/architecture.md#secrets-handling
+- id: RENDER-001
+  title: Stateful Builder Pattern for RichOutput
+  severity: BLOCKER
+  category: Rendering
+  domain: cli
+  scope: src/worktree/cli/, src/worktree/core/
+  guideline: Terminal output routes through ui_dispatcher.dispatch(result). Direct print(), rich imports, typer.echo, and
+    console writes belong only in src/worktree/cli/ui/.
+  evaluation_criteria: Ensure core services never instantiate RichOutput or Console. Verify .print() is only called at the
+    CLI command/orchestrator level, not inside core services.
+  positive_example: 'self.output.add_error(''failed'')  # cli edge calls context.output.print()'
+  negative_example: output = RichOutput(); output.console.print('failed')
+  citation: docs/agents/code-conventions.md#console-output-and-terminal-formatting
+- id: RENDER-002
+  title: Pure Layout in to_rich
+  severity: BLOCKER
+  category: Rendering
+  domain: cli
+  scope: src/worktree/cli/ui/formatters/
+  guideline: to_rich(data) derives nothing. It calls transform(data) and lays out the resulting view model into Rich renderables.
+  evaluation_criteria: Inspect to_rich() implementations. Flag any business logic, status calculations, or string manipulations
+    that do not come directly from the view model.
+  positive_example: view = self.transform(data); return Panel(Text(view.project_name))
+  negative_example: color = 'green' if len(data.errors) == 0 else 'red'; return Panel(Text(color))
+  citation: docs/agents/code-conventions.md#console-output-and-terminal-formatting
+- id: RENDER-003
+  title: Inline Error and Warning String Construction
+  severity: SUGGESTION
+  category: Rendering
+  domain: all
+  scope: src/worktree/
+  guideline: Construct errors, warnings, and fixes strings using inline f-strings or literals at call sites. Do not create
+    private single-message formatting wrappers.
+  evaluation_criteria: Flag private helper functions whose sole purpose is formatting a single error or warning string.
+  positive_example: 'errors.append(f"Blueprint ''{path}'' invalid: {err}")'
+  negative_example: errors.append(self._format_validation_error(path, err))
+  citation: docs/agents/code-conventions.md#console-output-and-terminal-formatting
+- id: MODEL-001
+  title: Scoped Model Exceptions with Justifying Comment
+  severity: BLOCKER
+  category: Models
+  domain: all
+  scope: src/worktree/
+  guideline: Scoped exceptions allowing extra='ignore' are restricted to hand-authored YAML models (BlueprintDefinition, BlueprintDefaults,
+    LoopStepBlock) and LLM JSON output (OllamaModelStdout), and MUST carry a justifying comment.
+  evaluation_criteria: Flag any model using extra='ignore' or omitting strict=True outside the approved list or without a
+    justifying comment.
+  positive_example: '# User YAML models permit forward-compatible extra keys
+
+    model_config = {''extra'': ''ignore''}'
+  negative_example: 'model_config = {''extra'': ''ignore''}  # missing justifying comment'
+  citation: docs/agents/code-conventions.md#pydantic-models
+- id: MODEL-002
+  title: Result/Outcome Pattern over Exceptions
+  severity: BLOCKER
+  category: Models
+  domain: core
+  scope: src/worktree/core/
+  guideline: Operations that can fail must return a Pydantic result object subclassing BaseResult instead of raising exceptions.
+    Callers check .ok and render .errors/.warnings rather than catching exceptions.
+  evaluation_criteria: Inspect service methods. Flag methods that raise exceptions for business/operational failures instead
+    of returning a BaseResult.
+  positive_example: return SandboxDeleteResult(status=SandboxDeleteStatus.NOT_FOUND, errors=['not found'])
+  negative_example: raise SandboxNotFoundError('Sandbox does not exist')
+  citation: docs/agents/code-conventions.md#resultoutcome-pattern
+- id: MODEL-003
+  title: Reachable and Tested Status Enums
+  severity: BLOCKER
+  category: Models
+  domain: core
+  scope: src/worktree/core/*/models.py
+  guideline: Every status StrEnum variant on a BaseResult model must be reachable from production code and covered by a test.
+  evaluation_criteria: Check all enum values of StrEnum classes in models.py. Ensure each variant is emitted in src/ and asserted
+    in tests/.
+  positive_example: 'class PruneStatus(StrEnum): OK = ''ok''; FAILED = ''failed''  # all values emitted and tested'
+  negative_example: 'class PruneStatus(StrEnum): UNKNOWN = ''unknown''  # never emitted in src/'
+  citation: docs/agents/code-conventions.md#resultoutcome-pattern
+- id: MODEL-004
+  title: Definition Exception Hierarchy
+  severity: BLOCKER
+  category: Models
+  domain: core
+  scope: src/worktree/core/*/exceptions.py
+  guideline: Catalog-backed domain exceptions must subclass DefinitionError, DefinitionNotFoundError, DefinitionLoadError,
+    or DefinitionValidationError from common/exceptions.py.
+  evaluation_criteria: Inspect domain exception inheritance. Flag exceptions that inherit directly from Exception or ValueError
+    instead of the Definition base hierarchy.
+  positive_example: 'class BlueprintLoadError(DefinitionLoadError): """YAML syntax error."""'
+  negative_example: 'class BlueprintLoadError(Exception): """YAML syntax error."""'
+  citation: docs/agents/schemas.md#1-exception-hierarchy-and-domain-errors
+- id: CODE-001
+  title: Identifier Readability and Approved Abbreviations
+  severity: BLOCKER
+  category: Code Conventions
+  domain: all
+  scope: src/, tests/
+  guideline: 'Code must read naturally. Reject cryptic, arbitrary truncations (e.g. val_res, err_msg, acc). Permitted abbreviations:
+    iteration variables (p, x, i, v, c, k, v), standard programming idioms (req, res, fn, fn_node, idx, mod, mod_name, loc,
+    tmp/temp, str, arr, num, len, val, msg), and domain conventions (exc, rel_path, fs, cwd, db, ctx).'
+  evaluation_criteria: Inspect new or modified variable, parameter, attribute, and function names. Flag arbitrary letter-dropping.
+  positive_example: validation_result = validator.validate(document)
+  negative_example: val_res = validator.validate(document); acc = []
+  citation: docs/agents/code-conventions.md#variable-naming
+- id: CODE-002
+  title: Logical Blank Lines Separation
+  severity: NIT
+  category: Code Conventions
+  domain: all
+  scope: src/
+  guideline: Separate distinct logical phases (setup, validate, persist, return) with a blank line. Keep cohesive, tightly
+    coupled lines together.
+  evaluation_criteria: Check function bodies. Flag dense unseparated blocks or excessive random spacing.
+  positive_example: 'record = SandboxRecord(...)
+
+
+    self.db.sandboxes.save(record)
+
+
+    return result'
+  negative_example: 'record = SandboxRecord(...)
+
+    self.db.sandboxes.save(record)
+
+    return result'
+  citation: docs/agents/code-conventions.md#blank-lines-in-function-bodies
+- id: TYPE-001
+  title: Ban on -> Any Return Annotations
+  severity: BLOCKER
+  category: Typing
+  domain: all
+  scope: src/, tests/
+  guideline: -> Any on a public function is treated as a defect because it disables type checking transitively at every call
+    site. Prefer object when values are only stored, compared, or passed through.
+  evaluation_criteria: Scan function signatures for `-> Any`. Flag any occurrence on public functions.
+  positive_example: 'def get_payload(self) -> object: ...'
+  negative_example: 'def get_payload(self) -> Any: ...'
+  citation: docs/agents/code-conventions.md#type-annotations-and-any
+- id: TYPE-002
+  title: Strict Scoping of Permitted Any
+  severity: BLOCKER
+  category: Typing
+  domain: all
+  scope: src/worktree/
+  guideline: 'Any is permitted strictly in: (1) Pydantic mode=''before'' validators, (2) dict[str, Any] at serialization boundaries,
+    (3) values read from user documents and compared, and (4) **kwargs: Any pass-throughs.'
+  evaluation_criteria: Audit Any occurrences. Flag any usage outside the four permitted boundaries.
+  positive_example: '@field_validator(''pattern'', mode=''before'')
+
+    def _val(cls, v: Any) -> Any: ...'
+  negative_example: 'def execute_step(step: Any) -> StepResult: ...'
+  citation: docs/agents/code-conventions.md#permitted-do-not-fix-these
+- id: TYPE-003
+  title: Banned Uses of Any
+  severity: BLOCKER
+  category: Typing
+  domain: all
+  scope: src/, tests/
+  guideline: 'Banned: Any dodging import boundaries, Any as a test seam, Any where a model already exists, Any in third-party
+    overrides (e.g. ctx: Any for click.Context), and Any filling a known generic (e.g. Popen[Any]).'
+  evaluation_criteria: Scan for Any annotations that match the five banned categories.
+  positive_example: 'proc: subprocess.Popen[str] = ...'
+  negative_example: 'proc: subprocess.Popen[Any] = ...'
+  citation: docs/agents/code-conventions.md#banned
+- id: TYPE-004
+  title: Explicit ClassVar Typing for Table Names and Constants
+  severity: NIT
+  category: Typing
+  domain: core
+  scope: src/worktree/core/db/models.py
+  guideline: Typing table names or string constants as Any or bare string instead of explicit ClassVar[str] causes type checker
+    ambiguity. Declare class-level SQL constants explicitly.
+  evaluation_criteria: Inspect SQLModel definitions. Verify __tablename__ and table constants are annotated as ClassVar[str].
+  positive_example: '__tablename__: ClassVar[str] = ''sandboxes'''
+  negative_example: __tablename__ = 'sandboxes'
+  citation: docs/agents/code-conventions.md#type-checker-suppressions
+- id: TYPE-005
+  title: Precise Parameterization for Generator Types
+  severity: NIT
+  category: Typing
+  domain: all
+  scope: src/, tests/
+  guideline: Avoid overly broad generic type annotations like Generator[Session] without complete yield/send/return parameterization.
+    Specify all three generic parameters.
+  evaluation_criteria: Scan typing annotations for `Generator[...]`. Verify all three parameters are specified (e.g. `Generator[YieldType,
+    SendType, ReturnType]`).
+  positive_example: 'def get_session() -> Generator[Session, None, None]: ...'
+  negative_example: 'def get_session() -> Generator[Session]: ...'
+  citation: docs/agents/code-conventions.md#type-annotations-and-any
+- id: ENCAP-001
+  title: Expose Public Query Properties
+  severity: SUGGESTION
+  category: Encapsulation
+  domain: all
+  scope: src/worktree/
+  guideline: Expose public boolean query properties (e.g. is_interactive, is_enabled, has_*) on classes rather than referencing
+    private members from external callers.
+  evaluation_criteria: Flag external callers inspecting internal private state; suggest adding a query property.
+  positive_example: '@property
+
+    def is_running(self) -> bool: return self._proc is not None and self._proc.poll() is None'
+  negative_example: 'if runner._process is not None: ...  # caller inspecting private state'
+  citation: docs/agents/code-conventions.md#encapsulation-and-private-members
+- id: ENCAP-002
+  title: No Test Seams in Production Signatures
+  severity: BLOCKER
+  category: Encapsulation
+  domain: all
+  scope: src/worktree/
+  guideline: Never add a parameter, kwarg, or callback solely for test injection. A parameter production never reads is dead
+    code with a test attached. Monkeypatch collaborators at module boundaries instead.
+  evaluation_criteria: Inspect parameters of touched functions. If a parameter has a default and is only ever passed in tests,
+    flag it.
+  positive_example: 'def run(self, cwd: Path) -> RunOutcome: ...  # tests monkeypatch at boundary'
+  negative_example: 'def run(self, cwd: Path, _runner: GitRunner | None = None) -> RunOutcome: ...'
+  citation: docs/agents/testing.md#core-testing-rules
+- id: PERF-001
+  title: No Ad-Hoc DB Instantiations in Loops
+  severity: BLOCKER
+  category: Performance
+  domain: all
+  scope: All source and test files
+  guideline: Never instantiate a repository or WorktreeDb inside loops or test helpers. Inject pre-initialized instances to
+    prevent N+1 SQLite connection/migration checks.
+  evaluation_criteria: Detect repository or WorktreeDb instantiations inside for/while loops or inside reusable helper functions.
+  positive_example: 'repo = RunsRepository(path)
+
+    for item in items: repo.create(item)'
+  negative_example: 'for item in items: repo = RunsRepository(path); repo.create(item)'
+  citation: docs/agents/architecture.md#local-sqlite-datadb
+- id: PERF-002
+  title: Database Migration Hygiene and Consumer Call Sites
+  severity: BLOCKER
+  category: Performance
+  domain: core
+  scope: src/worktree/core/db/
+  guideline: Every new table or column must have real caller sites in src/ in the same PR. One-time data backfills must be
+    versioned Alembic revisions (op.execute()), not ad-hoc raw SQL in models.
+  evaluation_criteria: Check Alembic migrations. Verify added columns/tables are actively queried and written by production
+    services in the same PR.
+  positive_example: '# Migration adds checkpoint_json and engine persists RunCheckpoint to it'
+  negative_example: '# Migration adds column future_flag with zero callers in src/'
+  citation: docs/agents/ci-and-tooling.md#database-migration-hygiene
+- id: PERF-003
+  title: Indexed Column Queries vs O(n) In-Memory Lookups
+  severity: WARNING
+  category: Performance
+  domain: core
+  scope: src/worktree/core/db/, src/worktree/core/*/services/
+  guideline: Do not perform O(n) in-memory list comprehensions or linear scans over repository records when an indexed database
+    column exists (e.g., querying _record_for_rel_path). Query the repository slice directly with filtered SQL.
+  evaluation_criteria: Scan for in-memory list comprehensions or filter loops over full table fetches when an indexed query
+    method could be used.
+  positive_example: record = repo.get_by_path(rel_path)
+  negative_example: record = next((r for r in repo.list() if r.path == rel_path), None)
+  citation: docs/agents/architecture.md#local-sqlite-datadb
+- id: API-001
+  title: Sibling Repository CRUD Method Naming Consistency
+  severity: WARNING
+  category: Architecture
+  domain: core
+  scope: src/worktree/core/db/repositories/
+  guideline: Maintain consistent method naming across sibling repositories. Standardize on canonical CRUD verbs (create(),
+    get(), list(), delete(), save()). Avoid ad-hoc verb variants like insert(), add(), or upsert() unless explicitly justified.
+  evaluation_criteria: Inspect repository public methods. Flag divergence in verb naming across sibling repository classes.
+  positive_example: repo.create(record)
+  negative_example: 'repo.insert(record)  # sibling repositories use .create()'
+  citation: docs/agents/code-conventions.md#variable-naming
+- id: API-002
+  title: Consistent Error Semantics Across Queries
+  severity: WARNING
+  category: Architecture
+  domain: core
+  scope: src/worktree/core/db/, src/worktree/core/*/services/
+  guideline: Maintain consistent error handling semantics across identical query paths. Do not swallow invalid enums or corrupt
+    rows in one repository method while raising or returning BaseResult errors in another.
+  evaluation_criteria: Audit repository query methods for divergent exception handling (e.g. bare except returning None vs
+    structured Result error capture).
+  positive_example: 'except ValidationError as exc: return RecordResult.from_error(exc)'
+  negative_example: 'except ValidationError: return None  # inconsistently swallows error'
+  citation: docs/agents/code-conventions.md#resultoutcome-pattern
+- id: DRY-001
+  title: Shared Repository Transaction Logic in BaseRepository
+  severity: SUGGESTION
+  category: Code Conventions
+  domain: core
+  scope: src/worktree/core/db/repositories/
+  guideline: Repetitive database transaction boilerplate (_commit, _delete_one_where, rollback handling, session lifecycle)
+    should be consolidated into BaseRepository rather than duplicated across individual repository classes.
+  evaluation_criteria: Flag identical session commit/rollback and single-record deletion boilerplate repeated across sibling
+    repositories.
+  positive_example: self._delete_one_where(SandboxRecord.session_id == session_id)
+  negative_example: 'with self.session() as s: s.query(...).delete(); s.commit()  # duplicated across repos'
+  citation: docs/agents/code-conventions.md#structure-and-complexity
+- id: DB-001
+  title: Redundant Index Declaration on Unique Columns
+  severity: NIT
+  category: Database
+  domain: core
+  scope: src/worktree/core/db/models.py
+  guideline: Declaring index=True on a column that already declares unique=True creates redundant SQLite B-tree indexes. A
+    unique constraint already creates a backing index automatically.
+  evaluation_criteria: Inspect SQLModel Field definitions. Flag fields specifying both `unique=True` and `index=True`.
+  positive_example: 'session_id: str = Field(unique=True)'
+  negative_example: 'session_id: str = Field(unique=True, index=True)'
+  citation: docs/agents/ci-and-tooling.md#database-migration-hygiene
+- id: FS-001
+  title: Atomic File Writes via Temporary Sibling
+  severity: BLOCKER
+  category: Filesystem
+  domain: all
+  scope: src/worktree/
+  guideline: Never write config or state files directly in-place. Write to a .tmp sibling, flush, os.fsync, and atomically
+    swap via Path.replace using Filesystem.atomic_write_json and Filesystem.atomic_write_text.
+  evaluation_criteria: Scan for direct open(..., 'w') or Path.write_text on state or configuration files.
+  positive_example: Filesystem.atomic_write_json(config_path, data)
+  negative_example: 'with open(config_path, ''w'') as f: json.dump(data, f)'
+  citation: docs/agents/code-conventions.md#atomic-file-writes
+- id: FS-002
+  title: Advisory Cross-Process Locking
+  severity: BLOCKER
+  category: Filesystem
+  domain: all
+  scope: src/worktree/
+  guideline: Multi-process sandbox, catalog, or state mutations must acquire the .worktree/.lock advisory lock using common/lock.py
+    and handle LockTimeoutError.
+  evaluation_criteria: Check concurrent operations for advisory lock wrapping.
+  positive_example: 'with file_lock(lock_path, timeout=10.0): sandbox_service.create(...)'
+  negative_example: 'sandbox_service.create(...)  # mutating shared dir without acquiring lock'
+  citation: docs/agents/architecture.md#the-worktree-directory
+- id: COMPAT-001
+  title: Strict Public-Only Backwards Compatibility
+  severity: BLOCKER
+  category: Compatibility
+  domain: all
+  scope: src/worktree/
+  guideline: 'Maintain backwards compatibility ONLY for surfaces users interact with directly: CLI command surface (commands,
+    subcommands, arguments, flags), configuration files and blueprint YAMLs (config.json), and stable machine-readable output
+    formats (JSON event envelopes).'
+  evaluation_criteria: Inspect PR diffs. Flag breaking renames to CLI options, config keys, or published JSON outputs.
+  positive_example: 'output_format: OutputFormat = typer.Option(OutputFormat.RICH, ''--output-format'', ''-o'')'
+  negative_example: '# Renaming user CLI option --timeout to --wait without alias'
+  citation: docs/agents/code-conventions.md#backwards-compatibility
+- id: COMPAT-002
+  title: Ban on Internal Compatibility Shims and Aliases
+  severity: BLOCKER
+  category: Compatibility
+  domain: all
+  scope: src/worktree/common/, src/worktree/core/, internal src/worktree/cli/
+  guideline: Do NOT preserve backwards compatibility aliases, compatibility properties, or shim layers for internal code (common/,
+    core/, or internal CLI modules) when refactoring or renaming symbols. Update callers and tests directly.
+  evaluation_criteria: Scan internal classes for deprecated aliases or shim properties.
+  positive_example: '# Renamed _unlock_fd directly and updated all internal callers'
+  negative_example: 'def _unlock_fd(self): ...
+
+    _unlock = _unlock_fd  # internal shim alias'
+  citation: docs/agents/code-conventions.md#backwards-compatibility
+- id: COMPAT-003
+  title: Greenfield Architecture Default
+  severity: BLOCKER
+  category: Compatibility
+  domain: all
+  scope: src/worktree/
+  guideline: 'Treat the repository as greenfield by default: plan no dual code paths, fallback adapters, or deprecation windows
+    unless an issue explicitly demands one. Replace superseded paths and update callers in the same change set.'
+  evaluation_criteria: Flag dual implementations or fallback branches created without an explicit issue requirement.
+  positive_example: '# Directly replaces legacy loader with new unified loader'
+  negative_example: 'if config.use_legacy: return LegacyLoader().load()  # unnecessary compatibility branch'
+  citation: docs/agents/planning.md#step-1-extract-the-contract-from-the-issue
+- id: TEST-001
+  title: Test at Contracts, Not Implementation
+  severity: BLOCKER
+  category: Testing
+  domain: tests
+  scope: tests/
+  guideline: Assert on deliberate contracts (BaseResult object, exact JSON dict, exit code, file on disk, git ref), never
+    implementation details (rendered layout, private helpers, call ordering, constructor assignments).
+  evaluation_criteria: Inspect test assertions. Flag assertions checking internal mock call counts or private attributes.
+  positive_example: assert result == BlueprintLoadResult(status=BlueprintLoadStatus.OK, blueprint=expected_bp)
+  negative_example: assert service._internal_cache_size == 1; assert mock_parser.call_count == 1
+  citation: docs/agents/testing.md#the-rule-that-matters-most
+- id: TEST-002
+  title: 1:1 Source Parity Layout
+  severity: BLOCKER
+  category: Testing
+  domain: tests
+  scope: tests/
+  guideline: Test structure mirrors src/worktree/ 1:1 under tests/. Exactly one test file per source module. Every test directory
+    gets an __init__.py.
+  evaluation_criteria: Check test file paths against source files. Flag missing __init__.py files.
+  positive_example: src/worktree/core/sandbox/services/lifecycle.py -> tests/core/sandbox/services/test_lifecycle.py
+  negative_example: 'tests/test_all_sandboxes.py  # unmirrored grab-bag test file'
+  citation: docs/agents/testing.md#11-source-parity-layout
+- id: TEST-003
+  title: Standardized Test Naming and Vague Name Ban
+  severity: BLOCKER
+  category: Testing
+  domain: tests
+  scope: tests/
+  guideline: 'Test classes must be named *Tests. Methods must follow test_<condition>_<outcome>. Banned vague names with no
+    outcome: test_ok, test_success, test_present, test_missing, test_blank, test_basic, test_default, test_works, test_timeout,
+    test_no_op, test_help. No ''should'' prefix.'
+  evaluation_criteria: Check test class and method names against the banned list and naming pattern.
+  positive_example: "class ConfigLoaderTests:\n    def test_missing_config_returns_not_found_status(self): ..."
+  negative_example: "class TestConfig:\n    def test_ok(self): ...\n    def test_should_timeout(self): ..."
+  citation: docs/agents/testing.md#naming-conventions
+- id: TEST-004
+  title: Dual-Tier CLI Matrix Testing
+  severity: BLOCKER
+  category: Testing
+  domain: tests
+  scope: tests/cli/
+  guideline: Every CLI command module must implement both *RootTests (direct unit tests for pure Python command handlers taking
+    CliContext) and *CliIntegrationTests (invoking runner.invoke to verify Click/Typer options, exit codes, and output dispatching).
+  evaluation_criteria: Check tests for CLI commands. Flag any command module lacking either handler unit tests or runner integration
+    tests.
+  positive_example: 'class DiffCommandRootTests: ...  # unit
+
+    class DiffCliIntegrationTests: ...  # runner invoke'
+  negative_example: '# Only runner.invoke tested; handler logic not unit tested directly'
+  citation: docs/agents/testing.md#tier-3---cli-wiring-dual-tier-matrix
+- id: TEST-005
+  title: Three Tests Per Formatter Protocol
+  severity: BLOCKER
+  category: Testing
+  domain: tests
+  scope: tests/cli/ui/formatters/
+  guideline: 'Every formatter under cli/ui/formatters/<domain>/ must have three tests using FormatterCase: (1) view model
+    transform equality, (2) JSON wire format as an EXACT literal dict, and (3) Rich render at pinned width 160 asserting only
+    semantic values from case.view.'
+  evaluation_criteria: Inspect formatter test files. Flag formatters that do not implement all three tests or assert to_json_serializable
+    == case.view.model_dump().
+  positive_example: test_transform_derives_expected_view(); test_json_payload_matches(); test_rich_render_shows_view()
+  negative_example: 'assert ''healthy'' in render_rich(formatter.to_rich(data))  # only 1 test'
+  citation: docs/agents/testing.md#tier-2---presentation-contracts-three-tests-per-formatter-never-one
+- id: TEST-006
+  title: Single Behavior Parameterization
+  severity: BLOCKER
+  category: Testing
+  domain: tests
+  scope: tests/
+  guideline: One test asserts one behavior. Never use `for` loops over scenarios or stack redundant assertions. Use `@pytest.mark.parametrize`
+    with explicit `pytest.param(..., id="...")` labels.
+  evaluation_criteria: Scan test bodies for `for item in items:` loops over test cases.
+  positive_example: '@pytest.mark.parametrize(("code", "expected"), [pytest.param(0, True, id="zero_is_ok")])'
+  negative_example: 'for code in [0, 1]: assert check(code)'
+  citation: docs/agents/testing.md#core-testing-rules
+- id: TEST-007
+  title: Whole Object Comparison
+  severity: BLOCKER
+  category: Testing
+  domain: tests
+  scope: tests/
+  guideline: Compare whole objects (assert result == Expected(...) or assert_model_equal(result, expected)) rather than asserting
+    8 individual fields. One comparison fails on unexpected extra fields and gives clear diffs.
+  evaluation_criteria: Flag tests asserting more than 3 individual fields of a returned Pydantic model.
+  positive_example: assert result == StepResult(status=StepStatus.OK, exit_code=0, duration=1.2)
+  negative_example: assert result.status == StepStatus.OK; assert result.exit_code == 0; assert result.duration == 1.2
+  citation: docs/agents/testing.md#core-testing-rules
+- id: TEST-008
+  title: Test Double Realism and Production Types
+  severity: BLOCKER
+  category: Testing
+  domain: tests
+  scope: tests/
+  guideline: Test doubles must be types production actually passes or implement a Protocol production is typed against. Never
+    build a stub whose interface is the union of every branch in a hasattr chain.
+  evaluation_criteria: Inspect test doubles and stubs. Verify they inherit from production types or satisfy typing.Protocol.
+  positive_example: 'class FakeAgentAdapter(AgentAdapter): def propose_fix(self, req: AgentRequest) -> AgentResponse: ...'
+  negative_example: 'class MockAdapter: def __getattr__(self, name): return MagicMock()'
+  citation: docs/agents/testing.md#core-testing-rules
+- id: TEST-009
+  title: Ban on Negative Existence Tests for Deleted Symbols
+  severity: BLOCKER
+  category: Testing
+  domain: tests
+  scope: tests/
+  guideline: Tests prove what the live codebase does, never the historical outcome of a refactor. When dead or obsolete functions,
+    classes, or aliases are removed from production, delete the tests that called them. Never write assert not hasattr(mod,
+    'old_fn').
+  evaluation_criteria: Grep for `assert not hasattr` in tests/. Flag any occurrence.
+  positive_example: '# Deleted test_old_helper when old_helper was removed from production'
+  negative_example: 'assert not hasattr(filesystem, ''old_helper'')  # negative existence test'
+  citation: docs/agents/testing.md#core-testing-rules
+- id: TEST-010
+  title: Complete Assertions Invariant
+  severity: BLOCKER
+  category: Testing
+  domain: tests
+  scope: tests/
+  guideline: assert obj is not None is not an assertion; if it is the only assert, the test is unfinished. Use isinstance
+    only when it distinguishes two real code paths (basedpyright already proves the rest).
+  evaluation_criteria: Flag tests where the sole check is `assert result is not None` or redundant `isinstance` checks.
+  positive_example: assert result.session_id == 'wf_abcdef12'
+  negative_example: assert result is not None; assert isinstance(result, RunOutcome)
+  citation: docs/agents/testing.md#core-testing-rules
+- id: TEST-011
+  title: Determinism and Clock Virtualization
+  severity: BLOCKER
+  category: Testing
+  domain: tests
+  scope: tests/
+  guideline: No hardcoded sleeps (time.sleep) in tests. Step backoff and retry intervals must monkeypatch the clock (time.monotonic
+    / asyncio.sleep) or use VirtualClock.
+  evaluation_criteria: Grep for `time.sleep` in tests/. Flag any unmocked OS sleeps.
+  positive_example: runner = StepRunner(clock=VirtualClock())
+  negative_example: 'time.sleep(2.0)  # waiting for process timeout'
+  citation: docs/agents/testing.md#determinism--process-isolation-strategy
+- id: TEST-012
+  title: Rich Render Width Pinning
+  severity: BLOCKER
+  category: Testing
+  domain: tests
+  scope: tests/
+  guideline: render_rich(renderable, width=160) is the only supported way to capture rendered output. Console width for rendered
+    assertions is authoritatively pinned to 160. Tests must not rely on ambient terminal size or in-process os.environ['COLUMNS']
+    mutations.
+  evaluation_criteria: Scan for console render captures. Ensure render_rich with width=160 is used.
+  positive_example: rendered = render_rich(formatter.to_rich(data)); assert 'Session ID' in rendered
+  negative_example: 'console = Console(); console.print(formatter.to_rich(data))  # unpinned width'
+  citation: docs/agents/testing.md#rich-render-assertions
+- id: TEST-013
+  title: No Sole Consumer Tests
+  severity: BLOCKER
+  category: Testing
+  domain: tests
+  scope: src/, tests/
+  guideline: No test may be the sole consumer of a production symbol. If deleting the test would make production code unreachable,
+    the production code is dead. Delete both.
+  evaluation_criteria: Verify that every touched production function or method has at least one real caller in src/.
+  positive_example: '# Sandbox.create() called by Engine.run() and tested in test_sandbox.py'
+  negative_example: '# Sandbox.debug_dump() called ONLY in test_debug_dump()'
+  citation: docs/agents/testing.md#core-testing-rules
+- id: TEST-014
+  title: Strict Typing on Test Helpers and Fixtures
+  severity: BLOCKER
+  category: Testing
+  domain: tests
+  scope: tests/
+  guideline: Annotate test helpers and fixtures as tightly as production code. Give fixtures real return types and type helper
+    parameters against what production passes. No MagicMock in helper signatures.
+  evaluation_criteria: Inspect type annotations in tests/helpers/ and fixture functions. Flag missing types or MagicMock in
+    signatures.
+  positive_example: 'def create_test_session(db: WorktreeDb, session_id: str) -> RunRecord: ...'
+  negative_example: 'def create_test_session(db: Any, mock_obj: MagicMock) -> Any: ...'
+  citation: docs/agents/testing.md#core-testing-rules
+- id: TEST-015
+  title: Orchestration Path Test Coverage
+  severity: WARNING
+  category: Testing
+  domain: tests
+  scope: tests/cli/, tests/core/engine/
+  guideline: Modified command orchestration paths and multi-step dispatch workflows must include covering integration tests.
+    Merging changes with gaps in end-to-end orchestration tests leaves regression risks.
+  evaluation_criteria: Verify that PRs modifying command routing or multi-step orchestration include a test exercising the
+    updated execution branch.
+  positive_example: 'class ResumeCommandCliIntegrationTests: def test_resume_executes_remaining_steps(self): ...'
+  negative_example: '# PR modifying Engine.resume() without integration tests for resumed step loop'
+  citation: docs/agents/testing.md#pr-review-hygiene-and-testing-documentation-review-rule
+- id: DOC-001
+  title: Architecture Doc Structural Gate
+  severity: BLOCKER
+  category: Documentation
+  domain: all
+  scope: docs/agents/architecture.md
+  guideline: Update docs/agents/architecture.md structure sections ONLY when package layout, domain ownership, or import boundaries
+    change. Do not append feature behavior essays there. Pure refactors need no architecture diff.
+  evaluation_criteria: Verify diff in docs/agents/architecture.md only modifies structure sections (layers tree, domain ownership,
+    package boundaries).
+  positive_example: '# Updating layers tree in architecture.md for new core/prune/ domain'
+  negative_example: '# 100 lines of narrative prose explaining pruning heuristics in architecture.md'
+  citation: AGENTS.md#documentation
+- id: DOC-002
+  title: User-Visible Behavior Documentation Scope
+  severity: BLOCKER
+  category: Documentation
+  domain: cli
+  scope: docs/cli/
+  guideline: User-visible CLI behavior, subcommands, and flags belong in docs/cli/<command>.md, never in docs/agents/architecture.md.
+  evaluation_criteria: Verify new CLI options or behavioral changes are documented in docs/cli/.
+  positive_example: '# Updating docs/cli/run.md with new --keep-on-failure flag'
+  negative_example: '# Documenting user CLI flag --keep-on-failure inside architecture.md'
+  citation: AGENTS.md#documentation
+- id: DOC-003
+  title: Schema and Entity Documentation Gate
+  severity: BLOCKER
+  category: Documentation
+  domain: all
+  scope: docs/agents/schemas.md
+  guideline: Update docs/agents/schemas.md whenever .worktree/config.json keys, blueprint YAML fields, domain DTOs, or database
+    record shapes change.
+  evaluation_criteria: Verify schemas.md is updated whenever new DTOs, Result models, or config fields are added in src/.
+  positive_example: '# Adding SandboxPruneResult to section 2 of schemas.md'
+  negative_example: '# Adding new Result model in core/models.py without updating schemas.md'
+  citation: AGENTS.md#documentation
+- id: DOC-004
+  title: Ban on Duplicating Source in Docs
+  severity: SUGGESTION
+  category: Documentation
+  domain: all
+  scope: docs/agents/
+  guideline: Docs must not hand-copy Pydantic model signatures, field tables, or enum lists that a Read of the source already
+    gives unambiguously. Link to the model file and document only unexpressed behavior (validators, resolution order).
+  evaluation_criteria: Flag doc changes that copy-paste field lists or enum members from source models without adding context.
+  positive_example: See [`SandboxSession`](src/worktree/core/sandbox/models.py). Sandboxes live under .worktree/sandboxes/.
+  negative_example: '| Field | Type | Default |
+
+    | session_id | str | required |'
+  citation: AGENTS.md#keeping-docs-accurate
+- id: DOC-005
+  title: Unavoidable Spec Tables Require Parity Tests
+  severity: BLOCKER
+  category: Documentation
+  domain: tests
+  scope: tests/lint/
+  guideline: When a field table is genuinely unavoidable (it is the specification for an external JSON Schema or stable CLI
+    output format), add or extend an automated test that fails when table and source disagree.
+  evaluation_criteria: Verify that specification tables in docs have an automated test in tests/lint/ asserting parity.
+  positive_example: '# test_doc_parity.py guarantees README.md and RULES.md match source and spec'
+  negative_example: '# Adding manual table of CLI flags or schemas with no automated parity test'
+  citation: AGENTS.md#keeping-docs-accurate
+- id: DOC-006
+  title: Prefer Deletion Over Accretion
+  severity: SUGGESTION
+  category: Documentation
+  domain: all
+  scope: docs/
+  guideline: When updating docs, replace or delete stale bullets rather than appending parallel conflicting truths. Flag any
+    doc that states contradictory rules.
+  evaluation_criteria: Review doc edits for conflicting old vs new statements.
+  positive_example: '# Replaced outdated formatters.py reference with cli/ui/formatters/'
+  negative_example: '# Appended new rule while leaving old formatters.py text intact'
+  citation: AGENTS.md#documentation
+- id: DOC-007
+  title: Canonical Terminology Invariant
+  severity: SUGGESTION
+  category: Documentation
+  domain: all
+  scope: docs/, src/
+  guideline: Adhere strictly to definitions in docs/agents/glossary.md. Do not conflate Task (linear steps only) vs Workflow
+    (allows loop steps), Blueprint (unified document), Step, Run, Session, Sandbox, Checkpoint.
+  evaluation_criteria: Check doc prose and code comments for misuse of terms (e.g. calling a workflow with loops a 'task').
+  positive_example: '''Task blueprint containing only linear step definitions.'''
+  negative_example: '''Task blueprint containing a loop block.''  # tasks are strictly linear'
+  citation: docs/agents/glossary.md
+- id: CI-001
+  title: Pre-Commit Quality Suite Gate
+  severity: BLOCKER
+  category: CI/Tooling
+  domain: all
+  scope: Whole repository
+  guideline: 'Before committing, all five gates must pass: ruff format, ruff check, basedpyright src --level error (0 errors),
+    inv complexity --paths <changed> --plain --failed (complexity <= 10), and inv test -c (coverage >= 80%).'
+  evaluation_criteria: Verify all 5 commands succeed before creating any commit.
+  positive_example: uv run inv test -c && ruff format . && ruff check . && basedpyright src --level error && inv complexity
+  negative_example: git commit -m 'fix' with a failing basedpyright or complexity error
+  citation: AGENTS.md#essential-commands
+- id: CI-002
+  title: Git and Pull Request Attribution Hygiene
+  severity: BLOCKER
+  category: CI/Tooling
+  domain: all
+  scope: Git commits & PRs
+  guideline: 'Commit messages must be semantic, imperative, and contain NO AI trailers (Co-authored-by: Cursor, Co-authored-by:
+    ...). PRs must have single responsibility and contain concise Why, Approach, and Linkage sections.'
+  evaluation_criteria: Inspect commit message trailers and PR descriptions. Flag AI co-author trailers.
+  positive_example: 'feat(sandbox): add prune subcommand for stale sandboxes'
+  negative_example: 'feat: prune sandboxes
+
+
+    Co-authored-by: Cursor <cursor@cursor.sh>'
+  citation: docs/agents/git-and-pr-conventions.md#commit-and-pr-attribution
+- id: CI-003
+  title: Agentic Process State Declaration
+  severity: WARNING
+  category: CI/Tooling
+  domain: all
+  scope: Agent interactions
+  guideline: 'Before executing commands or editing files, the agent must state: (1) The specific directive/doc governing this
+    action, and (2) The target scope (e.g. specific test package or module).'
+  evaluation_criteria: Check agent turns prior to tool execution for stated directive and scope. Flag tool execution lacking
+    state declaration as advisory warning.
+  positive_example: 'Governing directive: docs/agents/testing.md
+
+    Target scope: tests/core/sandbox/test_lifecycle.py'
+  negative_example: Running write_to_file without stating governing directive or target scope
+  citation: AGENTS.md#agentic-process
+planner_rules:
+- id: PLAN-001
+  title: Read-Only Planning Discipline
+  category: Planning
+  phase: Reset & Prereqs
+  scope: Agent session & filesystem
+  requirement: While planning, the agent is strictly read-only. Never edit src/ or tests/, never run tests or tooling (inv
+    test, pytest, ruff, basedpyright, inv complexity), and never commit, push, or touch PR state. Read-only git and gh commands
+    are the only commands permitted.
+  deliverable_contract: No source files edited. The plan document in .agentic/plan.md is the entire deliverable.
+  validation_check: Verify git status after planning shows only .agentic/plan.md created.
+  positive_example: '# Agent reads files and gh issues, then writes only to .agentic/plan.md
+
+    '
+  negative_example: '# Agent runs `inv test` or edits `src/worktree/cli/app.py` while planning
+
+    '
+  citation: docs/agents/planning.md#planning-before-implementation
+- id: PLAN-002
+  title: Workspace Reset and State Isolation
+  category: Planning
+  phase: Reset & Prereqs
+  scope: .agentic/ directory
+  requirement: 'Before anything else, clear the previous cycle''s artifacts so a stale review or plan can never be read as
+    current: mkdir -p .agentic && rm -f .agentic/plan.md .agentic/review.md .agentic/review.json.'
+  deliverable_contract: Stale review and plan files removed prior to writing the new plan.
+  validation_check: Check that .agentic/review.md and .agentic/review.json do not exist when a new plan is generated.
+  positive_example: 'mkdir -p .agentic && rm -f .agentic/plan.md .agentic/review.md .agentic/review.json
+
+    '
+  negative_example: '# Leaving previous round''s .agentic/review.md in place while writing new plan
+
+    '
+  citation: .agents/skills/wt-plan/SKILL.md#step-1-reset-the-workspace
+- id: PLAN-003
+  title: Verbatim Contract Extraction
+  category: Planning
+  phase: Contract Extraction
+  scope: '## Contract section in .agentic/plan.md'
+  requirement: Extract the contract from the issue body without summarizing. Copy every FR-* and NFR-* verbatim with its ID.
+    Paraphrasing requirements is strictly prohibited.
+  deliverable_contract: Section '## Contract' containing exact FR/NFR IDs and verbatim requirement text.
+  validation_check: Diff issue text against plan contract section. Flag any dropped clause or paraphrase.
+  positive_example: '## Contract
+
+    - **FR-1**: Add `wt sandbox prune` command to remove unreferenced sandboxes.
+
+    - **FR-2**: Prune operation must delete worktree branches matching `worktree/sandbox-*`.
+
+    '
+  negative_example: '## Contract
+
+    We will implement sandbox pruning for stale directories.
+
+    '
+  citation: docs/agents/planning.md#step-1-extract-the-contract-from-the-issue
+- id: PLAN-004
+  title: Normative Pre-Determined Data Preservation
+  category: Planning
+  phase: Contract Extraction
+  scope: '## Contract section in .agentic/plan.md'
+  requirement: Copy Pre-determined data exactly from the issue. Field names, types, defaults, file paths, constants, error
+    codes, and template bodies stated there are normative. You may not invent, rename, or 'improve' them.
+  deliverable_contract: Pre-determined data reproduced identically under '## Contract'.
+  validation_check: Verify all field names, types, and defaults in code samples match the issue's Pre-determined data.
+  positive_example: '### Pre-determined data
+
+    - Model: `SandboxPruneResult`
+
+    - Field: `pruned_items: list[str] = []`
+
+    - Exit code on error: `1`
+
+    '
+  negative_example: '# Plan renames `pruned_items` to `deleted_sandboxes` because it sounds "better"
+
+    '
+  citation: docs/agents/planning.md#step-1-extract-the-contract-from-the-issue
+- id: PLAN-005
+  title: Out-of-Scope Guardrails
+  category: Planning
+  phase: Contract Extraction
+  scope: '### Out of scope section in .agentic/plan.md'
+  requirement: Copy Out of scope verbatim from the issue into the plan's guardrail section. Treat it as a strict stop sign,
+    not a hint.
+  deliverable_contract: Subsection '### Out of scope (verbatim from the issue)' containing exact bullet points.
+  validation_check: Verify that all items marked out of scope are explicitly listed and omitted from artifact inventory.
+  positive_example: '### Out of scope (verbatim from the issue)
+
+    - Interactive confirmation prompt before pruning
+
+    - Pruning sandboxes on remote git repositories
+
+    '
+  negative_example: '# Omitting Out of scope section or planning an interactive confirmation prompt
+
+    '
+  citation: docs/agents/planning.md#step-1-extract-the-contract-from-the-issue
+- id: PLAN-006
+  title: Greenfield Architecture Default
+  category: Planning
+  phase: Contract Extraction
+  scope: Entire plan
+  requirement: Plan zero compatibility shims, aliases, dual code paths, or deprecation windows unless the issue explicitly
+    states a compatibility constraint. Plan to replace superseded paths and update callers in the same change set.
+  deliverable_contract: Direct replacements planned; zero shims or legacy fallback adapters in artifact inventory.
+  validation_check: Check artifact inventory for compatibility wrappers or fallback flags.
+  positive_example: '# Plan directly replaces SandboxService.delete() with unified lifecycle pruner
+
+    '
+  negative_example: '# Plan introduces `LegacySandboxService` and adds deprecation warning shims
+
+    '
+  citation: docs/agents/planning.md#step-1-extract-the-contract-from-the-issue
+- id: PLAN-007
+  title: Tree Grounding and Neighbor Mirroring
+  category: Planning
+  phase: Grounding & Traps
+  scope: '## Current state section in .agentic/plan.md'
+  requirement: Never plan from memory. Read always-on docs, inspect live domain source files, and name the closest existing
+    implementation you will mirror with exact file:line citations.
+  deliverable_contract: 'Ground-truth table with columns | Surface | Location | What exists today |, plus explicit ''Pattern
+    to mirror: <path:line>''.'
+  validation_check: Verify cited file:line citations exist in the live codebase and match cited functionality.
+  positive_example: '## Current state
+
+    | Surface | Location | What exists today |
+
+    | CLI app | `src/worktree/cli/sandbox/app.py:24` | Typer app registering sandbox subcommands |
+
+    | Lifecycle | `src/worktree/core/sandbox/services/lifecycle.py:80` | `delete_sandbox` method |
+
+
+    **Pattern to mirror:** `src/worktree/cli/config/commands/config_set.py:30`
+
+    '
+  negative_example: '# Plan designs new command from scratch without citing existing neighbor commands
+
+    '
+  citation: docs/agents/planning.md#step-2-ground-yourself-in-the-current-code
+- id: PLAN-008
+  title: Trap Identification and Isolation
+  category: Planning
+  phase: Grounding & Traps
+  scope: '## Current state section in .agentic/plan.md'
+  requirement: 'Explicitly name every trap a lower-context implementer could fall into: dead code, similarly-named-but-unrelated
+    symbols, duplicate implementations, or stale docs. Mark each explicitly out of scope.'
+  deliverable_contract: Subsection '**Traps (explicitly not touched):**' naming specific symbols and paths.
+  validation_check: Verify known hazards (e.g. core/runtime/engine.py vs core/engine/engine.py) are trapped when touched.
+  positive_example: '**Traps (explicitly not touched):**
+
+    - `core/runtime/engine.py`: Do not import Engine from here (that is `run_steps`). Engine lives in `core/engine/engine.py`.
+
+    - Stale doc claim in `schemas.md` §4 mentioning `renderers.py`: Do not create `renderers.py`.
+
+    '
+  negative_example: '# Plan fails to warn implementer about known naming collision or dead code
+
+    '
+  citation: docs/agents/planning.md#step-2-ground-yourself-in-the-current-code
+- id: PLAN-009
+  title: Complete Artifact Inventory
+  category: Planning
+  phase: Artifact Inventory
+  scope: '## Artifact inventory section in .agentic/plan.md'
+  requirement: 'Produce an inventory with one row per file touched: | Artifact | Kind | Path | New or changed | Requirement
+    |. No row may say ''e.g.'' or ''etc.''. Walk the Step 3 checklist and write ''none'' explicitly for untouched kinds.'
+  deliverable_contract: 'Markdown table of all touched artifacts followed by ''Not needed for this issue: <kinds>''.'
+  validation_check: Check that every touched file maps to a requirement and every unused artifact kind is listed under 'Not
+    needed'.
+  positive_example: '## Artifact inventory
+
+    | Artifact | Kind | Path | New or changed | Requirement |
+
+    | `SandboxPruneResult` | DTO | `src/worktree/core/sandbox/models.py` | new | FR-2 |
+
+    | `prune_command` | Command | `src/worktree/cli/sandbox/commands/prune.py` | new | FR-1 |
+
+
+    Not needed for this issue: DB migration, JSON/YAML schema, Config key.
+
+    '
+  negative_example: '| Artifacts | Path |
+
+    | Various files in cli/ | src/worktree/cli/ |
+
+    '
+  citation: docs/agents/planning.md#step-3-enumerate-every-artifact
+- id: PLAN-010
+  title: Literal Final Code for Contracts
+  category: Planning
+  phase: Specification & Samples
+  scope: '### Code section in .agentic/plan.md'
+  requirement: 'Write literal, production-ready code for anything that is a contract: models with model_config, enum definitions,
+    function/method signatures with full type hints and docstrings, Typer argument/option declarations, exact JSON dicts,
+    and error/warning strings.'
+  deliverable_contract: Fully typed models, signatures, and literal dictionaries in code blocks.
+  validation_check: Verify contract code blocks leave no ambiguous types, missing defaults, or unspecified flags.
+  positive_example: "```python\nclass SandboxPruneStatus(StrEnum):\n    OK = \"ok\"\n    NOTHING_TO_PRUNE = \"nothing_to_prune\"\
+    \n    FAILED = \"failed\"\n\nclass SandboxPruneResult(BaseResult):\n    model_config = {\"extra\": \"forbid\", \"strict\"\
+    : True}\n    status: SandboxPruneStatus\n    pruned_items: list[str] = []\n```\n"
+  negative_example: "```python\n# Plan writes vague sketch:\nclass SandboxPruneResult:\n    # fields for status and pruned\
+    \ items\n    pass\n```\n"
+  citation: docs/agents/planning.md#code-sample-rules
+- id: PLAN-011
+  title: Signature Plus Pseudo-Code for Imperative Bodies
+  category: Planning
+  phase: Specification & Samples
+  scope: '### Code section in .agentic/plan.md'
+  requirement: Write real signature, real docstring, and numbered pseudo-code steps in comments ending with `raise NotImplementedError`
+    for imperative bodies. Do not write finished implementation bodies in the plan.
+  deliverable_contract: Function stubs with signatures, docstrings, numbered steps in comments, and `raise NotImplementedError`.
+  validation_check: Ensure imperative methods in the plan end with `raise NotImplementedError` and are not fully implemented.
+  positive_example: "```python\ndef prune_sandboxes(db: SandboxesRepository, cwd: Path) -> SandboxPruneResult:\n    \"\"\"\
+    Prune unreferenced git worktree sandboxes.\n\n    Args:\n        db: Isolated sandboxes repository slice.\n        cwd:\
+    \ Target workspace root directory.\n    \"\"\"\n    # 1. Query active sandboxes from db\n    # 2. Inspect on-disk sandboxes\
+    \ under .worktree/sandboxes/\n    # 3. Delete unreferenced worktrees and git branches\n    # 4. Return SandboxPruneResult\
+    \ with status=OK\n    raise NotImplementedError\n```\n"
+  negative_example: "```python\n# Plan writes 40 lines of working implementation code inside the plan\ndef prune_sandboxes(db,\
+    \ cwd):\n    for p in cwd.glob(...):\n        shutil.rmtree(p)\n```\n"
+  citation: docs/agents/planning.md#code-sample-rules
+- id: PLAN-012
+  title: Pre-Decomposed Complexity
+  category: Planning
+  phase: Specification & Samples
+  scope: '### Code section in .agentic/plan.md'
+  requirement: Decompose complex workflows into named helper functions in the plan itself so that every planned function holds
+    cognitive complexity <= 10.
+  deliverable_contract: Multiple focused function signatures with single responsibilities rather than one large function.
+  validation_check: Verify no single planned function contains more than 3 branching levels or complex nested loops.
+  positive_example: 'def prune_stale_records(db: SandboxesRepository) -> list[str]: ...
+
+    def prune_orphaned_directories(sandboxes_dir: Path) -> list[str]: ...
+
+    def prune_sandboxes(...) -> SandboxPruneResult: ...
+
+    '
+  negative_example: '# Single 80-line function planned to do querying, directory diffing, git branch deleting, and error handling
+
+    '
+  citation: docs/agents/planning.md#step-3-enumerate-every-artifact
+- id: PLAN-013
+  title: Multi-Tier Test Specification
+  category: Planning
+  phase: Test Strategy
+  scope: '### Tests section in .agentic/plan.md'
+  requirement: For every planned test, state the test name, execution tier (Tier 1 Domain, Tier 2 Presentation, Tier 3 CLI
+    Wiring, Tier 4 Invariants), exact file path, and the EXACT contract asserted (exact JSON dict, exit code, BaseResult comparison).
+    Never say 'Assert it works'.
+  deliverable_contract: 'Markdown table: | Test | Tier | Path | Exact assertion |.'
+  validation_check: Check that every test row has an exact assertion contract and designated tier.
+  positive_example: '### Tests
+
+    | Test | Tier | Path | Exact assertion |
+
+    | `test_prune_empty_returns_nothing_to_prune` | Tier 1 | `tests/core/sandbox/services/test_prune.py` | `result.status
+    == SandboxPruneStatus.NOTHING_TO_PRUNE and result.pruned_items == []` |
+
+    | `test_prune_cli_exit_zero` | Tier 3 | `tests/cli/sandbox/test_prune_command.py` | `runner.invoke() exit code == 0 and
+    json payload matches expected dict` |
+
+    '
+  negative_example: '| Test | Path |
+
+    | Test pruning | tests/test_prune.py |
+
+    '
+  citation: docs/agents/planning.md#code-sample-rules
+- id: PLAN-014
+  title: Flagging Unspecified Decisions with 🚨
+  category: Planning
+  phase: Cross-Cutting & Validation
+  scope: '### Decisions & ## Cross-cutting in .agentic/plan.md'
+  requirement: 'When an issue leaves a detail genuinely unspecified, do not stall or invent product behavior: choose the option
+    consistent with nearest neighbor patterns, record the choice and rejected alternative, and append 🚨 so human reviewers
+    catch it.'
+  deliverable_contract: 'Decision bullet: - **<point>:** <choice>, because <reason>. Rejected: <alt>. 🚨.'
+  validation_check: Verify all unspecified assumptions are flagged with 🚨 in the plan and restated in the agent handoff message.
+  positive_example: '- **Prune branch deletion policy:** Delete local branches matching `worktree/sandbox-*` automatically,
+    because active sandboxes track branches 1:1. Rejected: prompt user for each branch. 🚨
+
+    '
+  negative_example: '# Silent design choice made without recording alternative or flagging with 🚨
+
+    '
+  citation: docs/agents/planning.md#step-1-extract-the-contract-from-the-issue
+- id: PLAN-015
+  title: Plan Target Path and Human Handoff Protocol
+  category: Planning
+  phase: Self-Check & Handoff
+  scope: Deliverable file & Chat response
+  requirement: 'Write the plan to .agentic/plan.md. Run the 9-item self-check before handing off. In chat, report the path,
+    a one-paragraph summary, all 🚨 decisions and open questions, and state plainly that this was planning only: nothing was
+    implemented, tested, committed, or pushed. Stop and wait for human review.'
+  deliverable_contract: File written to .agentic/plan.md. Agent turn terminates without executing implementation commands.
+  validation_check: Ensure the agent does not immediately proceed to invoke /wt-code or edit production files.
+  positive_example: '"Plan saved to .agentic/plan.md. Planning only; nothing was implemented or committed.
+
+    Open decisions requiring confirmation:
+
+    - 🚨 Prune branch deletion policy: auto-delete worktree/sandbox-* branches."
+
+    '
+  negative_example: '"Plan written. Now I will start writing the code..."
+
+    '
+  citation: docs/agents/planning.md#step-5-save-and-hand-off
