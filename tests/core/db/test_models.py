@@ -17,7 +17,7 @@ from worktree.core.db import (
 )
 
 
-class TestSQLModelRecords:
+class DbModelsTests:
     """Tests verifying SQLModel table models, field coercions, and validation."""
 
     def test_models_subclass_sqlmodel_and_register_tables(self) -> None:

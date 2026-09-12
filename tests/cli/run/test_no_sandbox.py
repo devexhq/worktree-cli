@@ -1,5 +1,7 @@
 """Unit tests for --no-sandbox CLI flag."""
 
+from __future__ import annotations
+
 import pytest
 from typer.testing import CliRunner
 
@@ -12,7 +14,7 @@ from worktree.core.engine import BlueprintRunService
 runner = CliRunner()
 
 
-class NoSandboxCliTests:
+class RunNoSandboxCliTests:
     """Tests for in-place blueprint execution and --no-sandbox CLI flag."""
 
     def test_task_blueprint_use_sandbox_parsing(self, fs: FileSystem) -> None:

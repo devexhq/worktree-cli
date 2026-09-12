@@ -1,5 +1,4 @@
 """Tests for SQLite database tables, BaseRepository, repository classes, and WorktreeDb facade."""
-# @TODO: Need tests covering `namespace`
 
 from __future__ import annotations
 
@@ -23,7 +22,7 @@ from worktree.core.db.models import SandboxStatus
 DB_REL = ".worktree/data.db"
 
 
-class TestDatabaseMigrations:
+class DatabaseMigrationsTests:
     """Tests for database initialization and schema creation."""
 
     db: WorktreeDb
@@ -59,7 +58,7 @@ class TestDatabaseMigrations:
                 raise RuntimeError("simulated db error")
 
 
-class TestBaseRepository:
+class BaseRepositoryTests:
     """Tests for BaseRepository core path resolution, init_db, and session lifecycle."""
 
     def test_db_path_resolution(self, fs: FileSystem) -> None:
@@ -88,7 +87,7 @@ class TestBaseRepository:
         assert repo.engine is custom_engine
 
 
-class TestSandboxesRepository:
+class SandboxesRepositoryTests:
     """Tests for SandboxesRepository CRUD methods."""
 
     db: WorktreeDb
@@ -216,7 +215,7 @@ class TestSandboxesRepository:
         assert other.status == SandboxStatus.ACTIVE
 
 
-class TestCatalogRepository:
+class CatalogRepositoryTests:
     """Tests for CatalogRepository repository methods."""
 
     db: WorktreeDb
@@ -386,7 +385,7 @@ class TestCatalogRepository:
         assert self.db.catalog.delete("to_delete") is False
 
 
-class TestWorktreeDbFacade:
+class WorktreeDbFacadeTests:
     """Tests for WorktreeDb unified facade."""
 
     db: WorktreeDb
