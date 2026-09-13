@@ -8,9 +8,10 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from worktree.core.catalog import Catalog, CatalogFileNotFoundError, CatalogResolveStatus, CatalogYamlError
+from worktree.core.catalog import Catalog, CatalogFileNotFoundError, CatalogYamlError
 from worktree.core.db import CatalogItemType
 from worktree.core.step.assertions import evaluate_assertions
+from worktree.core.step.exceptions import StepValidationError
 from worktree.core.step.models import (
     AssertionResult,
     ConditionEvaluationResult,
@@ -51,54 +52,43 @@ class Step:
             raise ValueError("Step requires an instance or definition.")
 
     @classmethod
-    def load(cls, source: dict[str, Any] | Path | str, *, path: Path | None = None) -> Step | None:
-        """Load a step from a dictionary, file path, or catalog step ID."""
+    def load(
+        cls,
+        source: dict[str, Any] | Path | str | StepDefinition,
+        *,
+        path: Path | None = None,
+        catalog: Catalog | None = None,
+    ) -> Step | None:
+        """Load a step from a dictionary, file path, StepDefinition, or catalog step ID."""
+        if isinstance(source, StepDefinition):
+            return cls(instance=source)
         if isinstance(source, dict):
-            return cls(definition=source)
-        if isinstance(source, Path) or (Path(source).is_file()):
+            try:
+                return cls(definition=source)
+            except (ValidationError, ValueError):
+                return None
+        if isinstance(source, Path) or (isinstance(source, str) and Path(source).is_file()):
             return cls.load_by_path(Path(source))
-        return cls.load_by_name(source, path=path or Path("."))
+        return cls.load_by_name(str(source), path=path, catalog=catalog)
 
     @classmethod
-    def load_by_name(cls, name: str, *, path: Path) -> Step | None:
-        """Resolve a catalog step by name, returning None when it cannot be loaded."""
-        steps_dir = path / ".worktree" / "catalog" / "steps"
-        if not steps_dir.is_dir():
-            return None
+    def load_by_name(
+        cls,
+        name: str,
+        *,
+        path: Path | None = None,
+        catalog: Catalog | None = None,
+    ) -> Step | None:
+        """Resolve a catalog step by name or key via the Catalog index."""
+        cat = catalog if catalog is not None else Catalog(path or Path("."))
+        result = cat.get(name, item_type=cls.definition_type, definition_cls=cls.definition_cls)
+        if result.ok and result.definition is not None:
+            return cls(instance=result.definition)
 
-        return (
-            cls._load_direct(name, steps_dir) or cls._load_catalog(name, path) or cls._scan_for_match(name, steps_dir)
-        )
+        result_by_key = cat.get_by_key(name, item_type=cls.definition_type, definition_cls=cls.definition_cls)
+        if result_by_key.ok and result_by_key.definition is not None:
+            return cls(instance=result_by_key.definition)
 
-    @classmethod
-    def _load_direct(cls, name: str, steps_dir: Path) -> Step | None:
-        """Load a step that directly matches the requested filename."""
-        for suffix in (".yaml", ".yml"):
-            direct_path = steps_dir / f"{name}{suffix}"
-            if direct_path.is_file():
-                return cls.load_by_path(direct_path)
-        return None
-
-    @classmethod
-    def _load_catalog(cls, name: str, path: Path) -> Step | None:
-        """Load a step through the catalog index by its catalog name."""
-        result = Catalog(path).resolve(name, item_type=cls.definition_type)
-        if result.status is not CatalogResolveStatus.OK or result.raw is None:
-            return None
-        try:
-            return cls(definition=result.raw)
-        except ValidationError:
-            return None
-
-    @classmethod
-    def _scan_for_match(cls, name: str, steps_dir: Path) -> Step | None:
-        """Find a step whose YAML-defined ID or name matches the request."""
-        for candidate in sorted(steps_dir.rglob("*")):
-            if candidate.suffix not in (".yaml", ".yml") or not candidate.is_file():
-                continue
-            step = cls.load_by_path(candidate)
-            if step is not None and (step.instance.id == name or step.instance.name == name):
-                return step
         return None
 
     @classmethod
@@ -109,10 +99,14 @@ class Step:
         except (CatalogFileNotFoundError, CatalogYamlError, ValidationError):
             return None
 
-    # @TODO: Replace `resolve_step_definition` with this so we have a consistent `resolve` function for blueprints
-    def resolve(self, *, path: Path | None = None) -> StepDefinition | None:
+    def resolve(
+        self,
+        *,
+        path: Path | None = None,
+        catalog: Catalog | None = None,
+    ) -> StepDefinition | None:
         """Resolve shorthand step fields (e.g. `uses: ...` or `run: ...`)."""
-        return self.resolve_step_definition(path=path)
+        return self.resolve_step_definition(path=path, catalog=catalog)
 
     # @staticmethod
     # def run(
@@ -220,13 +214,18 @@ class Step:
         """Construct PreviousStepMetadata from a completed StepResult."""
         return previous_step_metadata_from_result(result, step_index=step_index)
 
-    def resolve_step_definition(self, *, path: Path | None = None) -> StepDefinition | None:
+    def resolve_step_definition(
+        self,
+        *,
+        path: Path | None = None,
+        catalog: Catalog | None = None,
+    ) -> StepDefinition | None:
         """Resolve a step, following its dependencies if any."""
         if self.instance.run is not None:
             return self._resolve_run()
 
         if self.instance.uses is not None:
-            return self._resolve_from_uses(path=path)
+            return self._resolve_from_uses(path=path, catalog=catalog)
 
         if self.instance.type is not None:
             return self.instance
@@ -234,6 +233,7 @@ class Step:
         return None
 
     def _resolve_run(self) -> StepDefinition:
+        """Expand a 'run' shorthand step into a concrete COMMAND StepDefinition."""
         return StepDefinition.model_validate(
             {
                 "id": self.instance.id,
@@ -248,14 +248,23 @@ class Step:
             }
         )
 
-    def _resolve_from_uses(self, path: Path | None = None) -> StepDefinition | None:
-        """Load the referenced step and apply only the fields the referencing step explicitly set."""
-        if path is None:
+    def _resolve_from_uses(
+        self,
+        *,
+        path: Path | None = None,
+        catalog: Catalog | None = None,
+    ) -> StepDefinition | None:
+        """Load the referenced step and apply only fields explicitly set in this step."""
+        if self.instance.uses is None:
             return None
-        base_step = Step.load_by_name(str(self.instance.uses), path=path)
+        if path is None and catalog is None:
+            return None
+
+        base_step = Step.load(str(self.instance.uses), path=path, catalog=catalog)
         if base_step is None:
             return None
-        base_definition = base_step.instance
+
+        base_definition = base_step.resolve(path=path, catalog=catalog) or base_step.instance
         fields_set = self.instance.model_fields_set
 
         def _pick(field_name: str) -> object:
@@ -263,19 +272,60 @@ class Step:
                 getattr(self.instance, field_name) if field_name in fields_set else getattr(base_definition, field_name)
             )
 
-        return StepDefinition.model_validate(
-            {
-                "id": self.instance.id,
-                "name": _pick("name"),
-                "type": base_definition.type,
-                "description": _pick("description"),
-                "command": base_definition.command,
-                "prompt": _pick("prompt"),
-                "script_path": _pick("script_path"),
-                "tools": _pick("tools"),
-                "env": {**base_definition.env, **self.instance.env},
-                "timeout_seconds": _pick("timeout_seconds"),
-                "assert": _pick("assert_"),
-                "on_failure": _pick("on_failure"),
-            }
-        )
+        try:
+            return StepDefinition.model_validate(
+                {
+                    "id": self.instance.id,
+                    "name": _pick("name"),
+                    "type": base_definition.type,
+                    "description": _pick("description"),
+                    "command": base_definition.command,
+                    "prompt": _pick("prompt"),
+                    "script_path": _pick("script_path"),
+                    "tools": _pick("tools"),
+                    "env": {**base_definition.env, **self.instance.env},
+                    "timeout_seconds": _pick("timeout_seconds"),
+                    "assert": _pick("assert_"),
+                    "on_failure": _pick("on_failure"),
+                }
+            )
+        except (ValidationError, ValueError):
+            return None
+
+
+def resolve_step_definition(
+    step: StepDefinition | dict[str, Any],
+    *,
+    path: Path | None = None,
+    catalog: Catalog | None = None,
+) -> StepDefinition:
+    """Resolve a step's 'run' or 'uses' shorthand into a concrete StepDefinition.
+
+    Args:
+        step: A StepDefinition instance or raw step dictionary mapping.
+        path: Optional workspace root directory for loading referenced catalog steps.
+        catalog: Optional Catalog instance for loading referenced catalog steps.
+
+    Returns:
+        Expanded, concrete StepDefinition instance.
+
+    Raises:
+        StepValidationError: If the step cannot be resolved or fails validation.
+    """
+    if isinstance(step, dict):
+        try:
+            step_obj = Step(definition=step)
+        except (ValidationError, ValueError) as exc:
+            step_id = str(step.get("id", "<unknown>"))
+            raise StepValidationError(f"Step validation failed for '{step_id}': {exc}") from exc
+    else:
+        step_obj = Step(instance=step)
+
+    resolved = step_obj.resolve(path=path, catalog=catalog)
+    if resolved is None:
+        step_id = step_obj.instance.id
+        if step_obj.instance.uses is not None and path is None and catalog is None:
+            raise StepValidationError(f"Cannot resolve step '{step_id}' using 'uses' without workspace path.")
+        raise StepValidationError(f"Step '{step_id}' must specify one of 'run', 'uses', or 'type'.")
+
+    return resolved
