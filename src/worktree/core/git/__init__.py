@@ -7,7 +7,7 @@ from .exceptions import (
     GitPlumbingTimeoutError,
 )
 from .models import GitWorktreeEntry
-from .runner import GitRunner
+from .runner import GitRunner, parse_worktree_porcelain
 
 __all__ = [
     "GitCommandError",
@@ -16,4 +16,5 @@ __all__ = [
     "GitPlumbingTimeoutError",
     "GitRunner",
     "GitWorktreeEntry",
+    "parse_worktree_porcelain",
 ]
