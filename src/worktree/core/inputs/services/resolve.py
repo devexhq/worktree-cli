@@ -20,7 +20,11 @@ class _ParseState:
     index: int = 0
 
 
-def _truthy_bool(raw: str) -> bool:
+def is_truthy_bool(raw: str) -> bool:
+    """Determine if the provided string is a truthy value.
+
+    Raises ``ValueError`` if no match is found.
+    """
     normalized = raw.strip().lower()
     if normalized in {"1", "true", "yes", "y", "on"}:
         return True
@@ -39,7 +43,7 @@ def coerce_input_value(raw: str, input_type: InputType, *, name: str) -> str | i
         except ValueError as exc:
             raise ValueError(f"Input '{name}' expects an integer, got '{raw}'.") from exc
     try:
-        return _truthy_bool(raw)
+        return is_truthy_bool(raw)
     except ValueError as exc:
         raise ValueError(f"Input '{name}' expects a boolean, got '{raw}'.") from exc
 
