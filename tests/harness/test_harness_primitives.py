@@ -23,6 +23,13 @@ class DummyModel(BaseModel):
     timestamp: str = "2026-01-01T00:00:00Z"
 
 
+class NestedDummyModel(BaseModel):
+    """Pydantic model for nested equality assertion tests."""
+
+    item: DummyModel
+    label: str = "root"
+
+
 class IsolatedWorkspaceFixtureTests:
     """Verification tests for isolated_workspace fixture."""
 
@@ -152,3 +159,62 @@ class AssertModelEqualTests:
         model = DummyModel(name="item", count=42)
         with pytest.raises(AssertionError):
             assert_model_equal(model, expected)
+
+    @pytest.mark.parametrize(
+        "expected",
+        [
+            pytest.param(
+                NestedDummyModel(
+                    item=DummyModel(name="sub", count=1, timestamp="different"),
+                    label="root",
+                ),
+                id="model",
+            ),
+            pytest.param(
+                {
+                    "item": {"name": "sub", "count": 1, "timestamp": "different"},
+                    "label": "root",
+                },
+                id="dict",
+            ),
+        ],
+    )
+    def test_assert_model_equal_applies_nested_exclusions(
+        self,
+        expected: NestedDummyModel | dict[str, object],
+    ) -> None:
+        model = NestedDummyModel(
+            item=DummyModel(name="sub", count=1, timestamp="2026-01-01T00:00:00Z"),
+            label="root",
+        )
+        assert_model_equal(model, expected, exclude={"item": {"timestamp"}})
+
+    @pytest.mark.parametrize(
+        "expected",
+        [
+            pytest.param(
+                NestedDummyModel(
+                    item=DummyModel(name="sub", count=99, timestamp="different"),
+                    label="root",
+                ),
+                id="model",
+            ),
+            pytest.param(
+                {
+                    "item": {"name": "sub", "count": 99, "timestamp": "different"},
+                    "label": "root",
+                },
+                id="dict",
+            ),
+        ],
+    )
+    def test_assert_model_equal_fails_on_nested_unexcluded_difference(
+        self,
+        expected: NestedDummyModel | dict[str, object],
+    ) -> None:
+        model = NestedDummyModel(
+            item=DummyModel(name="sub", count=1, timestamp="2026-01-01T00:00:00Z"),
+            label="root",
+        )
+        with pytest.raises(AssertionError):
+            assert_model_equal(model, expected, exclude={"item": {"timestamp"}})

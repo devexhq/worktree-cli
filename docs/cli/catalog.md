@@ -89,7 +89,7 @@ wt catalog show <sha_or_name> [--format terminal|json]
 
 ### `wt catalog delete`
 
-Deletes a catalog blueprint file and unregisters its record from the database:
+Deletes a catalog blueprint file and unregisters its record from the database. Bundled templates in the `wt/` namespace (e.g. `wt/starter-task`, `wt/fix-tests`) are protected and cannot be deleted:
 
 ```bash
 wt catalog delete <sha_or_name> [OPTIONS]

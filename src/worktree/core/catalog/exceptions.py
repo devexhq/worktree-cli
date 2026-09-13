@@ -17,3 +17,7 @@ class CatalogYamlError(CatalogError):
 
 class CatalogWriteError(CatalogError):
     """Raised by Catalog.save when the atomic write fails."""
+
+
+class CatalogProtectionError(CatalogError):
+    """Raised when attempting to delete or mutate a protected bundled catalog template."""

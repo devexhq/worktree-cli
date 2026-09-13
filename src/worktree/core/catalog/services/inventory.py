@@ -12,6 +12,7 @@ from worktree.common.models import (
     DefinitionResolutionResult,
     DefinitionResolutionStatus,
 )
+from worktree.core.catalog.exceptions import CatalogProtectionError
 from worktree.core.catalog.models import (
     CatalogScanResult,
     CatalogSubdirectoryScanResult,
@@ -171,7 +172,8 @@ def _get_initial_template_content(type_enum: CatalogItemType, stem: str) -> str:
     template_path = Filesystem().catalog_templates_dir / f"{type_enum.value}s" / "default.yml"
     try:
         content = template_path.read_text(encoding="utf-8")
-        return content.replace("my-blueprint", stem)
+        placeholder = "my-step" if type_enum == CatalogItemType.STEP else "my-blueprint"
+        return content.replace(placeholder, stem)
     except Exception:
         # Defensive fallback if the packaged resource is unreadable
         if type_enum == CatalogItemType.BLUEPRINT:
@@ -350,19 +352,38 @@ def delete_catalog_item_by_sha_or_name(
     path: Path,
     db: CatalogRepository | None = None,
 ) -> CatalogRecord | None:
-    """Delete a catalog blueprint file and its database record."""
-    database = db if db is not None else CatalogRepository(path)
-    result = get_catalog_item(sha_or_name, path=path, db=database)
-    item = result.resolved
-    if item is None:
-        return None
+    """Delete a catalog blueprint file and its database record.
 
-    catalog_dir = get_catalog_dir(path)
-    file_path = catalog_dir / item.path
-    Filesystem().delete_file(file_path)
+    Args:
+        sha_or_name: SHA identifier or name of the catalog item.
+        path: Workspace root directory.
+        db: Optional pre-configured CatalogRepository instance.
 
-    database.delete(item.sha)
-    return item
+    Returns:
+        Deleted CatalogRecord, or None if the record was not found.
+
+    Raises:
+        CatalogProtectionError: If attempting to delete a template in the protected 'wt/' namespace.
+    """
+    if sha_or_name.startswith("wt/"):
+        raise CatalogProtectionError(f"Cannot delete bundled catalog template '{sha_or_name}'.")
+
+    with WorkspaceLock(path):
+        database = db if db is not None else CatalogRepository(path)
+        result = get_catalog_item(sha_or_name, path=path, db=database)
+        item = result.resolved
+        if item is None:
+            return None
+
+        if item.namespace == "wt":
+            raise CatalogProtectionError(f"Cannot delete bundled catalog template '{item.key}'.")
+
+        catalog_dir = get_catalog_dir(path)
+        file_path = catalog_dir / item.path
+        Filesystem().delete_file(file_path)
+
+        database.delete(item.sha)
+        return item
 
 
 def list_packaged_template_defaults() -> list[tuple[str, str]]:
@@ -379,14 +400,15 @@ def list_packaged_template_defaults() -> list[tuple[str, str]]:
 def find_packaged_templates(sha_or_name: str) -> list[tuple[str, str]]:
     """Return (relative_path, content) pairs for packaged templates matching `sha_or_name`."""
     root = Filesystem().catalog_templates_dir
+    clean_name = sha_or_name.removeprefix("wt/")
     found: list[tuple[str, str]] = []
     for type_dir in ("blueprints", "steps"):
         candidate = (
             (root / type_dir / "default.yml")
-            if sha_or_name == "default"
-            else (root / type_dir / "wt" / f"{sha_or_name}.yml")
+            if clean_name == "default"
+            else (root / type_dir / "wt" / f"{clean_name}.yml")
         )
         if candidate.is_file():
-            rel_path = f"{type_dir}/default.yml" if sha_or_name == "default" else f"{type_dir}/wt/{sha_or_name}.yml"
+            rel_path = f"{type_dir}/default.yml" if clean_name == "default" else f"{type_dir}/wt/{clean_name}.yml"
             found.append((rel_path, candidate.read_text(encoding="utf-8")))
     return found
