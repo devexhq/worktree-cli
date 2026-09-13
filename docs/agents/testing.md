@@ -18,6 +18,7 @@ Asserting on implementation costs brittleness and buys no safety. A suite can re
 Test structure mirrors `src/worktree/` 1:1 under `tests/`. **A test lives beside what it tests.** If a module moves package, its test moves in the same commit.
 
 - Every source module in `src/worktree/` has exactly one corresponding test file in `tests/`:
+  - `src/worktree/common/<module>.py` -> `tests/common/test_<module>.py`
   - `src/worktree/core/<domain>/<module>.py` -> `tests/core/<domain>/test_<module>.py`
   - `src/worktree/cli/<command>/commands/<action>.py` -> `tests/cli/<command>/test_<action>_command.py`
   - `src/worktree/cli/ui/formatters/<domain>/<name>.py` -> `tests/cli/ui/formatters/<domain>/test_<name>.py`

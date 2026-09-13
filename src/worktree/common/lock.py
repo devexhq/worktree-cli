@@ -42,7 +42,7 @@ def _cleanup_registered_locks() -> None:
     with _REGISTRY_LOCK:
         for file_descriptor in list(_FD_REGISTRY.values()):
             try:
-                _unlock_file_descriptor(file_descriptor)
+                unlock_file_descriptor(file_descriptor)
                 os.close(file_descriptor)
             except Exception:
                 pass
@@ -95,14 +95,14 @@ def _try_lock_windows(file_descriptor: int) -> bool:
         return False
 
 
-def _try_acquire_file_descriptor_lock(file_descriptor: int) -> bool:
+def try_acquire_file_descriptor_lock(file_descriptor: int) -> bool:
     """Attempt non-blocking platform-specific file lock."""
     if sys.platform != "win32":
         return _try_flock_posix(file_descriptor)
     return _try_lock_windows(file_descriptor)
 
 
-def _unlock_file_descriptor(file_descriptor: int) -> None:
+def unlock_file_descriptor(file_descriptor: int) -> None:
     """Release platform-specific file lock on file_descriptor."""
     if sys.platform != "win32":
         if fcntl is not None:
@@ -161,6 +161,8 @@ def _check_lock_timeout(
 def resolve_lock_file_path(root_dir: Path) -> Path:
     """Determine the canonical .worktree/.lock path for root_dir."""
     canonical_root = root_dir.expanduser().resolve()
+    if canonical_root.name == ".lock":
+        return canonical_root
     if canonical_root.name == ".worktree":
         return canonical_root / ".lock"
     return canonical_root / ".worktree" / ".lock"
@@ -207,6 +209,12 @@ class WorkspaceLock:
         self.on_wait = on_wait if on_wait is not None else _default_on_wait
         self._file_descriptor: int | None = None
         self._is_nested: bool = False
+        self._local_depth: int = 0
+
+    @property
+    def is_locked(self) -> bool:
+        """Return True if this lock instance is currently acquired."""
+        return self._file_descriptor is not None and self._local_depth > 0
 
     def _open_lock_file(self) -> int:
         """Ensure parent directory exists and open lock file descriptor."""
@@ -219,7 +227,7 @@ class WorkspaceLock:
         announced = False
 
         while True:
-            if _try_acquire_file_descriptor_lock(file_descriptor):
+            if try_acquire_file_descriptor_lock(file_descriptor):
                 _write_holder_pid(file_descriptor)
                 return True
 
@@ -242,6 +250,7 @@ class WorkspaceLock:
                 _LOCK_REGISTRY[self.lock_path] = depth + 1
                 self._file_descriptor = _FD_REGISTRY.get(self.lock_path)
                 self._is_nested = True
+                self._local_depth += 1
                 return self
 
         file_descriptor = self._open_lock_file()
@@ -259,29 +268,39 @@ class WorkspaceLock:
             _FD_REGISTRY[self.lock_path] = file_descriptor
             self._file_descriptor = file_descriptor
             self._is_nested = False
+            self._local_depth = 1
 
         return self
 
     def release(self) -> None:
         """Release the file lock, decrementing re-entrancy depth."""
+        if not self.is_locked:
+            return
+
+        file_descriptor: int | None = None
         with _REGISTRY_LOCK:
+            if not self.is_locked:
+                return
+            self._local_depth -= 1
             depth = _LOCK_REGISTRY.get(self.lock_path, 0)
             if depth > 1:
                 _LOCK_REGISTRY[self.lock_path] = depth - 1
+                if self._local_depth == 0:
+                    self._file_descriptor = None
                 return
 
             _LOCK_REGISTRY.pop(self.lock_path, None)
             file_descriptor = _FD_REGISTRY.pop(self.lock_path, None)
+            self._file_descriptor = None
 
         if file_descriptor is not None:
             try:
-                _unlock_file_descriptor(file_descriptor)
+                unlock_file_descriptor(file_descriptor)
             finally:
                 try:
                     os.close(file_descriptor)
                 except Exception:
                     pass
-        self._file_descriptor = None
 
     def __enter__(self) -> WorkspaceLock:
         """Context manager entry point acquiring workspace lock."""
