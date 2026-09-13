@@ -17,10 +17,10 @@ Asserting on implementation costs brittleness and buys no safety. A suite can re
 
 Test structure mirrors `src/worktree/` 1:1 under `tests/`. **A test lives beside what it tests.** If a module moves package, its test moves in the same commit.
 
-- Every source module in `src/worktree/` has exactly one corresponding test file in `tests/`:
+- Every source module in `src/worktree/` has corresponding test coverage in `tests/`:
   - `src/worktree/common/<module>.py` -> `tests/common/test_<module>.py`
   - `src/worktree/core/<domain>/<module>.py` -> `tests/core/<domain>/test_<module>.py`
-  - `src/worktree/cli/<command>/commands/<action>.py` -> `tests/cli/<command>/test_<action>_command.py`
+  - `src/worktree/cli/<command>/commands/*.py` -> `tests/cli/commands/test_<command>.py` (housing dual-tier `*RootTests` and `*CliIntegrationTests` for each command action)
   - `src/worktree/cli/ui/formatters/<domain>/<name>.py` -> `tests/cli/ui/formatters/<domain>/test_<name>.py`
 - Every test directory gets an `__init__.py`. Basenames repeat across the tree (`test_formatters.py`, `test_filesystem.py`), so collection depends on packages being real.
 - **One test file per source module.** Do not split one module's tests across files without a stated architectural rule.
@@ -218,7 +218,7 @@ Every command module must implement the dual-tier matrix (`scratch/test-structur
 Both tiers are required per command. Direct handler calls cannot see option binding, exit codes, or dispatcher wiring; runner tests verify wiring without duplicating domain logic. Four scenarios per command:
 1. Happy path exit 0.
 2. Failure path with expected non-zero exit code.
-3. `--output-format json` emits valid JSON matching wire schema.
+3. `--format json` emits valid JSON matching wire schema.
 4. Any interactive confirmation or abort branch.
 
 ### Tier 4 - Invariants (`tests/lint/`)

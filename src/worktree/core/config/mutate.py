@@ -16,6 +16,7 @@ from worktree.core.config.loader import (
     clear_config_cache,
     resolve_config_path,
 )
+from worktree.core.config.parser import parse_config_value
 
 
 class ConfigSetStatus(StrEnum):
@@ -142,6 +143,7 @@ def _validate_mutated_config(
     updated: dict[str, Any],
     path: Path,
     key: str,
+    value: Any = None,
 ) -> ConfigSetResult | None:
     """Return a schema-invalid result, or ``None`` when mapping succeeds."""
     validation = CONFIG_VALIDATOR.validate(updated)
@@ -150,6 +152,7 @@ def _validate_mutated_config(
             status=ConfigSetStatus.SCHEMA_INVALID,
             config_path=path,
             key=key,
+            value=value,
             errors=[
                 "\n".join(
                     [
@@ -171,6 +174,7 @@ def _validate_mutated_config(
             status=ConfigSetStatus.SCHEMA_INVALID,
             config_path=path,
             key=key,
+            value=value,
             errors=[
                 "\n".join(
                     [
@@ -213,9 +217,10 @@ def set_config_value_result(
     if isinstance(loaded, ConfigSetResult):
         return loaded
 
+    parsed_value = parse_config_value(value) if isinstance(value, str) else value
     updated = copy.deepcopy(loaded)
     try:
-        set_nested_value(updated, key, value)
+        set_nested_value(updated, key, parsed_value)
     except ValueError as exc:
         message = str(exc)
         status = (
@@ -227,10 +232,11 @@ def set_config_value_result(
             status=status,
             config_path=resolved_path,
             key=key,
+            value=parsed_value,
             errors=[message],
         )
 
-    schema_error = _validate_mutated_config(updated, resolved_path, key)
+    schema_error = _validate_mutated_config(updated, resolved_path, key, value=parsed_value)
     if schema_error is not None:
         return schema_error
 
@@ -241,6 +247,7 @@ def set_config_value_result(
             status=ConfigSetStatus.WRITE_FAILED,
             config_path=resolved_path,
             key=key,
+            value=parsed_value,
             errors=[f"Unable to write config.json at '{resolved_path}': {exc} (CONFIG_WRITE_FAILED)."],
             fixes=["Check file permissions and free disk space"],
         )
@@ -250,6 +257,6 @@ def set_config_value_result(
         status=ConfigSetStatus.OK,
         config_path=resolved_path,
         key=key,
-        value=value,
+        value=parsed_value,
         errors=[],
     )
