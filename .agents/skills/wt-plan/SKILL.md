@@ -40,7 +40,7 @@ Before proposing changes, perform the following verification steps:
    - Greenfield default: plan no compatibility shims, aliases, dual code paths, or deprecation windows unless the contract explicitly demands one.
 
 3. **Check Architectural Rules & Invariants:**
-   - Read the target package's `RULES.md` (e.g. `src/worktree/core/docs/RULES.md`), `docs/agents/REVIEW_CHECKLIST.json`, and `docs/agents/PLANNER_RULES.md` for active project constraints.
+   - Load `docs/agents/REVIEW_CHECKLIST.json` and `docs/agents/PLANNER_RULES.md`. Filter checklist rules against the target paths and packages touched by the change.
    - Strictly verify:
      - **Layering & CLI Purity (`ARCH-001`, `ARCH-002`):** Core services (`src/worktree/core/`) must never accept or import `CliContext` or `WorktreeDb`. They only take explicit repository slices (e.g., `SandboxesRepository`) or validated primitives/Pydantic models.
      - **Filesystem Safety (`FS-001`, `FS-002`):** Atomic writes via temporary siblings and advisory cross-process locks.
@@ -61,9 +61,13 @@ Format every implementation plan in `.agentic/plan.md` using this exact Markdown
 
 ### Architectural Context & Boundary Check
 - **Target Files/Modules:** List files to add, update, or remove.
-- **Relevant Rule IDs:** Enumerate affected rules from `REVIEW_CHECKLIST.json` (e.g., `ARCH-001`, `PERF-001`, `RENDER-001`, `DB-001`).
+- **Relevant Rule IDs:** Enumerate affected rules from `REVIEW_CHECKLIST.json` (e.g., `ARCH-001`, `PERF-001`, `RENDER-001`, `DB-001`, `TEST-007`).
 - **Invariants to Preserve:** Outline the dependency boundaries and contracts that must remain intact.
 - **Ground Truth & Neighbor to Mirror:** Citation of existing implementation pattern being mirrored (`file:line`) and known traps marked out of scope.
+- **Rule Evaluation Matrix:** Audit every matching rule from `REVIEW_CHECKLIST.json` against the planned design with line-level evidence:
+  | Rule ID | Name | Severity | Status | Evidence / Notes |
+  |---|---|---|---|---|
+  | `TEST-007` | Whole Object Comparison | BLOCKER | PASS | Stubs specify assert_model_equal(result, ExpectedResult(...)); zero piecewise attribute asserts |
 
 ### Artifact Inventory
 Enumerate every file you will touch (one row per file; write `none` explicitly for artifact kinds the change does not need):
@@ -104,7 +108,7 @@ Organize the work into sequential, testable phases:
 #### Phase 4: Test Suite & Verification
 - List specific unit and integration tests to create or update per tier.
 - Ensure test helpers inject pre-initialized repository slices to prevent N+1 setup overhead.
-- State exact contracts asserted (exit codes, exact dicts, `BaseResult` comparison).
+- State exact contracts asserted (exit codes, exact dicts, `BaseResult` comparison via `assert_model_equal`).
 - Outline command-line checks to run (e.g., `uv run ruff check .`, `uv run inv test`).
 
 ### Cross-Cutting & Doc Updates
@@ -113,7 +117,9 @@ Organize the work into sequential, testable phases:
 ## 3. Code Sample Rules
 
 - **Contracts get literal, final code.** Model and enum definitions with every field, type, and default (`model_config = {"extra": "forbid", "strict": True}`). Full signatures with type hints and Google-style docstrings. Typer argument/option declarations with exact flag names and help copy. Formatter class shells. Exact JSON payload dicts. Exact error, warning, and fix strings.
-- **Imperative bodies get a stub.** Real signature, real docstring, the body as numbered steps in comments, ending in `raise NotImplementedError`. Do not write working imperative bodies: logic is the implementer's job, and a plan with finished code cannot be reviewed as a plan.
+- **Production imperative bodies get a stub.** Real signature, real docstring, the body as numbered steps in comments, ending in `raise NotImplementedError`. Do not write working imperative bodies: logic is the implementer's job, and a plan with finished code cannot be reviewed as a plan.
+- **Test method bodies get setup outline plus literal whole-object assertions.** Real test method signature, docstring, setup steps in numbered comments, and **literal whole-object assertion calls** (`assert_model_equal(result, ExpectedResult(...))` or `assert json.loads(res.stdout) == expected_event_dict`), ending in `raise NotImplementedError`.
+  - ❌ **Strictly Banned in test stubs & tables:** Conversational assertion comments (`# verify status ok`, `# assert exit_code == 0`), bare attribute assertions (`assert result.exit_code == 0`, `assert result.status == ...`), piecewise dictionary lookups (`json["payload"]["status"] == "ok"`), and using `exclude` on deterministic fields (e.g. `exclude={"errors"}`, `exclude={"config", "raw"}`). All assertions must compare whole models or complete event dictionaries. The `exclude` parameter in `assert_model_equal` is strictly reserved for inherently non-deterministic values (such as dynamic timestamps or random UUIDs); any excluded field must have its presence asserted separately.
 
 ## 4. Ambiguity & Risk Gate
 
@@ -122,10 +128,19 @@ Before concluding your plan:
 2. If the contract leaves a detail genuinely unspecified, choose the option consistent with the nearest existing pattern, record the choice and the rejected alternative, and append 🚨 to that line.
 3. Ask the user 1 clarifying question if a design tradeoff needs confirmation before execution begins.
 
-## 5. Save and Hand Off
+## 5. Pre-Handoff Rule Compliance Audit (wt-review Parity)
+
+Before writing `.agentic/plan.md`, execute an item-by-item compliance sweep mirroring `wt-review`:
+1. **Scope Checklist:** Load `docs/agents/REVIEW_CHECKLIST.json` and filter for rules whose `scope` matches touched files or package domains (`tests/`, `cli/`, `core/`, `common/`).
+2. **Item-by-Item Audit:** Audit each matching rule against the draft plan, checking planned models, signatures, test stubs, and assertions against the rule's `evaluation_criteria`.
+3. **Enforce Blocker Gate:**
+   - If any `BLOCKER` rule is violated (e.g. piecewise assertions violating `TEST-007`, upward imports violating `ARCH-001`, missing dual-tier matrix under `TEST-004`), refactor the plan immediately to resolve the breach before saving.
+4. **Populate Rule Evaluation Matrix:** Record the audit findings with specific evidence in the plan's `### Rule Evaluation Matrix`.
+
+## 6. Save and Hand Off
 
 1. Write the plan to `.agentic/plan.md`.
-2. Run the self-check list at the end of `docs/agents/planning.md` and do not hand off a plan that fails any item.
+2. Run the self-check list at the end of `docs/agents/planning.md` and verify that the `Rule Evaluation Matrix` has zero FAIL items.
 3. Report:
    - The path (`.agentic/plan.md`) and a one-paragraph summary of the approach.
    - Every open question and 🚨 decision restated in chat.

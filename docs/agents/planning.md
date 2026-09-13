@@ -217,7 +217,15 @@ you did not verify exists is a bug you handed to someone else.
 
 For each planned test, state the **exact contract asserted**: the exact dict for
 JSON output, the exit code, the file or git ref on disk, the `*Result`
-comparison. "Assert it works" is not a plan.
+comparison via `assert_model_equal(...)`. "Assert it works" is not a plan.
+**Strictly ban conversational assertion comments** (`# verify status ok`,
+`# assert exit_code == 0`), **piecewise attribute assertions**
+(`assert result.exit_code == 0`, `assert result.status == ...`,
+`res.stdout["payload"]["status"] == ...`), and **lazy exclusions**
+(using `exclude={"errors"}` or `exclude={"config", "raw"}`) in test stubs and test tables.
+All assertions must compare whole models or complete event dictionaries. The `exclude`
+parameter in `assert_model_equal` is strictly reserved for inherently non-deterministic
+values (such as dynamic timestamps or random UUIDs); any excluded field must have its presence asserted separately.
 
 ### Plan document template
 
@@ -244,6 +252,13 @@ Planning only, nothing was implemented. Grounded against `<base branch>` at
 **Pattern to mirror:** <domain path chain, with citations>
 
 **Traps (explicitly not touched):** <dead code, lookalike symbol, stale doc>
+
+### Rule Evaluation Matrix
+
+| Rule ID | Name | Severity | Status | Evidence / Notes |
+|---|---|---|---|---|
+| `TEST-007` | Whole Object Comparison | BLOCKER | PASS | Stubs write literal assert_model_equal(result, ExpectedResult(...)); zero piecewise attribute asserts |
+| `ARCH-001` | Strict Layered Import Flow | BLOCKER | PASS | Services import only from common and core domains; zero cli imports |
 
 ## Artifact inventory
 
@@ -321,3 +336,5 @@ Do not hand off a plan that fails any of these:
   not-touched.
 - Every planned function decomposes below complexity 10.
 - The validation commands listed are this repo's real ones, not guessed.
+- Every matching rule in `docs/agents/REVIEW_CHECKLIST.json` is audited in the Rule Evaluation Matrix with zero FAIL items.
+- Every test stub in `### Code` and row in `### Tests` specifies literal whole-object comparison via `assert_model_equal(...)` or complete JSON dictionary equality; zero piecewise assertions (`assert result.exit_code == 0`, `assert result.status == ...`, `res.stdout["payload"]["status"] == ...`) and zero usage of `exclude` on deterministic fields.

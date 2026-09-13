@@ -368,8 +368,8 @@
       "severity": "BLOCKER",
       "domain": "tests",
       "scope": "tests/",
-      "evaluation_criteria": "Flag any test asserting on individual attributes or fields of a returned Pydantic model or BaseResult (e.g. `assert result.field == ...`, `assert result.ok`, or separate checks on `errors`, `warnings`, `fixes`) instead of asserting whole-object equality (`assert result == Expected(...)` or `assert_model_equal(result, expected)`).",
-      "bad_pattern": "assert result.status == StepStatus.OK; assert result.exit_code == 0; assert result.duration == 1.2"
+      "evaluation_criteria": "Flag any test asserting on individual attributes or fields of a returned Pydantic model or BaseResult (e.g. `assert result.field == ...`, `assert result.ok`, or separate checks on `errors`, `warnings`, `fixes`) instead of asserting whole-object equality (`assert result == Expected(...)` or `assert_model_equal(result, expected)`). Also flag any usage of `exclude` in `assert_model_equal` targeting deterministic fields (e.g. `exclude={\"errors\"}`, `exclude={\"config\", \"raw\"}`).",
+      "bad_pattern": "assert_model_equal(result, expected, exclude={\"errors\"})  # \u274c DO NOT exclude deterministic errors or payloads"
     },
     {
       "id": "TEST-008",
