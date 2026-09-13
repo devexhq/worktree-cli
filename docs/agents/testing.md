@@ -284,7 +284,7 @@ blueprint = (
 
 Standardize assertions on contracts using shared helpers:
 
-- **`assert_model_equal(actual, expected, *, exclude=None)`**: Compares Pydantic model instances (including all `BaseResult` subclasses) directly or against an expected dictionary with clean mismatch diffs. If `exclude` is specified, it explicitly drops non-deterministic fields (e.g. timestamps, dynamic UUIDs) to prevent masking regressions.
+- **`assert_model_equal(actual, expected, *, exclude=None)`**: Compares Pydantic model instances (including all `BaseResult` subclasses) directly or against an expected dictionary with clean mismatch diffs. The `exclude` parameter is strictly reserved for inherently non-deterministic fields (e.g. dynamic timestamps, generated hashes, or random UUIDs) and any excluded field must be asserted separately for structural presence; `exclude` must never be used on deterministic fields (`errors`, `warnings`, `raw`, `config`) to bypass writing expected values.
 - **`assert_exact_json(actual, expected_dict)`**: Guarantees exact byte/key wire-format contracts without ignoring unexpected extra keys.
 
 ### Determinism & Process Isolation Strategy

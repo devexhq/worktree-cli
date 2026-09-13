@@ -192,13 +192,14 @@ class SandboxPruneResult:
 ## [PLAN-011] Signature Plus Pseudo-Code for Imperative Bodies
 - **Phase:** `Specification & Samples`
 - **Scope:** `### Code section in .agentic/plan.md`
-- **Requirement:** Write real signature, real docstring, and numbered pseudo-code steps in comments ending with `raise NotImplementedError` for imperative bodies. Do not write finished implementation bodies in the plan.
-- **Deliverable Contract:** Function stubs with signatures, docstrings, numbered steps in comments, and `raise NotImplementedError`.
-- **Validation Check:** Ensure imperative methods in the plan end with `raise NotImplementedError` and are not fully implemented.
+- **Requirement:** Write real signature, real docstring, and numbered pseudo-code steps in comments ending with `raise NotImplementedError` for production imperative bodies. For test method bodies, setup steps may be outlined in comments, but all assertions on results, models, or command outputs must be written as literal Python code using `assert_model_equal(...)` or whole-dictionary equality. Banned in test stubs: conversational assertions ('verify status is OK'), bare `assert result.exit_code == 0`, piecewise attribute checks, or using `exclude` in `assert_model_equal` on deterministic fields (e.g. `exclude={"errors"}`).
+- **Deliverable Contract:** Production function stubs with signatures, docstrings, numbered steps in comments, and `raise NotImplementedError`. Test stubs with signatures, docstrings, setup comments, literal whole-object assertions, and `raise NotImplementedError`.
+- **Validation Check:** Ensure imperative production methods end with `raise NotImplementedError` and are not fully implemented. Ensure test stubs contain literal whole-object assertions rather than loose conversational comments or lazy exclusions.
 
 ```markdown
 <!-- ✅ POSITIVE EXAMPLE -->
 ```python
+# Production stub:
 def prune_sandboxes(db: SandboxesRepository, cwd: Path) -> SandboxPruneResult:
     """Prune unreferenced git worktree sandboxes.
 
@@ -211,14 +212,27 @@ def prune_sandboxes(db: SandboxesRepository, cwd: Path) -> SandboxPruneResult:
     # 3. Delete unreferenced worktrees and git branches
     # 4. Return SandboxPruneResult with status=OK
     raise NotImplementedError
+
+# Test stub:
+def test_prune_empty_returns_nothing_to_prune(self, isolated_workspace: Path) -> None:
+    """Prune returns NOTHING_TO_PRUNE when sandboxes directory is empty."""
+    # 1. Build context with clean workspace
+    # 2. Call prune_sandboxes
+    assert_model_equal(
+        result,
+        SandboxPruneResult(status=SandboxPruneStatus.NOTHING_TO_PRUNE, pruned_items=[]),
+    )
+    raise NotImplementedError
 ```
 
 <!-- ❌ NEGATIVE EXAMPLE -->
 ```python
-# Plan writes 40 lines of working implementation code inside the plan
-def prune_sandboxes(db, cwd):
-    for p in cwd.glob(...):
-        shutil.rmtree(p)
+# ❌ Test stub with informal comments or lazy exclude:
+def test_prune(self):
+    # 1. Run prune
+    # 2. Assert exit_code == 0 and status is ok
+    assert_model_equal(result, expected, exclude={"errors"})
+    raise NotImplementedError
 ```
 ```
 
@@ -242,20 +256,20 @@ def prune_sandboxes(...) -> SandboxPruneResult: ...
 ## [PLAN-013] Multi-Tier Test Specification
 - **Phase:** `Test Strategy`
 - **Scope:** `### Tests section in .agentic/plan.md`
-- **Requirement:** For every planned test, state the test name, execution tier (Tier 1 Domain, Tier 2 Presentation, Tier 3 CLI Wiring, Tier 4 Invariants), exact file path, and the EXACT contract asserted (exact JSON dict, exit code, whole-object BaseResult or BaseModel comparison). Assertions on returned models must specify whole-object comparison (`result == ExpectedModel(...)`), never piecewise field checks. Never say 'Assert it works'.
+- **Requirement:** For every planned test, state the test name, execution tier (Tier 1 Domain, Tier 2 Presentation, Tier 3 CLI Wiring, Tier 4 Invariants), exact file path, and the EXACT contract asserted (exact JSON dict, whole-object BaseResult or BaseModel comparison). Assertions on returned models or event payloads must specify whole-object comparison (`assert_model_equal(result, ExpectedModel(...))` or `assert json.loads(res.stdout) == expected_dict`), never piecewise field checks, bare attribute assertions (e.g. `res.exit_code == 0`, `result.ok is True`, `res.stdout['payload']['status'] == 'ok'`), or `exclude` on deterministic fields (e.g. `exclude={"errors"}`). Never say 'Assert it works'.
 - **Deliverable Contract:** Markdown table: | Test | Tier | Path | Exact assertion |.
-- **Validation Check:** Check that every test row has an exact assertion contract and designated tier.
+- **Validation Check:** Check that every test row has an exact assertion contract and designated tier with zero piecewise attribute checks or lazy exclusions.
 
 ```markdown
 <!-- ✅ POSITIVE EXAMPLE -->
 ### Tests
 | Test | Tier | Path | Exact assertion |
-| `test_prune_empty_returns_nothing_to_prune` | Tier 1 | `tests/core/sandbox/services/test_prune.py` | `result == SandboxPruneResult(status=SandboxPruneStatus.NOTHING_TO_PRUNE, pruned_items=[])` |
-| `test_prune_cli_exit_zero` | Tier 3 | `tests/cli/sandbox/test_prune_command.py` | `runner.invoke() exit code == 0 and json payload matches expected dict` |
+| `test_prune_empty_returns_nothing_to_prune` | Tier 1 | `tests/core/sandbox/services/test_prune.py` | `assert_model_equal(result, SandboxPruneResult(status=SandboxPruneStatus.NOTHING_TO_PRUNE, pruned_items=[]))` |
+| `test_prune_cli_json` | Tier 3 | `tests/cli/sandbox/test_prune_command.py` | `assert json.loads(res.stdout) == expected_wire_dict` |
 
 <!-- ❌ NEGATIVE EXAMPLE -->
-| Test | Path |
-| Test pruning | tests/test_prune.py |
+| Test | Path | Exact assertion |
+| Test pruning | tests/test_prune.py | assert_model_equal(result, Expected(...), exclude={"errors"}) |
 ```
 
 ## [PLAN-014] Flagging Unspecified Decisions with 🚨
@@ -288,4 +302,22 @@ Open decisions requiring confirmation:
 
 <!-- ❌ NEGATIVE EXAMPLE -->
 "Plan written. Now I will start writing the code..."
+```
+
+## [PLAN-016] Item-by-Item Checklist Compliance Audit
+- **Phase:** `Pre-Handoff Self-Audit`
+- **Scope:** `## Architectural Context & Boundary Check in .agentic/plan.md`
+- **Requirement:** Before writing or finalizing .agentic/plan.md, the planner must sweep docs/agents/REVIEW_CHECKLIST.json item by item for all rules matching touched paths or domains, exactly mimicking wt-review. Evaluate every planned artifact, signature, test stub, and assertion contract against each matching rule's evaluation criteria. Record the status (PASS, N/A) and concrete evidence in a required '### Rule Evaluation Matrix' table within the plan.
+- **Deliverable Contract:** Required subsection '### Rule Evaluation Matrix' in .agentic/plan.md auditing all applicable rules from REVIEW_CHECKLIST.json with specific line-level evidence.
+- **Validation Check:** Verify the plan contains a completed Rule Evaluation Matrix covering all matching rules from REVIEW_CHECKLIST.json with PASS/NA status and concrete justification.
+
+```markdown
+<!-- ✅ POSITIVE EXAMPLE -->
+### Rule Evaluation Matrix
+| Rule ID | Name | Severity | Status | Evidence / Notes |
+| `TEST-007` | Whole Object Comparison | BLOCKER | PASS | Stubs write literal assert_model_equal(result, ExpectedResult(...)); zero piecewise attribute asserts |
+| `ARCH-001` | Strict Layered Import Flow | BLOCKER | PASS | Services import only from common and core domains; zero cli imports |
+
+<!-- ❌ NEGATIVE EXAMPLE -->
+# Plan omits Rule Evaluation Matrix or references general rules without item-by-item verification
 ```
