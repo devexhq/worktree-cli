@@ -68,13 +68,14 @@ Skip this axis only when `.agentic/plan.md` is absent, and say so in the report.
 
 ## 4. Sweep the mechanical rules and invariant checklist
 
-The rules that get missed are the ones no linter enforces, and they are missed because reviewers read for design and skim identifiers. So do this as an explicit pass, not a byproduct.
+The rules that get missed are the ones no linter enforces, and they are missed because reviewers read for design and skim identifiers. So do this as an explicit pass, not a byproduct. Never glob rules together or rely on an unstructured diff skim.
 
-Walk `docs/agents/REVIEW_CHECKLIST.json` and [conventions-checklist.md](conventions-checklist.md) against the changed hunks:
-1. **Match rule scope**: For each changed file path in the diff, filter the checklist for rules whose `scope` pattern encompasses that file (e.g., `src/worktree/core/` matches `ARCH-001`, `src/worktree/cli/ui/formatters/` matches `RENDER-*`, `src/worktree/**/models.py` matches `MODEL-*`).
-2. **Audit against `evaluation_criteria`**: For every matching rule, inspect the changed code line-by-line against the rule's specific `evaluation_criteria`.
-3. **Classify severity**:
-   - **`BLOCKER`**: Architectural drift, concurrency risks, raw DB instantiation in loops/helpers, boundary leaks, runtime crashes, or `assert` in `src/`. **If any rule with `severity == "BLOCKER"` is breached, reject the review (`verdict: CHANGES REQUIRED`) with line-level findings.**
+Walk `docs/agents/REVIEW_CHECKLIST.json` and conventions-checklist.md against the changed hunks:
+1. **Match rule scope**: For each changed file path in the diff, filter the checklist for rules whose `scope` pattern encompasses that file (e.g., `src/worktree/core/` matches `ARCH-001`, `src/worktree/cli/ui/formatters/` matches `RENDER-*`, `src/worktree/**/models.py` matches `MODEL-*`, `tests/` matches `TEST-*`).
+2. **Item-by-item audit**: You must evaluate each matching rule against the diff individually and record its status (`PASS`, `FAIL`, or `N/A`) with specific line-level evidence in the Rule Evaluation Matrix.
+3. **Audit against `evaluation_criteria`**: For every matching rule, inspect the changed code line-by-line against the rule's specific `evaluation_criteria`.
+4. **Classify severity**:
+   - **`BLOCKER`**: Architectural drift, concurrency risks, raw DB instantiation in loops/helpers, boundary leaks, runtime crashes, `assert` in `src/`, or piecewise assertions on `result` attributes in tests (violating `TEST-007`). **If any rule with `severity == "BLOCKER"` is breached, reject the review (`verdict: CHANGES REQUIRED`) with line-level findings.**
    - **`WARNING`**: High-impact convention or type degradation. Flagged as advisory findings for developer resolution.
    - **`SUGGESTION`**: Constructive improvements or optimization suggestions.
    - **`NIT`**: Minor formatting or cosmetic observations.
@@ -134,6 +135,11 @@ Write this to `.agentic/review.md` (create `.agentic/` if needed), overwriting a
 - `path:line`
   - Issue: minor style or wording observation.
   - Fix: the concrete adjustment.
+
+### Rule Evaluation Matrix
+| Rule ID | Name | Severity | Status | Evidence / Notes |
+|---|---|---|---|---|
+| `TEST-007` | Whole Object Comparison | BLOCKER | PASS | Uses `assert_model_equal` on whole `ConfigLoadResult` |
 
 ### Plan fidelity
 - <FR-n> - implemented as specified | deviates: <what> | missing

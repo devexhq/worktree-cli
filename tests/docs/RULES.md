@@ -213,10 +213,10 @@ class DiffCliIntegrationTests: ...  # runner invoke
 ```
 
 - **[TEST-007] Whole Object Comparison (BLOCKER):**
-  Compare whole objects (assert result == Expected(...) or assert_model_equal(result, expected)) rather than asserting individual fields. One comparison fails on unexpected extra fields and gives clear diffs.
+  Compare whole objects (assert result == Expected(...) or assert_model_equal(result, expected)) rather than asserting individual fields. One comparison fails on unexpected extra fields and gives clear diffs. Never use piece-wise attribute assertions on operation results.
 
 ```python
-# ✅ DO: assert result == StepResult(status=StepStatus.OK, exit_code=0, duration=1.2)
+# ✅ DO: assert_model_equal(result, StepResult(status=StepStatus.OK, exit_code=0, duration=1.2))
 # ❌ DO NOT: assert result.status == StepStatus.OK; assert result.exit_code == 0; assert result.duration == 1.2
 ```
 

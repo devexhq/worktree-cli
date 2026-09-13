@@ -534,9 +534,9 @@ rules:
   domain: tests
   scope: tests/
   guideline: Compare whole objects (assert result == Expected(...) or assert_model_equal(result, expected)) rather than asserting
-    individual fields. One comparison fails on unexpected extra fields and gives clear diffs.
-  evaluation_criteria: Flag any test asserting on individual attributes or fields of a returned Pydantic model or BaseResult (e.g. `assert result.field == ...` or multiple field checks) instead of asserting whole-object equality (`assert result == Expected(...)` or `assert_model_equal(...)`).
-  positive_example: assert result == StepResult(status=StepStatus.OK, exit_code=0, duration=1.2)
+    individual fields. One comparison fails on unexpected extra fields and gives clear diffs. Never use piece-wise attribute assertions on operation results.
+  evaluation_criteria: Flag any test asserting on individual attributes or fields of a returned Pydantic model or BaseResult (e.g. `assert result.field == ...`, `assert result.ok`, or separate checks on `errors`, `warnings`, `fixes`) instead of asserting whole-object equality (`assert result == Expected(...)` or `assert_model_equal(result, expected)`).
+  positive_example: assert_model_equal(result, StepResult(status=StepStatus.OK, exit_code=0, duration=1.2))
   negative_example: assert result.status == StepStatus.OK; assert result.exit_code == 0; assert result.duration == 1.2
   citation: docs/agents/testing.md#core-testing-rules
 - id: TEST-008
