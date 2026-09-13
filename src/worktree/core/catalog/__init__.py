@@ -4,6 +4,7 @@ from worktree.core.catalog.catalog import Catalog
 from worktree.core.catalog.exceptions import (
     CatalogError,
     CatalogFileNotFoundError,
+    CatalogProtectionError,
     CatalogWriteError,
     CatalogYamlError,
 )
@@ -23,6 +24,7 @@ __all__ = [
     "CatalogError",
     "CatalogFileNotFoundError",
     "CatalogListResult",
+    "CatalogProtectionError",
     "CatalogResolveResult",
     "CatalogResolveStatus",
     "CatalogShowResult",
