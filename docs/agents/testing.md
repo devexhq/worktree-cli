@@ -284,9 +284,7 @@ blueprint = (
 
 Standardize assertions on contracts using shared helpers:
 
-- **`assert_result_ok(result, expected_status=None)`**: Asserts `result.ok is True`, `len(result.errors) == 0`, and verifies `result.status == expected_status` if specified.
-- **`assert_result_error(result, expected_code=None, *, expected_status=None)`**: Asserts `result.ok is False`, `len(result.errors) > 0`, verifies `result.status == expected_status` if specified, and asserts that `expected_code` matches an error code or substring in `result.errors`.
-- **`assert_model_equal(actual, expected, *, exclude=None)`**: Compares Pydantic model instances directly or against an expected dictionary with clean mismatch diffs. If `exclude` is specified, it explicitly drops non-deterministic fields (e.g. timestamps, dynamic UUIDs) to prevent masking regressions.
+- **`assert_model_equal(actual, expected, *, exclude=None)`**: Compares Pydantic model instances (including all `BaseResult` subclasses) directly or against an expected dictionary with clean mismatch diffs. If `exclude` is specified, it explicitly drops non-deterministic fields (e.g. timestamps, dynamic UUIDs) to prevent masking regressions.
 - **`assert_exact_json(actual, expected_dict)`**: Guarantees exact byte/key wire-format contracts without ignoring unexpected extra keys.
 
 ### Determinism & Process Isolation Strategy
