@@ -1,0 +1,186 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from worktree.common.models import FailurePolicy
+from worktree.core.runtime.loop_runner import LoopBlockRunner
+from worktree.core.runtime.models import (
+    FailurePromptDecision,
+    FailurePrompter,
+    LoopPromptDecision,
+    RunObserver,
+    StepLoopState,
+)
+from worktree.core.step.models import (
+    ConditionEvaluationResult,
+    LoopStepBlock,
+    StepDefinition,
+    StepResult,
+    StepType,
+)
+
+pytestmark = pytest.mark.integration
+
+
+class GrantingFailurePrompter(FailurePrompter):
+    """Test double implementing FailurePrompter returning GRANT on loop iteration ceilings."""
+
+    def __init__(self, grant_turns: int = 3) -> None:
+        self.grant_turns = grant_turns
+        self.calls: list[dict[str, object]] = []
+
+    def prompt_step_failure(
+        self,
+        *,
+        step: StepDefinition,
+        result: StepResult,
+        diagnostic: str,
+    ) -> FailurePromptDecision:
+        return FailurePromptDecision.ABORT
+
+    def prompt_loop_max_iterations(
+        self,
+        *,
+        loop: LoopStepBlock,
+        iteration: int,
+        diagnostic: str,
+        grant_count: int = 3,
+    ) -> LoopPromptDecision:
+        self.calls.append(
+            {
+                "loop_id": loop.id,
+                "iteration": iteration,
+                "diagnostic": diagnostic,
+            }
+        )
+        return LoopPromptDecision.GRANT
+
+
+class RecordingRunObserver(RunObserver):
+    """Test double implementing RunObserver recording loop lifecycle event sequences."""
+
+    def __init__(self) -> None:
+        self.loop_events: list[tuple[object, ...]] = []
+
+    def on_sandbox_ready(self, path: Path, active: bool) -> None:
+        pass
+
+    def on_step_start(self, idx: int, total: int, step: StepDefinition) -> None:
+        pass
+
+    def on_step_output(
+        self,
+        idx: int,
+        total: int,
+        step: StepDefinition,
+        line: str,
+        stream: str = "stdout",
+    ) -> None:
+        pass
+
+    def on_step_done(self, idx: int, total: int, result: StepResult) -> None:
+        pass
+
+    def on_loop_start(self, loop_id: str, max_iterations: int) -> None:
+        self.loop_events.append(("on_loop_start", loop_id, max_iterations))
+
+    def on_loop_turn_start(self, loop_id: str, turn: int, max_iterations: int) -> None:
+        self.loop_events.append(("on_loop_turn_start", loop_id, turn, max_iterations))
+
+    def on_loop_conditions_evaluated(
+        self,
+        loop_id: str,
+        results: list[ConditionEvaluationResult],
+        all_passed: bool,
+        next_turn: int | None = None,
+    ) -> None:
+        pass
+
+    def on_loop_done(self, loop_id: str, status: str, turns: int) -> None:
+        self.loop_events.append(("on_loop_done", loop_id, status, turns))
+
+    def on_sandbox_cleanup(self, kept: bool, path: Path) -> None:
+        pass
+
+
+class LoopIterationCeilingTests:
+    """Integration tests verifying loop runner behavior when hitting max_iterations ceilings."""
+
+    def test_loop_runner_grant_decision_extends_max_iterations(self, tmp_path: Path) -> None:
+        """Verify prompt GRANT decision increases max_iterations and allows loop completion."""
+        loop = LoopStepBlock(
+            id="test-loop",
+            type="loop",
+            max_iterations=1,
+            until=["iteration.index >= 2"],
+            do=[StepDefinition(id="tick", type=StepType.COMMAND, command="echo ok")],
+            on_max_iterations=FailurePolicy.PROMPT_USER,
+        )
+        prompter = GrantingFailurePrompter(grant_turns=3)
+        state = StepLoopState(target_dir=tmp_path, session=None)
+        runner = LoopBlockRunner(loop=loop, sandbox_path=tmp_path, failure_prompter=prompter)
+
+        action, result, error = runner.run(state)
+
+        assert (action, result, error) == (LoopPromptDecision.CONTINUE, None, None)
+        assert prompter.calls == [
+            {
+                "loop_id": "test-loop",
+                "iteration": 1,
+                "diagnostic": "Reached max_iterations (1) without meeting 'until' conditions.",
+            }
+        ]
+        assert len(state.step_results) == 2
+
+    def test_loop_runner_on_max_iterations_continue_emits_warning_and_completes(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """Verify on_max_iterations=continue finishes with status completed and records a warning."""
+        loop = LoopStepBlock(
+            id="test-loop",
+            type="loop",
+            max_iterations=2,
+            until=["iteration.index >= 5"],
+            do=[StepDefinition(id="tick", type=StepType.COMMAND, command="echo ok")],
+            on_max_iterations=FailurePolicy.CONTINUE,
+        )
+        state = StepLoopState(target_dir=tmp_path, session=None)
+        runner = LoopBlockRunner(loop=loop, sandbox_path=tmp_path)
+
+        action, result, error = runner.run(state)
+
+        assert (action, result, error) == (LoopPromptDecision.CONTINUE, None, None)
+        assert state.warnings == [
+            "Loop 'test-loop' reached max_iterations (2) without meeting 'until' conditions; continuing."
+        ]
+        assert len(state.step_results) == 2
+
+
+class LoopObserverEventTests:
+    """Integration tests verifying loop lifecycle event dispatching to observers."""
+
+    def test_loop_runner_dispatches_turn_start_and_done_events(self, tmp_path: Path) -> None:
+        """Verify observer receives on_loop_start, on_loop_turn_start, and on_loop_done events."""
+        loop = LoopStepBlock(
+            id="test-loop",
+            type="loop",
+            max_iterations=3,
+            until=["iteration.index >= 2"],
+            do=[StepDefinition(id="tick", type=StepType.COMMAND, command="echo ok")],
+        )
+        observer = RecordingRunObserver()
+        state = StepLoopState(target_dir=tmp_path, session=None)
+        runner = LoopBlockRunner(loop=loop, sandbox_path=tmp_path, observer=observer)
+
+        action, result, error = runner.run(state)
+
+        assert (action, result, error) == (LoopPromptDecision.CONTINUE, None, None)
+        assert observer.loop_events == [
+            ("on_loop_start", "test-loop", 3),
+            ("on_loop_turn_start", "test-loop", 1, 3),
+            ("on_loop_turn_start", "test-loop", 2, 3),
+            ("on_loop_done", "test-loop", "completed", 2),
+        ]
