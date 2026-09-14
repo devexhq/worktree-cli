@@ -86,8 +86,15 @@ def _collect_stanzas(output: str) -> list[list[str]]:
     return stanzas
 
 
-def _parse_worktree_porcelain(output: str) -> list[GitWorktreeEntry]:
-    """Parse output from `git worktree list --porcelain` into GitWorktreeEntry list."""
+def parse_worktree_porcelain(output: str) -> list[GitWorktreeEntry]:
+    """Parse output from `git worktree list --porcelain` into GitWorktreeEntry list.
+
+    Args:
+        output: Raw stdout from `git worktree list --porcelain`.
+
+    Returns:
+        List of parsed GitWorktreeEntry records.
+    """
     entries: list[GitWorktreeEntry] = []
     for stanza in _collect_stanzas(output):
         entry = _parse_worktree_stanza(stanza)
@@ -169,6 +176,18 @@ class GitRunner:
             return []
 
     @staticmethod
+    def has_uncommitted_changes(path: Path) -> bool:
+        """Check whether working tree has modified, staged, untracked, or deleted files.
+
+        Args:
+            path: Path to git working directory.
+
+        Returns:
+            True if uncommitted changes exist, False otherwise.
+        """
+        return bool(GitRunner.status_porcelain(path))
+
+    @staticmethod
     def worktree_add(
         path: Path,
         target_path: Path,
@@ -203,7 +222,7 @@ class GitRunner:
     def worktree_list(path: Path) -> list[GitWorktreeEntry]:
         """Parse and return all registered worktrees via `git worktree list --porcelain`."""
         output = GitRunner.run(["worktree", "list", "--porcelain"], path=path)
-        return _parse_worktree_porcelain(output)
+        return parse_worktree_porcelain(output)
 
     @staticmethod
     def branch_delete(
