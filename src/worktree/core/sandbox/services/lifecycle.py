@@ -7,6 +7,7 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
+from worktree.common.constants import DEFAULT_MAXIMUM_SANDBOXES_ALLOWED
 from worktree.common.filesystem import Filesystem
 from worktree.common.lock import WorkspaceLock
 from worktree.core.config import Config
@@ -100,7 +101,7 @@ class SandboxLifecycle:
             # Best-effort cleanup: ignore errors during worktree prune.
             pass
 
-    def _check_capacity(self, max_allowed: int = 3) -> SandboxCreateResult | None:
+    def _check_capacity(self, max_allowed: int = DEFAULT_MAXIMUM_SANDBOXES_ALLOWED) -> SandboxCreateResult | None:
         """Return an error result when active sandboxes reach configured capacity."""
         active = self.get_active()
         if len(active) >= max_allowed:

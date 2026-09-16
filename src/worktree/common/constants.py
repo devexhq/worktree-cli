@@ -21,6 +21,8 @@ REQUIRED_SUBDIRS = (
 # Maximum diff lines rendered before truncation in interactive terminals
 DEFAULT_MAX_DIFF_LINES = 500
 
+DEFAULT_MAXIMUM_SANDBOXES_ALLOWED = 3
+
 # @TODO: Do we need a maximum?
 ON_FAILURE_MAX_RETRIES_MINIMUM = 1
 ON_FAILURE_MAX_RETRIES_DEFAULT = 3
