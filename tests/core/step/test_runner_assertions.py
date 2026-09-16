@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.harness.assertions import assert_model_equal
+from tests.harness.matchers import ANY_DURATION, assert_model_equal
 from worktree.core.step.models import (
     StepAssert,
     StepDefinition,
@@ -34,19 +34,21 @@ class StepRunnerAssertionContractTests:
 
         assert_model_equal(
             result,
-            StepResult(
+            StepResult.model_construct(
                 step_id="test-assert-fail",
                 status="failed",
                 exit_code=0,
                 stdout="ok\n",
                 stderr="",
-                duration_seconds=0.0,
+                duration_seconds=ANY_DURATION,
                 attempts=1,
                 error_message=(
                     "Step 'test-assert-fail' failed assertion checks:\n"
                     "  [FAIL] file_exists: path 'missing.bin' does not exist"
                 ),
+                errors=[],
+                warnings=[],
+                fixes=[],
             ),
-            exclude={"duration_seconds"},
         )
         assert result.duration_seconds >= 0.0

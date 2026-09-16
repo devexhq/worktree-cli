@@ -1,6 +1,5 @@
 """Test harness primitives, shared builders, and contract assertions."""
 
-from tests.harness.assertions import assert_model_equal
 from tests.harness.builders import (
     BlueprintBuilder,
     StepBuilder,
@@ -13,8 +12,31 @@ from tests.harness.formatter import (
     assert_transform_derives_expected_view,
     render_rich,
 )
+from tests.harness.matchers import (
+    ANY_DATETIME,
+    ANY_DURATION,
+    ANY_GIT_SHA,
+    ANY_ISO_TIMESTAMP,
+    ANY_PATH,
+    ANY_PID,
+    ANY_TIMESTAMP,
+    ANY_UUID,
+    AnyMatching,
+    AnyValue,
+    assert_model_equal,
+)
 
 __all__ = [
+    "ANY_DATETIME",
+    "ANY_DURATION",
+    "ANY_GIT_SHA",
+    "ANY_ISO_TIMESTAMP",
+    "ANY_PATH",
+    "ANY_PID",
+    "ANY_TIMESTAMP",
+    "ANY_UUID",
+    "AnyMatching",
+    "AnyValue",
     "BlueprintBuilder",
     "FormatterCase",
     "StepBuilder",

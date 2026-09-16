@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from tests.harness.assertions import assert_model_equal
 from tests.harness.builders import StepBuilder
+from tests.harness.matchers import ANY_DURATION, assert_model_equal
 from worktree.core.step.models import StepExecutionContext, StepResult
 from worktree.core.step.runner import StepExecution
 
@@ -39,17 +39,19 @@ class StepRetryExecutionTests:
 
         assert_model_equal(
             result,
-            StepResult(
+            StepResult.model_construct(
                 step_id="retry-adapt",
                 status="completed",
                 exit_code=0,
                 stdout="attempt 2 succeeded\n",
                 stderr="",
-                duration_seconds=0.0,
+                duration_seconds=ANY_DURATION,
                 attempts=2,
                 error_message=None,
+                errors=[],
+                warnings=[],
+                fixes=[],
             ),
-            exclude={"duration_seconds"},
         )
         assert result.duration_seconds >= 0.0
 
@@ -88,16 +90,18 @@ class StepRunnerRobustnessTests:
 
         assert_model_equal(
             result,
-            StepResult(
+            StepResult.model_construct(
                 step_id="robustness-observer",
                 status="failed",
                 exit_code=1,
                 stdout="line 1\nline 2\n",
                 stderr="",
-                duration_seconds=0.0,
+                duration_seconds=ANY_DURATION,
                 attempts=1,
                 error_message="Command pipe error: Output callback error on stdout: observer crashed",
+                errors=[],
+                warnings=[],
+                fixes=[],
             ),
-            exclude={"duration_seconds"},
         )
         assert result.duration_seconds >= 0.0

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.harness.assertions import assert_model_equal
+from tests.harness.matchers import assert_model_equal
 from worktree.core.git.models import GitWorktreeEntry
 from worktree.core.git.runner import GitRunner
 

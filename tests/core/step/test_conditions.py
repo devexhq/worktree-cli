@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from tests.harness.assertions import assert_model_equal
+from tests.harness.matchers import assert_model_equal
 from worktree.core.step.models import ConditionEvaluationResult, StepResult
 from worktree.core.step.services.conditions import (
     ParsedCondition,
@@ -67,6 +67,9 @@ BOOLEAN_CASING_CASES = [
             actual=True,
             expected=True,
             detail="TRUE",
+            errors=[],
+            warnings=[],
+            fixes=[],
         ),
         id="true_upper",
     ),
@@ -78,6 +81,9 @@ BOOLEAN_CASING_CASES = [
             actual=True,
             expected=True,
             detail="TRUE",
+            errors=[],
+            warnings=[],
+            fixes=[],
         ),
         id="true_lower",
     ),
@@ -89,6 +95,9 @@ BOOLEAN_CASING_CASES = [
             actual=True,
             expected=True,
             detail="TRUE",
+            errors=[],
+            warnings=[],
+            fixes=[],
         ),
         id="true_title",
     ),
@@ -100,6 +109,9 @@ BOOLEAN_CASING_CASES = [
             actual=True,
             expected=False,
             detail="FALSE (was True)",
+            errors=[],
+            warnings=[],
+            fixes=[],
         ),
         id="false_upper",
     ),
@@ -111,6 +123,9 @@ BOOLEAN_CASING_CASES = [
             actual=True,
             expected=False,
             detail="FALSE (was True)",
+            errors=[],
+            warnings=[],
+            fixes=[],
         ),
         id="false_lower",
     ),
@@ -122,6 +137,9 @@ BOOLEAN_CASING_CASES = [
             actual=True,
             expected=False,
             detail="FALSE (was True)",
+            errors=[],
+            warnings=[],
+            fixes=[],
         ),
         id="false_title",
     ),
@@ -166,6 +184,9 @@ class ConditionExpressionEvaluatorTests:
                 actual=85,
                 expected=80,
                 detail="TRUE",
+                errors=[],
+                warnings=[],
+                fixes=[],
             ),
         )
 

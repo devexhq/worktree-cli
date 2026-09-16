@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.harness.assertions import assert_model_equal
+from tests.harness.matchers import assert_model_equal
 from worktree.core.step.assertions import evaluate_assertions, evaluate_json_match
 from worktree.core.step.assertions.filesystem import evaluate_file_exists
 from worktree.core.step.models import AssertionResult, StepAssert
@@ -46,6 +46,9 @@ class StepAssertionOrderingTests:
                     "output_contains: substring 'expected-marker' not found in output\n"
                     "file_exists: path 'absent.txt' does not exist"
                 ),
+                errors=[],
+                warnings=[],
+                fixes=[],
             ),
         )
 

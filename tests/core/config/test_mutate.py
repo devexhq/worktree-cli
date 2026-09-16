@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.harness.assertions import assert_model_equal
+from tests.harness.matchers import assert_model_equal
 from worktree.common.filesystem import Filesystem
 from worktree.core.config.generator import build_default_config
 from worktree.core.config.mutate import (
@@ -38,6 +38,8 @@ class ConfigMutationTests:
                 key="agent.model",
                 value="qwen2.5-coder",
                 errors=[],
+                warnings=[],
+                fixes=[],
             ),
         )
         data = json.loads(config_path.read_text())
@@ -59,6 +61,8 @@ class ConfigMutationTests:
                 key="telemetry.enabled",
                 value=True,
                 errors=[],
+                warnings=[],
+                fixes=[],
             ),
         )
         assert json.loads(config_path.read_text())["telemetry"]["enabled"] is True
@@ -80,6 +84,7 @@ class ConfigMutationTests:
                     "Run `wt config validate` for details",
                     "Or `wt init --repair` to insert missing keys without overwriting values",
                 ],
+                warnings=[],
             ),
         )
         assert json.loads(config_path.read_text())["sandbox"]["max_active_sandboxes"] == 3
@@ -97,5 +102,7 @@ class ConfigMutationTests:
                 key="agent.model",
                 value="qwen2.5-coder",
                 errors=["Cannot set 'agent.model'. 'agent' is already defined as a scalar value."],
+                warnings=[],
+                fixes=[],
             ),
         )
