@@ -468,11 +468,22 @@ rules:
   category: Testing
   domain: tests
   scope: tests/
-  guideline: Test structure mirrors src/worktree/ 1:1 under tests/. Exactly one test file per source module. Every test directory
-    gets an __init__.py.
-  evaluation_criteria: Check test file paths against source files. Flag missing __init__.py files.
-  positive_example: src/worktree/core/sandbox/services/lifecycle.py -> tests/core/sandbox/services/test_lifecycle.py
-  negative_example: 'tests/test_all_sandboxes.py  # unmirrored grab-bag test file'
+  guideline: >-
+    Test structure mirrors src/worktree/ 1:1 under tests/, one test file per source module, and every test
+    directory carries an __init__.py because basenames repeat across the tree. Three mappings are fixed:
+    src/worktree/common/<m>.py to tests/common/test_<m>.py, src/worktree/core/<domain>/<m>.py to
+    tests/core/<domain>/test_<m>.py, and src/worktree/cli/ui/formatters/<domain>/<name>.py to
+    tests/cli/ui/formatters/<domain>/test_<name>.py. The single collapse exception is CLI command actions:
+    src/worktree/cli/<command>/commands/*.py map together to tests/cli/commands/test_<command>.py. Any source
+    module with no test file must appear in the PARITY_EXEMPT list in tests/lint/ with a justification, so the
+    gap is visible rather than implicit. Grouping several formatters or domains into one part-numbered file is
+    prohibited.
+  evaluation_criteria: >-
+    Check every test file path against its source module using the fixed mappings. Flag part-numbered or
+    grab-bag files (for example test_command_formatters_part1.py), missing __init__.py files, and source modules
+    that are neither tested nor listed in PARITY_EXEMPT.
+  positive_example: src/worktree/cli/ui/formatters/status/status.py -> tests/cli/ui/formatters/status/test_status.py
+  negative_example: 'tests/cli/formatters/test_command_formatters_part1.py  # 12 formatters in one unmirrored file'
   citation: docs/agents/testing.md#11-source-parity-layout
 - id: TEST-003
   title: Standardized Test Naming and Vague Name Ban
@@ -488,33 +499,48 @@ rules:
   negative_example: "class TestConfig:\n    def test_ok(self): ...\n    def test_should_timeout(self): ..."
   citation: docs/agents/testing.md#naming-conventions
 - id: TEST-004
-  title: Dual-Tier CLI Matrix Testing
+  title: CLI Tier Matrix and Handler Test Necessity
   severity: BLOCKER
   category: Testing
   domain: tests
   scope: tests/cli/
-  guideline: Every CLI command module must implement both *RootTests (direct unit tests for pure Python command handlers taking
-    CliContext) and *CliIntegrationTests (invoking runner.invoke to verify Click/Typer options, exit codes, and output dispatching).
-  evaluation_criteria: Check tests for CLI commands. Flag any command module lacking either handler unit tests or runner integration
-    tests.
-  positive_example: 'class DiffCommandRootTests: ...  # unit
-
-    class DiffCliIntegrationTests: ...  # runner invoke'
-  negative_example: '# Only runner.invoke tested; handler logic not unit tested directly'
+  guideline: >-
+    Every CLI command action requires *CliIntegrationTests invoking runner.invoke to pin option and argument
+    binding, exit codes, and dispatcher output, covering four scenarios: happy path exit 0, failure path with the
+    expected non-zero exit code, --format json emitting the wire schema, and any interactive confirmation or
+    abort branch. *RootTests calling the handler directly with a CliContext are required only when the handler
+    owns logic the domain layer does not: input coercion, branch selection across services, result composition
+    from more than one call, or an interactive abort path. A pass-through handler gets no root test. A root test
+    may never restate a contract already asserted under tests/core/ for the same result type.
+  evaluation_criteria: >-
+    For each command action, verify runner integration tests exist and cover the four scenarios. Flag *RootTests
+    whose assertions duplicate an expected result object already asserted in tests/core/, and flag handlers with
+    real branching that have no root test.
+  positive_example: 'class ConfigSetRootTests: ...  # handler owns string-to-bool coercion, so it earns a root test'
+  negative_example: 'class ConfigShowRootTests: ...  # pass-through handler re-asserting the ConfigLoadResult from tests/core/config/'
   citation: docs/agents/testing.md#tier-3---cli-wiring-dual-tier-matrix
 - id: TEST-005
-  title: Three Tests Per Formatter Protocol
+  title: Formatter Presentation Contract Protocol
   severity: BLOCKER
   category: Testing
   domain: tests
   scope: tests/cli/ui/formatters/
-  guideline: 'Every formatter under cli/ui/formatters/<domain>/ must have three tests using FormatterCase: (1) view model
-    transform equality, (2) JSON wire format as an EXACT literal dict, and (3) Rich render at pinned width 160 asserting only
-    semantic values from case.view.'
-  evaluation_criteria: Inspect formatter test files. Flag formatters that do not implement all three tests or assert to_json_serializable
-    == case.view.model_dump().
-  positive_example: test_transform_derives_expected_view(); test_json_payload_matches(); test_rich_render_shows_view()
-  negative_example: 'assert ''healthy'' in render_rich(formatter.to_rich(data))  # only 1 test'
+  guideline: >-
+    Every formatter under cli/ui/formatters/<domain>/ is tested in its own file at
+    tests/cli/ui/formatters/<domain>/test_<name>.py against three contracts built from FormatterCase: view model
+    transform equality, JSON wire format as an exact literal dict pinned at both a fully populated and an
+    empty or sparse boundary state, and a Rich render at pinned width 160 asserting only semantic values taken
+    from case.view. Where the formatter has no derived view model, meaning transform is provably the identity
+    and the declared view type is the input event type, the transform test is omitted and the remaining two
+    contracts are mandatory; an alias such as SomeView = SomeEvent must not be introduced to manufacture a third
+    test. Never assert to_json_serializable(data) == transform(data).model_dump(), and never assert a label,
+    border, glyph, padding, or full sentence in the render test.
+  evaluation_criteria: >-
+    Inspect each formatter test file. Flag missing wire-format boundary cases, model_dump comparisons standing in
+    for a literal dict, identity view aliases added to satisfy the count, and render assertions on labels or
+    layout rather than view values.
+  positive_example: 'assert formatter.to_json_serializable(data) == {"health": "ok", "warnings": []}  # exact literal'
+  negative_example: 'ErrorPanelView = ErrorPanelEvent  # alias so an identity transform can be asserted'
   citation: docs/agents/testing.md#tier-2---presentation-contracts-three-tests-per-formatter-never-one
 - id: TEST-006
   title: Parameterization-First for Sibling Variations
@@ -528,17 +554,35 @@ rules:
   negative_example: 'def test_eval_model(self): ...; def test_eval_dict(self): ...  # duplicate sibling methods'
   citation: docs/agents/testing.md#parameterization-as-primary-approach
 - id: TEST-007
-  title: Whole Object Comparison
+  title: No Unasserted Fields on the Result Under Test
   severity: BLOCKER
   category: Testing
   domain: tests
   scope: tests/
-  guideline: 'Compare whole objects (assert result == Expected(...) or assert_model_equal(result, expected)) rather than asserting
-    individual fields. One comparison fails on unexpected extra fields and gives clear diffs. Never use piece-wise attribute assertions on operation results.
-    The `exclude` parameter in `assert_model_equal` is strictly reserved for inherently non-deterministic values (such as dynamic timestamps, generated hashes, or random UUIDs); any excluded field must have its presence and structure asserted separately. Never use `exclude` on deterministic fields (e.g. `errors`, `warnings`, `raw`, `config`) to bypass writing expected values.'
-  evaluation_criteria: 'Flag any test asserting on individual attributes or fields of a returned Pydantic model or BaseResult (e.g. `assert result.field == ...`, `assert result.ok`, or separate checks on `errors`, `warnings`, `fixes`) instead of asserting whole-object equality (`assert result == Expected(...)` or `assert_model_equal(result, expected)`). Also flag any usage of `exclude` in `assert_model_equal` targeting deterministic fields (e.g. `exclude={"errors"}`, `exclude={"config", "raw"}`).'
-  positive_example: 'assert_model_equal(result, StepResult(status=StepStatus.OK, exit_code=0, duration=1.2))  # or exclude={"created_at"} with assert result.created_at is not None'
-  negative_example: 'assert_model_equal(result, expected, exclude={"errors"})  # ❌ DO NOT exclude deterministic errors or payloads'
+  guideline: >-
+    Every field of the result under test is asserted. The result under test is the Pydantic model or BaseResult
+    returned by a core service or domain entrypoint, or a formatter's JSON wire payload; click.testing.Result is
+    not one, so asserting res.exit_code is required by TEST-004 and TEST-017 rather than forbidden here.
+    Satisfy the invariant with assert_model_equal(result, Expected(...)) naming every field, or for a wire
+    payload an exact literal dict. Asserting a subset of the result and stopping is prohibited: a piecewise
+    assertion is blind to every field it does not name, which is where the regression you did not anticipate
+    lands. Piecewise assertions are permitted alongside a whole-object comparison, never instead of one, and on
+    values that are not the result under test (exit codes, preconditions, an incidental single-column read).
+    Non-determinism is removed at its seam first: inject the clock and the id factory per TEST-011 so a
+    timestamp or generated id is a literal the test can state. Only for a value the test genuinely cannot own (a
+    real git SHA, an OS pid, an id minted by the database) use a matcher from tests/harness/matchers.py at that
+    field's own position, which still pins the value's type or shape. assert_model_equal has no exclude
+    parameter; a waiver expressed outside the comparison is prohibited because a reader cannot see it at the
+    field and it asserts nothing about the waived value. An expected object that leaves a field to its default
+    is rejected, since a changed default would otherwise pass unnoticed.
+  evaluation_criteria: >-
+    For each test, identify the result under test and verify every field is asserted through one whole-object
+    comparison or an exact literal dict. Flag subset assertions on that result, any use of an exclude parameter,
+    any expected object that omits a field, and any matcher standing in for a value the test could have made
+    deterministic by injecting the clock or id factory. Do not flag attribute assertions on click.testing.Result
+    or on values that are not the result under test.
+  positive_example: "assert_model_equal(result, SandboxCreateResult.model_construct(status=CREATED, sandbox_id=ANY_UUID, head_sha=ANY_GIT_SHA, worktree_path=tmp_path / 'alpha', created_at=ANY_DATETIME, errors=[]))"
+  negative_example: "assert_model_equal(result, expected, exclude={'errors'})  # invisible waiver, asserts nothing about errors"
   citation: docs/agents/testing.md#core-testing-rules
 - id: TEST-008
   title: Test Double Realism and Production Types
@@ -583,11 +627,21 @@ rules:
   category: Testing
   domain: tests
   scope: tests/
-  guideline: No hardcoded sleeps (time.sleep) in tests. Step backoff and retry intervals must monkeypatch the clock (time.monotonic
-    / asyncio.sleep) or use VirtualClock.
-  evaluation_criteria: Grep for `time.sleep` in tests/. Flag any unmocked OS sleeps.
-  positive_example: runner = StepRunner(clock=VirtualClock())
-  negative_example: 'time.sleep(2.0)  # waiting for process timeout'
+  guideline: >-
+    No hardcoded sleeps in test bodies. Retry and backoff intervals use VirtualClock or monkeypatch the clock at
+    the module boundary (time.monotonic, asyncio.sleep), and a retry test asserts the resulting schedule rather
+    than that a retry eventually happened. Inject the clock and the id factory anywhere their output reaches a
+    result field, so timestamps and generated ids are literals a test can state rather than values TEST-007 has
+    to waive with a matcher. Waiting on an operating system event that has no virtual equivalent,
+    such as a process group being reaped after SIGKILL, is permitted only through a shared harness helper that
+    owns the poll interval and deadline; tests must not open-code a poll loop. Registering spawned processes with
+    the harness process registry is mandatory so a failing test cannot leak a process group.
+  evaluation_criteria: >-
+    Grep for time.sleep in tests/. Permit occurrences inside the shared harness poll helper only, and flag every
+    open-coded poll loop or bare sleep in a test module. Flag subprocess-spawning tests that do not register with
+    the process registry.
+  positive_example: assert wait_pid_dead(child_pid) is True  # harness helper owns the poll interval
+  negative_example: "while time.monotonic() < deadline:\n    time.sleep(0.05)  # open-coded poll loop in a test module"
   citation: docs/agents/testing.md#determinism--process-isolation-strategy
 - id: TEST-012
   title: Rich Render Width Pinning
@@ -595,24 +649,36 @@ rules:
   category: Testing
   domain: tests
   scope: tests/
-  guideline: render_rich(renderable, width=160) is the only supported way to capture rendered output. Console width for rendered
-    assertions is authoritatively pinned to 160. Tests must not rely on ambient terminal size or in-process os.environ['COLUMNS']
-    mutations.
-  evaluation_criteria: Scan for console render captures. Ensure render_rich with width=160 is used.
-  positive_example: rendered = render_rich(formatter.to_rich(data)); assert 'Session ID' in rendered
-  negative_example: 'console = Console(); console.print(formatter.to_rich(data))  # unpinned width'
+  guideline: >-
+    render_rich(renderable, width=160) is the only supported way to capture rendered output, and console width for
+    rendered assertions is authoritatively pinned to 160. Tests must not rely on ambient terminal size or
+    in-process os.environ['COLUMNS'] mutations. A render assertion checks semantic values carried by the view
+    model, such as an identifier, count, or status token; it never checks a panel title, field caption, border
+    glyph, padding, or prose sentence, because those are layout and change without any contract changing.
+  evaluation_criteria: >-
+    Scan for console render captures and ensure render_rich with width=160 is used. Flag ambient-width captures,
+    and flag render assertions whose expected string is a caption or label rather than a value taken from
+    case.view.
+  positive_example: "rendered = render_rich(formatter.to_rich(data))\nassert 'wf_abcdef12' in rendered  # view value, not a caption"
+  negative_example: "assert 'Session ID' in rendered  # panel caption, changes with layout and pins no contract"
   citation: docs/agents/testing.md#rich-render-assertions
 - id: TEST-013
   title: No Sole Consumer Tests
   severity: BLOCKER
   category: Testing
   domain: tests
-  scope: src/, tests/
-  guideline: No test may be the sole consumer of a production symbol. If deleting the test would make production code unreachable,
-    the production code is dead. Delete both.
-  evaluation_criteria: Verify that every touched production function or method has at least one real caller in src/.
-  positive_example: '# Sandbox.create() called by Engine.run() and tested in test_sandbox.py'
-  negative_example: '# Sandbox.debug_dump() called ONLY in test_debug_dump()'
+  scope: src/, tests/harness/, tests/
+  guideline: >-
+    No test may be the sole consumer of a production symbol. If deleting the test would make production code
+    unreachable, the production code is dead and both go. The same applies to the test harness: a builder method,
+    fixture, or assertion helper whose only caller is its own verification test is dead harness. Delete the
+    capability rather than testing it, and prove harness behavior through the first domain test that needs it.
+  evaluation_criteria: >-
+    Verify every touched production function has a real caller in src/. Verify every harness symbol has at least
+    one caller outside tests/harness/. Flag harness verification suites that exhaustively permute options no
+    domain test uses.
+  positive_example: '# WorkspaceBuilder.with_git() used by tests/core/sandbox/test_services.py'
+  negative_example: '# StepBuilder.with_retry() exercised only by tests/harness/test_builders.py'
   citation: docs/agents/testing.md#core-testing-rules
 - id: TEST-014
   title: Strict Typing on Test Helpers and Fixtures
@@ -640,6 +706,48 @@ rules:
   positive_example: 'class ResumeCommandCliIntegrationTests: def test_resume_executes_remaining_steps(self): ...'
   negative_example: '# PR modifying Engine.resume() without integration tests for resumed step loop'
   citation: docs/agents/testing.md#pr-review-hygiene-and-testing-documentation-review-rule
+- id: TEST-016
+  title: Marker Taxonomy Fidelity
+  severity: BLOCKER
+  category: Testing
+  domain: tests
+  scope: tests/
+  guideline: >-
+    Every test carries exactly one primary marker reflecting its real execution cost, optionally combined with
+    slow. unit covers in-memory logic including reads and writes under tmp_path. integration is reserved for
+    subprocess git, on-disk SQLite transactions, and cross-process file locks. cli covers Typer runner invocation.
+    invariant is reserved for tests/lint/ static analysis. slow is additive for process group signal escalation,
+    real timeouts, and network boundaries. Declare the marker with a module-level pytestmark when the whole module
+    shares a tier; when a module mixes tiers, such as a CLI file holding both handler and runner tests, declare
+    markers at class level so each tier is selectable. Writing JSON under tmp_path does not make a test
+    integration.
+  evaluation_criteria: >-
+    Verify each test module declares exactly one primary marker, or declares markers per class when tiers are
+    mixed. Flag integration modules whose imports show no git, SQLite, subprocess, or lock usage. Flag invariant
+    outside tests/lint/. Confirm `pytest -m "not (unit or integration or cli or invariant)"` collects nothing.
+  positive_example: 'pytestmark = pytest.mark.unit  # writes config.json under tmp_path, no git or sqlite'
+  negative_example: 'pytestmark = pytest.mark.cli  # module-level, hiding *RootTests from `pytest -m unit`'
+  citation: docs/agents/testing.md#pytest-marker-taxonomy--module-level-tagging
+- id: TEST-017
+  title: CLI Runner Assertion Boundary
+  severity: BLOCKER
+  category: Testing
+  domain: tests
+  scope: tests/cli/commands/
+  guideline: >-
+    CLI runner tests assert wiring and machine contracts only: exit codes, --format json payloads as exact
+    literal dicts, and resulting disk or git state. A published error code token such as CONFIG_SCHEMA_INVALID may
+    be asserted present in output because it is a documented contract. Panel titles, status labels, field
+    captions, prose, glyphs, and padding must not be asserted; those are presentation contracts belonging to the
+    formatter test for that view under tests/cli/ui/formatters/. Never assert help text wording; assert command
+    registration and option names through Click metadata instead.
+  evaluation_criteria: >-
+    Scan tests/cli/commands/ for containment checks against stdout or output. Permit only tokens matching a
+    published error code pattern. Flag label and prose assertions, and name the formatter test that should carry
+    them instead.
+  positive_example: "assert res.exit_code == 1\nassert \"CONFIG_SCHEMA_INVALID\" in res.stdout  # published error code"
+  negative_example: 'assert "Status: valid with warnings" in res.stdout  # human label scraped in a runner test'
+  citation: docs/agents/testing.md#core-testing-rules
 - id: DOC-001
   title: Architecture Doc Structural Gate
   severity: BLOCKER
@@ -696,11 +804,17 @@ rules:
   category: Documentation
   domain: tests
   scope: tests/lint/
-  guideline: When a field table is genuinely unavoidable (it is the specification for an external JSON Schema or stable CLI
-    output format), add or extend an automated test that fails when table and source disagree.
-  evaluation_criteria: Verify that specification tables in docs have an automated test in tests/lint/ asserting parity.
-  positive_example: '# test_doc_parity.py guarantees README.md and RULES.md match source and spec'
-  negative_example: '# Adding manual table of CLI flags or schemas with no automated parity test'
+  guideline: >-
+    When a field table is genuinely unavoidable, meaning it is the specification for an external JSON Schema or a
+    stable CLI output format, add or extend an automated test under tests/lint/ that fails when the table and the
+    source disagree. The test must exist in the tree at the moment the doc claim lands, and the doc must name it
+    by path. Citing a parity test that has not been written is a DOC-008 breach, not a pending task.
+  evaluation_criteria: >-
+    Verify every specification table in docs has a named automated test under tests/lint/ asserting parity, and
+    resolve the named path to a file that exists. Flag manual tables of CLI flags or schema fields with no parity
+    test, and flag doc sentences naming a parity test that is absent from the tree.
+  positive_example: '# tests/lint/test_architecture_boundaries.py exists and is named by the doc claim it backs'
+  negative_example: '# "enforced by tests/lint/test_doc_parity.py" where that module is nowhere in the tree'
   citation: AGENTS.md#keeping-docs-accurate
 - id: DOC-006
   title: Prefer Deletion Over Accretion
@@ -726,17 +840,45 @@ rules:
   positive_example: '''Task blueprint containing only linear step definitions.'''
   negative_example: '''Task blueprint containing a loop block.''  # tasks are strictly linear'
   citation: docs/agents/glossary.md
+- id: DOC-008
+  title: Verifiable Doc and Rule Claims
+  severity: BLOCKER
+  category: Documentation
+  domain: all
+  scope: AGENTS.md, docs/, .agents/skills/, docs/agents/rules_spec.yaml
+  guideline: >-
+    A doc, skill, or rule sentence asserting that something is enforced, gated, or checked must name the
+    enforcing artifact by path, and that path must resolve to a file in the tree. The same applies to any helper,
+    fixture, builder, or assertion function a doc instructs an implementer to use: the symbol exists before the
+    instruction ships. Documentation of behavior that is planned rather than built is prohibited, including in
+    rule examples, because an exemplar is copied more often than the guideline is read. When a claim becomes
+    false, the fix is to delete or correct the sentence in the same change, never to leave it as aspiration.
+  evaluation_criteria: >-
+    For each doc claim of the form "enforced by", "gated by", or "see <path>", resolve the path. For each
+    documented helper or fixture name, resolve the symbol. Flag unresolvable claims, rule examples naming
+    nonexistent modules, and doc paragraphs describing behavior absent from the tree.
+  positive_example: '# "COLUMNS is pinned to 160 by [tool.pytest_env] in pyproject.toml" - resolvable and true'
+  negative_example: '# "enforced by tests/lint/test_doc_parity.py" in AGENTS.md, where the module does not exist'
+  citation: AGENTS.md#keeping-docs-accurate
 - id: CI-001
   title: Pre-Commit Quality Suite Gate
   severity: BLOCKER
   category: CI/Tooling
   domain: all
   scope: Whole repository
-  guideline: 'Before committing, all five gates must pass: ruff format, ruff check, basedpyright src --level error (0 errors),
-    inv complexity --paths <changed> --plain --failed (complexity <= 10), and inv test -c (coverage >= 80%).'
-  evaluation_criteria: Verify all 5 commands succeed before creating any commit.
-  positive_example: uv run inv test -c && ruff format . && ruff check . && basedpyright src --level error && inv complexity
-  negative_example: git commit -m 'fix' with a failing basedpyright or complexity error
+  guideline: >-
+    Before committing, all five gates must pass: ruff format, ruff check, basedpyright src tests --level error
+    with zero errors, inv complexity with complexity at or under 10, and inv test -c meeting the coverage floor
+    configured in pyproject.toml under [tool.coverage.report] fail_under. That floor is the contract, it ratchets
+    upward only as real contract tests land, and it is never lowered to make a commit pass. Coverage is a
+    regression backstop, not a target: do not add tests to raise the percentage, and read a coverage drop caused
+    by deleting duplicated or dead tests as a success.
+  evaluation_criteria: >-
+    Verify all five commands succeed before any commit. Verify the fail_under value in pyproject.toml is greater
+    than or equal to the previous committed value. Flag any PR that lowers fail_under, and flag test additions
+    whose stated justification is raising coverage.
+  positive_example: uv run inv test -c && ruff format . && ruff check . && basedpyright src tests --level error && inv complexity
+  negative_example: '# fail_under lowered so a commit can pass, or tests added purely to reach a percentage'
   citation: AGENTS.md#essential-commands
 - id: CI-002
   title: Git and Pull Request Attribution Hygiene
@@ -768,6 +910,28 @@ rules:
     Target scope: tests/core/sandbox/test_lifecycle.py'
   negative_example: Running write_to_file without stating governing directive or target scope
   citation: AGENTS.md#agentic-process
+- id: CI-004
+  title: Mechanical Enforcement Parity
+  severity: BLOCKER
+  category: CI/Tooling
+  domain: all
+  scope: tests/lint/, prek.toml, .github/workflows/, pyproject.toml
+  guideline: >-
+    A BLOCKER rule that can be checked mechanically must have an executing check: an invariant test under
+    tests/lint/, a prek hook, or a CI step. A declared gate whose configuration disables it, such as a coverage
+    floor of zero or a type checker present in no hook and no workflow, counts as unenforced and must be either
+    wired up or downgraded to a review-time WARNING. An invariant check must prove its own scope with a
+    regression test shaped like the code it polices, and lands green by carrying an explicit burn-down allowlist
+    of known violators; allowlist entries shrink and are never added to. CI must exercise the marker taxonomy so
+    the tiers have a consumer and cannot drift.
+  evaluation_criteria: >-
+    For each BLOCKER rule, identify its executing check or its explicit review-only classification. Verify
+    invariant checks include a regression test matching the suite's real shape, such as assertions inside a
+    *Tests class rather than a module-level function. Flag configuration that disables a declared gate and
+    allowlists that grew.
+  positive_example: '# TEST-016 enforced by tests/lint/test_marker_taxonomy.py plus a CI job per marker'
+  negative_example: '# Scanner walks only tree.body functions, so class-based tests are never inspected'
+  citation: docs/agents/ci-and-tooling.md
 planner_rules:
 - id: PLAN-001
   title: Read-Only Planning Discipline
@@ -791,17 +955,18 @@ planner_rules:
   category: Planning
   phase: Reset & Prereqs
   scope: .agentic/ directory
-  requirement: 'Before anything else, clear the previous cycle''s artifacts so a stale review or plan can never be read as
-    current: mkdir -p .agentic && rm -f .agentic/plan.md .agentic/review.md .agentic/review.json.'
-  deliverable_contract: Stale review and plan files removed prior to writing the new plan.
-  validation_check: Check that .agentic/review.md and .agentic/review.json do not exist when a new plan is generated.
-  positive_example: 'mkdir -p .agentic && rm -f .agentic/plan.md .agentic/review.md .agentic/review.json
-
-    '
-  negative_example: '# Leaving previous round''s .agentic/review.md in place while writing new plan
-
-    '
-  citation: .agents/skills/wt-plan/SKILL.md#step-1-reset-the-workspace
+  requirement: >-
+    Before anything else, clear the previous cycle's artifacts so a stale review, plan, or master plan can never
+    be read as current: `rm -rf .agentic && mkdir -p .agentic`. Use -rf and remove the directory itself; `rm -f`
+    on a directory exits non-zero and short-circuits the chained mkdir, leaving every stale artifact in place
+    while appearing to have reset. Per-file removal is insufficient because it leaves master-plan.md behind.
+  deliverable_contract: An empty .agentic/ directory prior to writing the new plan.
+  validation_check: >-
+    Check that .agentic/ contains no plan.md, master-plan.md, review.md, or review.json when a new plan is
+    generated.
+  positive_example: 'rm -rf .agentic && mkdir -p .agentic'
+  negative_example: 'rm -f .agentic && mkdir -p .agentic  # fails on a directory, mkdir never runs, nothing is cleared'
+  citation: .agents/skills/wt-plan/SKILL.md#1-discovery-and-boundary-auditing
 - id: PLAN-003
   title: Verbatim Contract Extraction
   category: Planning
@@ -929,32 +1094,30 @@ planner_rules:
     '
   citation: docs/agents/planning.md#step-2-ground-yourself-in-the-current-code
 - id: PLAN-009
-  title: Complete Artifact Inventory
+  title: Complete Artifact Inventory and Deletion Ledger
   category: Planning
   phase: Artifact Inventory
   scope: '## Artifact inventory section in .agentic/plan.md'
-  requirement: 'Produce an inventory with one row per file touched: | Artifact | Kind | Path | New or changed | Requirement
-    |. No row may say ''e.g.'' or ''etc.''. Walk the Step 3 checklist and write ''none'' explicitly for untouched kinds.'
-  deliverable_contract: 'Markdown table of all touched artifacts followed by ''Not needed for this issue: <kinds>''.'
-  validation_check: Check that every touched file maps to a requirement and every unused artifact kind is listed under 'Not
-    needed'.
-  positive_example: '## Artifact inventory
-
-    | Artifact | Kind | Path | New or changed | Requirement |
-
-    | `SandboxPruneResult` | DTO | `src/worktree/core/sandbox/models.py` | new | FR-2 |
-
-    | `prune_command` | Command | `src/worktree/cli/sandbox/commands/prune.py` | new | FR-1 |
-
-
-    Not needed for this issue: DB migration, JSON/YAML schema, Config key.
-
-    '
-  negative_example: '| Artifacts | Path |
-
-    | Various files in cli/ | src/worktree/cli/ |
-
-    '
+  requirement: >-
+    Produce an inventory with one row per file touched: | Artifact | Kind | Path | New or changed | Requirement |.
+    No row may say 'e.g.' or 'etc.'. Walk the artifact checklist and write 'none' explicitly for untouched kinds.
+    Follow it with a deletion ledger, one row per removal: | Path or symbol | Why it goes | Replaced by |,
+    covering superseded code paths (COMPAT-002), tests that duplicate a contract asserted elsewhere (TEST-004),
+    and harness symbols whose only caller would be their own verification test (TEST-013). A change that deletes
+    nothing states 'Deletes nothing: greenfield' explicitly, so the omission is a decision rather than an
+    oversight. Deletions are executed in the same change set as the code that supersedes them, and never
+    recorded as a negative existence test (TEST-009).
+  deliverable_contract: >-
+    Markdown inventory table followed by 'Not needed for this issue: <kinds>', then a deletion ledger table or
+    the explicit 'Deletes nothing: greenfield' line.
+  validation_check: >-
+    Check that every touched file maps to a requirement, every unused artifact kind is listed under 'Not needed',
+    and the deletion ledger is present with either rows or the explicit greenfield statement.
+  positive_example: |
+    ## Deletion ledger
+    | Path or symbol | Why it goes | Replaced by |
+    | `tests/cli/commands/test_config.py::ConfigShowRootTests` | pass-through handler restating a domain contract | `tests/core/config/test_loader.py` |
+  negative_example: '# Inventory lists 9 new files and says nothing about what they supersede'
   citation: docs/agents/planning.md#step-3-enumerate-every-artifact
 - id: PLAN-010
   title: Literal Final Code for Contracts
@@ -1005,28 +1168,40 @@ planner_rules:
     '
   citation: docs/agents/planning.md#step-3-enumerate-every-artifact
 - id: PLAN-013
-  title: Multi-Tier Test Specification
+  title: Test Ledger Specification
   category: Planning
   phase: Test Strategy
   scope: '### Tests section in .agentic/plan.md'
-  requirement: 'For every planned test, state the test name, execution tier (Tier 1 Domain, Tier 2 Presentation, Tier 3 CLI
-    Wiring, Tier 4 Invariants), exact file path, and the EXACT contract asserted (exact JSON dict, whole-object BaseResult or BaseModel comparison). Assertions on returned models or event payloads must specify whole-object comparison (`assert_model_equal(result, ExpectedModel(...))` or `assert json.loads(res.stdout) == expected_dict`), never piecewise field checks, bare attribute assertions (e.g. `res.exit_code == 0`, `result.ok is True`, `res.stdout[''payload''][''status''] == ''ok''`), or `exclude` on deterministic fields (e.g. `exclude={"errors"}`). Never say ''Assert it works''.'
-  deliverable_contract: 'Markdown table: | Test | Tier | Path | Exact assertion |.'
-  validation_check: Check that every test row has an exact assertion contract and designated tier with zero piecewise attribute checks or lazy exclusions.
-  positive_example: '### Tests
-
+  requirement: >-
+    Specify planned tests as a ledger with one row per test file: | Path | Marker | Est. lines | Contract pinned |
+    Nearest existing coverage | Verdict |. Path must satisfy the TEST-002 mappings, with no part-numbered or
+    grab-bag files. Marker is the primary pytest marker per TEST-016, chosen by real execution cost, since the
+    marker is what a filtered run selects and a prose tier label is not. Est. lines keeps the change reviewable
+    under PLAN-017. Nearest existing coverage is the result of grepping the suite for a test already pinning that
+    contract; when one exists the verdict is redundant-dropped and the row stays as the record of the decision.
+    A second CLI tier is specified only where TEST-004 earns it: a pass-through handler gets no root test, and no
+    row may restate a contract already asserted under tests/core/ for the same result type. Assertions on
+    returned models or event payloads must specify whole-object comparison (assert_model_equal(result,
+    ExpectedModel(...)) or assert json.loads(res.stdout) == expected_dict), never piecewise field checks, bare
+    attribute assertions, or any waiver expressed outside the comparison; per TEST-007 the expected object names
+    every field, and a value the test cannot own is stated as a matcher at that field's position. Assertions against panel
+    titles, status labels, captions, prose, or glyphs are prohibited at any tier (TEST-017). Never say 'Assert it
+    works'. Any test whose assertion is the absence of violations must specify a companion negative fixture test
+    and a non-empty collection assertion (CI-004).
+  deliverable_contract: 'Markdown ledger: | Path | Marker | Est. lines | Contract pinned | Nearest existing coverage | Verdict |.'
+  validation_check: >-
+    Check that every row resolves under the TEST-002 mapping, carries exactly one primary marker, states an exact
+    assertion contract with zero piecewise checks or lazy exclusions, records the existing-coverage search, and
+    that every planned enforcement test names its negative fixture.
+  positive_example: |
+    ### Test ledger
+    | Path | Marker | Est. lines | Contract pinned | Nearest existing coverage | Verdict |
+    | `tests/core/bootstrap/test_initialize.py` | `integration` | 120 | `assert_model_equal(result, InitResult(status=NOT_A_GIT_REPO, created=[]))` | none found | new |
+    | `tests/cli/commands/test_init.py` | `cli` | 90 | `assert json.loads(res.stdout) == expected_wire_dict` | none found | new |
+    | `tests/cli/commands/test_config.py::ConfigShowRootTests` | - | - | ConfigLoadResult shape | `tests/core/config/test_loader.py` | redundant-dropped |
+  negative_example: |
     | Test | Tier | Path | Exact assertion |
-
-    | `test_prune_empty_returns_nothing_to_prune` | Tier 1 | `tests/core/sandbox/services/test_prune.py` | `assert_model_equal(result, SandboxPruneResult(status=SandboxPruneStatus.NOTHING_TO_PRUNE, pruned_items=[]))` |
-
-    | `test_prune_cli_json` | Tier 3 | `tests/cli/sandbox/test_prune_command.py` | `assert json.loads(res.stdout) == expected_wire_dict` |
-
-    '
-  negative_example: '| Test | Path | Exact assertion |
-
-    | Test pruning | tests/test_prune.py | assert_model_equal(result, Expected(...), exclude={"errors"}) |
-
-    '
+    | Test pruning | Tier 1 | tests/test_prune.py | assert_model_equal(result, Expected(...), exclude={"errors"}) |
   citation: docs/agents/planning.md#code-sample-rules
 - id: PLAN-014
   title: Flagging Unspecified Decisions with 🚨
@@ -1072,17 +1247,61 @@ planner_rules:
   category: Planning
   phase: Pre-Handoff Self-Audit
   scope: '## Architectural Context & Boundary Check in .agentic/plan.md'
-  requirement: 'Before writing or finalizing .agentic/plan.md, the planner must sweep docs/agents/REVIEW_CHECKLIST.json item by item for all rules matching touched paths or domains, exactly mimicking wt-review. Evaluate every planned artifact, signature, test stub, and assertion contract against each matching rule''s evaluation criteria. Record the status (PASS, N/A) and concrete evidence in a required ''### Rule Evaluation Matrix'' table within the plan.'
-  deliverable_contract: Required subsection '### Rule Evaluation Matrix' in .agentic/plan.md auditing all applicable rules from REVIEW_CHECKLIST.json with specific line-level evidence.
-  validation_check: Verify the plan contains a completed Rule Evaluation Matrix covering all matching rules from REVIEW_CHECKLIST.json with PASS/NA status and concrete justification.
-  positive_example: '### Rule Evaluation Matrix
-
-    | Rule ID | Name | Severity | Status | Evidence / Notes |
-
-    | `TEST-007` | Whole Object Comparison | BLOCKER | PASS | Stubs write literal assert_model_equal(result, ExpectedResult(...)); zero piecewise attribute asserts |
-
-    | `ARCH-001` | Strict Layered Import Flow | BLOCKER | PASS | Services import only from common and core domains; zero cli imports |
-
-    '
-  negative_example: '# Plan omits Rule Evaluation Matrix or references general rules without item-by-item verification'
+  requirement: >-
+    Before finalizing .agentic/plan.md, sweep docs/agents/REVIEW_CHECKLIST.json item by item for all rules
+    matching touched paths or domains, and record each in a required '### Rule Evaluation Matrix' table with
+    columns | Rule ID | Clause | Severity | Status | Evidence (quoted) |. Four requirements make the sweep real.
+    First, decompose a multi-clause rule into one row per clause: TEST-007 carries three (whole-object
+    comparison, exclude restricted to non-deterministic fields, separate presence assertions for excluded
+    fields), and a single row hides two of them. Second, status is PASS, FAIL, or N/A; FAIL is a permitted and
+    expected interim value, and every FAIL is resolved in the plan before saving, so the saved plan carries zero.
+    A matrix that can only say PASS or N/A audits nothing. Third, evidence quotes the plan's own stub or section
+    verbatim; restating the rule is not evidence, and the phrases 'follows the pattern', 'complies',
+    'contract-based', and 'uses assert_model_equal' are prohibited because they read identically against a
+    violating plan. N/A names why the scope does not match. Fourth, for every BLOCKER clause, write the one
+    sentence a reviewer would use to fail the plan, then either fix the plan or record why the sentence does not
+    hold; a self-audit with no adversarial step approves itself.
+  deliverable_contract: >-
+    Required '### Rule Evaluation Matrix' subsection covering every matching rule clause with PASS, FAIL, or N/A
+    status and quoted evidence, zero FAIL rows remaining at save time, plus the adversarial sentence for each
+    BLOCKER clause.
+  validation_check: >-
+    Verify the matrix covers all matching rules clause by clause, that each PASS quotes a literal line from the
+    plan rather than paraphrasing the rule, that no FAIL row remains, and that each BLOCKER clause carries its
+    adversarial sentence.
+  positive_example: |
+    ### Rule Evaluation Matrix
+    | Rule ID | Clause | Severity | Status | Evidence (quoted) |
+    | `TEST-007` | exclude restricted to non-deterministic fields | BLOCKER | FAIL -> fixed | Phase 4 stub read `assert_model_equal(result, expected, exclude={"errors"})`; rewritten to carry expected errors per parameter case |
+    | `TEST-002` | path mirrors source module | BLOCKER | PASS | Ledger row 3 is `tests/cli/ui/formatters/status/test_status.py` for `cli/ui/formatters/status/status.py` |
+  negative_example: '| `TEST-007` | Whole Object Comparison | BLOCKER | PASS | Uses assert_model_equal on whole ConfigLoadResult |'
   citation: docs/agents/planning.md#step-5-save-and-hand-off
+- id: PLAN-017
+  title: Test Ticket Scope Contract
+  category: Planning
+  phase: Test Strategy
+  scope: Any issue whose deliverable is test files
+  requirement: >-
+    A ticket delivering tests must declare, before implementation, the exact test file paths conforming to the
+    TEST-002 mappings, the primary marker for each module per TEST-016, a line budget inside the 100 to 250 range
+    with a split plan when the estimate exceeds it, and the rule IDs the work is graded against. Scope stated as a
+    list of test method names without paths and markers is not a specification.
+  deliverable_contract: >-
+    The In scope section lists one bullet per test file as path, marker, and estimated lines, followed by the
+    contracts asserted in that file. The Definition of Done cites the rule IDs and names the formatter test or
+    domain test that owns any behavior deliberately not covered here.
+  validation_check: >-
+    Every declared path resolves under the TEST-002 mapping for its source module, every module has exactly one
+    primary marker, and the summed line estimate stays within budget or carries a split plan.
+  positive_example: |
+    ### In scope
+    - `tests/core/bootstrap/test_initialize.py` (integration, ~120 lines): preflight failure modes,
+      zero-side-effect abort, idempotent rerun
+    - `tests/cli/commands/test_init.py` (cli, ~90 lines): runner exit codes, `--format json` payload, `--force`
+
+    ### Rules
+    TEST-002, TEST-004, TEST-016, TEST-017
+  negative_example: |
+    ### In scope
+    - Create tests for init covering the happy path and some failure cases
+    - Add CLI tests for every action with RootTests and CliIntegrationTests
