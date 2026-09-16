@@ -817,7 +817,7 @@ rules:
     Verify every specification table in docs has a named automated test under tests/lint/ asserting parity, and
     resolve the named path to a file that exists. Flag manual tables of CLI flags or schema fields with no parity
     test, and flag doc sentences naming a parity test that is absent from the tree.
-  positive_example: '# tests/lint/test_architecture_boundaries.py exists and is named by the doc claim it backs'
+  positive_example: '# tests/lint/test_import_boundaries.py exists and is named by the doc claim it backs'
   negative_example: '# "enforced by tests/lint/test_doc_parity.py" where that module is nowhere in the tree'
   citation: AGENTS.md#keeping-docs-accurate
 - id: DOC-006
