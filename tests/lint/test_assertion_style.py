@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import inspect
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Final
 
@@ -20,6 +21,23 @@ _CLI_RUNNER_RESULT_ATTRS: Final[set[str]] = {
     "stderr",
     "output",
 }
+
+# Files still carrying pre-rewrite piecewise-assertion style, found on the scanner's
+# first correct (class-recursing) run. Remove entries as Phase 2 remediates each file.
+# Never add an entry.
+SCANNER_BURN_DOWN: frozenset[str] = frozenset(
+    {
+        "tests/cli/commands/test_catalog.py",
+        "tests/core/catalog/test_catalog.py",
+        "tests/core/runtime/test_loop_runner.py",
+        "tests/core/sandbox/test_patch.py",
+        "tests/core/sandbox/test_squash.py",
+        "tests/core/step/test_process_group.py",
+        "tests/core/step/test_runner_assertions.py",
+        "tests/core/step/test_runner_retry.py",
+        "tests/core/step/test_step.py",
+    }
+)
 
 
 def _get_base_result_attributes() -> set[str]:
@@ -82,6 +100,24 @@ def _format_target_name(value_node: ast.AST) -> str:
     return "result"
 
 
+def _iter_body_functions(
+    body: list[ast.stmt],
+) -> Iterator[ast.FunctionDef | ast.AsyncFunctionDef]:
+    """Walk a statement body, yielding functions defined directly in it or in nested classes."""
+    for stmt in body:
+        if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            yield stmt
+        elif isinstance(stmt, ast.ClassDef):
+            yield from _iter_body_functions(stmt.body)
+
+
+def _iter_test_functions(
+    tree: ast.Module,
+) -> Iterator[ast.FunctionDef | ast.AsyncFunctionDef]:
+    """Yield every test function, including methods nested in *Tests classes."""
+    yield from _iter_body_functions(tree.body)
+
+
 def _is_prohibited_attribute_access(
     child: ast.Attribute,
     base_attrs: set[str],
@@ -129,16 +165,23 @@ def _scan_function_for_result_assertions(
             _check_assert_in_scope(node, rel_path, base_attrs, local_result_vars, violations)
 
 
-def _scan_file_for_piecewise_result_assertions(file_path: Path, base_attrs: set[str]) -> list[str]:
-    """Scan test file for individual field assertions on operation results."""
-    tree = ast.parse(file_path.read_text(encoding="utf-8"), filename=str(file_path))
+def _scan_file_for_piecewise_result_assertions(
+    file_path: Path,
+    base_attrs: set[str],
+    allowlist: frozenset[str],
+) -> list[str]:
+    """Report piecewise result-field assertions, skipping allowlisted burn-down files."""
     rel_path = file_path.relative_to(REPO_ROOT) if file_path.is_relative_to(REPO_ROOT) else file_path
+    if str(rel_path) in allowlist:
+        return []
+
+    tree = ast.parse(file_path.read_text(encoding="utf-8"), filename=str(file_path))
     violations: list[str] = []
 
+    for func_node in _iter_test_functions(tree):
+        _scan_function_for_result_assertions(func_node, rel_path, base_attrs, violations)
     for node in tree.body:
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            _scan_function_for_result_assertions(node, rel_path, base_attrs, violations)
-        elif isinstance(node, ast.Assert):
+        if isinstance(node, ast.Assert):
             _check_assert_in_scope(node, rel_path, base_attrs, set(), violations)
 
     return violations
@@ -150,31 +193,47 @@ class AssertionStyleTests:
     def test_tests_never_assert_individual_result_fields(self) -> None:
         """Ensure test files use whole-object comparison instead of piecewise result assertions."""
         all_files = collect_python_files(TESTS_ROOT)
+        assert all_files, "collect_python_files(TESTS_ROOT) returned no files"
         base_attrs = _get_base_result_attributes()
         violations: list[str] = []
         for file_path in all_files:
             if file_path.name == "test_assertion_style.py":
                 continue
-            violations.extend(_scan_file_for_piecewise_result_assertions(file_path, base_attrs))
+            violations.extend(_scan_file_for_piecewise_result_assertions(file_path, base_attrs, SCANNER_BURN_DOWN))
 
         assert not violations, "Found piecewise result assertions in tests:\n" + "\n".join(violations)
 
-    def test_scanner_flags_piecewise_assertions(self, tmp_path: Path) -> None:
-        """Ensure scanner flags prohibited piecewise assertions across naming variants."""
+    def test_scanner_flags_piecewise_assertions_inside_test_classes(self, tmp_path: Path) -> None:
+        """Regression: guards the tree.body-only scope bug that made CI-004 flag this scanner."""
         snippet = tmp_path / "test_sample.py"
         snippet.write_text(
-            "def test_func():\n"
-            "    result1 = get_result()\n"
-            "    assert result1.ok is True\n"
-            "    result2 = get_result()\n"
-            "    assert result2.errors == []\n"
-            "    custom = StepResult()\n"
-            "    assert custom.step_id == '1'\n"
-            "    any_var = op()\n"
-            "    assert any_var.status == 'ok'\n"
-            "    res = runner.invoke()\n"
-            "    assert res.exit_code == 0\n"
+            "class SampleTests:\n"
+            "    def test_result1_ok(self):\n"
+            "        result1 = get_result()\n"
+            "        assert result1.ok is True\n"
+            "    def test_result2_errors(self):\n"
+            "        result2 = get_result()\n"
+            "        assert result2.errors == []\n"
+            "    def test_custom_step_id(self):\n"
+            "        custom = StepResult()\n"
+            "        assert custom.step_id == '1'\n"
+            "    def test_any_var_status(self):\n"
+            "        any_var = op()\n"
+            "        assert any_var.status == 'ok'\n"
         )
         base_attrs = _get_base_result_attributes()
-        violations = _scan_file_for_piecewise_result_assertions(snippet, base_attrs)
+        violations = _scan_file_for_piecewise_result_assertions(snippet, base_attrs, allowlist=frozenset())
         assert len(violations) == 4
+
+    def test_scanner_allows_cli_runner_result_attributes(self, tmp_path: Path) -> None:
+        """res.exit_code from runner.invoke is not a domain result access."""
+        snippet = tmp_path / "test_sample.py"
+        snippet.write_text(
+            "class SampleTests:\n"
+            "    def test_invoke_exit_code(self):\n"
+            "        res = runner.invoke(app, [])\n"
+            "        assert res.exit_code == 0\n"
+        )
+        base_attrs = _get_base_result_attributes()
+        violations = _scan_file_for_piecewise_result_assertions(snippet, base_attrs, allowlist=frozenset())
+        assert violations == []
