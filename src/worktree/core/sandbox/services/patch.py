@@ -38,8 +38,15 @@ def _match_conflict_line(line: str) -> str | None:
     return None
 
 
-def _extract_conflicts(stderr: str) -> list[str]:
-    """Extract conflicting file paths from git apply stderr output."""
+def extract_conflicts(stderr: str) -> list[str]:
+    """Extract conflicting file paths from git apply stderr output.
+
+    Args:
+        stderr: Standard error output from git apply or git apply --check.
+
+    Returns:
+        Sorted list of unique conflicting file paths.
+    """
     conflicts: set[str] = set()
     for line in stderr.splitlines():
         path = _match_conflict_line(line)
@@ -217,7 +224,7 @@ class SandboxPatch:
             )
 
         if returncode != 0:
-            conflicts = _extract_conflicts(stderr)
+            conflicts = extract_conflicts(stderr)
             try:
                 self.db.update_status(sandbox_id, SandboxStatus.CONFLICT)
             except Exception:
@@ -372,13 +379,13 @@ class SandboxPatch:
             return apply_err
 
         warnings: list[str] = []
+        cleaned_up, cleanup_warnings = self._cleanup_after_apply(record, delete)
+        warnings.extend(cleanup_warnings)
+
         try:
             self.db.update_status(sandbox_id, SandboxStatus.MERGED)
         except Exception as exc:
             warnings.append(f"Failed to update database status to 'merged' for sandbox '{sandbox_id}': {exc}")
-
-        cleaned_up, cleanup_warnings = self._cleanup_after_apply(record, delete)
-        warnings.extend(cleanup_warnings)
 
         return SandboxApplyResult(
             status=SandboxApplyStatus.OK,
