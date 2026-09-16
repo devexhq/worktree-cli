@@ -187,7 +187,7 @@ class TestConfig:
 ```
 
 - **[TEST-004] CLI Tier Matrix and Handler Test Necessity (BLOCKER):**
-  Every CLI command action requires *CliIntegrationTests invoking runner.invoke to pin option and argument binding, exit codes, and dispatcher output, covering four scenarios: happy path exit 0, failure path with the expected non-zero exit code, --format json emitting the wire schema, and any interactive confirmation or abort branch. *RootTests calling the handler directly with a CliContext are required only when the handler owns logic the domain layer does not: input coercion, branch selection across services, result composition from more than one call, or an interactive abort path. A pass-through handler gets no root test. A root test may never restate a contract already asserted under tests/core/ for the same result type.
+  Every CLI command action requires at least one real *CliIntegrationTests suite invoking runner.invoke to pin option and argument binding, exit codes, and dispatcher output, covering four scenarios: happy path exit 0, failure path with the expected non-zero exit code, --format json emitting the wire schema, and any interactive confirmation or abort branch. *RootTests calling the handler directly with a CliContext are added only when an author judges the handler owns logic the domain layer does not: input coercion, branch selection across services, result composition from more than one call, or an interactive abort path. A pass-through handler is fully compliant with zero root tests; a root test is never required per action. A root test may never restate a contract already asserted under tests/core/ for the same result type.
 
 ```python
 # ✅ DO: class ConfigSetRootTests: ...  # handler owns string-to-bool coercion, so it earns a root test
@@ -286,22 +286,14 @@ assert 'wf_abcdef12' in rendered  # view value, not a caption
 # ❌ DO NOT: # PR modifying Engine.resume() without integration tests for resumed step loop
 ```
 
-- **[TEST-016] Marker Taxonomy Fidelity (BLOCKER):**
-  Every test carries exactly one primary marker reflecting its real execution cost, optionally combined with slow. unit covers in-memory logic including reads and writes under tmp_path. integration is reserved for subprocess git, on-disk SQLite transactions, and cross-process file locks. cli covers Typer runner invocation. invariant is reserved for tests/lint/ static analysis. slow is additive for process group signal escalation, real timeouts, and network boundaries. Declare the marker with a module-level pytestmark when the whole module shares a tier; when a module mixes tiers, such as a CLI file holding both handler and runner tests, declare markers at class level so each tier is selectable. Writing JSON under tmp_path does not make a test integration.
-
-```python
-# ✅ DO: pytestmark = pytest.mark.unit  # writes config.json under tmp_path, no git or sqlite
-# ❌ DO NOT: pytestmark = pytest.mark.cli  # module-level, hiding *RootTests from `pytest -m unit`
-```
-
 - **[TEST-017] CLI Runner Assertion Boundary (BLOCKER):**
-  CLI runner tests assert wiring and machine contracts only: exit codes, --format json payloads as exact literal dicts, and resulting disk or git state. A published error code token such as CONFIG_SCHEMA_INVALID may be asserted present in output because it is a documented contract. Panel titles, status labels, field captions, prose, glyphs, and padding must not be asserted; those are presentation contracts belonging to the formatter test for that view under tests/cli/ui/formatters/. Never assert help text wording; assert command registration and option names through Click metadata instead.
+  CLI runner tests assert wiring and observable behavior: exit codes, --format json payloads as exact literal dicts, resulting disk or git state, and rendered CLI output. A rendered-output assertion is not restricted to a published error code token; asserting a literal status label, panel line, or full rendered string is permitted, ideally pinned via snapshot testing so the assertion cannot drift silently. Never assert help text wording; assert command registration and option names through Click metadata instead.
 
 ```python
 # ✅ DO:
 assert res.exit_code == 1
-assert "CONFIG_SCHEMA_INVALID" in res.stdout  # published error code
-# ❌ DO NOT: assert "Status: valid with warnings" in res.stdout  # human label scraped in a runner test
+assert "Status: valid with warnings" in res.stdout  # literal rendered output, not restricted to an error-code token
+# ❌ DO NOT: assert "Show the current configuration value" in res.output  # help text wording; assert Click metadata instead
 ```
 
 - **[DOC-001] Architecture Doc Structural Gate (BLOCKER):**
@@ -392,9 +384,9 @@ Target scope: tests/core/sandbox/test_lifecycle.py
 ```
 
 - **[CI-004] Mechanical Enforcement Parity (BLOCKER):**
-  A BLOCKER rule that can be checked mechanically must have an executing check: an invariant test under tests/lint/, a prek hook, or a CI step. A declared gate whose configuration disables it, such as a coverage floor of zero or a type checker present in no hook and no workflow, counts as unenforced and must be either wired up or downgraded to a review-time WARNING. An invariant check must prove its own scope with a regression test shaped like the code it polices, and lands green by carrying an explicit burn-down allowlist of known violators; allowlist entries shrink and are never added to. CI must exercise the marker taxonomy so the tiers have a consumer and cannot drift.
+  A BLOCKER rule that can be checked mechanically must have an executing check: an invariant test under tests/lint/, a prek hook, or a CI step. A declared gate whose configuration disables it, such as a coverage floor of zero or a type checker present in no hook and no workflow, counts as unenforced and must be either wired up or downgraded to a review-time WARNING. An invariant check must prove its own scope with a regression test shaped like the code it polices, and lands green by carrying an explicit burn-down allowlist of known violators; allowlist entries shrink and are never added to.
 
 ```python
-# ✅ DO: # TEST-016 enforced by tests/lint/test_marker_taxonomy.py plus a CI job per marker
+# ✅ DO: # TEST-007 enforced by tests/lint/test_assertion_style.py
 # ❌ DO NOT: # Scanner walks only tree.body functions, so class-based tests are never inspected
 ```

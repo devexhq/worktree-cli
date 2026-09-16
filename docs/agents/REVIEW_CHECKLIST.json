@@ -341,7 +341,7 @@
       "severity": "BLOCKER",
       "domain": "tests",
       "scope": "tests/cli/",
-      "evaluation_criteria": "For each command action, verify runner integration tests exist and cover the four scenarios. Flag *RootTests whose assertions duplicate an expected result object already asserted in tests/core/, and flag handlers with real branching that have no root test.",
+      "evaluation_criteria": "For each command action, verify at least one runner integration test exists and covers the four scenarios. A command action with no *RootTests suite is not itself a violation. Flag *RootTests whose assertions duplicate an expected result object already asserted in tests/core/.",
       "bad_pattern": "class ConfigShowRootTests: ...  # pass-through handler re-asserting the ConfigLoadResult from tests/core/config/"
     },
     {
@@ -444,22 +444,13 @@
       "bad_pattern": "# PR modifying Engine.resume() without integration tests for resumed step loop"
     },
     {
-      "id": "TEST-016",
-      "name": "Marker Taxonomy Fidelity",
-      "severity": "BLOCKER",
-      "domain": "tests",
-      "scope": "tests/",
-      "evaluation_criteria": "Verify each test module declares exactly one primary marker, or declares markers per class when tiers are mixed. Flag integration modules whose imports show no git, SQLite, subprocess, or lock usage. Flag invariant outside tests/lint/. Confirm `pytest -m \"not (unit or integration or cli or invariant)\"` collects nothing.",
-      "bad_pattern": "pytestmark = pytest.mark.cli  # module-level, hiding *RootTests from `pytest -m unit`"
-    },
-    {
       "id": "TEST-017",
       "name": "CLI Runner Assertion Boundary",
       "severity": "BLOCKER",
       "domain": "tests",
       "scope": "tests/cli/commands/",
-      "evaluation_criteria": "Scan tests/cli/commands/ for containment checks against stdout or output. Permit only tokens matching a published error code pattern. Flag label and prose assertions, and name the formatter test that should carry them instead.",
-      "bad_pattern": "assert \"Status: valid with warnings\" in res.stdout  # human label scraped in a runner test"
+      "evaluation_criteria": "Scan tests/cli/commands/ for containment or equality checks against stdout or rendered output; any literal assertion, including a snapshot comparison, is permitted. Flag only assertions against help text wording, and name the Click metadata check that should replace them.",
+      "bad_pattern": "assert \"Show the current configuration value\" in res.output  # help text wording; assert Click metadata instead"
     },
     {
       "id": "DOC-001",

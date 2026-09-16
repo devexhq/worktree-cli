@@ -505,21 +505,25 @@ rules:
   domain: tests
   scope: tests/cli/
   guideline: >-
-    Every CLI command action requires *CliIntegrationTests invoking runner.invoke to pin option and argument
-    binding, exit codes, and dispatcher output, covering four scenarios: happy path exit 0, failure path with the
-    expected non-zero exit code, --format json emitting the wire schema, and any interactive confirmation or
-    abort branch. *RootTests calling the handler directly with a CliContext are required only when the handler
-    owns logic the domain layer does not: input coercion, branch selection across services, result composition
-    from more than one call, or an interactive abort path. A pass-through handler gets no root test. A root test
-    may never restate a contract already asserted under tests/core/ for the same result type.
+    Every CLI command action requires at least one real *CliIntegrationTests suite invoking
+    runner.invoke to pin option and argument binding, exit codes, and dispatcher output, covering
+    four scenarios: happy path exit 0, failure path with the expected non-zero exit code,
+    --format json emitting the wire schema, and any interactive confirmation or abort branch.
+    *RootTests calling the handler directly with a CliContext are added only when an author
+    judges the handler owns logic the domain layer does not: input coercion, branch selection
+    across services, result composition from more than one call, or an interactive abort path. A
+    pass-through handler is fully compliant with zero root tests; a root test is never required
+    per action. A root test may never restate a contract already asserted under tests/core/ for
+    the same result type.
   evaluation_criteria: >-
-    For each command action, verify runner integration tests exist and cover the four scenarios. Flag *RootTests
-    whose assertions duplicate an expected result object already asserted in tests/core/, and flag handlers with
-    real branching that have no root test.
+    For each command action, verify at least one runner integration test exists and covers the
+    four scenarios. A command action with no *RootTests suite is not itself a violation. Flag
+    *RootTests whose assertions duplicate an expected result object already asserted in
+    tests/core/.
   positive_example: 'class ConfigSetRootTests: ...  # handler owns string-to-bool coercion, so it earns a root test'
   negative_example: 'class ConfigShowRootTests: ...  # pass-through handler re-asserting the ConfigLoadResult from tests/core/config/'
-  citation: docs/agents/testing.md#tier-3---cli-wiring-dual-tier-matrix
-  decision_log: docs/decisions/0001-test-doctrine-phase-0.md#d1-dual-tier-cli-keep-collapse-or-condition-it
+  citation: docs/agents/testing.md#tier-3---cli-wiring-runner-required-root-tests-when-earned
+  decision_log: docs/decisions/0002-simplify-cli-test-doctrine.md#d1-reversal-dual-tier-cli-mandate-test-004
 - id: TEST-005
   title: Formatter Presentation Contract Protocol
   severity: BLOCKER
@@ -708,29 +712,6 @@ rules:
   positive_example: 'class ResumeCommandCliIntegrationTests: def test_resume_executes_remaining_steps(self): ...'
   negative_example: '# PR modifying Engine.resume() without integration tests for resumed step loop'
   citation: docs/agents/testing.md#pr-review-hygiene-and-testing-documentation-review-rule
-- id: TEST-016
-  title: Marker Taxonomy Fidelity
-  severity: BLOCKER
-  category: Testing
-  domain: tests
-  scope: tests/
-  guideline: >-
-    Every test carries exactly one primary marker reflecting its real execution cost, optionally combined with
-    slow. unit covers in-memory logic including reads and writes under tmp_path. integration is reserved for
-    subprocess git, on-disk SQLite transactions, and cross-process file locks. cli covers Typer runner invocation.
-    invariant is reserved for tests/lint/ static analysis. slow is additive for process group signal escalation,
-    real timeouts, and network boundaries. Declare the marker with a module-level pytestmark when the whole module
-    shares a tier; when a module mixes tiers, such as a CLI file holding both handler and runner tests, declare
-    markers at class level so each tier is selectable. Writing JSON under tmp_path does not make a test
-    integration.
-  evaluation_criteria: >-
-    Verify each test module declares exactly one primary marker, or declares markers per class when tiers are
-    mixed. Flag integration modules whose imports show no git, SQLite, subprocess, or lock usage. Flag invariant
-    outside tests/lint/. Confirm `pytest -m "not (unit or integration or cli or invariant)"` collects nothing.
-  positive_example: 'pytestmark = pytest.mark.unit  # writes config.json under tmp_path, no git or sqlite'
-  negative_example: 'pytestmark = pytest.mark.cli  # module-level, hiding *RootTests from `pytest -m unit`'
-  citation: docs/agents/testing.md#pytest-marker-taxonomy--module-level-tagging
-  decision_log: docs/decisions/0001-test-doctrine-phase-0.md#d4-what-integration-actually-means
 - id: TEST-017
   title: CLI Runner Assertion Boundary
   severity: BLOCKER
@@ -738,20 +719,19 @@ rules:
   domain: tests
   scope: tests/cli/commands/
   guideline: >-
-    CLI runner tests assert wiring and machine contracts only: exit codes, --format json payloads as exact
-    literal dicts, and resulting disk or git state. A published error code token such as CONFIG_SCHEMA_INVALID may
-    be asserted present in output because it is a documented contract. Panel titles, status labels, field
-    captions, prose, glyphs, and padding must not be asserted; those are presentation contracts belonging to the
-    formatter test for that view under tests/cli/ui/formatters/. Never assert help text wording; assert command
-    registration and option names through Click metadata instead.
+    CLI runner tests assert wiring and observable behavior: exit codes, --format json payloads as exact literal
+    dicts, resulting disk or git state, and rendered CLI output. A rendered-output assertion is not restricted to
+    a published error code token; asserting a literal status label, panel line, or full rendered string is
+    permitted, ideally pinned via snapshot testing so the assertion cannot drift silently. Never assert help text
+    wording; assert command registration and option names through Click metadata instead.
   evaluation_criteria: >-
-    Scan tests/cli/commands/ for containment checks against stdout or output. Permit only tokens matching a
-    published error code pattern. Flag label and prose assertions, and name the formatter test that should carry
-    them instead.
-  positive_example: "assert res.exit_code == 1\nassert \"CONFIG_SCHEMA_INVALID\" in res.stdout  # published error code"
-  negative_example: 'assert "Status: valid with warnings" in res.stdout  # human label scraped in a runner test'
+    Scan tests/cli/commands/ for containment or equality checks against stdout or rendered output; any literal
+    assertion, including a snapshot comparison, is permitted. Flag only assertions against help text wording, and
+    name the Click metadata check that should replace them.
+  positive_example: "assert res.exit_code == 1\nassert \"Status: valid with warnings\" in res.stdout  # literal rendered output, not restricted to an error-code token"
+  negative_example: 'assert "Show the current configuration value" in res.output  # help text wording; assert Click metadata instead'
   citation: docs/agents/testing.md#core-testing-rules
-  decision_log: docs/decisions/0001-test-doctrine-phase-0.md#d2-human-readable-output-assertions-in-cli-runner-tests
+  decision_log: docs/decisions/0002-simplify-cli-test-doctrine.md#d2-reversal-cli-runner-assertion-boundary-test-017
 - id: DOC-001
   title: Architecture Doc Structural Gate
   severity: BLOCKER
@@ -927,14 +907,13 @@ rules:
     floor of zero or a type checker present in no hook and no workflow, counts as unenforced and must be either
     wired up or downgraded to a review-time WARNING. An invariant check must prove its own scope with a
     regression test shaped like the code it polices, and lands green by carrying an explicit burn-down allowlist
-    of known violators; allowlist entries shrink and are never added to. CI must exercise the marker taxonomy so
-    the tiers have a consumer and cannot drift.
+    of known violators; allowlist entries shrink and are never added to.
   evaluation_criteria: >-
     For each BLOCKER rule, identify its executing check or its explicit review-only classification. Verify
     invariant checks include a regression test matching the suite's real shape, such as assertions inside a
     *Tests class rather than a module-level function. Flag configuration that disables a declared gate and
     allowlists that grew.
-  positive_example: '# TEST-016 enforced by tests/lint/test_marker_taxonomy.py plus a CI job per marker'
+  positive_example: '# TEST-007 enforced by tests/lint/test_assertion_style.py'
   negative_example: '# Scanner walks only tree.body functions, so class-based tests are never inspected'
   citation: docs/agents/ci-and-tooling.md
   decision_log: docs/decisions/0001-test-doctrine-phase-0.md#d5-fate-of-the-test-007-piecewise-assertion-scanner
@@ -1181,19 +1160,21 @@ planner_rules:
   requirement: >-
     Specify planned tests as a ledger with one row per test file: | Path | Marker | Est. lines | Contract pinned |
     Nearest existing coverage | Verdict |. Path must satisfy the TEST-002 mappings, with no part-numbered or
-    grab-bag files. Marker is the primary pytest marker per TEST-016, chosen by real execution cost, since the
-    marker is what a filtered run selects and a prose tier label is not. Est. lines keeps the change reviewable
-    under PLAN-017. Nearest existing coverage is the result of grepping the suite for a test already pinning that
-    contract; when one exists the verdict is redundant-dropped and the row stays as the record of the decision.
-    A second CLI tier is specified only where TEST-004 earns it: a pass-through handler gets no root test, and no
-    row may restate a contract already asserted under tests/core/ for the same result type. Assertions on
-    returned models or event payloads must specify whole-object comparison (assert_model_equal(result,
-    ExpectedModel(...)) or assert json.loads(res.stdout) == expected_dict), never piecewise field checks, bare
-    attribute assertions, or any waiver expressed outside the comparison; per TEST-007 the expected object names
-    every field, and a value the test cannot own is stated as a matcher at that field's position. Assertions against panel
-    titles, status labels, captions, prose, or glyphs are prohibited at any tier (TEST-017). Never say 'Assert it
-    works'. Any test whose assertion is the absence of violations must specify a companion negative fixture test
-    and a non-empty collection assertion (CI-004).
+    grab-bag files. Marker is the primary pytest marker (unit, integration, cli, invariant, optionally combined
+    with slow), chosen by real execution cost, since the marker is what a filtered run selects and a prose tier
+    label is not. Est. lines keeps the change reviewable under PLAN-017. Nearest existing coverage is the result
+    of grepping the suite for a test already pinning that contract; when one exists the verdict is
+    redundant-dropped and the row stays as the record of the decision. A second CLI tier is specified only where
+    TEST-004 earns it: a pass-through handler gets no root test, and no row may restate a contract already
+    asserted under tests/core/ for the same result type. Assertions on returned models or event payloads must
+    specify whole-object comparison (assert_model_equal(result, ExpectedModel(...)) or assert json.loads(res.stdout)
+    == expected_dict), never piecewise field checks, bare attribute assertions, or any waiver expressed outside
+    the comparison; per TEST-007 the expected object names every field, and a value the test cannot own is stated
+    as a matcher at that field's position. Assertions against panel titles, status labels, captions, prose, or
+    glyphs in a formatter test under tests/cli/ui/formatters/ are restricted to values carried by the view model
+    (TEST-012); a CLI runner test under tests/cli/commands/ may assert rendered output directly (TEST-017). Never
+    say 'Assert it works'. Any test whose assertion is the absence of violations must specify a companion negative
+    fixture test and a non-empty collection assertion (CI-004).
   deliverable_contract: 'Markdown ledger: | Path | Marker | Est. lines | Contract pinned | Nearest existing coverage | Verdict |.'
   validation_check: >-
     Check that every row resolves under the TEST-002 mapping, carries exactly one primary marker, states an exact
@@ -1289,9 +1270,9 @@ planner_rules:
   scope: Any issue whose deliverable is test files
   requirement: >-
     A ticket delivering tests must declare, before implementation, the exact test file paths conforming to the
-    TEST-002 mappings, the primary marker for each module per TEST-016, a line budget inside the 100 to 250 range
-    with a split plan when the estimate exceeds it, and the rule IDs the work is graded against. Scope stated as a
-    list of test method names without paths and markers is not a specification.
+    TEST-002 mappings, the primary marker for each module, a line budget inside the 100 to 250 range with a split
+    plan when the estimate exceeds it, and the rule IDs the work is graded against. Scope stated as a list of
+    test method names without paths and markers is not a specification.
   deliverable_contract: >-
     The In scope section lists one bullet per test file as path, marker, and estimated lines, followed by the
     contracts asserted in that file. The Definition of Done cites the rule IDs and names the formatter test or
@@ -1306,7 +1287,7 @@ planner_rules:
     - `tests/cli/commands/test_init.py` (cli, ~90 lines): runner exit codes, `--format json` payload, `--force`
 
     ### Rules
-    TEST-002, TEST-004, TEST-016, TEST-017
+    TEST-002, TEST-004, TEST-017
   negative_example: |
     ### In scope
     - Create tests for init covering the happy path and some failure cases
