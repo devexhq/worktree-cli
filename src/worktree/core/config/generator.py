@@ -11,6 +11,7 @@ from typing import Any
 
 from pydantic import Field
 
+from worktree.common.constants import DEFAULT_MAXIMUM_SANDBOXES_ALLOWED
 from worktree.common.filesystem import Filesystem
 from worktree.common.models import BaseResult
 from worktree.common.schema_validation import CONFIG_VALIDATOR
@@ -30,7 +31,7 @@ CANONICAL_V1_DEFAULTS: dict[str, Any] = {
     },
     "sandbox": {
         "base_ref": "HEAD",
-        "max_active_sandboxes": 3,
+        "max_active_sandboxes": DEFAULT_MAXIMUM_SANDBOXES_ALLOWED,
         "default_timeout_seconds": 900,
     },
     "agent": {

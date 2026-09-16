@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from worktree.common.constants import DEFAULT_MAXIMUM_SANDBOXES_ALLOWED
+
 AgentProvider = Literal[
     "local",
     "ollama",
@@ -45,7 +47,7 @@ class SandboxConfig(BaseModel):
     model_config = {"extra": "forbid", "strict": True}
 
     base_ref: str = Field(default="HEAD", min_length=1)
-    max_active_sandboxes: int = Field(default=3, ge=1)
+    max_active_sandboxes: int = Field(default=DEFAULT_MAXIMUM_SANDBOXES_ALLOWED, ge=1)
     default_timeout_seconds: int = Field(default=900, ge=1)
 
 
