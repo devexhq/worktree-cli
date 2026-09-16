@@ -73,10 +73,9 @@ git, on-disk SQLite, and cross-process locks.
   execution-time budget distinction between the two tiers instead of restoring it.
 
 **Rule:** `TEST-016`, explicit: "Writing JSON under `tmp_path` does not make a test
-integration." Still open: `tests/core/config/test_loader.py`, `tests/core/config/test_mutate.py`,
-and `tests/core/catalog/test_catalog.py` are marked `integration` today and only write
-`tmp_path` JSON — no invariant catches this yet (Phase 1 W1.3), and the re-mark is
-Phase 2 (W2.4).
+integration." Enforced since Phase 1 W1.3 by `tests/lint/test_marker_taxonomy.py`, which
+allowlists the three known-mismarked modules (`test_loader.py`, `test_mutate.py`,
+`test_catalog.py`) in `INTEGRATION_MARKER_BURN_DOWN`; the re-mark itself is Phase 2 (W2.4).
 
 ## D5. Fate of the TEST-007 piecewise-assertion scanner
 

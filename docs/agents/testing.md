@@ -65,6 +65,10 @@ All tests must be categorized under one of the five registered markers declared 
 | `invariant` | Static AST and architectural boundary enforcement tests (`tests/lint/`). Verifies imports, complexity, and contract consistency. | Fast / AST scan | `pytest -m invariant` (instant architecture guard) |
 | `slow` | Long-running tests involving process group signal escalation, real process timeouts, cross-process locks, or network boundaries. | > 500ms | `pytest -m "not slow"` (runs suite excluding slow waits) |
 
+Enforced by `tests/lint/test_marker_taxonomy.py` (`MarkerTaxonomyTests`): every module
+resolves to exactly one primary marker, `invariant` never appears outside `tests/lint/`, and
+`integration` modules must reference a real subsystem boundary.
+
 ### Module-Level Tagging Pattern (Optional)
 
 Test modules may declare markers at module top level using `pytestmark` immediately below the imports:
