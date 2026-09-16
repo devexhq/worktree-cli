@@ -5,8 +5,6 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-import pytest
-
 from tests.lint.astlib import (
     REPO_ROOT,
     SRC_ROOT,
@@ -14,8 +12,6 @@ from tests.lint.astlib import (
     extract_strings_from_node,
     extract_target_names,
 )
-
-pytestmark = pytest.mark.invariant
 
 
 def _check_fix_string(text: str, rel_path: Path, lineno: int) -> str | None:

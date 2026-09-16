@@ -2,16 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from tests.harness.matchers import assert_model_equal
 from worktree.common.models import FailurePolicy, OnFailureSpec
 from worktree.core.blueprint import Blueprint, BlueprintDefinition
 from worktree.core.blueprint.models import BlueprintDefaults
 from worktree.core.catalog import Catalog
 from worktree.core.step.models import StepDefinition
-
-pytestmark = pytest.mark.unit
 
 
 class BlueprintDocumentNormalizationTests:

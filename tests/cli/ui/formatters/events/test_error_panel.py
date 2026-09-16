@@ -15,8 +15,6 @@ from tests.harness.formatter import (
 from worktree.cli.ui.events import ErrorPanelEvent
 from worktree.cli.ui.formatters.events.error_panel import ErrorPanelFormatter
 
-pytestmark = pytest.mark.unit
-
 ErrorPanelView = ErrorPanelEvent
 
 # ErrorPanelFormatter test cases

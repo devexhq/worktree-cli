@@ -3,8 +3,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import pytest
-
 from tests.harness.matchers import ANY_DURATION, assert_model_equal
 from worktree.core.step.models import (
     StepAssert,
@@ -15,10 +13,7 @@ from worktree.core.step.models import (
 )
 from worktree.core.step.runner import StepExecution
 
-pytestmark = pytest.mark.unit
 
-
-@pytest.mark.unit
 class StepRunnerAssertionContractTests:
     """Contract tests for step runner assertion evaluation and status resolution."""
 

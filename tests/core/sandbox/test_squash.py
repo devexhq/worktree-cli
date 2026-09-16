@@ -17,8 +17,6 @@ from worktree.core.sandbox.models import (
 from worktree.core.sandbox.services.lifecycle import SandboxLifecycle
 from worktree.core.sandbox.services.patch import SandboxPatch
 
-pytestmark = pytest.mark.integration
-
 
 @pytest.fixture
 def sandbox_workspace(tmp_path: Path) -> Path:

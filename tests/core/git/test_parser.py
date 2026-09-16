@@ -4,13 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from tests.harness.matchers import assert_model_equal
 from worktree.core.git.models import GitWorktreeEntry
 from worktree.core.git.runner import parse_worktree_porcelain
-
-pytestmark = pytest.mark.unit
 
 
 class GitWorktreeOutputParserTests:

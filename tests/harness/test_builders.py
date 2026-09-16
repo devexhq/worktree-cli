@@ -20,7 +20,6 @@ from worktree.core.inputs.models import InputType, ParameterInput
 from worktree.core.step.models import StepAssert, StepDefinition, StepType
 
 
-@pytest.mark.unit
 class StepBuilderTests:
     """Verification tests for StepBuilder."""
 
@@ -354,7 +353,6 @@ class StepBuilderTests:
         assert step == expected
 
 
-@pytest.mark.unit
 class BlueprintBuilderTests:
     """Verification tests for BlueprintBuilder."""
 
@@ -447,7 +445,6 @@ class BlueprintBuilderTests:
         assert blueprint == expected
 
 
-@pytest.mark.integration
 class WorkspaceBuilderTests:
     """Verification tests for WorkspaceBuilder."""
 

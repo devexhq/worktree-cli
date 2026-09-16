@@ -18,8 +18,6 @@ from worktree.core.inputs.services.resolve import (
     resolve_inputs,
 )
 
-pytestmark = pytest.mark.unit
-
 VALID_BOOLEAN_CASES = [
     pytest.param("1", True, id="numeric_one_true"),
     pytest.param("true", True, id="lowercase_true"),

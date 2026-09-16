@@ -17,8 +17,6 @@ from worktree.core.catalog.models import (
 from worktree.core.catalog.services.inventory import compute_catalog_sha
 from worktree.core.db import CatalogItemType, CatalogRecord
 
-pytestmark = pytest.mark.integration
-
 
 class CatalogTemplateScaffoldingTests:
     """Tests verifying scaffolding of blueprints and steps under correct type subdirectories."""

@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
 from typer.testing import CliRunner
 
 from tests.harness.matchers import assert_model_equal
@@ -24,9 +23,6 @@ from worktree.core.config.validate import (
     ConfigValidationStatus,
 )
 from worktree.core.db.facade import WorktreeDb
-
-pytestmark = pytest.mark.cli
-
 
 # --------------------------------------------------------------------------- #
 # Config Show Tests                                                           #

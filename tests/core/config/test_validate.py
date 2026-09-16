@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from tests.harness.matchers import assert_model_equal
 from worktree.common.filesystem import Filesystem
 from worktree.core.config.generator import build_default_config
@@ -13,8 +11,6 @@ from worktree.core.config.validate import (
     ConfigValidationStatus,
     validate_config_result,
 )
-
-pytestmark = pytest.mark.unit
 
 
 class ConfigSemanticValidationTests:

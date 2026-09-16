@@ -5,8 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 from tests.harness.matchers import assert_model_equal
 from worktree.common.filesystem import Filesystem
 from worktree.core.config.generator import build_default_config
@@ -15,8 +13,6 @@ from worktree.core.config.mutate import (
     ConfigSetStatus,
     set_config_value_result,
 )
-
-pytestmark = pytest.mark.integration
 
 
 class ConfigMutationTests:

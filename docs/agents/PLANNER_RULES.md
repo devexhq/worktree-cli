@@ -252,21 +252,21 @@ def prune_sandboxes(...) -> SandboxPruneResult: ...
 ## [PLAN-013] Test Ledger Specification
 - **Phase:** `Test Strategy`
 - **Scope:** `### Tests section in .agentic/plan.md`
-- **Requirement:** Specify planned tests as a ledger with one row per test file: | Path | Marker | Est. lines | Contract pinned | Nearest existing coverage | Verdict |. Path must satisfy the TEST-002 mappings, with no part-numbered or grab-bag files. Marker is the primary pytest marker (unit, integration, cli, invariant, optionally combined with slow), chosen by real execution cost, since the marker is what a filtered run selects and a prose tier label is not. Est. lines keeps the change reviewable under PLAN-017. Nearest existing coverage is the result of grepping the suite for a test already pinning that contract; when one exists the verdict is redundant-dropped and the row stays as the record of the decision. A second CLI tier is specified only where TEST-004 earns it: a pass-through handler gets no root test, and no row may restate a contract already asserted under tests/core/ for the same result type. Assertions on returned models or event payloads must specify whole-object comparison (assert_model_equal(result, ExpectedModel(...)) or assert json.loads(res.stdout) == expected_dict), never piecewise field checks, bare attribute assertions, or any waiver expressed outside the comparison; per TEST-007 the expected object names every field, and a value the test cannot own is stated as a matcher at that field's position. Assertions against panel titles, status labels, captions, prose, or glyphs in a formatter test under tests/cli/ui/formatters/ are restricted to values carried by the view model (TEST-012); a CLI runner test under tests/cli/commands/ may assert rendered output directly (TEST-017). Never say 'Assert it works'. Any test whose assertion is the absence of violations must specify a companion negative fixture test and a non-empty collection assertion (CI-004).
-- **Deliverable Contract:** Markdown ledger: | Path | Marker | Est. lines | Contract pinned | Nearest existing coverage | Verdict |.
-- **Validation Check:** Check that every row resolves under the TEST-002 mapping, carries exactly one primary marker, states an exact assertion contract with zero piecewise checks or lazy exclusions, records the existing-coverage search, and that every planned enforcement test names its negative fixture.
+- **Requirement:** Specify planned tests as a ledger with one row per test file: | Path | Est. lines | Contract pinned | Nearest existing coverage | Verdict |. Path must satisfy the TEST-002 mappings, with no part-numbered or grab-bag files, and is what a directory-scoped run selects (pytest tests/core/, pytest tests/cli/). Est. lines keeps the change reviewable under PLAN-017. Nearest existing coverage is the result of grepping the suite for a test already pinning that contract; when one exists the verdict is redundant-dropped and the row stays as the record of the decision. A second CLI tier is specified only where TEST-004 earns it: a pass-through handler gets no root test, and no row may restate a contract already asserted under tests/core/ for the same result type. Assertions on returned models or event payloads must specify whole-object comparison (assert_model_equal(result, ExpectedModel(...)) or assert json.loads(res.stdout) == expected_dict), never piecewise field checks, bare attribute assertions, or any waiver expressed outside the comparison; per TEST-007 the expected object names every field, and a value the test cannot own is stated as a matcher at that field's position. Assertions against panel titles, status labels, captions, prose, or glyphs in a formatter test under tests/cli/ui/formatters/ are restricted to values carried by the view model (TEST-012); a CLI runner test under tests/cli/commands/ may assert rendered output directly (TEST-017). Never say 'Assert it works'. Any test whose assertion is the absence of violations must specify a companion negative fixture test and a non-empty collection assertion (CI-004).
+- **Deliverable Contract:** Markdown ledger: | Path | Est. lines | Contract pinned | Nearest existing coverage | Verdict |.
+- **Validation Check:** Check that every row resolves under the TEST-002 mapping, states an exact assertion contract with zero piecewise checks or lazy exclusions, records the existing-coverage search, and that every planned enforcement test names its negative fixture.
 
 ```markdown
 <!-- ✅ POSITIVE EXAMPLE -->
 ### Test ledger
-| Path | Marker | Est. lines | Contract pinned | Nearest existing coverage | Verdict |
-| `tests/core/bootstrap/test_initialize.py` | `integration` | 120 | `assert_model_equal(result, InitResult(status=NOT_A_GIT_REPO, created=[]))` | none found | new |
-| `tests/cli/commands/test_init.py` | `cli` | 90 | `assert json.loads(res.stdout) == expected_wire_dict` | none found | new |
-| `tests/cli/commands/test_config.py::ConfigShowRootTests` | - | - | ConfigLoadResult shape | `tests/core/config/test_loader.py` | redundant-dropped |
+| Path | Est. lines | Contract pinned | Nearest existing coverage | Verdict |
+| `tests/core/bootstrap/test_initialize.py` | 120 | `assert_model_equal(result, InitResult(status=NOT_A_GIT_REPO, created=[]))` | none found | new |
+| `tests/cli/commands/test_init.py` | 90 | `assert json.loads(res.stdout) == expected_wire_dict` | none found | new |
+| `tests/cli/commands/test_config.py::ConfigShowRootTests` | - | ConfigLoadResult shape | `tests/core/config/test_loader.py` | redundant-dropped |
 
 <!-- ❌ NEGATIVE EXAMPLE -->
-| Test | Tier | Path | Exact assertion |
-| Test pruning | Tier 1 | tests/test_prune.py | assert_model_equal(result, Expected(...), exclude={"errors"}) |
+| Test | Path | Exact assertion |
+| Test pruning | tests/test_prune.py | assert_model_equal(result, Expected(...), exclude={"errors"}) |
 ```
 
 ## [PLAN-014] Flagging Unspecified Decisions with 🚨
@@ -322,16 +322,16 @@ Open decisions requiring confirmation:
 ## [PLAN-017] Test Ticket Scope Contract
 - **Phase:** `Test Strategy`
 - **Scope:** `Any issue whose deliverable is test files`
-- **Requirement:** A ticket delivering tests must declare, before implementation, the exact test file paths conforming to the TEST-002 mappings, the primary marker for each module, a line budget inside the 100 to 250 range with a split plan when the estimate exceeds it, and the rule IDs the work is graded against. Scope stated as a list of test method names without paths and markers is not a specification.
-- **Deliverable Contract:** The In scope section lists one bullet per test file as path, marker, and estimated lines, followed by the contracts asserted in that file. The Definition of Done cites the rule IDs and names the formatter test or domain test that owns any behavior deliberately not covered here.
-- **Validation Check:** Every declared path resolves under the TEST-002 mapping for its source module, every module has exactly one primary marker, and the summed line estimate stays within budget or carries a split plan.
+- **Requirement:** A ticket delivering tests must declare, before implementation, the exact test file paths conforming to the TEST-002 mappings, a line budget inside the 100 to 250 range with a split plan when the estimate exceeds it, and the rule IDs the work is graded against. Scope stated as a list of test method names without paths is not a specification.
+- **Deliverable Contract:** The In scope section lists one bullet per test file as path and estimated lines, followed by the contracts asserted in that file. The Definition of Done cites the rule IDs and names the formatter test or domain test that owns any behavior deliberately not covered here.
+- **Validation Check:** Every declared path resolves under the TEST-002 mapping for its source module, and the summed line estimate stays within budget or carries a split plan.
 
 ```markdown
 <!-- ✅ POSITIVE EXAMPLE -->
 ### In scope
-- `tests/core/bootstrap/test_initialize.py` (integration, ~120 lines): preflight failure modes,
+- `tests/core/bootstrap/test_initialize.py` (~120 lines): preflight failure modes,
   zero-side-effect abort, idempotent rerun
-- `tests/cli/commands/test_init.py` (cli, ~90 lines): runner exit codes, `--format json` payload, `--force`
+- `tests/cli/commands/test_init.py` (~90 lines): runner exit codes, `--format json` payload, `--force`
 
 ### Rules
 TEST-002, TEST-004, TEST-017

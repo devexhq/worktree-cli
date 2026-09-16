@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from worktree.common.models import FailurePolicy
 from worktree.core.runtime.loop_runner import LoopBlockRunner
 from worktree.core.runtime.models import (
@@ -20,8 +18,6 @@ from worktree.core.step.models import (
     StepResult,
     StepType,
 )
-
-pytestmark = pytest.mark.integration
 
 
 class GrantingFailurePrompter(FailurePrompter):

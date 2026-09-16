@@ -8,8 +8,6 @@ from tests.harness.matchers import assert_model_equal
 from worktree.common.models import FailurePolicy, OnFailureSpec
 from worktree.core.step import Step, StepDefinition, StepType, StepValidationError, resolve_step_definition
 
-pytestmark = pytest.mark.unit
-
 
 class StepShorthandExpansionTests:
     """Unit tests verifying shorthand step expansion contracts."""

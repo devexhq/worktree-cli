@@ -15,8 +15,6 @@ from worktree.core.config.loader import (
 )
 from worktree.core.config.models import WorktreeConfig
 
-pytestmark = pytest.mark.integration
-
 SCHEMA_VIOLATION_PAYLOADS = [
     pytest.param(
         {"version": 1},

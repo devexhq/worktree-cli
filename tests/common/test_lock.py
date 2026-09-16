@@ -17,8 +17,6 @@ from worktree.common.lock import (
     unlock_file_descriptor,
 )
 
-pytestmark = pytest.mark.integration
-
 
 class WorkspaceLockTests:
     """Integration tests verifying cross-process advisory lock contracts."""
