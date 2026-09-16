@@ -2,18 +2,18 @@
 name: pr-prep
 description: >-
   Review the current uncommitted worktree-cli changes and draft
-  .agentic/commit-msg, .agentic/pr-title, and .agentic/pr-description, then
-  hand off to `uv run python scripts/pr.py` to commit, push, and open (or
-  reuse) the pull request. Invoked as /pr-prep. Use when asked to prep a
-  commit and PR, draft PR text from the working tree, or stage a
-  commit+push+PR handoff.
+  .agentic/commit-msg, .agentic/pr-title, and .agentic/pr-description for a
+  human to run `uv run python scripts/pr.py` against to commit, push, and
+  open (or reuse) the pull request. Invoked as /pr-prep. Use when asked to
+  prep a commit and PR, or draft PR text from the working tree.
 ---
 
 # pr-prep
 
-Turn the current uncommitted diff into three drafted text files, then run
-`scripts/pr.py` to commit, push, and open the PR. This skill only writes the
-drafts and invokes the script; the script does the git/gh work.
+Turn the current uncommitted diff into three drafted text files. That is the
+entire scope of this skill — it never runs `scripts/pr.py` itself. Running
+the script (which commits, pushes, and opens a PR) is a human's call to make
+after reviewing the drafts.
 
 ## Step 1: Read the diff
 
@@ -66,30 +66,35 @@ mkdir -p .agentic
 No AI attribution or tool co-author trailers in any of these three files, per
 `docs/agents/git-and-pr-conventions.md`.
 
-Show the drafted contents to the user before proceeding, since Step 3 commits
-and pushes real changes.
+Show the drafted contents to the user once done.
 
-## Step 3: Run the handoff script
+## Step 3: Hand off to the human
+
+Tell the user the drafts are ready and that running
 
 ```bash
 uv run python scripts/pr.py
 ```
 
-This stages the uncommitted changes, commits with `.agentic/commit-msg`,
-creates a feature branch first if `HEAD` is still on the default branch,
-pushes, and then creates a new PR or reports the already-open one for this
-branch — reading `.agentic/pr-title` and `.agentic/pr-description` for the PR.
-On success it deletes the three handoff files; on failure it leaves them in
-place so a re-run doesn't require redrafting.
+is theirs to do, not this skill's. Mention what it will do when they run it:
+stage the uncommitted changes, commit with `.agentic/commit-msg`, create a
+feature branch first if `HEAD` is still on the default branch, push, and then
+create a new PR or report the already-open one for this branch — reading
+`.agentic/pr-title` and `.agentic/pr-description` for the PR. On success it
+deletes the three handoff files; on failure it leaves them in place so a
+re-run doesn't require redrafting. Passing specific pathspecs
+(`scripts/pr.py path/one path/two`) stages only those instead of everything
+uncommitted.
 
-To stage only specific paths instead of everything uncommitted, pass them
-through: `uv run python scripts/pr.py path/one path/two`.
+Do not run it for them, even if asked to "finish the PR" in the same
+breath — stop after the drafts and let them invoke it.
 
 ## Hard boundaries
 
-- **Never hand-run `git commit` / `git push` / `gh pr create` yourself in this
-  skill.** Draft the files, then let `scripts/pr.py` do the git/gh work, so
-  there is one code path for it.
+- **Never run `scripts/pr.py` yourself, and never hand-run `git commit` /
+  `git push` / `gh pr create` either.** This skill's output is three drafted
+  files, nothing more. Committing, pushing, and opening the PR is a human
+  action taken outside this skill.
 - **Never run tests or tooling** (`inv test`, `ruff`, `basedpyright`, `inv
   complexity`). This skill packages what's already there; it doesn't gate it.
 - **Never edit code** while drafting. If the diff looks wrong or mixes
@@ -100,5 +105,6 @@ through: `uv run python scripts/pr.py path/one path/two`.
 ## Report
 
 State what was drafted (paraphrase, don't just repeat the files verbatim),
-then report the script's output: branch created (if any), commit SHA, push
-result, and the PR URL. Note that no tests or tooling were run.
+that `.agentic/commit-msg`, `.agentic/pr-title`, and `.agentic/pr-description`
+are in place, and that running `uv run python scripts/pr.py` to commit, push,
+and open the PR is left for the user to do.
