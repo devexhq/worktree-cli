@@ -3,208 +3,20 @@
 from __future__ import annotations
 
 import ast
-import importlib
 import inspect
 from pathlib import Path
 from typing import Final
 
 import pytest
 
+from tests.lint.astlib import collect_python_files
 from worktree.common.models import BaseResult
 
 REPO_ROOT: Final[Path] = Path(__file__).parent.parent.parent
 SRC_ROOT: Final[Path] = REPO_ROOT / "src" / "worktree"
-CORE_ROOT: Final[Path] = SRC_ROOT / "core"
 TESTS_ROOT: Final[Path] = REPO_ROOT / "tests"
-CORE_TESTS_ROOT: Final[Path] = TESTS_ROOT / "core"
-DISPATCHER_PATH: Final[Path] = SRC_ROOT / "cli" / "ui" / "dispatcher.py"
 
 pytestmark = pytest.mark.invariant
-
-
-def _collect_python_files(directory: Path) -> list[Path]:
-    """Collect all python source files within a directory tree.
-
-    Args:
-        directory: Target root path to search.
-
-    Returns:
-        List of python file paths. Returns empty list if directory does not exist.
-    """
-    if not directory.exists() or not directory.is_dir():
-        return []
-    return sorted(p for p in directory.rglob("*.py") if p.is_file())
-
-
-def _is_banned_import(name: str | None, banned_prefix: str) -> bool:
-    """Check if import name matches banned prefix."""
-    if not name:
-        return False
-    if name == banned_prefix:
-        return True
-    return name.startswith(f"{banned_prefix}.")
-
-
-def _check_import_node(node: ast.Import, banned_prefix: str, rel_path: Path) -> list[str]:
-    """Check an Import node for banned prefixes."""
-    violations: list[str] = []
-    for alias in node.names:
-        if _is_banned_import(alias.name, banned_prefix):
-            violations.append(f"{rel_path}:{node.lineno}: Layer violation: imports '{alias.name}'")
-    return violations
-
-
-def _check_import_from_node(node: ast.ImportFrom, banned_prefix: str, rel_path: Path) -> list[str]:
-    """Check an ImportFrom node for banned prefixes."""
-    if _is_banned_import(node.module, banned_prefix):
-        return [f"{rel_path}:{node.lineno}: Layer violation: imports '{node.module}'"]
-    return []
-
-
-def _scan_file_for_banned_imports(file_path: Path, banned_prefix: str) -> list[str]:
-    """Scan a Python file for banned import statements using AST analysis.
-
-    Args:
-        file_path: Path to the Python file.
-        banned_prefix: Banned package prefix (e.g. 'worktree.cli').
-
-    Returns:
-        List of informative violation strings with file path and line number.
-    """
-    tree = ast.parse(file_path.read_text(encoding="utf-8"), filename=str(file_path))
-    rel_path = file_path.relative_to(REPO_ROOT)
-    violations: list[str] = []
-
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            violations.extend(_check_import_node(node, banned_prefix, rel_path))
-        elif isinstance(node, ast.ImportFrom):
-            violations.extend(_check_import_from_node(node, banned_prefix, rel_path))
-
-    return violations
-
-
-def _is_banned_echo_attribute(func: ast.AST) -> bool:
-    """Check if AST node is typer.echo, typer.secho, click.echo, or click.secho."""
-    if not isinstance(func, ast.Attribute):
-        return False
-    if func.attr not in ("echo", "secho"):
-        return False
-    if not isinstance(func.value, ast.Name):
-        return False
-    return func.value.id in ("typer", "click")
-
-
-def _check_call_for_banned_output(node: ast.Call, rel_path: Path) -> str | None:
-    """Inspect an ast.Call node for banned direct output functions.
-
-    Args:
-        node: AST Call node.
-        rel_path: File path relative to repo root.
-
-    Returns:
-        Violation string if banned call detected, None otherwise.
-    """
-    if isinstance(node.func, ast.Name) and node.func.id == "print":
-        return f"{rel_path}:{node.lineno}: Banned direct terminal output call 'print'"
-
-    if _is_banned_echo_attribute(node.func):
-        attr_node = node.func
-        assert isinstance(attr_node, ast.Attribute)
-        assert isinstance(attr_node.value, ast.Name)
-        return f"{rel_path}:{node.lineno}: Banned direct terminal output call '{attr_node.value.id}.{attr_node.attr}'"
-
-    return None
-
-
-def _check_import_from_output(node: ast.ImportFrom, rel_path: Path) -> list[str]:
-    """Check if ImportFrom node imports echo/secho from typer or click."""
-    if node.module not in ("typer", "click"):
-        return []
-    violations: list[str] = []
-    for alias in node.names:
-        if alias.name in ("echo", "secho"):
-            violations.append(
-                f"{rel_path}:{node.lineno}: Banned direct terminal output import '{alias.name}' from '{node.module}'"
-            )
-    return violations
-
-
-def _scan_file_for_terminal_output(file_path: Path) -> list[str]:
-    """Scan a Python file for banned direct console output.
-
-    Args:
-        file_path: Path to the Python file.
-
-    Returns:
-        List of violation strings with file path and line number.
-    """
-    tree = ast.parse(file_path.read_text(encoding="utf-8"), filename=str(file_path))
-    rel_path = file_path.relative_to(REPO_ROOT)
-    violations: list[str] = []
-
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom):
-            violations.extend(_check_import_from_output(node, rel_path))
-        elif isinstance(node, ast.Call):
-            violation = _check_call_for_banned_output(node, rel_path)
-            if violation:
-                violations.append(violation)
-
-    return violations
-
-
-def _has_result_class_def(tree: ast.AST) -> bool:
-    """Check if AST tree contains candidate Result class definitions."""
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ClassDef) and node.name.endswith("Result") and node.name != "BaseResult":
-            return True
-    return False
-
-
-def _file_to_module_name(file_path: Path) -> str:
-    """Convert a file path under src/ to a dotted python module name."""
-    rel = file_path.relative_to(REPO_ROOT / "src")
-    parts = list(rel.with_suffix("").parts)
-    if parts[-1] == "__init__":
-        parts = parts[:-1]
-    return ".".join(parts)
-
-
-def _is_candidate_result_class(cls: type, cls_name: str, module_name: str) -> bool:
-    """Check if class is a Result model defined in target module."""
-    if getattr(cls, "__module__", None) != module_name:
-        return False
-    if cls_name == "BaseResult":
-        return False
-    return cls_name.endswith("Result")
-
-
-def _inspect_module_result_classes(file_path: Path) -> list[str]:
-    """Inspect classes ending with Result in a module to ensure BaseResult inheritance.
-
-    Args:
-        file_path: Path to the Python file in src/worktree.
-
-    Returns:
-        List of violation strings naming offending classes.
-    """
-    tree = ast.parse(file_path.read_text(encoding="utf-8"), filename=str(file_path))
-    if not _has_result_class_def(tree):
-        return []
-
-    module_name = _file_to_module_name(file_path)
-    try:
-        mod = importlib.import_module(module_name)
-    except Exception as exc:
-        return [f"Could not import {module_name}: {exc}"]
-
-    violations: list[str] = []
-    for cls_name, cls in inspect.getmembers(mod, inspect.isclass):
-        if _is_candidate_result_class(cls, cls_name, module_name) and not issubclass(cls, BaseResult):
-            violations.append(f"{module_name}.{cls_name} does not inherit from BaseResult")
-
-    return violations
 
 
 def _check_fix_string(text: str, rel_path: Path, lineno: int) -> str | None:
@@ -476,46 +288,9 @@ def _scan_file_for_piecewise_result_assertions(file_path: Path, base_attrs: set[
 class ArchitectureBoundariesTests:
     """Tier 4 architectural boundary and AST lint invariant tests."""
 
-    def test_core_never_imports_worktree_cli(self) -> None:
-        """Ensure src/worktree/core never imports from worktree.cli."""
-        files = _collect_python_files(CORE_ROOT)
-        violations: list[str] = []
-        for file_path in files:
-            violations.extend(_scan_file_for_banned_imports(file_path, "worktree.cli"))
-
-        assert not violations, "Found prohibited worktree.cli imports in src/worktree/core:\n" + "\n".join(violations)
-
-    def test_tests_core_never_imports_worktree_cli(self) -> None:
-        """Ensure core tests never import from worktree.cli."""
-        files = _collect_python_files(CORE_TESTS_ROOT)
-        violations: list[str] = []
-        for file_path in files:
-            violations.extend(_scan_file_for_banned_imports(file_path, "worktree.cli"))
-
-        assert not violations, "Found prohibited worktree.cli imports in tests/core:\n" + "\n".join(violations)
-
-    def test_zero_direct_terminal_output_outside_dispatcher(self) -> None:
-        """Ensure print(), typer.echo(), and click.echo() only exist inside dispatcher.py."""
-        all_files = _collect_python_files(SRC_ROOT)
-        files = [p for p in all_files if p.resolve() != DISPATCHER_PATH.resolve()]
-        violations: list[str] = []
-        for file_path in files:
-            violations.extend(_scan_file_for_terminal_output(file_path))
-
-        assert not violations, "Found direct terminal output calls outside dispatcher.py:\n" + "\n".join(violations)
-
-    def test_all_result_dtos_inherit_from_base_result(self) -> None:
-        """Ensure all *Result DTO classes across src/worktree inherit from BaseResult."""
-        files = _collect_python_files(SRC_ROOT)
-        violations: list[str] = []
-        for file_path in files:
-            violations.extend(_inspect_module_result_classes(file_path))
-
-        assert not violations, "Found Result classes not inheriting from BaseResult:\n" + "\n".join(violations)
-
     def test_all_emitted_remediation_fixes_are_capitalized(self) -> None:
         """Ensure all remediation suggestions and fixes begin with a capital letter."""
-        files = _collect_python_files(SRC_ROOT)
+        files = collect_python_files(SRC_ROOT)
         violations: list[str] = []
         for file_path in files:
             violations.extend(_scan_file_for_fix_strings(file_path))
@@ -524,7 +299,7 @@ class ArchitectureBoundariesTests:
 
     def test_tests_never_assert_individual_result_fields(self) -> None:
         """Ensure test files use whole-object comparison instead of piecewise result assertions."""
-        all_files = _collect_python_files(TESTS_ROOT)
+        all_files = collect_python_files(TESTS_ROOT)
         base_attrs = _get_base_result_attributes()
         violations: list[str] = []
         for file_path in all_files:
