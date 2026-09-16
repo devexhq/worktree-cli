@@ -334,7 +334,7 @@ assert "CONFIG_SCHEMA_INVALID" in res.stdout  # published error code
   When a field table is genuinely unavoidable, meaning it is the specification for an external JSON Schema or a stable CLI output format, add or extend an automated test under tests/lint/ that fails when the table and the source disagree. The test must exist in the tree at the moment the doc claim lands, and the doc must name it by path. Citing a parity test that has not been written is a DOC-008 breach, not a pending task.
 
 ```python
-# ✅ DO: # tests/lint/test_architecture_boundaries.py exists and is named by the doc claim it backs
+# ✅ DO: # tests/lint/test_import_boundaries.py exists and is named by the doc claim it backs
 # ❌ DO NOT: # "enforced by tests/lint/test_doc_parity.py" where that module is nowhere in the tree
 ```
 
