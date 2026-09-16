@@ -508,8 +508,12 @@ class WorkspaceBuilder:
         if not readme_path.exists():
             readme_path.write_text("# Test Repo\n", encoding="utf-8")
 
+        gitignore_path = workspace_root / ".gitignore"
+        if not gitignore_path.exists():
+            gitignore_path.write_text("/.worktree/\n", encoding="utf-8")
+
         subprocess.run(
-            ["git", "add", "README.md"],
+            ["git", "add", "README.md", ".gitignore"],
             cwd=workspace_root,
             check=True,
             capture_output=True,
