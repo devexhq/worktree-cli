@@ -280,11 +280,11 @@ blueprint = (
 )
 ```
 
-### Shared Contract Assertion Helpers (`tests/harness/assertions.py`)
+### Shared Contract Assertion Helpers (`tests/harness/matchers.py`)
 
 Standardize assertions on contracts using shared helpers:
 
-- **`assert_model_equal(actual, expected, *, exclude=None)`**: Compares Pydantic model instances (including all `BaseResult` subclasses) directly or against an expected dictionary with clean mismatch diffs. The `exclude` parameter is strictly reserved for inherently non-deterministic fields (e.g. dynamic timestamps, generated hashes, or random UUIDs) and any excluded field must be asserted separately for structural presence; `exclude` must never be used on deterministic fields (`errors`, `warnings`, `raw`, `config`) to bypass writing expected values.
+- **`assert_model_equal(actual, expected)`**: Compares two Pydantic model instances of the same type field by field, recursing into nested models and sequences of models, with clean mismatch diffs. There is no `exclude` parameter. `expected` must name every field explicitly (built with `model_construct` when it carries a matcher, since the plain constructor validates and rejects one); a field left to its default raises. A field the test cannot own (a real git SHA, an OS pid, a DB-minted timestamp) is stated as a matcher at its own position — `ANY_DATETIME`, `ANY_UUID`, `ANY_PATH`, `ANY_PID`, `ANY_GIT_SHA`, `ANY_TIMESTAMP`, `ANY_ISO_TIMESTAMP`, `ANY_DURATION`, or a narrow `AnyMatching`/`AnyValue` added alongside them — which still pins the value's type or shape.
 - **`assert_exact_json(actual, expected_dict)`**: Guarantees exact byte/key wire-format contracts without ignoring unexpected extra keys.
 
 ### Determinism & Process Isolation Strategy

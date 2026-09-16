@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from tests.harness.assertions import assert_model_equal
+from tests.harness.matchers import ANY_TIMESTAMP, assert_model_equal
 from worktree.cli import app
 from worktree.cli.catalog.commands.catalog_create import catalog_create_command
 from worktree.cli.catalog.commands.catalog_delete import catalog_delete_command
@@ -45,6 +45,32 @@ def _make_context(workspace: Path) -> CliContext:
     return CliContext(cwd=workspace, db=WorktreeDb(path=workspace), fs=fs)
 
 
+def _fully_set(record: CatalogRecord) -> CatalogRecord:
+    """Rebuild a live CatalogRecord so every field, including the DB-assigned id, is named.
+
+    The repository sets `id` via attribute assignment after insert, which pydantic does not
+    record in `model_fields_set`. assert_model_equal requires an expected object to name every
+    field, so reusing a live record as `expected` needs this rebuild first.
+
+    `updated_at` is replaced with a matcher: every read command (list/show/delete) reindexes the
+    catalog via `scan_and_index_catalog`, and `CatalogRepository.upsert` unconditionally bumps
+    `updated_at` on each reindex even when content is unchanged, so the value on the record
+    returned by create() is stale by the time a later command re-reads it.
+    """
+    return CatalogRecord.model_construct(
+        id=record.id,
+        key=record.key,
+        sha=record.sha,
+        item_type=record.item_type,
+        name=record.name,
+        namespace=record.namespace,
+        path=record.path,
+        checksum=record.checksum,
+        created_at=record.created_at,
+        updated_at=ANY_TIMESTAMP,
+    )
+
+
 # --------------------------------------------------------------------------- #
 # Catalog List Tests                                                          #
 # --------------------------------------------------------------------------- #
@@ -65,14 +91,13 @@ class CatalogListRootTests:
         assert_model_equal(
             result,
             CatalogListResult(
-                items=[create_result.item],
+                items=[_fully_set(create_result.item)],
                 type_filter=None,
                 templates=[],
                 errors=[],
                 warnings=[],
                 fixes=[],
             ),
-            exclude={"items": {"__all__": {"created_at", "updated_at"}}},
         )
 
     @pytest.mark.parametrize(
@@ -102,14 +127,13 @@ class CatalogListRootTests:
         assert_model_equal(
             result,
             CatalogListResult(
-                items=[expected_item],
+                items=[_fully_set(expected_item)],
                 type_filter=expected_type,
                 templates=[],
                 errors=[],
                 warnings=[],
                 fixes=[],
             ),
-            exclude={"items": {"__all__": {"created_at", "updated_at"}}},
         )
 
     def test_catalog_list_type_template_returns_bundled_templates(self, isolated_workspace: Path) -> None:
@@ -257,14 +281,13 @@ class CatalogShowRootTests:
         assert_model_equal(
             result,
             CatalogShowResult(
-                item=create_result.item,
+                item=_fully_set(create_result.item),
                 content=expected_content,
                 template_matches=[],
                 errors=[],
                 warnings=[],
                 fixes=[],
             ),
-            exclude={"item": {"created_at", "updated_at"}},
         )
 
     @pytest.mark.parametrize(
@@ -428,7 +451,7 @@ class CatalogCreateRootTests:
         assert_model_equal(
             result,
             CatalogCreateResult(
-                item=CatalogRecord(
+                item=CatalogRecord.model_construct(
                     id=1,
                     key=name,
                     sha=expected_sha,
@@ -437,12 +460,13 @@ class CatalogCreateRootTests:
                     namespace=None,
                     path=rel_path,
                     checksum=expected_checksum,
+                    created_at=ANY_TIMESTAMP,
+                    updated_at=ANY_TIMESTAMP,
                 ),
                 errors=[],
                 warnings=[],
                 fixes=[],
             ),
-            exclude={"item": {"created_at", "updated_at"}},
         )
 
     @pytest.mark.parametrize(
@@ -659,14 +683,13 @@ class CatalogDeleteRootTests:
         assert_model_equal(
             result,
             CatalogDeleteResult(
-                item=create_result.item,
+                item=_fully_set(create_result.item),
                 deleted=True,
                 cancelled=False,
                 errors=[],
                 warnings=[],
                 fixes=[],
             ),
-            exclude={"item": {"created_at", "updated_at"}},
         )
 
     def test_catalog_delete_unconfirmed_cancels(

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.harness.assertions import assert_model_equal
+from tests.harness.matchers import ANY_TIMESTAMP, assert_model_equal
 from worktree.common.filesystem import Filesystem
 from worktree.core.catalog import Catalog
 from worktree.core.catalog.models import (
@@ -49,17 +49,10 @@ class CatalogTemplateScaffoldingTests:
         content = target_file.read_text(encoding="utf-8")
         expected_sha, expected_checksum = compute_catalog_sha(item_type, content)
 
-        created_item = result.item
-        if created_item is None:
-            pytest.fail("Expected created item to be present in result")
-
-        assert created_item.created_at != ""
-        assert created_item.updated_at != ""
-
         assert_model_equal(
             result,
             CatalogCreateResult(
-                item=CatalogRecord(
+                item=CatalogRecord.model_construct(
                     id=1,
                     key=name,
                     sha=expected_sha,
@@ -68,12 +61,13 @@ class CatalogTemplateScaffoldingTests:
                     namespace=None,
                     path=expected_rel_path,
                     checksum=expected_checksum,
+                    created_at=ANY_TIMESTAMP,
+                    updated_at=ANY_TIMESTAMP,
                 ),
                 errors=[],
                 warnings=[],
                 fixes=[],
             ),
-            exclude={"item": {"created_at", "updated_at"}},
         )
 
 
@@ -168,31 +162,10 @@ class CatalogCollisionTests:
         """catalog.create returns an error when target template already exists."""
         catalog = Catalog(isolated_workspace)
         result_first = catalog.create(item_type, name)
+        assert result_first.item is not None
 
         target_file = isolated_workspace / ".worktree" / "catalog" / expected_rel_path
         assert target_file.is_file()
-        content = target_file.read_text(encoding="utf-8")
-        expected_sha, expected_checksum = compute_catalog_sha(item_type, content)
-
-        assert_model_equal(
-            result_first,
-            CatalogCreateResult(
-                item=CatalogRecord(
-                    id=1,
-                    key=name,
-                    sha=expected_sha,
-                    item_type=item_type,
-                    name=name,
-                    namespace=None,
-                    path=expected_rel_path,
-                    checksum=expected_checksum,
-                ),
-                errors=[],
-                warnings=[],
-                fixes=[],
-            ),
-            exclude={"item": {"created_at", "updated_at"}},
-        )
 
         result_second = catalog.create(item_type, name)
         assert_model_equal(

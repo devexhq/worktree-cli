@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.harness.assertions import assert_model_equal
+from tests.harness.matchers import assert_model_equal
 from worktree.common.models import FailurePolicy, OnFailureSpec
 from worktree.core.step import Step, StepDefinition, StepType, StepValidationError, resolve_step_definition
 
@@ -22,11 +22,24 @@ class StepShorthandExpansionTests:
             step,
             StepDefinition(
                 id="test",
+                uses=None,
+                run=None,
+                name=None,
                 type=StepType.COMMAND,
+                description=None,
                 command="npm test",
+                prompt=None,
+                script_path=None,
+                tools=[],
                 env={"CI": "1"},
                 timeout_seconds=120,
-                on_failure=OnFailureSpec(action=FailurePolicy.ABORT),
+                assert_=None,
+                on_failure=OnFailureSpec(
+                    action=FailurePolicy.ABORT,
+                    max_retries=3,
+                    backoff_ms=0,
+                    on_max_retries=FailurePolicy.ABORT,
+                ),
             ),
         )
 
@@ -76,13 +89,24 @@ class StepResolutionTests:
             resolved,
             StepDefinition(
                 id="derived-step",
+                uses=None,
+                run=None,
                 name="Derived Step Name",
                 description="Base step description",
                 type=StepType.COMMAND,
                 command="echo base",
+                prompt=None,
+                script_path=None,
+                tools=[],
                 env={"BASE_VAR": "base", "SHARED_VAR": "overridden", "OVERRIDE_VAR": "derived"},
                 timeout_seconds=300,
-                on_failure=OnFailureSpec(action=FailurePolicy.ABORT),
+                assert_=None,
+                on_failure=OnFailureSpec(
+                    action=FailurePolicy.ABORT,
+                    max_retries=3,
+                    backoff_ms=0,
+                    on_max_retries=FailurePolicy.ABORT,
+                ),
             ),
         )
 

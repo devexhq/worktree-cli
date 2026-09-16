@@ -9,7 +9,7 @@ from typing import Any
 from pydantic import BaseModel
 from rich.console import Console
 
-from tests.harness.assertions import assert_model_equal
+from tests.harness.matchers import assert_model_equal
 from worktree.common.types import ComponentFormatter
 
 

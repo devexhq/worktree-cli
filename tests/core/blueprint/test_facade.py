@@ -4,7 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from tests.harness.assertions import assert_model_equal
+from tests.harness.matchers import assert_model_equal
+from worktree.common.models import FailurePolicy, OnFailureSpec
 from worktree.core.blueprint import Blueprint, BlueprintDefinition
 from worktree.core.blueprint.models import BlueprintDefaults
 from worktree.core.catalog import Catalog
@@ -36,11 +37,28 @@ class BlueprintDocumentNormalizationTests:
                 timeout_seconds=None,
                 env={},
                 inputs={},
-                defaults=BlueprintDefaults(),
+                defaults=BlueprintDefaults(on_failure=None),
                 steps=[
                     StepDefinition(
                         id="ruff",
+                        uses=None,
                         run="ruff check .",
+                        name=None,
+                        type=None,
+                        description=None,
+                        command=None,
+                        prompt=None,
+                        script_path=None,
+                        tools=[],
+                        env={},
+                        timeout_seconds=120,
+                        assert_=None,
+                        on_failure=OnFailureSpec(
+                            action=FailurePolicy.ABORT,
+                            max_retries=3,
+                            backoff_ms=0,
+                            on_max_retries=FailurePolicy.ABORT,
+                        ),
                     )
                 ],
             ),
@@ -65,7 +83,7 @@ class BlueprintDocumentNormalizationTests:
                 timeout_seconds=None,
                 env={},
                 inputs={},
-                defaults=BlueprintDefaults(),
+                defaults=BlueprintDefaults(on_failure=None),
                 steps=[],
             ),
         )

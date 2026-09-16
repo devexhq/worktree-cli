@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.harness.assertions import assert_model_equal
+from tests.harness.matchers import assert_model_equal
 from worktree.common.filesystem import Filesystem
 from worktree.core.config.generator import build_default_config
 from worktree.core.config.models import WorktreeConfig
@@ -35,10 +35,12 @@ class ConfigSemanticValidationTests:
                 status=ConfigValidationStatus.INVALID,
                 config_path=config_path,
                 raw=payload,
+                config=None,
                 errors=[
                     "paths.db_path contains invalid control characters (CONFIG_SEMANTIC_PATH_INVALID).",
                     "paths.sessions_dir contains invalid control characters (CONFIG_SEMANTIC_PATH_INVALID).",
                 ],
+                warnings=[],
                 fixes=[
                     "Use a plain relative path string without newlines or NUL bytes",
                     "Use a plain relative path string without newlines or NUL bytes",
@@ -62,6 +64,7 @@ class ConfigSemanticValidationTests:
                 config_path=config_path,
                 raw=payload,
                 config=WorktreeConfig.model_validate(payload),
+                errors=[],
                 warnings=[
                     "agent.provider is not 'local' but agent.model is missing (CONFIG_WARN_AGENT_MODEL_MISSING)."
                 ],
@@ -84,6 +87,7 @@ class ConfigSemanticValidationTests:
                 config_path=config_path,
                 raw=payload,
                 config=WorktreeConfig.model_validate(payload),
+                errors=[],
                 warnings=[
                     "agent.endpoint is not an absolute http(s) URL: 'ftp://example.com/api' (CONFIG_WARN_AGENT_ENDPOINT)."
                 ],
@@ -106,6 +110,7 @@ class ConfigSemanticValidationTests:
                 config_path=config_path,
                 raw=payload,
                 config=WorktreeConfig.model_validate(payload),
+                errors=[],
                 warnings=["sandbox.max_active_sandboxes (11) exceeds 10 (CONFIG_WARN_SANDBOX_LIMIT)."],
                 fixes=["Lower sandbox.max_active_sandboxes to 10 or fewer"],
             ),

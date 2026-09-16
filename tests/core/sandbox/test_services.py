@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from tests.harness.assertions import assert_model_equal
 from tests.harness.builders import WorkspaceBuilder
+from tests.harness.matchers import ANY_ISO_TIMESTAMP, ANY_TIMESTAMP, assert_model_equal
 from worktree.common.constants import DEFAULT_MAXIMUM_SANDBOXES_ALLOWED
 from worktree.core.db import SandboxesRepository, SandboxRecord, SandboxStatus
 from worktree.core.git.runner import GitRunner
@@ -42,13 +42,13 @@ class SandboxCreationTests:
         expected_branch = "worktree/sandbox-sbx_test001"
         head_commit = GitRunner.rev_parse(sandbox_workspace, rev="HEAD")
 
-        expected_session = SandboxSession(
+        expected_session = SandboxSession.model_construct(
             session_id="sbx_test001",
             target_branch=expected_branch,
             sandbox_path=expected_sandbox_path,
             base_commit=head_commit,
             name="test-sandbox",
-            created_at="DETERMINISTIC_TIMESTAMP_PLACEHOLDER",
+            created_at=ANY_ISO_TIMESTAMP,
             command_passed=None,
             wip_applied=False,
             wip_paths=[],
@@ -60,23 +60,23 @@ class SandboxCreationTests:
             errors=[],
             fixes=[],
         )
-        assert_model_equal(result, expected_result, exclude={"session": {"created_at"}})
-        assert result.session is not None and result.session.created_at != ""
+        assert_model_equal(result, expected_result)
         assert expected_sandbox_path.is_dir()
         assert expected_branch in GitRunner.list_branches(sandbox_workspace)
 
         record = db.get("sbx_test001")
         assert record is not None
-        expected_record = SandboxRecord(
+        expected_record = SandboxRecord.model_construct(
             id="sbx_test001",
             name="test-sandbox",
             branch_name=expected_branch,
             base_commit=head_commit,
             sandbox_path=expected_sandbox_path,
             status=SandboxStatus.ACTIVE,
+            created_at=ANY_TIMESTAMP,
+            updated_at=ANY_TIMESTAMP,
         )
-        assert_model_equal(record, expected_record, exclude={"created_at", "updated_at"})
-        assert record.created_at is not None and record.updated_at is not None
+        assert_model_equal(record, expected_record)
 
 
 class SandboxCapacityTests:

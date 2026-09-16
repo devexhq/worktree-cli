@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from tests.harness.assertions import assert_model_equal
+from tests.harness.matchers import assert_model_equal
 from worktree.cli import app
 from worktree.cli.config.commands.config_set import config_set_command
 from worktree.cli.config.commands.config_show import config_show_command

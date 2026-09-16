@@ -6,7 +6,7 @@ import re
 
 import pytest
 
-from tests.harness.assertions import assert_model_equal
+from tests.harness.matchers import assert_model_equal
 from worktree.core.inputs.models import (
     InputResolveResult,
     InputType,
@@ -115,6 +115,7 @@ class InputSyntaxValidationTests:
                 missing=[],
                 errors=["Invalid input syntax 'malformed_token'. Expected key=value (e.g. -i message=value)."],
                 warnings=[],
+                fixes=[],
             ),
         )
 
@@ -135,6 +136,7 @@ class InputSyntaxValidationTests:
                     "Ignoring unrecognized option '--unrecognized-option'.",
                     "Ignoring unexpected argument 'positional_arg'.",
                 ],
+                fixes=[],
             ),
         )
 
@@ -232,5 +234,6 @@ class InputFlagResolutionTests:
                 missing=[],
                 errors=[],
                 warnings=[],
+                fixes=[],
             ),
         )

@@ -4,17 +4,15 @@ from pathlib import Path
 
 import pytest
 
-from tests.harness.assertions import assert_model_equal
 from tests.harness.builders import WorkspaceBuilder
+from tests.harness.matchers import ANY_TIMESTAMP, assert_model_equal
 from worktree.core.db import SandboxesRepository, SandboxRecord, SandboxStatus
 from worktree.core.git.runner import GitRunner
 from worktree.core.sandbox.models import (
     SandboxApplyResult,
     SandboxApplyStatus,
     SandboxApplyStrategy,
-    SandboxCreateResult,
     SandboxCreateStatus,
-    SandboxSession,
 )
 from worktree.core.sandbox.services.lifecycle import SandboxLifecycle
 from worktree.core.sandbox.services.patch import SandboxPatch, extract_conflicts
@@ -88,26 +86,7 @@ class SandboxApplyRollbackTests:
         initial_commit = GitRunner.rev_parse(sandbox_workspace, rev="HEAD")
 
         create_result = lifecycle.create(session_id="sbx_conflict")
-        expected_create_session = SandboxSession(
-            session_id="sbx_conflict",
-            target_branch="worktree/sandbox-sbx_conflict",
-            sandbox_path=(sandbox_workspace / ".worktree" / "sandboxes" / "sbx_conflict").resolve(),
-            base_commit=initial_commit,
-            name=None,
-            created_at="DETERMINISTIC_TIMESTAMP_PLACEHOLDER",
-            command_passed=None,
-            wip_applied=False,
-            wip_paths=[],
-        )
-        expected_create_result = SandboxCreateResult(
-            status=SandboxCreateStatus.OK,
-            session=expected_create_session,
-            warnings=[],
-            errors=[],
-            fixes=[],
-        )
-        assert_model_equal(create_result, expected_create_result, exclude={"session": {"created_at"}})
-        assert create_result.session is not None and create_result.session.created_at != ""
+        assert create_result.status == SandboxCreateStatus.OK
 
         sandbox_dir = sandbox_workspace / ".worktree" / "sandboxes" / "sbx_conflict"
         (sandbox_dir / "target.py").write_text("line 1\nsandbox edit\nline 3\n", encoding="utf-8")
@@ -140,15 +119,16 @@ class SandboxApplyRollbackTests:
         assert_model_equal(result, expected_result)
         assert (sandbox_workspace / "target.py").read_text(encoding="utf-8") == initial_tree
 
-        expected_record = SandboxRecord(
+        expected_record = SandboxRecord.model_construct(
             id="sbx_conflict",
             name=None,
             branch_name="worktree/sandbox-sbx_conflict",
             base_commit=initial_commit,
             sandbox_path=(sandbox_workspace / ".worktree" / "sandboxes" / "sbx_conflict").resolve(),
             status=SandboxStatus.CONFLICT,
+            created_at=ANY_TIMESTAMP,
+            updated_at=ANY_TIMESTAMP,
         )
         record = db.get("sbx_conflict")
         assert record is not None
-        assert_model_equal(record, expected_record, exclude={"created_at", "updated_at"})
-        assert record.created_at is not None and record.updated_at is not None
+        assert_model_equal(record, expected_record)

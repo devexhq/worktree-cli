@@ -9,8 +9,8 @@ from unittest.mock import patch
 
 import pytest
 
-from tests.harness.assertions import assert_model_equal
 from tests.harness.builders import StepBuilder
+from tests.harness.matchers import ANY_DURATION, assert_model_equal
 from worktree.core.step.models import StepExecutionContext, StepResult
 from worktree.core.step.runner import StepExecution
 
@@ -67,17 +67,19 @@ class ProcessGroupEscalationTests:
 
         assert_model_equal(
             result,
-            StepResult(
+            StepResult.model_construct(
                 step_id="timeout-escalate",
                 status="failed",
                 exit_code=124,
                 stdout="",
                 stderr="",
-                duration_seconds=0.0,
+                duration_seconds=ANY_DURATION,
                 attempts=1,
                 error_message="Command step execution timed out after 1 seconds.",
+                errors=[],
+                warnings=[],
+                fixes=[],
             ),
-            exclude={"duration_seconds"},
         )
         assert result.duration_seconds >= 2.0
         assert elapsed >= 2.0
