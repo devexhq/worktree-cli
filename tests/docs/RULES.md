@@ -210,7 +210,7 @@ class TestConfig:
 # ❌ DO NOT: def test_eval_model(self): ...; def test_eval_dict(self): ...  # duplicate sibling methods
 ```
 
-- **[TEST-007] No Unasserted Fields on the Result Under Test (BLOCKER):**
+- **[TEST-007] No Unasserted Fields on the Result Under Test (SUGGESTION):**
   Every field of the result under test is asserted. The result under test is the Pydantic model or BaseResult returned by a core service or domain entrypoint, or a formatter's JSON wire payload; click.testing.Result is not one, so asserting res.exit_code is required by TEST-004 and TEST-017 rather than forbidden here. Satisfy the invariant with assert_model_equal(result, Expected(...)) naming every field, or for a wire payload an exact literal dict. Asserting a subset of the result and stopping is prohibited: a piecewise assertion is blind to every field it does not name, which is where the regression you did not anticipate lands. Piecewise assertions are permitted alongside a whole-object comparison, never instead of one, and on values that are not the result under test (exit codes, preconditions, an incidental single-column read). Non-determinism is removed at its seam first: inject the clock and the id factory per TEST-011 so a timestamp or generated id is a literal the test can state. Only for a value the test genuinely cannot own (a real git SHA, an OS pid, an id minted by the database) use a matcher from tests/harness/matchers.py at that field's own position, which still pins the value's type or shape. assert_model_equal has no exclude parameter; a waiver expressed outside the comparison is prohibited because a reader cannot see it at the field and it asserts nothing about the waived value. An expected object that leaves a field to its default is rejected, since a changed default would otherwise pass unnoticed.
 
 ```python
@@ -387,6 +387,6 @@ Target scope: tests/core/sandbox/test_lifecycle.py
   A BLOCKER rule that can be checked mechanically must have an executing check: an invariant test under tests/lint/, a prek hook, or a CI step. A declared gate whose configuration disables it, such as a coverage floor of zero or a type checker present in no hook and no workflow, counts as unenforced and must be either wired up or downgraded to a review-time WARNING. An invariant check must prove its own scope with a regression test shaped like the code it polices, and lands green by carrying an explicit burn-down allowlist of known violators; allowlist entries shrink and are never added to.
 
 ```python
-# ✅ DO: # TEST-007 enforced by tests/lint/test_assertion_style.py
+# ✅ DO: # ARCH-001 enforced by tests/lint/test_import_boundaries.py
 # ❌ DO NOT: # Scanner walks only tree.body functions, so class-based tests are never inspected
 ```

@@ -280,6 +280,6 @@ Target scope: tests/core/sandbox/test_lifecycle.py
   A BLOCKER rule that can be checked mechanically must have an executing check: an invariant test under tests/lint/, a prek hook, or a CI step. A declared gate whose configuration disables it, such as a coverage floor of zero or a type checker present in no hook and no workflow, counts as unenforced and must be either wired up or downgraded to a review-time WARNING. An invariant check must prove its own scope with a regression test shaped like the code it polices, and lands green by carrying an explicit burn-down allowlist of known violators; allowlist entries shrink and are never added to.
 
 ```python
-# ✅ DO: # TEST-007 enforced by tests/lint/test_assertion_style.py
+# ✅ DO: # ARCH-001 enforced by tests/lint/test_import_boundaries.py
 # ❌ DO NOT: # Scanner walks only tree.body functions, so class-based tests are never inspected
 ```

@@ -257,7 +257,7 @@ Planning only, nothing was implemented. Grounded against `<base branch>` at
 
 | Rule ID | Name | Severity | Status | Evidence / Notes |
 |---|---|---|---|---|
-| `TEST-007` | Whole Object Comparison | BLOCKER | PASS | Stubs write literal assert_model_equal(result, ExpectedResult(...)); zero piecewise attribute asserts |
+| `TEST-007` | Whole Object Comparison | SUGGESTION | PASS | Stubs write literal assert_model_equal(result, ExpectedResult(...)); zero piecewise attribute asserts |
 | `ARCH-001` | Strict Layered Import Flow | BLOCKER | PASS | Services import only from common and core domains; zero cli imports |
 
 ## Artifact inventory

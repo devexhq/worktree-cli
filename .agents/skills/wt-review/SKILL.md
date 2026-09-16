@@ -83,9 +83,9 @@ The rules that get missed are the ones no linter enforces, and they are missed b
 2. **Decompose multi-clause rules into one row per clause.** A rule carrying several independent requirements audited as a single row hides all but one of them. `TEST-007` carries four: every field of the result under test asserted, no waiver expressed outside the comparison, no field left to its default, and a matcher used only for a value the test could not have made deterministic by injecting the clock or id factory. A change can satisfy the first and breach the rest, and a one-row audit reads as PASS.
 3. **Audit each clause line by line** against the rule's `evaluation_criteria`.
 4. **Classify severity:**
-   - **`BLOCKER`**: architectural drift, concurrency risk, raw DB instantiation in loops or helpers, boundary leaks, runtime crashes, `assert` in `src/`, piecewise or `exclude`-weakened result assertions, assertions on human-rendered output, an enforcement check that cannot fail, a breached plan contract, or a missing required doc update.
+   - **`BLOCKER`**: architectural drift, concurrency risk, raw DB instantiation in loops or helpers, boundary leaks, runtime crashes, `assert` in `src/`, assertions on human-rendered output, an enforcement check that cannot fail, a breached plan contract, or a missing required doc update.
    - **`WARNING`**: high-impact convention or type degradation.
-   - **`SUGGESTION`**: constructive improvement.
+   - **`SUGGESTION`**: constructive improvement, including piecewise or `exclude`-weakened result assertions (`TEST-007`).
    - **`NIT`**: minor formatting or cosmetic observation.
 
 Two passes that must be deliberate:
@@ -109,7 +109,7 @@ Shape, shown with a failing row because a failing exemplar is the one worth copy
 
 | Rule ID | Clause | Severity | Status | Evidence (quoted) |
 |---|---|---|---|---|
-| `TEST-007` | no waiver outside the comparison | BLOCKER | FAIL | `tests/core/config/test_loader.py:134` reads `assert_model_equal(result, expected, exclude={"errors"})`; `errors` is deterministic and the parameter no longer exists |
+| `TEST-007` | no waiver outside the comparison | SUGGESTION | FAIL | `tests/core/config/test_loader.py:134` reads `assert_model_equal(result, expected, exclude={"errors"})`; `errors` is deterministic and the parameter no longer exists |
 | `TEST-011` | no wall-clock sleeps | BLOCKER | FAIL | `tests/core/step/test_process_group.py:58` reads `time.sleep(0.05)` |
 
 ## 5. Redundancy and subtraction pass
