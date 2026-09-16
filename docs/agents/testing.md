@@ -68,10 +68,9 @@ All tests must be categorized under one of the five registered markers declared 
 This taxonomy is a labeling convention for filtered runs (`pytest -m unit`, `pytest -m cli`,
 etc.), not a mechanically enforced cardinality rule — a module may carry zero, one, or multiple
 primary markers. `TEST-016`, which previously enforced exactly-one-primary-marker as a BLOCKER,
-was reversed by [ADR-0002](../decisions/0002-simplify-cli-test-doctrine.md).
-`tests/lint/test_marker_taxonomy.py` (`MarkerTaxonomyTests`) still runs and still checks the same
-shape, but it no longer maps to a rule in `rules_spec.yaml`; a finding from it is informational,
-not a review BLOCKER.
+was reversed by [ADR-0002](../decisions/0002-simplify-cli-test-doctrine.md); the passive
+convention check that briefly outlived the rule (`tests/lint/test_marker_taxonomy.py`) has since
+been deleted, since no rule in `rules_spec.yaml` referenced it any longer.
 
 ### Module-Level Tagging Pattern (Optional)
 

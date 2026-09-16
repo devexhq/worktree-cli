@@ -82,15 +82,16 @@ git, on-disk SQLite, and cross-process locks.
   execution-time budget distinction between the two tiers instead of restoring it.
 
 **Rule:** `TEST-016`, explicit: "Writing JSON under `tmp_path` does not make a test
-integration." Enforced since Phase 1 W1.3 by `tests/lint/test_marker_taxonomy.py`, which
-allowlists the three known-mismarked modules (`test_loader.py`, `test_mutate.py`,
-`test_catalog.py`) in `INTEGRATION_MARKER_BURN_DOWN`; the re-mark itself is Phase 2 (W2.4).
+integration." Originally enforced since Phase 1 W1.3 by `tests/lint/test_marker_taxonomy.py`,
+which allowlisted the three known-mismarked modules (`test_loader.py`, `test_mutate.py`,
+`test_catalog.py`) in `INTEGRATION_MARKER_BURN_DOWN`.
 
 **Superseded:** Reversed by
 [0002-simplify-cli-test-doctrine.md](0002-simplify-cli-test-doctrine.md) — `TEST-016`'s BLOCKER
-cardinality requirement is dropped. `tests/lint/test_marker_taxonomy.py` itself is retained
-(kept as a passive, non-BLOCKER convention check, not deleted) per explicit instruction on the
-reversal ticket.
+cardinality requirement is dropped and the rule no longer exists in `rules_spec.yaml`. The
+passive convention check 0002 retained, `tests/lint/test_marker_taxonomy.py`, was itself
+deleted once no rule referenced it, per issue #570. Marker choice is now a labeling convention
+only (see `docs/agents/testing.md`), not an enforced invariant.
 
 ## D5. Fate of the TEST-007 piecewise-assertion scanner
 
