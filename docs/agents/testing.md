@@ -20,7 +20,7 @@ Test structure mirrors `src/worktree/` 1:1 under `tests/`. **A test lives beside
 - Every source module in `src/worktree/` has corresponding test coverage in `tests/`:
   - `src/worktree/common/<module>.py` -> `tests/common/test_<module>.py`
   - `src/worktree/core/<domain>/<module>.py` -> `tests/core/<domain>/test_<module>.py`
-  - `src/worktree/cli/<command>/commands/*.py` -> `tests/cli/commands/test_<command>.py` (housing dual-tier `*RootTests` and `*CliIntegrationTests` for each command action)
+  - `src/worktree/cli/<command>/commands/*.py` -> `tests/cli/commands/test_<command>.py` (housing `*CliIntegrationTests` for each command action, plus `*RootTests` only where a handler earns one)
   - `src/worktree/cli/ui/formatters/<domain>/<name>.py` -> `tests/cli/ui/formatters/<domain>/test_<name>.py`
 - Every test directory gets an `__init__.py`. Basenames repeat across the tree (`test_formatters.py`, `test_filesystem.py`), so collection depends on packages being real.
 - **One test file per source module.** Do not split one module's tests across files without a stated architectural rule.
@@ -65,9 +65,13 @@ All tests must be categorized under one of the five registered markers declared 
 | `invariant` | Static AST and architectural boundary enforcement tests (`tests/lint/`). Verifies imports, complexity, and contract consistency. | Fast / AST scan | `pytest -m invariant` (instant architecture guard) |
 | `slow` | Long-running tests involving process group signal escalation, real process timeouts, cross-process locks, or network boundaries. | > 500ms | `pytest -m "not slow"` (runs suite excluding slow waits) |
 
-Enforced by `tests/lint/test_marker_taxonomy.py` (`MarkerTaxonomyTests`): every module
-resolves to exactly one primary marker, `invariant` never appears outside `tests/lint/`, and
-`integration` modules must reference a real subsystem boundary.
+This taxonomy is a labeling convention for filtered runs (`pytest -m unit`, `pytest -m cli`,
+etc.), not a mechanically enforced cardinality rule — a module may carry zero, one, or multiple
+primary markers. `TEST-016`, which previously enforced exactly-one-primary-marker as a BLOCKER,
+was reversed by [ADR-0002](../decisions/0002-simplify-cli-test-doctrine.md).
+`tests/lint/test_marker_taxonomy.py` (`MarkerTaxonomyTests`) still runs and still checks the same
+shape, but it no longer maps to a rule in `rules_spec.yaml`; a finding from it is informational,
+not a review BLOCKER.
 
 ### Module-Level Tagging Pattern (Optional)
 
@@ -212,18 +216,23 @@ Rules for Tier 2 tests:
 - **Iterating collections inside a case**: statements like `for warning in case.view.warnings: assert warning in rendered` verify items within a single test scenario. This is permitted and is not the banned `for`-loop-over-scenarios pattern.
 - **Wire format literals**: `test_json_payload_matches_published_shape` must assert against an exact literal dictionary, never `== case.view.model_dump(...)`, to guarantee serialization stability for field names, enum values, and null representations.
 
-### Tier 3 - CLI Wiring (Dual-Tier Matrix)
+### Tier 3 - CLI Wiring (Runner Required, Root Tests When Earned)
 
-Every command module must implement the dual-tier matrix (`scratch/test-structure-proposal.md` §11.1):
-
-- `*RootTests` (e.g. `DiffCommandRootTests`): direct unit tests for pure Python command handlers (from `commands/<action>.py`) taking `CliContext`, bypassing Typer CLI runner overhead. Tagged `pytestmark = pytest.mark.unit`.
-- `*CliIntegrationTests` (e.g. `DiffCliIntegrationTests`): CLI integration tests invoking `runner.invoke(app, [...])` to verify Click/Typer options, argument parsing, exit codes, and output dispatching. Tagged `pytestmark = pytest.mark.cli`.
-
-Both tiers are required per command. Direct handler calls cannot see option binding, exit codes, or dispatcher wiring; runner tests verify wiring without duplicating domain logic. Four scenarios per command:
+Every command action requires at least one real `*CliIntegrationTests` suite (e.g.
+`DiffCliIntegrationTests`) invoking `runner.invoke(app, [...])` to verify Click/Typer options,
+argument parsing, exit codes, resulting disk or git state, and (optionally) a snapshot of
+rendered output. Tagged `pytestmark = pytest.mark.cli`. Four scenarios per command:
 1. Happy path exit 0.
 2. Failure path with expected non-zero exit code.
 3. `--format json` emits valid JSON matching wire schema.
 4. Any interactive confirmation or abort branch.
+
+A `*RootTests` suite (e.g. `DiffCommandRootTests`), calling the handler directly with a
+`CliContext` and bypassing Typer runner overhead, is added only when the handler owns logic the
+domain layer does not: input coercion, branch selection across services, result composition from
+more than one call, or an interactive abort path. A pass-through handler is fully compliant with
+zero root tests, and a root test may never restate a contract already asserted under
+`tests/core/` for the same result type. Tagged `pytestmark = pytest.mark.unit` when present.
 
 ### Tier 4 - Invariants (`tests/lint/`)
 
@@ -385,7 +394,7 @@ python -m pytest -q <path>          # a specific file or directory
 Every pull request and ticket in this milestone touching tests must verify compliance with this document (`docs/agents/testing.md`) and `scratch/test-structure-proposal.md` (§12.1 Rule 7). Reviewers and implementers must audit tests against this checklist:
 
 1. **1:1 Parity**: Does the test file mirror `src/worktree/` exactly?
-2. **Execution Tiers**: Are CLI tests split into `*RootTests` and `*CliIntegrationTests`? Do formatters follow the 3-test `FormatterCase` protocol?
+2. **Execution Tiers**: Does at least one real `CliRunner` test cover each command action (exit code, disk/git state, optional output snapshot)? Is a `*RootTests` suite present only where handler logic earns it? Do formatters follow the 3-test `FormatterCase` protocol?
 3. **Naming**: Are classes named `*Tests` and methods named `test_<condition>_<outcome>` with banned vague names avoided?
-4. **Contract Assertions**: Are assertions checking contracts (`BaseResult`, exact JSON payload dicts, exit codes, disk state) without reaching into private attributes or scraping Rich formatting?
+4. **Contract Assertions**: Are assertions checking contracts (`BaseResult`, exact JSON payload dicts, exit codes, disk state, rendered output) without reaching into private attributes? A rendered-output assertion is a literal string or snapshot, never a help-text scrape.
 5. **Harness Hygiene**: Are tests using standard fixtures (`tmp_path`, `GitWorkspaceHarness`) and shared assertion helpers rather than legacy helper modules?

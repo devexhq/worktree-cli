@@ -1,4 +1,9 @@
-"""Tier 4 invariant: every test module carries exactly one primary marker (TEST-016)."""
+"""Tier 4 invariant: every test module carries exactly one primary marker.
+
+Historically backed by the BLOCKER rule `TEST-016`; that rule was reversed by
+`docs/decisions/0002-simplify-cli-test-doctrine.md` and removed from `rules_spec.yaml`. This
+check keeps running as a passive convention check — a failure here is not a `wt-review` BLOCKER.
+"""
 
 from __future__ import annotations
 
@@ -208,7 +213,7 @@ def _check_invariant_marker_scope(file_path: Path, rel_path: Path) -> list[str]:
 
 
 class MarkerTaxonomyTests:
-    """Tier 4 marker-taxonomy invariant tests (TEST-016)."""
+    """Tier 4 marker-taxonomy invariant tests (convention check, not a BLOCKER rule)."""
 
     def test_every_test_module_declares_one_primary_marker(self) -> None:
         """Every collected test module resolves to exactly one primary marker."""

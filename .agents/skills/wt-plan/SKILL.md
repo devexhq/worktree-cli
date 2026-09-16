@@ -98,7 +98,7 @@ Required by `PLAN-013`. Tests get their own table, because path, marker, and bud
 
 Rules for this table:
 - **Path** must satisfy the parity mappings in `TEST-002`, including the CLI command collapse. No part-numbered or grab-bag files.
-- **Marker** is the executable tier, governed by `TEST-016`: one primary marker per module (`unit`, `integration`, `cli`, `invariant`), `slow` only as an addition. Choose by real cost, not by narrative: reading and writing under `tmp_path` is `unit`; subprocess git, on-disk SQLite, and cross-process locks are `integration`. When a module must mix tiers, say so and declare markers per class so each tier stays selectable.
+- **Marker** is the executable tier: one primary marker per module (`unit`, `integration`, `cli`, `invariant`), `slow` only as an addition, chosen by real cost as a labeling convention — `TEST-016`'s BLOCKER cardinality requirement was reversed by ADR-0002. Choose by real cost, not by narrative: reading and writing under `tmp_path` is `unit`; subprocess git, on-disk SQLite, and cross-process locks are `integration`. When a module must mix tiers, say so and declare markers per class so each tier stays selectable.
 - **Est. lines** keeps the change reviewable, per `PLAN-017`. A total planned diff over 250 lines requires a stated split into separately mergeable PRs.
 - **Nearest existing coverage** is the output of step 1.6. If an existing test already pins the contract, the verdict is `redundant-dropped` and the row stays in the table as the record of that decision. Under `TEST-004`, a pass-through handler gets no root test, and no row may restate a contract already asserted under `tests/core/` for the same result type.
 
@@ -148,8 +148,8 @@ Banned in test stubs and tables, by form (`TEST-007`, `TEST-010`, `PLAN-013`):
 - Note which of these the plan is most likely to get wrong. `exclude={"errors"}` was forbidden by name in two compiled BLOCKER rules and shipped anyway, so a waived field is the clause to audit hardest.
 
 Banned in test stubs, by target (`TEST-001`, `TEST-017`, `TEST-012`):
-- **Human-rendered output.** Never plan an assertion against a panel title, status label, field caption, prose sentence, glyph, or padding, at any tier. A published error code token is permitted because it is a documented contract. Layout belongs to the formatter test for that view, where the render assertion checks a value carried by the view model rather than a caption.
-- **Help text wording.** Assert command registration and option names through Click metadata instead.
+- **Formatter render assertions stay semantic-value-only** (`TEST-012`). In `tests/cli/ui/formatters/`, never plan an assertion against a panel title, status label, field caption, prose sentence, glyph, or padding — the render assertion checks a value carried by the view model. CLI runner tests under `tests/cli/commands/` are different: ADR-0002 reversed D2/`TEST-017`, so they may assert real rendered output directly, including labels and prose, ideally pinned via snapshot testing.
+- **Help text wording** (`TEST-017`). Still banned everywhere: assert command registration and option names through Click metadata instead.
 
 Enforcement code has one extra requirement, from `CI-004`. Any test whose assertion is "no violations were found" must be planned together with two companions, because an empty result set passes that assertion trivially:
 1. A negative fixture test that constructs a violating sample and asserts the checker flags it. The fixture must have the same shape as the real code it polices; a checker for class-based tests proven only against a module-level function is unproven.
@@ -223,7 +223,7 @@ Cite a rule ID only from this list. Every ID here is defined in `docs/agents/rul
 | Contract extraction and guardrails | `PLAN-003`, `PLAN-004`, `PLAN-005`, `PLAN-006` |
 | Grounding, traps, doctrine defects | `PLAN-007`, `PLAN-008`, `DOC-008`, `DOC-005` |
 | Artifact inventory and deletion ledger | `PLAN-009`, `COMPAT-002`, `TEST-013`, `TEST-009` |
-| Test ledger | `PLAN-013`, `PLAN-017`, `TEST-002`, `TEST-004`, `TEST-016` |
+| Test ledger | `PLAN-013`, `PLAN-017`, `TEST-002`, `TEST-004` |
 | Code sample rules | `PLAN-010`, `PLAN-011`, `PLAN-012`, `TEST-007`, `TEST-010`, `TEST-011`, `TEST-001`, `TEST-017`, `TEST-012`, `CI-004` |
 | Ambiguity gate and handoff | `PLAN-014`, `PLAN-015` |
 | Rule evaluation matrix | `PLAN-016` |

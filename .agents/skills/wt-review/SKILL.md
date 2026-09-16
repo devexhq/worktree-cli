@@ -70,7 +70,7 @@ Skip this axis only when `.agentic/plan.md` is absent, and say so in the report.
 - Every FR has landed, and every artifact row has its file.
 - Contracts match exactly: field names, types, defaults, `status` values, flag names, help copy, exit codes, and error, warning, and fix strings. A "better" name than the plan's is a finding, since the plan was human-reviewed.
 - Nothing landed that the plan marked out of scope or named as a trap.
-- **Test ledger fidelity, row by row** (`PLAN-013`). Each planned test exists at the planned path (`TEST-002`) with the planned primary marker (`TEST-016`), asserting the stated contract. Then check the other direction: every test file in the diff appears in the ledger. An unplanned test file is a scope breach that no gate catches.
+- **Test ledger fidelity, row by row** (`PLAN-013`). Each planned test exists at the planned path (`TEST-002`), asserting the stated contract. Then check the other direction: every test file in the diff appears in the ledger. An unplanned test file is a scope breach that no gate catches.
 - **Deletion ledger fidelity** (`PLAN-009`). Every entry is gone. An unexecuted deletion leaves the duplicate the plan was written to avoid.
 - **Budget** (`PLAN-017`). Compare the diff size against the plan's estimate. A diff several times its budget was never reviewable at the size the plan promised, and that is a finding regardless of the code's quality.
 - Where the code deviates, the deviation was surfaced rather than absorbed silently.
@@ -91,7 +91,7 @@ The rules that get missed are the ones no linter enforces, and they are missed b
 Two passes that must be deliberate:
 
 - **Every new or changed identifier**, production and tests, against `CODE-001`. Standard abbreviations and common iteration constructs are permitted; flag only cryptic or arbitrary truncations.
-- **Every new test**: path parity (`TEST-002`), primary marker present and matching real cost (`TEST-016`), naming (`TEST-003`), double realism (`TEST-008`), and whether it asserts a machine-readable contract or a rendered detail (`TEST-001`, `TEST-017`). Grep the diff for `in res.stdout`, `in result.output`, and `.stdout ==` and read every hit. A literal that is a published error code token is fine; a panel title, status label, field caption, prose sentence, or glyph is Blocking and belongs in that view's formatter test, asserting a view value at pinned width 160 (`TEST-012`).
+- **Every new test**: path parity (`TEST-002`), naming (`TEST-003`), double realism (`TEST-008`), and whether it asserts a machine-readable or rendered contract appropriate to its tier (`TEST-001`, `TEST-017`). Grep the diff for `in res.stdout`, `in result.output`, and `.stdout ==` and read every hit. Under `tests/cli/commands/`, a literal assertion against rendered output (a label, a token, a full snapshot) is fine per `TEST-017`; only help-text wording is Blocking there. Under `tests/cli/ui/formatters/`, a panel title, status label, field caption, prose sentence, or glyph is still Blocking and belongs to that view's render assertion checking a view value at pinned width 160 (`TEST-012`).
 
 Each finding names the rule ID and the doc it comes from. If you cannot cite a rule, it is a Suggestion or a Nit, not Blocking.
 
@@ -131,7 +131,7 @@ For every check this change adds, and every check it claims to satisfy, ask whet
 - **Missing negative fixture.** An enforcement test with no companion test proving it flags a violating sample is unproven. Flag it and name the fixture it needs.
 - **Scope narrower than the claim.** A check whose name or docstring promises the suite but whose glob covers one directory. Compare the two.
 - **Allowlists that grew.** A burn-down allowlist of known violators is legitimate and must only shrink. An entry added in this diff to make a new violation pass is Blocking.
-- **Claimed gates that do not run.** Read `pyproject.toml`, `prek.toml`, and `.github/workflows/` for every threshold this change relies on. A coverage floor documented at 80 percent with `fail_under = 0` (`CI-001`), a type check whose config includes `tests` but whose command covers only `src` (which leaves `TEST-014` unenforced), and markers with no consumer in CI (`TEST-016`) are all unenforced. Report each as unenforced rather than satisfied, and name where the gap is.
+- **Claimed gates that do not run.** Read `pyproject.toml`, `prek.toml`, and `.github/workflows/` for every threshold this change relies on. A coverage floor documented at 80 percent with `fail_under = 0` (`CI-001`) and a type check whose config includes `tests` but whose command covers only `src` (which leaves `TEST-014` unenforced) are both unenforced. Report each as unenforced rather than satisfied, and name where the gap is.
 
 ## 7. Check doc adherence
 
@@ -282,11 +282,11 @@ Cite a rule ID only from this list. Each resolves to a rule in `docs/agents/rule
 | This skill's section | Rule IDs |
 |---|---|
 | Stale, phantom, and aspirational docs | `DOC-008`, `DOC-005`, `DOC-001` to `DOC-004`, `DOC-006` |
-| Plan and ledger fidelity | `PLAN-009`, `PLAN-013`, `PLAN-017`, `TEST-002`, `TEST-016` |
+| Plan and ledger fidelity | `PLAN-009`, `PLAN-013`, `PLAN-017`, `TEST-002` |
 | Mechanical sweep | every rule in `REVIEW_CHECKLIST.json` matching a changed path |
-| Test pass | `TEST-001` to `TEST-017` by clause |
+| Test pass | `TEST-001` to `TEST-017` by clause, excluding `TEST-016` (reversed by ADR-0002) |
 | Redundancy and subtraction | `TEST-004`, `TEST-006`, `TEST-013`, `DRY-001`, `PLAN-017` |
-| Enforcement integrity | `CI-004`, `CI-001`, `TEST-014`, `TEST-016` |
+| Enforcement integrity | `CI-004`, `CI-001`, `TEST-014` |
 | Matrix evidence standard | `PLAN-016` |
 
 Four requirements in this skill are skill-owned with no compiled rule, so report them as this skill's directive rather than citing an ID: the four-tier severity classification, the `.agentic/review.json` field contract, the three-round cap with residual handoff, and the provenance declaration.

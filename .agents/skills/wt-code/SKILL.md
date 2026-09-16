@@ -66,8 +66,7 @@ Apply the doc updates the plan's cross-cutting section lists, and only those.
 
 Four things to get right that the plan states but is easy to drop while typing:
 
-- **Declare the module's primary marker** (`TEST-016`). `pytestmark = pytest.mark.<marker>` at module level, or per class when the plan says the module mixes tiers. An unmarked module is invisible to every marker-filtered run, which means it is invisible to CI selection even while it passes locally. `--strict-markers` catches a misspelled marker, never a missing one.
-- **Assert machine-readable surfaces only** (`TEST-001`, `TEST-017`). Exit codes, `--format json` payloads compared as whole dicts, `BaseResult` objects compared whole, file and git state. Never assert a panel title, status label, field caption, prose sentence, glyph, or column padding from `res.stdout`. If the contract you need to pin is what a view renders, it belongs in that view's formatter test, where the render assertion checks a value from the view model rather than a caption (`TEST-012`), captured through `render_rich` at width 160.
+- **Assert observable behavior** (`TEST-001`, `TEST-017`). Exit codes, `--format json` payloads compared as whole dicts, `BaseResult` objects compared whole, file and git state, and rendered CLI output asserted directly (ideally pinned via snapshot testing) rather than restricted to a published error-code token. Formatter-specific semantic-value render assertions at pinned width 160 still belong to that view's formatter test (`TEST-012`).
 - **Assert every field of the result under test** (`TEST-007`). Name every field on the expected side; there is no `exclude` parameter, and a field left to its default is rejected. When a value will not match, fix the seam before reaching for a waiver: inject the clock or id factory (`TEST-011`) so the value is a literal you can state. Only for a value you genuinely cannot own (a real git SHA, an OS pid, a database-minted id) use a matcher at that field's position, and build the expected object with `model_construct`, since the plain constructor rejects a matcher under `strict=True`.
 - **Register spawned processes with the harness registry and use the shared poll helper** (`TEST-011`). No open-coded poll loop and no bare `time.sleep` in a test body; the harness owns the poll interval and deadline, and registration is what stops a failing test from leaking a process group.
 
@@ -109,7 +108,7 @@ git diff --stat -- tests/ | tail -1
 Notes that decide whether a gate really passed:
 
 - **`basedpyright` covers `src tests`**, matching `[tool.basedpyright].include` and `CI-001`. Narrowing it to `src` leaves the harness and fixtures unchecked, which is exactly where loose typing accumulates, and it makes `TEST-014` unenforceable by the very gate that is supposed to carry it.
-- **The marker query must collect zero tests** (`TEST-016`). Anything it collects is a module with no primary marker, and it will silently drop out of every filtered run.
+- **The marker query must collect zero tests.** Anything it collects carries none of the five registered markers, so it is invisible to every marker-filtered run (`pytest -m unit`, etc.) even while it passes locally.
 - **Coverage: report the observed percentage and the configured `fail_under`, both.** If `fail_under` is `0`, the coverage gate passed because it is switched off. Say that plainly rather than reporting a pass, never add tests to lift the number, and never lower the configured floor to make a commit pass (`CI-001`).
 - **Report the `tests/` line delta** against the plan's budget (`PLAN-017`). Growth is expected when the ledger says so and suspicious when it does not. A change that adds thousands of test lines against a plan budgeted in the hundreds is a finding you owe the reviewer.
 - A bare `# type: ignore` suppresses nothing in this repo. Fix the type. A `# pyright: ignore[reportRuleName]` is a last resort and needs a one-line reason naming one of the three permitted cases in `code-conventions.md`.
@@ -146,7 +145,7 @@ Cite a rule ID only from this list. Each resolves to a rule in `docs/agents/rule
 | Domain rules to load before editing | `ARCH-*`, `RENDER-*`, `MODEL-*`, `PERF-*`, `TYPE-*`, `TEST-*` by scope |
 | Plan and ledger fidelity | `PLAN-009`, `PLAN-013`, `PLAN-017` |
 | Deletions and no shims | `COMPAT-002`, `COMPAT-003`, `TEST-009`, `TEST-013` |
-| Writing tests | `TEST-016`, `TEST-001`, `TEST-017`, `TEST-012`, `TEST-007`, `TEST-010`, `TEST-011`, `TEST-014` |
+| Writing tests | `TEST-001`, `TEST-017`, `TEST-012`, `TEST-007`, `TEST-010`, `TEST-011`, `TEST-014` |
 | Writing enforcement code | `CI-004` |
 | Completion gate | `CI-001`, `TEST-014`, `CI-004` |
 

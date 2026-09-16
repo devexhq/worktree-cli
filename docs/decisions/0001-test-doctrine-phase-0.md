@@ -31,6 +31,10 @@ positive and `ConfigShowRootTests` (pass-through, re-asserts `ConfigLoadResult` 
 pinned in `tests/core/config/`) as negative — both drawn from the file that will need
 remediation in Phase 2.
 
+**Superseded:** Reversed by
+[0002-simplify-cli-test-doctrine.md](0002-simplify-cli-test-doctrine.md) — the root-test mandate
+is dropped; the runner-test matrix stays.
+
 ## D2. Human-readable output assertions in CLI runner tests
 
 **Decided:** Ban, with a narrow exception for published error-code tokens.
@@ -47,6 +51,11 @@ Tier 2 formatter test for that view.
 **Rule:** `TEST-017`. Still open: the merged suite (`test_config.py`, `test_catalog.py`)
 asserts `"Status: valid"`, `"Config: "`, `"Config updated: ..."`, `"(bool)"`, `"Warnings:"`
 — all violations of this rule with no invariant yet enforcing it (Phase 1 W1.5).
+
+**Superseded:** Reversed by
+[0002-simplify-cli-test-doctrine.md](0002-simplify-cli-test-doctrine.md) — the
+published-error-code-token restriction is dropped; CLI runner tests may assert real rendered
+output directly.
 
 ## D3. `exclude` on deterministic fields
 
@@ -76,6 +85,12 @@ git, on-disk SQLite, and cross-process locks.
 integration." Enforced since Phase 1 W1.3 by `tests/lint/test_marker_taxonomy.py`, which
 allowlists the three known-mismarked modules (`test_loader.py`, `test_mutate.py`,
 `test_catalog.py`) in `INTEGRATION_MARKER_BURN_DOWN`; the re-mark itself is Phase 2 (W2.4).
+
+**Superseded:** Reversed by
+[0002-simplify-cli-test-doctrine.md](0002-simplify-cli-test-doctrine.md) — `TEST-016`'s BLOCKER
+cardinality requirement is dropped. `tests/lint/test_marker_taxonomy.py` itself is retained
+(kept as a passive, non-BLOCKER convention check, not deleted) per explicit instruction on the
+reversal ticket.
 
 ## D5. Fate of the TEST-007 piecewise-assertion scanner
 
