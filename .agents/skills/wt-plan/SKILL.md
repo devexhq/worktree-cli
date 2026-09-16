@@ -197,7 +197,7 @@ Shape, shown with a failing row because a failing exemplar is the one worth copy
 
 | Rule ID | Clause | Severity | Status | Evidence (quoted) |
 |---|---|---|---|---|
-| `TEST-007` | no waiver outside the comparison | BLOCKER | FAIL | Phase 4 stub writes `assert_model_equal(result, expected, exclude={"errors"})`; rewritten to name `errors` per parameter case before saving |
+| `TEST-007` | no waiver outside the comparison | SUGGESTION | FAIL | Phase 4 stub writes `assert_model_equal(result, expected, exclude={"errors"})`; rewritten to name `errors` per parameter case before saving |
 | `TEST-002` | path mirrors source module | BLOCKER | PASS | Ledger row 3 is `tests/cli/ui/formatters/status/test_status.py` for `cli/ui/formatters/status/status.py` |
 
 ## 6. Save and hand off

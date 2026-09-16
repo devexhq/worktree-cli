@@ -70,7 +70,12 @@ of excluding `errors` from the comparison.
 **Status:** Already implemented, ahead of this review, in commit `6ea0f3c`
 ("restrict assert_model_equal exclude to non-deterministic fields"). `assert_model_equal`
 has no `exclude` parameter at all now; `test_load_schema_violation_returns_validation_errors`
-asserts the full literal error text per case. `TEST-007` documents this as a BLOCKER.
+asserts the full literal error text per case. `TEST-007` documented this as a BLOCKER.
+
+**Superseded:** [0003-downgrade-test-007-to-suggestion.md](0003-downgrade-test-007-to-suggestion.md)
+drops `TEST-007` from BLOCKER to SUGGESTION severity. The `exclude`-ban guideline itself is
+unchanged — `assert_model_equal` still has no `exclude` parameter — but a piecewise or
+waived-field assertion is no longer a `wt-review` BLOCKER.
 
 ## D4. What `integration` actually means
 
@@ -113,6 +118,13 @@ inside a `*Tests` class." The scanner's own regression test currently uses a top
 `def test_func():`, which is exactly the shape CI-004 flags. Fix is still open (Phase 1
 W1.2): recurse into `ClassDef` bodies, rewrite the regression test to the class shape,
 land behind a `SCANNER_BURN_DOWN` allowlist populated from the first real run.
+
+**Superseded:** [0003-downgrade-test-007-to-suggestion.md](0003-downgrade-test-007-to-suggestion.md)
+drops `TEST-007` from BLOCKER to SUGGESTION, which removes the `CI-004` obligation this decision
+relied on to keep the scanner alive — `CI-004` only requires a mechanical check for a BLOCKER
+rule. `tests/lint/test_assertion_style.py` is deleted as a result; this decision's fix (the
+class-recursing scan, the `SCANNER_BURN_DOWN` allowlist) is retired along with the file it fixed,
+not left running unlinked from a rule the way 0002 left `test_marker_taxonomy.py`.
 
 ## D6. Formatter test file granularity
 

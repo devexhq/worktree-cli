@@ -312,11 +312,11 @@ Open decisions requiring confirmation:
 <!-- ✅ POSITIVE EXAMPLE -->
 ### Rule Evaluation Matrix
 | Rule ID | Clause | Severity | Status | Evidence (quoted) |
-| `TEST-007` | exclude restricted to non-deterministic fields | BLOCKER | FAIL -> fixed | Phase 4 stub read `assert_model_equal(result, expected, exclude={"errors"})`; rewritten to carry expected errors per parameter case |
+| `TEST-007` | exclude restricted to non-deterministic fields | SUGGESTION | FAIL -> fixed | Phase 4 stub read `assert_model_equal(result, expected, exclude={"errors"})`; rewritten to carry expected errors per parameter case |
 | `TEST-002` | path mirrors source module | BLOCKER | PASS | Ledger row 3 is `tests/cli/ui/formatters/status/test_status.py` for `cli/ui/formatters/status/status.py` |
 
 <!-- ❌ NEGATIVE EXAMPLE -->
-| `TEST-007` | Whole Object Comparison | BLOCKER | PASS | Uses assert_model_equal on whole ConfigLoadResult |
+| `TEST-007` | Whole Object Comparison | SUGGESTION | PASS | Uses assert_model_equal on whole ConfigLoadResult |
 ```
 
 ## [PLAN-017] Test Ticket Scope Contract

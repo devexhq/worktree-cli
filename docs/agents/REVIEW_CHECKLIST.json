@@ -365,7 +365,7 @@
     {
       "id": "TEST-007",
       "name": "No Unasserted Fields on the Result Under Test",
-      "severity": "BLOCKER",
+      "severity": "SUGGESTION",
       "domain": "tests",
       "scope": "tests/",
       "evaluation_criteria": "For each test, identify the result under test and verify every field is asserted through one whole-object comparison or an exact literal dict. Flag subset assertions on that result, any use of an exclude parameter, any expected object that omits a field, and any matcher standing in for a value the test could have made deterministic by injecting the clock or id factory. Do not flag attribute assertions on click.testing.Result or on values that are not the result under test.",

@@ -95,7 +95,10 @@ required so the repository stops asserting an enforcement that no longer exists 
   so the tiers have a consumer and cannot drift.") and its `positive_example`
   (`# TEST-016 enforced by tests/lint/test_marker_taxonomy.py plus a CI job per marker`) both name
   the dropped rule. The example is repointed at `TEST-007`/`tests/lint/test_assertion_style.py`,
-  a still-live, still-enforced pairing.
+  a still-live, still-enforced pairing at the time of this ADR. (Superseded:
+  [0003-downgrade-test-007-to-suggestion.md](0003-downgrade-test-007-to-suggestion.md) later drops
+  `TEST-007` below BLOCKER and deletes that scanner too, repointing `CI-004`'s example again, to
+  `ARCH-001`.)
 - `docs/agents/rules_spec.yaml`'s `planner_rules` entries `PLAN-013` and `PLAN-017` cite
   `TEST-016` by name in their `requirement` prose and in `PLAN-017`'s `positive_example` rule
   list.
