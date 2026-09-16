@@ -519,6 +519,7 @@ rules:
   positive_example: 'class ConfigSetRootTests: ...  # handler owns string-to-bool coercion, so it earns a root test'
   negative_example: 'class ConfigShowRootTests: ...  # pass-through handler re-asserting the ConfigLoadResult from tests/core/config/'
   citation: docs/agents/testing.md#tier-3---cli-wiring-dual-tier-matrix
+  decision_log: docs/decisions/0001-test-doctrine-phase-0.md#d1-dual-tier-cli-keep-collapse-or-condition-it
 - id: TEST-005
   title: Formatter Presentation Contract Protocol
   severity: BLOCKER
@@ -542,6 +543,7 @@ rules:
   positive_example: 'assert formatter.to_json_serializable(data) == {"health": "ok", "warnings": []}  # exact literal'
   negative_example: 'ErrorPanelView = ErrorPanelEvent  # alias so an identity transform can be asserted'
   citation: docs/agents/testing.md#tier-2---presentation-contracts-three-tests-per-formatter-never-one
+  decision_log: docs/decisions/0001-test-doctrine-phase-0.md#d6-formatter-test-file-granularity
 - id: TEST-006
   title: Parameterization-First for Sibling Variations
   severity: BLOCKER
@@ -728,6 +730,7 @@ rules:
   positive_example: 'pytestmark = pytest.mark.unit  # writes config.json under tmp_path, no git or sqlite'
   negative_example: 'pytestmark = pytest.mark.cli  # module-level, hiding *RootTests from `pytest -m unit`'
   citation: docs/agents/testing.md#pytest-marker-taxonomy--module-level-tagging
+  decision_log: docs/decisions/0001-test-doctrine-phase-0.md#d4-what-integration-actually-means
 - id: TEST-017
   title: CLI Runner Assertion Boundary
   severity: BLOCKER
@@ -748,6 +751,7 @@ rules:
   positive_example: "assert res.exit_code == 1\nassert \"CONFIG_SCHEMA_INVALID\" in res.stdout  # published error code"
   negative_example: 'assert "Status: valid with warnings" in res.stdout  # human label scraped in a runner test'
   citation: docs/agents/testing.md#core-testing-rules
+  decision_log: docs/decisions/0001-test-doctrine-phase-0.md#d2-human-readable-output-assertions-in-cli-runner-tests
 - id: DOC-001
   title: Architecture Doc Structural Gate
   severity: BLOCKER
@@ -880,6 +884,7 @@ rules:
   positive_example: uv run inv test -c && ruff format . && ruff check . && basedpyright src tests --level error && inv complexity
   negative_example: '# fail_under lowered so a commit can pass, or tests added purely to reach a percentage'
   citation: AGENTS.md#essential-commands
+  decision_log: docs/decisions/0001-test-doctrine-phase-0.md#d7-coverage-gate-timing-and-shape
 - id: CI-002
   title: Git and Pull Request Attribution Hygiene
   severity: BLOCKER
@@ -932,6 +937,7 @@ rules:
   positive_example: '# TEST-016 enforced by tests/lint/test_marker_taxonomy.py plus a CI job per marker'
   negative_example: '# Scanner walks only tree.body functions, so class-based tests are never inspected'
   citation: docs/agents/ci-and-tooling.md
+  decision_log: docs/decisions/0001-test-doctrine-phase-0.md#d5-fate-of-the-test-007-piecewise-assertion-scanner
 planner_rules:
 - id: PLAN-001
   title: Read-Only Planning Discipline
