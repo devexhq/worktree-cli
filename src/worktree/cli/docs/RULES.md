@@ -239,12 +239,20 @@ _unlock = _unlock_fd  # internal shim alias
 # ❌ DO NOT: 'Task blueprint containing a loop block.'  # tasks are strictly linear
 ```
 
-- **[CI-001] Pre-Commit Quality Suite Gate (BLOCKER):**
-  Before committing, all five gates must pass: ruff format, ruff check, basedpyright src --level error (0 errors), inv complexity --paths <changed> --plain --failed (complexity <= 10), and inv test -c (coverage >= 80%).
+- **[DOC-008] Verifiable Doc and Rule Claims (BLOCKER):**
+  A doc, skill, or rule sentence asserting that something is enforced, gated, or checked must name the enforcing artifact by path, and that path must resolve to a file in the tree. The same applies to any helper, fixture, builder, or assertion function a doc instructs an implementer to use: the symbol exists before the instruction ships. Documentation of behavior that is planned rather than built is prohibited, including in rule examples, because an exemplar is copied more often than the guideline is read. When a claim becomes false, the fix is to delete or correct the sentence in the same change, never to leave it as aspiration.
 
 ```python
-# ✅ DO: uv run inv test -c && ruff format . && ruff check . && basedpyright src --level error && inv complexity
-# ❌ DO NOT: git commit -m 'fix' with a failing basedpyright or complexity error
+# ✅ DO: # "COLUMNS is pinned to 160 by [tool.pytest_env] in pyproject.toml" - resolvable and true
+# ❌ DO NOT: # "enforced by tests/lint/test_doc_parity.py" in AGENTS.md, where the module does not exist
+```
+
+- **[CI-001] Pre-Commit Quality Suite Gate (BLOCKER):**
+  Before committing, all five gates must pass: ruff format, ruff check, basedpyright src tests --level error with zero errors, inv complexity with complexity at or under 10, and inv test -c meeting the coverage floor configured in pyproject.toml under [tool.coverage.report] fail_under. That floor is the contract, it ratchets upward only as real contract tests land, and it is never lowered to make a commit pass. Coverage is a regression backstop, not a target: do not add tests to raise the percentage, and read a coverage drop caused by deleting duplicated or dead tests as a success.
+
+```python
+# ✅ DO: uv run inv test -c && ruff format . && ruff check . && basedpyright src tests --level error && inv complexity
+# ❌ DO NOT: # fail_under lowered so a commit can pass, or tests added purely to reach a percentage
 ```
 
 - **[CI-002] Git and Pull Request Attribution Hygiene (BLOCKER):**
@@ -266,4 +274,12 @@ Co-authored-by: Cursor <cursor@cursor.sh>
 Governing directive: docs/agents/testing.md
 Target scope: tests/core/sandbox/test_lifecycle.py
 # ❌ DO NOT: Running write_to_file without stating governing directive or target scope
+```
+
+- **[CI-004] Mechanical Enforcement Parity (BLOCKER):**
+  A BLOCKER rule that can be checked mechanically must have an executing check: an invariant test under tests/lint/, a prek hook, or a CI step. A declared gate whose configuration disables it, such as a coverage floor of zero or a type checker present in no hook and no workflow, counts as unenforced and must be either wired up or downgraded to a review-time WARNING. An invariant check must prove its own scope with a regression test shaped like the code it polices, and lands green by carrying an explicit burn-down allowlist of known violators; allowlist entries shrink and are never added to. CI must exercise the marker taxonomy so the tiers have a consumer and cannot drift.
+
+```python
+# ✅ DO: # TEST-016 enforced by tests/lint/test_marker_taxonomy.py plus a CI job per marker
+# ❌ DO NOT: # Scanner walks only tree.body functions, so class-based tests are never inspected
 ```

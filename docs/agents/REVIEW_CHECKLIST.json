@@ -323,8 +323,8 @@
       "severity": "BLOCKER",
       "domain": "tests",
       "scope": "tests/",
-      "evaluation_criteria": "Check test file paths against source files. Flag missing __init__.py files.",
-      "bad_pattern": "tests/test_all_sandboxes.py  # unmirrored grab-bag test file"
+      "evaluation_criteria": "Check every test file path against its source module using the fixed mappings. Flag part-numbered or grab-bag files (for example test_command_formatters_part1.py), missing __init__.py files, and source modules that are neither tested nor listed in PARITY_EXEMPT.",
+      "bad_pattern": "tests/cli/formatters/test_command_formatters_part1.py  # 12 formatters in one unmirrored file"
     },
     {
       "id": "TEST-003",
@@ -337,21 +337,21 @@
     },
     {
       "id": "TEST-004",
-      "name": "Dual-Tier CLI Matrix Testing",
+      "name": "CLI Tier Matrix and Handler Test Necessity",
       "severity": "BLOCKER",
       "domain": "tests",
       "scope": "tests/cli/",
-      "evaluation_criteria": "Check tests for CLI commands. Flag any command module lacking either handler unit tests or runner integration tests.",
-      "bad_pattern": "# Only runner.invoke tested; handler logic not unit tested directly"
+      "evaluation_criteria": "For each command action, verify runner integration tests exist and cover the four scenarios. Flag *RootTests whose assertions duplicate an expected result object already asserted in tests/core/, and flag handlers with real branching that have no root test.",
+      "bad_pattern": "class ConfigShowRootTests: ...  # pass-through handler re-asserting the ConfigLoadResult from tests/core/config/"
     },
     {
       "id": "TEST-005",
-      "name": "Three Tests Per Formatter Protocol",
+      "name": "Formatter Presentation Contract Protocol",
       "severity": "BLOCKER",
       "domain": "tests",
       "scope": "tests/cli/ui/formatters/",
-      "evaluation_criteria": "Inspect formatter test files. Flag formatters that do not implement all three tests or assert to_json_serializable == case.view.model_dump().",
-      "bad_pattern": "assert 'healthy' in render_rich(formatter.to_rich(data))  # only 1 test"
+      "evaluation_criteria": "Inspect each formatter test file. Flag missing wire-format boundary cases, model_dump comparisons standing in for a literal dict, identity view aliases added to satisfy the count, and render assertions on labels or layout rather than view values.",
+      "bad_pattern": "ErrorPanelView = ErrorPanelEvent  # alias so an identity transform can be asserted"
     },
     {
       "id": "TEST-006",
@@ -364,12 +364,12 @@
     },
     {
       "id": "TEST-007",
-      "name": "Whole Object Comparison",
+      "name": "No Unasserted Fields on the Result Under Test",
       "severity": "BLOCKER",
       "domain": "tests",
       "scope": "tests/",
-      "evaluation_criteria": "Flag any test asserting on individual attributes or fields of a returned Pydantic model or BaseResult (e.g. `assert result.field == ...`, `assert result.ok`, or separate checks on `errors`, `warnings`, `fixes`) instead of asserting whole-object equality (`assert result == Expected(...)` or `assert_model_equal(result, expected)`). Also flag any usage of `exclude` in `assert_model_equal` targeting deterministic fields (e.g. `exclude={\"errors\"}`, `exclude={\"config\", \"raw\"}`).",
-      "bad_pattern": "assert_model_equal(result, expected, exclude={\"errors\"})  # \u274c DO NOT exclude deterministic errors or payloads"
+      "evaluation_criteria": "For each test, identify the result under test and verify every field is asserted through one whole-object comparison or an exact literal dict. Flag subset assertions on that result, any use of an exclude parameter, any expected object that omits a field, and any matcher standing in for a value the test could have made deterministic by injecting the clock or id factory. Do not flag attribute assertions on click.testing.Result or on values that are not the result under test.",
+      "bad_pattern": "assert_model_equal(result, expected, exclude={'errors'})  # invisible waiver, asserts nothing about errors"
     },
     {
       "id": "TEST-008",
@@ -404,8 +404,8 @@
       "severity": "BLOCKER",
       "domain": "tests",
       "scope": "tests/",
-      "evaluation_criteria": "Grep for `time.sleep` in tests/. Flag any unmocked OS sleeps.",
-      "bad_pattern": "time.sleep(2.0)  # waiting for process timeout"
+      "evaluation_criteria": "Grep for time.sleep in tests/. Permit occurrences inside the shared harness poll helper only, and flag every open-coded poll loop or bare sleep in a test module. Flag subprocess-spawning tests that do not register with the process registry.",
+      "bad_pattern": "while time.monotonic() < deadline:\n    time.sleep(0.05)  # open-coded poll loop in a test module"
     },
     {
       "id": "TEST-012",
@@ -413,17 +413,17 @@
       "severity": "BLOCKER",
       "domain": "tests",
       "scope": "tests/",
-      "evaluation_criteria": "Scan for console render captures. Ensure render_rich with width=160 is used.",
-      "bad_pattern": "console = Console(); console.print(formatter.to_rich(data))  # unpinned width"
+      "evaluation_criteria": "Scan for console render captures and ensure render_rich with width=160 is used. Flag ambient-width captures, and flag render assertions whose expected string is a caption or label rather than a value taken from case.view.",
+      "bad_pattern": "assert 'Session ID' in rendered  # panel caption, changes with layout and pins no contract"
     },
     {
       "id": "TEST-013",
       "name": "No Sole Consumer Tests",
       "severity": "BLOCKER",
       "domain": "tests",
-      "scope": "src/, tests/",
-      "evaluation_criteria": "Verify that every touched production function or method has at least one real caller in src/.",
-      "bad_pattern": "# Sandbox.debug_dump() called ONLY in test_debug_dump()"
+      "scope": "src/, tests/harness/, tests/",
+      "evaluation_criteria": "Verify every touched production function has a real caller in src/. Verify every harness symbol has at least one caller outside tests/harness/. Flag harness verification suites that exhaustively permute options no domain test uses.",
+      "bad_pattern": "# StepBuilder.with_retry() exercised only by tests/harness/test_builders.py"
     },
     {
       "id": "TEST-014",
@@ -442,6 +442,24 @@
       "scope": "tests/cli/, tests/core/engine/",
       "evaluation_criteria": "Verify that PRs modifying command routing or multi-step orchestration include a test exercising the updated execution branch.",
       "bad_pattern": "# PR modifying Engine.resume() without integration tests for resumed step loop"
+    },
+    {
+      "id": "TEST-016",
+      "name": "Marker Taxonomy Fidelity",
+      "severity": "BLOCKER",
+      "domain": "tests",
+      "scope": "tests/",
+      "evaluation_criteria": "Verify each test module declares exactly one primary marker, or declares markers per class when tiers are mixed. Flag integration modules whose imports show no git, SQLite, subprocess, or lock usage. Flag invariant outside tests/lint/. Confirm `pytest -m \"not (unit or integration or cli or invariant)\"` collects nothing.",
+      "bad_pattern": "pytestmark = pytest.mark.cli  # module-level, hiding *RootTests from `pytest -m unit`"
+    },
+    {
+      "id": "TEST-017",
+      "name": "CLI Runner Assertion Boundary",
+      "severity": "BLOCKER",
+      "domain": "tests",
+      "scope": "tests/cli/commands/",
+      "evaluation_criteria": "Scan tests/cli/commands/ for containment checks against stdout or output. Permit only tokens matching a published error code pattern. Flag label and prose assertions, and name the formatter test that should carry them instead.",
+      "bad_pattern": "assert \"Status: valid with warnings\" in res.stdout  # human label scraped in a runner test"
     },
     {
       "id": "DOC-001",
@@ -485,8 +503,8 @@
       "severity": "BLOCKER",
       "domain": "tests",
       "scope": "tests/lint/",
-      "evaluation_criteria": "Verify that specification tables in docs have an automated test in tests/lint/ asserting parity.",
-      "bad_pattern": "# Adding manual table of CLI flags or schemas with no automated parity test"
+      "evaluation_criteria": "Verify every specification table in docs has a named automated test under tests/lint/ asserting parity, and resolve the named path to a file that exists. Flag manual tables of CLI flags or schema fields with no parity test, and flag doc sentences naming a parity test that is absent from the tree.",
+      "bad_pattern": "# \"enforced by tests/lint/test_doc_parity.py\" where that module is nowhere in the tree"
     },
     {
       "id": "DOC-006",
@@ -507,13 +525,22 @@
       "bad_pattern": "'Task blueprint containing a loop block.'  # tasks are strictly linear"
     },
     {
+      "id": "DOC-008",
+      "name": "Verifiable Doc and Rule Claims",
+      "severity": "BLOCKER",
+      "domain": "all",
+      "scope": "AGENTS.md, docs/, .agents/skills/, docs/agents/rules_spec.yaml",
+      "evaluation_criteria": "For each doc claim of the form \"enforced by\", \"gated by\", or \"see <path>\", resolve the path. For each documented helper or fixture name, resolve the symbol. Flag unresolvable claims, rule examples naming nonexistent modules, and doc paragraphs describing behavior absent from the tree.",
+      "bad_pattern": "# \"enforced by tests/lint/test_doc_parity.py\" in AGENTS.md, where the module does not exist"
+    },
+    {
       "id": "CI-001",
       "name": "Pre-Commit Quality Suite Gate",
       "severity": "BLOCKER",
       "domain": "all",
       "scope": "Whole repository",
-      "evaluation_criteria": "Verify all 5 commands succeed before creating any commit.",
-      "bad_pattern": "git commit -m 'fix' with a failing basedpyright or complexity error"
+      "evaluation_criteria": "Verify all five commands succeed before any commit. Verify the fail_under value in pyproject.toml is greater than or equal to the previous committed value. Flag any PR that lowers fail_under, and flag test additions whose stated justification is raising coverage.",
+      "bad_pattern": "# fail_under lowered so a commit can pass, or tests added purely to reach a percentage"
     },
     {
       "id": "CI-002",
@@ -532,6 +559,15 @@
       "scope": "Agent interactions",
       "evaluation_criteria": "Check agent turns prior to tool execution for stated directive and scope. Flag tool execution lacking state declaration as advisory warning.",
       "bad_pattern": "Running write_to_file without stating governing directive or target scope"
+    },
+    {
+      "id": "CI-004",
+      "name": "Mechanical Enforcement Parity",
+      "severity": "BLOCKER",
+      "domain": "all",
+      "scope": "tests/lint/, prek.toml, .github/workflows/, pyproject.toml",
+      "evaluation_criteria": "For each BLOCKER rule, identify its executing check or its explicit review-only classification. Verify invariant checks include a regression test matching the suite's real shape, such as assertions inside a *Tests class rather than a module-level function. Flag configuration that disables a declared gate and allowlists that grew.",
+      "bad_pattern": "# Scanner walks only tree.body functions, so class-based tests are never inspected"
     }
   ]
 }

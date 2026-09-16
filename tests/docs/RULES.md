@@ -166,11 +166,11 @@ _unlock = _unlock_fd  # internal shim alias
 ```
 
 - **[TEST-002] 1:1 Source Parity Layout (BLOCKER):**
-  Test structure mirrors src/worktree/ 1:1 under tests/. Exactly one test file per source module. Every test directory gets an __init__.py.
+  Test structure mirrors src/worktree/ 1:1 under tests/, one test file per source module, and every test directory carries an __init__.py because basenames repeat across the tree. Three mappings are fixed: src/worktree/common/<m>.py to tests/common/test_<m>.py, src/worktree/core/<domain>/<m>.py to tests/core/<domain>/test_<m>.py, and src/worktree/cli/ui/formatters/<domain>/<name>.py to tests/cli/ui/formatters/<domain>/test_<name>.py. The single collapse exception is CLI command actions: src/worktree/cli/<command>/commands/*.py map together to tests/cli/commands/test_<command>.py. Any source module with no test file must appear in the PARITY_EXEMPT list in tests/lint/ with a justification, so the gap is visible rather than implicit. Grouping several formatters or domains into one part-numbered file is prohibited.
 
 ```python
-# ✅ DO: src/worktree/core/sandbox/services/lifecycle.py -> tests/core/sandbox/services/test_lifecycle.py
-# ❌ DO NOT: tests/test_all_sandboxes.py  # unmirrored grab-bag test file
+# ✅ DO: src/worktree/cli/ui/formatters/status/status.py -> tests/cli/ui/formatters/status/test_status.py
+# ❌ DO NOT: tests/cli/formatters/test_command_formatters_part1.py  # 12 formatters in one unmirrored file
 ```
 
 - **[TEST-003] Standardized Test Naming and Vague Name Ban (BLOCKER):**
@@ -186,22 +186,20 @@ class TestConfig:
     def test_should_timeout(self): ...
 ```
 
-- **[TEST-004] Dual-Tier CLI Matrix Testing (BLOCKER):**
-  Every CLI command module must implement both *RootTests (direct unit tests for pure Python command handlers taking CliContext) and *CliIntegrationTests (invoking runner.invoke to verify Click/Typer options, exit codes, and output dispatching).
+- **[TEST-004] CLI Tier Matrix and Handler Test Necessity (BLOCKER):**
+  Every CLI command action requires *CliIntegrationTests invoking runner.invoke to pin option and argument binding, exit codes, and dispatcher output, covering four scenarios: happy path exit 0, failure path with the expected non-zero exit code, --format json emitting the wire schema, and any interactive confirmation or abort branch. *RootTests calling the handler directly with a CliContext are required only when the handler owns logic the domain layer does not: input coercion, branch selection across services, result composition from more than one call, or an interactive abort path. A pass-through handler gets no root test. A root test may never restate a contract already asserted under tests/core/ for the same result type.
 
 ```python
-# ✅ DO:
-class DiffCommandRootTests: ...  # unit
-class DiffCliIntegrationTests: ...  # runner invoke
-# ❌ DO NOT: # Only runner.invoke tested; handler logic not unit tested directly
+# ✅ DO: class ConfigSetRootTests: ...  # handler owns string-to-bool coercion, so it earns a root test
+# ❌ DO NOT: class ConfigShowRootTests: ...  # pass-through handler re-asserting the ConfigLoadResult from tests/core/config/
 ```
 
-- **[TEST-005] Three Tests Per Formatter Protocol (BLOCKER):**
-  Every formatter under cli/ui/formatters/<domain>/ must have three tests using FormatterCase: (1) view model transform equality, (2) JSON wire format as an EXACT literal dict, and (3) Rich render at pinned width 160 asserting only semantic values from case.view.
+- **[TEST-005] Formatter Presentation Contract Protocol (BLOCKER):**
+  Every formatter under cli/ui/formatters/<domain>/ is tested in its own file at tests/cli/ui/formatters/<domain>/test_<name>.py against three contracts built from FormatterCase: view model transform equality, JSON wire format as an exact literal dict pinned at both a fully populated and an empty or sparse boundary state, and a Rich render at pinned width 160 asserting only semantic values taken from case.view. Where the formatter has no derived view model, meaning transform is provably the identity and the declared view type is the input event type, the transform test is omitted and the remaining two contracts are mandatory; an alias such as SomeView = SomeEvent must not be introduced to manufacture a third test. Never assert to_json_serializable(data) == transform(data).model_dump(), and never assert a label, border, glyph, padding, or full sentence in the render test.
 
 ```python
-# ✅ DO: test_transform_derives_expected_view(); test_json_payload_matches(); test_rich_render_shows_view()
-# ❌ DO NOT: assert 'healthy' in render_rich(formatter.to_rich(data))  # only 1 test
+# ✅ DO: assert formatter.to_json_serializable(data) == {"health": "ok", "warnings": []}  # exact literal
+# ❌ DO NOT: ErrorPanelView = ErrorPanelEvent  # alias so an identity transform can be asserted
 ```
 
 - **[TEST-006] Parameterization-First for Sibling Variations (BLOCKER):**
@@ -212,12 +210,12 @@ class DiffCliIntegrationTests: ...  # runner invoke
 # ❌ DO NOT: def test_eval_model(self): ...; def test_eval_dict(self): ...  # duplicate sibling methods
 ```
 
-- **[TEST-007] Whole Object Comparison (BLOCKER):**
-  Compare whole objects (assert result == Expected(...) or assert_model_equal(result, expected)) rather than asserting individual fields. One comparison fails on unexpected extra fields and gives clear diffs. Never use piece-wise attribute assertions on operation results. The `exclude` parameter in `assert_model_equal` is strictly reserved for inherently non-deterministic values (such as dynamic timestamps, generated hashes, or random UUIDs); any excluded field must have its presence and structure asserted separately. Never use `exclude` on deterministic fields (e.g. `errors`, `warnings`, `raw`, `config`) to bypass writing expected values.
+- **[TEST-007] No Unasserted Fields on the Result Under Test (BLOCKER):**
+  Every field of the result under test is asserted. The result under test is the Pydantic model or BaseResult returned by a core service or domain entrypoint, or a formatter's JSON wire payload; click.testing.Result is not one, so asserting res.exit_code is required by TEST-004 and TEST-017 rather than forbidden here. Satisfy the invariant with assert_model_equal(result, Expected(...)) naming every field, or for a wire payload an exact literal dict. Asserting a subset of the result and stopping is prohibited: a piecewise assertion is blind to every field it does not name, which is where the regression you did not anticipate lands. Piecewise assertions are permitted alongside a whole-object comparison, never instead of one, and on values that are not the result under test (exit codes, preconditions, an incidental single-column read). Non-determinism is removed at its seam first: inject the clock and the id factory per TEST-011 so a timestamp or generated id is a literal the test can state. Only for a value the test genuinely cannot own (a real git SHA, an OS pid, an id minted by the database) use a matcher from tests/harness/matchers.py at that field's own position, which still pins the value's type or shape. assert_model_equal has no exclude parameter; a waiver expressed outside the comparison is prohibited because a reader cannot see it at the field and it asserts nothing about the waived value. An expected object that leaves a field to its default is rejected, since a changed default would otherwise pass unnoticed.
 
 ```python
-# ✅ DO: assert_model_equal(result, StepResult(status=StepStatus.OK, exit_code=0, duration=1.2))  # or exclude={"created_at"} with assert result.created_at is not None
-# ❌ DO NOT: assert_model_equal(result, expected, exclude={"errors"})  # ❌ DO NOT exclude deterministic errors or payloads
+# ✅ DO: assert_model_equal(result, SandboxCreateResult.model_construct(status=CREATED, sandbox_id=ANY_UUID, head_sha=ANY_GIT_SHA, worktree_path=tmp_path / 'alpha', created_at=ANY_DATETIME, errors=[]))
+# ❌ DO NOT: assert_model_equal(result, expected, exclude={'errors'})  # invisible waiver, asserts nothing about errors
 ```
 
 - **[TEST-008] Test Double Realism and Production Types (BLOCKER):**
@@ -245,27 +243,31 @@ class DiffCliIntegrationTests: ...  # runner invoke
 ```
 
 - **[TEST-011] Determinism and Clock Virtualization (BLOCKER):**
-  No hardcoded sleeps (time.sleep) in tests. Step backoff and retry intervals must monkeypatch the clock (time.monotonic / asyncio.sleep) or use VirtualClock.
+  No hardcoded sleeps in test bodies. Retry and backoff intervals use VirtualClock or monkeypatch the clock at the module boundary (time.monotonic, asyncio.sleep), and a retry test asserts the resulting schedule rather than that a retry eventually happened. Inject the clock and the id factory anywhere their output reaches a result field, so timestamps and generated ids are literals a test can state rather than values TEST-007 has to waive with a matcher. Waiting on an operating system event that has no virtual equivalent, such as a process group being reaped after SIGKILL, is permitted only through a shared harness helper that owns the poll interval and deadline; tests must not open-code a poll loop. Registering spawned processes with the harness process registry is mandatory so a failing test cannot leak a process group.
 
 ```python
-# ✅ DO: runner = StepRunner(clock=VirtualClock())
-# ❌ DO NOT: time.sleep(2.0)  # waiting for process timeout
+# ✅ DO: assert wait_pid_dead(child_pid) is True
+# ❌ DO NOT:
+while time.monotonic() < deadline:
+    time.sleep(0.05)  # open-coded poll loop in a test module
 ```
 
 - **[TEST-012] Rich Render Width Pinning (BLOCKER):**
-  render_rich(renderable, width=160) is the only supported way to capture rendered output. Console width for rendered assertions is authoritatively pinned to 160. Tests must not rely on ambient terminal size or in-process os.environ['COLUMNS'] mutations.
+  render_rich(renderable, width=160) is the only supported way to capture rendered output, and console width for rendered assertions is authoritatively pinned to 160. Tests must not rely on ambient terminal size or in-process os.environ['COLUMNS'] mutations. A render assertion checks semantic values carried by the view model, such as an identifier, count, or status token; it never checks a panel title, field caption, border glyph, padding, or prose sentence, because those are layout and change without any contract changing.
 
 ```python
-# ✅ DO: rendered = render_rich(formatter.to_rich(data)); assert 'Session ID' in rendered
-# ❌ DO NOT: console = Console(); console.print(formatter.to_rich(data))  # unpinned width
+# ✅ DO:
+rendered = render_rich(formatter.to_rich(data))
+assert 'wf_abcdef12' in rendered  # view value, not a caption
+# ❌ DO NOT: assert 'Session ID' in rendered  # panel caption, changes with layout and pins no contract
 ```
 
 - **[TEST-013] No Sole Consumer Tests (BLOCKER):**
-  No test may be the sole consumer of a production symbol. If deleting the test would make production code unreachable, the production code is dead. Delete both.
+  No test may be the sole consumer of a production symbol. If deleting the test would make production code unreachable, the production code is dead and both go. The same applies to the test harness: a builder method, fixture, or assertion helper whose only caller is its own verification test is dead harness. Delete the capability rather than testing it, and prove harness behavior through the first domain test that needs it.
 
 ```python
-# ✅ DO: # Sandbox.create() called by Engine.run() and tested in test_sandbox.py
-# ❌ DO NOT: # Sandbox.debug_dump() called ONLY in test_debug_dump()
+# ✅ DO: # WorkspaceBuilder.with_git() used by tests/core/sandbox/test_services.py
+# ❌ DO NOT: # StepBuilder.with_retry() exercised only by tests/harness/test_builders.py
 ```
 
 - **[TEST-014] Strict Typing on Test Helpers and Fixtures (BLOCKER):**
@@ -282,6 +284,24 @@ class DiffCliIntegrationTests: ...  # runner invoke
 ```python
 # ✅ DO: class ResumeCommandCliIntegrationTests: def test_resume_executes_remaining_steps(self): ...
 # ❌ DO NOT: # PR modifying Engine.resume() without integration tests for resumed step loop
+```
+
+- **[TEST-016] Marker Taxonomy Fidelity (BLOCKER):**
+  Every test carries exactly one primary marker reflecting its real execution cost, optionally combined with slow. unit covers in-memory logic including reads and writes under tmp_path. integration is reserved for subprocess git, on-disk SQLite transactions, and cross-process file locks. cli covers Typer runner invocation. invariant is reserved for tests/lint/ static analysis. slow is additive for process group signal escalation, real timeouts, and network boundaries. Declare the marker with a module-level pytestmark when the whole module shares a tier; when a module mixes tiers, such as a CLI file holding both handler and runner tests, declare markers at class level so each tier is selectable. Writing JSON under tmp_path does not make a test integration.
+
+```python
+# ✅ DO: pytestmark = pytest.mark.unit  # writes config.json under tmp_path, no git or sqlite
+# ❌ DO NOT: pytestmark = pytest.mark.cli  # module-level, hiding *RootTests from `pytest -m unit`
+```
+
+- **[TEST-017] CLI Runner Assertion Boundary (BLOCKER):**
+  CLI runner tests assert wiring and machine contracts only: exit codes, --format json payloads as exact literal dicts, and resulting disk or git state. A published error code token such as CONFIG_SCHEMA_INVALID may be asserted present in output because it is a documented contract. Panel titles, status labels, field captions, prose, glyphs, and padding must not be asserted; those are presentation contracts belonging to the formatter test for that view under tests/cli/ui/formatters/. Never assert help text wording; assert command registration and option names through Click metadata instead.
+
+```python
+# ✅ DO:
+assert res.exit_code == 1
+assert "CONFIG_SCHEMA_INVALID" in res.stdout  # published error code
+# ❌ DO NOT: assert "Status: valid with warnings" in res.stdout  # human label scraped in a runner test
 ```
 
 - **[DOC-001] Architecture Doc Structural Gate (BLOCKER):**
@@ -311,11 +331,11 @@ class DiffCliIntegrationTests: ...  # runner invoke
 ```
 
 - **[DOC-005] Unavoidable Spec Tables Require Parity Tests (BLOCKER):**
-  When a field table is genuinely unavoidable (it is the specification for an external JSON Schema or stable CLI output format), add or extend an automated test that fails when table and source disagree.
+  When a field table is genuinely unavoidable, meaning it is the specification for an external JSON Schema or a stable CLI output format, add or extend an automated test under tests/lint/ that fails when the table and the source disagree. The test must exist in the tree at the moment the doc claim lands, and the doc must name it by path. Citing a parity test that has not been written is a DOC-008 breach, not a pending task.
 
 ```python
-# ✅ DO: # test_doc_parity.py guarantees README.md and RULES.md match source and spec
-# ❌ DO NOT: # Adding manual table of CLI flags or schemas with no automated parity test
+# ✅ DO: # tests/lint/test_architecture_boundaries.py exists and is named by the doc claim it backs
+# ❌ DO NOT: # "enforced by tests/lint/test_doc_parity.py" where that module is nowhere in the tree
 ```
 
 - **[DOC-006] Prefer Deletion Over Accretion (SUGGESTION):**
@@ -334,12 +354,20 @@ class DiffCliIntegrationTests: ...  # runner invoke
 # ❌ DO NOT: 'Task blueprint containing a loop block.'  # tasks are strictly linear
 ```
 
-- **[CI-001] Pre-Commit Quality Suite Gate (BLOCKER):**
-  Before committing, all five gates must pass: ruff format, ruff check, basedpyright src --level error (0 errors), inv complexity --paths <changed> --plain --failed (complexity <= 10), and inv test -c (coverage >= 80%).
+- **[DOC-008] Verifiable Doc and Rule Claims (BLOCKER):**
+  A doc, skill, or rule sentence asserting that something is enforced, gated, or checked must name the enforcing artifact by path, and that path must resolve to a file in the tree. The same applies to any helper, fixture, builder, or assertion function a doc instructs an implementer to use: the symbol exists before the instruction ships. Documentation of behavior that is planned rather than built is prohibited, including in rule examples, because an exemplar is copied more often than the guideline is read. When a claim becomes false, the fix is to delete or correct the sentence in the same change, never to leave it as aspiration.
 
 ```python
-# ✅ DO: uv run inv test -c && ruff format . && ruff check . && basedpyright src --level error && inv complexity
-# ❌ DO NOT: git commit -m 'fix' with a failing basedpyright or complexity error
+# ✅ DO: # "COLUMNS is pinned to 160 by [tool.pytest_env] in pyproject.toml" - resolvable and true
+# ❌ DO NOT: # "enforced by tests/lint/test_doc_parity.py" in AGENTS.md, where the module does not exist
+```
+
+- **[CI-001] Pre-Commit Quality Suite Gate (BLOCKER):**
+  Before committing, all five gates must pass: ruff format, ruff check, basedpyright src tests --level error with zero errors, inv complexity with complexity at or under 10, and inv test -c meeting the coverage floor configured in pyproject.toml under [tool.coverage.report] fail_under. That floor is the contract, it ratchets upward only as real contract tests land, and it is never lowered to make a commit pass. Coverage is a regression backstop, not a target: do not add tests to raise the percentage, and read a coverage drop caused by deleting duplicated or dead tests as a success.
+
+```python
+# ✅ DO: uv run inv test -c && ruff format . && ruff check . && basedpyright src tests --level error && inv complexity
+# ❌ DO NOT: # fail_under lowered so a commit can pass, or tests added purely to reach a percentage
 ```
 
 - **[CI-002] Git and Pull Request Attribution Hygiene (BLOCKER):**
@@ -361,4 +389,12 @@ Co-authored-by: Cursor <cursor@cursor.sh>
 Governing directive: docs/agents/testing.md
 Target scope: tests/core/sandbox/test_lifecycle.py
 # ❌ DO NOT: Running write_to_file without stating governing directive or target scope
+```
+
+- **[CI-004] Mechanical Enforcement Parity (BLOCKER):**
+  A BLOCKER rule that can be checked mechanically must have an executing check: an invariant test under tests/lint/, a prek hook, or a CI step. A declared gate whose configuration disables it, such as a coverage floor of zero or a type checker present in no hook and no workflow, counts as unenforced and must be either wired up or downgraded to a review-time WARNING. An invariant check must prove its own scope with a regression test shaped like the code it polices, and lands green by carrying an explicit burn-down allowlist of known violators; allowlist entries shrink and are never added to. CI must exercise the marker taxonomy so the tiers have a consumer and cannot drift.
+
+```python
+# ✅ DO: # TEST-016 enforced by tests/lint/test_marker_taxonomy.py plus a CI job per marker
+# ❌ DO NOT: # Scanner walks only tree.body functions, so class-based tests are never inspected
 ```
