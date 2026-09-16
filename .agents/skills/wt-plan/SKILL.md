@@ -3,8 +3,8 @@ name: wt-plan
 description: >-
   Formulate a phased, invariant-safe implementation plan for a worktree-cli change
   before executing code changes. Audits repository constraints against REVIEW_CHECKLIST.json,
-  grounds artifacts in the tree, and writes .agentic/plan.md with literal contracts and
-  stubs. Invoked as /wt-plan [<issue-number>].
+  grounds artifacts in the tree, writes the full plan to .agentic/master-plan.md, and
+  derives a condensed coding-focused .agentic/plan.md from it. Invoked as /wt-plan [<issue-number>].
 ---
 
 # wt-plan
@@ -18,7 +18,7 @@ Do not write or modify implementation code during planning. Your role is purely 
 ## Hard boundaries
 
 - **Never run tooling.** No `inv test`, no `pytest`, no `ruff`, no `basedpyright`, no `inv complexity`, no `uv sync`, no `wt` command. Read-only git (`git log`, `git diff`, `git show`, `git rev-parse`) and read-only `gh` (`gh issue view`, `gh repo view`) are the only commands you need.
-- **Never edit `src/` or `tests/`.** The plan document (`.agentic/plan.md`) is the entire deliverable. No commits, no pushes, no PR state.
+- **Never edit `src/` or `tests/`.** The plan documents (`.agentic/master-plan.md` and `.agentic/plan.md`) are the entire deliverable. No commits, no pushes, no PR state.
 - **Never plan from memory of the codebase.** Every path, symbol, and signature in the plan comes from a file you read in this session.
 
 ## 1. Discovery & Boundary Auditing
@@ -28,7 +28,7 @@ Before proposing changes, perform the following verification steps:
 1. **Reset Workspace State:**
    Before anything else, clear the previous cycle's artifacts so a stale review or plan can never be read as current:
    ```bash
-   mkdir -p .agentic && rm -f .agentic/plan.md .agentic/review.md .agentic/review.json
+   rm -f .agentic && mkdir -p .agentic
    ```
 
 2. **Extract the Contract:**
@@ -57,7 +57,7 @@ Before proposing changes, perform the following verification steps:
 
 ## 2. Plan Output Structure
 
-Format every implementation plan in `.agentic/plan.md` using this exact Markdown scaffolding:
+Format every implementation plan in `.agentic/master-plan.md` using this exact Markdown scaffolding:
 
 ### Architectural Context & Boundary Check
 - **Target Files/Modules:** List files to add, update, or remove.
@@ -130,7 +130,7 @@ Before concluding your plan:
 
 ## 5. Pre-Handoff Rule Compliance Audit (wt-review Parity)
 
-Before writing `.agentic/plan.md`, execute an item-by-item compliance sweep mirroring `wt-review`:
+Before writing `.agentic/master-plan.md`, execute an item-by-item compliance sweep mirroring `wt-review`:
 1. **Scope Checklist:** Load `docs/agents/REVIEW_CHECKLIST.json` and filter for rules whose `scope` matches touched files or package domains (`tests/`, `cli/`, `core/`, `common/`).
 2. **Item-by-Item Audit:** Audit each matching rule against the draft plan, checking planned models, signatures, test stubs, and assertions against the rule's `evaluation_criteria`.
 3. **Enforce Blocker Gate:**
@@ -139,10 +139,14 @@ Before writing `.agentic/plan.md`, execute an item-by-item compliance sweep mirr
 
 ## 6. Save and Hand Off
 
-1. Write the plan to `.agentic/plan.md`.
-2. Run the self-check list at the end of `docs/agents/planning.md` and verify that the `Rule Evaluation Matrix` has zero FAIL items.
-3. Report:
-   - The path (`.agentic/plan.md`) and a one-paragraph summary of the approach.
+1. **Write the full plan to `.agentic/master-plan.md`** — this is the authoritative record and contains all sections, including the Rule Evaluation Matrix and Self-Check results.
+2. **Run the self-check list** at the end of `docs/agents/planning.md` and verify that the `Rule Evaluation Matrix` in `master-plan.md` has zero FAIL items.
+3. **Derive `.agentic/plan.md`** from `master-plan.md` by omitting every section that is irrelevant to coding and code review. Specifically, **exclude**:
+   - The **Rule Evaluation Matrix** table (inside `### Architectural Context & Boundary Check`).
+   - The **Self-Check Verification** section (from `docs/agents/planning.md`'s checklist).
+   All other content — artifact inventory, phased execution plan, code stubs, cross-cutting updates, open questions — is retained verbatim in `plan.md`. The condensed file must stand on its own: do not leave broken headings or dangling references to the omitted sections.
+4. Report:
+   - Both paths (`.agentic/master-plan.md` and `.agentic/plan.md`) and a one-paragraph summary of the approach.
    - Every open question and 🚨 decision restated in chat.
    - Plainly, that this was planning only: nothing was implemented, tested, committed, or pushed.
 
