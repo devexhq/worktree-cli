@@ -3,17 +3,12 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import pytest
-
 from tests.harness.builders import StepBuilder
 from tests.harness.matchers import ANY_DURATION, assert_model_equal
 from worktree.core.step.models import StepExecutionContext, StepResult
 from worktree.core.step.runner import StepExecution
 
-pytestmark = pytest.mark.integration
 
-
-@pytest.mark.integration
 class StepRetryExecutionTests:
     """Integration tests verifying step execution retry loops and environment propagation."""
 
@@ -56,7 +51,6 @@ class StepRetryExecutionTests:
         assert result.duration_seconds >= 0.0
 
 
-@pytest.mark.integration
 class StepRunnerRobustnessTests:
     """Integration tests verifying runner resilience against stream observer callback exceptions."""
 

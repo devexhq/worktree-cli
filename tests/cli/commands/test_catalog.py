@@ -28,8 +28,6 @@ from worktree.core.config.generator import build_default_config
 from worktree.core.db import CatalogItemType, CatalogRecord
 from worktree.core.db.facade import WorktreeDb
 
-pytestmark = pytest.mark.cli
-
 
 @pytest.fixture(autouse=True)
 def _setup_workspace_config(isolated_workspace: Path) -> None:

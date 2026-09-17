@@ -9,10 +9,7 @@ from worktree.core.step.assertions import evaluate_assertions, evaluate_json_mat
 from worktree.core.step.assertions.filesystem import evaluate_file_exists
 from worktree.core.step.models import AssertionResult, StepAssert
 
-pytestmark = pytest.mark.unit
 
-
-@pytest.mark.unit
 class StepAssertionOrderingTests:
     """Unit tests verifying deterministic ordering of aggregated assertion failures."""
 
@@ -53,7 +50,6 @@ class StepAssertionOrderingTests:
         )
 
 
-@pytest.mark.unit
 class FilesystemAssertionSafetyTests:
     """Unit tests verifying sandbox boundary enforcement for filesystem assertions."""
 
@@ -67,7 +63,6 @@ class FilesystemAssertionSafetyTests:
         assert result == ["file_exists: path '../../../etc/passwd' escapes the root path"]
 
 
-@pytest.mark.unit
 class JsonMatchOrderingInvariantsTests:
     """Unit tests verifying ordering operators reject boolean types without numeric coercion."""
 

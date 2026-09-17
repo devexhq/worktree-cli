@@ -6,8 +6,6 @@ import ast
 from pathlib import Path
 from typing import Final
 
-import pytest
-
 from tests.lint.astlib import (
     REPO_ROOT,
     SRC_ROOT,
@@ -19,8 +17,6 @@ from tests.lint.astlib import (
 
 CORE_ROOT: Final[Path] = SRC_ROOT / "core"
 CORE_TESTS_ROOT: Final[Path] = TESTS_ROOT / "core"
-
-pytestmark = pytest.mark.invariant
 
 
 def _scan_file_for_banned_imports(file_path: Path, banned_prefix: str) -> list[str]:

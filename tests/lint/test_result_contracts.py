@@ -7,12 +7,8 @@ import importlib
 import inspect
 from pathlib import Path
 
-import pytest
-
 from tests.lint.astlib import REPO_ROOT, SRC_ROOT, collect_python_files
 from worktree.common.models import BaseResult
-
-pytestmark = pytest.mark.invariant
 
 
 def _has_result_class_def(tree: ast.AST) -> bool:

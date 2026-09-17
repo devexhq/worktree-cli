@@ -6,13 +6,9 @@ import ast
 from pathlib import Path
 from typing import Final
 
-import pytest
-
 from tests.lint.astlib import REPO_ROOT, SRC_ROOT, collect_python_files
 
 DISPATCHER_PATH: Final[Path] = SRC_ROOT / "cli" / "ui" / "dispatcher.py"
-
-pytestmark = pytest.mark.invariant
 
 
 def _is_banned_echo_attribute(func: ast.AST) -> bool:

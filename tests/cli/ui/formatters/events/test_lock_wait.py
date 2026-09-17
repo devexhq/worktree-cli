@@ -15,8 +15,6 @@ from tests.harness.formatter import (
 from worktree.cli.ui.events import LockWaitEvent
 from worktree.cli.ui.formatters.events.lock_wait import LockWaitFormatter
 
-pytestmark = pytest.mark.unit
-
 LockWaitView = LockWaitEvent
 
 # LockWaitFormatter test cases

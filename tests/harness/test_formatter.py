@@ -17,8 +17,6 @@ from tests.harness.formatter import (
 )
 from worktree.common.types import ComponentFormatter
 
-pytestmark = pytest.mark.unit
-
 
 class DummyData(BaseModel):
     model_config = {"extra": "forbid", "strict": True}

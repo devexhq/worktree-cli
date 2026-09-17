@@ -13,8 +13,6 @@ from worktree.core.step.services.conditions import (
     validate_condition_expression,
 )
 
-pytestmark = pytest.mark.unit
-
 PARSER_OPERATOR_CASES = [
     pytest.param(
         "iteration.index == 1",

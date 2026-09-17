@@ -2,15 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from worktree.core.agents.mutation_git import (
     capture_diff_since,
     discard_since,
     resolve_pre_agent_baseline,
 )
-
-pytestmark = pytest.mark.integration
 
 
 class DirectMutationGitSafetyTests:

@@ -14,7 +14,7 @@ from tests.harness.matchers import ANY_DURATION, assert_model_equal
 from worktree.core.step.models import StepExecutionContext, StepResult
 from worktree.core.step.runner import StepExecution
 
-pytestmark = [pytest.mark.integration, pytest.mark.slow]
+pytestmark = pytest.mark.slow
 
 
 def _wait_pid_dead(pid: int, timeout: float = 3.0) -> bool:
@@ -41,7 +41,6 @@ def _sync_and_interrupt(pid_dir: Path, timeout: float = 10.0) -> None:
     raise KeyboardInterrupt
 
 
-@pytest.mark.integration
 @pytest.mark.slow
 class ProcessGroupEscalationTests:
     """Integration tests verifying process group isolation and escalation to SIGKILL."""

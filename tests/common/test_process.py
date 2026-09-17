@@ -9,8 +9,6 @@ import pytest
 
 from worktree.common.process import get_isolated_process_kwargs
 
-pytestmark = pytest.mark.unit
-
 WINDOWS_CREATION_FLAGS: int = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
 
 PLATFORM_ISOLATION_CASES = [

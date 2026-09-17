@@ -53,59 +53,6 @@ Test structure mirrors `src/worktree/` 1:1 under `tests/`. **A test lives beside
 
 ---
 
-## Pytest Marker Taxonomy & Module-Level Tagging
-
-All tests must be categorized under one of the five registered markers declared in `pyproject.toml`:
-
-| Marker | Scope and Criteria | Execution Limit | Invocations & Usage |
-|---|---|---|---|
-| `unit` | Fast in-memory tests without subprocesses, disk SQLite, or real Git commands. Pure logic, mocked clocks, or pure objects. | < 5ms per test | `pytest -m unit` (sub-second local dev loop) |
-| `integration` | Subsystem boundary tests: real Git worktrees, SQLite disk transactions, file locks, and filesystem mutations. | < 500ms per test | `pytest -m integration` |
-| `cli` | Typer CLI command routing, option parsing, Click argument binding, and dispatcher output tests. | Fast / runner-scoped | `pytest -m cli` (verifies CLI flag wiring) |
-| `invariant` | Static AST and architectural boundary enforcement tests (`tests/lint/`). Verifies imports, complexity, and contract consistency. | Fast / AST scan | `pytest -m invariant` (instant architecture guard) |
-| `slow` | Long-running tests involving process group signal escalation, real process timeouts, cross-process locks, or network boundaries. | > 500ms | `pytest -m "not slow"` (runs suite excluding slow waits) |
-
-This taxonomy is a labeling convention for filtered runs (`pytest -m unit`, `pytest -m cli`,
-etc.), not a mechanically enforced cardinality rule — a module may carry zero, one, or multiple
-primary markers. `TEST-016`, which previously enforced exactly-one-primary-marker as a BLOCKER,
-was reversed by [ADR-0002](../decisions/0002-simplify-cli-test-doctrine.md); the passive
-convention check that briefly outlived the rule (`tests/lint/test_marker_taxonomy.py`) has since
-been deleted, since no rule in `rules_spec.yaml` referenced it any longer.
-
-### Module-Level Tagging Pattern (Optional)
-
-Test modules may declare markers at module top level using `pytestmark` immediately below the imports:
-
-```python
-import pytest
-
-pytestmark = pytest.mark.unit
-```
-
-For modules combining multiple characteristics (e.g. integration tests with long timeouts):
-
-```python
-import pytest
-
-pytestmark = [pytest.mark.integration, pytest.mark.slow]
-```
-
-### CLI Execution Recipes
-
-Filter test runs with the registered markers:
-
-```bash
-uv run pytest -m unit                 # Fast in-memory test suite only
-uv run pytest -m integration          # Subsystem boundary tests
-uv run pytest -m cli                  # CLI routing and runner tests
-uv run pytest -m invariant            # Lint and architectural AST invariants
-uv run pytest -m "not slow"           # All tests excluding long-running/timeouts
-uv run pytest -m "unit or cli"        # Fast pre-commit test cycle
-inv test                              # Full suite via xdist parallel execution
-```
-
----
-
 ## The Four Execution Tiers
 
 Different subject, different mocking policy, different assertion style. Do not mix them in one test.
@@ -115,7 +62,6 @@ Different subject, different mocking policy, different assertion style. Do not m
 - **Subject:** Services and facades under `core/`.
 - **Assert on:** Returned `BaseResult` objects (status, errors, warnings, fixes) and real side effects (files written, git refs created, DB rows committed).
 - **Mocks:** None, except genuine process boundaries or network APIs. Use real `tmp_path` filesystems, SQLite databases, and `GitWorkspaceHarness`.
-- **Marker:** `unit` for pure domain logic; `integration` when touching real Git worktrees or disk SQLite.
 
 ### Tier 2 - Presentation Contracts (Three Tests Per Formatter, Never One)
 
@@ -142,8 +88,6 @@ from worktree.core.status.models import (
     GitStatusInfo,
     WorktreeStatusResult,
 )
-
-pytestmark = pytest.mark.unit
 
 STATUS_CASES = [
     pytest.param(
@@ -220,7 +164,7 @@ Rules for Tier 2 tests:
 Every command action requires at least one real `*CliIntegrationTests` suite (e.g.
 `DiffCliIntegrationTests`) invoking `runner.invoke(app, [...])` to verify Click/Typer options,
 argument parsing, exit codes, resulting disk or git state, and (optionally) a snapshot of
-rendered output. Tagged `pytestmark = pytest.mark.cli`. Four scenarios per command:
+rendered output. Four scenarios per command:
 1. Happy path exit 0.
 2. Failure path with expected non-zero exit code.
 3. `--format json` emits valid JSON matching wire schema.
@@ -231,7 +175,7 @@ A `*RootTests` suite (e.g. `DiffCommandRootTests`), calling the handler directly
 domain layer does not: input coercion, branch selection across services, result composition from
 more than one call, or an interactive abort path. A pass-through handler is fully compliant with
 zero root tests, and a root test may never restate a contract already asserted under
-`tests/core/` for the same result type. Tagged `pytestmark = pytest.mark.unit` when present.
+`tests/core/` for the same result type.
 
 ### Tier 4 - Invariants (`tests/lint/`)
 
@@ -242,7 +186,6 @@ zero root tests, and a root test may never restate a contract already asserted u
   - Result hierarchy: all `*Result` models inherit from `BaseResult`.
   - Remediation capitalization: all remediation fix suggestions begin with a capital letter.
   - Doc parity: `wt --help` command registration vs `README.md` command documentation parity.
-- Marker: `pytestmark = pytest.mark.invariant`.
 
 ---
 
@@ -371,12 +314,15 @@ Parameterization via `@pytest.mark.parametrize` is the primary, default approach
 
 ## Running Tests and Coverage Gates
 
+Test selection is directory-based; the suite registers a single marker, `slow`, for genuinely
+long-running tests (process group signal escalation, cross-process locks, real timeouts).
+
 ```bash
 inv test                            # full suite, parallel (xdist)
 inv test --no-parallel              # serial (faster for a single module)
 inv test --coverage                 # coverage report (inv test -c)
 inv test --fast-fail                # stop on first failure (-x)
-pytest -m unit                      # run only in-memory unit tests
+pytest tests/core/                  # scope to a directory subtree (tests/cli/, tests/lint/, ...)
 pytest -m "not slow"                # run suite excluding slow integration tests
 python -m pytest -q <path>          # a specific file or directory
 ```
