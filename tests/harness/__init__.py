@@ -2,6 +2,7 @@
 
 from tests.harness.builders import (
     BlueprintBuilder,
+    DetectionResultBuilder,
     PruneResultBuilder,
     StatusBuilder,
     StepBuilder,
@@ -40,6 +41,7 @@ __all__ = [
     "AnyMatching",
     "AnyValue",
     "BlueprintBuilder",
+    "DetectionResultBuilder",
     "FormatterCase",
     "PruneResultBuilder",
     "StatusBuilder",
