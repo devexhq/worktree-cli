@@ -2,6 +2,7 @@
 
 from tests.harness.builders import (
     BlueprintBuilder,
+    StatusBuilder,
     StepBuilder,
     WorkspaceBuilder,
 )
@@ -39,6 +40,7 @@ __all__ = [
     "AnyValue",
     "BlueprintBuilder",
     "FormatterCase",
+    "StatusBuilder",
     "StepBuilder",
     "WorkspaceBuilder",
     "assert_json_payload_matches_published_shape",

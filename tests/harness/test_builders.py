@@ -11,11 +11,13 @@ import pytest
 
 from tests.harness import (
     BlueprintBuilder,
+    StatusBuilder,
     StepBuilder,
     WorkspaceBuilder,
 )
 from worktree.common.models import FailurePolicy, OnFailureSpec
 from worktree.core.blueprint.models import BlueprintDefaults, BlueprintDefinition
+from worktree.core.config.loader import ConfigLoadStatus
 from worktree.core.inputs.models import InputType, ParameterInput
 from worktree.core.step.models import StepAssert, StepDefinition, StepType
 
@@ -511,3 +513,66 @@ class WorkspaceBuilderTests:
         seeded_file.write_text("custom: preserved\n", encoding="utf-8")
         WorkspaceBuilder(workspace_dir).with_catalog_templates(force=False).build()
         assert seeded_file.read_text(encoding="utf-8") == "custom: preserved\n"
+
+
+class StatusBuilderTests:
+    """Verification tests for StatusBuilder."""
+
+    def test_default_build_returns_healthy_status_result(self, tmp_path: Path) -> None:
+        result = StatusBuilder(tmp_path).build()
+        assert result.root_dir == tmp_path
+        assert result.is_initialized is True
+        assert result.git.is_git_repo is True
+        assert result.git.branch == "feature-status"
+        assert result.git.is_dirty is False
+        assert result.config.is_valid is True
+        assert result.catalog.exists is False
+        assert result.database.exists is True
+        assert result.database.is_accessible is True
+        assert result.sandboxes.active_sandboxes == 0
+        assert result.warnings == []
+        assert result.fixes == []
+
+    def test_with_git_overrides_git_status_info(self, tmp_path: Path) -> None:
+        result = StatusBuilder(tmp_path).with_git(branch="main", is_dirty=True, uncommitted_files=3).build()
+        assert result.git.branch == "main"
+        assert result.git.is_dirty is True
+        assert result.git.uncommitted_files == 3
+
+    def test_without_git_sets_non_git_repo_state(self, tmp_path: Path) -> None:
+        result = StatusBuilder(tmp_path).without_git().build()
+        assert result.git.is_git_repo is False
+        assert result.git.branch == "none"
+
+    def test_without_config_sets_uninitialized_and_not_found(self, tmp_path: Path) -> None:
+        result = StatusBuilder(tmp_path).without_config().build()
+        assert result.is_initialized is False
+        assert result.config.is_valid is False
+        assert result.config.status == ConfigLoadStatus.NOT_FOUND
+
+    def test_without_database_marks_db_nonexistent_and_inaccessible(self, tmp_path: Path) -> None:
+        result = StatusBuilder(tmp_path).without_database().build()
+        assert result.database.exists is False
+        assert result.database.is_accessible is False
+
+    def test_with_sandboxes_updates_sandbox_counts(self, tmp_path: Path) -> None:
+        result = (
+            StatusBuilder(tmp_path)
+            .with_sandboxes(active_sandboxes=2, total_sandboxes=3, max_active_sandboxes=8)
+            .build()
+        )
+        assert result.sandboxes.active_sandboxes == 2
+        assert result.sandboxes.total_sandboxes == 3
+        assert result.sandboxes.max_active_sandboxes == 8
+
+    def test_with_catalog_updates_catalog_details(self, tmp_path: Path) -> None:
+        result = StatusBuilder(tmp_path).with_catalog(exists=True, total_items=2, item_names=["a", "b"]).build()
+        assert result.catalog.exists is True
+        assert result.catalog.total_items == 2
+        assert result.catalog.item_names == ["a", "b"]
+
+    def test_with_messages_appends_warnings_fixes_and_errors(self, tmp_path: Path) -> None:
+        result = StatusBuilder(tmp_path).with_warnings("warn1", "warn2").with_fixes("fix1").with_errors("err1").build()
+        assert result.warnings == ["warn1", "warn2"]
+        assert result.fixes == ["fix1"]
+        assert result.errors == ["err1"]
