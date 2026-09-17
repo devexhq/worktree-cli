@@ -11,6 +11,7 @@ import pytest
 
 from tests.harness import (
     BlueprintBuilder,
+    PruneResultBuilder,
     StatusBuilder,
     StepBuilder,
     WorkspaceBuilder,
@@ -19,6 +20,11 @@ from worktree.common.models import FailurePolicy, OnFailureSpec
 from worktree.core.blueprint.models import BlueprintDefaults, BlueprintDefinition
 from worktree.core.config.loader import ConfigLoadStatus
 from worktree.core.inputs.models import InputType, ParameterInput
+from worktree.core.sandbox.models import (
+    PruneAction,
+    SandboxPruneStatus,
+    StaleSandboxCategory,
+)
 from worktree.core.step.models import StepAssert, StepDefinition, StepType
 
 
@@ -576,3 +582,60 @@ class StatusBuilderTests:
         assert result.warnings == ["warn1", "warn2"]
         assert result.fixes == ["fix1"]
         assert result.errors == ["err1"]
+
+
+class PruneResultBuilderTests:
+    """Verification tests for PruneResultBuilder."""
+
+    def test_default_build_returns_clean_prune_result(self) -> None:
+        result = PruneResultBuilder().build()
+        assert result.status == SandboxPruneStatus.OK
+        assert result.dry_run is False
+        assert result.force is False
+        assert result.items == []
+        assert result.errors == []
+        assert result.warnings == []
+        assert result.fixes == []
+
+    def test_with_status_and_flags_updates_metadata(self) -> None:
+        result = (
+            PruneResultBuilder()
+            .with_status(SandboxPruneStatus.PARTIAL_SUCCESS)
+            .with_dry_run(True)
+            .with_force(True)
+            .build()
+        )
+        assert result.status == SandboxPruneStatus.PARTIAL_SUCCESS
+        assert result.dry_run is True
+        assert result.force is True
+
+    def test_with_item_appends_items(self) -> None:
+        result = (
+            PruneResultBuilder()
+            .with_item(
+                category=StaleSandboxCategory.STALE_BRANCH,
+                identifier="b1",
+                action=PruneAction.PRUNED,
+                branch_name="b1",
+            )
+            .with_item(
+                category=StaleSandboxCategory.ORPHANED_DIRECTORY,
+                identifier="sbx_orphan",
+                action=PruneAction.SKIPPED,
+                reason="dirty",
+            )
+            .build()
+        )
+        assert len(result.items) == 2
+        assert result.items[0].identifier == "b1"
+        assert result.items[0].category == StaleSandboxCategory.STALE_BRANCH
+        assert result.items[0].branch_name == "b1"
+        assert result.items[0].action == PruneAction.PRUNED
+        assert result.items[1].identifier == "sbx_orphan"
+        assert result.items[1].category == StaleSandboxCategory.ORPHANED_DIRECTORY
+        assert result.items[1].action == PruneAction.SKIPPED
+        assert result.items[1].reason == "dirty"
+
+    def test_with_errors_appends_error_messages(self) -> None:
+        result = PruneResultBuilder().with_errors("err1", "err2").build()
+        assert result.errors == ["err1", "err2"]
