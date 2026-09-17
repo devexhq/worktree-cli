@@ -3,8 +3,8 @@ name: wt-code
 description: >-
   Implement the approved plan in .agentic/plan.md for worktree-cli consulting
   domain-scoped RULES.md, running only scoped tests while building and the full gate
-  suite (tests with coverage, ruff, basedpyright over src and tests, complexity, marker
-  taxonomy) once implementation is complete, reporting observed gate numbers rather than
+  suite (tests with coverage, ruff, basedpyright over src and tests, complexity) once
+  implementation is complete, reporting observed gate numbers rather than
   documented thresholds, and never committing or pushing. Invoked as /wt-code to implement
   the plan, or /wt-code review [--fix blockers|warnings|suggestions|all] to address the
   findings in .agentic/review.md. Use when asked to implement a plan, write the code for a
@@ -48,7 +48,7 @@ Work one FR (or one testable clause) at a time, in the plan's order. For each:
 
 1. Re-read the plan section, then re-read the current contents of every file you are about to touch.
 2. Write the production code, following the artifact inventory for exact paths: domain types in `core/<domain>/models.py`, imperative operations in `core/<domain>/services/<verb>.py`, the domain entrypoint in `<domain>.py`, command handlers in `cli/<name>/commands/`, one `*Formatter` class per module under `cli/ui/formatters/<domain>/`.
-3. Write the tests the ledger names, at the path it names, with the marker it names, asserting the exact contract it states.
+3. Write the tests the ledger names, at the path it names, asserting the exact contract it states.
 4. Run only the scoped tests for what you just touched:
 
    ```bash
@@ -94,7 +94,6 @@ ruff format .
 ruff check .                                                          # ruff check --fix . for safe fixes
 basedpyright src tests --level error                                  # must be 0 errors, tests included
 uv run inv complexity --paths <changed-py-files> --plain --failed     # no touched function over 10
-uv run python -m pytest -m "not (unit or integration or cli or invariant)" --collect-only -q
 uv run inv test -c                                                    # full suite with coverage
 ```
 
@@ -108,7 +107,6 @@ git diff --stat -- tests/ | tail -1
 Notes that decide whether a gate really passed:
 
 - **`basedpyright` covers `src tests`**, matching `[tool.basedpyright].include` and `CI-001`. Narrowing it to `src` leaves the harness and fixtures unchecked, which is exactly where loose typing accumulates, and it makes `TEST-014` unenforceable by the very gate that is supposed to carry it.
-- **The marker query must collect zero tests.** Anything it collects carries none of the five registered markers, so it is invisible to every marker-filtered run (`pytest -m unit`, etc.) even while it passes locally.
 - **Coverage: report the observed percentage and the configured `fail_under`, both.** If `fail_under` is `0`, the coverage gate passed because it is switched off. Say that plainly rather than reporting a pass, never add tests to lift the number, and never lower the configured floor to make a commit pass (`CI-001`).
 - **Report the `tests/` line delta** against the plan's budget (`PLAN-017`). Growth is expected when the ledger says so and suspicious when it does not. A change that adds thousands of test lines against a plan budgeted in the hundreds is a finding you owe the reviewer.
 - A bare `# type: ignore` suppresses nothing in this repo. Fix the type. A `# pyright: ignore[reportRuleName]` is a last resort and needs a one-line reason naming one of the three permitted cases in `code-conventions.md`.

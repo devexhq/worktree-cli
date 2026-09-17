@@ -465,7 +465,6 @@ class WorkspaceBuilder:
         bootstrap_worktree(dot_worktree)
 
         (dot_worktree / "sandboxes").mkdir(parents=True, exist_ok=True)
-        (dot_worktree / "catalog").mkdir(parents=True, exist_ok=True)
 
         if self._init_git:
             self._scaffold_git_repository(workspace_root)
