@@ -478,6 +478,7 @@ class WorkspaceBuilderTests:
         workspace = WorkspaceBuilder(tmp_path / "no_catalog").without_catalog_templates().build()
         yaml_files = list((workspace / ".worktree/catalog").rglob("*.yml"))
         assert len(yaml_files) == 0
+        assert not (workspace / ".worktree/catalog").exists()
 
     def test_without_config_skips_config_generation(self, tmp_path: Path) -> None:
         workspace = WorkspaceBuilder(tmp_path / "no_cfg").without_config().build()
