@@ -1,4 +1,4 @@
-"""Tests for `worktree.core.patch.GitDiffParser`."""
+"""Tests for worktree.core.patch.GitDiffParser."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from worktree.core.patch import GitDiffParser
 
 
 class GitDiffParserTests:
-    """Tests for GitDiffParser.parse header/path extraction."""
+    """Unit tests for GitDiffParser.parse header/path/binary extraction."""
 
     def test_standard_diff_git_header(self) -> None:
         diff = "diff --git a/foo.py b/foo.py\n--- a/foo.py\n+++ b/foo.py\n@@ -1 +1 @@\n-old\n+new\n"
@@ -20,17 +20,19 @@ class GitDiffParserTests:
     def test_multiple_files_are_sorted(self) -> None:
         diff = "diff --git a/b.py b/b.py\n--- a/b.py\n+++ b/b.py\ndiff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n"
 
-        paths, _, error = GitDiffParser(diff).parse()
+        paths, binary_paths, error = GitDiffParser(diff).parse()
 
         assert paths == ["a.py", "b.py"]
+        assert binary_paths == []
         assert error is None
 
     def test_loose_diff_git_header_without_ab_prefixes(self) -> None:
         diff = "diff --git foo.py foo.py\n--- foo.py\n+++ foo.py\n"
 
-        paths, _, error = GitDiffParser(diff).parse()
+        paths, binary_paths, error = GitDiffParser(diff).parse()
 
         assert paths == ["foo.py"]
+        assert binary_paths == []
         assert error is None
 
     def test_malformed_loose_diff_git_header_is_reported(self) -> None:
@@ -45,17 +47,19 @@ class GitDiffParserTests:
     def test_rename_from_and_to(self) -> None:
         diff = "diff --git a/old.py b/new.py\nsimilarity index 100%\nrename from old.py\nrename to new.py\n"
 
-        paths, _, error = GitDiffParser(diff).parse()
+        paths, binary_paths, error = GitDiffParser(diff).parse()
 
         assert paths == ["new.py", "old.py"]
+        assert binary_paths == []
         assert error is None
 
     def test_copy_from_and_to(self) -> None:
         diff = "diff --git a/old.py b/new.py\ncopy from old.py\ncopy to new.py\n"
 
-        paths, _, error = GitDiffParser(diff).parse()
+        paths, binary_paths, error = GitDiffParser(diff).parse()
 
         assert paths == ["new.py", "old.py"]
+        assert binary_paths == []
         assert error is None
 
     def test_binary_files_header_marks_path_as_binary(self) -> None:
@@ -88,9 +92,10 @@ class GitDiffParserTests:
     def test_crlf_line_endings_are_normalized(self) -> None:
         diff = "diff --git a/foo.py b/foo.py\r\n--- a/foo.py\r\n+++ b/foo.py\r\n"
 
-        paths, _, error = GitDiffParser(diff).parse()
+        paths, binary_paths, error = GitDiffParser(diff).parse()
 
         assert paths == ["foo.py"]
+        assert binary_paths == []
         assert error is None
 
     def test_no_file_headers_is_reported(self) -> None:
