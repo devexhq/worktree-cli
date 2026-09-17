@@ -1,0 +1,487 @@
+"""Tests for worktree.core.status.collector and Status facade."""
+
+from __future__ import annotations
+
+import subprocess
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from tests.harness.builders import WorkspaceBuilder
+from tests.harness.matchers import assert_model_equal
+from worktree.common.filesystem import Filesystem
+from worktree.core.config.loader import ConfigLoadStatus
+from worktree.core.config.models import AgentConfig, ProjectConfig, SandboxConfig, WorktreeConfig
+from worktree.core.db import RunsRepository, RunStatus, SandboxesRepository
+from worktree.core.git import GitNotFoundError, GitPlumbingTimeoutError, GitRunner
+from worktree.core.status import Status, WorktreeStatusResult
+from worktree.core.status.models import (
+    CatalogStatusInfo,
+    ConfigStatusInfo,
+    DatabaseStatusInfo,
+    GitStatusInfo,
+    SandboxStatusInfo,
+)
+from worktree.core.status.services.collector import collect_status
+
+
+def _config_payload(*, model: str | None = "gpt-4o", max_active_sandboxes: int = 5) -> dict[str, Any]:
+    return WorktreeConfig(
+        version=1,
+        project=ProjectConfig(name="status-ws"),
+        agent=AgentConfig(model=model),
+        sandbox=SandboxConfig(max_active_sandboxes=max_active_sandboxes),
+    ).model_dump(mode="json")
+
+
+def make_git_status(
+    *,
+    is_git_repo: bool = True,
+    branch: str = "feature-status",
+    is_dirty: bool = False,
+    uncommitted_files: int = 0,
+) -> GitStatusInfo:
+    return GitStatusInfo(
+        is_git_repo=is_git_repo,
+        branch=branch,
+        is_dirty=is_dirty,
+        uncommitted_files=uncommitted_files,
+    )
+
+
+def make_config_status(
+    fs: Filesystem,
+    *,
+    status: ConfigLoadStatus = ConfigLoadStatus.OK,
+    is_valid: bool = True,
+    raw: dict[str, Any] | None = None,
+    config: WorktreeConfig | None = None,
+    errors: list[str] | None = None,
+    fixes: list[str] | None = None,
+) -> ConfigStatusInfo:
+    default_payload = _config_payload(model="gpt-4o") if status == ConfigLoadStatus.OK else None
+    resolved_raw = raw if raw is not None else default_payload
+    resolved_config = (
+        config
+        if config is not None
+        else (WorktreeConfig.model_validate(resolved_raw) if resolved_raw is not None else None)
+    )
+    return ConfigStatusInfo(
+        status=status,
+        config_path=fs.config_file,
+        is_valid=is_valid,
+        raw=resolved_raw,
+        config=resolved_config,
+        errors=errors if errors is not None else [],
+        fixes=fixes if fixes is not None else [],
+    )
+
+
+def make_catalog_status(
+    fs: Filesystem,
+    *,
+    exists: bool = False,
+    total_items: int = 0,
+    workflows_count: int = 0,
+    tasks_count: int = 0,
+    steps_count: int = 0,
+    invalid_items: int = 0,
+    item_names: list[str] | None = None,
+) -> CatalogStatusInfo:
+    return CatalogStatusInfo(
+        exists=exists,
+        catalog_dir=fs.catalog_dir,
+        total_items=total_items,
+        workflows_count=workflows_count,
+        tasks_count=tasks_count,
+        steps_count=steps_count,
+        invalid_items=invalid_items,
+        item_names=item_names if item_names is not None else [],
+    )
+
+
+def make_database_status(
+    fs: Filesystem,
+    *,
+    exists: bool = True,
+    is_accessible: bool = True,
+    total_runs: int = 0,
+) -> DatabaseStatusInfo:
+    return DatabaseStatusInfo(
+        exists=exists,
+        db_path=fs.db_file,
+        is_accessible=is_accessible,
+        total_runs=total_runs,
+    )
+
+
+def make_sandbox_status(
+    *,
+    active_sandboxes: int = 0,
+    total_sandboxes: int = 0,
+    max_active_sandboxes: int = 5,
+) -> SandboxStatusInfo:
+    return SandboxStatusInfo(
+        active_sandboxes=active_sandboxes,
+        total_sandboxes=total_sandboxes,
+        max_active_sandboxes=max_active_sandboxes,
+    )
+
+
+def make_expected_status(
+    workspace: Path,
+    *,
+    branch: str = "feature-status",
+    is_initialized: bool = True,
+    git: GitStatusInfo | None = None,
+    config: ConfigStatusInfo | None = None,
+    catalog: CatalogStatusInfo | None = None,
+    database: DatabaseStatusInfo | None = None,
+    sandboxes: SandboxStatusInfo | None = None,
+    errors: list[str] | None = None,
+    warnings: list[str] | None = None,
+    fixes: list[str] | None = None,
+) -> WorktreeStatusResult:
+    fs = Filesystem(workspace)
+    return WorktreeStatusResult(
+        root_dir=workspace,
+        is_initialized=is_initialized,
+        git=git if git is not None else make_git_status(branch=branch),
+        config=config if config is not None else make_config_status(fs),
+        catalog=catalog if catalog is not None else make_catalog_status(fs),
+        database=database if database is not None else make_database_status(fs),
+        sandboxes=sandboxes if sandboxes is not None else make_sandbox_status(),
+        errors=errors if errors is not None else [],
+        warnings=warnings if warnings is not None else [],
+        fixes=fixes if fixes is not None else [],
+    )
+
+
+class StatusFacadeTests:
+    """Tests for Status domain facade."""
+
+    def test_status_collect_returns_worktree_status_result(self, tmp_path: Path) -> None:
+        workspace = (
+            WorkspaceBuilder(tmp_path / "facade_collect")
+            .with_git(branch="feature-facade")
+            .without_catalog_templates()
+            .build()
+        )
+        fs = Filesystem(workspace)
+        Filesystem.atomic_write_json(fs.config_file, _config_payload(model="gpt-4o"))
+        status = Status(workspace)
+
+        result = status.collect()
+
+        assert_model_equal(result, make_expected_status(workspace, branch="feature-facade"))
+
+    def test_status_collect_at_classmethod_returns_worktree_status_result(self, tmp_path: Path) -> None:
+        workspace = (
+            WorkspaceBuilder(tmp_path / "facade_collect_at")
+            .with_git(branch="feature-facade-at")
+            .without_catalog_templates()
+            .build()
+        )
+        fs = Filesystem(workspace)
+        Filesystem.atomic_write_json(fs.config_file, _config_payload(model="gpt-4o"))
+
+        result = Status.collect_at(workspace)
+
+        assert_model_equal(result, make_expected_status(workspace, branch="feature-facade-at"))
+
+
+class StatusCollectorGitCollectionTests:
+    """Tests for git repository status collection in collect_status."""
+
+    def test_collect_status_clean_worktree(self, tmp_path: Path) -> None:
+        workspace = (
+            WorkspaceBuilder(tmp_path / "clean_ws")
+            .with_git(branch="feature-status")
+            .with_database()
+            .without_catalog_templates()
+            .build()
+        )
+        fs = Filesystem(workspace)
+        config_data = _config_payload(model="gpt-4o", max_active_sandboxes=3)
+        Filesystem.atomic_write_json(fs.config_file, config_data)
+        Filesystem.atomic_write_text(fs.catalog_blueprints_dir / "deploy.yml", "name: deploy\n")
+        Filesystem.atomic_write_text(fs.catalog_blueprints_dir / "lint-blueprint.yml", "name: lint-blueprint\n")
+        Filesystem.atomic_write_text(fs.catalog_steps_dir / "test-step.yml", "name: test-step\n")
+
+        runs_repo = RunsRepository(workspace)
+        runs_repo.create(
+            session_id="sess-001",
+            blueprint_name="deploy",
+            blueprint_key="deploy",
+            status=RunStatus.COMPLETED,
+        )
+
+        sandboxes_repo = SandboxesRepository(workspace)
+        sandboxes_repo.create(
+            id="sb-001",
+            branch_name="wt/sb-001",
+            base_commit="HEAD",
+            sandbox_path=fs.sandboxes_dir / "sb-001",
+        )
+
+        result = collect_status(workspace)
+
+        expected = make_expected_status(
+            workspace,
+            config=make_config_status(fs, raw=config_data),
+            catalog=make_catalog_status(
+                fs,
+                exists=True,
+                total_items=3,
+                steps_count=1,
+                item_names=["deploy", "lint-blueprint", "test-step"],
+            ),
+            database=make_database_status(fs, total_runs=1),
+            sandboxes=make_sandbox_status(active_sandboxes=1, total_sandboxes=1, max_active_sandboxes=3),
+        )
+        assert_model_equal(result, expected)
+
+    def test_collect_status_dirty_worktree(self, tmp_path: Path) -> None:
+        workspace = (
+            WorkspaceBuilder(tmp_path / "dirty_ws")
+            .with_git(branch="feature-dirty")
+            .with_database()
+            .without_catalog_templates()
+            .build()
+        )
+        fs = Filesystem(workspace)
+        Filesystem.atomic_write_json(fs.config_file, _config_payload(model="gpt-4o"))
+
+        untracked = workspace / "new_file.txt"
+        untracked.write_text("hello", encoding="utf-8")
+
+        result = collect_status(workspace)
+
+        expected = make_expected_status(
+            workspace,
+            branch="feature-dirty",
+            git=make_git_status(branch="feature-dirty", is_dirty=True, uncommitted_files=1),
+            warnings=["Working tree has 1 uncommitted change(s)."],
+        )
+        assert_model_equal(result, expected)
+
+    def test_collect_status_detached_head(self, tmp_path: Path) -> None:
+        workspace = (
+            WorkspaceBuilder(tmp_path / "detached_ws")
+            .with_git(branch="feature-detached")
+            .with_database()
+            .without_catalog_templates()
+            .build()
+        )
+        fs = Filesystem(workspace)
+        Filesystem.atomic_write_json(fs.config_file, _config_payload(model="gpt-4o"))
+
+        commit_hash = GitRunner.run(["rev-parse", "HEAD"], path=workspace).strip()
+        subprocess.run(["git", "checkout", commit_hash], cwd=workspace, check=True, capture_output=True)
+
+        result = collect_status(workspace)
+
+        expected = make_expected_status(
+            workspace,
+            git=make_git_status(branch="HEAD (detached)"),
+        )
+        assert_model_equal(result, expected)
+
+    def test_collect_status_non_git_directory(self, tmp_path: Path) -> None:
+        non_git_dir = tmp_path / "non_git"
+        non_git_dir.mkdir(parents=True, exist_ok=True)
+        fs = Filesystem(non_git_dir)
+
+        result = collect_status(non_git_dir)
+
+        expected = make_expected_status(
+            non_git_dir,
+            is_initialized=False,
+            git=make_git_status(is_git_repo=False, branch="none"),
+            config=make_config_status(
+                fs,
+                status=ConfigLoadStatus.NOT_FOUND,
+                is_valid=False,
+                raw=None,
+                config=None,
+                errors=[f"Configuration file not found at '{fs.config_file}' (CONFIG_NOT_FOUND)."],
+                fixes=["Run `wt init` to create `.worktree/config.json`"],
+            ),
+            database=make_database_status(fs, exists=False, is_accessible=False),
+            warnings=["Worktree workspace is not initialized. Run 'wt init' to configure."],
+            fixes=[
+                "Run 'wt init' to initialize Worktree in this repository.",
+                "Run 'git init' or navigate to a Git repository.",
+            ],
+        )
+        assert_model_equal(result, expected)
+
+    @pytest.mark.parametrize(
+        "git_error",
+        [
+            pytest.param(GitNotFoundError("git not found"), id="not_found"),
+            pytest.param(GitPlumbingTimeoutError("git timed out"), id="timeout"),
+        ],
+    )
+    def test_collect_status_git_error(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        git_error: Exception,
+    ) -> None:
+        workspace = (
+            WorkspaceBuilder(tmp_path / "git_error_ws")
+            .with_git(branch="feature-status")
+            .without_catalog_templates()
+            .build()
+        )
+        fs = Filesystem(workspace)
+        Filesystem.atomic_write_json(fs.config_file, _config_payload(model="gpt-4o"))
+
+        def mock_run(*args: object, **kwargs: object) -> str:
+            raise git_error
+
+        monkeypatch.setattr(GitRunner, "run", mock_run)
+
+        result = collect_status(workspace)
+
+        expected = make_expected_status(
+            workspace,
+            git=make_git_status(is_git_repo=False, branch="unknown"),
+            fixes=["Run 'git init' or navigate to a Git repository."],
+        )
+        assert_model_equal(result, expected)
+
+    def test_collect_status_git_rev_parse_not_true(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        workspace = (
+            WorkspaceBuilder(tmp_path / "git_false_ws")
+            .with_git(branch="feature-status")
+            .without_catalog_templates()
+            .build()
+        )
+        fs = Filesystem(workspace)
+        config_data = _config_payload(model="gpt-4o")
+        Filesystem.atomic_write_json(fs.config_file, config_data)
+
+        def mock_run(*args: object, **kwargs: object) -> str:
+            return "false"
+
+        monkeypatch.setattr(GitRunner, "run", mock_run)
+
+        result = collect_status(workspace)
+
+        expected = make_expected_status(
+            workspace,
+            git=make_git_status(is_git_repo=False, branch="none"),
+            fixes=["Run 'git init' or navigate to a Git repository."],
+        )
+        assert_model_equal(result, expected)
+
+
+class StatusCollectorConfigAndCatalogTests:
+    """Tests for configuration and catalog status collection in collect_status."""
+
+    def test_collect_status_uninitialized_workspace(self, tmp_path: Path) -> None:
+        workspace = (
+            WorkspaceBuilder(tmp_path / "uninit_ws")
+            .with_git(branch="feature-uninit")
+            .without_config()
+            .without_catalog_templates()
+            .build()
+        )
+        fs = Filesystem(workspace)
+
+        result = collect_status(workspace)
+
+        expected = make_expected_status(
+            workspace,
+            branch="feature-uninit",
+            is_initialized=False,
+            config=make_config_status(
+                fs,
+                status=ConfigLoadStatus.NOT_FOUND,
+                is_valid=False,
+                raw=None,
+                config=None,
+                errors=[f"Configuration file not found at '{fs.config_file}' (CONFIG_NOT_FOUND)."],
+                fixes=["Run `wt init` to create `.worktree/config.json`"],
+            ),
+            warnings=["Worktree workspace is not initialized. Run 'wt init' to configure."],
+            fixes=["Run 'wt init' to initialize Worktree in this repository."],
+        )
+        assert_model_equal(result, expected)
+
+    def test_collect_status_malformed_config(self, tmp_path: Path) -> None:
+        workspace = (
+            WorkspaceBuilder(tmp_path / "malformed_config_ws")
+            .with_git(branch="feature-status")
+            .without_catalog_templates()
+            .build()
+        )
+        fs = Filesystem(workspace)
+        Filesystem.atomic_write_text(fs.config_file, "{invalid_json: true")
+
+        result = collect_status(workspace)
+
+        expected = make_expected_status(
+            workspace,
+            config=make_config_status(
+                fs,
+                status=ConfigLoadStatus.MALFORMED_JSON,
+                is_valid=False,
+                raw=None,
+                config=None,
+                errors=[
+                    f"Malformed config.json at '{fs.config_file}': "
+                    "Expecting property name enclosed in double quotes at line 1 column 2 (char 1) (CONFIG_MALFORMED_JSON)."
+                ],
+                fixes=["Repair JSON syntax, or restore from backup"],
+            ),
+            warnings=[
+                "Malformed config.json: Expecting property name enclosed in double quotes at line 1 column 2 (char 1) (CONFIG_MALFORMED_JSON)."
+            ],
+            fixes=["Repair JSON syntax in .worktree/config.json or restore from backup."],
+        )
+        assert_model_equal(result, expected)
+
+    def test_collect_status_missing_catalog_directory(self, tmp_path: Path) -> None:
+        workspace = (
+            WorkspaceBuilder(tmp_path / "missing_catalog_ws")
+            .with_git(branch="feature-status")
+            .without_catalog_templates()
+            .build()
+        )
+        fs = Filesystem(workspace)
+        Filesystem.atomic_write_json(fs.config_file, _config_payload(model="gpt-4o"))
+
+        result = collect_status(workspace)
+
+        assert_model_equal(result, make_expected_status(workspace))
+
+    def test_collect_status_invalid_catalog_blueprint(self, tmp_path: Path) -> None:
+        workspace = (
+            WorkspaceBuilder(tmp_path / "invalid_catalog_bp_ws")
+            .with_git(branch="feature-status")
+            .without_catalog_templates()
+            .build()
+        )
+        fs = Filesystem(workspace)
+        Filesystem.atomic_write_json(fs.config_file, _config_payload(model="gpt-4o"))
+        Filesystem.atomic_write_text(fs.catalog_blueprints_dir / "valid-bp.yml", "name: valid-bp\n")
+        Filesystem.atomic_write_text(fs.catalog_blueprints_dir / "bad.yml", "invalid: [yaml: broken\n")
+
+        result = collect_status(workspace)
+
+        expected = make_expected_status(
+            workspace,
+            catalog=make_catalog_status(
+                fs,
+                exists=True,
+                total_items=2,
+                invalid_items=1,
+                item_names=["bad", "valid-bp"],
+            ),
+            warnings=["1 invalid blueprint file(s) detected in catalog."],
+        )
+        assert_model_equal(result, expected)
