@@ -191,7 +191,7 @@ zero root tests, and a root test may never restate a contract already asserted u
 
 ## Test Harness and Assertion Helpers
 
-### Fluent Builders Harness (`tests/harness/builders.py`)
+### Fluent Builders Harness (`tests/harness/builders/`)
 
 Construct domain objects in tests using fluent builders rather than raw dictionaries, ad-hoc keyword arguments, or monkeypatching internal state (`scratch/test-structure-proposal.md` §3.1):
 
