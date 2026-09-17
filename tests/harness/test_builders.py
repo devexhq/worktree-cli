@@ -11,6 +11,7 @@ import pytest
 
 from tests.harness import (
     BlueprintBuilder,
+    DetectionResultBuilder,
     PruneResultBuilder,
     StatusBuilder,
     StepBuilder,
@@ -22,6 +23,7 @@ from worktree.core.config.loader import ConfigLoadStatus
 from worktree.core.inputs.models import InputType, ParameterInput
 from worktree.core.sandbox.models import (
     PruneAction,
+    SandboxDetectionStatus,
     SandboxPruneStatus,
     StaleSandboxCategory,
 )
@@ -638,4 +640,56 @@ class PruneResultBuilderTests:
 
     def test_with_errors_appends_error_messages(self) -> None:
         result = PruneResultBuilder().with_errors("err1", "err2").build()
+        assert result.errors == ["err1", "err2"]
+
+
+class DetectionResultBuilderTests:
+    """Verification tests for DetectionResultBuilder."""
+
+    def test_default_build_returns_clean_detection_result(self) -> None:
+        result = DetectionResultBuilder().build()
+        assert result.status == SandboxDetectionStatus.OK
+        assert result.items == []
+        assert result.active_sandbox_count == 0
+        assert result.errors == []
+        assert result.warnings == []
+        assert result.fixes == []
+
+    def test_with_status_and_active_count_updates_metadata(self) -> None:
+        result = (
+            DetectionResultBuilder().with_status(SandboxDetectionStatus.GIT_FAILED).with_active_sandbox_count(2).build()
+        )
+        assert result.status == SandboxDetectionStatus.GIT_FAILED
+        assert result.active_sandbox_count == 2
+
+    def test_with_item_appends_items(self) -> None:
+        result = (
+            DetectionResultBuilder()
+            .with_item(
+                category=StaleSandboxCategory.STALE_BRANCH,
+                identifier="worktree/sandbox-b1",
+                branch_name="worktree/sandbox-b1",
+            )
+            .with_item(
+                category=StaleSandboxCategory.ORPHANED_DIRECTORY,
+                identifier="sbx_orphan",
+                is_dirty=True,
+                dirty_file_count=2,
+                reason="untracked directory",
+            )
+            .build()
+        )
+        assert len(result.items) == 2
+        assert result.items[0].identifier == "worktree/sandbox-b1"
+        assert result.items[0].category == StaleSandboxCategory.STALE_BRANCH
+        assert result.items[0].branch_name == "worktree/sandbox-b1"
+        assert result.items[0].is_dirty is False
+        assert result.items[1].identifier == "sbx_orphan"
+        assert result.items[1].category == StaleSandboxCategory.ORPHANED_DIRECTORY
+        assert result.items[1].is_dirty is True
+        assert result.items[1].dirty_file_count == 2
+        assert result.items[1].reason == "untracked directory"
+
+    def test_with_errors_appends_error_messages(self) -> None:
+        result = DetectionResultBuilder().with_errors("err1", "err2").build()
         assert result.errors == ["err1", "err2"]
