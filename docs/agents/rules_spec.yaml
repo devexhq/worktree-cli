@@ -119,6 +119,23 @@ rules:
   positive_example: 'errors.append(f"Blueprint ''{path}'' invalid: {err}")'
   negative_example: errors.append(self._format_validation_error(path, err))
   citation: docs/agents/code-conventions.md#console-output-and-terminal-formatting
+- id: RENDER-004
+  title: Domain Shared Table Builders in common.py
+  severity: WARNING
+  category: Rendering
+  domain: cli
+  scope: src/worktree/cli/ui/formatters/
+  guideline: A table-building helper shared by more than one formatter within a domain lives in that domain's
+    cli/ui/formatters/<domain>/common.py, not duplicated per formatter module and not hoisted into the
+    package-wide cli/ui/formatters/common.py unless it is genuinely shared across domains.
+  evaluation_criteria: When a new or changed formatter defines a table-construction helper, check whether another
+    formatter in the same domain needs the same table shape. Flag a helper duplicated across sibling formatter
+    modules instead of factored into that domain's common.py, and flag a domain-specific helper placed in the
+    package-wide common.py.
+  positive_example: 'src/worktree/cli/ui/formatters/sandbox/common.py -> build_sandbox_table(), reused by list.py
+    and status.py'
+  negative_example: '# Nearly identical build_table() duplicated in both sandbox/list.py and sandbox/status.py'
+  citation: docs/agents/code-conventions.md#console-output-and-terminal-formatting
 - id: MODEL-001
   title: Scoped Model Exceptions with Justifying Comment
   severity: BLOCKER
@@ -270,6 +287,29 @@ rules:
   positive_example: 'def get_session() -> Generator[Session, None, None]: ...'
   negative_example: 'def get_session() -> Generator[Session]: ...'
   citation: docs/agents/code-conventions.md#type-annotations-and-any
+- id: TYPE-006
+  title: Scoped Pyright Suppressions With Reason
+  severity: BLOCKER
+  category: Typing
+  domain: all
+  scope: src/, tests/
+  guideline: >-
+    A bare `# type: ignore` is not honored by this repo's basedpyright config and suppresses nothing. Only
+    `# pyright: ignore[reportRuleName]` suppresses an error, and only for one of three permitted cases, each
+    with a one-line reason naming which applies: an intentional ill-typed test input whose subject is the
+    raised error, a third-party stub conflict our code cannot name correctly (the SQLModel `__tablename__`
+    case), or a platform-gated import. `reportCallIssue` and `reportArgumentType` silencing a wrong-shaped
+    test double or fixture, and `reportIncompatibleVariableOverride` outside the SQLModel `__tablename__`
+    stub, are never permitted suppressions: the fixture, annotation, or override is the defect to fix, not
+    the error to hide.
+  evaluation_criteria: >-
+    Grep changed hunks for `# type: ignore` and `# pyright: ignore`. Flag every bare `# type: ignore`. For each
+    `# pyright: ignore[...]`, verify a one-line reason is present and that the case matches one of the three
+    permitted categories; flag any suppression of `reportCallIssue`, `reportArgumentType`, or
+    `reportIncompatibleVariableOverride` that does not match its named exception.
+  positive_example: 'import msvcrt  # pyright: ignore[reportMissingImports]  # platform-gated: msvcrt does not exist on Linux'
+  negative_example: 'queue: Queue = mock_queue  # type: ignore  # bare ignore, suppresses nothing and hides a fixable fixture type'
+  citation: docs/agents/code-conventions.md#type-checker-suppressions
 - id: ENCAP-001
   title: Expose Public Query Properties
   severity: SUGGESTION
@@ -732,6 +772,20 @@ rules:
   negative_example: 'assert "Show the current configuration value" in res.output  # help text wording; assert Click metadata instead'
   citation: docs/agents/testing.md#core-testing-rules
   decision_log: docs/decisions/0002-simplify-cli-test-doctrine.md#d2-reversal-cli-runner-assertion-boundary-test-017
+- id: TEST-018
+  title: Test Layer Import Boundary
+  severity: BLOCKER
+  category: Testing
+  domain: tests
+  scope: tests/core/
+  guideline: tests/core/** must never import worktree.cli.*. A core test proves the domain layer's contract
+    independent of any presentation concern, and an import of the CLI package from a core test either leaks a
+    presentation dependency into the domain suite or signals the test belongs under tests/cli/ instead.
+  evaluation_criteria: Scan import statements in changed files under tests/core/. Flag any import of
+    worktree.cli or a submodule of it.
+  positive_example: 'from worktree.core.sandbox.prune import prune_sandboxes  # tests/core/sandbox/test_prune.py'
+  negative_example: 'from worktree.cli.sandbox.commands.prune import prune_command  # imported from tests/core/sandbox/test_prune.py'
+  citation: docs/agents/testing.md#11-source-parity-layout
 - id: DOC-001
   title: Architecture Doc Structural Gate
   severity: BLOCKER
