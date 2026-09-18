@@ -78,6 +78,16 @@ ANY_ISO_TIMESTAMP: Final = AnyMatching(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\
 # sits at this seam (StepExecution times an actual OS process), so the value is unownable like a pid.
 ANY_DURATION: Final = AnyValue(float, "ANY_DURATION")
 
+# AgentResponse.duration_ms is int, stamped by _elapsed_ms()/int((time.monotonic() - started) * 1000)
+# in cli_mutation.py and independently in ollama.py's propose_fix. Same non-determinism as
+# ANY_DURATION, but the field type is int, not float.
+ANY_DURATION_MS: Final = AnyValue(int, "ANY_DURATION_MS")
+
+# unified_diff is git-generated text a test cannot hand-write; this pins the diff shape via the
+# model comparison itself, while the content is still checked separately via substring assertion.
+# `[\s\S]*` stands in for DOTALL since AnyMatching takes no flags argument.
+ANY_UNIFIED_DIFF: Final = AnyMatching(r"diff --git[\s\S]*", "ANY_UNIFIED_DIFF")
+
 # Deliberately absent: ANY_STR, ANY_INT, ANY_LIST. A string or number the test cannot own is
 # almost always one the test should have constructed, and a broad matcher re-opens the hole
 # `exclude` left. Add a narrow AnyMatching instead of widening this set.

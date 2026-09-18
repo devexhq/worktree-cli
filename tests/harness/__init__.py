@@ -1,6 +1,7 @@
 """Test harness primitives, shared builders, and contract assertions."""
 
 from tests.harness.builders import (
+    AgentResponseBuilder,
     BlueprintBuilder,
     DetectionResultBuilder,
     PruneResultBuilder,
@@ -18,11 +19,13 @@ from tests.harness.formatter import (
 from tests.harness.matchers import (
     ANY_DATETIME,
     ANY_DURATION,
+    ANY_DURATION_MS,
     ANY_GIT_SHA,
     ANY_ISO_TIMESTAMP,
     ANY_PATH,
     ANY_PID,
     ANY_TIMESTAMP,
+    ANY_UNIFIED_DIFF,
     ANY_UUID,
     AnyMatching,
     AnyValue,
@@ -32,12 +35,15 @@ from tests.harness.matchers import (
 __all__ = [
     "ANY_DATETIME",
     "ANY_DURATION",
+    "ANY_DURATION_MS",
     "ANY_GIT_SHA",
     "ANY_ISO_TIMESTAMP",
     "ANY_PATH",
     "ANY_PID",
     "ANY_TIMESTAMP",
+    "ANY_UNIFIED_DIFF",
     "ANY_UUID",
+    "AgentResponseBuilder",
     "AnyMatching",
     "AnyValue",
     "BlueprintBuilder",
