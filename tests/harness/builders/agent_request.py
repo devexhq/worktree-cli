@@ -24,10 +24,16 @@ class AgentRequestBuilder:
         )
         self._sandbox_path: Path | None = None
         self._timeout_seconds: int = 10
+        self._max_files: int | None = None
 
     def with_sandbox_path(self, sandbox_path: Path) -> Self:
         """Set the sandbox checkout the agent request runs against."""
         self._sandbox_path = sandbox_path
+        return self
+
+    def with_max_files(self, max_files: int) -> Self:
+        """Set the patch gate's max touched-files limit."""
+        self._max_files = max_files
         return self
 
     def build(self) -> AgentRequest:
@@ -39,4 +45,5 @@ class AgentRequestBuilder:
             payload=self._payload,
             sandbox_path=self._sandbox_path,
             timeout_seconds=self._timeout_seconds,
+            max_files=self._max_files,
         )

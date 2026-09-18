@@ -12,7 +12,7 @@ import typer
 from pydantic import BaseModel
 from typer.testing import CliRunner
 
-from tests.harness import ANY_UUID, assert_model_equal
+from tests.harness import ANY_UUID, FakeAgentRunner, FakeAgentRunnerCall, assert_model_equal
 from worktree.common.constants import REQUIRED_SUBDIRS
 
 
@@ -211,3 +211,59 @@ class AssertModelEqualTests:
         model = SequenceHolder(items=[item])
         with pytest.raises(AssertionError, match=r"items\[0\]"):
             assert_model_equal(model, SequenceHolder(items=[other]))
+
+
+class FakeAgentRunnerTests:
+    """Verification tests for FakeAgentRunner."""
+
+    def test_returning_records_call_and_returns_configured_result(self, tmp_path: Path) -> None:
+        runner = FakeAgentRunner().returning(returncode=0, stdout=b"out", stderr=b"err")
+
+        result = runner(
+            ["gemini", "-p", ""],
+            cwd=tmp_path,
+            env={"GEMINI_API_KEY": "test-key"},
+            input_data=b"hi",
+            timeout_seconds=3,
+        )
+
+        assert result.args == ["gemini", "-p", ""]
+        assert result.returncode == 0
+        assert result.stdout == b"out"
+        assert result.stderr == b"err"
+        assert runner.last_call == FakeAgentRunnerCall(
+            cmd=["gemini", "-p", ""],
+            cwd=tmp_path,
+            env={"GEMINI_API_KEY": "test-key"},
+            input_data=b"hi",
+            timeout_seconds=3,
+        )
+
+    def test_raising_records_call_then_raises_configured_exception(self, tmp_path: Path) -> None:
+        runner = FakeAgentRunner().raising(FileNotFoundError("gemini"))
+
+        with pytest.raises(FileNotFoundError, match="gemini"):
+            runner(["gemini"], cwd=tmp_path, env={}, input_data=b"hi", timeout_seconds=3)
+
+        assert runner.last_call == FakeAgentRunnerCall(
+            cmd=["gemini"], cwd=tmp_path, env={}, input_data=b"hi", timeout_seconds=3
+        )
+
+    def test_call_without_configuration_raises_assertion_error(self, tmp_path: Path) -> None:
+        runner = FakeAgentRunner()
+
+        with pytest.raises(AssertionError, match=r"without \.returning"):
+            runner(["gemini"], cwd=tmp_path, env={}, input_data=b"hi", timeout_seconds=3)
+
+    def test_last_call_before_any_call_raises_assertion_error(self) -> None:
+        runner = FakeAgentRunner()
+
+        with pytest.raises(AssertionError, match="never called"):
+            _ = runner.last_call
+
+    def test_returning_after_raising_switches_back_to_returning(self, tmp_path: Path) -> None:
+        runner = FakeAgentRunner().raising(FileNotFoundError("gemini")).returning(returncode=1)
+
+        result = runner(["gemini"], cwd=tmp_path, env={}, input_data=b"hi", timeout_seconds=3)
+
+        assert result.returncode == 1

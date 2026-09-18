@@ -4,11 +4,17 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from typing import Any
 
 import pytest
 
-from tests.harness import AgentRequestBuilder, AgentResponseBuilder, assert_model_equal
+from tests.harness import (
+    ANY_ENV,
+    AgentRequestBuilder,
+    AgentResponseBuilder,
+    FakeAgentRunner,
+    FakeAgentRunnerCall,
+    assert_model_equal,
+)
 from worktree.core.agents import AgentResponseStatus
 from worktree.core.agents.cli_mutation import CliMutationOutcome, CliMutationRunRequest
 from worktree.core.agents.copilot import (
@@ -59,64 +65,49 @@ class CopilotAuthTests:
 class CopilotRunTests:
     def test_default_run_parses_jsonl(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """gh copilot is invoked with the fixed argv and its JSONL stream is parsed to text."""
-        captured: dict[str, Any] = {}
-
-        def fake_run(
-            cmd: list[str],
-            *,
-            cwd: Path,
-            env: dict[str, str],
-            input_data: bytes,
-            timeout_seconds: float,
-            **kwargs: object,
-        ) -> subprocess.CompletedProcess[bytes]:
-            captured["cmd"] = cmd
-            captured["cwd"] = str(cwd)
-            captured["input"] = input_data
-            captured["timeout"] = timeout_seconds
-            return subprocess.CompletedProcess(
-                args=cmd,
-                returncode=0,
-                stdout=(
-                    b'{"type":"assistant.message","data":{"content":"hello"}}\n'
-                    b'{"type":"result","data":{"exitCode":0}}\n'
-                ),
-                stderr=b"",
+        runner = FakeAgentRunner().returning(
+            stdout=(
+                b'{"type":"assistant.message","data":{"content":"hello"}}\n{"type":"result","data":{"exitCode":0}}\n'
             )
-
-        monkeypatch.setattr("worktree.core.agents.copilot.run_isolated_process", fake_run)
+        )
+        monkeypatch.setattr("worktree.core.agents.copilot.run_isolated_process", runner)
 
         outcome = default_copilot_run(
             CliMutationRunRequest(sandbox_path=tmp_path, prompt="hi", model=None, timeout_seconds=3)
         )
 
         assert_model_equal(outcome, CliMutationOutcome(status="finished", result_text="hello", error_detail=None))
-        assert captured == {
-            "cmd": [
-                "gh",
-                "copilot",
-                "--",
-                "-p",
-                "",
-                "--output-format",
-                "json",
-                "--silent",
-                "--allow-all-tools",
-                "--allow-all-paths",
-                "--allow-all-urls",
-            ],
-            "cwd": str(tmp_path),
-            "input": b"hi",
-            "timeout": 3,
-        }
+        # env is ANY_ENV, not a pinned literal, because it's os.environ.copy() plus the
+        # resolved token and so is host-dependent; the follow-up assertion pins the one
+        # key this test does own.
+        assert_model_equal(
+            runner.last_call,
+            FakeAgentRunnerCall.model_construct(
+                cmd=[
+                    "gh",
+                    "copilot",
+                    "--",
+                    "-p",
+                    "",
+                    "--output-format",
+                    "json",
+                    "--silent",
+                    "--allow-all-tools",
+                    "--allow-all-paths",
+                    "--allow-all-urls",
+                ],
+                cwd=tmp_path,
+                env=ANY_ENV,
+                input_data=b"hi",
+                timeout_seconds=3,
+            ),
+        )
+        assert runner.last_call.env["GH_TOKEN"] == "test-token"
 
     def test_missing_gh_binary_returns_error_status(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """A missing gh binary maps to an error outcome naming the GitHub CLI."""
-
-        def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[bytes]:
-            raise FileNotFoundError("gh")
-
-        monkeypatch.setattr("worktree.core.agents.copilot.run_isolated_process", fake_run)
+        runner = FakeAgentRunner().raising(FileNotFoundError("gh"))
+        monkeypatch.setattr("worktree.core.agents.copilot.run_isolated_process", runner)
 
         outcome = default_copilot_run(
             CliMutationRunRequest(sandbox_path=tmp_path, prompt="hi", model=None, timeout_seconds=3)
@@ -135,11 +126,8 @@ class CopilotRunTests:
 
     def test_process_timeout_returns_timeout_status(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """A subprocess timeout maps to a timeout outcome."""
-
-        def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[bytes]:
-            raise subprocess.TimeoutExpired(cmd="gh", timeout=3)
-
-        monkeypatch.setattr("worktree.core.agents.copilot.run_isolated_process", fake_run)
+        runner = FakeAgentRunner().raising(subprocess.TimeoutExpired(cmd="gh", timeout=3))
+        monkeypatch.setattr("worktree.core.agents.copilot.run_isolated_process", runner)
 
         outcome = default_copilot_run(
             CliMutationRunRequest(sandbox_path=tmp_path, prompt="hi", model=None, timeout_seconds=3)
