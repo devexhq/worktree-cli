@@ -1,6 +1,7 @@
 """Test harness primitives, shared builders, and contract assertions."""
 
 from tests.harness.builders import (
+    AgentRequestBuilder,
     AgentResponseBuilder,
     BlueprintBuilder,
     DetectionResultBuilder,
@@ -43,6 +44,7 @@ __all__ = [
     "ANY_TIMESTAMP",
     "ANY_UNIFIED_DIFF",
     "ANY_UUID",
+    "AgentRequestBuilder",
     "AgentResponseBuilder",
     "AnyMatching",
     "AnyValue",
