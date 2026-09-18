@@ -83,14 +83,28 @@ ANY_DURATION: Final = AnyValue(float, "ANY_DURATION")
 # ANY_DURATION, but the field type is int, not float.
 ANY_DURATION_MS: Final = AnyValue(int, "ANY_DURATION_MS")
 
+# For a str field whose exact text a test does not want to hard-pin in the whole-object
+# comparison (e.g. it embeds a live external URL), paired with a separate single-field
+# substring assertion on the actual value for the part of the contract the test does own.
+# Narrower than it looks: it only stands in for the field(s) named in that follow-up
+# assertion, never for a field with no assertion at all.
+ANY_STRING: Final = AnyValue(str, "ANY_STRING")
+
 # unified_diff is git-generated text a test cannot hand-write; this pins the diff shape via the
 # model comparison itself, while the content is still checked separately via substring assertion.
 # `[\s\S]*` stands in for DOTALL since AnyMatching takes no flags argument.
 ANY_UNIFIED_DIFF: Final = AnyMatching(r"diff --git[\s\S]*", "ANY_UNIFIED_DIFF")
 
-# Deliberately absent: ANY_STR, ANY_INT, ANY_LIST. A string or number the test cannot own is
-# almost always one the test should have constructed, and a broad matcher re-opens the hole
-# `exclude` left. Add a narrow AnyMatching instead of widening this set.
+# FakeAgentRunnerCall.env is os.environ.copy() plus a provider-set key (cli_mutation-based
+# agent adapters build their subprocess env this way), so its full contents are host-dependent
+# and not literal-own-able. Same paired pattern as ANY_STRING: the test asserts the one key
+# it does own via a follow-up field assertion.
+ANY_ENV: Final = AnyValue(dict, "ANY_ENV")
+
+# Deliberately absent: ANY_INT, ANY_LIST. A number or list the test cannot own is almost
+# always one the test should have constructed, and a broad matcher re-opens the hole
+# `exclude` left. Add a narrow AnyMatching instead of widening this set. ANY_STRING above is
+# the one sanctioned exception, and only when used together with its own follow-up assertion.
 
 
 def assert_model_equal(actual: BaseModel, expected: BaseModel, *, _path: str = "") -> None:
