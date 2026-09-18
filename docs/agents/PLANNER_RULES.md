@@ -10,11 +10,13 @@
 - **Deliverable Contract:** No source files edited. The plan document in .agentic/plan.md is the entire deliverable.
 - **Validation Check:** Verify git status after planning shows only .agentic/plan.md created.
 
-```markdown
 <!-- ✅ POSITIVE EXAMPLE -->
+```markdown
 # Agent reads files and gh issues, then writes only to .agentic/plan.md
+```
 
 <!-- ❌ NEGATIVE EXAMPLE -->
+```markdown
 # Agent runs `inv test` or edits `src/worktree/cli/app.py` while planning
 ```
 
@@ -25,11 +27,13 @@
 - **Deliverable Contract:** An empty .agentic/ directory prior to writing the new plan.
 - **Validation Check:** Check that .agentic/ contains no plan.md, master-plan.md, review.md, or review.json when a new plan is generated.
 
-```markdown
 <!-- ✅ POSITIVE EXAMPLE -->
+```markdown
 rm -rf .agentic && mkdir -p .agentic
+```
 
 <!-- ❌ NEGATIVE EXAMPLE -->
+```markdown
 rm -f .agentic && mkdir -p .agentic  # fails on a directory, mkdir never runs, nothing is cleared
 ```
 
@@ -40,13 +44,15 @@ rm -f .agentic && mkdir -p .agentic  # fails on a directory, mkdir never runs, n
 - **Deliverable Contract:** Section '## Contract' containing exact FR/NFR IDs and verbatim requirement text.
 - **Validation Check:** Diff issue text against plan contract section. Flag any dropped clause or paraphrase.
 
-```markdown
 <!-- ✅ POSITIVE EXAMPLE -->
+```markdown
 ## Contract
 - **FR-1**: Add `wt sandbox prune` command to remove unreferenced sandboxes.
 - **FR-2**: Prune operation must delete worktree branches matching `worktree/sandbox-*`.
+```
 
 <!-- ❌ NEGATIVE EXAMPLE -->
+```markdown
 ## Contract
 We will implement sandbox pruning for stale directories.
 ```
@@ -58,14 +64,16 @@ We will implement sandbox pruning for stale directories.
 - **Deliverable Contract:** Pre-determined data reproduced identically under '## Contract'.
 - **Validation Check:** Verify all field names, types, and defaults in code samples match the issue's Pre-determined data.
 
-```markdown
 <!-- ✅ POSITIVE EXAMPLE -->
+```markdown
 ### Pre-determined data
 - Model: `SandboxPruneResult`
 - Field: `pruned_items: list[str] = []`
 - Exit code on error: `1`
+```
 
 <!-- ❌ NEGATIVE EXAMPLE -->
+```markdown
 # Plan renames `pruned_items` to `deleted_sandboxes` because it sounds "better"
 ```
 
@@ -76,13 +84,15 @@ We will implement sandbox pruning for stale directories.
 - **Deliverable Contract:** Subsection '### Out of scope (verbatim from the issue)' containing exact bullet points.
 - **Validation Check:** Verify that all items marked out of scope are explicitly listed and omitted from artifact inventory.
 
-```markdown
 <!-- ✅ POSITIVE EXAMPLE -->
+```markdown
 ### Out of scope (verbatim from the issue)
 - Interactive confirmation prompt before pruning
 - Pruning sandboxes on remote git repositories
+```
 
 <!-- ❌ NEGATIVE EXAMPLE -->
+```markdown
 # Omitting Out of scope section or planning an interactive confirmation prompt
 ```
 
@@ -93,32 +103,39 @@ We will implement sandbox pruning for stale directories.
 - **Deliverable Contract:** Direct replacements planned; zero shims or legacy fallback adapters in artifact inventory.
 - **Validation Check:** Check artifact inventory for compatibility wrappers or fallback flags.
 
-```markdown
 <!-- ✅ POSITIVE EXAMPLE -->
+```markdown
 # Plan directly replaces SandboxService.delete() with unified lifecycle pruner
+```
 
 <!-- ❌ NEGATIVE EXAMPLE -->
+```markdown
 # Plan introduces `LegacySandboxService` and adds deprecation warning shims
 ```
 
 ## [PLAN-007] Tree Grounding and Neighbor Mirroring
 - **Phase:** `Grounding & Traps`
 - **Scope:** `## Current state section in .agentic/plan.md`
-- **Requirement:** Never plan from memory. Read always-on docs, inspect live domain source files, and name the closest existing implementation you will mirror with exact file:line citations.
-- **Deliverable Contract:** Ground-truth table with columns | Surface | Location | What exists today |, plus explicit 'Pattern to mirror: <path:line>'.
-- **Validation Check:** Verify cited file:line citations exist in the live codebase and match cited functionality.
+- **Requirement:** Never plan from memory: read live domain source and name the closest existing implementation to mirror with exact file:line citations. Reproduce a mirrored symbol's shape as signature + docstring only, never its full body.
+- **Deliverable Contract:** Ground-truth table with columns | Surface | Location | What exists today |, plus explicit 'Pattern to mirror: <path:line>', with any reproduced symbol shown as signature + docstring only.
+- **Validation Check:** Verify cited file:line citations exist and match cited functionality; flag any quoted body, helper internals, or file dump beyond a signature and docstring.
 
-```markdown
 <!-- ✅ POSITIVE EXAMPLE -->
+```markdown
 ## Current state
 | Surface | Location | What exists today |
 | CLI app | `src/worktree/cli/sandbox/app.py:24` | Typer app registering sandbox subcommands |
 | Lifecycle | `src/worktree/core/sandbox/services/lifecycle.py:80` | `delete_sandbox` method |
 
 **Pattern to mirror:** `src/worktree/cli/config/commands/config_set.py:30`
+```python
+def config_set_command(context: CliContext, key: str, value: str) -> ConfigSetResult: """Set a single config key and persist it to the active scope."""
+```
+```
 
 <!-- ❌ NEGATIVE EXAMPLE -->
-# Plan designs new command from scratch without citing existing neighbor commands
+```markdown
+# Plan pastes the full 40-line body of config_set_command instead of its signature + docstring
 ```
 
 ## [PLAN-008] Trap Identification and Isolation
@@ -128,30 +145,34 @@ We will implement sandbox pruning for stale directories.
 - **Deliverable Contract:** Subsection '**Traps (explicitly not touched):**' naming specific symbols and paths.
 - **Validation Check:** Verify known hazards (e.g. core/runtime/engine.py vs core/engine/engine.py) are trapped when touched.
 
-```markdown
 <!-- ✅ POSITIVE EXAMPLE -->
+```markdown
 **Traps (explicitly not touched):**
 - `core/runtime/engine.py`: Do not import Engine from here (that is `run_steps`). Engine lives in `core/engine/engine.py`.
 - Stale doc claim in `schemas.md` §4 mentioning `renderers.py`: Do not create `renderers.py`.
+```
 
 <!-- ❌ NEGATIVE EXAMPLE -->
+```markdown
 # Plan fails to warn implementer about known naming collision or dead code
 ```
 
 ## [PLAN-009] Complete Artifact Inventory and Deletion Ledger
 - **Phase:** `Artifact Inventory`
 - **Scope:** `## Artifact inventory section in .agentic/plan.md`
-- **Requirement:** Produce an inventory with one row per file touched: | Artifact | Kind | Path | New or changed | Requirement |. No row may say 'e.g.' or 'etc.'. Walk the artifact checklist and write 'none' explicitly for untouched kinds. Follow it with a deletion ledger, one row per removal: | Path or symbol | Why it goes | Replaced by |, covering superseded code paths (COMPAT-002), tests that duplicate a contract asserted elsewhere (TEST-004), and harness symbols whose only caller would be their own verification test (TEST-013). A change that deletes nothing states 'Deletes nothing: greenfield' explicitly, so the omission is a decision rather than an oversight. Deletions are executed in the same change set as the code that supersedes them, and never recorded as a negative existence test (TEST-009).
+- **Requirement:** Produce an inventory (Artifact | Kind | Path | New or changed | Requirement), one row per touched file, writing 'none' explicitly for every untouched kind. Follow it with a deletion ledger (Path or symbol | Why it goes | Replaced by) covering superseded paths (COMPAT-002), duplicate tests (TEST-004), and dead harness symbols (TEST-013), executed in the same change set — or state 'Deletes nothing: greenfield'.
 - **Deliverable Contract:** Markdown inventory table followed by 'Not needed for this issue: <kinds>', then a deletion ledger table or the explicit 'Deletes nothing: greenfield' line.
-- **Validation Check:** Check that every touched file maps to a requirement, every unused artifact kind is listed under 'Not needed', and the deletion ledger is present with either rows or the explicit greenfield statement.
+- **Validation Check:** Check every touched file maps to a requirement, every unused artifact kind is listed under 'Not needed', and the deletion ledger has rows or the explicit greenfield line.
 
-```markdown
 <!-- ✅ POSITIVE EXAMPLE -->
+```markdown
 ## Deletion ledger
 | Path or symbol | Why it goes | Replaced by |
 | `tests/cli/commands/test_config.py::ConfigShowRootTests` | pass-through handler restating a domain contract | `tests/core/config/test_loader.py` |
+```
 
 <!-- ❌ NEGATIVE EXAMPLE -->
+```markdown
 # Inventory lists 9 new files and says nothing about what they supersede
 ```
 
@@ -162,7 +183,6 @@ We will implement sandbox pruning for stale directories.
 - **Deliverable Contract:** Fully typed models, signatures, and literal dictionaries in code blocks.
 - **Validation Check:** Verify contract code blocks leave no ambiguous types, missing defaults, or unspecified flags.
 
-```markdown
 <!-- ✅ POSITIVE EXAMPLE -->
 ```python
 class SandboxPruneStatus(StrEnum):
@@ -183,53 +203,56 @@ class SandboxPruneResult:
     # fields for status and pruned items
     pass
 ```
-```
 
-## [PLAN-011] Signature Plus Pseudo-Code for Imperative Bodies
+## [PLAN-011] Signature Plus Intent Docstring for Production Stubs
 - **Phase:** `Specification & Samples`
 - **Scope:** `### Code section in .agentic/plan.md`
-- **Requirement:** Write real signature, real docstring, and numbered pseudo-code steps in comments ending with `raise NotImplementedError` for production imperative bodies. For test method bodies, setup steps may be outlined in comments, but all assertions on results, models, or command outputs must be written as literal Python code using `assert_model_equal(...)` or whole-dictionary equality. Banned in test stubs: conversational assertions ('verify status is OK'), bare `assert result.exit_code == 0`, piecewise attribute checks, or using `exclude` in `assert_model_equal` on deterministic fields (e.g. `exclude={"errors"}`).
-- **Deliverable Contract:** Production function stubs with signatures, docstrings, numbered steps in comments, and `raise NotImplementedError`. Test stubs with signatures, docstrings, setup comments, literal whole-object assertions, and `raise NotImplementedError`.
-- **Validation Check:** Ensure imperative production methods end with `raise NotImplementedError` and are not fully implemented. Ensure test stubs contain literal whole-object assertions rather than loose conversational comments or lazy exclusions.
+- **Requirement:** Write only a real signature and a one-line docstring stating intent for every planned production function, ending with `raise NotImplementedError`. No numbered steps, no body code — the docstring says what the function does, not how, and adds nothing beyond what the signature and name don't already say.
+- **Deliverable Contract:** Signature + one-line intent docstring + `raise NotImplementedError` — no steps, no body.
+- **Validation Check:** Flag any production stub with numbered steps, setup comments, or body code beyond the docstring, and any docstring that narrates implementation steps instead of stating intent.
 
-```markdown
 <!-- ✅ POSITIVE EXAMPLE -->
 ```python
-# Production stub:
 def prune_sandboxes(db: SandboxesRepository, cwd: Path) -> SandboxPruneResult:
-    """Prune unreferenced git worktree sandboxes.
-
-    Args:
-        db: Isolated sandboxes repository slice.
-        cwd: Target workspace root directory.
-    """
-    # 1. Query active sandboxes from db
-    # 2. Inspect on-disk sandboxes under .worktree/sandboxes/
-    # 3. Delete unreferenced worktrees and git branches
-    # 4. Return SandboxPruneResult with status=OK
-    raise NotImplementedError
-
-# Test stub:
-def test_prune_empty_returns_nothing_to_prune(self, isolated_workspace: Path) -> None:
-    """Prune returns NOTHING_TO_PRUNE when sandboxes directory is empty."""
-    # 1. Build context with clean workspace
-    # 2. Call prune_sandboxes
-    assert_model_equal(
-        result,
-        SandboxPruneResult(status=SandboxPruneStatus.NOTHING_TO_PRUNE, pruned_items=[]),
-    )
+    """Delete unreferenced sandbox worktrees and branches under cwd."""
     raise NotImplementedError
 ```
 
 <!-- ❌ NEGATIVE EXAMPLE -->
 ```python
-# ❌ Test stub with informal comments or lazy exclude:
-def test_prune(self):
-    # 1. Run prune
-    # 2. Assert exit_code == 0 and status is ok
-    assert_model_equal(result, expected, exclude={"errors"})
+def prune_sandboxes(db: SandboxesRepository, cwd: Path) -> SandboxPruneResult:
+    """Prune sandboxes.
+
+    1. Query active sandboxes from db
+    2. Diff against on-disk worktrees
+    3. Delete unreferenced ones
+    """
     raise NotImplementedError
 ```
+
+## [PLAN-018] Signature-Only Test Stubs, Docstring Only Where the Name Can't Carry It
+- **Phase:** `Specification & Samples`
+- **Scope:** `### Code section in .agentic/plan.md`
+- **Requirement:** Write only a signature for every planned test, ending with `raise NotImplementedError`; the test name alone should state what's being verified. Add a docstring only when the name can't carry the exact outcome, and state that outcome as precisely as a literal assertion would (exact status/fields/exit code/wire dict) — never a vague or piecewise gloss.
+- **Deliverable Contract:** Signature + `raise NotImplementedError`, with a docstring added only when the test name alone doesn't state the exact expected outcome.
+- **Validation Check:** Flag any test stub with numbered steps, setup comments, or literal assertion code. Flag a docstring redundant with an already-descriptive name, and flag a missing docstring where the name alone can't distinguish the case (e.g. a specific partial-failure shape).
+
+<!-- ✅ POSITIVE EXAMPLE -->
+```python
+def test_prune_empty_returns_nothing_to_prune(isolated_workspace: Path) -> None:
+    raise NotImplementedError
+
+
+def test_prune_partial_failure_lists_errors_but_deletes_succeeded_items(isolated_workspace: Path) -> None:
+    """Result has succeeded_items=["a", "b"] and errors=["c: permission denied"] when c fails and a, b succeed."""
+    raise NotImplementedError
+```
+
+<!-- ❌ NEGATIVE EXAMPLE -->
+```python
+def test_prune_empty_returns_nothing_to_prune(isolated_workspace: Path) -> None:
+    """Prune returns NOTHING_TO_PRUNE when sandboxes directory is empty."""  # redundant with the name
+    raise NotImplementedError
 ```
 
 ## [PLAN-012] Pre-Decomposed Complexity
@@ -239,34 +262,38 @@ def test_prune(self):
 - **Deliverable Contract:** Multiple focused function signatures with single responsibilities rather than one large function.
 - **Validation Check:** Verify no single planned function contains more than 3 branching levels or complex nested loops.
 
-```markdown
 <!-- ✅ POSITIVE EXAMPLE -->
+```markdown
 def prune_stale_records(db: SandboxesRepository) -> list[str]: ...
 def prune_orphaned_directories(sandboxes_dir: Path) -> list[str]: ...
 def prune_sandboxes(...) -> SandboxPruneResult: ...
+```
 
 <!-- ❌ NEGATIVE EXAMPLE -->
+```markdown
 # Single 80-line function planned to do querying, directory diffing, git branch deleting, and error handling
 ```
 
 ## [PLAN-013] Test Ledger Specification
 - **Phase:** `Test Strategy`
 - **Scope:** `### Tests section in .agentic/plan.md`
-- **Requirement:** Specify planned tests as a ledger with one row per test file: | Path | Est. lines | Contract pinned | Nearest existing coverage | Verdict |. Path must satisfy the TEST-002 mappings, with no part-numbered or grab-bag files, and is what a directory-scoped run selects (pytest tests/core/, pytest tests/cli/). Est. lines keeps the change reviewable under PLAN-017. Nearest existing coverage is the result of grepping the suite for a test already pinning that contract; when one exists the verdict is redundant-dropped and the row stays as the record of the decision. A second CLI tier is specified only where TEST-004 earns it: a pass-through handler gets no root test, and no row may restate a contract already asserted under tests/core/ for the same result type. Assertions on returned models or event payloads must specify whole-object comparison (assert_model_equal(result, ExpectedModel(...)) or assert json.loads(res.stdout) == expected_dict), never piecewise field checks, bare attribute assertions, or any waiver expressed outside the comparison; per TEST-007 the expected object names every field, and a value the test cannot own is stated as a matcher at that field's position. Assertions against panel titles, status labels, captions, prose, or glyphs in a formatter test under tests/cli/ui/formatters/ are restricted to values carried by the view model (TEST-012); a CLI runner test under tests/cli/commands/ may assert rendered output directly (TEST-017). Never say 'Assert it works'. Any test whose assertion is the absence of violations must specify a companion negative fixture test and a non-empty collection assertion (CI-004).
-- **Deliverable Contract:** Markdown ledger: | Path | Est. lines | Contract pinned | Nearest existing coverage | Verdict |.
-- **Validation Check:** Check that every row resolves under the TEST-002 mapping, states an exact assertion contract with zero piecewise checks or lazy exclusions, records the existing-coverage search, and that every planned enforcement test names its negative fixture.
+- **Requirement:** Specify planned tests as a ledger (Path | Est. lines | Contract pinned | Nearest existing coverage | Verdict), one row per test file, Path following the TEST-002 mapping. Contract pinned states the exact outcome in prose — every field the test owns, named with its value, never vague or piecewise — and Nearest existing coverage marks 'redundant-dropped' when a test already pins that contract.
+- **Deliverable Contract:** Markdown ledger: | Path | Est. lines | Contract pinned | Nearest existing coverage | Verdict |, with Contract pinned as a prose statement of the exact outcome — the same outcome the paired test stub's name or docstring states under PLAN-018.
+- **Validation Check:** Check every row resolves under TEST-002, states an exact outcome in prose with zero vague or piecewise phrasing, records the existing-coverage search, and names a negative fixture for any enforcement test (CI-004).
 
-```markdown
 <!-- ✅ POSITIVE EXAMPLE -->
+```markdown
 ### Test ledger
 | Path | Est. lines | Contract pinned | Nearest existing coverage | Verdict |
-| `tests/core/bootstrap/test_initialize.py` | 120 | `assert_model_equal(result, InitResult(status=NOT_A_GIT_REPO, created=[]))` | none found | new |
-| `tests/cli/commands/test_init.py` | 90 | `assert json.loads(res.stdout) == expected_wire_dict` | none found | new |
+| `tests/core/bootstrap/test_initialize.py` | 120 | NOT_A_GIT_REPO abort returns InitResult(status=NOT_A_GIT_REPO, created=[]) | none found | new |
+| `tests/cli/commands/test_init.py` | 90 | stdout JSON equals the literal init wire dict for a fresh repo | none found | new |
 | `tests/cli/commands/test_config.py::ConfigShowRootTests` | - | ConfigLoadResult shape | `tests/core/config/test_loader.py` | redundant-dropped |
+```
 
 <!-- ❌ NEGATIVE EXAMPLE -->
+```markdown
 | Test | Path | Exact assertion |
-| Test pruning | tests/test_prune.py | assert_model_equal(result, Expected(...), exclude={"errors"}) |
+| Test pruning | tests/test_prune.py | checks that pruning works, ignoring errors field |
 ```
 
 ## [PLAN-014] Flagging Unspecified Decisions with 🚨
@@ -276,11 +303,13 @@ def prune_sandboxes(...) -> SandboxPruneResult: ...
 - **Deliverable Contract:** Decision bullet: - **<point>:** <choice>, because <reason>. Rejected: <alt>. 🚨.
 - **Validation Check:** Verify all unspecified assumptions are flagged with 🚨 in the plan and restated in the agent handoff message.
 
-```markdown
 <!-- ✅ POSITIVE EXAMPLE -->
+```markdown
 - **Prune branch deletion policy:** Delete local branches matching `worktree/sandbox-*` automatically, because active sandboxes track branches 1:1. Rejected: prompt user for each branch. 🚨
+```
 
 <!-- ❌ NEGATIVE EXAMPLE -->
+```markdown
 # Silent design choice made without recording alternative or flagging with 🚨
 ```
 
@@ -291,43 +320,44 @@ def prune_sandboxes(...) -> SandboxPruneResult: ...
 - **Deliverable Contract:** File written to .agentic/plan.md. Agent turn terminates without executing implementation commands.
 - **Validation Check:** Ensure the agent does not immediately proceed to invoke /wt-code or edit production files.
 
-```markdown
 <!-- ✅ POSITIVE EXAMPLE -->
+```markdown
 "Plan saved to .agentic/plan.md. Planning only; nothing was implemented or committed.
 Open decisions requiring confirmation:
 - 🚨 Prune branch deletion policy: auto-delete worktree/sandbox-* branches."
+```
 
 <!-- ❌ NEGATIVE EXAMPLE -->
+```markdown
 "Plan written. Now I will start writing the code..."
 ```
 
-## [PLAN-016] Item-by-Item Checklist Compliance Audit
+## [PLAN-016] Pre-Handoff Checklist Compliance Sweep
 - **Phase:** `Pre-Handoff Self-Audit`
-- **Scope:** `## Architectural Context & Boundary Check in .agentic/plan.md`
-- **Requirement:** Before finalizing .agentic/plan.md, sweep docs/agents/REVIEW_CHECKLIST.json item by item for all rules matching touched paths or domains, and record each in a required '### Rule Evaluation Matrix' table with columns | Rule ID | Clause | Severity | Status | Evidence (quoted) |. Four requirements make the sweep real. First, decompose a multi-clause rule into one row per clause: TEST-007 carries three (whole-object comparison, exclude restricted to non-deterministic fields, separate presence assertions for excluded fields), and a single row hides two of them. Second, status is PASS, FAIL, or N/A; FAIL is a permitted and expected interim value, and every FAIL is resolved in the plan before saving, so the saved plan carries zero. A matrix that can only say PASS or N/A audits nothing. Third, evidence quotes the plan's own stub or section verbatim; restating the rule is not evidence, and the phrases 'follows the pattern', 'complies', 'contract-based', and 'uses assert_model_equal' are prohibited because they read identically against a violating plan. N/A names why the scope does not match. Fourth, for every BLOCKER clause, write the one sentence a reviewer would use to fail the plan, then either fix the plan or record why the sentence does not hold; a self-audit with no adversarial step approves itself.
-- **Deliverable Contract:** Required '### Rule Evaluation Matrix' subsection covering every matching rule clause with PASS, FAIL, or N/A status and quoted evidence, zero FAIL rows remaining at save time, plus the adversarial sentence for each BLOCKER clause.
-- **Validation Check:** Verify the matrix covers all matching rules clause by clause, that each PASS quotes a literal line from the plan rather than paraphrasing the rule, that no FAIL row remains, and that each BLOCKER clause carries its adversarial sentence.
+- **Scope:** `Entire .agentic/plan.md, checked before saving`
+- **Requirement:** Before finalizing .agentic/plan.md, sweep docs/agents/REVIEW_CHECKLIST.json for every rule matching the touched paths or domains and verify the plan itself satisfies every applicable BLOCKER clause — reread the actual planned imports, paths, and stubs against each clause, not a restatement of the rule. Fix any violation in the plan before saving. This is a save gate, not a written report: no compliance table belongs in .agentic/plan.md.
+- **Deliverable Contract:** Zero BLOCKER-severity violations in the saved plan. No Rule Evaluation Matrix or other compliance table in .agentic/plan.md — the plan's own content is the evidence.
+- **Validation Check:** Re-derive which REVIEW_CHECKLIST.json rules match the touched paths and spot-check the saved plan against each BLOCKER clause directly (e.g. reread Phase 2 imports for ARCH-001, reread ledger paths for TEST-002). Flag anything the agent could only justify by restating the rule rather than pointing at the plan's own text.
 
-```markdown
 <!-- ✅ POSITIVE EXAMPLE -->
-### Rule Evaluation Matrix
-| Rule ID | Clause | Severity | Status | Evidence (quoted) |
-| `TEST-007` | exclude restricted to non-deterministic fields | SUGGESTION | FAIL -> fixed | Phase 4 stub read `assert_model_equal(result, expected, exclude={"errors"})`; rewritten to carry expected errors per parameter case |
-| `TEST-002` | path mirrors source module | BLOCKER | PASS | Ledger row 3 is `tests/cli/ui/formatters/status/test_status.py` for `cli/ui/formatters/status/status.py` |
+```markdown
+Before saving, reread the Phase 2 service stub and confirmed it imports only from common/ and core/sandbox/ (ARCH-001), and reread the ledger path against the TEST-002 mapping — no BLOCKER violated, plan saved with no compliance table.
+```
 
 <!-- ❌ NEGATIVE EXAMPLE -->
-| `TEST-007` | Whole Object Comparison | SUGGESTION | PASS | Uses assert_model_equal on whole ConfigLoadResult |
+```markdown
+# Plan asserts "Complies with ARCH-001, TEST-002" without rereading the actual planned imports or paths
 ```
 
 ## [PLAN-017] Test Ticket Scope Contract
 - **Phase:** `Test Strategy`
 - **Scope:** `Any issue whose deliverable is test files`
-- **Requirement:** A ticket delivering tests must declare, before implementation, the exact test file paths conforming to the TEST-002 mappings, a line budget inside the 100 to 250 range with a split plan when the estimate exceeds it, and the rule IDs the work is graded against. Scope stated as a list of test method names without paths is not a specification.
-- **Deliverable Contract:** The In scope section lists one bullet per test file as path and estimated lines, followed by the contracts asserted in that file. The Definition of Done cites the rule IDs and names the formatter test or domain test that owns any behavior deliberately not covered here.
+- **Requirement:** A ticket delivering tests must declare, before implementation, the exact test file paths per the TEST-002 mapping, a line budget of 100–250 with a split plan if exceeded, and the rule IDs it's graded against. A list of test method names without paths is not a specification.
+- **Deliverable Contract:** In scope lists one bullet per test file (path + estimated lines + contracts asserted); Definition of Done cites the graded rule IDs and names what's deliberately not covered here.
 - **Validation Check:** Every declared path resolves under the TEST-002 mapping for its source module, and the summed line estimate stays within budget or carries a split plan.
 
-```markdown
 <!-- ✅ POSITIVE EXAMPLE -->
+```markdown
 ### In scope
 - `tests/core/bootstrap/test_initialize.py` (~120 lines): preflight failure modes,
   zero-side-effect abort, idempotent rerun
@@ -335,8 +365,10 @@ Open decisions requiring confirmation:
 
 ### Rules
 TEST-002, TEST-004, TEST-017
+```
 
 <!-- ❌ NEGATIVE EXAMPLE -->
+```markdown
 ### In scope
 - Create tests for init covering the happy path and some failure cases
 - Add CLI tests for every action with RootTests and CliIntegrationTests

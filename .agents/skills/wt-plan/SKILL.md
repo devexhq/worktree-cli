@@ -49,7 +49,7 @@ Do not write or modify implementation code during planning. Your role is purely 
 4. **Grep and inspect existing usage:**
    - Check existing signatures, call sites, and tests before planning renames or deletions.
    - Read domain files touched: `models.py`, `exceptions.py`, domain entrypoint `<domain>.py`, `services/`, CLI package, formatters under `cli/ui/formatters/<domain>/`, and mirrored tests.
-   - Name the closest existing pattern to mirror with `file:line` citations.
+   - Name the closest existing pattern to mirror with `file:line` citations. When the plan reproduces a mirrored symbol's shape for reference, quote only its **signature and docstring** — never its full body or a file dump; the `file:line` citation already points to the implementation.
    - Note known traps to avoid, marked explicitly out of scope.
 
 5. **Resolve claimed enforcements** (`DOC-008`, `DOC-005`):
@@ -68,9 +68,8 @@ Format every implementation plan directly in `.agentic/plan.md` using this scaff
 - **Target files and modules:** files to add, update, or remove.
 - **Relevant rule IDs:** affected rules from `REVIEW_CHECKLIST.json`.
 - **Invariants to preserve:** dependency boundaries and contracts that must remain intact.
-- **Ground truth and neighbor to mirror:** citation of the existing pattern being mirrored (`file:line`) and known traps marked out of scope.
+- **Ground truth and neighbor to mirror:** citation of the existing pattern being mirrored (`file:line`), with any reproduced symbol quoted as signature + docstring only, and known traps marked out of scope.
 - **Doctrine defects:** unresolved enforcement claims or missing documented symbols, or `none`.
-- **Rule evaluation matrix:** audit of matching rules against planned contracts.
 
 ### Artifact inventory
 Enumerate every file touched (one row per file; write `none` explicitly for unneeded artifact kinds):
@@ -91,12 +90,13 @@ Required by `PLAN-013`. One row per test file:
 
 | Path | Est. lines | Contract pinned | Nearest existing coverage | Verdict |
 |---|---|---|---|---|
-| `tests/core/bootstrap/test_initialize.py` | 120 | `NOT_A_GIT_REPO` abort creates zero files | none found | new |
-| `tests/cli/commands/test_init.py` | 90 | exit codes, `--format json` payload, `--force` | none found | new |
+| `tests/core/bootstrap/test_initialize.py` | 120 | `NOT_A_GIT_REPO` abort returns `InitResult(status=NOT_A_GIT_REPO, created=[])` | none found | new |
+| `tests/cli/commands/test_init.py` | 90 | stdout JSON equals the literal init wire dict for a fresh repo | none found | new |
 
 Rules for this table:
 - **Path** must mirror source module (`TEST-002`). No part-numbered or grab-bag files.
 - **Est. lines** keeps the change reviewable (`PLAN-017`). Total planned diff over 250 lines requires a stated split into separate mergeable PRs.
+- **Contract pinned** is a prose statement of the exact outcome (exact status/field values, exit code, or wire dict), naming every field the test owns — matching the paired test stub's docstring in `### Code`. Never a vague label (`works correctly`) or a piecewise description (`checks exit code`).
 - **Nearest existing coverage:** if existing tests already pin the contract, verdict is `redundant-dropped`. Under `TEST-004`, pass-through handlers get no root test.
 
 ### Deletion ledger
@@ -131,17 +131,17 @@ Target doc updates matching `AGENTS.md` gates, plus any resolved doctrine defect
 ## 3. Code sample rules
 
 - **Contracts get literal code:** Models, enums, DTOs with every field, type, and default. Method signatures with full type annotations. Typer declarations with exact flag names. Exact JSON payload dictionaries.
-- **Imperative logic:** Signatures with concise numbered steps describing the flow. Do not write full placeholder stubs.
-- **Tests:** State exact assertions using whole-object comparison or exact literal wire dicts (`TEST-007`, `TEST-010`).
+- **Production stubs:** Signature plus a one-line intent docstring, ending with `raise NotImplementedError` — no numbered steps, no body of any kind (`PLAN-011`). The docstring says what the function does, not how; it adds nothing the signature and name don't already say.
+- **Test stubs:** Signature only, ending with `raise NotImplementedError` — the test name alone should state what's verified. Add a docstring only when the name can't carry the exact outcome, and state that outcome as precisely as a literal assertion would: every field the test owns, named with its value (`PLAN-018`).
 
-Banned in test plans (`TEST-007`, `TEST-010`, `PLAN-013`):
-- Conversational assertion comments (`# verify status ok`), partial attribute assertions, and piecewise dictionary lookups (`json["payload"]["status"] == "ok"`). Assertions compare complete models or wire payloads.
-- Exclusion parameters (`exclude={...}`) on deterministic fields. Inject clock or ID factories at seams (`TEST-011`). When dynamic fields cannot be injected, use positional matchers (`ANY_DATETIME`, `ANY_UUID`).
+Banned in test docstrings and test-ledger `Contract pinned` cells (`TEST-007`, `TEST-010`, `PLAN-018`, `PLAN-013`):
+- Conversational vagueness (`"""Verifies pruning works."""`) and piecewise framing (`"""Checks exit code is 0."""`, `"""Checks status is ok."""`). State the exact outcome as whole-model or whole-dict terms would: every field named with its value.
+- A docstring redundant with an already-descriptive test name (`PLAN-018`), or one that silently drops a field the test owns. A value the test cannot own (a dynamic timestamp, a random UUID) is named explicitly as a matcher (`ANY_DATETIME`, `ANY_UUID`), never omitted.
 
 Presentation and CLI test boundaries (`TEST-012`, `TEST-017`):
-- In `tests/cli/ui/formatters/`, assert view model semantic values, not panels, borders, or layout padding (`TEST-012`).
-- In `tests/cli/commands/`, rendered CLI output may be asserted directly.
-- Never assert CLI help text strings: assert registration and option names via Click metadata instead (`TEST-017`).
+- In `tests/cli/ui/formatters/`, the stated outcome (name or docstring) names view model semantic values, not panels, borders, or layout padding (`TEST-012`).
+- In `tests/cli/commands/`, the stated outcome may name rendered CLI output directly.
+- Never state a CLI help text string as the outcome: name registration and option names via Click metadata instead (`TEST-017`).
 
 Enforcement checkers (`CI-004`):
 Any test asserting "no violations found" must include:
@@ -154,21 +154,9 @@ Any test asserting "no violations found" must include:
 2. If a contract detail is unspecified, select the option consistent with the nearest existing pattern, record the rationale and rejected alternative, and append 🚨.
 3. Clarify with the user if a major design tradeoff requires confirmation.
 
-## 5. Pre-handoff rule compliance audit (`PLAN-016`)
+## 5. Pre-handoff checklist sweep (`PLAN-016`)
 
-Before finalizing `.agentic/plan.md`, audit the plan against `docs/agents/REVIEW_CHECKLIST.json` for rules matching the touched paths or domains:
-
-1. **Scope the checklist:** Filter checklist rules by touched domains (`ARCH-*`, `FS-*`, `RENDER-*`, `TEST-*`, etc.).
-2. **Audit BLOCKER clauses:** Verify that planned architecture, types, and test contracts satisfy all applicable blocker rules.
-3. **Record in the Rule Evaluation Matrix:**
-
-| Rule ID | Clause | Severity | Status | Evidence / Compliance Note |
-|---|---|---|---|---|
-| `ARCH-001` | Dependency import direction | BLOCKER | PASS | Core service imports only from `common/` and internal core domain; no imports from `cli/` |
-| `TEST-002` | Path mirrors source module | BLOCKER | PASS | Ledger places test at `tests/core/config/test_loader.py` |
-
-- Status must be `PASS` or `N/A` (with reason) at handoff; any interim failure must be resolved in the plan before saving.
-- Evidence notes must cite the concrete design choice or path.
+Before saving, sweep `docs/agents/REVIEW_CHECKLIST.json` for every rule matching the touched paths or domains and verify the plan itself satisfies every applicable BLOCKER clause — reread the actual planned imports, paths, and stubs against each clause, not a restatement of the rule. Fix any violation in the plan before saving. This is a save gate: it produces no written table or report in `.agentic/plan.md`, only a plan with zero BLOCKER violations.
 
 ## 6. Save and hand off
 
@@ -193,8 +181,8 @@ Cite a rule ID only from this list. Every ID here is defined in `docs/agents/rul
 | Grounding, traps, doctrine defects | `PLAN-007`, `PLAN-008`, `DOC-008`, `DOC-005` |
 | Artifact inventory and deletion ledger | `PLAN-009`, `COMPAT-002`, `TEST-013`, `TEST-009` |
 | Test ledger | `PLAN-013`, `PLAN-017`, `TEST-002`, `TEST-004` |
-| Code sample rules | `PLAN-010`, `PLAN-011`, `PLAN-012`, `TEST-007`, `TEST-010`, `TEST-011`, `TEST-001`, `TEST-017`, `TEST-012`, `CI-004` |
+| Code sample rules | `PLAN-010`, `PLAN-011`, `PLAN-018`, `PLAN-012`, `TEST-007`, `TEST-010`, `TEST-011`, `TEST-001`, `TEST-017`, `TEST-012`, `CI-004` |
 | Ambiguity gate and handoff | `PLAN-014`, `PLAN-015` |
-| Rule evaluation matrix | `PLAN-016` |
+| Pre-handoff checklist sweep | `PLAN-016` |
 
 The ban on running validating tooling during planning is skill-owned (`PLAN-001` covers read-only discipline; see Hard boundaries for the command list).

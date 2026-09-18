@@ -74,7 +74,10 @@ Never plan against a memory of how the codebase works. Read it.
    `ConfigSetFormatter`
    (`src/worktree/cli/ui/formatters/config/config_set.py`) -> registration in
    `src/worktree/cli/ui/formatters/config/__init__.py`. Copying a verified
-   neighbor beats designing from the docs.
+   neighbor beats designing from the docs. When the plan reproduces a mirrored
+   symbol's shape for reference, quote only its **signature and docstring**,
+   never its full body — the `file:line` citation already points to the
+   implementation, so the body adds nothing.
 4. **Verify a doc's field list against the source before you rely on it.** Docs
    here go stale in one specific way: a table hand-copied from a model, then the
    model moved. Spot-check the source. (Known live example: `schemas.md` §4
@@ -190,24 +193,38 @@ class SandboxPruneResult(BaseResult):
     pruned_items: list[str] = []
 ```
 
-**Write signature plus numbered pseudo-code for imperative bodies.** Give the
-real signature and docstring, describe the body as numbered steps in comments,
-and end with `raise NotImplementedError`. The logic is the implementer's job;
-your job is to make the shape, the boundaries, and the order unambiguous.
+**Write signature plus a one-line intent docstring for production stubs.**
+Give the real signature and a docstring that says what the function does, not
+how, then end with `raise NotImplementedError`. No numbered steps, no body
+code of any kind. The docstring adds nothing beyond what the signature and
+name don't already say — it is not a place to restate the exact status/field
+contract (the DTO and enum already pin that); it states intent.
 
 ```python
 def prune_sandboxes(context: CliContext, dry_run: bool = False) -> SandboxPruneResult:
-    """Prune stale sandbox records, orphaned directories, and temporary branches.
+    """Delete stale sandbox records, orphaned directories, and temporary branches."""
+    raise NotImplementedError
+```
 
-    Args:
-        context: CLI context instance.
-        dry_run: When True, report prunable items without deleting anything.
-    """
-    # 1. Load active sandbox records via context.db.sandboxes
-    # 2. Diff records against on-disk worktrees to classify stale vs orphaned
-    # 3. Return status=NOTHING_TO_PRUNE with an empty pruned_items when the diff is empty
-    # 4. When dry_run, populate pruned_items and skip deletion
-    # 5. Delete each item, collecting per-item failures into errors, and return
+**Write signature only for test stubs — add a docstring only when the test
+name can't carry the exact outcome.** A well-named test needs nothing else:
+`test_prune_empty_returns_nothing_to_prune` already states the contract. Reach
+for a docstring only when the name alone would leave the outcome ambiguous
+(a specific partial-failure shape, an exact wire dict), and then state that
+outcome as precisely as a literal assertion would: the exact status enum,
+every field the test owns and its value, the exact exit code, or the exact
+wire dict.
+
+```python
+def test_prune_empty_returns_nothing_to_prune(isolated_workspace: Path) -> None:
+    raise NotImplementedError
+
+
+def test_prune_partial_failure_lists_errors_but_deletes_succeeded_items(
+    isolated_workspace: Path,
+) -> None:
+    """succeeded_items=["a", "b"] and errors=["c: permission denied"] when c fails
+    and a, b succeed."""
     raise NotImplementedError
 ```
 
@@ -215,17 +232,18 @@ Every sample must use absolute `worktree.*` imports at module top level and must
 reference only symbols you actually read in Step 2. A sample that calls a helper
 you did not verify exists is a bug you handed to someone else.
 
-For each planned test, state the **exact contract asserted**: the exact dict for
-JSON output, the exit code, the file or git ref on disk, the `*Result`
-comparison via `assert_model_equal(...)`. "Assert it works" is not a plan.
-**Strictly ban conversational assertion comments** (`# verify status ok`,
-`# assert exit_code == 0`), **piecewise attribute assertions**
-(`assert result.exit_code == 0`, `assert result.status == ...`,
-`res.stdout["payload"]["status"] == ...`), and **lazy exclusions**
-(using `exclude={"errors"}` or `exclude={"config", "raw"}`) in test stubs and test tables.
-All assertions must compare whole models or complete event dictionaries. The `exclude`
-parameter in `assert_model_equal` is strictly reserved for inherently non-deterministic
-values (such as dynamic timestamps or random UUIDs); any excluded field must have its presence asserted separately.
+Whichever carries it — test name or docstring — the outcome must be the
+**exact contract asserted**: the exact dict for JSON output, the exit code,
+the file or git ref on disk, or the exact `*Result` field values (as
+`assert_model_equal(...)` or whole-dict equality would compare them). "Assert
+it works" is not a plan. **Strictly ban conversational vagueness**
+(`"""Verifies pruning works."""`), **piecewise framing**
+(`"""Checks exit code is 0."""`, `"""Checks status is ok."""`), **a docstring
+redundant with an already-descriptive name**, and **silent exclusions** (a
+docstring that omits a field the test owns) in test stubs and test-ledger
+`Contract pinned` cells. The named outcome must cover every field the test
+owns; a value the test cannot own (a dynamic timestamp, a random UUID) is
+called out by name as a matcher, never silently dropped.
 
 ### Plan document template
 
@@ -249,16 +267,9 @@ Planning only, nothing was implemented. Grounded against `<base branch>` at
 |---|---|---|
 | <surface> | `path:line` | <one clause> |
 
-**Pattern to mirror:** <domain path chain, with citations>
+**Pattern to mirror:** <domain path chain, with citations; reproduced symbols shown as signature + docstring only>
 
 **Traps (explicitly not touched):** <dead code, lookalike symbol, stale doc>
-
-### Rule Evaluation Matrix
-
-| Rule ID | Name | Severity | Status | Evidence / Notes |
-|---|---|---|---|---|
-| `TEST-007` | Whole Object Comparison | SUGGESTION | PASS | Stubs write literal assert_model_equal(result, ExpectedResult(...)); zero piecewise attribute asserts |
-| `ARCH-001` | Strict Layered Import Flow | BLOCKER | PASS | Services import only from common and core domains; zero cli imports |
 
 ## Artifact inventory
 
@@ -279,7 +290,7 @@ Not needed for this issue: <kinds from the Step 3 checklist that are "none">
 
 ### Code
 
-<literal contracts; signature-plus-pseudo-code bodies>
+<literal contracts; production stubs as signature + one-line intent docstring; test stubs as signature-only, docstring only where the name can't carry the outcome>
 
 ### Decisions
 
@@ -292,7 +303,7 @@ Not needed for this issue: <kinds from the Step 3 checklist that are "none">
 
 ### Tests
 
-| Test | Tier | Path | Exact assertion |
+| Test | Tier | Path | Exact outcome |
 |---|---|---|---|
 
 ---
@@ -309,6 +320,14 @@ Not needed for this issue: <kinds from the Step 3 checklist that are "none">
 ---
 
 ## Step 5: Save and hand off
+
+Before saving, sweep `docs/agents/REVIEW_CHECKLIST.json` for every rule
+matching the touched paths or domains and verify the plan itself satisfies
+every applicable BLOCKER clause — reread the actual planned imports, paths,
+and stubs against each clause, not a restatement of the rule. Fix any
+violation in the plan itself. This is a save gate, not a written report: no
+compliance table belongs in `.agentic/plan.md`, only a plan with zero BLOCKER
+violations.
 
 Write the plan to `.agentic/plan.md` (`.agentic/` is gitignored, so plans stay
 out of commits). Create the directory if needed. Exactly one plan exists at a
@@ -336,5 +355,8 @@ Do not hand off a plan that fails any of these:
   not-touched.
 - Every planned function decomposes below complexity 10.
 - The validation commands listed are this repo's real ones, not guessed.
-- Every matching rule in `docs/agents/REVIEW_CHECKLIST.json` is audited in the Rule Evaluation Matrix with zero FAIL items.
-- Every test stub in `### Code` and row in `### Tests` specifies literal whole-object comparison via `assert_model_equal(...)` or complete JSON dictionary equality; zero piecewise assertions (`assert result.exit_code == 0`, `assert result.status == ...`, `res.stdout["payload"]["status"] == ...`) and zero usage of `exclude` on deterministic fields.
+- Every rule in `docs/agents/REVIEW_CHECKLIST.json` matching the touched paths or domains was re-checked against the plan's actual content (not restated from memory), with zero BLOCKER violations remaining — and no compliance table was added to the plan to report it.
+- Every production stub in `### Code` is signature + one-line intent docstring + `raise NotImplementedError` only — zero numbered steps or body code.
+- Every test stub in `### Code` is signature-only + `raise NotImplementedError`, with a docstring added only where the name can't carry the exact outcome — zero numbered steps, setup comments, literal assertion code, or docstrings redundant with the name.
+- Every test's stated outcome (name or docstring) and every `### Tests` / test-ledger `Contract pinned` cell states the exact outcome in prose (exact status/field values, exit code, or wire dict), naming every field the test owns; zero vague phrasing (`"""Verifies pruning works."""`), zero piecewise framing (`"""Checks exit code is 0."""`), and zero silently dropped fields.
+- Every "Pattern to mirror" citation that reproduces a symbol's shape quotes only its signature + docstring, never a full body or file dump.
