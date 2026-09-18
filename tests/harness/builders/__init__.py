@@ -1,6 +1,7 @@
 """Fluent test data builders for Worktree CLI test suite."""
 
 from tests.harness.builders.agent import AgentResponseBuilder
+from tests.harness.builders.agent_request import AgentRequestBuilder
 from tests.harness.builders.blueprint import BlueprintBuilder
 from tests.harness.builders.detector import DetectionResultBuilder
 from tests.harness.builders.prune import PruneResultBuilder
@@ -9,6 +10,7 @@ from tests.harness.builders.step import StepBuilder
 from tests.harness.builders.workspace import WorkspaceBuilder
 
 __all__ = [
+    "AgentRequestBuilder",
     "AgentResponseBuilder",
     "BlueprintBuilder",
     "DetectionResultBuilder",
