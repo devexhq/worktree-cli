@@ -84,6 +84,15 @@
       "bad_pattern": "errors.append(self._format_validation_error(path, err))"
     },
     {
+      "id": "RENDER-004",
+      "name": "Domain Shared Table Builders in common.py",
+      "severity": "WARNING",
+      "domain": "cli",
+      "scope": "src/worktree/cli/ui/formatters/",
+      "evaluation_criteria": "When a new or changed formatter defines a table-construction helper, check whether another formatter in the same domain needs the same table shape. Flag a helper duplicated across sibling formatter modules instead of factored into that domain's common.py, and flag a domain-specific helper placed in the package-wide common.py.",
+      "bad_pattern": "# Nearly identical build_table() duplicated in both sandbox/list.py and sandbox/status.py"
+    },
+    {
       "id": "MODEL-001",
       "name": "Scoped Model Exceptions with Justifying Comment",
       "severity": "BLOCKER",
@@ -181,6 +190,15 @@
       "scope": "src/, tests/",
       "evaluation_criteria": "Scan typing annotations for `Generator[...]`. Verify all three parameters are specified (e.g. `Generator[YieldType, SendType, ReturnType]`).",
       "bad_pattern": "def get_session() -> Generator[Session]: ..."
+    },
+    {
+      "id": "TYPE-006",
+      "name": "Scoped Pyright Suppressions With Reason",
+      "severity": "BLOCKER",
+      "domain": "all",
+      "scope": "src/, tests/",
+      "evaluation_criteria": "Grep changed hunks for `# type: ignore` and `# pyright: ignore`. Flag every bare `# type: ignore`. For each `# pyright: ignore[...]`, verify a one-line reason is present and that the case matches one of the three permitted categories; flag any suppression of `reportCallIssue`, `reportArgumentType`, or `reportIncompatibleVariableOverride` that does not match its named exception.",
+      "bad_pattern": "queue: Queue = mock_queue  # type: ignore  # bare ignore, suppresses nothing and hides a fixable fixture type"
     },
     {
       "id": "ENCAP-001",
@@ -451,6 +469,15 @@
       "scope": "tests/cli/commands/",
       "evaluation_criteria": "Scan tests/cli/commands/ for containment or equality checks against stdout or rendered output; any literal assertion, including a snapshot comparison, is permitted. Flag only assertions against help text wording, and name the Click metadata check that should replace them.",
       "bad_pattern": "assert \"Show the current configuration value\" in res.output  # help text wording; assert Click metadata instead"
+    },
+    {
+      "id": "TEST-018",
+      "name": "Test Layer Import Boundary",
+      "severity": "BLOCKER",
+      "domain": "tests",
+      "scope": "tests/core/",
+      "evaluation_criteria": "Scan import statements in changed files under tests/core/. Flag any import of worktree.cli or a submodule of it.",
+      "bad_pattern": "from worktree.cli.sandbox.commands.prune import prune_command  # imported from tests/core/sandbox/test_prune.py"
     },
     {
       "id": "DOC-001",

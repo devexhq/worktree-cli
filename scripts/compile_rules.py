@@ -95,6 +95,26 @@ def generate_review_checklist_json(rules: list[dict[str, Any]]) -> str:
     return json.dumps(audit_data, indent=2) + "\n"
 
 
+def _format_planner_example(example: Any) -> list[str]:
+    """Format a single planner rule example without nesting code fences.
+
+    Some examples in rules_spec.yaml are already fenced ```python blocks; wrapping
+    those in another ```markdown fence breaks out of the outer fence early and
+    corrupts everything rendered after it. Plain (unfenced) examples still get
+    wrapped so they render as a block.
+
+    Args:
+        example: Raw example text from rules_spec.yaml.
+
+    Returns:
+        Markdown lines for this example, fenced only if the source wasn't already.
+    """
+    text = str(example).strip()
+    if text.startswith("```"):
+        return [text]
+    return ["```markdown", text, "```"]
+
+
 def generate_planner_rules_md(planner_rules: list[dict[str, Any]]) -> str:
     """Generate Markdown text for PLANNER_RULES.md.
 
@@ -118,16 +138,14 @@ def generate_planner_rules_md(planner_rules: list[dict[str, Any]]) -> str:
         plan_lines.append(f"- **Requirement:** {rule['requirement']}")
         plan_lines.append(f"- **Deliverable Contract:** {rule['deliverable_contract']}")
         plan_lines.append(f"- **Validation Check:** {rule['validation_check']}")
-        if "positive_example" in rule or "negative_example" in rule:
+        if "positive_example" in rule:
             plan_lines.append("")
-            plan_lines.append("```markdown")
-            if "positive_example" in rule:
-                pos_example = str(rule["positive_example"]).strip()
-                plan_lines.append(f"<!-- ✅ POSITIVE EXAMPLE -->\n{pos_example}\n")
-            if "negative_example" in rule:
-                neg_example = str(rule["negative_example"]).strip()
-                plan_lines.append(f"<!-- ❌ NEGATIVE EXAMPLE -->\n{neg_example}")
-            plan_lines.append("```")
+            plan_lines.append("<!-- ✅ POSITIVE EXAMPLE -->")
+            plan_lines.extend(_format_planner_example(rule["positive_example"]))
+        if "negative_example" in rule:
+            plan_lines.append("")
+            plan_lines.append("<!-- ❌ NEGATIVE EXAMPLE -->")
+            plan_lines.extend(_format_planner_example(rule["negative_example"]))
         plan_lines.append("")
 
     return "\n".join(plan_lines).strip() + "\n"

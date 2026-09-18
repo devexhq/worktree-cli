@@ -51,6 +51,14 @@
 # ❌ DO NOT: errors.append(self._format_validation_error(path, err))
 ```
 
+- **[RENDER-004] Domain Shared Table Builders in common.py (WARNING):**
+  A table-building helper shared by more than one formatter within a domain lives in that domain's cli/ui/formatters/<domain>/common.py, not duplicated per formatter module and not hoisted into the package-wide cli/ui/formatters/common.py unless it is genuinely shared across domains.
+
+```python
+# ✅ DO: src/worktree/cli/ui/formatters/sandbox/common.py -> build_sandbox_table(), reused by list.py and status.py
+# ❌ DO NOT: # Nearly identical build_table() duplicated in both sandbox/list.py and sandbox/status.py
+```
+
 - **[MODEL-001] Scoped Model Exceptions with Justifying Comment (BLOCKER):**
   Scoped exceptions allowing extra='ignore' are restricted to hand-authored YAML models (BlueprintDefinition, BlueprintDefaults, LoopStepBlock) and LLM JSON output (OllamaModelStdout), and MUST carry a justifying comment.
 
@@ -117,6 +125,14 @@ def _val(cls, v: Any) -> Any: ...
 ```python
 # ✅ DO: def get_session() -> Generator[Session, None, None]: ...
 # ❌ DO NOT: def get_session() -> Generator[Session]: ...
+```
+
+- **[TYPE-006] Scoped Pyright Suppressions With Reason (BLOCKER):**
+  A bare `# type: ignore` is not honored by this repo's basedpyright config and suppresses nothing. Only `# pyright: ignore[reportRuleName]` suppresses an error, and only for one of three permitted cases, each with a one-line reason naming which applies: an intentional ill-typed test input whose subject is the raised error, a third-party stub conflict our code cannot name correctly (the SQLModel `__tablename__` case), or a platform-gated import. `reportCallIssue` and `reportArgumentType` silencing a wrong-shaped test double or fixture, and `reportIncompatibleVariableOverride` outside the SQLModel `__tablename__` stub, are never permitted suppressions: the fixture, annotation, or override is the defect to fix, not the error to hide.
+
+```python
+# ✅ DO: import msvcrt  # pyright: ignore[reportMissingImports]  # platform-gated: msvcrt does not exist on Linux
+# ❌ DO NOT: queue: Queue = mock_queue  # type: ignore  # bare ignore, suppresses nothing and hides a fixable fixture type
 ```
 
 - **[ENCAP-001] Expose Public Query Properties (SUGGESTION):**

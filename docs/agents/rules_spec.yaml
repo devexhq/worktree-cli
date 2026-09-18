@@ -119,6 +119,23 @@ rules:
   positive_example: 'errors.append(f"Blueprint ''{path}'' invalid: {err}")'
   negative_example: errors.append(self._format_validation_error(path, err))
   citation: docs/agents/code-conventions.md#console-output-and-terminal-formatting
+- id: RENDER-004
+  title: Domain Shared Table Builders in common.py
+  severity: WARNING
+  category: Rendering
+  domain: cli
+  scope: src/worktree/cli/ui/formatters/
+  guideline: A table-building helper shared by more than one formatter within a domain lives in that domain's
+    cli/ui/formatters/<domain>/common.py, not duplicated per formatter module and not hoisted into the
+    package-wide cli/ui/formatters/common.py unless it is genuinely shared across domains.
+  evaluation_criteria: When a new or changed formatter defines a table-construction helper, check whether another
+    formatter in the same domain needs the same table shape. Flag a helper duplicated across sibling formatter
+    modules instead of factored into that domain's common.py, and flag a domain-specific helper placed in the
+    package-wide common.py.
+  positive_example: 'src/worktree/cli/ui/formatters/sandbox/common.py -> build_sandbox_table(), reused by list.py
+    and status.py'
+  negative_example: '# Nearly identical build_table() duplicated in both sandbox/list.py and sandbox/status.py'
+  citation: docs/agents/code-conventions.md#console-output-and-terminal-formatting
 - id: MODEL-001
   title: Scoped Model Exceptions with Justifying Comment
   severity: BLOCKER
@@ -270,6 +287,29 @@ rules:
   positive_example: 'def get_session() -> Generator[Session, None, None]: ...'
   negative_example: 'def get_session() -> Generator[Session]: ...'
   citation: docs/agents/code-conventions.md#type-annotations-and-any
+- id: TYPE-006
+  title: Scoped Pyright Suppressions With Reason
+  severity: BLOCKER
+  category: Typing
+  domain: all
+  scope: src/, tests/
+  guideline: >-
+    A bare `# type: ignore` is not honored by this repo's basedpyright config and suppresses nothing. Only
+    `# pyright: ignore[reportRuleName]` suppresses an error, and only for one of three permitted cases, each
+    with a one-line reason naming which applies: an intentional ill-typed test input whose subject is the
+    raised error, a third-party stub conflict our code cannot name correctly (the SQLModel `__tablename__`
+    case), or a platform-gated import. `reportCallIssue` and `reportArgumentType` silencing a wrong-shaped
+    test double or fixture, and `reportIncompatibleVariableOverride` outside the SQLModel `__tablename__`
+    stub, are never permitted suppressions: the fixture, annotation, or override is the defect to fix, not
+    the error to hide.
+  evaluation_criteria: >-
+    Grep changed hunks for `# type: ignore` and `# pyright: ignore`. Flag every bare `# type: ignore`. For each
+    `# pyright: ignore[...]`, verify a one-line reason is present and that the case matches one of the three
+    permitted categories; flag any suppression of `reportCallIssue`, `reportArgumentType`, or
+    `reportIncompatibleVariableOverride` that does not match its named exception.
+  positive_example: 'import msvcrt  # pyright: ignore[reportMissingImports]  # platform-gated: msvcrt does not exist on Linux'
+  negative_example: 'queue: Queue = mock_queue  # type: ignore  # bare ignore, suppresses nothing and hides a fixable fixture type'
+  citation: docs/agents/code-conventions.md#type-checker-suppressions
 - id: ENCAP-001
   title: Expose Public Query Properties
   severity: SUGGESTION
@@ -732,6 +772,20 @@ rules:
   negative_example: 'assert "Show the current configuration value" in res.output  # help text wording; assert Click metadata instead'
   citation: docs/agents/testing.md#core-testing-rules
   decision_log: docs/decisions/0002-simplify-cli-test-doctrine.md#d2-reversal-cli-runner-assertion-boundary-test-017
+- id: TEST-018
+  title: Test Layer Import Boundary
+  severity: BLOCKER
+  category: Testing
+  domain: tests
+  scope: tests/core/
+  guideline: tests/core/** must never import worktree.cli.*. A core test proves the domain layer's contract
+    independent of any presentation concern, and an import of the CLI package from a core test either leaks a
+    presentation dependency into the domain suite or signals the test belongs under tests/cli/ instead.
+  evaluation_criteria: Scan import statements in changed files under tests/core/. Flag any import of
+    worktree.cli or a submodule of it.
+  positive_example: 'from worktree.core.sandbox.prune import prune_sandboxes  # tests/core/sandbox/test_prune.py'
+  negative_example: 'from worktree.cli.sandbox.commands.prune import prune_command  # imported from tests/core/sandbox/test_prune.py'
+  citation: docs/agents/testing.md#11-source-parity-layout
 - id: DOC-001
   title: Architecture Doc Structural Gate
   severity: BLOCKER
@@ -1037,11 +1091,12 @@ planner_rules:
   category: Planning
   phase: Grounding & Traps
   scope: '## Current state section in .agentic/plan.md'
-  requirement: Never plan from memory. Read always-on docs, inspect live domain source files, and name the closest existing
-    implementation you will mirror with exact file:line citations.
+  requirement: 'Never plan from memory: read live domain source and name the closest existing implementation to mirror with
+    exact file:line citations. Reproduce a mirrored symbol''s shape as signature + docstring only, never its full body.'
   deliverable_contract: 'Ground-truth table with columns | Surface | Location | What exists today |, plus explicit ''Pattern
-    to mirror: <path:line>''.'
-  validation_check: Verify cited file:line citations exist in the live codebase and match cited functionality.
+    to mirror: <path:line>'', with any reproduced symbol shown as signature + docstring only.'
+  validation_check: Verify cited file:line citations exist and match cited functionality; flag any quoted body, helper
+    internals, or file dump beyond a signature and docstring.
   positive_example: '## Current state
 
     | Surface | Location | What exists today |
@@ -1053,8 +1108,15 @@ planner_rules:
 
     **Pattern to mirror:** `src/worktree/cli/config/commands/config_set.py:30`
 
+    ```python
+
+    def config_set_command(context: CliContext, key: str, value: str) -> ConfigSetResult:
+    """Set a single config key and persist it to the active scope."""
+
+    ```
+
     '
-  negative_example: '# Plan designs new command from scratch without citing existing neighbor commands
+  negative_example: '# Plan pastes the full 40-line body of config_set_command instead of its signature + docstring
 
     '
   citation: docs/agents/planning.md#step-2-ground-yourself-in-the-current-code
@@ -1084,20 +1146,16 @@ planner_rules:
   phase: Artifact Inventory
   scope: '## Artifact inventory section in .agentic/plan.md'
   requirement: >-
-    Produce an inventory with one row per file touched: | Artifact | Kind | Path | New or changed | Requirement |.
-    No row may say 'e.g.' or 'etc.'. Walk the artifact checklist and write 'none' explicitly for untouched kinds.
-    Follow it with a deletion ledger, one row per removal: | Path or symbol | Why it goes | Replaced by |,
-    covering superseded code paths (COMPAT-002), tests that duplicate a contract asserted elsewhere (TEST-004),
-    and harness symbols whose only caller would be their own verification test (TEST-013). A change that deletes
-    nothing states 'Deletes nothing: greenfield' explicitly, so the omission is a decision rather than an
-    oversight. Deletions are executed in the same change set as the code that supersedes them, and never
-    recorded as a negative existence test (TEST-009).
+    Produce an inventory (Artifact | Kind | Path | New or changed | Requirement), one row per touched file, writing
+    'none' explicitly for every untouched kind. Follow it with a deletion ledger (Path or symbol | Why it goes |
+    Replaced by) covering superseded paths (COMPAT-002), duplicate tests (TEST-004), and dead harness symbols
+    (TEST-013), executed in the same change set — or state 'Deletes nothing: greenfield'.
   deliverable_contract: >-
     Markdown inventory table followed by 'Not needed for this issue: <kinds>', then a deletion ledger table or
     the explicit 'Deletes nothing: greenfield' line.
   validation_check: >-
-    Check that every touched file maps to a requirement, every unused artifact kind is listed under 'Not needed',
-    and the deletion ledger is present with either rows or the explicit greenfield statement.
+    Check every touched file maps to a requirement, every unused artifact kind is listed under 'Not needed', and
+    the deletion ledger has rows or the explicit greenfield line.
   positive_example: |
     ## Deletion ledger
     | Path or symbol | Why it goes | Replaced by |
@@ -1121,16 +1179,35 @@ planner_rules:
     \ items\n    pass\n```\n"
   citation: docs/agents/planning.md#code-sample-rules
 - id: PLAN-011
-  title: Signature Plus Pseudo-Code for Imperative Bodies
+  title: Signature Plus Intent Docstring for Production Stubs
   category: Planning
   phase: Specification & Samples
   scope: '### Code section in .agentic/plan.md'
-  requirement: 'Write real signature, real docstring, and numbered pseudo-code steps in comments ending with `raise NotImplementedError`
-    for production imperative bodies. For test method bodies, setup steps may be outlined in comments, but all assertions on results, models, or command outputs must be written as literal Python code using `assert_model_equal(...)` or whole-dictionary equality. Banned in test stubs: conversational assertions (''verify status is OK''), bare `assert result.exit_code == 0`, piecewise attribute checks, or using `exclude` in `assert_model_equal` on deterministic fields (e.g. `exclude={"errors"}`).'
-  deliverable_contract: Production function stubs with signatures, docstrings, numbered steps in comments, and `raise NotImplementedError`. Test stubs with signatures, docstrings, setup comments, literal whole-object assertions, and `raise NotImplementedError`.
-  validation_check: Ensure imperative production methods end with `raise NotImplementedError` and are not fully implemented. Ensure test stubs contain literal whole-object assertions rather than loose conversational comments or lazy exclusions.
-  positive_example: "```python\n# Production stub:\ndef prune_sandboxes(db: SandboxesRepository, cwd: Path) -> SandboxPruneResult:\n    \"\"\"Prune unreferenced git worktree sandboxes.\n\n    Args:\n        db: Isolated sandboxes repository slice.\n        cwd: Target workspace root directory.\n    \"\"\"\n    # 1. Query active sandboxes from db\n    # 2. Inspect on-disk sandboxes under .worktree/sandboxes/\n    # 3. Delete unreferenced worktrees and git branches\n    # 4. Return SandboxPruneResult with status=OK\n    raise NotImplementedError\n\n# Test stub:\ndef test_prune_empty_returns_nothing_to_prune(self, isolated_workspace: Path) -> None:\n    \"\"\"Prune returns NOTHING_TO_PRUNE when sandboxes directory is empty.\"\"\"\n    # 1. Build context with clean workspace\n    # 2. Call prune_sandboxes\n    assert_model_equal(\n        result,\n        SandboxPruneResult(status=SandboxPruneStatus.NOTHING_TO_PRUNE, pruned_items=[]),\n    )\n    raise NotImplementedError\n```\n"
-  negative_example: "```python\n# ❌ Test stub with informal comments or lazy exclude:\ndef test_prune(self):\n    # 1. Run prune\n    # 2. Assert exit_code == 0 and status is ok\n    assert_model_equal(result, expected, exclude={\"errors\"})\n    raise NotImplementedError\n```\n"
+  requirement: 'Write only a real signature and a one-line docstring stating intent for every planned production
+    function, ending with `raise NotImplementedError`. No numbered steps, no body code — the docstring says what the
+    function does, not how, and adds nothing beyond what the signature and name don''t already say.'
+  deliverable_contract: 'Signature + one-line intent docstring + `raise NotImplementedError` — no steps, no body.'
+  validation_check: 'Flag any production stub with numbered steps, setup comments, or body code beyond the docstring,
+    and any docstring that narrates implementation steps instead of stating intent.'
+  positive_example: "```python\ndef prune_sandboxes(db: SandboxesRepository, cwd: Path) -> SandboxPruneResult:\n    \"\"\"Delete unreferenced sandbox worktrees and branches under cwd.\"\"\"\n    raise NotImplementedError\n```\n"
+  negative_example: "```python\ndef prune_sandboxes(db: SandboxesRepository, cwd: Path) -> SandboxPruneResult:\n    \"\"\"Prune sandboxes.\n\n    1. Query active sandboxes from db\n    2. Diff against on-disk worktrees\n    3. Delete unreferenced ones\n    \"\"\"\n    raise NotImplementedError\n```\n"
+  citation: docs/agents/planning.md#code-sample-rules
+- id: PLAN-018
+  title: Signature-Only Test Stubs, Docstring Only Where the Name Can't Carry It
+  category: Planning
+  phase: Specification & Samples
+  scope: '### Code section in .agentic/plan.md'
+  requirement: 'Write only a signature for every planned test, ending with `raise NotImplementedError`; the test name
+    alone should state what''s being verified. Add a docstring only when the name can''t carry the exact outcome, and
+    state that outcome as precisely as a literal assertion would (exact status/fields/exit code/wire dict) — never a
+    vague or piecewise gloss.'
+  deliverable_contract: 'Signature + `raise NotImplementedError`, with a docstring added only when the test name alone
+    doesn''t state the exact expected outcome.'
+  validation_check: 'Flag any test stub with numbered steps, setup comments, or literal assertion code. Flag a
+    docstring redundant with an already-descriptive name, and flag a missing docstring where the name alone can''t
+    distinguish the case (e.g. a specific partial-failure shape).'
+  positive_example: "```python\ndef test_prune_empty_returns_nothing_to_prune(isolated_workspace: Path) -> None:\n    raise NotImplementedError\n\n\ndef test_prune_partial_failure_lists_errors_but_deletes_succeeded_items(isolated_workspace: Path) -> None:\n    \"\"\"Result has succeeded_items=[\"a\", \"b\"] and errors=[\"c: permission denied\"] when c fails and a, b succeed.\"\"\"\n    raise NotImplementedError\n```\n"
+  negative_example: "```python\ndef test_prune_empty_returns_nothing_to_prune(isolated_workspace: Path) -> None:\n    \"\"\"Prune returns NOTHING_TO_PRUNE when sandboxes directory is empty.\"\"\"  # redundant with the name\n    raise NotImplementedError\n```\n"
   citation: docs/agents/planning.md#code-sample-rules
 - id: PLAN-012
   title: Pre-Decomposed Complexity
@@ -1158,36 +1235,25 @@ planner_rules:
   phase: Test Strategy
   scope: '### Tests section in .agentic/plan.md'
   requirement: >-
-    Specify planned tests as a ledger with one row per test file: | Path | Est. lines | Contract pinned |
-    Nearest existing coverage | Verdict |. Path must satisfy the TEST-002 mappings, with no part-numbered or
-    grab-bag files, and is what a directory-scoped run selects (pytest tests/core/, pytest tests/cli/).
-    Est. lines keeps the change reviewable under PLAN-017. Nearest existing coverage is the result
-    of grepping the suite for a test already pinning that contract; when one exists the verdict is
-    redundant-dropped and the row stays as the record of the decision. A second CLI tier is specified only where
-    TEST-004 earns it: a pass-through handler gets no root test, and no row may restate a contract already
-    asserted under tests/core/ for the same result type. Assertions on returned models or event payloads must
-    specify whole-object comparison (assert_model_equal(result, ExpectedModel(...)) or assert json.loads(res.stdout)
-    == expected_dict), never piecewise field checks, bare attribute assertions, or any waiver expressed outside
-    the comparison; per TEST-007 the expected object names every field, and a value the test cannot own is stated
-    as a matcher at that field's position. Assertions against panel titles, status labels, captions, prose, or
-    glyphs in a formatter test under tests/cli/ui/formatters/ are restricted to values carried by the view model
-    (TEST-012); a CLI runner test under tests/cli/commands/ may assert rendered output directly (TEST-017). Never
-    say 'Assert it works'. Any test whose assertion is the absence of violations must specify a companion negative
-    fixture test and a non-empty collection assertion (CI-004).
-  deliverable_contract: 'Markdown ledger: | Path | Est. lines | Contract pinned | Nearest existing coverage | Verdict |.'
+    Specify planned tests as a ledger (Path | Est. lines | Contract pinned | Nearest existing coverage | Verdict),
+    one row per test file, Path following the TEST-002 mapping. Contract pinned states the exact outcome in prose
+    — every field the test owns, named with its value, never vague or piecewise — and Nearest existing coverage
+    marks 'redundant-dropped' when a test already pins that contract.
+  deliverable_contract: 'Markdown ledger: | Path | Est. lines | Contract pinned | Nearest existing coverage | Verdict |,
+    with Contract pinned as a prose statement of the exact outcome — the same outcome the paired test stub''s name or
+    docstring states under PLAN-018.'
   validation_check: >-
-    Check that every row resolves under the TEST-002 mapping, states an exact
-    assertion contract with zero piecewise checks or lazy exclusions, records the existing-coverage search, and
-    that every planned enforcement test names its negative fixture.
+    Check every row resolves under TEST-002, states an exact outcome in prose with zero vague or piecewise
+    phrasing, records the existing-coverage search, and names a negative fixture for any enforcement test (CI-004).
   positive_example: |
     ### Test ledger
     | Path | Est. lines | Contract pinned | Nearest existing coverage | Verdict |
-    | `tests/core/bootstrap/test_initialize.py` | 120 | `assert_model_equal(result, InitResult(status=NOT_A_GIT_REPO, created=[]))` | none found | new |
-    | `tests/cli/commands/test_init.py` | 90 | `assert json.loads(res.stdout) == expected_wire_dict` | none found | new |
+    | `tests/core/bootstrap/test_initialize.py` | 120 | NOT_A_GIT_REPO abort returns InitResult(status=NOT_A_GIT_REPO, created=[]) | none found | new |
+    | `tests/cli/commands/test_init.py` | 90 | stdout JSON equals the literal init wire dict for a fresh repo | none found | new |
     | `tests/cli/commands/test_config.py::ConfigShowRootTests` | - | ConfigLoadResult shape | `tests/core/config/test_loader.py` | redundant-dropped |
   negative_example: |
     | Test | Path | Exact assertion |
-    | Test pruning | tests/test_prune.py | assert_model_equal(result, Expected(...), exclude={"errors"}) |
+    | Test pruning | tests/test_prune.py | checks that pruning works, ignoring errors field |
   citation: docs/agents/planning.md#code-sample-rules
 - id: PLAN-014
   title: Flagging Unspecified Decisions with 🚨
@@ -1229,38 +1295,24 @@ planner_rules:
     '
   citation: docs/agents/planning.md#step-5-save-and-hand-off
 - id: PLAN-016
-  title: Item-by-Item Checklist Compliance Audit
+  title: Pre-Handoff Checklist Compliance Sweep
   category: Planning
   phase: Pre-Handoff Self-Audit
-  scope: '## Architectural Context & Boundary Check in .agentic/plan.md'
-  requirement: >-
-    Before finalizing .agentic/plan.md, sweep docs/agents/REVIEW_CHECKLIST.json item by item for all rules
-    matching touched paths or domains, and record each in a required '### Rule Evaluation Matrix' table with
-    columns | Rule ID | Clause | Severity | Status | Evidence (quoted) |. Four requirements make the sweep real.
-    First, decompose a multi-clause rule into one row per clause: TEST-007 carries three (whole-object
-    comparison, exclude restricted to non-deterministic fields, separate presence assertions for excluded
-    fields), and a single row hides two of them. Second, status is PASS, FAIL, or N/A; FAIL is a permitted and
-    expected interim value, and every FAIL is resolved in the plan before saving, so the saved plan carries zero.
-    A matrix that can only say PASS or N/A audits nothing. Third, evidence quotes the plan's own stub or section
-    verbatim; restating the rule is not evidence, and the phrases 'follows the pattern', 'complies',
-    'contract-based', and 'uses assert_model_equal' are prohibited because they read identically against a
-    violating plan. N/A names why the scope does not match. Fourth, for every BLOCKER clause, write the one
-    sentence a reviewer would use to fail the plan, then either fix the plan or record why the sentence does not
-    hold; a self-audit with no adversarial step approves itself.
-  deliverable_contract: >-
-    Required '### Rule Evaluation Matrix' subsection covering every matching rule clause with PASS, FAIL, or N/A
-    status and quoted evidence, zero FAIL rows remaining at save time, plus the adversarial sentence for each
-    BLOCKER clause.
-  validation_check: >-
-    Verify the matrix covers all matching rules clause by clause, that each PASS quotes a literal line from the
-    plan rather than paraphrasing the rule, that no FAIL row remains, and that each BLOCKER clause carries its
-    adversarial sentence.
-  positive_example: |
-    ### Rule Evaluation Matrix
-    | Rule ID | Clause | Severity | Status | Evidence (quoted) |
-    | `TEST-007` | exclude restricted to non-deterministic fields | SUGGESTION | FAIL -> fixed | Phase 4 stub read `assert_model_equal(result, expected, exclude={"errors"})`; rewritten to carry expected errors per parameter case |
-    | `TEST-002` | path mirrors source module | BLOCKER | PASS | Ledger row 3 is `tests/cli/ui/formatters/status/test_status.py` for `cli/ui/formatters/status/status.py` |
-  negative_example: '| `TEST-007` | Whole Object Comparison | SUGGESTION | PASS | Uses assert_model_equal on whole ConfigLoadResult |'
+  scope: Entire .agentic/plan.md, checked before saving
+  requirement: 'Before finalizing .agentic/plan.md, sweep docs/agents/REVIEW_CHECKLIST.json for every rule matching the
+    touched paths or domains and verify the plan itself satisfies every applicable BLOCKER clause — reread the actual
+    planned imports, paths, and stubs against each clause, not a restatement of the rule. Fix any violation in the plan
+    before saving. This is a save gate, not a written report: no compliance table belongs in .agentic/plan.md.'
+  deliverable_contract: 'Zero BLOCKER-severity violations in the saved plan. No Rule Evaluation Matrix or other
+    compliance table in .agentic/plan.md — the plan''s own content is the evidence.'
+  validation_check: 'Re-derive which REVIEW_CHECKLIST.json rules match the touched paths and spot-check the saved plan
+    against each BLOCKER clause directly (e.g. reread Phase 2 imports for ARCH-001, reread ledger paths for TEST-002).
+    Flag anything the agent could only justify by restating the rule rather than pointing at the plan''s own text.'
+  positive_example: 'Before saving, reread the Phase 2 service stub and confirmed it imports only from common/ and
+    core/sandbox/ (ARCH-001), and reread the ledger path against the TEST-002 mapping — no BLOCKER violated, plan
+    saved with no compliance table.'
+  negative_example: '# Plan asserts "Complies with ARCH-001, TEST-002" without rereading the actual planned imports or
+    paths'
   citation: docs/agents/planning.md#step-5-save-and-hand-off
 - id: PLAN-017
   title: Test Ticket Scope Contract
@@ -1268,14 +1320,12 @@ planner_rules:
   phase: Test Strategy
   scope: Any issue whose deliverable is test files
   requirement: >-
-    A ticket delivering tests must declare, before implementation, the exact test file paths conforming to the
-    TEST-002 mappings, a line budget inside the 100 to 250 range with a split
-    plan when the estimate exceeds it, and the rule IDs the work is graded against. Scope stated as a list of
-    test method names without paths is not a specification.
+    A ticket delivering tests must declare, before implementation, the exact test file paths per the TEST-002
+    mapping, a line budget of 100–250 with a split plan if exceeded, and the rule IDs it's graded against. A list
+    of test method names without paths is not a specification.
   deliverable_contract: >-
-    The In scope section lists one bullet per test file as path and estimated lines, followed by the
-    contracts asserted in that file. The Definition of Done cites the rule IDs and names the formatter test or
-    domain test that owns any behavior deliberately not covered here.
+    In scope lists one bullet per test file (path + estimated lines + contracts asserted); Definition of Done
+    cites the graded rule IDs and names what's deliberately not covered here.
   validation_check: >-
     Every declared path resolves under the TEST-002 mapping for its source module, and the summed line
     estimate stays within budget or carries a split plan.

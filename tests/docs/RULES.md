@@ -87,6 +87,14 @@ def _val(cls, v: Any) -> Any: ...
 # ❌ DO NOT: def get_session() -> Generator[Session]: ...
 ```
 
+- **[TYPE-006] Scoped Pyright Suppressions With Reason (BLOCKER):**
+  A bare `# type: ignore` is not honored by this repo's basedpyright config and suppresses nothing. Only `# pyright: ignore[reportRuleName]` suppresses an error, and only for one of three permitted cases, each with a one-line reason naming which applies: an intentional ill-typed test input whose subject is the raised error, a third-party stub conflict our code cannot name correctly (the SQLModel `__tablename__` case), or a platform-gated import. `reportCallIssue` and `reportArgumentType` silencing a wrong-shaped test double or fixture, and `reportIncompatibleVariableOverride` outside the SQLModel `__tablename__` stub, are never permitted suppressions: the fixture, annotation, or override is the defect to fix, not the error to hide.
+
+```python
+# ✅ DO: import msvcrt  # pyright: ignore[reportMissingImports]  # platform-gated: msvcrt does not exist on Linux
+# ❌ DO NOT: queue: Queue = mock_queue  # type: ignore  # bare ignore, suppresses nothing and hides a fixable fixture type
+```
+
 - **[ENCAP-001] Expose Public Query Properties (SUGGESTION):**
   Expose public boolean query properties (e.g. is_interactive, is_enabled, has_*) on classes rather than referencing private members from external callers.
 
@@ -294,6 +302,14 @@ assert 'wf_abcdef12' in rendered  # view value, not a caption
 assert res.exit_code == 1
 assert "Status: valid with warnings" in res.stdout  # literal rendered output, not restricted to an error-code token
 # ❌ DO NOT: assert "Show the current configuration value" in res.output  # help text wording; assert Click metadata instead
+```
+
+- **[TEST-018] Test Layer Import Boundary (BLOCKER):**
+  tests/core/** must never import worktree.cli.*. A core test proves the domain layer's contract independent of any presentation concern, and an import of the CLI package from a core test either leaks a presentation dependency into the domain suite or signals the test belongs under tests/cli/ instead.
+
+```python
+# ✅ DO: from worktree.core.sandbox.prune import prune_sandboxes  # tests/core/sandbox/test_prune.py
+# ❌ DO NOT: from worktree.cli.sandbox.commands.prune import prune_command  # imported from tests/core/sandbox/test_prune.py
 ```
 
 - **[DOC-001] Architecture Doc Structural Gate (BLOCKER):**

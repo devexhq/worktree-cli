@@ -35,10 +35,10 @@ quality gate results, provide a commit message following
 
 ```bash
 uv sync --all-extras            # install dependencies with uv (or uv pip install -e .[dev])
-inv test                        # run tests (python -m pytest -n auto tests/ -q)
-ruff check .                    # lint
-ruff format .                   # format
-basedpyright src tests          # typecheck package and tests (errors must be 0)
+uv run inv test                        # run tests (python -m pytest -n auto tests/ -q)
+uv run ruff check .                    # lint
+uv run ruff format .                   # format
+uv run basedpyright src tests          # typecheck package and tests (errors must be 0)
 inv complexity --paths <changed-file1>,<changed-file2> --plain   # complexity gate for changed files
 uv run python scripts/compile_rules.py   # recompile RULES.md after editing rules_spec.yaml
 ```
@@ -47,9 +47,11 @@ uv run python scripts/compile_rules.py   # recompile RULES.md after editing rule
 
 Use `uv run inv test` during development. Prefer scoping to the test module/function during quick iterations.
 Before committing, all of these must pass:
-`inv test -c` (coverage, **≥ 80%** via `fail_under` in `pyproject.toml`),
-`ruff format`, `ruff check`, `basedpyright src tests --level error`,
-`inv complexity --paths <changed-file1>,<changed-file2> --plain --failed` (no touched
+  - `uv run inv test -c` (coverage, **≥ 80%** via `fail_under` in `pyproject.toml`)
+  - `uv run ruff format`
+  - `uv run ruff check`
+  - `uv run basedpyright src tests --level error`
+  - `uv run inv complexity --paths <changed-file1>,<changed-file2> --plain --failed` (no touched
 function may exceed complexity 10). Fix any failure before retrying the commit
 — do not commit while `inv complexity` is failing.
 

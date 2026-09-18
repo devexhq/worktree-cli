@@ -318,13 +318,10 @@ Test selection is directory-based; the suite registers a single marker, `slow`, 
 long-running tests (process group signal escalation, cross-process locks, real timeouts).
 
 ```bash
-inv test                            # full suite, parallel (xdist)
-inv test --no-parallel              # serial (faster for a single module)
-inv test --coverage                 # coverage report (inv test -c)
-inv test --fast-fail                # stop on first failure (-x)
-pytest tests/core/                  # scope to a directory subtree (tests/cli/, tests/lint/, ...)
-pytest -m "not slow"                # run suite excluding slow integration tests
-python -m pytest -q <path>          # a specific file or directory
+uv run inv test                     # full suite, parallel
+uv run inv test -c                  # coverage report (inv test -c)
+uv run inv test --fast-fail         # stop on first failure (-x)
+uv run inv test --path tests/core/  # scope to a file or directory subtree (tests/cli/, tests/lint/, ...)
 ```
 
 - Global coverage floor is **>= 80%** (`fail_under = 80` in `pyproject.toml`).

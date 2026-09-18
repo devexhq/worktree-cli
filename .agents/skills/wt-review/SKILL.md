@@ -6,11 +6,12 @@ description: >-
   architectural invariants, redundancy, and whether the change's own enforcement code
   can actually fail. Rejects with line-level findings if any BLOCKER clause is breached.
   Invoked as /wt-review [<pr-number>] [--post].
+disable-model-invocation: true
 ---
 
 # wt-review
 
-You are a meticulous compliance review agent. Review a change set in `worktree-cli` on five axes:
+Review a change set in `worktree-cli` on five axes:
 
 1. **Plan fidelity**: does the code implement `.agentic/plan.md`'s contracts, no more and no less.
 2. **Implementation and invariant compliance**: does the code hold up (correctness, layering, typing, tests, performance, DB hygiene).
@@ -19,13 +20,6 @@ You are a meticulous compliance review agent. Review a change set in `worktree-c
 5. **Enforcement integrity**: can every check this change adds or relies on actually fail.
 
 Output goes to `.agentic/review.md`, which `/wt-code review` consumes, paired with `.agentic/review.json`.
-
-## Core compliance protocol
-
-1. **Inspect modified code.** Resolve the scope (below) and collect every modified file and hunk.
-2. **Read the checklist.** Read `docs/agents/REVIEW_CHECKLIST.json` with your file-read tool.
-3. **Audit against evaluation criteria**, clause by clause, for each rule matching the changed paths or domains.
-4. **Enforce the blocker gate.** If any `BLOCKER` clause is breached, the verdict is `CHANGES REQUIRED` with line-level findings.
 
 ## Hard boundaries
 
@@ -45,103 +39,60 @@ Output goes to `.agentic/review.md`, which `/wt-code review` consumes, paired wi
 
 Record the changed-file list and the diff size (`git diff --stat`). If the scope is empty, say so and stop.
 
-## 2. Load the standards yourself
+## 2. Delegate for independence
 
-Do not review from memory of this repo. Read:
+In a single-agent setup, the author and reviewer share one context, so the review inherits the author's assumptions and blind spots. **A same-session review is a weak control and must declare itself**: if this session planned or wrote the code, set `provenance` to `same_session` in the eventual report, re-derive every finding from the diff and the docs, and discard in-session claims that something was already verified or intentional. The quoted-evidence requirement in section 5 exists precisely for this case: in same-session mode, treat any clause you cannot support with a quoted line as `FAIL`, not `PASS`.
 
-- `AGENTS.md`, the authority and the index of which doc governs what
-- the always-on docs it names: `architecture.md`, `code-conventions.md`, `schemas.md`, `glossary.md`, `testing.md`
-- the compiled invariants: the domain-scoped `RULES.md` files and machine-readable `docs/agents/REVIEW_CHECKLIST.json`
-- whichever conditional doc each tripped gate names (see [doc-adherence.md](doc-adherence.md))
-- `.agentic/plan.md` if it exists, as the change's contract
+**If this session wrote any of the code under review, delegate the audit to a fresh subagent** instead of reviewing it yourself. Give it a strong reasoning model, preferably a different family than the one that wrote the code. A spawned subagent has no read-only switch of its own, so restate the Hard boundaries above verbatim in its instructions and make them the first thing it reads. Hand it the resolved scope from section 1, the standards to load in section 3, and nothing else: no rationale, no "I already verified X". Let it read the standards and run the sweep itself, and have it set `provenance` to `fresh_session` in its report.
 
-When a doc's claim about a model, field list, or enum drives a finding, spot-check the source first. Source wins.
+If a subagent cannot be launched, say so and do not self-approve. Fail closed unless the user explicitly overrides.
 
-**A stale doc is a finding, not a condition to route around** (`DOC-008`). Working from the source and saying nothing leaves the next agent to trust the same wrong sentence. Three classes, all Blocking when the doc governs this change:
+When this review is already running in a fresh session with no author bias to correct for, run it inline — there is no one to delegate to.
 
-- **Unresolved enforcement claims.** A sentence asserting something is "enforced by" a test module, hook, or workflow step that does not exist in the tree. Resolve each one that bears on this change with `rg --files -g '<name>'`. A rule whose only enforcement is a nonexistent file is an unenforced rule, and every ticket claiming it passed was claiming nothing.
-- **Documented symbols that do not exist.** A doc instructing an implementer to use a helper, fixture, or builder that was never written, or that has since been renamed. Check the names the change's own docs prescribe.
-- **Rule examples that teach the violation.** A compiled rule's `positive_example` naming a nonexistent module (`DOC-005`) or demonstrating a construct another rule forbids. An exemplar is copied far more often than a guideline is read, so a wrong example propagates faster than a missing rule.
+## 3. Load the standards yourself
 
-## 3. Check plan fidelity
+Do not review from memory of this repo. Read [AGENTS.md](../../../AGENTS.md) — the authority and the doc index for what governs what — the docs it names for the areas the diff touches, the domain-scoped `RULES.md` files, and [REVIEW_CHECKLIST.json](../../../docs/agents/REVIEW_CHECKLIST.json). Read `.agentic/plan.md` if it exists, as the change's contract.
+
+When a doc's claim about a model, field list, or enum drives a finding, spot-check the source first. Source wins. **A stale doc is a finding, not a condition to route around**: a "enforced by" claim naming a file that doesn't exist, a documented helper that was never written, or a rule example that teaches the violation it forbids. Resolve every such claim that bears on this change (`rg --files -g '<name>'`) rather than working around a wrong sentence and leaving it for the next agent to trust.
+
+## 4. Check plan fidelity
 
 Skip this axis only when `.agentic/plan.md` is absent, and say so in the report.
 
 - Every FR has landed, and every artifact row has its file.
 - Contracts match exactly: field names, types, defaults, `status` values, flag names, help copy, exit codes, and error, warning, and fix strings. A "better" name than the plan's is a finding, since the plan was human-reviewed.
 - Nothing landed that the plan marked out of scope or named as a trap.
-- **Test ledger fidelity, row by row** (`PLAN-013`). Each planned test exists at the planned path (`TEST-002`), asserting the stated contract. Then check the other direction: every test file in the diff appears in the ledger. An unplanned test file is a scope breach that no gate catches.
-- **Deletion ledger fidelity** (`PLAN-009`). Every entry is gone. An unexecuted deletion leaves the duplicate the plan was written to avoid.
-- **Budget** (`PLAN-017`). Compare the diff size against the plan's estimate. A diff several times its budget was never reviewable at the size the plan promised, and that is a finding regardless of the code's quality.
+- **Test ledger fidelity, row by row.** Each planned test exists at the planned path, asserting the stated contract. Then check the other direction: every test file in the diff appears in the ledger. An unplanned test file is a scope breach that no gate catches.
+- **Deletion ledger fidelity.** Every entry is gone.
+- **Budget.** Compare the diff size against the plan's estimate.
 - Where the code deviates, the deviation was surfaced rather than absorbed silently.
 
-## 4. Sweep the mechanical rules and invariant checklist
+## 5. Sweep the mechanical rules and invariant checklist
 
 The rules that get missed are the ones no linter enforces, and they are missed because reviewers read for design and skim identifiers. Do this as an explicit pass, not a byproduct.
 
-1. **Match rule scope.** For each changed path, filter the checklist for rules whose `scope` encompasses it (`src/worktree/core/` matches `ARCH-001`, formatters match `RENDER-*`, `**/models.py` matches `MODEL-*`, `tests/` matches `TEST-*`).
-2. **Decompose multi-clause rules into one row per clause.** A rule carrying several independent requirements audited as a single row hides all but one of them. `TEST-007` carries four: every field of the result under test asserted, no waiver expressed outside the comparison, no field left to its default, and a matcher used only for a value the test could not have made deterministic by injecting the clock or id factory. A change can satisfy the first and breach the rest, and a one-row audit reads as PASS.
+1. **Match rule scope.** For each changed path, filter [REVIEW_CHECKLIST.json](../../../docs/agents/REVIEW_CHECKLIST.json) for rules whose `scope` encompasses it (`src/worktree/core/` matches `ARCH-*`, formatters match `RENDER-*`, `**/models.py` matches `MODEL-*`, `tests/` matches `TEST-*`, and `domain: all` match everything).
+2. **Audit item by item** against each rule's evaluation_criteria, line by line, and record PASS, FAIL, or N/A .
 3. **Audit each clause line by line** against the rule's `evaluation_criteria`.
 4. **Classify severity:**
-   - **`BLOCKER`**: architectural drift, concurrency risk, raw DB instantiation in loops or helpers, boundary leaks, runtime crashes, `assert` in `src/`, assertions on human-rendered output, an enforcement check that cannot fail, a breached plan contract, or a missing required doc update.
-   - **`WARNING`**: high-impact convention or type degradation.
-   - **`SUGGESTION`**: constructive improvement, including piecewise or `exclude`-weakened result assertions (`TEST-007`).
-   - **`NIT`**: minor formatting or cosmetic observation.
+    - `BLOCKER` (architectural drift, concurrency risk, boundary leaks, runtime crashes, `assert` in `src/`, assertions on human-rendered output, an enforcement check that cannot fail, a breached plan contract, a missing required doc update),
+    - `WARNING` (high-impact convention or type degradation),
+    - `SUGGESTION` (constructive improvement not required now),
+    - `NIT` (cosmetic, no rule behind it).
 
-Two passes that must be deliberate:
-
-- **Every new or changed identifier**, production and tests, against `CODE-001`. Standard abbreviations and common iteration constructs are permitted; flag only cryptic or arbitrary truncations.
-- **Every new test**: path parity (`TEST-002`), naming (`TEST-003`), double realism (`TEST-008`), and whether it asserts a machine-readable or rendered contract appropriate to its tier (`TEST-001`, `TEST-017`). Grep the diff for `in res.stdout`, `in result.output`, and `.stdout ==` and read every hit. Under `tests/cli/commands/`, a literal assertion against rendered output (a label, a token, a full snapshot) is fine per `TEST-017`; only help-text wording is Blocking there. Under `tests/cli/ui/formatters/`, a panel title, status label, field caption, prose sentence, or glyph is still Blocking and belongs to that view's render assertion checking a view value at pinned width 160 (`TEST-012`).
+Every naming, model, placement, typing, and test convention a reviewer must check by eye — because no linter here enforces it — is a rule in `REVIEW_CHECKLIST.json`: step 1 of this pass is what puts them in scope, there is no separate checklist to consult.
 
 Each finding names the rule ID and the doc it comes from. If you cannot cite a rule, it is a Suggestion or a Nit, not Blocking.
 
-### Evidence rules for the rule evaluation matrix
-
-The same standard `PLAN-016` sets for the planner's matrix, applied to the review side. Most missed rules were audited. They were audited into a PASS row that restated the rule, so the row proves only that the rule was read.
-
-- **Evidence is a quoted line with `path:line`.** Not a summary, not a characterization.
-- **Banned evidence phrases**: "follows the pattern", "complies", "contract-based", "uses `assert_model_equal`", and any sentence that would read identically against the code before this change. If the evidence would survive unchanged next to a violating file, it is not evidence.
-- **A PASS on a clause about a specific construct must quote that construct.** For a `TEST-007` clause, quote the actual `assert_model_equal(...)` call including its arguments, and check the expected object against the model's field list. A waived or omitted field inside a call summarized as "compares the whole result" is precisely the breach this rule exists to catch.
-- **`N/A` names why the scope does not match.**
-- **Never copy a verdict from the plan's own matrix.** The planner audited a plan, not this code, and it audited its own work.
-
-Shape, shown with a failing row because a failing exemplar is the one worth copying:
-
-| Rule ID | Clause | Severity | Status | Evidence (quoted) |
-|---|---|---|---|---|
-| `TEST-007` | no waiver outside the comparison | SUGGESTION | FAIL | `tests/core/config/test_loader.py:134` reads `assert_model_equal(result, expected, exclude={"errors"})`; `errors` is deterministic and the parameter no longer exists |
-| `TEST-011` | no wall-clock sleeps | BLOCKER | FAIL | `tests/core/step/test_process_group.py:58` reads `time.sleep(0.05)` |
-
-## 5. Redundancy and subtraction pass
-
-A checklist audit can only ask whether what landed is correct. Ask separately whether it should exist, because nothing else in the pipeline does.
-
-- **Duplicated contracts across tiers** (`TEST-004`). For each new test, name the contract it pins, then grep for another test pinning the same one. A command test that re-asserts a domain result already asserted under `tests/core/` pins nothing new and doubles the cost of the next change to that contract. Recommend deleting the outer one.
-- **Pass-through tests** (`TEST-004`). A handler that forwards to a domain entrypoint and renders needs its wiring and exit codes pinned once, not a case per domain branch. A root test is earned only by input coercion, branch selection, multi-call composition, or an interactive abort path.
-- **Harness with no consumer** (`TEST-013`). A builder, fixture, or assertion helper whose only callers are its own tests is dead weight. Grep for real call sites outside `tests/harness/`.
-- **Sibling variations written out longhand** (`TEST-006`). Near-identical cases that should be one parametrized test.
-- **Suite growth against value** (`PLAN-017`). Read the `tests/` line delta. Large growth with no new contracts pinned is a finding.
-- **Say "delete this" when that is the fix.** A review that can only ask for additions cannot correct over-testing, and over-testing is what a completeness checklist reliably produces.
-
-## 6. Enforcement integrity pass (`CI-004`)
-
-For every check this change adds, and every check it claims to satisfy, ask whether it can fail.
-
-- **Vacuous assertions.** A test asserting an empty violations list without asserting the collected input is non-empty passes when it inspects nothing. Read the collector: check the glob root, the path prefix, and the AST traversal. An AST walk over `tree.body` alone never descends into a class, so a checker written for module-level functions silently exempts every `*Tests` class in this suite.
-- **Missing negative fixture.** An enforcement test with no companion test proving it flags a violating sample is unproven. Flag it and name the fixture it needs.
-- **Scope narrower than the claim.** A check whose name or docstring promises the suite but whose glob covers one directory. Compare the two.
-- **Allowlists that grew.** A burn-down allowlist of known violators is legitimate and must only shrink. An entry added in this diff to make a new violation pass is Blocking.
-- **Claimed gates that do not run.** Read `pyproject.toml`, `prek.toml`, and `.github/workflows/` for every threshold this change relies on. A coverage floor documented at 80 percent with `fail_under = 0` (`CI-001`) and a type check whose config includes `tests` but whose command covers only `src` (which leaves `TEST-014` unenforced) are both unenforced. Report each as unenforced rather than satisfied, and name where the gap is.
-
-## 7. Check doc adherence
+## 6. Check doc adherence
 
 Work through [doc-adherence.md](doc-adherence.md) with the changed-file list. It maps each kind of change to the directive it must satisfy and the doc that must have been updated in the same change.
 
-A missing required doc update is Blocking (`DOC-001` through `DOC-003`). A doc update that was not required (a feature essay appended to `architecture.md`, a field table duplicating the source) is a Suggestion to delete it (`DOC-004`, `DOC-006`). A doc paragraph describing behavior this change did not build, or naming a helper it did not write, is Blocking under `DOC-008`: aspirational documentation is how the next agent's grounding goes wrong.
+A missing required doc update is Blocking. A doc update that was not required is a Suggestion to delete it. A doc paragraph describing behavior this change did not build is Blocking too.
 
-When this change edits `docs/agents/rules_spec.yaml`, confirm the compiled artifacts were regenerated and committed in the same change (`uv run python scripts/compile_rules.py`), since the pre-commit parity hook fails on drift. Audit new rule text against `DOC-008` too: a rule whose example names a nonexistent module ships a phantom claim into every compiled `RULES.md`.
+When this change edits `docs/agents/rules_spec.yaml`, confirm the compiled artifacts were regenerated and committed in the same change (`uv run python scripts/compile_rules.py`), since the pre-commit parity hook fails on drift.
 
-## 8. Judge what you cannot run
+## 7. Judge what you cannot run
 
 You are not running the gates, so reason about them from the diff and mark each as a risk rather than a result:
 
@@ -149,9 +100,9 @@ You are not running the gates, so reason about them from the diff and mark each 
 - Suppressions and `Any` annotations that would let `basedpyright --level error` pass while hiding a real error.
 - Branches with no covering test, especially in a factory or dispatch chain.
 
-Say `not run by this skill` for anything you are inferring, and keep it distinct from `not enforced by this repo`, which is a finding from section 6. Never report an inference as a gate result.
+Say `not run by this skill` for anything you are inferring, and keep it distinct from `not enforced by this repo`, which is a finding from section 7. Never report an inference as a gate result.
 
-## 9. Write the report
+## 8. Write the report
 
 Write this to `.agentic/review.md` (create `.agentic/` if needed), overwriting the previous round, and echo the verdict plus the Blocking list in chat:
 
@@ -170,24 +121,19 @@ Write this to `.agentic/review.md` (create `.agentic/` if needed), overwriting t
   - Fix: the concrete fix.
 
 ### Warnings
-- `path:line`
-  - Rule: `TYPE-001` (No Bare Any on Public Functions)
-  - Issue: what is advisory.
-  - Fix: the suggested change.
+- `path:line` — same shape as Blocking.
 
 ### Suggestions
-- `path:line`
-  - Issue: what could be improved.
-  - Fix: the suggested change.
+- `path:line` — Issue / Fix, no rule ID required.
 
 ### Nits
-- `path:line`
-  - Issue: minor style or wording observation.
-  - Fix: the concrete adjustment.
+- `path:line` — minor style or wording observation.
 
-### Rule evaluation matrix
+
 | Rule ID | Clause | Severity | Status | Evidence (quoted) |
 |---|---|---|---|---|
+| `TEST-007` | no waiver outside the comparison | SUGGESTION | FAIL | `tests/core/config/test_loader.py:134` reads `assert_model_equal(result, expected, exclude={"errors"})`; `errors` is deterministic and the parameter no longer exists |
+| `TEST-011` | no wall-clock sleeps | BLOCKER | FAIL | `tests/core/step/test_process_group.py:58` reads `time.sleep(0.05)` |
 
 ### Plan fidelity
 - <FR-n> - implemented as specified | deviates: <what> | missing
@@ -214,21 +160,13 @@ Write this to `.agentic/review.md` (create `.agentic/` if needed), overwriting t
 - <finding> - unresolved after round 3, handed to the human
 ```
 
-Severity:
-- **Blocking (`BLOCKER`)**: hard failure. Architectural drift, concurrency risk, raw DB instantiation in loops or helpers, boundary leaks, runtime crashes, `assert` in `src/`, a broken user-facing contract, a deviation from a plan contract, a suppression hiding a real type error, a test asserting implementation or rendered output, an enforcement check that cannot fail, a violated doc rule, or a missing required doc update.
-- **Warning (`WARNING`)**: high-impact quality, typing, or convention deviation, advisory on its own.
-- **Suggestion (`SUGGESTION`)**: a real improvement that need not land now.
-- **Nit (`NIT`)**: style or wording with no rule behind it.
-
-Say `APPROVE` only with zero Blocking items. An empty section stays, marked `none`.
-
-Each item under Blocking, Warnings, Suggestions, and Nits is written as `path:line` (or `path` for file-level) followed by `Rule`, `Issue`, and `Fix`.
+Say `APPROVE` only with zero Blocking items. An empty section stays, marked `none`. Each item is `path:line` (or `path` file-level) followed by `Rule`, `Issue`, `Fix`.
 
 With `--post` and a PR scope, post the same content as a comment review: `gh pr review <n> --comment --body-file .agentic/review.md`. Never `--approve` or `--request-changes`, and do not add reviewers.
 
-On `CHANGES REQUIRED`, hand off to `/wt-code review`, then re-run this skill as round n+1 against the updated scope. **Cap at 3 rounds.** At the cap, every unresolved finding goes in the `Residual` section, in `review.json` under `residual`, and, when the scope is a PR, into a posted comment. An unresolved blocker that is only mentioned in chat is an unresolved blocker that ships, since chat is not part of the merge record.
+On `CHANGES REQUIRED`, hand off to `/wt-code review`, then re-run this skill as round n+1 against the updated scope. **Cap at 3 rounds.** At the cap, every unresolved finding goes in the `Residual` section, in `review.json` under `residual`, and, when the scope is a PR, into a posted comment.
 
-## 10. Emit the machine-readable verdict
+## 11. Emit the machine-readable verdict
 
 Write `.agentic/review.json` alongside the markdown and print the same object as the last line of stdout, minified onto one line. A caller decides the next step from this file alone.
 
@@ -241,13 +179,7 @@ Write `.agentic/review.json` alongside the markdown and print the same object as
   "plan": ".agentic/plan.md",
   "counts": { "blocking": 2, "warnings": 1, "suggestions": 3, "nits": 1 },
   "findings": [
-    {
-      "severity": "BLOCKER",
-      "path": "src/worktree/core/diff/services/render.py",
-      "line": 42,
-      "rule": "ARCH-001",
-      "summary": "Core service imports CliContext directly."
-    }
+    { "severity": "BLOCKER", "path": "src/worktree/core/diff/services/render.py", "line": 42, "rule": "ARCH-001", "summary": "Core service imports CliContext directly." }
   ],
   "unenforced_gates": ["coverage fail_under=0 in pyproject.toml"],
   "residual": []
@@ -256,37 +188,10 @@ Write `.agentic/review.json` alongside the markdown and print the same object as
 
 Field contracts, since this is what a loop branches on:
 
-- `verdict` is exactly `APPROVE` or `CHANGES_REQUIRED`. Underscored, unlike the markdown heading, so it survives shell and condition matching untouched.
-- `verdict` is `APPROVE` if and only if `counts.blocking` is `0`. Never emit `APPROVE` with `blocking > 0`.
-- `provenance` is `fresh_session` or `same_session`.
-- `scope.kind` is `pr`, `uncommitted`, or `branch`. `scope.ref` is the PR number, an empty string, or the compared range.
-- `plan` is the plan path, or `null` when `.agentic/plan.md` was absent.
-- `counts` tracks `{ "blocking": <int>, "warnings": <int>, "suggestions": <int>, "nits": <int> }`.
-- `findings` carries every Blocking and Warning item with line-level detail, and may omit Suggestions and Nits; `counts` always reflects the full report. `rule` is the rule ID or `<doc>#<section>`.
-- `line` is an integer, or `null` for a file-level or repo-level finding.
-- `unenforced_gates` lists gates this change relies on that the repo does not actually enforce, and stays `[]` when there are none.
-- `residual` stays `[]` until the round cap, then carries the unresolved findings.
+- `verdict` is exactly `APPROVE` or `CHANGES_REQUIRED` (underscored, so it survives shell and condition matching), and is `APPROVE` iff `counts.blocking` is `0`.
+- `provenance` is `fresh_session` or `same_session`. `scope.kind` is `pr`, `uncommitted`, or `branch`.
+- `plan` is the plan path, or `null` when absent.
+- `findings` carries every Blocking and Warning item with line-level detail; `counts` always reflects the full report.
+- `unenforced_gates` and `residual` stay `[]` when there are none.
 
 Changes to this shape are additive only. It is the contract a driver script consumes today, and the `outputs` condition a `wt` blueprint will branch on later, so a renamed field breaks both.
-
-## Independence
-
-**A same-session review is a weak control and must declare itself.** If this session planned or wrote the code, set `provenance` to `same_session`, re-derive every finding from the diff and the docs, and discard in-session claims that something was verified or intentional. The failure mode is specific: an agent that just wrote `exclude={"errors"}` and read the rule forbidding it will still write a PASS row, because the row is generated from the rule text rather than from the line. The quoted-evidence requirement in section 4 exists to make that impossible, so in same-session mode, treat any clause you cannot support with a quoted line as `FAIL`, not `PASS`.
-
-Prefer a fresh session: `copilot -p "use wt-review on PR <n>"` or `gemini -p "use wt-review on PR <n>"`.
-
-## Rule provenance
-
-Cite a rule ID only from this list. Each resolves to a rule in `docs/agents/rules_spec.yaml`, compiled into the domain `RULES.md` files and `REVIEW_CHECKLIST.json`. A finding you cannot tie to an ID here is a Suggestion or a Nit, never Blocking.
-
-| This skill's section | Rule IDs |
-|---|---|
-| Stale, phantom, and aspirational docs | `DOC-008`, `DOC-005`, `DOC-001` to `DOC-004`, `DOC-006` |
-| Plan and ledger fidelity | `PLAN-009`, `PLAN-013`, `PLAN-017`, `TEST-002` |
-| Mechanical sweep | every rule in `REVIEW_CHECKLIST.json` matching a changed path |
-| Test pass | `TEST-001` to `TEST-017` by clause, excluding `TEST-016` (reversed by ADR-0002) |
-| Redundancy and subtraction | `TEST-004`, `TEST-006`, `TEST-013`, `DRY-001`, `PLAN-017` |
-| Enforcement integrity | `CI-004`, `CI-001`, `TEST-014` |
-| Matrix evidence standard | `PLAN-016` |
-
-Four requirements in this skill are skill-owned with no compiled rule, so report them as this skill's directive rather than citing an ID: the four-tier severity classification, the `.agentic/review.json` field contract, the three-round cap with residual handoff, and the provenance declaration.
