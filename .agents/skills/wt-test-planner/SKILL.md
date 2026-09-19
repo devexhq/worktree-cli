@@ -1,17 +1,17 @@
 ---
 name: wt-test-planner
 description: >-
-  Given a source module, produce a skeleton of test class(es) and test method stubs
+  Given a source module (or --plan to read from an in-progress plan), produce a skeleton of test class(es) and test method stubs
   covering public observable contracts, interaction and ordering contracts, and conforming
-  to this repo's tests/docs/RULES.md (TEST-001 through TEST-018). Invoked as /wt-test-planner.
-  Use when planning, drafting, or structuring tests for a module.
+  to this repo's tests/docs/RULES.md (TEST-001 through TEST-018). Invoked as /wt-test-planner <source-module> or
+  /wt-test-planner --plan [<path>]. Use when planning, drafting, or structuring tests for a module or plan.
 ---
 
 # wt-test-planner
 
 ## Purpose
 
-Given a source module, produce a skeleton of test class(es) and test method stubs that:
+Given a source module or an in-progress plan, produce a skeleton of test class(es) and test method stubs that:
 
 - Cover every **public** symbol's observable contracts.
 - Surface private-function behaviour through their public callers only.
@@ -25,28 +25,57 @@ Given a source module, produce a skeleton of test class(es) and test method stub
 
 ---
 
-## Step 1 — Read the governing rules
+## Invocation and Modes
+
+The skill supports two data sources controlled by the `--plan` argument:
+
+- **Existing-code mode** (default, `--plan` omitted):
+  - **Invocation**: `/wt-test-planner <source-module>` (e.g. `/wt-test-planner src/worktree/core/runtime/engine.py`).
+  - **Data source**: A live Python source file under `src/`.
+  - **Steps 1b–1d**: Grep source code and audit existing test suites under `tests/`.
+  - **Docstrings & Stubs**: Test stubs include single-line docstrings stating tier, public function, and private/interaction coverage.
+- **Planning mode** (`--plan` provided):
+  - **Invocation**: `/wt-test-planner --plan [<path>]` (defaults to `.agentic/plan.md` if `<path>` is omitted).
+  - **Data source**: The in-progress plan (`.agentic/plan.md` or specified path), specifically `## Ground truth`, `## Artifact inventory`, and `## FR-<n>`.
+  - **Steps 1b–1d**: Draw from the plan's Ground Truth, Traps, and Artifact inventory tables (confirming dead status traps and avoiding duplication with existing coverage).
+  - **Docstrings & Stubs**: Follows `PLAN-018` and `docs/agents/planning.md` — test stubs have **zero docstrings** and end with `raise NotImplementedError`.
+  - **Output format**: Emits the `### Tests` table (`| Test | Exact outcome |`) paired with signature-only stubs, formatted to fold directly into the plan's FR sections.
+
+### Integration with planning.md
+
+When drafting a plan per `docs/agents/planning.md`, the skill aligns directly with the planning lifecycle:
+
+```
+planning.md Steps 1–3  →  plan: Contract + Ground Truth + Artifact inventory
+skill Steps 1–5        →  plan: Ground Truth (dead status audit, Typer binding, existing coverage)
+skill Steps 6–7        →  plan: Tests table + code stubs (per FR section)
+planning.md Step 4     →  plan: per-FR Instructions + Code + Decisions
+```
+
+The skill's output in planning mode *is* the `### Tests` section of the plan.
+
+---
+
+## Step 1 — Read the governing rules and data source
 
 Before drafting anything, read:
 
 1. `tests/docs/RULES.md` — the full rule set (TEST-*, TYPE-*, ENCAP-*, etc.).
-2. The source module under analysis.
-3. Any models / DTOs the module returns (follow imports for `BaseResult` subtypes).
+2. **Data source based on mode**:
+   - **Existing-code mode**: The source module under analysis (e.g. `src/worktree/core/runtime/engine.py`) and any models/DTOs it returns (follow imports for `BaseResult` subtypes).
+   - **Planning mode (`--plan`)**: The plan document (`.agentic/plan.md` or specified path), specifically `## Contract`, `## Ground truth`, `## Artifact inventory`, and the relevant `## FR-<n>` section.
 
 ---
 
 ## Step 1b — Trace every delegated call and audit reachable status values
 
-For each service or facade method the module delegates to, **read its full
-implementation** (do not rely on the docstring or the return type alone).
+For each service or facade method delegated to, **determine reachable status values**:
 
-For each `BaseResult` subtype returned:
-
-1. List every value in the `status` enum.
-2. Grep the service body — and every function it calls — for assignments to each
-   value.
-3. Mark any enum value that is **never assigned** anywhere in the reachable call
-   chain as `DEAD`.
+- **Existing-code mode**: Read the full implementation in `src/` (do not rely on docstrings alone). For each `BaseResult` subtype returned:
+  1. List every value in the `status` enum.
+  2. Grep the service body — and every function it calls — for assignments to each value.
+  3. Mark any enum value that is **never assigned** anywhere in the reachable call chain as `DEAD`.
+- **Planning mode (`--plan`)**: Read the plan's `## Ground truth` table and `Traps (explicitly not touched)`. The planner has already traced reachable status values in existing code and planned models. Use this audit to either **confirm** the plan's Traps or flag discrepancies if a planned test relies on an unassigned/dead status.
 
 > **Rule**: Do not draft a test for a `DEAD` status value. A test that invokes
 > a code path that does not exist is incorrect, not conservative.
@@ -64,8 +93,12 @@ SandboxListStatus.NOT_INITIALIZED | ❌ never             | declared only — de
 
 ## Step 1c — Read the Typer binding for this command
 
-Find the `@<app>.command(...)` function that wraps the handler under analysis
-(typically in `app.py` next to the `commands/` directory). Read it and record:
+Find the CLI binding that wraps the handler under analysis:
+
+- **Existing-code mode**: Find the `@<app>.command(...)` function in `app.py` next to the `commands/` directory.
+- **Planning mode (`--plan`)**: Read the planned Typer app/command binding from the plan's `## Ground truth` and `## Artifact inventory` tables.
+
+Read it and record:
 
 - **Coercions before the handler is called**: e.g. `status.value if status is
   not None else None`, Typer enum parsing, argument casting.
@@ -80,11 +113,12 @@ Find the `@<app>.command(...)` function that wraps the handler under analysis
 
 ---
 
-## Step 1d — Check what `tests/core/<domain>/` already pins
+## Step 1d — Check what existing tests already pin
 
-Before drafting, search `tests/core/<domain>/` for tests that assert the same
-`BaseResult` fields the handler returns. A CLI integration test must not
-restate a domain contract already proven there.
+Avoid restating contracts already pinned elsewhere:
+
+- **Existing-code mode**: Search `tests/core/<domain>/` for tests that assert the same `BaseResult` fields the handler returns.
+- **Planning mode (`--plan`)**: Read the plan's `## Ground truth` table ("Pattern to mirror" citations and existing test coverage).
 
 The CLI tier's job is to assert **wiring**:
 
@@ -99,11 +133,11 @@ sets — that belongs in `tests/core/`.
 
 ## Step 2 — Identify the public surface
 
-List every symbol the module exposes that is **not** prefixed with `_`:
-
-```
-public_surface = [sym for sym in dir(module) if not sym.startswith("_")]
-```
+- **Existing-code mode**: List every symbol the module exposes that is **not** prefixed with `_`:
+  ```python
+  public_surface = [sym for sym in dir(module) if not sym.startswith("_")]
+  ```
+- **Planning mode (`--plan`)**: Extract planned public symbols from the plan's `## Artifact inventory` and `### Code` sections.
 
 Private helpers (`_foo`, `__bar`) are **not** part of the public surface.
 
@@ -114,8 +148,12 @@ Private helpers (`_foo`, `__bar`) are **not** part of the public surface.
 
 ## Step 3 — Map private helpers to their public callers
 
-For each private function, identify which public function(s) call it (read the
-source; do not guess). Record the mapping:
+For each private function, identify which public function(s) call it:
+
+- **Existing-code mode**: Read the source; do not guess.
+- **Planning mode (`--plan`)**: Read the planned private helpers and caller relationships from the plan's `### Instructions` and `### Code`.
+
+Record the mapping:
 
 ```
 private → public caller(s)
@@ -208,26 +246,36 @@ Method names follow `test_<condition>_<outcome>`.
 `test_works`, `test_missing`, `test_blank`, `test_present`, `test_timeout`,
 `test_no_op`, `test_help`. No `should_` prefix.
 
-### Docstring — mandatory
+### Docstrings and Contract Ownership
 
-Each method must contain a **single-line docstring** that states:
-
-- The tier: `[unit]` or `[integration]`.
-- Which **public** function it exercises.
-- Which **private** function(s) it covers indirectly (if any), and whether it is
-  an interaction/ordering test.
+- **Planning mode (`--plan`)**:
+  Follows `PLAN-018` and `docs/agents/planning.md`. Test stubs have **zero docstrings** and end with `raise NotImplementedError`. The `### Tests` table directly above the stubs is the **single source of truth** for all contracts (exact exit codes, stdout substrings, disk/git mutations, and literal wire envelopes). Do not duplicate contract assertions in stub docstrings.
+- **Existing-code mode**:
+  When generating standalone test stubs outside a plan document, each method must contain a **single-line docstring** that states:
+  - The tier: `[unit]` or `[integration]`.
+  - Which **public** function it exercises.
+  - Which **private** function(s) it covers indirectly (if any), and whether it is an interaction/ordering test.
 
 ```python
-def test_checkpoint_persisted_before_prompter_is_consulted(self):
-    """[integration] run_steps: ordering — _try_save_checkpoint completes before failure_prompter.prompt_step_failure is called."""
+# Planning mode (--plan): stubs with zero docstrings, contracts in the Tests table above
+class IsPidAliveTests:
+    def test_zero_pid_returns_false(self):
+        raise NotImplementedError
+
+    def test_dead_pid_returns_false(self):
+        raise NotImplementedError
 
 
-def test_dead_pid_returns_true(self):
-    """[unit] is_run_stale: dead pid → stale. Covers _is_pid_reused (pid not alive, skips reuse check)."""
+# Existing-code mode: standalone stubs with single-line contract docstrings
+class IsPidAliveTests:
+    def test_zero_pid_returns_false(self):
+        """[unit] is_pid_alive: pid <= 0 guard returns False without calling os.kill."""
+
+    def test_dead_pid_returns_false(self):
+        """[unit] is_pid_alive: ProcessLookupError from os.kill → process does not exist → False."""
 ```
 
-If a draft test's docstring would only name private symbols, the test must be
-**removed or merged** into the test that covers the public caller.
+If a draft test in existing-code mode would only name private symbols in its docstring, the test must be **removed or merged** into the test that covers the public caller.
 
 ### Use real execution for integration tests
 
@@ -302,13 +350,15 @@ lifecycles, fixture requirements, or divergent assertion contracts**.
 
 ## Step 7 — Verify compliance checklist
 
-Run through this checklist before presenting the stubs:
+Run through this checklist before presenting the output:
 
 | Check | Rule |
 |---|---|
 | Every test class maps to exactly one **public** symbol | TEST-002, TEST-003 |
 | No test class is named after a `_private` function | TEST-001 |
-| Every method has a `[unit]`/`[integration]` tier tag and docstring | (this skill) |
+| **Existing-code mode**: Every method has a `[unit]`/`[integration]` tier tag and docstring | (this skill) |
+| **Planning mode (`--plan`)**: Stubs have zero docstrings and end with `raise NotImplementedError` | PLAN-018 |
+| **Planning mode (`--plan`)**: Every test has an exact outcome entry in the `### Tests` table | PLAN-018 |
 | Any method whose docstring only names private functions has been removed or merged | (this skill) |
 | At least one interaction/ordering test drafted where Step 5 produced a "yes" | (this skill) |
 | Integration tests inject doubles at protocol boundaries, not internal call sites | ENCAP-002 |
@@ -321,6 +371,32 @@ Run through this checklist before presenting the stubs:
 ---
 
 ## Output format
+
+The output format matches the mode in use:
+
+### Planning mode (`--plan`)
+
+In planning mode, emit the `### Tests` section containing the contract table and companion stubs, formatted to fold directly into the plan's FR sections:
+
+````markdown
+### Tests
+
+| Test | Exact outcome |
+|---|---|
+| `RunStepsExecutionTests::test_two_sequential_steps_return_completed_outcome_with_both_results` | steps succeed → COMPLETED, step_results contains both results with captured stdout |
+| `RunStepsExecutionTests::test_empty_step_list_returns_completed_outcome_with_no_results` | steps=[] → COMPLETED, step_results=[], errors=[], warnings=[] |
+| `RunStepsExecutionTests::test_observer_receives_lifecycle_callbacks_in_order` | observer receives sandbox_ready → step_start → step_done → sandbox_cleanup in that order |
+
+```python
+# stubs — outcomes in the Tests table above
+class RunStepsExecutionTests:
+    def test_two_sequential_steps_return_completed_outcome_with_both_results(self): raise NotImplementedError
+    def test_empty_step_list_returns_completed_outcome_with_no_results(self): raise NotImplementedError
+    def test_observer_receives_lifecycle_callbacks_in_order(self): raise NotImplementedError
+```
+````
+
+### Existing-code mode
 
 Present the stubs as a fenced Python block. Group methods into tier-labelled
 classes. Every method contains its docstring. Do **not** include import blocks or

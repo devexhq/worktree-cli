@@ -95,6 +95,8 @@ Never plan against a memory of how the codebase works. Read it.
 6. **Name every trap** a lower-context implementer could fall into: dead code, a
    similarly-named-but-unrelated symbol, a duplicate implementation, a stale
    doc. Mark each one explicitly out of scope so it is not touched by accident.
+   (Follow `/wt-test-planner` Steps 1b–1d to audit dead status values and existing
+   test coverage, ensuring dead enum paths are recorded as traps rather than tested.)
 
 Record the result as a ground-truth table (`Surface`, `Location`, `What exists`)
 in the plan:
@@ -182,6 +184,10 @@ Work one FR (or one testable group of FRs) at a time. The fundamental rule:
 5. `### Edge cases`
 6. `### Tests`
 
+> [!TIP]
+> Use `/wt-test-planner --plan` to generate the `### Tests` table and stubs.
+> The skill inspects the plan's Ground Truth and Artifact inventory, audits reachable status values, maps private helpers to public callers, and emits the exact two-column table and signature-only stubs ready to fold under this section.
+
 ### Instructions: Imperative verbs only
 
 - Write instructions using strictly imperative verbs (e.g., "Create `...`", "Assert `...`").
@@ -266,15 +272,30 @@ you did not verify exists is a bug you handed to someone else.
 
 ### Tests: Single source of truth table
 
-The `### Tests` table is the implementation contract for all tests in the section.
-Use a clean two-column format: `| Test | Exact outcome |` (do not add redundant `Tier` or `Path` columns when the test path and tier are evident from context).
+The `### Tests` section folds directly from the output of `/wt-test-planner --plan`. It pairs a single-source-of-truth contract table with signature-only compiler-checkable Python stubs.
+
+Use a clean two-column format: `| Test | Exact outcome |` (do not add redundant `Tier` or `Path` columns when the test path and tier are evident from context):
 
 | Test | Exact outcome |
 |---|---|
 | `SandboxPruneCliIntegrationTests::test_prune_empty_returns_nothing_to_prune` | exit 0; "Nothing to prune" in stdout; no filesystem mutations |
 | `SandboxPruneCliIntegrationTests::test_prune_partial_failure_deletes_succeeded_items` | exit 1; succeeds deleting "sbx_clean" but fails on "sbx_locked"; "Error pruning sbx_locked: permission denied" in stdout |
 
-The outcome must be the **exact contract asserted**: the exact dict for JSON output, the exit code,
+Followed directly by the compiler-checkable test stubs (zero docstrings):
+
+```python
+# stubs — outcomes in the Tests table above
+class SandboxPruneCliIntegrationTests:
+    def test_prune_empty_returns_nothing_to_prune(self, cli_runner: CliRunner, sandbox_workspace: Path) -> None:
+        raise NotImplementedError
+
+    def test_prune_partial_failure_deletes_succeeded_items(
+        self, cli_runner: CliRunner, sandbox_workspace: Path
+    ) -> None:
+        raise NotImplementedError
+```
+
+The outcome in the table must be the **exact contract asserted**: the exact dict for JSON output, the exit code,
 the file or git ref on disk, or the exact `*Result` field values. "Assert it works" is not a plan.
 **Strictly ban conversational vagueness** (`"Verifies pruning works"`), **piecewise framing**
 (`"Checks exit code is 0"`, `"Checks status is ok"`), and **silent exclusions** (omitting a field the test owns).
