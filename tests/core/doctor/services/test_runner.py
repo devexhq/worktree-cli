@@ -188,7 +188,6 @@ class DiagnosticRunnerFilteringTests:
                 total_duration_ms=ANY_DURATION,
             ),
         )
-        assert len(report.checks) == 2
 
 
 class DiagnosticRunnerConfigToggleTests:
@@ -298,11 +297,6 @@ class DiagnosticRunnerContainmentTests:
 
         result = execute_single_check(check, context)
 
-        assert result.status == CheckStatus.FAILED
-        assert result.error_code == "DOCTOR_CHECK_CRASH"
-        assert "Simulated crash in sandbox inspection" in result.message
-        assert result.duration_ms >= 0.0
-        assert result.errors == ["Unhandled exception in crashing.check: Simulated crash in sandbox inspection"]
         assert_model_equal(
             result,
             DiagnosticCheckResult.model_construct(
@@ -348,6 +342,7 @@ class DiagnosticRunnerContainmentTests:
 
         assert crash_check.executed is True
         assert healthy_check.executed is True
+        assert report.ok is False
         assert_model_equal(
             report,
             DoctorReport.model_construct(
@@ -386,18 +381,17 @@ class DiagnosticRunnerContainmentTests:
                 total_duration_ms=ANY_DURATION,
             ),
         )
-        assert len(report.checks) == 2
-        assert report.checks[0].status == CheckStatus.FAILED
-        assert report.checks[0].error_code == "DOCTOR_CHECK_CRASH"
-        assert report.checks[1].status == CheckStatus.OK
-        assert report.ok is False
 
 
 class DiagnosticRunnerMetricsTests:
     """Unit tests for DiagnosticRunner execution duration metrics."""
 
-    def test_total_duration_ms_sums_check_execution_and_overhead(self, tmp_path: Path) -> None:
-        """[tier-1/unit] DiagnosticRunner.run_checks: total_duration_ms on DoctorReport captures execution elapsed time."""
+    def test_total_duration_ms_sums_check_execution_and_overhead(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """[tier-1/unit] DiagnosticRunner.run_checks: total_duration_ms on DoctorReport captures check execution elapsed time and runner overhead."""
         registry = CheckRegistry()
         check1 = MockCheck(check_id="c1", category=CheckCategory.GIT)
         check2 = MockCheck(check_id="c2", category=CheckCategory.FILESYSTEM)
@@ -405,11 +399,59 @@ class DiagnosticRunnerMetricsTests:
         registry.register(check1)
         registry.register(check2)
 
+        # Sequence of 6 perf_counter ticks:
+        # 1. run_checks start:          10.0s
+        # 2. check1 start:              11.0s (1000ms overhead before check1)
+        # 3. check1 end:                13.0s (2000ms execution time)
+        # 4. check2 start:              14.0s (1000ms overhead between checks)
+        # 5. check2 end:                17.0s (3000ms execution time)
+        # 6. run_checks finish:         20.0s (3000ms overhead after checks)
+        tick_sequence = iter([10.0, 11.0, 13.0, 14.0, 17.0, 20.0])
+        monkeypatch.setattr(
+            "worktree.core.doctor.services.runner.time.perf_counter",
+            lambda: next(tick_sequence),
+        )
+
         runner = DiagnosticRunner(registry=registry)
         context = DoctorContext(cwd=tmp_path, config=None)
 
         report = runner.run_checks(context)
 
-        assert report.total_duration_ms >= 0.0
-        assert report.checks[0].duration_ms >= 0.0
-        assert report.checks[1].duration_ms >= 0.0
+        assert report.checks[0].duration_ms == 2000.0
+        assert report.checks[1].duration_ms == 3000.0
+        assert report.total_duration_ms == 10000.0
+        assert_model_equal(
+            report,
+            DoctorReport.model_construct(
+                workspace_root=tmp_path,
+                checks=[
+                    DiagnosticCheckResult.model_construct(
+                        check_id="c1",
+                        name="Mock Check",
+                        category=CheckCategory.GIT,
+                        status=CheckStatus.OK,
+                        message="Executed c1",
+                        details={"ran": True},
+                        duration_ms=2000.0,
+                        error_code=None,
+                        errors=[],
+                        warnings=[],
+                        fixes=[],
+                    ),
+                    DiagnosticCheckResult.model_construct(
+                        check_id="c2",
+                        name="Mock Check",
+                        category=CheckCategory.FILESYSTEM,
+                        status=CheckStatus.OK,
+                        message="Executed c2",
+                        details={"ran": True},
+                        duration_ms=3000.0,
+                        error_code=None,
+                        errors=[],
+                        warnings=[],
+                        fixes=[],
+                    ),
+                ],
+                total_duration_ms=10000.0,
+            ),
+        )
