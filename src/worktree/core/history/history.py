@@ -1,4 +1,4 @@
-"""History domain facade."""
+"""History domain entrypoint coordinator."""
 
 from __future__ import annotations
 
