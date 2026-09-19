@@ -1194,30 +1194,35 @@ planner_rules:
   negative_example: "```python\ndef prune_sandboxes(db: SandboxesRepository, cwd: Path) -> SandboxPruneResult:\n    \"\"\"Prune sandboxes.\n\n    1. Query active sandboxes from db\n    2. Diff against on-disk worktrees\n    3. Delete unreferenced ones\n    \"\"\"\n    raise NotImplementedError\n```\n"
   citation: docs/agents/planning.md#code-sample-rules
 - id: PLAN-018
-  title: Signature-Only Test Stubs with Zero Docstrings
+  title: Test Stubs with Mandatory Tier, Type, and Contract Docstrings
   category: Planning
   phase: Specification & Samples
   scope: '### Tests section in .agentic/plan.md'
-  requirement: 'Write only a signature for every planned test, ending with `raise NotImplementedError`. Do not write docstrings
-    on test stubs; the `### Tests` table is the single source of truth for the exact outcome contract (exact status/fields/exit code/wire dict).'
-  deliverable_contract: 'Signature + `raise NotImplementedError` with zero docstrings, paired with a row in the `### Tests` table.'
-  validation_check: 'Flag any test stub with docstrings, numbered steps, setup comments, or literal assertion code. Verify every test has an exact outcome entry in the `### Tests` table.'
+  requirement: 'Write a signature and a single-line contract docstring for every planned test stub, ending with `raise NotImplementedError`.
+    The docstring must begin with `[<tier>/<type>]` (where tier is tier-1, tier-2, tier-3, or tier-4 per docs/agents/testing.md#the-four-execution-tiers
+    and type is unit or integration), state the public symbol exercised, and state the exact outcome contract asserted. The `### Tests`
+    table acts as a concise summary index.'
+  deliverable_contract: 'Signature + single-line docstring with `[<tier>/<type>]` tag and outcome contract + `raise NotImplementedError`.'
+  validation_check: 'Flag any test stub missing the tier/type tag (e.g. `[tier-1/unit]`, `[tier-3/integration]`), missing the outcome contract, or containing numbered steps/body code.'
   positive_example: |
     ### Tests
 
-    | Test | Exact outcome |
-    |---|---|
-    | `SandboxCreateCliIntegrationTests::test_create_cli_capacity_exceeded_exits_one` | 3 prior sandboxes exist; exit 1; "Maximum active sandboxes reached" in stdout |
+    | Test | Tier | Outcome |
+    |---|---|---|
+    | `SandboxCreateCliIntegrationTests::test_create_cli_capacity_exceeded_exits_one` | Tier 3 (integration) | exit 1; capacity exceeded error |
 
     ```python
-    # stubs — outcomes in the Tests table above
     class SandboxCreateCliIntegrationTests:
-        def test_create_cli_capacity_exceeded_exits_one(self, cli_runner, sandbox_workspace): raise NotImplementedError
+        def test_create_cli_capacity_exceeded_exits_one(
+            self, cli_runner: CliRunner, sandbox_workspace: Path
+        ) -> None:
+            """[tier-3/integration] wt sandbox create: 3 prior sandboxes exist → exit 1, 'Maximum active sandboxes reached' in stdout."""
+            raise NotImplementedError
     ```
   negative_example: |
-    # Test stub with duplicate docstring already captured in the Tests table
+    # Test stub missing tier/type tag and specific contract
     def test_create_cli_capacity_exceeded_exits_one(self, cli_runner, sandbox_workspace):
-        """3 prior sandboxes exist; exit 1; "Maximum active sandboxes reached" in stdout."""
+        """Verifies create fails when capacity exceeded."""
         raise NotImplementedError
   citation: docs/agents/planning.md#code-sample-rules
 - id: PLAN-012

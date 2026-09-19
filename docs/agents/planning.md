@@ -236,21 +236,20 @@ def prune_sandboxes(context: CliContext, dry_run: bool = False) -> SandboxPruneR
     raise NotImplementedError
 ```
 
-**Remove docstrings from test stubs entirely — the Tests table is the single source of truth.**
-A test stub is merely a compiler-checkable placeholder (`raise NotImplementedError`). Do not
-write docstrings on test stubs: any docstring is a second copy of the contract that will
-drift or go stale. The `### Tests` table carries 100% of the verification contract (exact exit
-codes, stdout substrings, disk/git mutations, and literal wire envelopes).
+**Write a single-line contract docstring on test stubs with mandatory execution tier and test type.**
+Every test stub carries its co-located verification contract via a mandatory single-line docstring starting with `[<tier>/<type>]` (referencing `docs/agents/testing.md#the-four-execution-tiers`, e.g. `[tier-1/unit]`, `[tier-1/integration]`, `[tier-2/unit]`, `[tier-3/integration]`, `[tier-4/unit]`). The docstring states the public function or command exercised, any private helpers covered, and the exact outcome contract asserted. The stub ends with `raise NotImplementedError`.
+The `### Tests` table acts as a clean summary index (`Test`, `Tier`, `Outcome`), while the co-located stub docstring remains the authoritative contract owner.
 
 ```python
-# stubs — outcomes defined in the Tests table above
 class SandboxPruneCliIntegrationTests:
     def test_prune_empty_returns_nothing_to_prune(self, cli_runner: CliRunner, sandbox_workspace: Path) -> None:
+        """[tier-3/integration] wt sandbox prune: empty sandboxes directory prints 'Nothing to prune'; exit 0."""
         raise NotImplementedError
 
     def test_prune_partial_failure_deletes_succeeded_items(
         self, cli_runner: CliRunner, sandbox_workspace: Path
     ) -> None:
+        """[tier-3/integration] wt sandbox prune: partial failure deletes 'sbx_clean', reports error on 'sbx_locked'; exit 1."""
         raise NotImplementedError
 ```
 
@@ -270,32 +269,31 @@ you did not verify exists is a bug you handed to someone else.
 - Record only non-obvious traps, execution gotchas, or sequencing constraints not already covered under `Traps` in Ground truth or `Decisions`.
 - Do not restate standard happy/unhappy branch logic.
 
-### Tests: Single source of truth table
+### Tests: Summary index table and contract stubs
 
-The `### Tests` section folds directly from the output of `/wt-test-planner --plan`. It pairs a single-source-of-truth contract table with signature-only compiler-checkable Python stubs.
+The `### Tests` section folds directly from the output of `/wt-test-planner --plan`. It pairs a concise summary index table with fully specified Python stubs carrying `[<tier>/<type>]` contract docstrings:
 
-Use a clean two-column format: `| Test | Exact outcome |` (do not add redundant `Tier` or `Path` columns when the test path and tier are evident from context):
+| Test | Tier | Outcome |
+|---|---|---|
+| `SandboxPruneCliIntegrationTests::test_prune_empty_returns_nothing_to_prune` | Tier 3 (integration) | exit 0; "Nothing to prune" |
+| `SandboxPruneCliIntegrationTests::test_prune_partial_failure_deletes_succeeded_items` | Tier 3 (integration) | exit 1; succeeds on "sbx_clean", fails on "sbx_locked" |
 
-| Test | Exact outcome |
-|---|---|
-| `SandboxPruneCliIntegrationTests::test_prune_empty_returns_nothing_to_prune` | exit 0; "Nothing to prune" in stdout; no filesystem mutations |
-| `SandboxPruneCliIntegrationTests::test_prune_partial_failure_deletes_succeeded_items` | exit 1; succeeds deleting "sbx_clean" but fails on "sbx_locked"; "Error pruning sbx_locked: permission denied" in stdout |
-
-Followed directly by the compiler-checkable test stubs (zero docstrings):
+Followed directly by the compiler-checkable test stubs carrying co-located contract docstrings:
 
 ```python
-# stubs — outcomes in the Tests table above
 class SandboxPruneCliIntegrationTests:
     def test_prune_empty_returns_nothing_to_prune(self, cli_runner: CliRunner, sandbox_workspace: Path) -> None:
+        """[tier-3/integration] wt sandbox prune: empty sandboxes directory prints 'Nothing to prune'; exit 0."""
         raise NotImplementedError
 
     def test_prune_partial_failure_deletes_succeeded_items(
         self, cli_runner: CliRunner, sandbox_workspace: Path
     ) -> None:
+        """[tier-3/integration] wt sandbox prune: partial failure deletes 'sbx_clean', reports error on 'sbx_locked'; exit 1."""
         raise NotImplementedError
 ```
 
-The outcome in the table must be the **exact contract asserted**: the exact dict for JSON output, the exit code,
+The outcome in the docstring must be the **exact contract asserted**: the exact dict for JSON output, the exit code,
 the file or git ref on disk, or the exact `*Result` field values. "Assert it works" is not a plan.
 **Strictly ban conversational vagueness** (`"Verifies pruning works"`), **piecewise framing**
 (`"Checks exit code is 0"`, `"Checks status is ok"`), and **silent exclusions** (omitting a field the test owns).
@@ -312,8 +310,8 @@ is assigning each fact to exactly one owner and deleting every duplicate.
 | Ground truth cells | 3–5 sentence paragraphs explaining implementation | One clause per cell max; `file:line` citation is the reference |
 | Patterns & Traps | Repeated across Ground truth, Instructions, Edge cases | Ground truth section only |
 | Instructions | "Do X because Y" inline explanations | Strictly imperative verbs; rationale moved to Decisions |
-| Test stubs | Full docstrings restating test outcomes | Zero docstrings; signature + `raise NotImplementedError` only |
-| Tests contract | Split between stub docstrings, table, and ledger | `### Tests` table is the single source of truth (`Test` and `Exact outcome`) |
+| Test stubs | Numbered steps, setup comments, body code | Single-line docstring with `[<tier>/<type>]` tag and exact outcome contract + `raise NotImplementedError` |
+| Tests table | Bloated duplicate of stub details | Concise summary index (`Test`, `Tier`, `Outcome`) |
 | Rule IDs | Cited then explained in prose | Rule ID only — implementer/reviewer reads the spec |
 | Edge cases | Restating traps, decisions, or normal branches | Genuine implementation gotchas only |
 
@@ -387,14 +385,15 @@ Not needed: <kinds from the Step 3 checklist that are "none">
 
 ### Tests
 
-| Test | Exact outcome |
-|---|---|
-| `<TestClass>::<test_method>` | <exact exit code, stdout substring, disk/git state, or literal JSON envelope> |
+| Test | Tier | Outcome |
+|---|---|---|
+| `<TestClass>::<test_method>` | Tier <n> (<type>) | <summary exit code or status> |
 
 ```python
-# stubs — outcomes in the Tests table above
 class <TestClass>:
-    def <test_method>(self, ...): raise NotImplementedError
+    def <test_method>(self, ...):
+        """[<tier>/<type>] <public_symbol>: <exact outcome contract>."""
+        raise NotImplementedError
 ```
 
 ---
@@ -446,8 +445,8 @@ Do not hand off a plan that fails any of these:
 - Instructions use strictly imperative verbs with zero inline rationale ("because X") or repeated code details.
 - `### Decisions` is the sole owner of all rationale, choices, and rejected alternatives.
 - Every production stub in `### Code` is signature + one-line intent docstring + `raise NotImplementedError` only — zero numbered steps or body code.
-- Every test stub has **zero docstrings** and ends with `raise NotImplementedError` — the `### Tests` table is the single source of truth for exact outcomes.
-- Every test's stated outcome in the `### Tests` table states the exact outcome in prose (exact status/field values, exit code, or wire dict), naming every field the test owns; zero vague phrasing (`"Verifies pruning works."`), zero piecewise framing (`"Checks exit code is 0."`), and zero silently dropped fields.
+- Every test stub carries a single-line docstring starting with `[<tier>/<type>]` specifying the public symbol and exact outcome contract, ending with `raise NotImplementedError` — zero numbered steps, setup comments, or body code.
+- The `### Tests` table indexes each test with its execution tier and concise outcome summary without duplicating full contract prose.
 - Edge cases contain only genuine gotchas not already captured in Traps or Decisions.
 - Every planned function decomposes below complexity 10.
 - The validation commands listed are this repo's real ones, not guessed.

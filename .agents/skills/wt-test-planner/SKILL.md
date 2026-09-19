@@ -33,13 +33,13 @@ The skill supports two data sources controlled by the `--plan` argument:
   - **Invocation**: `/wt-test-planner <source-module>` (e.g. `/wt-test-planner src/worktree/core/runtime/engine.py`).
   - **Data source**: A live Python source file under `src/`.
   - **Steps 1b–1d**: Grep source code and audit existing test suites under `tests/`.
-  - **Zero Docstrings**: Test stubs have **zero docstrings** and end with `raise NotImplementedError`.
+  - **Docstrings & Stubs**: Each test stub carries a mandatory single-line docstring stating the tier/type tag `[<tier>/<type>]` (per `docs/agents/testing.md#the-four-execution-tiers`), public symbol exercised, and exact contract outcome, ending with `raise NotImplementedError`.
 - **Planning mode** (`--plan` provided):
   - **Invocation**: `/wt-test-planner --plan [<path>]` (defaults to `.agentic/plan.md` if `<path>` is omitted).
   - **Data source**: The in-progress plan (`.agentic/plan.md` or specified path), specifically `## Ground truth`, `## Artifact inventory`, and `## FR-<n>`.
   - **Steps 1b–1d**: Draw from the plan's Ground Truth, Traps, and Artifact inventory tables (confirming dead status traps and avoiding duplication with existing coverage).
-  - **Zero Docstrings**: Follows `PLAN-018` and `docs/agents/planning.md` — test stubs have **zero docstrings** and end with `raise NotImplementedError`.
-  - **Output format**: Emits the `### Tests` table (`| Test | Exact outcome |`) paired with signature-only stubs, formatted to fold directly into the plan's FR sections.
+  - **Docstrings & Stubs**: Follows `PLAN-018` and `docs/agents/planning.md` — test stubs carry the authoritative `[<tier>/<type>]` docstring contract and end with `raise NotImplementedError`.
+  - **Output format**: Emits the `### Tests` summary table (`| Test | Tier | Outcome |`) paired with contract-bearing stubs, formatted to fold directly into the plan's FR sections.
 
 ### Integration with planning.md
 
@@ -246,23 +246,32 @@ Method names follow `test_<condition>_<outcome>`.
 `test_works`, `test_missing`, `test_blank`, `test_present`, `test_timeout`,
 `test_no_op`, `test_help`. No `should_` prefix.
 
-### Zero Docstrings on Test Stubs
+### Mandatory Docstring with Execution Tier, Test Type, and Contract
 
-Test stubs must **never contain docstrings**:
+Each method must contain a **single-line docstring** that states:
 
-- A docstring on a test stub is a redundant contract that drifts relative to the test name or contract table.
-- Every test stub is strictly signature-only + `raise NotImplementedError`.
-- In planning mode (`--plan`), the `### Tests` table directly above the stubs is the **single source of truth** for all contracts (exact exit codes, stdout substrings, disk/git mutations, and literal wire envelopes).
-- In existing-code mode, the descriptive test method name (`test_<condition>_<outcome>`) states what is being verified without repeating contract prose in a docstring.
+- The execution tier and test type tag: `[<tier>/<type>]` referencing `docs/agents/testing.md#the-four-execution-tiers`:
+  - `[tier-1/unit]` or `[tier-1/integration]`: Tier 1 — Domain Behavior (services/facades under `core/`)
+  - `[tier-2/unit]`: Tier 2 — Presentation Contracts (formatters under `cli/ui/formatters/`)
+  - `[tier-3/integration]`: Tier 3 — CLI Wiring (commands under `cli/`)
+  - `[tier-4/unit]`: Tier 4 — Invariants (`tests/lint/`)
+- Which **public** function/command it exercises.
+- Which **private** function(s) it covers indirectly (if any), and whether it is an interaction/ordering test.
+- The **exact contract outcome** (exit codes, status enums, return values, or wire dicts).
 
 ```python
-class IsPidAliveTests:
-    def test_zero_pid_returns_false(self):
-        raise NotImplementedError
+def test_checkpoint_persisted_before_prompter_is_consulted(self):
+    """[tier-1/integration] run_steps: ordering — _try_save_checkpoint completes before failure_prompter.prompt_step_failure is called."""
+    raise NotImplementedError
 
-    def test_dead_pid_returns_false(self):
-        raise NotImplementedError
+
+def test_dead_pid_returns_true(self):
+    """[tier-1/unit] is_run_stale: dead pid → stale. Covers _is_pid_reused (pid not alive, skips reuse check)."""
+    raise NotImplementedError
 ```
+
+If a draft test's docstring would only name private symbols, the test must be
+**removed or merged** into the test that covers the public caller.
 
 ### Use real execution for integration tests
 
@@ -343,9 +352,9 @@ Run through this checklist before presenting the output:
 |---|---|
 | Every test class maps to exactly one **public** symbol | TEST-002, TEST-003 |
 | No test class is named after a `_private` function | TEST-001 |
-| All test stubs have **zero docstrings** and end with `raise NotImplementedError` | PLAN-018, (this skill) |
-| In planning mode (`--plan`), every test has an exact outcome entry in the `### Tests` table | PLAN-018 |
-| No test method exists only to exercise private functions directly | TEST-001 |
+| Every method has a single-line docstring with `[<tier>/<type>]` tag and exact outcome contract | PLAN-018, (this skill) |
+| In planning mode (`--plan`), every test has an entry in the `### Tests` summary table | PLAN-018 |
+| Any method whose docstring only names private functions has been removed or merged | (this skill) |
 | At least one interaction/ordering test drafted where Step 5 produced a "yes" | (this skill) |
 | Integration tests inject doubles at protocol boundaries, not internal call sites | ENCAP-002 |
 | Sibling variations of the same contract are parameterised | TEST-006 |
@@ -362,27 +371,29 @@ The output format matches the mode in use:
 
 ### Planning mode (`--plan`)
 
-In planning mode, emit the `### Tests` section containing the contract table and companion stubs, formatted to fold directly into the plan's FR sections:
+In planning mode, emit the `### Tests` section containing the summary table and companion stubs carrying `[<tier>/<type>]` contract docstrings, formatted to fold directly into the plan's FR sections:
 
 ````markdown
 ### Tests
 
-| Test | Exact outcome |
-|---|---|
-| `RunStepsExecutionTests::test_two_sequential_steps_return_completed_outcome_with_both_results` | steps succeed → COMPLETED, step_results contains both results with captured stdout |
-| `RunStepsExecutionTests::test_empty_step_list_returns_completed_outcome_with_no_results` | steps=[] → COMPLETED, step_results=[], errors=[], warnings=[] |
-| `RunStepsExecutionTests::test_observer_receives_lifecycle_callbacks_in_order` | observer receives sandbox_ready → step_start → step_done → sandbox_cleanup in that order |
+| Test | Tier | Outcome |
+|---|---|---|
+| `RunStepsExecutionTests::test_two_sequential_steps_return_completed_outcome_with_both_results` | Tier 1 (integration) | steps succeed → COMPLETED, both results |
+| `RunStepsExecutionTests::test_empty_step_list_returns_completed_outcome_with_no_results` | Tier 1 (integration) | steps=[] → COMPLETED, empty results |
+| `RunStepsExecutionTests::test_observer_receives_lifecycle_callbacks_in_order` | Tier 1 (integration) | observer receives callbacks in order |
 
 ```python
-# stubs — outcomes in the Tests table above
 class RunStepsExecutionTests:
     def test_two_sequential_steps_return_completed_outcome_with_both_results(self):
+        """[tier-1/integration] run_steps: two steps succeed → COMPLETED, step_results contains both results with captured stdout."""
         raise NotImplementedError
 
     def test_empty_step_list_returns_completed_outcome_with_no_results(self):
+        """[tier-1/integration] run_steps: steps=[] → COMPLETED, step_results=[], errors=[], warnings=[]."""
         raise NotImplementedError
 
     def test_observer_receives_lifecycle_callbacks_in_order(self):
+        """[tier-1/integration] run_steps: observer receives sandbox_ready → step_start → step_done → sandbox_cleanup in that order. Interaction/ordering contract across all _notify_* helpers."""
         raise NotImplementedError
 ```
 ````
@@ -390,9 +401,8 @@ class RunStepsExecutionTests:
 ### Existing-code mode
 
 Present the stubs as a fenced Python block. Group methods into tier-labelled
-classes. All test methods contain **zero docstrings** and end with
-`raise NotImplementedError`. Do **not** include import blocks or fixture
-bodies — stubs only.
+classes. Every method contains its mandatory single-line `[<tier>/<type>]` docstring. Do **not**
+include import blocks or fixture bodies — stubs only.
 
 ```python
 # ── Unit tests ──────────────────────────────────────────────────────────────
@@ -400,15 +410,19 @@ bodies — stubs only.
 
 class IsPidAliveTests:
     def test_zero_pid_returns_false(self):
+        """[tier-1/unit] is_pid_alive: pid <= 0 guard returns False without calling os.kill."""
         raise NotImplementedError
 
     def test_dead_pid_returns_false(self):
+        """[tier-1/unit] is_pid_alive: ProcessLookupError from os.kill → process does not exist → False."""
         raise NotImplementedError
 
     def test_alive_pid_returns_true(self):
+        """[tier-1/unit] is_pid_alive: os.kill(pid, 0) succeeds → process exists → True."""
         raise NotImplementedError
 
     def test_permission_error_pid_returns_true(self):
+        """[tier-1/unit] is_pid_alive: PermissionError → process owned by another user but alive → True."""
         raise NotImplementedError
 
 
@@ -419,18 +433,23 @@ class RunStepsExecutionTests:
     """Happy-path and core execution contract tests using real shell commands."""
 
     def test_two_sequential_steps_return_completed_outcome_with_both_results(self):
+        """[tier-1/integration] run_steps: two steps succeed → COMPLETED, step_results contains both results with captured stdout."""
         raise NotImplementedError
 
     def test_empty_step_list_returns_completed_outcome_with_no_results(self):
+        """[tier-1/integration] run_steps: steps=[] → COMPLETED, step_results=[], errors=[], warnings=[]."""
         raise NotImplementedError
 
     def test_observer_receives_lifecycle_callbacks_in_order(self):
+        """[tier-1/integration] run_steps: observer receives sandbox_ready → step_start → step_done → sandbox_cleanup in that order. Interaction/ordering contract across all _notify_* helpers."""
         raise NotImplementedError
 
     def test_step_output_streamed_to_observer_per_line_with_correct_stream_name(self):
+        """[tier-1/integration] run_steps: stdout lines emit on_step_output with stream='stdout'; stderr lines with stream='stderr'. Covers _notify_step_output per-line streaming contract."""
         raise NotImplementedError
 
     def test_steps_execute_strictly_serially_never_concurrently(self):
+        """[tier-1/integration] run_steps: filesystem log proves each step's end is recorded before the next step's start. Serial ordering contract across _run_remaining_steps."""
         raise NotImplementedError
 
 
@@ -438,12 +457,15 @@ class RunStepsFailurePolicyTests:
     """Failure policy branch tests using real failing shell commands."""
 
     def test_abort_policy_stops_run_before_later_steps(self):
+        """[tier-1/integration] run_steps: step fails with on_failure=ABORT → FAILED, subsequent steps do not execute. Covers _handle_failed_step abort branch."""
         raise NotImplementedError
 
     def test_continue_policy_marks_step_ignored_and_runs_remaining_steps(self):
+        """[tier-1/integration] run_steps: step fails with on_failure=CONTINUE → step recorded as ignored, next step runs, final status=COMPLETED. Covers _handle_failed_step continue branch."""
         raise NotImplementedError
 
     def test_retry_exhausted_escalates_to_on_max_retries_policy(self):
+        """[tier-1/integration] run_steps: RETRY exhausted → escalates to on_max_retries policy. Covers effective_terminal_policy escalation branch."""
         raise NotImplementedError
 
     @pytest.mark.parametrize(
@@ -454,6 +476,7 @@ class RunStepsFailurePolicyTests:
         ],
     )
     def test_prompt_user_skips_prompt_and_aborts_when_non_interactive(self, ctx_kwargs, warning_substr):
+        """[tier-1/integration] run_steps: prompt_user with no_tty or no prompter → abort, warning contains reason. Covers _prompt_user_decision non-interactive branches."""
         raise NotImplementedError
 
     @pytest.mark.parametrize(
@@ -465,6 +488,7 @@ class RunStepsFailurePolicyTests:
         ],
     )
     def test_prompt_user_decision_maps_to_correct_outcome(self, decision, expected_status):
+        """[tier-1/integration] run_steps: prompter returns each FailurePromptDecision → outcome status matches. Covers _apply_prompt_decision all three branches."""
         raise NotImplementedError
 
 
@@ -472,18 +496,23 @@ class RunStepsPauseAndResumeTests:
     """Checkpoint persistence, ordering, and resume-from-checkpoint contracts."""
 
     def test_checkpoint_persisted_before_prompter_is_consulted(self):
+        """[tier-1/integration] run_steps: ordering — _try_save_checkpoint completes before failure_prompter.prompt_step_failure is called. Interaction contract between _try_save_checkpoint and _prompt_user_decision."""
         raise NotImplementedError
 
     def test_pause_cleared_after_interactive_prompt_decision(self):
+        """[tier-1/integration] run_steps: after prompter returns any decision, _try_clear_pause is called exactly once. Ordering contract."""
         raise NotImplementedError
 
     def test_no_tty_skips_checkpoint_save_and_pause_clear(self):
+        """[tier-1/integration] run_steps: no_tty=True → pause_store.save_checkpoint never called, pause_store.clear_pause never called. Covers _prompt_user_decision short-circuit."""
         raise NotImplementedError
 
     def test_keyboard_interrupt_at_prompt_with_checkpoint_returns_paused_and_keeps_sandbox(self):
+        """[tier-1/integration] run_steps: KeyboardInterrupt during prompt when checkpoint was saved → PAUSED, sandbox_kept=True. Covers PromptUserInterruptedError branch in _run_step_loop."""
         raise NotImplementedError
 
     def test_resume_skips_completed_steps_and_reprompts_pending_step(self):
+        """[tier-1/integration] run_steps: resume_from checkpoint → already-completed step_results prepended, pending step re-prompted without re-executing. Covers _resume_pending_gate and _run_remaining_steps start-index skip."""
         raise NotImplementedError
 
 
@@ -491,17 +520,22 @@ class RunStepsRobustnessTests:
     """Observer isolation, cleanup failures, and cancellation edge cases."""
 
     def test_observer_exceptions_do_not_abort_run(self):
+        """[tier-1/integration] run_steps: observer raises on every hook → exceptions swallowed, run completes normally. Covers all _notify_* exception-suppression branches."""
         raise NotImplementedError
 
     def test_keyboard_interrupt_during_step_cancels_run(self):
+        """[tier-1/integration] run_steps: KeyboardInterrupt raised during step → CANCELLED, errors=['Execution cancelled by user.']. Covers _run_step_loop KeyboardInterrupt branch."""
         raise NotImplementedError
 
     def test_sandbox_cleanup_exception_does_not_propagate(self):
+        """[tier-1/integration] run_steps: Sandbox.cleanup raises → exception swallowed, RunOutcome still returned. Covers _cleanup_sandbox best-effort branch. Monkeypatches Sandbox.cleanup at class boundary."""
         raise NotImplementedError
 
     def test_pause_store_save_failure_appends_warning_run_continues(self):
+        """[tier-1/unit] run_steps: pause_store.save_checkpoint raises → warning appended, _try_save_checkpoint returns False, run not aborted. Covers _try_save_checkpoint exception branch. Monkeypatches pause_store."""
         raise NotImplementedError
 
     def test_auto_apply_conflict_marks_run_failed_and_keeps_sandbox(self):
+        """[tier-1/integration] run_steps: auto_apply=True, Sandbox.apply returns conflict → FAILED, apply errors in outcome.errors, sandbox_kept=True. Covers _handle_auto_apply failed branch."""
         raise NotImplementedError
 ```
