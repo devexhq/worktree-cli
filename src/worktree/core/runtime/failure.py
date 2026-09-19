@@ -21,7 +21,10 @@ def effective_terminal_policy(spec: OnFailureSpec) -> FailurePolicy:
 
 
 def step_failure_diagnostic(result: StepResult) -> str:
-    """Build a compact diagnostic string for a failed step result."""
+    """Build a compact diagnostic string for a failed step result.
+
+    @TODO: Check if exit code return is reachable
+    """
     return result.error_message or result.stderr or f"exit code {result.exit_code}"
 
 
