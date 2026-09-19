@@ -179,7 +179,7 @@ Each core domain exposes a cohesive facade class that encapsulates domain servic
 | `Blueprint` | `core/blueprint/facade.py` | Loading and rendering unified blueprint documents (`load`, `from_path`, `from_document`, `render_show`). |
 | `Diff` | `core/diff/facade.py` | Session diff calculation, artifact loading, and rendering (`get_diff`, `render`). |
 | `Status` | `core/status/facade.py` | Workspace health and telemetry aggregation (`collect`). |
-| `History` | `core/history/facade.py` | Execution history query and display (`list_runs`, `get_run`). |
+| `History` | `core/history/history.py` | Execution history query and display (`list`, `show`). |
 | `Step` | `core/step/facade.py` | Step blueprint load, resolution, and isolated execution (`load`, `resolve`, `execute`, `assert_step`). |
 | `Engine` | `core/engine/engine.py` | Process-level run persistence, session minting, execution, and resume (`run`, `resume`, `reconcile`). |
 | `Filesystem` | `common/filesystem/facade.py` | Atomic writes, safe path operations, and YAML parsing (`atomic_write_json`, `atomic_write_text`, `read_yaml`). |

@@ -59,7 +59,7 @@ src/worktree/schemas/v1/             Packaged, versioned JSON Schemas (config.js
 - **Runtime** (`core/runtime/`): Step-loop execution (`run_steps`), `RunContext` / `RunObserver` / `RunOutcome`, failure orchestration (abort / continue / `prompt_user`), and pause checkpoint persistence. Runtime must not import cli.
 - **Engine** (`core/engine/`): Process-level run persistence, session ID minting (`RunRequest`), DB run records, run/resume services (`BlueprintRunService`, `BlueprintResumeService`, `reconcile_stale_runs`). Must not import cli.
 - **Catalog** (`core/catalog/`): Template scanning, indexing, `CatalogDb` sync hooks, packaged seeds under `templates/`.
-- **History** (`core/history/`): `HistoryListService`, `HistoryShowService`, result models (`HistoryListResult`, `HistoryShowResult`). UI formatters reside in `cli/ui/formatters/history/`.
+- **History** (`core/history/`): `History` entrypoint (`history.py`), result models (`HistoryListResult`, `HistoryShowResult`). UI formatters reside in `cli/ui/formatters/history/`.
 - **Diff** (`core/diff/`): `DiffService`, session diff resolution, artifact loading, result models (`DiffResult`). UI formatters reside in `cli/ui/formatters/diff/`.
 - **Status** (`core/status/`): Workspace health and runtime telemetry collection (`collect_status`), result models (`WorktreeStatusResult`), warning aggregation.
 - **Doctor** (`core/doctor/`): Diagnostic check registry (`CheckRegistry`), execution runner (`DiagnosticRunner`), entrypoint coordinator (`Doctor`), check protocol (`DiagnosticCheck`), and result models (`DiagnosticCheckResult`, `DoctorReport`).
@@ -93,7 +93,7 @@ common/  ->  core/{db,git,sandbox,catalog,inputs,patch,history,diff,status,docto
 
 1. Create `src/worktree/cli/<name>/` with `app.py` and `commands/<action>.py` (or `commands/root.py`).
 2. Add formatters in `src/worktree/cli/ui/formatters/<name>/<model>.py` implementing `transform()` and `to_rich()`. Presentation view models reside in `src/worktree/cli/ui/formatters/<name>/<name>_views.py` (or `<name>_view.py` for single-formatter domains) for formatters that derive values. Expose registration in `src/worktree/cli/ui/formatters/<name>/__init__.py`.
-3. Wire command logic directly to underlying domain services or facades (e.g. `BlueprintRunService`, `HistoryListService`), dispatching results via `ui_dispatcher.dispatch(result)`. Keep CLI packages free of business logic, DB queries, or direct filesystem scans.
+3. Wire command logic directly to underlying domain services or facades (e.g. `BlueprintRunService`, `History`), dispatching results via `ui_dispatcher.dispatch(result)`. Keep CLI packages free of business logic, DB queries, or direct filesystem scans.
 4. Register the command in [src/worktree/cli/cli.py](../../src/worktree/cli/cli.py).
 5. Add tests under `tests/cli/<name>/`.
 

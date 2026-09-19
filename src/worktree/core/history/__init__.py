@@ -1,6 +1,6 @@
-"""Execution history inspection services and models."""
+"""Execution history inspection entrypoint and models."""
 
-from worktree.core.history.facade import History
+from worktree.core.history.history import History
 from worktree.core.history.models import (
     HistoryListResult,
     HistoryListStatus,
