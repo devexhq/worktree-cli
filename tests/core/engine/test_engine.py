@@ -1,0 +1,369 @@
+"""Contract tests for Engine.resume(): checkpoint-driven context rebuild, DB finalize, error propagation."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+from unittest.mock import MagicMock
+
+import pytest
+
+from tests.harness.builders import BlueprintBuilder, StepBuilder, WorkspaceBuilder
+from tests.harness.matchers import ANY_PID, ANY_TIMESTAMP, assert_model_equal
+from worktree.common.models import FailurePolicy, OnFailureSpec
+from worktree.core.blueprint import Blueprint
+from worktree.core.catalog import Catalog
+from worktree.core.db import RunRecord, RunsRepository, RunStatus
+from worktree.core.engine import Engine, EngineResumeError, EngineResumeStatus
+from worktree.core.runtime import ExecutionIdentity, RunCheckpoint, RunContext, RunOutcome
+from worktree.core.step.models import LoopStepBlock, StepDefinition
+
+
+def _checkpoint(
+    *,
+    pending_step_id: str = "publish",
+    use_sandbox: bool = False,
+    sandbox_path: str | None = None,
+    keep: bool = False,
+    agent: str | None = None,
+    inputs: dict[str, str | int | bool] | None = None,
+) -> RunCheckpoint:
+    return RunCheckpoint(
+        next_step_index=1,
+        pending_step_id=pending_step_id,
+        diagnostic="Step 'publish' failed: boom",
+        use_sandbox=use_sandbox,
+        sandbox_path=sandbox_path,
+        keep=keep,
+        agent=agent,
+        inputs=inputs or {},
+    )
+
+
+def _task_blueprint(
+    *, name: str = "lint", loop: bool = False
+) -> tuple[Blueprint, list[StepDefinition | LoopStepBlock]]:
+    """Build a 3-step (setup/publish/later) blueprint, optionally with a trailing loop block.
+
+    Returns the blueprint alongside its flattened step list (loop sub-steps expanded, matching
+    Engine.resume's own ResumableRun._collect_blueprint_steps), so callers can assert whole-object
+    equality against the captured RunContext.steps instead of re-deriving expected steps by hand.
+    """
+    setup = StepBuilder.command("echo setup").with_id("setup").build()
+    publish = StepBuilder.command("exit 1").with_id("publish").build()
+    later = StepBuilder.command("echo later").with_id("later").build()
+    builder = BlueprintBuilder(name).with_use_sandbox(False).with_step(setup).with_step(publish).with_step(later)
+    steps: list[StepDefinition | LoopStepBlock] = [setup, publish, later]
+    if loop:
+        unit = StepBuilder.command("echo hi").with_id("unit").build()
+        builder.with_step(LoopStepBlock(id="retry", type="loop", until=["steps.unit.exit_code == 0"], do=[unit]))
+        steps = [setup, publish, later, unit]
+    return Blueprint(builder.build()), steps
+
+
+def _make_step_definition(step_id: str, run: str) -> StepDefinition:
+    """Build the StepDefinition a bare YAML `run:` shorthand step resolves to."""
+    return StepDefinition(
+        id=step_id,
+        uses=None,
+        run=run,
+        name=None,
+        type=None,
+        description=None,
+        command=None,
+        prompt=None,
+        script_path=None,
+        tools=[],
+        env={},
+        timeout_seconds=120,
+        assert_=None,
+        on_failure=OnFailureSpec(
+            action=FailurePolicy.ABORT, max_retries=3, backoff_ms=0, on_max_retries=FailurePolicy.ABORT
+        ),
+    )
+
+
+def _seed_paused_run(db: RunsRepository, session_id: str, checkpoint: RunCheckpoint, *, name: str = "lint") -> None:
+    db.create(session_id, blueprint_name=name, blueprint_key=name, status=RunStatus.RUNNING)
+    db.save_pause(session_id, checkpoint.model_dump_json(), checkpoint.diagnostic)
+
+
+class EngineResumeOrchestrationTests:
+    """Contract tests for Engine.resume()'s context rebuild, DB finalize, and error wrapping."""
+
+    def test_resume_rebuilds_run_context_from_checkpoint_and_blueprint(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        workspace = WorkspaceBuilder(tmp_path / "workspace").with_database().build()
+        runs_repo = RunsRepository(workspace)
+        blueprint, expected_steps = _task_blueprint()
+        checkpoint = _checkpoint(keep=True, agent="copilot", inputs={"name": "demo"})
+        _seed_paused_run(runs_repo, "task_resume", checkpoint)
+        observer = MagicMock()
+        expected = RunOutcome(status=RunStatus.COMPLETED, step_results=[], sandbox_path=workspace)
+        captured: dict[str, RunContext] = {}
+
+        def fake_run_steps(context: RunContext) -> RunOutcome:
+            captured["context"] = context
+            return expected
+
+        monkeypatch.setattr("worktree.core.engine.engine.run_steps", fake_run_steps)
+
+        outcome = Engine(workspace, db=runs_repo, catalog=Catalog(workspace)).resume(
+            "task_resume",
+            blueprint=blueprint,
+            observer=observer,
+            no_tty=True,
+            failure_prompter=None,
+        )
+
+        assert outcome == expected.model_copy(update={"session_id": "task_resume"})
+        context = captured["context"]
+        assert context.pause_store is not None
+        assert context == RunContext(
+            steps=expected_steps,
+            cwd=workspace.resolve(),
+            use_sandbox=False,
+            keep=True,
+            agent="copilot",
+            observer=observer,
+            inputs={"name": "demo"},
+            identity=ExecutionIdentity(blueprint_name="lint", blueprint_key="lint"),
+            no_tty=True,
+            failure_prompter=None,
+            pause_store=context.pause_store,
+            resume_from=checkpoint,
+            auto_apply=False,
+            config=context.config,
+        )
+
+    def test_resume_omitted_blueprint_resolves_from_catalog_and_completes_run(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        workspace = WorkspaceBuilder(tmp_path / "workspace").with_database().build()
+        blueprints_dir = workspace / ".worktree" / "catalog" / "blueprints"
+        blueprints_dir.mkdir(parents=True, exist_ok=True)
+        raw_yaml = (
+            "steps:\n"
+            "  - id: setup\n    run: echo setup\n"
+            "  - id: publish\n    run: echo publish\n"
+            "  - id: later\n    run: echo later\n"
+        )
+        (blueprints_dir / "lint.yml").write_text(raw_yaml, encoding="utf-8")
+        runs_repo = RunsRepository(workspace)
+        checkpoint = _checkpoint()
+        _seed_paused_run(runs_repo, "task_catalog", checkpoint)
+        captured: dict[str, RunContext] = {}
+
+        def fake_run_steps(context: RunContext) -> RunOutcome:
+            captured["context"] = context
+            return RunOutcome(status=RunStatus.COMPLETED, sandbox_path=workspace)
+
+        monkeypatch.setattr("worktree.core.engine.engine.run_steps", fake_run_steps)
+
+        outcome = Engine(workspace, db=runs_repo, catalog=Catalog(workspace)).resume("task_catalog")
+
+        assert outcome == RunOutcome(status=RunStatus.COMPLETED, sandbox_path=workspace).model_copy(
+            update={"session_id": "task_catalog"}
+        )
+        context = captured["context"]
+        assert context.pause_store is not None
+        assert context == RunContext(
+            steps=[
+                _make_step_definition("setup", "echo setup"),
+                _make_step_definition("publish", "echo publish"),
+                _make_step_definition("later", "echo later"),
+            ],
+            cwd=workspace.resolve(),
+            use_sandbox=False,
+            keep=False,
+            agent=None,
+            observer=None,
+            inputs=None,
+            identity=ExecutionIdentity(blueprint_name="lint", blueprint_key="lint"),
+            no_tty=False,
+            failure_prompter=None,
+            pause_store=context.pause_store,
+            resume_from=checkpoint,
+            auto_apply=False,
+            config=context.config,
+        )
+
+    @pytest.mark.parametrize(
+        ("blueprint_kind", "session_id"),
+        [pytest.param("task", "task_done", id="task"), pytest.param("workflow", "workflow_done", id="workflow")],
+    )
+    def test_resume_finalizes_run_row_status_and_completed_at(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        blueprint_kind: str,
+        session_id: str,
+    ) -> None:
+        name = "lint" if blueprint_kind == "task" else "ship"
+        workspace = WorkspaceBuilder(tmp_path / "workspace").with_database().build()
+        runs_repo = RunsRepository(workspace)
+        blueprint, _ = _task_blueprint(name=name)
+        checkpoint = _checkpoint()
+        _seed_paused_run(runs_repo, session_id, checkpoint, name=name)
+        monkeypatch.setattr(
+            "worktree.core.engine.engine.run_steps",
+            lambda _context: RunOutcome(status=RunStatus.COMPLETED, sandbox_path=workspace),
+        )
+
+        outcome = Engine(workspace, db=runs_repo, catalog=Catalog(workspace)).resume(session_id, blueprint=blueprint)
+
+        assert outcome == RunOutcome(status=RunStatus.COMPLETED, sandbox_path=workspace).model_copy(
+            update={"session_id": session_id}
+        )
+        record = runs_repo.get(session_id)
+        assert record is not None
+        assert_model_equal(
+            record,
+            RunRecord.model_construct(
+                id=1,
+                session_id=session_id,
+                blueprint_key=name,
+                blueprint_name=name,
+                branch_name="",
+                status=RunStatus.COMPLETED,
+                pid=ANY_PID,
+                started_at=ANY_TIMESTAMP,
+                completed_at=ANY_TIMESTAMP,
+                error_message=None,
+                checkpoint_json=checkpoint.model_dump_json(),
+            ),
+        )
+
+    def test_resume_accepts_loop_steps_in_workflow_and_finalizes_completed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        workspace = WorkspaceBuilder(tmp_path / "workspace").with_database().build()
+        runs_repo = RunsRepository(workspace)
+        blueprint, _ = _task_blueprint(name="ship", loop=True)
+        checkpoint = _checkpoint()
+        _seed_paused_run(runs_repo, "workflow_loop", checkpoint, name="ship")
+        monkeypatch.setattr(
+            "worktree.core.engine.engine.run_steps",
+            lambda _context: RunOutcome(status=RunStatus.COMPLETED, sandbox_path=workspace),
+        )
+
+        outcome = Engine(workspace, db=runs_repo, catalog=Catalog(workspace)).resume(
+            "workflow_loop", blueprint=blueprint
+        )
+
+        assert outcome == RunOutcome(status=RunStatus.COMPLETED, sandbox_path=workspace).model_copy(
+            update={"session_id": "workflow_loop"}
+        )
+        record = runs_repo.get("workflow_loop")
+        assert record is not None
+        assert_model_equal(
+            record,
+            RunRecord.model_construct(
+                id=1,
+                session_id="workflow_loop",
+                blueprint_key="ship",
+                blueprint_name="ship",
+                branch_name="",
+                status=RunStatus.COMPLETED,
+                pid=ANY_PID,
+                started_at=ANY_TIMESTAMP,
+                completed_at=ANY_TIMESTAMP,
+                error_message=None,
+                checkpoint_json=checkpoint.model_dump_json(),
+            ),
+        )
+
+    def test_resume_mark_running_failure_appends_warning_but_still_runs(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        workspace = WorkspaceBuilder(tmp_path / "workspace").with_database().build()
+        runs_repo = RunsRepository(workspace)
+        blueprint, _ = _task_blueprint()
+        _seed_paused_run(runs_repo, "task_mark", _checkpoint())
+        expected = RunOutcome(status=RunStatus.COMPLETED, sandbox_path=workspace, warnings=["step note"])
+        monkeypatch.setattr("worktree.core.engine.engine.run_steps", lambda _context: expected)
+
+        def _always_raise(*_args: Any, **_kwargs: Any) -> None:
+            raise RuntimeError("locked")
+
+        monkeypatch.setattr(RunsRepository, "update_status", _always_raise)
+
+        outcome = Engine(workspace, db=runs_repo, catalog=Catalog(workspace)).resume("task_mark", blueprint=blueprint)
+
+        assert outcome == expected.model_copy(
+            update={
+                "session_id": "task_mark",
+                "warnings": [
+                    "step note",
+                    "Failed to update run status in database: locked",
+                    "Failed to update run status in database: locked",
+                ],
+            }
+        )
+
+    def test_resume_finalize_status_update_failure_appends_warning_and_leaves_row_running(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        workspace = WorkspaceBuilder(tmp_path / "workspace").with_database().build()
+        runs_repo = RunsRepository(workspace)
+        blueprint, _ = _task_blueprint()
+        checkpoint = _checkpoint()
+        _seed_paused_run(runs_repo, "task_final", checkpoint)
+        expected = RunOutcome(status=RunStatus.COMPLETED, sandbox_path=workspace)
+        monkeypatch.setattr("worktree.core.engine.engine.run_steps", lambda _context: expected)
+
+        real_update_status = RunsRepository.update_status
+
+        def _fail_non_running_finalize(
+            self_repo: RunsRepository, session_id: str, status: RunStatus, **kwargs: Any
+        ) -> None:
+            if status != RunStatus.RUNNING:
+                raise RuntimeError("locked")
+            real_update_status(self_repo, session_id, status, **kwargs)
+
+        monkeypatch.setattr(RunsRepository, "update_status", _fail_non_running_finalize)
+
+        outcome = Engine(workspace, db=runs_repo, catalog=Catalog(workspace)).resume("task_final", blueprint=blueprint)
+
+        assert outcome == expected.model_copy(
+            update={
+                "session_id": "task_final",
+                "warnings": ["Failed to update run status in database: locked"],
+            }
+        )
+        record = runs_repo.get("task_final")
+        assert record is not None
+        assert_model_equal(
+            record,
+            RunRecord.model_construct(
+                id=1,
+                session_id="task_final",
+                blueprint_key="lint",
+                blueprint_name="lint",
+                branch_name="",
+                status=RunStatus.RUNNING,
+                pid=ANY_PID,
+                started_at=ANY_TIMESTAMP,
+                completed_at=None,
+                error_message=None,
+                checkpoint_json=checkpoint.model_dump_json(),
+            ),
+        )
+
+    @pytest.mark.parametrize("blueprint_given", [True, False], ids=["explicit_blueprint", "omitted_blueprint"])
+    def test_resume_missing_session_raises_engine_resume_error_with_not_found_status(
+        self, tmp_path: Path, blueprint_given: bool
+    ) -> None:
+        workspace = WorkspaceBuilder(tmp_path / "workspace").with_database().build()
+        runs_repo = RunsRepository(workspace)
+        blueprint, _ = _task_blueprint()
+        engine = Engine(workspace, db=runs_repo, catalog=Catalog(workspace))
+
+        with pytest.raises(EngineResumeError, match=r"Session 'missing' not found\.") as exc_info:
+            if blueprint_given:
+                engine.resume("missing", blueprint=blueprint)
+            else:
+                engine.resume("missing")
+
+        assert exc_info.value.status is EngineResumeStatus.NOT_FOUND
