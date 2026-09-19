@@ -64,7 +64,7 @@ State **"none"** for each kind the issue does not need. Path per kind:
 - **JSON / YAML schema** -> `src/worktree/schemas/v1/*.json`
 - **DB model or migration** -> `core/db/models.py` + Alembic migration
 - **Tests** -> mirrored `tests/` path, tier named (see `docs/agents/testing.md#the-four-execution-tiers`)
-- **Docs** -> only docs matching AGENTS.md gates (`docs/cli/`, `schemas.md`, `architecture.md`, `README.md`)
+- **Docs** -> only docs matching [docs/agents/documentation.md](documentation.md) gates (`docs/cli/`, `schemas.md`, `architecture.md`, `README.md`)
 
 Decompose every planned function so it stays below cognitive complexity <= 10 (PLAN-012).
 
