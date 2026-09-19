@@ -151,6 +151,7 @@ def _bootstrap_status(
     dirs_created: list[Path],
     prior_meta: dict[str, object] | None,
 ) -> str:
+    """Compute status string for metadata recording."""
     if repaired:
         return "repaired"
     if root_created or dirs_created:
@@ -175,6 +176,7 @@ def _is_repair(
 
 
 def _ensure_worktree_root(root_path: Path) -> DirEnsureOutcome:
+    """Ensure worktree root directory exists, permitting symlinks."""
     return ensure_dir(root_path, allow_symlink=True)
 
 

@@ -43,6 +43,7 @@ class OllamaModelStdout(BaseModel):
 
 
 def _is_timeout_reason(reason: object) -> bool:
+    """Determine whether a failure reason text indicates a timeout."""
     text = str(reason).lower()
     return "timed out" in text or "timeout" in text
 
@@ -214,6 +215,7 @@ def default_http_post(url: str, body: bytes, timeout_seconds: float) -> tuple[in
 
 
 def _chat_content_from_response(data: dict[str, Any]) -> str | None:
+    """Extract chat message text from Ollama JSON response dictionary."""
     message = data.get("message")
     if isinstance(message, dict):
         content = message.get("content")

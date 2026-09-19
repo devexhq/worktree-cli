@@ -24,6 +24,7 @@ from worktree.core.catalog.models import CatalogListResult
 
 
 def _render_list_empty(view: CatalogListView) -> Any:
+    """Render empty state message and any warnings for catalog list."""
     renderables: list[Any] = [Text("No catalog blueprints found.")]
     for warning in view.warnings:
         renderables.append(Panel(warning, title="Catalog Scan Warning", border_style="red"))
@@ -31,6 +32,7 @@ def _render_list_empty(view: CatalogListView) -> Any:
 
 
 def _render_list_items(view: CatalogListView) -> Any:
+    """Render table of catalog items along with any warnings."""
     table = build_catalog_table(view.items)
     if not view.warnings:
         return table

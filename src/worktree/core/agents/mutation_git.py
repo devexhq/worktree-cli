@@ -20,6 +20,7 @@ class MutationGitError(RuntimeError):
 
 
 def _run_git(args: list[str], *, cwd: Path) -> subprocess.CompletedProcess[bytes]:
+    """Run git command in subprocess under cwd with timeout handling."""
     try:
         return subprocess.run(
             ["git", *args],
@@ -37,6 +38,7 @@ def _run_git(args: list[str], *, cwd: Path) -> subprocess.CompletedProcess[bytes
 
 
 def _require_ok(completed: subprocess.CompletedProcess[bytes], *, action: str) -> None:
+    """Verify that subprocess exit code is zero or raise MutationGitError."""
     if completed.returncode != 0:
         detail = completed.stderr.decode("utf-8", errors="replace").strip()
         raise MutationGitError(f"{action} failed: {detail or completed.returncode}")

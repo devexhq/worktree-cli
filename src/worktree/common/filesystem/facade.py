@@ -44,6 +44,7 @@ class Filesystem:
         return instance
 
     def _initialize(self, path: Path | str | None = None) -> None:
+        """Initialize instance state with raw path and empty cached paths."""
         self._raw_path: Path | None = Path(path) if path is not None else None
         self._cached_paths: FilesystemPaths | None = None
 

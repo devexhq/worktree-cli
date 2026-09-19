@@ -71,10 +71,12 @@ def parse_literal(raw: str) -> Any:
 
 
 def _is_numeric(val: Any) -> bool:
+    """Check whether a value is numeric (int or float, excluding bool)."""
     return isinstance(val, (int, float)) and not isinstance(val, bool)
 
 
 def _resolve_json_path(root: Any, path: list[str]) -> Any:
+    """Traverse nested dictionary keys along a subpath."""
     current = root
     for segment in path:
         if not isinstance(current, dict) or segment not in current:
@@ -84,6 +86,7 @@ def _resolve_json_path(root: Any, path: list[str]) -> Any:
 
 
 def _resolve_step_field(result: StepResult, field: str, subpath: list[str]) -> Any:
+    """Extract step attribute or parsed JSON output subpath from a StepResult."""
     if field in ("exit_code", "status", "stdout"):
         return getattr(result, field)
     if field == "outputs":
@@ -124,6 +127,7 @@ def resolve_operand_value(
 
 
 def _compare_contains(actual: Any, expected: Any) -> bool:
+    """Check if expected element or substring is contained within actual value."""
     if actual is None or expected is None:
         return False
     if isinstance(actual, str):
@@ -147,6 +151,7 @@ def _compare_values(actual: Any, expected: Any, operator: str) -> bool:
 
 
 def _format_condition_detail(passed: bool, actual: Any) -> str:
+    """Format diagnostic string explaining condition evaluation status."""
     if passed:
         return "TRUE"
     if actual is None:
@@ -194,6 +199,7 @@ def evaluate_condition(
 
 
 def _is_dynamic_operand(operand: str) -> bool:
+    """Check whether an operand references dynamic step or iteration state."""
     return operand.startswith("steps.") or operand.startswith("iteration.") or operand in ("iteration",)
 
 
@@ -202,6 +208,7 @@ def _validate_step_operand(
     expression: str,
     known_step_ids: set[str] | None,
 ) -> list[str]:
+    """Validate step reference syntax and verify step ID against known IDs."""
     parts = operand.split(".")
     if len(parts) < 3:
         return [f"Invalid step reference '{operand}' in condition. Expected 'steps.<step_id>.<field>'."]
@@ -226,6 +233,7 @@ def _validate_operand(
     expression: str,
     known_step_ids: set[str] | None,
 ) -> list[str]:
+    """Validate condition operand syntax and reference integrity."""
     if operand.startswith("steps."):
         return _validate_step_operand(operand, expression, known_step_ids)
     return []

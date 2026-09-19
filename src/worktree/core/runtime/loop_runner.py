@@ -66,6 +66,7 @@ class LoopBlockRunner:
         self.resume_from = resume_from
 
     def _notify_start(self, max_iterations: int) -> None:
+        """Notify observer that loop execution has started."""
         if self.observer is not None and hasattr(self.observer, "on_loop_start"):
             try:
                 self.observer.on_loop_start(self.loop.id, max_iterations)
@@ -73,6 +74,7 @@ class LoopBlockRunner:
                 pass
 
     def _notify_turn(self, turn: int, max_iterations: int) -> None:
+        """Notify observer that a loop turn is beginning."""
         if self.observer is not None and hasattr(self.observer, "on_loop_turn_start"):
             try:
                 self.observer.on_loop_turn_start(self.loop.id, turn, max_iterations)
@@ -80,6 +82,7 @@ class LoopBlockRunner:
                 pass
 
     def _notify_done(self, status: str, turns: int) -> None:
+        """Notify observer that loop execution has finished."""
         if self.observer is not None and hasattr(self.observer, "on_loop_done"):
             try:
                 self.observer.on_loop_done(self.loop.id, status, turns)
@@ -92,6 +95,7 @@ class LoopBlockRunner:
         all_passed: bool,
         next_turn: int | None,
     ) -> None:
+        """Notify observer of evaluated loop until conditions."""
         if self.observer is not None and hasattr(self.observer, "on_loop_conditions_evaluated"):
             try:
                 self.observer.on_loop_conditions_evaluated(
@@ -104,6 +108,7 @@ class LoopBlockRunner:
                 pass
 
     def _notify_sub_step_start(self, sub_idx: int, sub_step: StepDefinition) -> None:
+        """Notify observer that a loop sub-step is starting."""
         if self.observer is not None:
             try:
                 self.observer.on_step_start(sub_idx, len(self.loop.do), sub_step)
@@ -111,6 +116,7 @@ class LoopBlockRunner:
                 pass
 
     def _notify_sub_step_done(self, sub_idx: int, result: StepResult) -> None:
+        """Notify observer that a loop sub-step has finished."""
         if self.observer is not None:
             try:
                 self.observer.on_step_done(sub_idx, len(self.loop.do), result)
@@ -124,6 +130,7 @@ class LoopBlockRunner:
         stream_name: str,
         line: str,
     ) -> None:
+        """Notify observer of output from a loop sub-step."""
         if self.observer is not None:
             try:
                 self.observer.on_step_output(sub_idx, len(self.loop.do), sub_step, line, stream=stream_name)
@@ -135,11 +142,13 @@ class LoopBlockRunner:
         sub_idx: int,
         sub_step: StepDefinition,
     ) -> Callable[[str, str], None] | None:
+        """Construct or resolve output stream callback for a loop sub-step."""
         if self.observer is not None:
             return lambda stream, line: self._notify_sub_step_output(sub_idx, sub_step, stream, line)
         return self.on_output
 
     def _build_step_context(self, turn: int) -> dict[str, Any]:
+        """Construct execution context dictionary for current loop turn."""
         step_context = dict(self.context)
         step_context["iteration_index"] = turn
         return step_context
@@ -153,6 +162,7 @@ class LoopBlockRunner:
         attempt: int,
         historical_steps: Sequence[PreviousStepMetadata],
     ) -> StepResult:
+        """Execute a single attempt of a loop sub-step."""
         self._notify_sub_step_start(sub_idx, sub_step)
         on_output = self._resolve_sub_step_output_callback(sub_idx, sub_step)
 
@@ -180,6 +190,7 @@ class LoopBlockRunner:
         result: StepResult,
         state: StepLoopState,
     ) -> tuple[str, StepResult | None, str | None]:
+        """Prompt user for decision when an interactive loop sub-step fails."""
         if self.no_tty or self.failure_prompter is None:
             warning = f"Warning: step '{sub_step.id}' requested prompt_user but run is non-interactive; aborting."
             state.warnings.append(warning)
@@ -203,6 +214,7 @@ class LoopBlockRunner:
         result: StepResult,
         state: StepLoopState,
     ) -> tuple[str, StepResult | None, str | None]:
+        """Handle result of a loop sub-step based on its failure policy."""
         if result.ok:
             return LoopPromptDecision.CONTINUE, result, None
 
@@ -222,6 +234,7 @@ class LoopBlockRunner:
         state: StepLoopState,
         historical_steps: Sequence[PreviousStepMetadata],
     ) -> tuple[str, StepResult | None, str | None]:
+        """Execute loop sub-step, repeating on user retry decision."""
         attempt = 1
         while True:
             result = self._execute_sub_step_attempt(
@@ -242,6 +255,7 @@ class LoopBlockRunner:
         turn: int,
         state: StepLoopState,
     ) -> tuple[str, dict[str, StepResult], str | None]:
+        """Execute all sub-steps in one turn of the loop."""
         turn_map: dict[str, StepResult] = {}
         historical: list[PreviousStepMetadata] = [
             previous_step_metadata_from_result(r, step_index=i + 1) for i, r in enumerate(state.step_results)
@@ -267,6 +281,7 @@ class LoopBlockRunner:
         turn: int,
         turn_map: dict[str, StepResult],
     ) -> tuple[bool, list[ConditionEvaluationResult]]:
+        """Evaluate loop until conditions against turn results."""
         results = [evaluate_condition(expr, iteration_index=turn, step_results=turn_map) for expr in self.loop.until]
         all_passed = all(r.passed for r in results)
         return all_passed, results
@@ -276,6 +291,7 @@ class LoopBlockRunner:
         turn: int,
         max_iterations: int,
     ) -> tuple[str, int, str | None]:
+        """Prompt user when max iterations is reached."""
         if self.no_tty or self.failure_prompter is None:
             msg = f"Loop '{self.loop.id}' reached max_iterations ({max_iterations}) and run is non-interactive."
             return LoopPromptDecision.ABORT, max_iterations, msg
@@ -297,6 +313,7 @@ class LoopBlockRunner:
         turn: int,
         max_iterations: int,
     ) -> tuple[str, int, str | None]:
+        """Handle max iterations reached according to loop policy or user prompt."""
         policy = self.loop.on_max_iterations
         if policy == FailurePolicy.ABORT:
             err = f"Loop '{self.loop.id}' reached max_iterations ({max_iterations}) without meeting 'until' conditions."
@@ -311,6 +328,7 @@ class LoopBlockRunner:
         max_iterations: int,
         state: StepLoopState,
     ) -> tuple[str, bool, str | None]:
+        """Execute turn sub-steps and evaluate until condition status."""
         self._notify_turn(turn, max_iterations)
         status, turn_map, error = self._execute_turn(turn, state)
         if status == LoopPromptDecision.ABORT:
@@ -331,6 +349,7 @@ class LoopBlockRunner:
         max_iterations: int,
         state: StepLoopState,
     ) -> tuple[str, int, str | None]:
+        """Handle reached iteration ceiling by granting more turns, continuing, or aborting."""
         action, new_max, max_error = self._handle_max_iterations(turn, max_iterations)
         if action == LoopPromptDecision.GRANT:
             return LoopPromptDecision.GRANT, new_max, None

@@ -51,6 +51,7 @@ class BlueprintResumeService:
         return self._finalize(target_session_id, run_outcome)
 
     def _resolve_target_session(self) -> tuple[str, str | None]:
+        """Resolve session ID to resume, defaulting to latest paused session."""
         if not self.session_id:
             record = self.db.get_latest_paused()
             if record is None:
@@ -61,6 +62,7 @@ class BlueprintResumeService:
         return self.session_id, None
 
     def _fail(self, message: str) -> BlueprintRunResult:
+        """Construct a failed BlueprintRunResult with an error message."""
         return BlueprintRunResult(
             run_record=None,
             errors=[message],
@@ -68,6 +70,7 @@ class BlueprintResumeService:
         )
 
     def _load_record(self, session_id: str) -> RunRecord | None:
+        """Load RunRecord from database, recording warning on failure."""
         try:
             return self.db.get(session_id)
         except Exception as exc:
@@ -75,6 +78,7 @@ class BlueprintResumeService:
             return None
 
     def _finalize(self, session_id: str, run_outcome: RunOutcome) -> BlueprintRunResult:
+        """Combine run outcome warnings and errors into final BlueprintRunResult."""
         self.warnings.extend(run_outcome.warnings)
         record = self._load_record(session_id)
         return BlueprintRunResult(

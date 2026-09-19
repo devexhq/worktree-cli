@@ -85,6 +85,7 @@ class BlueprintRunService:
         return self._finalize(run_outcome)
 
     def _fail(self, message: str) -> BlueprintRunResult:
+        """Construct a failed BlueprintRunResult with an error message."""
         return BlueprintRunResult(
             run_record=None,
             errors=[message],
@@ -92,6 +93,7 @@ class BlueprintRunService:
         )
 
     def _load_blueprint(self, catalog: Catalog) -> tuple[Blueprint | None, BlueprintRunResult | None]:
+        """Load and validate blueprint definition from catalog, returning error result on failure."""
         try:
             blueprint = Blueprint.load(self.name, catalog=catalog)
         except BlueprintNotFoundError as exc:
@@ -107,6 +109,7 @@ class BlueprintRunService:
         return blueprint, None
 
     def _load_record(self, session_id: str) -> RunRecord | None:
+        """Load RunRecord from database, appending warning on failure."""
         try:
             return self.runs_db.get(session_id)
         except Exception as exc:
@@ -119,6 +122,7 @@ class BlueprintRunService:
         status: RunStatus,
         error: str | None,
     ) -> RunRecord:
+        """Construct a synthetic RunRecord when database record is unavailable."""
         return RunRecord(
             id=-1,
             session_id=session_id,
@@ -131,6 +135,7 @@ class BlueprintRunService:
         )
 
     def _finalize(self, run_outcome: RunOutcome) -> BlueprintRunResult:
+        """Combine run outcome and database record into final BlueprintRunResult."""
         sid = run_outcome.session_id or ""
         self.warnings.extend(run_outcome.warnings)
         record = self._load_record(sid) if sid else None

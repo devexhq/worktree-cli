@@ -55,6 +55,7 @@ def evaluate_file_not_empty(paths: str | list[str], sandbox_or_root_path: Path) 
 
 
 def _normalize_path_list(paths: str | list[str]) -> list[str]:
+    """Normalize a single path string or list of paths into a list of paths."""
     return paths if isinstance(paths, list) else [paths]
 
 

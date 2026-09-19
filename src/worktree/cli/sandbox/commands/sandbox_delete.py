@@ -15,6 +15,7 @@ from worktree.core.sandbox import (
 
 
 def _sandbox_delete_confirm_prompt(sandbox: object) -> str:
+    """Format confirmation prompt message for deleting a sandbox."""
     branch = getattr(sandbox, "branch_name", getattr(sandbox, "branch", "unknown"))
     path = getattr(sandbox, "sandbox_path", getattr(sandbox, "path", "unknown"))
     s_id = getattr(sandbox, "id", getattr(sandbox, "session_id", "unknown"))

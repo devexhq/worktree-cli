@@ -12,6 +12,7 @@ _STEPS_BRACKET_RE = re.compile(r"^steps\s*\[\s*(['\"]?)(.*?)\1\s*\]\s*\.\s*([A-Z
 
 
 def _extract_iteration_index(meta: Any) -> str:
+    """Extract the current iteration index from metadata or default to '1'."""
     iteration = getattr(meta, "iteration", None)
     if iteration is not None:
         idx = getattr(iteration, "index", None)
@@ -62,6 +63,7 @@ def _parse_steps_selector(key: str) -> tuple[str, str, bool] | None:
 
 
 def _resolve_step_entry_field(entry: Any | None, field_name: str) -> str:
+    """Extract named attribute from step entry as a string."""
     if entry is None:
         return ""
     value = getattr(entry, field_name, "")
@@ -69,6 +71,7 @@ def _resolve_step_entry_field(entry: Any | None, field_name: str) -> str:
 
 
 def _find_step_by_id(steps: list[Any], step_id: str) -> Any | None:
+    """Find the most recent step matching step_id in steps list."""
     for entry in reversed(steps):
         if getattr(entry, "id", None) == step_id:
             return entry
@@ -76,6 +79,7 @@ def _find_step_by_id(steps: list[Any], step_id: str) -> Any | None:
 
 
 def _resolve_steps_placeholder(key: str, metadata: Any) -> tuple[bool, str]:
+    """Resolve a steps placeholder expression against step execution metadata."""
     parsed = _parse_steps_selector(key)
     if parsed is None:
         return False, ""
@@ -101,6 +105,7 @@ def _resolve_steps_placeholder(key: str, metadata: Any) -> tuple[bool, str]:
 
 
 def _resolve_metadata_placeholder(key: str, metadata: Any) -> tuple[bool, str]:
+    """Extract a placeholder value from execution metadata if matched."""
     extractor = _METADATA_EXTRACTORS.get(key)
     if extractor is not None:
         try:
@@ -113,6 +118,7 @@ def _resolve_metadata_placeholder(key: str, metadata: Any) -> tuple[bool, str]:
 
 
 def _resolve_input_placeholder(key: str, inputs: dict[str, Any]) -> tuple[bool, str]:
+    """Extract a placeholder value from inputs dictionary if present."""
     if key.startswith("inputs."):
         input_name = key[7:]
         if input_name in inputs:
@@ -127,6 +133,7 @@ def _resolve_placeholder(
     inputs: dict[str, Any] | None,
     metadata: Any | None,
 ) -> tuple[bool, str]:
+    """Resolve placeholder expression by querying metadata first, then inputs."""
     if metadata is not None:
         found, val = _resolve_metadata_placeholder(key, metadata)
         if found:
@@ -162,6 +169,7 @@ def _interpolated_field_updates(
     inputs: dict[str, Any] | None = None,
     metadata: Any | None = None,
 ) -> dict[str, Any]:
+    """Compute string field replacements for an executable step model."""
     updates: dict[str, Any] = {}
     for field_name in _INTERPOLATED_FIELDS:
         value = getattr(step, field_name, None)
@@ -177,6 +185,7 @@ def _interpolated_env(
     inputs: dict[str, Any] | None = None,
     metadata: Any | None = None,
 ) -> dict[str, str] | None:
+    """Compute environment dictionary replacements for an executable step model."""
     env = getattr(step, "env", None)
     if not isinstance(env, dict) or not env:
         return None

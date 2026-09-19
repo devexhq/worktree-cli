@@ -41,6 +41,7 @@ class SchemaValidator:
 
 
 def _config_schema_path() -> Traversable:
+    """Return the resource path to the bundled v1 config.json schema."""
     return resources.files("worktree.schemas.v1") / "config.json"
 
 

@@ -42,6 +42,7 @@ from worktree.core.step.services.metadata import previous_step_metadata_from_res
 
 
 def _notify_sandbox_ready(context: RunContext, path: Path, *, active: bool) -> None:
+    """Notify observer that sandbox environment is prepared."""
     if context.observer is not None:
         try:
             context.observer.on_sandbox_ready(path, active)
@@ -50,6 +51,7 @@ def _notify_sandbox_ready(context: RunContext, path: Path, *, active: bool) -> N
 
 
 def _notify_step_start(context: RunContext, idx: int, total: int, step: StepDefinition) -> None:
+    """Notify observer that step execution is beginning."""
     if context.observer is not None:
         try:
             context.observer.on_step_start(idx, total, step)
@@ -66,6 +68,7 @@ def _notify_step_output(
     *,
     stream: str = "stdout",
 ) -> None:
+    """Notify observer of incremental step stdout or stderr output line."""
     if context.observer is not None:
         try:
             context.observer.on_step_output(idx, total, step, line, stream=stream)
@@ -74,6 +77,7 @@ def _notify_step_output(
 
 
 def _notify_step_done(context: RunContext, idx: int, total: int, result: StepResult) -> None:
+    """Notify observer that step execution has completed."""
     if context.observer is not None:
         try:
             context.observer.on_step_done(idx, total, result)
@@ -82,6 +86,7 @@ def _notify_step_done(context: RunContext, idx: int, total: int, result: StepRes
 
 
 def _notify_sandbox_cleanup(context: RunContext, *, kept: bool, path: Path) -> None:
+    """Notify observer of sandbox cleanup outcome."""
     if context.observer is not None:
         try:
             context.observer.on_sandbox_cleanup(kept, path)
@@ -90,6 +95,7 @@ def _notify_sandbox_cleanup(context: RunContext, *, kept: bool, path: Path) -> N
 
 
 def _session_from_checkpoint(checkpoint: RunCheckpoint, path: Path) -> SandboxSession:
+    """Reconstruct SandboxSession from saved checkpoint fields."""
     return SandboxSession(
         session_id=checkpoint.sandbox_id or "resumed",
         target_branch=checkpoint.sandbox_branch or "worktree/sandbox-resumed",
@@ -104,6 +110,7 @@ def _setup_resumed_sandbox(
     context: RunContext,
     checkpoint: RunCheckpoint,
 ) -> tuple[Path, Sandbox | None, SandboxSession | None, str | None]:
+    """Validate and prepare resumed sandbox session from checkpoint."""
     if not checkpoint.use_sandbox:
         target_dir = context.cwd.resolve()
         _notify_sandbox_ready(context, target_dir, active=False)
@@ -179,6 +186,7 @@ def _cleanup_sandbox(
 
 
 def _failed_step_message(result: StepResult) -> str:
+    """Format diagnostic message describing step failure."""
     detail = step_failure_diagnostic(result)
     return f"Step '{result.step_id}' failed: {detail}"
 
@@ -201,6 +209,7 @@ def _build_checkpoint(
     result: StepResult,
     step_index: int,
 ) -> RunCheckpoint:
+    """Construct RunCheckpoint snapshot for pausing execution."""
     diagnostic = _failed_step_message(result)
     session = state.session
     return RunCheckpoint(
@@ -223,6 +232,7 @@ def _build_checkpoint(
 
 
 def _try_save_checkpoint(context: RunContext, checkpoint: RunCheckpoint, warnings: list[str]) -> bool:
+    """Attempt to save execution checkpoint to pause store, recording any warnings."""
     if context.pause_store is None:
         return False
     try:
@@ -234,6 +244,7 @@ def _try_save_checkpoint(context: RunContext, checkpoint: RunCheckpoint, warning
 
 
 def _try_clear_pause(context: RunContext, warnings: list[str]) -> None:
+    """Attempt to clear persisted pause state, recording any warnings."""
     if context.pause_store is None:
         return
     try:
@@ -367,6 +378,7 @@ def _execute_one_step(
 
 
 def _pending_result_for_resume(checkpoint: RunCheckpoint, step: StepDefinition) -> StepResult:
+    """Return existing pending step result from checkpoint or construct fallback."""
     if checkpoint.pending_result is not None:
         return checkpoint.pending_result
     return StepResult(
@@ -409,6 +421,7 @@ def _resume_pending_gate(
 
 
 def _find_loop_sub_step_name(loop: LoopStepBlock, step_id: str) -> str:
+    """Locate display name for a sub-step ID inside a loop step block."""
     for sub_step in loop.do:
         if sub_step.id == step_id:
             return sub_step.name or ""
@@ -416,6 +429,7 @@ def _find_loop_sub_step_name(loop: LoopStepBlock, step_id: str) -> str:
 
 
 def _find_step_name_by_id(steps: Sequence[StepDefinition | LoopStepBlock], step_id: str) -> str:
+    """Find step display name matching step_id across step definitions and loops."""
     for candidate_step in steps:
         if candidate_step.id == step_id:
             return getattr(candidate_step, "name", None) or ""

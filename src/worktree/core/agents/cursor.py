@@ -149,6 +149,7 @@ class CursorAgentAdapter(CliDirectMutationAdapter):
     """Run the Cursor SDK coding agent directly against a sandbox checkout."""
 
     def _preflight(self, request: AgentRequest) -> str | None:
+        """Validate cursor model configuration and API key."""
         model = request.model.strip() if request.model else ""
         if not model:
             return "cursor requires a non-empty model. Fix: set agent.model in .worktree/config.json"
@@ -157,7 +158,9 @@ class CursorAgentAdapter(CliDirectMutationAdapter):
         return None
 
     def _provider_name(self) -> str:
+        """Return the provider identifier string."""
         return "cursor"
 
     def _default_run(self, request: CliMutationRunRequest) -> CliMutationOutcome:
+        """Execute Cursor agent against mutation request."""
         return default_cursor_run(request)

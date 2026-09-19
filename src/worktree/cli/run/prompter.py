@@ -70,6 +70,7 @@ class DispatcherFailurePrompter(FailurePrompter):
         return self._read_step_decision()
 
     def _read_step_decision(self) -> FailurePromptDecision:
+        """Prompt user via stdin for a step failure decision (retry/continue/abort)."""
         while True:
             try:
                 raw = input("Select option [r/c/a]: ")
@@ -111,6 +112,7 @@ class DispatcherFailurePrompter(FailurePrompter):
         return self._read_loop_decision()
 
     def _read_loop_decision(self) -> LoopPromptDecision:
+        """Prompt user via stdin for a loop max-iterations decision (grant/continue/abort)."""
         while True:
             try:
                 raw = input("Select option [g/c/a]: ")

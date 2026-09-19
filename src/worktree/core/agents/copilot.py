@@ -29,6 +29,7 @@ def resolve_copilot_token(env: dict[str, str] | None = None) -> str | None:
 
 
 def _extract_text(value: object) -> str | None:
+    """Extract text content from Copilot event payload dictionary."""
     if isinstance(value, str):
         return value
     if not isinstance(value, dict):
@@ -44,6 +45,7 @@ def _extract_text(value: object) -> str | None:
 
 
 def _extract_exit_code(payload: dict[str, Any]) -> int | None:
+    """Extract integer exit code from Copilot event payload dictionary."""
     raw_exit = payload.get("exitCode") if "exitCode" in payload else payload.get("exit_code")
     if isinstance(raw_exit, int):
         return raw_exit
@@ -53,6 +55,7 @@ def _extract_exit_code(payload: dict[str, Any]) -> int | None:
 
 
 def _process_copilot_event(data: dict[str, Any], current_text: str | None) -> tuple[str | None, int | None]:
+    """Update assistant text and extract exit code from a single Copilot event."""
     event_type = data.get("type")
     payload = data.get("data")
     if not isinstance(payload, dict):
@@ -69,6 +72,7 @@ def _process_copilot_event(data: dict[str, Any], current_text: str | None) -> tu
 
 
 def _parse_jsonl(stdout_text: str) -> tuple[str | None, int | None, str | None]:
+    """Parse JSONL output lines from Copilot CLI stream."""
     assistant_text: str | None = None
     result_exit_code: int | None = None
     for raw_line in stdout_text.splitlines():
@@ -87,6 +91,7 @@ def _parse_jsonl(stdout_text: str) -> tuple[str | None, int | None, str | None]:
 
 
 def _classify_copilot_output(completed_code: int, stdout_text: str, stderr_text: str) -> CliMutationOutcome:
+    """Classify CLI process exit code and output text into a CliMutationOutcome."""
     if completed_code != 0:
         detail = stderr_text.strip() or stdout_text.strip() or f"exit {completed_code}"
         return CliMutationOutcome(status="error", error_detail=detail)
@@ -163,12 +168,15 @@ class CopilotAgentAdapter(CliDirectMutationAdapter):
     """Run GitHub Copilot through the shared direct-mutation base."""
 
     def _preflight(self, request: AgentRequest) -> str | None:
+        """Ensure GitHub authentication token is present in environment."""
         if resolve_copilot_token() is None:
             return "missing GH_TOKEN or GITHUB_TOKEN. Fix: export GH_TOKEN=..."
         return None
 
     def _provider_name(self) -> str:
+        """Return the provider identifier string."""
         return "copilot"
 
     def _default_run(self, request: CliMutationRunRequest) -> CliMutationOutcome:
+        """Execute Copilot CLI against mutation request."""
         return default_copilot_run(request)
