@@ -10,6 +10,9 @@ from worktree.core.config.models import (
     WorktreeConfig,
 )
 from worktree.core.config.serialize import serialize_config
+from worktree.core.doctor.checks.config_schema import ConfigSchemaCheck
+from worktree.core.doctor.checks.filesystem_writable import FilesystemWritableCheck
+from worktree.core.doctor.checks.git_repo import GitRepoCheck
 from worktree.core.doctor.doctor import Doctor
 from worktree.core.doctor.models import (
     CheckCategory,
@@ -18,6 +21,7 @@ from worktree.core.doctor.models import (
     DoctorContext,
     DoctorReport,
 )
+from worktree.core.doctor.services.registry import CheckRegistry
 
 
 class DummyDoctorCheck:
@@ -56,7 +60,7 @@ class DoctorCoordinatorTests:
 
     def test_run_diagnostics_delegates_to_runner_with_registered_checks(self, tmp_path: Path) -> None:
         """[tier-2/unit] Doctor.run_diagnostics: initializes context with self.path and executes checks registered in self.registry."""
-        doctor = Doctor(tmp_path)
+        doctor = Doctor(tmp_path, registry=CheckRegistry())
         check = DummyDoctorCheck(check_id="test.delegation", category=CheckCategory.GIT)
         doctor.registry.register(check)
 
@@ -102,7 +106,7 @@ class DoctorCoordinatorTests:
         )
         Filesystem.atomic_write_json(config_dir / "config.json", serialize_config(config))
 
-        doctor = Doctor(tmp_path)
+        doctor = Doctor(tmp_path, registry=CheckRegistry())
         git_check = DummyDoctorCheck(check_id="git.repo", category=CheckCategory.GIT)
         doctor.registry.register(git_check)
 
@@ -142,7 +146,7 @@ class DoctorCoordinatorTests:
             doctor=DoctorConfig(check_git=False),
         )
 
-        doctor = Doctor(tmp_path)
+        doctor = Doctor(tmp_path, registry=CheckRegistry())
         git_check = DummyDoctorCheck(check_id="git.repo", category=CheckCategory.GIT)
         doctor.registry.register(git_check)
 
@@ -175,7 +179,7 @@ class DoctorCoordinatorTests:
 
     def test_run_diagnostics_propagates_category_filter(self, tmp_path: Path) -> None:
         """[tier-2/unit] Doctor.run_diagnostics: category filter argument is passed to DiagnosticRunner and filters report checks."""
-        doctor = Doctor(tmp_path)
+        doctor = Doctor(tmp_path, registry=CheckRegistry())
         git_check = DummyDoctorCheck(check_id="git.repo", category=CheckCategory.GIT)
         config_check = DummyDoctorCheck(check_id="config.schema", category=CheckCategory.CONFIG)
         doctor.registry.register(git_check)
@@ -207,3 +211,27 @@ class DoctorCoordinatorTests:
         )
         assert len(report.checks) == 1
         assert report.checks[0].check_id == "config.schema"
+
+
+class DoctorDefaultRegistryTests:
+    """Unit tests for Doctor.__init__ registry default-wiring."""
+
+    def test_init_without_registry_uses_default_registry_with_all_builtin_checks(self, tmp_path: Path) -> None:
+        """[tier-1/unit] Doctor.__init__: called with no registry argument -> self.registry has the 3 built-in checks."""
+        doctor = Doctor(tmp_path)
+
+        checks = doctor.registry.all()
+
+        assert len(checks) == 3
+        assert isinstance(doctor.registry.get("git.repo"), GitRepoCheck)
+        assert isinstance(doctor.registry.get("config.schema"), ConfigSchemaCheck)
+        assert isinstance(doctor.registry.get("filesystem.writable"), FilesystemWritableCheck)
+
+    def test_init_with_explicit_registry_does_not_use_default_registry(self, tmp_path: Path) -> None:
+        """[tier-1/unit] Doctor.__init__: called with registry=CheckRegistry() -> self.registry stays that empty instance."""
+        explicit_registry = CheckRegistry()
+
+        doctor = Doctor(tmp_path, registry=explicit_registry)
+
+        assert doctor.registry is explicit_registry
+        assert doctor.registry.all() == []
