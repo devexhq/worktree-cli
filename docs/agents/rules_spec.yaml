@@ -510,20 +510,25 @@ rules:
   scope: tests/
   guideline: >-
     Test structure mirrors src/worktree/ 1:1 under tests/, one test file per source module, and every test
-    directory carries an __init__.py because basenames repeat across the tree. Three mappings are fixed:
+    directory carries an __init__.py because basenames repeat across the tree. Four mappings are fixed:
     src/worktree/common/<m>.py to tests/common/test_<m>.py, src/worktree/core/<domain>/<m>.py to
-    tests/core/<domain>/test_<m>.py, and src/worktree/cli/ui/formatters/<domain>/<name>.py to
-    tests/cli/ui/formatters/<domain>/test_<name>.py. The single collapse exception is CLI command actions:
-    src/worktree/cli/<command>/commands/*.py map together to tests/cli/commands/test_<command>.py. Any source
-    module with no test file must appear in the PARITY_EXEMPT list in tests/lint/ with a justification, so the
-    gap is visible rather than implicit. Grouping several formatters or domains into one part-numbered file is
+    tests/core/<domain>/test_<m>.py, src/worktree/cli/ui/formatters/<domain>/<name>.py to
+    tests/cli/ui/formatters/<domain>/test_<name>.py, and src/worktree/cli/<command>/commands/<action>.py to
+    tests/cli/<command>/test_<command>_<action>.py — a subdirectory per CLI command domain, mirroring
+    src/worktree/cli/<command>/ (the commands/ subpackage level collapses; a per-domain conftest.py holds
+    fixtures that domain's test files share, never fixtures another domain needs). One test file per CLI
+    command action, not one file per command domain. Any source module with no test file must appear in the
+    PARITY_EXEMPT list in tests/lint/ with a justification, so the gap is visible rather than implicit.
+    Grouping several formatters, domains, or command actions into one part-numbered or collapsed file is
     prohibited.
   evaluation_criteria: >-
     Check every test file path against its source module using the fixed mappings. Flag part-numbered or
-    grab-bag files (for example test_command_formatters_part1.py), missing __init__.py files, and source modules
-    that are neither tested nor listed in PARITY_EXEMPT.
-  positive_example: src/worktree/cli/ui/formatters/status/status.py -> tests/cli/ui/formatters/status/test_status.py
-  negative_example: 'tests/cli/formatters/test_command_formatters_part1.py  # 12 formatters in one unmirrored file'
+    grab-bag files (for example test_command_formatters_part1.py or a single test_<command>.py holding more
+    than one command action), a CLI command test file left flat under tests/cli/ instead of nested under its
+    own tests/cli/<command>/ subdirectory, missing __init__.py files, and source modules that are neither
+    tested nor listed in PARITY_EXEMPT.
+  positive_example: src/worktree/cli/sandbox/commands/sandbox_create.py -> tests/cli/sandbox/test_sandbox_create.py
+  negative_example: 'tests/cli/commands/test_sandbox_create.py  # flat under tests/cli/commands/, not nested under tests/cli/sandbox/'
   citation: docs/agents/testing.md#11-source-parity-layout
 - id: TEST-003
   title: Standardized Test Naming and Vague Name Ban
@@ -757,7 +762,7 @@ rules:
   severity: BLOCKER
   category: Testing
   domain: tests
-  scope: tests/cli/commands/
+  scope: tests/cli/
   guideline: >-
     CLI runner tests assert wiring and observable behavior: exit codes, --format json payloads as exact literal
     dicts, resulting disk or git state, and rendered CLI output. A rendered-output assertion is not restricted to
@@ -765,9 +770,9 @@ rules:
     permitted, ideally pinned via snapshot testing so the assertion cannot drift silently. Never assert help text
     wording; assert command registration and option names through Click metadata instead.
   evaluation_criteria: >-
-    Scan tests/cli/commands/ for containment or equality checks against stdout or rendered output; any literal
-    assertion, including a snapshot comparison, is permitted. Flag only assertions against help text wording, and
-    name the Click metadata check that should replace them.
+    Scan each CLI command domain's test directory under tests/cli/<command>/ for containment or equality checks
+    against stdout or rendered output; any literal assertion, including a snapshot comparison, is permitted. Flag
+    only assertions against help text wording, and name the Click metadata check that should replace them.
   positive_example: "assert res.exit_code == 1\nassert \"Status: valid with warnings\" in res.stdout  # literal rendered output, not restricted to an error-code token"
   negative_example: 'assert "Show the current configuration value" in res.output  # help text wording; assert Click metadata instead'
   citation: docs/agents/testing.md#core-testing-rules
@@ -786,6 +791,35 @@ rules:
   positive_example: 'from worktree.core.sandbox.prune import prune_sandboxes  # tests/core/sandbox/test_prune.py'
   negative_example: 'from worktree.cli.sandbox.commands.prune import prune_command  # imported from tests/core/sandbox/test_prune.py'
   citation: docs/agents/testing.md#11-source-parity-layout
+- id: TEST-019
+  title: Command Result DTO Spy Scope for CLI Integration Tests
+  severity: BLOCKER
+  category: Testing
+  domain: tests
+  scope: tests/cli/
+  guideline: >-
+    A *CliIntegrationTests suite may pin the exact domain DTO a command handler produces, beyond what --format
+    json's wire payload already proves, with a call-through spy fixture on ui_dispatcher.dispatch that still
+    exercises the real formatter and render path (never a replacement stub, so this does not trip TEST-008). What
+    that spy may be asserted against is scoped to one thing: the command action's own terminal BaseResult — the
+    same type its facade or service call returns and the JSON envelope wraps (SandboxCreateResult for wt sandbox
+    create, WorktreeStatusResult for wt status). It is never used to assert on other objects the same invocation
+    dispatches — MessageEvent, WarningEvent, PromptEvent, or a lifecycle/progress event — even when the spy's
+    fixture captures them incidentally. A command action known to dispatch only its own terminal result per
+    invocation may assert the spy's sole captured item directly; a command action that also dispatches other
+    event types must first isolate the captured instance of its own Result type rather than assume position or
+    length. This is a genuine contract comparison against a BaseResult (TEST-001's good pattern), not a call-count
+    check on a mocked collaborator, because the spy calls through to production and the assertion targets the
+    DTO's fields, not the fact that dispatch fired.
+  evaluation_criteria: >-
+    Inspect any dispatch-spy fixture use under tests/cli/. Verify every assertion made against a
+    captured item is an instance of that command action's own declared Result type. Flag an assertion against any
+    other dispatched event type captured by the same spy, and flag spy[0]/len(spy) == 1 relied on without
+    isolating the command's own Result type for a command action that can plausibly dispatch more than its
+    terminal result in the same invocation.
+  positive_example: 'assert len(dispatch_spy) == 1; assert_model_equal(dispatch_spy[0], SandboxCreateResult(...))  # sandbox create dispatches only its own terminal result'
+  negative_example: 'assert_model_equal(dispatch_spy[-1], MessageEvent(message="Running..."))  # asserting an incidental progress event through the result spy'
+  citation: docs/agents/testing.md#tier-3---cli-wiring-runner-required-root-tests-when-earned
 - id: DOC-001
   title: Architecture Doc Structural Gate
   severity: BLOCKER
@@ -1160,7 +1194,7 @@ planner_rules:
   positive_example: |
     ## Deletion ledger
     | Path or symbol | Why it goes | Replaced by |
-    | `tests/cli/commands/test_config.py::ConfigShowRootTests` | pass-through handler restating a domain contract | `tests/core/config/test_loader.py` |
+    | `tests/cli/config/test_config_show.py::ConfigShowRootTests` | pass-through handler restating a domain contract | `tests/core/config/test_loader.py` |
   negative_example: '# Inventory lists 9 new files and says nothing about what they supersede'
   citation: docs/agents/planning.md#step-3-enumerate-every-artifact
 - id: PLAN-010
@@ -1265,8 +1299,8 @@ planner_rules:
     ### Test ledger
     | Path | Est. lines | Contract pinned | Nearest existing coverage | Verdict |
     | `tests/core/bootstrap/test_initialize.py` | 120 | NOT_A_GIT_REPO abort returns InitResult(status=NOT_A_GIT_REPO, created=[]) | none found | new |
-    | `tests/cli/commands/test_init.py` | 90 | stdout JSON equals the literal init wire dict for a fresh repo | none found | new |
-    | `tests/cli/commands/test_config.py::ConfigShowRootTests` | - | ConfigLoadResult shape | `tests/core/config/test_loader.py` | redundant-dropped |
+    | `tests/cli/init/test_init.py` | 90 | stdout JSON equals the literal init wire dict for a fresh repo | none found | new |
+    | `tests/cli/config/test_config_show.py::ConfigShowRootTests` | - | ConfigLoadResult shape | `tests/core/config/test_loader.py` | redundant-dropped |
   negative_example: |
     | Test | Path | Exact assertion |
     | Test pruning | tests/test_prune.py | checks that pruning works, ignoring errors field |
@@ -1349,7 +1383,7 @@ planner_rules:
     ### In scope
     - `tests/core/bootstrap/test_initialize.py` (~120 lines): preflight failure modes,
       zero-side-effect abort, idempotent rerun
-    - `tests/cli/commands/test_init.py` (~90 lines): runner exit codes, `--format json` payload, `--force`
+    - `tests/cli/init/test_init.py` (~90 lines): runner exit codes, `--format json` payload, `--force`
 
     ### Rules
     TEST-002, TEST-004, TEST-017

@@ -1,7 +1,6 @@
 # Testing
 
 Testing conventions, taxonomy, harness utilities, and execution patterns for Worktree CLI.
-Architectural reference: `scratch/test-structure-proposal.md`.
 
 ---
 
@@ -20,7 +19,7 @@ Test structure mirrors `src/worktree/` 1:1 under `tests/`. **A test lives beside
 - Every source module in `src/worktree/` has corresponding test coverage in `tests/`:
   - `src/worktree/common/<module>.py` -> `tests/common/test_<module>.py`
   - `src/worktree/core/<domain>/<module>.py` -> `tests/core/<domain>/test_<module>.py`
-  - `src/worktree/cli/<command>/commands/*.py` -> `tests/cli/commands/test_<command>.py` (housing `*CliIntegrationTests` for each command action, plus `*RootTests` only where a handler earns one)
+  - `src/worktree/cli/<command>/commands/<action>.py` -> `tests/cli/<command>/test_<command>_<action>.py` (one subdirectory per CLI command domain mirroring `src/worktree/cli/<command>/`, one file per action inside it housing that action's `*CliIntegrationTests` plus `*RootTests` only where the handler earns one; the `commands/` subpackage level collapses)
   - `src/worktree/cli/ui/formatters/<domain>/<name>.py` -> `tests/cli/ui/formatters/<domain>/test_<name>.py`
 - Every test directory gets an `__init__.py`. Basenames repeat across the tree (`test_formatters.py`, `test_filesystem.py`), so collection depends on packages being real.
 - **One test file per source module.** Do not split one module's tests across files without a stated architectural rule.
@@ -176,6 +175,19 @@ domain layer does not: input coercion, branch selection across services, result 
 more than one call, or an interactive abort path. A pass-through handler is fully compliant with
 zero root tests, and a root test may never restate a contract already asserted under
 `tests/core/` for the same result type.
+
+**Pinning the command's own result DTO via a dispatch spy.** A `*CliIntegrationTests` suite may
+go beyond `--format json`'s wire payload and pin the exact domain object a command handler
+produced, using a fixture that monkeypatches `ui_dispatcher.dispatch` to capture every call while
+still calling through to the real dispatcher (so formatting and rendering still run for real —
+this is not a stub, `TEST-008` still applies). What the test may assert against that capture is
+scoped to one thing: the command action's own terminal `BaseResult` (`SandboxCreateResult` for
+`wt sandbox create`, `WorktreeStatusResult` for `wt status`), never any other object the same
+invocation happens to dispatch (`MessageEvent`, `WarningEvent`, `PromptEvent`, a lifecycle or
+progress event). A command action that only ever dispatches its own result may assert the spy's
+sole captured item directly (`dispatch_spy[0]`); a command action that also dispatches other
+event types must isolate its own Result type from the capture first rather than assume position
+or count. See `TEST-019`.
 
 ### Tier 4 - Invariants (`tests/lint/`)
 

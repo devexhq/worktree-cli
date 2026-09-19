@@ -174,11 +174,11 @@ _unlock = _unlock_fd  # internal shim alias
 ```
 
 - **[TEST-002] 1:1 Source Parity Layout (BLOCKER):**
-  Test structure mirrors src/worktree/ 1:1 under tests/, one test file per source module, and every test directory carries an __init__.py because basenames repeat across the tree. Three mappings are fixed: src/worktree/common/<m>.py to tests/common/test_<m>.py, src/worktree/core/<domain>/<m>.py to tests/core/<domain>/test_<m>.py, and src/worktree/cli/ui/formatters/<domain>/<name>.py to tests/cli/ui/formatters/<domain>/test_<name>.py. The single collapse exception is CLI command actions: src/worktree/cli/<command>/commands/*.py map together to tests/cli/commands/test_<command>.py. Any source module with no test file must appear in the PARITY_EXEMPT list in tests/lint/ with a justification, so the gap is visible rather than implicit. Grouping several formatters or domains into one part-numbered file is prohibited.
+  Test structure mirrors src/worktree/ 1:1 under tests/, one test file per source module, and every test directory carries an __init__.py because basenames repeat across the tree. Four mappings are fixed: src/worktree/common/<m>.py to tests/common/test_<m>.py, src/worktree/core/<domain>/<m>.py to tests/core/<domain>/test_<m>.py, src/worktree/cli/ui/formatters/<domain>/<name>.py to tests/cli/ui/formatters/<domain>/test_<name>.py, and src/worktree/cli/<command>/commands/<action>.py to tests/cli/<command>/test_<command>_<action>.py — a subdirectory per CLI command domain, mirroring src/worktree/cli/<command>/ (the commands/ subpackage level collapses; a per-domain conftest.py holds fixtures that domain's test files share, never fixtures another domain needs). One test file per CLI command action, not one file per command domain. Any source module with no test file must appear in the PARITY_EXEMPT list in tests/lint/ with a justification, so the gap is visible rather than implicit. Grouping several formatters, domains, or command actions into one part-numbered or collapsed file is prohibited.
 
 ```python
-# ✅ DO: src/worktree/cli/ui/formatters/status/status.py -> tests/cli/ui/formatters/status/test_status.py
-# ❌ DO NOT: tests/cli/formatters/test_command_formatters_part1.py  # 12 formatters in one unmirrored file
+# ✅ DO: src/worktree/cli/sandbox/commands/sandbox_create.py -> tests/cli/sandbox/test_sandbox_create.py
+# ❌ DO NOT: tests/cli/commands/test_sandbox_create.py  # flat under tests/cli/commands/, not nested under tests/cli/sandbox/
 ```
 
 - **[TEST-003] Standardized Test Naming and Vague Name Ban (BLOCKER):**
@@ -310,6 +310,14 @@ assert "Status: valid with warnings" in res.stdout  # literal rendered output, n
 ```python
 # ✅ DO: from worktree.core.sandbox.prune import prune_sandboxes  # tests/core/sandbox/test_prune.py
 # ❌ DO NOT: from worktree.cli.sandbox.commands.prune import prune_command  # imported from tests/core/sandbox/test_prune.py
+```
+
+- **[TEST-019] Command Result DTO Spy Scope for CLI Integration Tests (BLOCKER):**
+  A *CliIntegrationTests suite may pin the exact domain DTO a command handler produces, beyond what --format json's wire payload already proves, with a call-through spy fixture on ui_dispatcher.dispatch that still exercises the real formatter and render path (never a replacement stub, so this does not trip TEST-008). What that spy may be asserted against is scoped to one thing: the command action's own terminal BaseResult — the same type its facade or service call returns and the JSON envelope wraps (SandboxCreateResult for wt sandbox create, WorktreeStatusResult for wt status). It is never used to assert on other objects the same invocation dispatches — MessageEvent, WarningEvent, PromptEvent, or a lifecycle/progress event — even when the spy's fixture captures them incidentally. A command action known to dispatch only its own terminal result per invocation may assert the spy's sole captured item directly; a command action that also dispatches other event types must first isolate the captured instance of its own Result type rather than assume position or length. This is a genuine contract comparison against a BaseResult (TEST-001's good pattern), not a call-count check on a mocked collaborator, because the spy calls through to production and the assertion targets the DTO's fields, not the fact that dispatch fired.
+
+```python
+# ✅ DO: assert len(dispatch_spy) == 1; assert_model_equal(dispatch_spy[0], SandboxCreateResult(...))  # sandbox create dispatches only its own terminal result
+# ❌ DO NOT: assert_model_equal(dispatch_spy[-1], MessageEvent(message="Running..."))  # asserting an incidental progress event through the result spy
 ```
 
 - **[DOC-001] Architecture Doc Structural Gate (BLOCKER):**

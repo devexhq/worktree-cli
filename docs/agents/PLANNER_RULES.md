@@ -168,7 +168,7 @@ def config_set_command(context: CliContext, key: str, value: str) -> ConfigSetRe
 ```markdown
 ## Deletion ledger
 | Path or symbol | Why it goes | Replaced by |
-| `tests/cli/commands/test_config.py::ConfigShowRootTests` | pass-through handler restating a domain contract | `tests/core/config/test_loader.py` |
+| `tests/cli/config/test_config_show.py::ConfigShowRootTests` | pass-through handler restating a domain contract | `tests/core/config/test_loader.py` |
 ```
 
 <!-- ❌ NEGATIVE EXAMPLE -->
@@ -294,8 +294,8 @@ def prune_sandboxes(...) -> SandboxPruneResult: ...
 ### Test ledger
 | Path | Est. lines | Contract pinned | Nearest existing coverage | Verdict |
 | `tests/core/bootstrap/test_initialize.py` | 120 | NOT_A_GIT_REPO abort returns InitResult(status=NOT_A_GIT_REPO, created=[]) | none found | new |
-| `tests/cli/commands/test_init.py` | 90 | stdout JSON equals the literal init wire dict for a fresh repo | none found | new |
-| `tests/cli/commands/test_config.py::ConfigShowRootTests` | - | ConfigLoadResult shape | `tests/core/config/test_loader.py` | redundant-dropped |
+| `tests/cli/init/test_init.py` | 90 | stdout JSON equals the literal init wire dict for a fresh repo | none found | new |
+| `tests/cli/config/test_config_show.py::ConfigShowRootTests` | - | ConfigLoadResult shape | `tests/core/config/test_loader.py` | redundant-dropped |
 ```
 
 <!-- ❌ NEGATIVE EXAMPLE -->
@@ -369,7 +369,7 @@ Before saving, reread the Phase 2 service stub and confirmed it imports only fro
 ### In scope
 - `tests/core/bootstrap/test_initialize.py` (~120 lines): preflight failure modes,
   zero-side-effect abort, idempotent rerun
-- `tests/cli/commands/test_init.py` (~90 lines): runner exit codes, `--format json` payload, `--force`
+- `tests/cli/init/test_init.py` (~90 lines): runner exit codes, `--format json` payload, `--force`
 
 ### Rules
 TEST-002, TEST-004, TEST-017
