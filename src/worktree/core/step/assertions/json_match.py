@@ -36,6 +36,7 @@ def evaluate_json_match(config: dict[str, Any], stdout: str) -> list[str]:
 
 
 def _is_numeric(value: Any) -> bool:
+    """Check whether a value is numeric (int or float, excluding bool)."""
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
@@ -50,6 +51,7 @@ def _resolve_json_path(root: Any, path: str) -> Any:
 
 
 def _compare_eq(actual: Any, value: Any, path: str) -> list[str]:
+    """Assert that actual value equals expected value."""
     if actual == value:
         return []
     actual_repr, expected_repr = short_pair(actual, value)
@@ -57,6 +59,7 @@ def _compare_eq(actual: Any, value: Any, path: str) -> list[str]:
 
 
 def _compare_neq(actual: Any, value: Any, path: str) -> list[str]:
+    """Assert that actual value does not equal expected value."""
     if actual != value:
         return []
     actual_repr, expected_repr = short_pair(actual, value)
@@ -64,6 +67,7 @@ def _compare_neq(actual: Any, value: Any, path: str) -> list[str]:
 
 
 def _compare_contains(actual: Any, value: Any, path: str) -> list[str]:
+    """Assert that actual collection contains expected value."""
     try:
         if value in actual:
             return []
@@ -80,6 +84,7 @@ def _compare_ordered(
     predicate: Callable[[Any, Any], bool],
     expected_phrase: str,
 ) -> list[str]:
+    """Assert that numeric ordering comparison holds between actual and expected value."""
     if not _is_numeric(actual) or not _is_numeric(value):
         return [
             f"json_match: operator '{operator}' requires numeric values, "

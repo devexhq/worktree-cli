@@ -20,6 +20,7 @@ from worktree.core.engine import BlueprintResumeService
 
 
 def _emit_resume_start_notice(context: CliContext, session_id: str | None) -> None:
+    """Emit a notice that a session resume operation is starting."""
     if session_id:
         ui_dispatcher.dispatch(MessageEvent(message=f"Resuming session '{session_id}'..."))
         return

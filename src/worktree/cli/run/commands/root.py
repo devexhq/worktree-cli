@@ -19,6 +19,7 @@ from worktree.core.engine import BlueprintRunService
 
 
 def _first_error(result: BlueprintRunResult, fallback: str) -> str:
+    """Return the first error message or a fallback string."""
     return result.errors[0] if result.errors else fallback
 
 

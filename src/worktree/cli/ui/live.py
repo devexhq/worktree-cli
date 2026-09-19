@@ -215,6 +215,7 @@ class LiveDisplayManager:
             self.console.print(renderable)
 
     def _build_renderable(self) -> Table | Group:
+        """Build the combined renderable containing steps table, active output, and sandbox info."""
         return build_live_renderable(
             self.steps,
             active_step_name=self._active_step_name,
@@ -223,5 +224,6 @@ class LiveDisplayManager:
         )
 
     def _refresh(self) -> None:
+        """Update the active Live display instance with latest renderables."""
         if self._live is not None:
             self._live.update(self._build_renderable())

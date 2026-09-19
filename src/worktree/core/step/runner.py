@@ -41,6 +41,7 @@ def _failed_dispatch(
     stdout: str = "",
     stderr: str = "",
 ) -> StepDispatchOutcome:
+    """Build a failed StepDispatchOutcome with error message and status."""
     return StepDispatchOutcome(
         status="failed",
         exit_code=exit_code,
@@ -51,6 +52,7 @@ def _failed_dispatch(
 
 
 def _int_from_context_or_default(context: dict[str, Any], key: str, default: int) -> int:
+    """Extract an integer field from execution context dictionary or return default."""
     if default != 1 or key not in context:
         return default
     return int(context[key])
@@ -213,6 +215,7 @@ class StepExecution:
         collected_lines: list[str],
         collected_errors: list[str],
     ) -> None:
+        """Append streamed line and forward it to on_output callback if present."""
         collected_lines.append(line)
         if self.on_output is not None:
             try:
@@ -262,6 +265,7 @@ class StepExecution:
         step_kind: str,
         metadata: ExecutionMetadata,
     ) -> StepDispatchOutcome:
+        """Spawn subprocess, stream standard output/error, and collect dispatch outcome."""
         env = self._build_process_env(metadata)
         isolation_kwargs = get_isolated_process_kwargs()
         try:
@@ -385,6 +389,7 @@ class StepExecution:
 
 
 def _resolve_script_invocation(script_file: Path) -> tuple[str | list[str], bool]:
+    """Determine command arguments and shell execution mode for a script path."""
     if os.access(script_file, os.X_OK):
         return [str(script_file)], False
     if script_file.suffix == ".py":
@@ -402,6 +407,7 @@ def _step_result(
     status: str | None = None,
     exit_code: int | None = None,
 ) -> StepResult:
+    """Convert a StepDispatchOutcome into a finalized StepResult model."""
     return StepResult(
         step_id=step_id,
         status=status if status is not None else outcome.status,

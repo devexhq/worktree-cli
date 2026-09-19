@@ -19,6 +19,7 @@ from worktree.core.step import LoopStepBlock, StepDefinition
 
 
 def _collect_blueprint_steps(blueprint: Blueprint) -> tuple[set[str], list[StepDefinition]]:
+    """Collect all step IDs and flat list of step definitions from a blueprint."""
     step_ids: set[str] = set()
     steps: list[StepDefinition] = []
     for step in blueprint.steps:

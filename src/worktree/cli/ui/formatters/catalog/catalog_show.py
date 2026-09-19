@@ -21,6 +21,7 @@ from worktree.core.catalog.models import CatalogShowResult
 
 
 def _render_show_template_matches(matches: list[CatalogTemplateView], content: str | None) -> Any:
+    """Render matching template paths and optional syntax-highlighted definition."""
     renderables: list[Any] = []
     for template in matches:
         renderables.append(Text.from_markup(f"[bold green]Template:[/]    {template.path}"))
@@ -31,6 +32,7 @@ def _render_show_template_matches(matches: list[CatalogTemplateView], content: s
 
 
 def _render_show_item(item: CatalogItemView, content: str | None, catalog_path_relative: str | None) -> Group:
+    """Render catalog item details, metadata, and optional YAML definition."""
     rel_path = catalog_path_relative or item.path
     renderables: list[Any] = [
         Text.from_markup(f"[bold green]Blueprint:[/]   {item.name} ({item.sha})"),

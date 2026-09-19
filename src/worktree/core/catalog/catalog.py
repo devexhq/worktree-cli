@@ -51,7 +51,9 @@ class _PydanticModel(Protocol):
     """Minimal protocol for catalog definition classes validated via Pydantic."""
 
     @classmethod
-    def model_validate(cls, obj: Any) -> Any: ...
+    def model_validate(cls, obj: Any) -> Any:
+        """Validate and parse raw data into a model instance."""
+        ...
 
 
 class Catalog:
@@ -160,6 +162,7 @@ class Catalog:
         )
 
     def _split_name_and_namespace(self, name: str) -> tuple[str, str | None]:
+        """Split a potentially namespaced blueprint identifier into name and namespace."""
         if "/" not in name:
             return name, None
         namespace_parts = name.split("/")
@@ -395,6 +398,7 @@ class Catalog:
         return self.db.get_by_path(rel_path)
 
     def _read_and_parse_yaml(self, file_path: Path, rel_path: Path) -> YamlParseOutcome:
+        """Read and parse a catalog YAML file, returning parsed dict or error messages."""
         yaml_file = Filesystem.read_yaml_file(file_path)
         if yaml_file.error or yaml_file.parsed is None or not isinstance(yaml_file.parsed, dict):
             error_message = (
@@ -409,6 +413,7 @@ class Catalog:
         definition_cls: type[_PydanticModel],
         sha_or_name: str,
     ) -> DefinitionValidationOutcome:
+        """Validate definition payload against model class, returning resolution outcome."""
         file_path = self.root_dir / winner.path
         parse_outcome = self._read_and_parse_yaml(file_path, winner.path)
         if parse_outcome.errors or parse_outcome.parsed_data is None:

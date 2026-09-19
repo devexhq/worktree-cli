@@ -56,6 +56,7 @@ class Config:
         return instance
 
     def _initialize(self, path: Path | None = None) -> None:
+        """Initialize Config singleton state with filesystem root and empty cached config."""
         self._fs = Filesystem(path) if path is not None else Filesystem()
         self.path = self._fs.root_dir
         self.cwd = self.path

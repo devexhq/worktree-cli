@@ -69,10 +69,12 @@ def _take_value(args: list[str], index: int, *, flag: str) -> tuple[str, int]:
 
 
 def _is_generic_input_token(token: str) -> bool:
+    """Check whether a token represents a generic -i or --input option."""
     return token in {"-i", "--input"} or token.startswith("-i=") or token.startswith("--input=")
 
 
 def _match_alias_token(token: str, aliases: dict[str, str]) -> str | None:
+    """Find the matching alias prefix for a given CLI token if present."""
     if token in aliases:
         return token
     for alias in aliases:
@@ -88,6 +90,7 @@ def _store_coerced(
     raw: str,
     input_type: InputType,
 ) -> None:
+    """Coerce raw string value according to input type and store in state."""
     try:
         state.values[name] = coerce_input_value(raw, input_type, name=name)
     except ValueError as exc:
@@ -127,6 +130,7 @@ def _parse_generic_override(
 
 
 def _is_bare_boolean_flag(args: list[str], index: int, token: str, spec: ParameterInput) -> bool:
+    """Determine whether a token is a bare boolean flag without an attached value."""
     if spec.type != InputType.BOOLEAN or "=" in token:
         return False
     return index + 1 >= len(args) or args[index + 1].startswith("-")
@@ -160,6 +164,7 @@ def _parse_alias_token(
 
 
 def _warn_unknown_token(state: _ParseState, token: str) -> None:
+    """Record a warning for an unrecognized CLI argument or option and advance index."""
     if token.startswith("-"):
         state.warnings.append(f"Ignoring unrecognized option '{token}'.")
     else:
@@ -203,6 +208,7 @@ def _apply_defaults_and_overrides(
     values: dict[str, str | int | bool],
     overrides: dict[str, str | int | bool] | None,
 ) -> dict[str, str | int | bool]:
+    """Merge parsed values with caller overrides and declared default values."""
     resolved = dict(values)
     if overrides:
         resolved.update(overrides)
@@ -216,6 +222,7 @@ def _missing_required(
     declarations: dict[str, ParameterInput],
     values: dict[str, str | int | bool],
 ) -> list[str]:
+    """Return names of required parameter inputs that have no assigned value."""
     return [
         name for name, spec in declarations.items() if spec.required and (name not in values or values[name] is None)
     ]

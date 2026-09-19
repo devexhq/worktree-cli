@@ -28,6 +28,7 @@ from worktree.core.sandbox.services.wip import apply_wip_to_sandbox
 
 
 def _clean_opt_str(val: str | None) -> str | None:
+    """Trim whitespace from string, returning None if empty or None."""
     if val is None:
         return None
     s = val.strip()

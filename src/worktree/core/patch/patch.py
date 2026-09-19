@@ -48,6 +48,7 @@ class GitDiffParser:
     def _record_path(
         self, raw: str, *, paths: bool = False, section_paths: bool = False, binary_paths: bool = False
     ) -> None:
+        """Normalize and record a path token into context collections."""
         if paths:
             _add_path(self.paths, raw)
 
@@ -67,6 +68,7 @@ class GitDiffParser:
             self.binary_paths.add("(unknown)")
 
     def _parse_diff_git_header(self):
+        """Parse standard diff --git header if line matches."""
         m = _DIFF_GIT_RE.match(self.line)
         if m:
             self.has_file_header = True
@@ -78,6 +80,7 @@ class GitDiffParser:
             return True
 
     def _parse_loose_diff_git_header(self):
+        """Parse loose diff --git header with relaxed token boundaries."""
         if not self.line.startswith("diff --git "):
             return False
 
@@ -97,6 +100,7 @@ class GitDiffParser:
         return True
 
     def _parse_old_file_header(self):
+        """Parse minus (---) old file diff header."""
         if self.line.startswith("--- "):
             self.has_file_header = True
             body = self.line[4:]
@@ -109,6 +113,7 @@ class GitDiffParser:
             return True
 
     def _parse_new_file_header(self):
+        """Parse plus (+++) new file diff header."""
         if self.line.startswith("+++ "):
             self.has_file_header = True
             body = self.line[4:]
@@ -119,18 +124,21 @@ class GitDiffParser:
             return True
 
     def _parse_rename_or_copy_from(self):
+        """Parse rename from or copy from diff header."""
         m = _RENAME_FROM_RE.match(self.line) or _COPY_FROM_RE.match(self.line)
         if m:
             self._record_path(m.group(1), paths=True, section_paths=True)
             return True
 
     def _parse_rename_or_copy_to(self):
+        """Parse rename to or copy to diff header."""
         m = _RENAME_TO_RE.match(self.line) or _COPY_TO_RE.match(self.line)
         if m:
             self._record_path(m.group(1), paths=True, section_paths=True)
             return True
 
     def _parse_binary_files_header(self):
+        """Parse Binary files diff header."""
         m = _BINARY_FILES_RE.match(self.line)
         if m:
             self.has_file_header = True
@@ -139,11 +147,13 @@ class GitDiffParser:
             return True
 
     def _mark_git_binary_patch_paths(self):
+        """Mark binary patch paths if GIT binary patch header is encountered."""
         if _GIT_BINARY_PATCH_RE.match(self.line):
             self._record_binary_fallback()
             return True
 
     def _mark_literal_or_delta_binary_paths(self):
+        """Mark binary patch paths if literal or delta binary chunk starts."""
         if self.line.startswith("literal ") or self.line.startswith("delta "):
             self._record_binary_fallback()
             return True
@@ -195,12 +205,14 @@ def _normalize_diff_path(raw: str) -> str | None:
 
 
 def _add_path(paths: set[str], raw: str) -> None:
+    """Normalize raw path string and add it to target path set."""
     norm = _normalize_diff_path(raw)
     if norm is not None:
         paths.add(norm)
 
 
 def _strip_ab_prefix(token: str) -> str:
+    """Strip leading a/ or b/ Git diff prefix from token."""
     if token.startswith("a/") or token.startswith("b/"):
         return token[2:]
     return token

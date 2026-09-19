@@ -78,12 +78,15 @@ class CliDirectMutationAdapter:
     """Shared safety flow for providers that mutate the sandbox directly."""
 
     def _default_run(self, request: CliMutationRunRequest) -> CliMutationOutcome:
+        """Execute the provider tool against the mutation request."""
         raise NotImplementedError
 
     def _preflight(self, request: AgentRequest) -> str | None:
+        """Perform provider-specific preflight checks before running."""
         return None
 
     def _provider_name(self) -> str:
+        """Return the display name of the mutation adapter provider."""
         return "direct-mutation"
 
     def propose_fix(self, request: AgentRequest) -> AgentResponse:
@@ -197,4 +200,5 @@ class CliDirectMutationAdapter:
 
 
 def _elapsed_ms(started: float) -> int:
+    """Return elapsed milliseconds since the start timestamp."""
     return int((time.monotonic() - started) * 1000)

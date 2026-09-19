@@ -134,6 +134,7 @@ def _write_fresh_config(
     existed_before: bool,
     overwrite: bool,
 ) -> ConfigGenerationResult:
+    """Validate and atomically write fresh default configuration payload."""
     payload = build_default_config(project_name)
     validation = CONFIG_VALIDATOR.validate(payload)
     if not validation.ok:
@@ -157,6 +158,7 @@ def _repair_existing_config(
     project_name: str,
     result: ConfigGenerationResult,
 ) -> ConfigGenerationResult:
+    """Repair missing keys in existing configuration while preserving custom values."""
     try:
         with open(config_path, encoding="utf-8") as f:
             existing: dict[str, Any] = json.load(f)

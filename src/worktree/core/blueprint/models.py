@@ -55,6 +55,7 @@ def apply_on_failure_default(
 
 
 def _validate_single_loop_block(loop: LoopStepBlock) -> None:
+    """Validate condition expressions and referenced step IDs within a loop block."""
     known = {s.id for s in loop.do}
     for expr in loop.until:
         errors = validate_condition_expression(expr, known_step_ids=known)
@@ -63,6 +64,7 @@ def _validate_single_loop_block(loop: LoopStepBlock) -> None:
 
 
 def _validate_loop_steps(steps: list[StepDefinition | LoopStepBlock]) -> None:
+    """Validate loop step blocks within a step definition list."""
     for step in steps:
         if isinstance(step, LoopStepBlock):
             _validate_single_loop_block(step)

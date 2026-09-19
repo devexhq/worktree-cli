@@ -27,6 +27,7 @@ def resolve_gemini_api_key(env: dict[str, str] | None = None) -> str | None:
 
 
 def _decode_json_response(stdout_text: str) -> tuple[str | None, str | None]:
+    """Decode JSON output from Gemini CLI into response text or error."""
     text = stdout_text.strip()
     if not text:
         return None, "empty Gemini output"
@@ -98,12 +99,15 @@ class GeminiAgentAdapter(CliDirectMutationAdapter):
     """Run the Gemini CLI through the shared direct-mutation base."""
 
     def _preflight(self, request: AgentRequest) -> str | None:
+        """Ensure Gemini API key is configured before running."""
         if resolve_gemini_api_key() is None:
             return f"missing {GEMINI_API_KEY_ENV}. Fix: export {GEMINI_API_KEY_ENV}=..."
         return None
 
     def _provider_name(self) -> str:
+        """Return the provider identifier string."""
         return "gemini"
 
     def _default_run(self, request: CliMutationRunRequest) -> CliMutationOutcome:
+        """Execute Gemini CLI against mutation request."""
         return default_gemini_run(request)

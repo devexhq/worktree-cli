@@ -13,10 +13,12 @@ from worktree.core.db.models import CatalogItemTypeDirectory
 
 
 def _iter_source_files(source_dir: Path) -> list[Path]:
+    """Return sorted list of all files found recursively within a source directory."""
     return sorted(p for p in source_dir.rglob("*") if p.is_file())
 
 
 def _seed_one_file(source_file: Path, target_path: Path, *, force: bool, result: SeedResult) -> None:
+    """Copy a single seed file to target path, respecting force flag and recording status."""
     if target_path.exists() and target_path.is_dir():
         result.errors.append(f"{display_path(target_path)} exists as a directory, not a file.")
         return

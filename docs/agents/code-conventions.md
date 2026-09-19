@@ -41,6 +41,16 @@ Prioritize clarity and readability: code should read naturally and unambiguously
 
 ---
 
+## Docstrings
+
+**Relevant sources:** `pyproject.toml` (`[tool.ruff.lint.pydocstyle]`)
+
+- All non-test public functions and methods must carry a docstring following Google docstring style.
+- When documenting parameters (`Args:`), all function parameters must be documented (enforced by `D417`).
+- Test functions under `tests/` are exempt from Ruff `D` rules per [testing.md](testing.md).
+
+---
+
 ## Core Package Layout
 
 **Relevant sources:** `src/worktree/core/`

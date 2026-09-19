@@ -31,7 +31,9 @@ class _PydanticModel(Protocol):
     """Minimal protocol for catalog definition classes validated via Pydantic."""
 
     @classmethod
-    def model_validate(cls, obj: Any) -> Any: ...
+    def model_validate(cls, obj: Any) -> Any:
+        """Validate an arbitrary object against the schema."""
+        ...
 
 
 def get_catalog_dir(path: Path) -> Path:
@@ -125,6 +127,7 @@ def _append_scan_result(
 def _scan_catalog_subdirectories(
     *, db: CatalogRepository, catalog_dir: Path, subdirs: list[tuple[CatalogItemType, Path]]
 ) -> CatalogSubdirectoryScanResult:
+    """Scan catalog subdirectories for YAML files and index each entry."""
     result = CatalogSubdirectoryScanResult(scanned_records=[], errors=[], scanned_shas=set())
 
     for item_type, sub_dir in subdirs:
@@ -169,6 +172,7 @@ def scan_and_index_catalog(
 
 
 def _get_initial_template_content(type_enum: CatalogItemType, stem: str) -> str:
+    """Return initial template text for a catalog item or fall back to a default skeleton."""
     template_path = Filesystem().catalog_templates_dir / f"{type_enum.value}s" / "default.yml"
     try:
         content = template_path.read_text(encoding="utf-8")
@@ -228,6 +232,7 @@ def _find_catalog_matches(
     type_filter: CatalogItemType | str | None,
     db: CatalogRepository,
 ) -> list[CatalogRecord]:
+    """Find catalog records matching a SHA prefix or item name, optionally filtered by type."""
     type_filter_string = (
         type_filter.value
         if isinstance(type_filter, CatalogItemType)
@@ -243,6 +248,7 @@ def _find_catalog_matches(
 
 
 def _read_and_parse_yaml(file_path: Path, rel_path: Path) -> YamlParseOutcome:
+    """Read and parse a YAML file into dictionary data, capturing any errors."""
     yaml_file = Filesystem.read_yaml_file(file_path)
     if yaml_file.error or yaml_file.parsed is None or not isinstance(yaml_file.parsed, dict):
         error_message = (
@@ -258,6 +264,7 @@ def _validate_definition[T](
     path: Path,
     sha_or_name: str,
 ) -> DefinitionValidationOutcome:
+    """Validate a catalog record YAML payload against the requested definition class."""
     catalog_dir = get_catalog_dir(path)
     file_path = catalog_dir / winner.path
     parse_outcome = _read_and_parse_yaml(file_path, winner.path)

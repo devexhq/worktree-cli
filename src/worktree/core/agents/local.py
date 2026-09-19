@@ -52,6 +52,7 @@ def _request_json_bytes(request: AgentRequest) -> bytes:
 
 
 def _map_local_stdout(parsed: LocalAgentStdout, *, raw_text: str, duration_ms: int) -> AgentResponse:
+    """Map parsed local agent JSON payload into an AgentResponse model."""
     if parsed.unfixable:
         return AgentResponse(
             status=AgentResponseStatus.UNFIXABLE,
@@ -85,6 +86,7 @@ def _map_local_stdout(parsed: LocalAgentStdout, *, raw_text: str, duration_ms: i
 
 
 def _validate_local_request(request: AgentRequest, sandbox_cwd: Path, started: float) -> AgentResponse | None:
+    """Validate local agent request parameters and directory before spawning process."""
     if request.timeout_seconds < 1:
         duration_ms = int((time.monotonic() - started) * 1000)
         return AgentResponse(
@@ -112,6 +114,7 @@ def _dispatch_local_command(
     request: AgentRequest,
     started: float,
 ) -> tuple[subprocess.CompletedProcess[Any] | None, AgentResponse | None]:
+    """Execute external process with request JSON piped to standard input."""
     stdin_bytes = _request_json_bytes(request)
     try:
         completed = run_isolated_process(
@@ -146,6 +149,7 @@ def _parse_and_map_local_output(
     completed: subprocess.CompletedProcess[Any],
     started: float,
 ) -> AgentResponse:
+    """Parse stdout from completed process and construct appropriate AgentResponse."""
     duration_ms = int((time.monotonic() - started) * 1000)
     stdout_text = (completed.stdout or b"").decode("utf-8", errors="replace")
     stderr_text = (completed.stderr or b"").decode("utf-8", errors="replace")
