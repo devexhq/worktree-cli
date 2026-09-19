@@ -189,10 +189,6 @@ split-on-trailing-comma = true
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
-ignore-decorators = [
-    "typer.main.Typer.command",
-    "typer.main.Typer.callback",
-]
 
 [tool.ruff.format]
 quote-style = "double"
