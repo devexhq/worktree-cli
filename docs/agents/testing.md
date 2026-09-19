@@ -1,354 +1,156 @@
 # Testing
 
-Testing conventions, taxonomy, harness utilities, and execution patterns for Worktree CLI.
-
----
+Testing conventions, taxonomy, and execution patterns for Worktree CLI. Narrative companion to
+`tests/docs/RULES.md` (auto-generated, TEST-001+); where the two disagree, RULES.md wins.
 
 ## The rule that matters most
 
-**Test at contracts, not at implementation.** A contract is a boundary we chose deliberately: a `BaseResult` object, a JSON payload, an exit code, a file on disk, a git ref. Implementation is everything else: rendered layout, private helpers, call ordering, constructor assignments.
-
-Asserting on implementation costs brittleness and buys no safety. A suite can reach 90% line coverage while missing every real defect, and this one has.
-
----
+**Test at contracts, not at implementation.** A contract is a boundary chosen deliberately: a
+`BaseResult` object, a JSON payload, an exit code, a file on disk, a git ref. Everything else
+(rendered layout, private helpers, call ordering, constructor assignments) is implementation and
+must not be asserted on.
 
 ## 1:1 Source Parity Layout
 
-Test structure mirrors `src/worktree/` 1:1 under `tests/`. **A test lives beside what it tests.** If a module moves package, its test moves in the same commit.
+Test structure mirrors `src/worktree/` 1:1 under `tests/`. Fixed mappings:
+- `src/worktree/common/<m>.py` -> `tests/common/test_<m>.py`
+- `src/worktree/core/<domain>/<m>.py` -> `tests/core/<domain>/test_<m>.py`
+- `src/worktree/cli/ui/formatters/<domain>/<name>.py` -> `tests/cli/ui/formatters/<domain>/test_<name>.py`
+- `src/worktree/cli/<command>/commands/<action>.py` -> `tests/cli/<command>/test_<command>_<action>.py`
+  (one subdirectory per CLI command domain, `commands/` collapses, one file per action)
 
-- Every source module in `src/worktree/` has corresponding test coverage in `tests/`:
-  - `src/worktree/common/<module>.py` -> `tests/common/test_<module>.py`
-  - `src/worktree/core/<domain>/<module>.py` -> `tests/core/<domain>/test_<module>.py`
-  - `src/worktree/cli/<command>/commands/<action>.py` -> `tests/cli/<command>/test_<command>_<action>.py` (one subdirectory per CLI command domain mirroring `src/worktree/cli/<command>/`, one file per action inside it housing that action's `*CliIntegrationTests` plus `*RootTests` only where the handler earns one; the `commands/` subpackage level collapses)
-  - `src/worktree/cli/ui/formatters/<domain>/<name>.py` -> `tests/cli/ui/formatters/<domain>/test_<name>.py`
-- Every test directory gets an `__init__.py`. Basenames repeat across the tree (`test_formatters.py`, `test_filesystem.py`), so collection depends on packages being real.
-- **One test file per source module.** Do not split one module's tests across files without a stated architectural rule.
-- **Import boundaries in tests:** `tests/core/**` must never import `worktree.cli.*`.
-
----
+Rules: every source module has a test file, no exemption list; every test directory gets an
+`__init__.py`; one test file per source module unless a stated architectural rule says otherwise;
+`tests/core/**` never imports `worktree.cli.*`; no part-numbered or grab-bag files.
 
 ## Naming Conventions
 
-### Test Class Naming
-
-- **Pick one class-naming convention: `*Tests`.** `pyproject.toml` sets `python_classes = ["Test*", "*Tests"]`, so both collect. Standardize on `*Tests` (e.g. `ConfigLoaderTests`, `DiffCommandRootTests`).
-- Standalone `test_*` functions are preferred over test classes when grouping by class provides no fixture reuse or parameterized setup benefit.
-
-### Test Method Naming
-
-**`test_<condition>_<outcome>`.** The class or module carries the subject; the method carries what varies and what results. A reader must get the behavior from the node id alone, which is what a failure prints:
-`ResolveApiKeyTests::test_returns_key_when_set` says what `test_present` hides.
-
-| Opaque | Same test, decipherable |
-|---|---|
-| `test_present` | `test_returns_key_when_set` |
-| `test_timeout` | `test_timeout_maps_to_error` |
-| `test_success_block` | `test_create_ok_includes_sandbox_id` |
-| `test_no_op` | `test_no_edits_leaves_tree_unchanged` |
-
-**Banned: a name with no outcome.** `test_ok`, `test_success`, `test_present`, `test_missing`, `test_blank`, `test_basic`, `test_default`, `test_works`, `test_timeout`, `test_no_op`, `test_help`. A `should` prefix is not an outcome: `test_should_present` is `test_present` with filler, so do not add one.
-
-**Docstrings are optional, and must not restate the name.** `tests/*` ignores Ruff's `D` rules deliberately. Write one only for a constraint an identifier cannot carry: "detached grandchild processes are killed when step times out" earns it; "Verify collect without config raises ConfigLoadError" above `test_collect_no_config_raises_on_missing_config` does not. If swapping the docstring for the name would not change a reader's understanding, delete it.
-
----
+- Test classes: `*Tests` (e.g. `ConfigLoaderTests`). Standalone `test_*` functions when a class
+  buys no fixture reuse.
+- Test methods: `test_<condition>_<outcome>`. The node id alone must convey the behavior.
+- Banned (no outcome): `test_ok`, `test_success`, `test_present`, `test_missing`, `test_blank`,
+  `test_basic`, `test_default`, `test_works`, `test_timeout`, `test_no_op`, `test_help`. A
+  `should` prefix is filler, not an outcome.
+- Docstrings are optional and must not restate the name; write one only for a constraint the
+  identifier can't carry.
 
 ## The Four Execution Tiers
 
 Different subject, different mocking policy, different assertion style. Do not mix them in one test.
 
 ### Tier 1 - Domain Behavior (Most Tests)
-
-- **Subject:** Services and facades under `core/`.
-- **Assert on:** Returned `BaseResult` objects (status, errors, warnings, fixes) and real side effects (files written, git refs created, DB rows committed).
-- **Mocks:** None, except genuine process boundaries or network APIs. Use real `tmp_path` filesystems, SQLite databases, and `GitWorkspaceHarness`.
+Subject: services and facades under `core/`. Assert on returned `BaseResult` objects and real
+side effects (files, git refs, DB rows). No mocks except genuine process/network boundaries; use
+real `tmp_path`, SQLite, `GitWorkspaceHarness`.
 
 ### Tier 2 - Presentation Contracts (Three Tests Per Formatter, Never One)
+Every formatter under `src/worktree/cli/ui/formatters/<domain>/` gets three tests in
+`tests/cli/ui/formatters/<domain>/test_<name>.py`, built on `tests.harness.formatter.FormatterCase`:
+1. **Transform:** `transform(model) == ExpectedView(...)`.
+2. **JSON wire:** `to_json_serializable(model)` as an exact literal dict, pinned at
+   fully-populated and empty/sparse states. Never `== transform(model).model_dump(...)`.
+3. **Rich render:** pinned width, assert only values sourced from the view model via `case.view`.
+   Never assert a label, border, glyph, padding, or full sentence.
 
-Every formatter under `src/worktree/cli/ui/formatters/<domain>/` must have three tests in `tests/cli/ui/formatters/<domain>/test_<name>.py`:
-
-1. **View model transformation:** assert `transform(model) == ExpectedView(...)` to pin the typed intermediate presentation model and verify all derivations.
-2. **JSON wire format:** assert `to_json_serializable(model)` as an **exact literal dict** (pinned at boundary states: fully populated and empty/sparse). Never assert `== transform(model).model_dump(...)`, because only a literal dict pins field names, enum spellings, and null-versus-absent serialization.
-3. **Rich renderable:** render at a pinned width (`render_rich(...)`) and assert **only values that came from the view model** (ids, names, counts, error text). Read expectations directly from `case.view` so Rich assertions cannot drift from the transform test. Never assert a label, border, glyph, padding, or a full sentence.
-
-#### Canonical Tier 2 Test Structure
-
-Tier 2 tests use `tests.harness.formatter.FormatterCase` (or `tests.harness.FormatterCase`) to define presentation scenarios once, feeding three focused test functions:
-
-```python
-from pathlib import Path
-from typing import Any
-import pytest
-from tests.harness.formatter import FormatterCase, render_rich
-from worktree.cli.ui.formatters.status import WorktreeStatusFormatter
-from worktree.cli.ui.formatters.status.status_view import StatusHealth, StatusView
-from worktree.core.status.models import (
-    CatalogStatusInfo,
-    ConfigStatusInfo,
-    GitStatusInfo,
-    WorktreeStatusResult,
-)
-
-STATUS_CASES = [
-    pytest.param(
-        FormatterCase(
-            data=WorktreeStatusResult(
-                root_dir=Path("/workspace/my-repo"),
-                is_initialized=True,
-                git=GitStatusInfo(is_git_repo=True, branch="main", is_dirty=False, uncommitted_files=0),
-                config=ConfigStatusInfo(is_valid=True, config_path=Path("/workspace/my-repo/.worktree/config.json")),
-                catalog=CatalogStatusInfo(exists=True, total_items=1),
-                database=None,
-                sandboxes=None,
-            ),
-            view=StatusView(
-                health=StatusHealth.OK,
-                root_dir=Path("/workspace/my-repo"),
-                project_name="worktree-cli",
-                warnings=[],
-            ),
-            render_expectations=["/workspace/my-repo", "worktree-cli"],
-        ),
-        id="healthy_workspace",
-    ),
-]
-
-STATUS_PAYLOAD_CASES = [
-    pytest.param(
-        STATUS_CASES[0].values[0],
-        {
-            "health": "ok",
-            "root_dir": "/workspace/my-repo",
-            "project_name": "worktree-cli",
-            "warnings": [],
-        },
-        id="healthy_workspace",
-    ),
-]
-
-
-class WorktreeStatusFormatterTests:
-    @pytest.mark.parametrize("case", STATUS_CASES)
-    def test_transform_derives_expected_view(self, case: FormatterCase[WorktreeStatusResult, StatusView]) -> None:
-        """Verify transform derives the exact typed view model."""
-        assert WorktreeStatusFormatter().transform(case.data) == case.view
-
-    @pytest.mark.parametrize(("case", "expected_payload"), STATUS_PAYLOAD_CASES)
-    def test_json_payload_matches_published_shape(
-        self,
-        case: FormatterCase[WorktreeStatusResult, StatusView],
-        expected_payload: dict[str, Any],
-    ) -> None:
-        """Verify wire format matches published schema as an exact literal dict."""
-        assert WorktreeStatusFormatter().to_json_serializable(case.data) == expected_payload
-
-    @pytest.mark.parametrize("case", STATUS_CASES)
-    def test_rich_render_shows_every_view_value(self, case: FormatterCase[WorktreeStatusResult, StatusView]) -> None:
-        """Verify all non-null semantic view model values reach the Rich output."""
-        rendered = render_rich(WorktreeStatusFormatter().to_rich(case.data))
-        view = case.view
-
-        if view.project_name is not None:
-            assert view.project_name in rendered
-        for warning in view.warnings:
-            assert warning in rendered
-```
-
-Rules for Tier 2 tests:
-- **No subclass overrides `to_json_serializable`**: formatters inherit this implementation from `ComponentFormatter` (`src/worktree/common/types.py`), which delegates to `self.transform(data).model_dump(mode="json")`. Overriding it in a subclass is forbidden and enforced by `tests/lint/test_formatter_contracts.py`.
-- **Iterating collections inside a case**: statements like `for warning in case.view.warnings: assert warning in rendered` verify items within a single test scenario. This is permitted and is not the banned `for`-loop-over-scenarios pattern.
-- **Wire format literals**: `test_json_payload_matches_published_shape` must assert against an exact literal dictionary, never `== case.view.model_dump(...)`, to guarantee serialization stability for field names, enum values, and null representations.
+No subclass overrides `to_json_serializable` (enforced by `tests/lint/test_formatter_contracts.py`).
 
 ### Tier 3 - CLI Wiring (Runner Required, Root Tests When Earned)
+Every command action gets a real `*CliIntegrationTests` suite (`runner.invoke(app, [...])`)
+covering happy path exit 0, failure path non-zero exit, `--format json` against wire schema, and
+any interactive confirm/abort branch.
 
-Every command action requires at least one real `*CliIntegrationTests` suite (e.g.
-`DiffCliIntegrationTests`) invoking `runner.invoke(app, [...])` to verify Click/Typer options,
-argument parsing, exit codes, resulting disk or git state, and (optionally) a snapshot of
-rendered output. Four scenarios per command:
-1. Happy path exit 0.
-2. Failure path with expected non-zero exit code.
-3. `--format json` emits valid JSON matching wire schema.
-4. Any interactive confirmation or abort branch.
+A `*RootTests` suite (direct handler call with `CliContext`, bypassing the runner) is added only
+when the handler owns logic the domain layer doesn't: input coercion, branch selection across
+services, result composition from more than one call, or an interactive abort path. A
+pass-through handler needs zero root tests, and a root test never restates a `tests/core/`
+contract for the same result type.
 
-A `*RootTests` suite (e.g. `DiffCommandRootTests`), calling the handler directly with a
-`CliContext` and bypassing Typer runner overhead, is added only when the handler owns logic the
-domain layer does not: input coercion, branch selection across services, result composition from
-more than one call, or an interactive abort path. A pass-through handler is fully compliant with
-zero root tests, and a root test may never restate a contract already asserted under
-`tests/core/` for the same result type.
-
-**Pinning the command's own result DTO via a dispatch spy.** A `*CliIntegrationTests` suite may
-go beyond `--format json`'s wire payload and pin the exact domain object a command handler
-produced, using a fixture that monkeypatches `ui_dispatcher.dispatch` to capture every call while
-still calling through to the real dispatcher (so formatting and rendering still run for real —
-this is not a stub, `TEST-008` still applies). What the test may assert against that capture is
-scoped to one thing: the command action's own terminal `BaseResult` (`SandboxCreateResult` for
-`wt sandbox create`, `WorktreeStatusResult` for `wt status`), never any other object the same
-invocation happens to dispatch (`MessageEvent`, `WarningEvent`, `PromptEvent`, a lifecycle or
-progress event). A command action that only ever dispatches its own result may assert the spy's
-sole captured item directly (`dispatch_spy[0]`); a command action that also dispatches other
-event types must isolate its own Result type from the capture first rather than assume position
-or count. See `TEST-019`.
+A `*CliIntegrationTests` suite may pin the command's own result DTO via a dispatch spy that
+monkeypatches `ui_dispatcher.dispatch` while still calling through to the real dispatcher
+(TEST-008 still applies), scoped to the command's own terminal `BaseResult` only — never another
+dispatched object (`MessageEvent`, `WarningEvent`, `PromptEvent`, progress/lifecycle events). See
+TEST-019.
 
 ### Tier 4 - Invariants (`tests/lint/`)
-
-- Static AST analysis and architectural boundary enforcement tests.
-- Checks:
-  - Layer isolation: `src/worktree/core/` and tests for core never import `worktree.cli.*`.
-  - Output routing: zero direct `print()`, `typer.echo()`, or `click.echo()` outside `src/worktree/cli/ui/dispatcher.py`.
-  - Result hierarchy: all `*Result` models inherit from `BaseResult`.
-  - Remediation capitalization: all remediation fix suggestions begin with a capital letter.
-  - Doc parity: `wt --help` command registration vs `README.md` command documentation parity.
-
----
+Static AST analysis and architectural boundary enforcement: layer isolation, output routing
+(no direct `print`/`echo` outside the dispatcher), `*Result` hierarchy, remediation capitalization,
+`wt --help` vs `README.md` parity.
 
 ## Test Harness and Assertion Helpers
 
-### Fluent Builders Harness (`tests/harness/builders/`)
-
-Construct domain objects in tests using fluent builders rather than raw dictionaries, ad-hoc keyword arguments, or monkeypatching internal state (`scratch/test-structure-proposal.md` §3.1):
-
-- **Sensible baseline defaults:** Builders initialize a valid, complete domain object by default.
-- **Chained mutations:** Tests explicitly state only the variations relevant to the test condition.
-- **Immutable construction:** Calling `.build()` returns the validated Pydantic model.
-
-Example patterns:
-
-```python
-# Workspace builder
-workspace = (
-    WorkspaceBuilder(tmp_path / "custom")
-    .with_project_name("demo-project")
-    .with_database()
-    .with_catalog_templates()
-    .with_git()
-    .build()
-)
-
-# Step builder
-step = (
-    StepBuilder.command("echo test")
-    .with_id("step-1")
-    .with_timeout(30)
-    .with_retry(max_retries=3, backoff_ms=100)
-    .assert_exit_code(0)
-    .assert_output_contains("success")
-    .build()
-)
-
-# Step builder with template inheritance
-inherited_step = StepBuilder.uses("wt/ai-code-patcher").with_id("patch").build()
-
-# Blueprint builder
-blueprint = (
-    BlueprintBuilder.workflow("build-and-test")
-    .with_input("environment", default="production", required=True)
-    .with_step(StepBuilder.command("echo hi"))
-    .build()
-)
-```
-
-### Shared Contract Assertion Helpers (`tests/harness/matchers.py`)
-
-Standardize assertions on contracts using shared helpers:
-
-- **`assert_model_equal(actual, expected)`**: Compares two Pydantic model instances of the same type field by field, recursing into nested models and sequences of models, with clean mismatch diffs. There is no `exclude` parameter. `expected` must name every field explicitly (built with `model_construct` when it carries a matcher, since the plain constructor validates and rejects one); a field left to its default raises. A field the test cannot own (a real git SHA, an OS pid, a DB-minted timestamp) is stated as a matcher at its own position — `ANY_DATETIME`, `ANY_UUID`, `ANY_PATH`, `ANY_PID`, `ANY_GIT_SHA`, `ANY_TIMESTAMP`, `ANY_ISO_TIMESTAMP`, `ANY_DURATION`, or a narrow `AnyMatching`/`AnyValue` added alongside them — which still pins the value's type or shape.
-- **`assert_exact_json(actual, expected_dict)`**: Guarantees exact byte/key wire-format contracts without ignoring unexpected extra keys.
+- **Fluent builders** (`tests/harness/builders/`): construct domain objects with sensible
+  defaults and chained mutations, never raw dicts or monkeypatched internal state.
+- **`assert_model_equal(actual, expected)`** (`tests/harness/matchers.py`): field-by-field model
+  comparison, no `exclude` param, `expected` names every field. For values a test can't own (a
+  real git SHA, OS pid, DB timestamp), use a matcher (`ANY_DATETIME`, `ANY_UUID`, `ANY_PATH`,
+  `ANY_PID`, `ANY_GIT_SHA`, `ANY_TIMESTAMP`, `ANY_ISO_TIMESTAMP`, `ANY_DURATION`) at that field.
+- **`assert_exact_json(actual, expected_dict)`**: byte/key-exact wire format, no ignored extras.
+- Legacy helpers (`tests/helpers/legacy.py`, `make.py`, old `git_fs`/`fs` wrappers) are obsolete;
+  do not reference or extend them.
 
 ### Determinism & Process Isolation Strategy
-
-- **No hardcoded sleeps:** Step backoff and retry intervals utilize an injectable `VirtualClock` (`scratch/test-structure-proposal.md` §3.3). In tests, time advances synthetically without calling OS `sleep()`.
-- **Process cleanup:** Subprocess tests register process handles with `process_registry`. The test harness runs a teardown hook ensuring spawned OS process groups receive `SIGKILL` on cleanup, preventing orphaned background processes.
-- **Environment isolation:** Tests validating secrets (e.g. API keys) use pytest's `monkeypatch` fixture to isolate environment variables.
+No hardcoded sleeps: inject `VirtualClock` or monkeypatch `time.monotonic`/`asyncio.sleep`.
+Subprocess tests register handles with `process_registry`; teardown sends `SIGKILL` to spawned
+process groups. Secrets/env-dependent tests use `monkeypatch` to isolate environment variables.
 
 ### Rich Render Assertions
-
-- **Pinned width:** `render_rich(renderable, width=160)` renders to plain text via a real `Console`. **This is the only supported way to capture rendered output.**
-- Console width for rendered assertions is authoritatively pinned to 160. Tests must not rely on ambient terminal size or in-process `os.environ["COLUMNS"]` mutations (`tests/conftest.py` does not mutate `os.environ`).
-- `pytest-env` in `pyproject.toml`, `tasks.py` (`inv test`), and CI (`.github/workflows/ci.yml`) set `COLUMNS = "160"` and `PYTHONIOENCODING = "utf-8"` uniformly.
+`render_rich(renderable, width=160)` via a real `Console` is the only supported capture method.
+Width is pinned at 160 everywhere (`pyproject.toml`, `tasks.py`, CI) via `COLUMNS=160`; tests must
+not rely on ambient terminal size or mutate `os.environ["COLUMNS"]`.
 
 ### Fixtures and Scope
-
-- **Shared fixtures in `tests/conftest.py`:**
-  - `isolated_workspace(tmp_path)`: Ephemeral workspace root directory initialized with `.worktree/` and its standard subdirectories (`.meta`, `sessions`, `artifacts`, `tmp`, `logs`, `sandboxes`, `catalog`).
-  - `git_repo(tmp_path)`: Clean Git repository on branch `main` with configured `user.name` ("Test User"), `user.email` ("test@example.com"), and an initial root commit containing `README.md`.
-  - `cli_runner()`: Preconfigured Typer `CliRunner` with `env={"NO_COLOR": "1", "COLUMNS": "160"}` to ensure deterministic terminal width and no ANSI escape sequences.
-- **Keep domain fixtures close to their tests:** When setup logic is specific to a single test module, define it locally in that module or class.
-- **Yield transparent handles:** Fixtures should establish baseline state and yield plain tuples or paths instead of opaque wrappers.
-- **Baseline + inline mutation:** Establish a valid working baseline in the fixture. Tests covering edge or error conditions explicitly mutate the handle in the test body.
-- **Legacy helper deprecation:** Legacy helper modules (`tests/helpers/legacy.py`, `make.py`, old `git_fs`/`fs` wrappers) are obsolete and must not be referenced or extended in new tests.
-
----
+Shared in `tests/conftest.py`: `isolated_workspace(tmp_path)`, `git_repo(tmp_path)`,
+`cli_runner()` (`NO_COLOR=1`, `COLUMNS=160`). Domain-specific fixtures live in their own test
+module, not `conftest.py`. Fixtures yield plain tuples/paths, not opaque wrappers. Baseline lives
+in the fixture; edge/error conditions mutate the handle inline in the test body.
 
 ## Parameterization as Primary Approach
 
-Parameterization via `@pytest.mark.parametrize` is the primary, default approach for exercising contracts across varying conditions. "One test = one behaviour" means **one test function asserts one behavioral contract across its parameter space**, not *one Python function per scenario*.
-
-### Decision Heuristic: When to Parameterize vs. When to Split
-
-| Pattern | Approach | Rationale |
-|---|---|---|
-| **Input & Boundary Matrices** | `@pytest.mark.parametrize` | Testing the same function with varying valid/invalid inputs or boundary values. |
-| **Error / Code Permutations** | `@pytest.mark.parametrize` | Verifying that multiple invalid states each raise `AssertionError` or return specific error codes. |
-| **Type Polymorphism** | `@pytest.mark.parametrize` | Testing an operation against alternative supported representations (e.g. `BaseModel` vs `dict`). |
-| **Configuration / CLI Options** | `@pytest.mark.parametrize` | Testing flags or options that produce proportional, predictable variations in output. |
-| **Divergent Fixtures / State** | Separate `def test_*` | When one case requires a specialized fixture (e.g. initialized Git repo) while another runs in memory. |
-| **Different Lifecycles / Workflows** | Separate `def test_*` | Multi-step orchestration, cancellation flows vs normal completion, signal traps. |
-| **Protocol Trios (Tier 2)** | Separate `def test_*` | Pinned tripartite contracts (transform equality, JSON wire literal, Rich render) per formatter. |
-
-#### Parameterization Invariants
-- **Explicit, descriptive IDs:** Always wrap parameterized cases in `pytest.param(..., id="descriptive_case_id")` with a clear, descriptive `id`.
-- **Strict typing:** Annotate test signatures tightly without broad `Any` (e.g., `DummyModel | dict[str, object]`).
-- **No conditional assertion branching:** Do not combine fundamentally divergent assertion contracts into one parameterized test using complex `if/else` inside the test body; if the assertion topology diverges, split into distinct test methods.
-
----
+`@pytest.mark.parametrize` is the default for exercising one contract across varying conditions —
+never a `for` loop over scenarios. Parameterize input/boundary matrices, error/code permutations,
+type polymorphism, and CLI option matrices; split into separate `def test_*` when a case needs a
+divergent fixture, the lifecycle/workflow differs, or (Tier 2) the transform/JSON/Rich trio.
+Always `pytest.param(..., id="descriptive_case_id")`, no broad `Any` in signatures, and no
+`if/else` branching on divergent assertion contracts inside one parameterized test — split instead.
 
 ## Core Testing Rules
 
-- **Parameterize sibling variations; separate tests for distinct behaviors.** One test asserts one contract across its parameter space. Multiple scenarios go in `@pytest.mark.parametrize`, never a `for` loop, never stacked assertions, and never copy-pasted sibling functions differing only by inputs. Always wrap parameterized cases in `pytest.param(..., id="descriptive_case_id")` with a clear, descriptive `id`.
-- **Compare the object, not its fields.** When testing operations that return a model or result, write `assert result == Expected(...)` or `assert_model_equal(result, expected)` rather than asserting individual fields. One comparison is stronger than N assertions (it also fails on unexpected extra fields) and gives a readable diff.
-- **No test seams in production code.** Never add a parameter, kwarg, or callback solely for test injection. Monkeypatch collaborators at module boundaries instead. A parameter production never reads is dead code with a test attached.
-- **A seam is not tested until a test proves a real caller uses it.** Asserting a callback was stored is not a test. Assert it fires, from the production path.
-- **Test doubles must be types production actually passes.** If production passes `Console`, tests pass `Console`. Never build a stub whose interface is the union of every branch in a `hasattr` chain. If a double is genuinely needed, it implements a Protocol production is typed against.
-- **No test may be the sole consumer of a production symbol.** If deleting the test would make production code unreachable, the production code is dead. Delete both.
-- **Never write negative existence tests for deleted symbols.** Tests assert the contracts and behaviors of the current codebase, not the historical outcome of a refactor. When dead or obsolete functions, classes, or aliases are removed from production, delete the tests that called them. Do not replace them with assertions checking that the symbol is gone (`assert not hasattr(mod, "old_fn")`).
-- **No reaching into private state.** No `obj._attr` assertions, no importing underscore-prefixed symbols. If a private helper is worth testing, it is worth making public.
-- **Machine-readable output byte-exact, human-readable output by data presence.** Two contracts, two strictnesses. Never scrape human output for exactness; never accept substring matching for machine output.
-- **The name and docstring are part of the assertion.** If the name says "terminates child process tree", a reviewer must be able to point at the line that checks the child died.
-- **`is not None` is not an assertion.** If it is the only assert, the test is unfinished.
-- **`isinstance` only when it distinguishes two real code paths.** `basedpyright` already proves the rest.
-- **Annotate test helpers as tightly as production.** Give fixtures real return types and type helper parameters against what production passes. Permitted and banned uses of `Any` are in `code-conventions.md` and apply to `tests/` unchanged.
-- **Do not `# pyright: ignore` a test-tree error to make the checker pass.** If the checker rejects a fixture or helper, the fixture is wrong. The one exception is testing an intentionally ill-typed call (`pytest.raises(TypeError)`).
-- **Never assert help text wording.** Assert command registration and option names via Click metadata. The one exception is the `wt --help` vs `README.md` check in `tests/lint/`.
-- **Cover every branch** of a factory, dispatcher, or `elif` chain. A covered line in a two-branch function proves nothing.
-- **No hardcoded sleeps.** Monkeypatch the clock (`time.monotonic` / `asyncio.sleep`) or use `VirtualClock`.
-
----
+- Parameterize sibling variations; separate tests for distinct behaviors. Never a `for` loop,
+  stacked assertions, or copy-pasted sibling functions differing only by inputs.
+- Compare the object, not its fields: `assert result == Expected(...)` or `assert_model_equal(...)`.
+- No test seams in production code; monkeypatch collaborators at module boundaries instead.
+- A seam is not tested until a test proves a real caller uses it from the production path.
+- Test doubles must be types production actually passes, or a Protocol production is typed against.
+- No test may be the sole consumer of a production symbol — if deleting the test makes the code
+  unreachable, delete both.
+- Never write negative existence tests for deleted symbols (`assert not hasattr(mod, "old_fn")`).
+- No reaching into private state: no `obj._attr`, no importing underscore-prefixed symbols.
+- Machine-readable output byte-exact; human-readable output by data presence — never scraped for
+  exactness, never substring-matched when it needs to be exact.
+- The name and docstring are part of the assertion — a reviewer must be able to point at the line
+  that proves the claim.
+- `is not None` is not a complete assertion; `isinstance` only when it distinguishes two real code paths.
+- Annotate test helpers as tightly as production; `Any` rules in `code-conventions.md` apply unchanged.
+- Never `# pyright: ignore` a test-tree error — fix the fixture. Exception: `pytest.raises(TypeError)`.
+- Never assert help text wording — assert Click metadata instead. Exception: the `wt --help` vs
+  `README.md` check in `tests/lint/`.
+- Cover every branch of a factory, dispatcher, or `elif` chain.
 
 ## Running Tests and Coverage Gates
 
-Test selection is directory-based; the suite registers a single marker, `slow`, for genuinely
-long-running tests (process group signal escalation, cross-process locks, real timeouts).
-
 ```bash
 uv run inv test                     # full suite, parallel
-uv run inv test -c                  # coverage report (inv test -c)
-uv run inv test --fast-fail         # stop on first failure (-x)
-uv run inv test --path tests/core/  # scope to a file or directory subtree (tests/cli/, tests/lint/, ...)
+uv run inv test -c                  # coverage report
+uv run inv test --fast-fail         # stop on first failure
+uv run inv test --path tests/core/  # scope to a file or directory subtree
 ```
 
-- Global coverage floor is **>= 80%** (`fail_under = 80` in `pyproject.toml`).
-- Branch coverage is **enabled** (`branch = true` under `[tool.coverage.run]`).
-- Coverage is a **regression backstop, not an optimization goal**. Do not add tests solely to raise the percentage. Prefer tests that lock real behavior and regressions.
-- **A coverage drop from deleting dead code is a success.** Read it that way.
-
----
+Global coverage floor: >= 80% (`fail_under = 80`), branch coverage enabled. Coverage is a
+regression backstop, not a target — don't add tests to raise the percentage. A coverage drop from
+deleting dead code is a success.
 
 ## PR Review Hygiene and Testing Documentation Review Rule
 
-Every pull request and ticket in this milestone touching tests must verify compliance with this document (`docs/agents/testing.md`) and `scratch/test-structure-proposal.md` (§12.1 Rule 7). Reviewers and implementers must audit tests against this checklist:
-
-1. **1:1 Parity**: Does the test file mirror `src/worktree/` exactly?
-2. **Execution Tiers**: Does at least one real `CliRunner` test cover each command action (exit code, disk/git state, optional output snapshot)? Is a `*RootTests` suite present only where handler logic earns it? Do formatters follow the 3-test `FormatterCase` protocol?
-3. **Naming**: Are classes named `*Tests` and methods named `test_<condition>_<outcome>` with banned vague names avoided?
-4. **Contract Assertions**: Are assertions checking contracts (`BaseResult`, exact JSON payload dicts, exit codes, disk state, rendered output) without reaching into private attributes? A rendered-output assertion is a literal string or snapshot, never a help-text scrape.
-5. **Harness Hygiene**: Are tests using standard fixtures (`tmp_path`, `GitWorkspaceHarness`) and shared assertion helpers rather than legacy helper modules?
+Every PR touching tests is checked against: 1:1 parity, execution tiers (CLI coverage per action,
+root tests only where earned, formatter trio), naming, contract-only assertions, and harness
+hygiene (standard fixtures, shared matchers, no legacy helpers).

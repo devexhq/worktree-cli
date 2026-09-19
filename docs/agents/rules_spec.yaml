@@ -517,16 +517,15 @@ rules:
     tests/cli/<command>/test_<command>_<action>.py — a subdirectory per CLI command domain, mirroring
     src/worktree/cli/<command>/ (the commands/ subpackage level collapses; a per-domain conftest.py holds
     fixtures that domain's test files share, never fixtures another domain needs). One test file per CLI
-    command action, not one file per command domain. Any source module with no test file must appear in the
-    PARITY_EXEMPT list in tests/lint/ with a justification, so the gap is visible rather than implicit.
-    Grouping several formatters, domains, or command actions into one part-numbered or collapsed file is
+    command action, not one file per command domain. Every source module must have a corresponding test
+    file; there is no exemption list. Grouping several formatters, domains, or command actions into one part-numbered or collapsed file is
     prohibited.
   evaluation_criteria: >-
     Check every test file path against its source module using the fixed mappings. Flag part-numbered or
     grab-bag files (for example test_command_formatters_part1.py or a single test_<command>.py holding more
     than one command action), a CLI command test file left flat under tests/cli/ instead of nested under its
-    own tests/cli/<command>/ subdirectory, missing __init__.py files, and source modules that are neither
-    tested nor listed in PARITY_EXEMPT.
+    own tests/cli/<command>/ subdirectory, missing __init__.py files, and source modules with no test
+    file.
   positive_example: src/worktree/cli/sandbox/commands/sandbox_create.py -> tests/cli/sandbox/test_sandbox_create.py
   negative_example: 'tests/cli/commands/test_sandbox_create.py  # flat under tests/cli/commands/, not nested under tests/cli/sandbox/'
   citation: docs/agents/testing.md#11-source-parity-layout

@@ -18,15 +18,11 @@ Skip planning only for a single-file, no-new-surface change (a typo, a message s
 gh issue view <number> --json number,title,body
 ```
 
-Extract the contract directly from the issue body (see [github-issues.md](github-issues.md)):
+Extract the contract directly from the issue body (see [github-issues.md](github-issues.md); PLAN-003 through PLAN-006):
 
-- Copy every `FR-*` and `NFR-*` verbatim with its ID. Do not paraphrase.
-- Do not add "Goal" prose paragraphs or "As a user" narratives.
-- Copy **Pre-determined data** exactly (field names, types, defaults, file paths, constants, error codes, templates).
-- Copy **Out of scope** verbatim into the guardrails section.
-- Copy any **Definition of Done** checklist verbatim.
+- Copy every `FR-*`/`NFR-*` verbatim with its ID, plus **Pre-determined data**, **Out of scope**, and **Definition of Done** verbatim. No paraphrasing, no "Goal" or "As a user" prose.
 - Do not open or consult sibling issues.
-- Plan no backwards compatibility shims, aliases, dual code paths, or deprecation windows unless the issue explicitly demands them. Replace superseded paths directly.
+- Plan zero backwards-compatibility shims, aliases, dual code paths, or deprecation windows unless the issue explicitly demands them.
 
 If a detail is unspecified, choose the option matching the nearest existing pattern from Step 2, record the choice and rejected alternative in `### Decisions`, and append `🚨`.
 
@@ -34,23 +30,16 @@ If a detail is unspecified, choose the option matching the nearest existing patt
 
 ## Step 2: Ground yourself in the current code
 
-Read the codebase directly before planning:
+Read the codebase directly before planning; never plan from memory (PLAN-007, PLAN-008):
 
-1. Read the always-on docs listed in [AGENTS.md](../../AGENTS.md) (architecture, code-conventions, schemas, glossary, testing).
-2. Read the existing code for every domain touched:
-   - `src/worktree/core/<domain>/models.py`, `exceptions.py`, `facade.py`, `services/`
-   - `src/worktree/cli/<name>/app.py` and `src/worktree/cli/<name>/commands/`
-   - `src/worktree/cli/ui/formatters/<domain>/`
-   - Mirrored tests under `tests/`
-3. **Name the closest existing implementation to mirror**, with `file:line` citations (e.g. `wt config set` -> `Config.set` in `src/worktree/core/config/mutate.py` -> `ConfigSetResult` -> `config_set_command` -> `ConfigSetFormatter`). When quoting a mirrored symbol for reference, quote only its signature and docstring.
-4. **Verify doc field lists against source code.** Record any stale doc claims as traps.
-5. If the issue's description of current state differs from the codebase, state the discrepancy and the corrected state in the plan.
-6. **Name every trap**: dead code, lookalike symbols, duplicate implementations, stale docs. Mark each out of scope. (Use `/wt-test-planner` Steps 1b–1d to audit dead status values and existing coverage).
+1. Read the always-on docs listed in [AGENTS.md](../../AGENTS.md).
+2. Read the existing code for every domain touched: `core/<domain>/{models,exceptions,facade}.py`, `services/`, `cli/<name>/app.py` and `commands/`, `cli/ui/formatters/<domain>/`, and mirrored tests.
+3. **Name the closest existing implementation to mirror**, with `file:line` citations (e.g. `wt config set` -> `Config.set` in `src/worktree/core/config/mutate.py` -> `ConfigSetResult` -> `config_set_command` -> `ConfigSetFormatter`). Quote a mirrored symbol as signature + docstring only, never its body.
+4. **Verify doc field lists against source code**; record stale doc claims as traps.
+5. If the issue's description of current state differs from the codebase, state the discrepancy and the corrected state.
+6. **Name every trap**: dead code, lookalike symbols, duplicate implementations, stale docs. Mark each out of scope. (Use `/wt-test-planner` Steps 1b-1d to audit dead status values and existing coverage.)
 
-Record findings in the plan as a ground-truth table (`Surface`, `Location`, `What exists`):
-
-- **One clause per cell, max.** Use `file:line` citations; do not write narrative explanations inside cells.
-- **Single ownership:** "**Pattern to mirror**" and "**Traps (explicitly not touched)**" live exclusively in Ground truth — do not repeat them in Instructions, Decisions, or Edge cases.
+Record findings as a ground-truth table (`Surface`, `Location`, `What exists`), one clause per cell, `file:line` citations, no narrative. **Pattern to mirror** and **Traps** live exclusively here — do not repeat them in Instructions, Decisions, or Edge cases.
 
 ---
 
@@ -62,23 +51,22 @@ Produce an inventory with one row per file touched (exact path, exact identifier
 |---|---|---|---|---|
 | `SandboxPruneResult` | DTO | `src/worktree/core/sandbox/models.py` | new | FR-2 |
 
-State **"none"** for each kind the issue does not need:
+State **"none"** for each kind the issue does not need. Path per kind:
 
-- **DTO / Result / Outcome** -> `core/<domain>/models.py`. Subclasses `BaseResult`, carries a `status` `StrEnum`, sets `model_config = {"extra": "forbid", "strict": True}`. Operations that can fail return a result, not raise.
-- **Status enum** -> same `models.py`. Every value must be reachable and covered by a test.
-- **Domain exception** -> `core/<domain>/exceptions.py`, subclassing domain or `Definition*` base.
-- **Service** -> `core/<domain>/services/<verb>.py` for imperative operations. Public models never live in `services/`.
-- **Facade method** -> `core/<domain>/facade.py`, the domain's only public entry point.
-- **Command handler** -> `cli/<name>/commands/<action>.py`: takes `CliContext`, returns core `*Result`, calls `ui_dispatcher.dispatch(result, output_format=output_format)`. No `print`, `rich` import, or `typer.echo` outside `cli/ui/`.
-- **Typer registration** -> `cli/<name>/app.py` (and `cli/cli.py` for new top-level groups). Exact flag names, help text, `raise typer.Exit(code=1)` when `not result.ok`.
-- **Formatter** -> `cli/ui/formatters/<domain>/<name>.py`, one `*Formatter` class implementing `transform` and `to_rich`. Inherit `to_json_serializable` without overriding. Presentation view models live in `cli/ui/formatters/<domain>/<domain>_views.py` (or `<name>_view.py`). Register in `register_<domain>_formatters` and `__all__` in `__init__.py`.
-- **Config key** -> `core/config/models.py` plus `schemas/v1/config.json` plus defaults generator, stating default value.
-- **JSON / YAML schema** -> `src/worktree/schemas/v1/*.json`, keeping `additionalProperties: false`.
-- **DB model or migration** -> `core/db/models.py` plus Alembic migration.
-- **Tests** -> Mirrored path under `tests/` with tier named: Tier 1 domain behavior, Tier 2 presentation contracts (transform equality, JSON wire format, view-derived Rich values), Tier 3 CLI wiring (`*RootTests` and `*CliIntegrationTests`), Tier 4 `tests/lint/` invariants.
-- **Docs** -> Update only docs matching AGENTS.md gates (`docs/cli/`, `schemas.md`, `architecture.md`, `README.md`).
+- **DTO / Result / Outcome / Status enum** -> `core/<domain>/models.py`
+- **Domain exception** -> `core/<domain>/exceptions.py`
+- **Service** -> `core/<domain>/services/<verb>.py` (public models never live here)
+- **Facade method** -> `core/<domain>/facade.py`
+- **Command handler** -> `cli/<name>/commands/<action>.py`
+- **Typer registration** -> `cli/<name>/app.py` (and `cli/cli.py` for new top-level groups)
+- **Formatter** -> `cli/ui/formatters/<domain>/<name>.py`; view models in `<domain>_views.py` or `<name>_view.py`; register in `register_<domain>_formatters` and `__all__`
+- **Config key** -> `core/config/models.py` + `schemas/v1/config.json` + defaults generator
+- **JSON / YAML schema** -> `src/worktree/schemas/v1/*.json`
+- **DB model or migration** -> `core/db/models.py` + Alembic migration
+- **Tests** -> mirrored `tests/` path, tier named (see `docs/agents/testing.md#the-four-execution-tiers`)
+- **Docs** -> only docs matching AGENTS.md gates (`docs/cli/`, `schemas.md`, `architecture.md`, `README.md`)
 
-Ensure every planned function decomposes below cognitive complexity <= 10.
+Decompose every planned function so it stays below cognitive complexity <= 10 (PLAN-012).
 
 ---
 
@@ -97,14 +85,11 @@ Structure each FR (or testable group of FRs) under these subheadings:
 
 ### Instructions: Imperative verbs only
 
-- Write instructions using strictly imperative verbs ("Create `...`", "Assert `...`").
-- State what to do, not why. Put all rationale into `### Decisions`.
-- Do not repeat details shown in code samples or test tables.
+Strictly imperative verbs ("Create `...`", "Assert `...`"). State what to do, not why — rationale goes in `### Decisions`. Do not repeat what code samples or test tables already show.
 
 ### Code sample rules
 
-**Literal contracts:**
-Write exact code for all contracts: model/enum definitions with every field and default, function signatures with full type hints and Google-style docstrings, Typer argument/option declarations with exact flag names and help text, formatter class shells, literal JSON wire dicts, error/warning strings, non-obvious fixtures, and regex patterns.
+**Literal contracts:** write exact code for anything that is a contract — model/enum definitions with every field and default, full signatures with type hints and docstrings, Typer flags and help text, formatter shells, literal JSON dicts, error/warning strings, fixtures, regex patterns (PLAN-010).
 
 ```python
 class SandboxPruneStatus(StrEnum):
@@ -124,8 +109,7 @@ class SandboxPruneResult(BaseResult):
     pruned_items: list[str] = []
 ```
 
-**Production stubs:**
-Write the exact signature plus a one-line intent docstring, ending with `raise NotImplementedError`. Do not include numbered steps or body code.
+**Production stubs:** exact signature + one-line intent docstring + `raise NotImplementedError`. No numbered steps, no body code (PLAN-011).
 
 ```python
 def prune_sandboxes(context: CliContext, dry_run: bool = False) -> SandboxPruneResult:
@@ -133,19 +117,12 @@ def prune_sandboxes(context: CliContext, dry_run: bool = False) -> SandboxPruneR
     raise NotImplementedError
 ```
 
-**Test stubs:**
-Write a single-line contract docstring on every test stub with mandatory execution tier and test type: `[<tier>/<type>]` (referencing `docs/agents/testing.md#the-four-execution-tiers`). State the public symbol exercised, any private helpers covered, and the exact outcome contract asserted. End with `raise NotImplementedError`. The `### Tests` table indexes the tests (`Test`, `Tier`, `Outcome`); the stub docstring holds the exact assertion contract.
+**Test stubs:** signature + single-line docstring starting `[<tier>/<type>]` (per `docs/agents/testing.md#the-four-execution-tiers`), naming the public symbol exercised and the exact outcome contract, ending `raise NotImplementedError` (PLAN-018). The `### Tests` table indexes them (`Test`, `Tier`, `Outcome`); the docstring holds the exact assertion contract.
 
 ```python
 class SandboxPruneCliIntegrationTests:
     def test_prune_empty_returns_nothing_to_prune(self, cli_runner: CliRunner, sandbox_workspace: Path) -> None:
         """[tier-3/integration] wt sandbox prune: empty sandboxes directory prints 'Nothing to prune'; exit 0."""
-        raise NotImplementedError
-
-    def test_prune_partial_failure_deletes_succeeded_items(
-        self, cli_runner: CliRunner, sandbox_workspace: Path
-    ) -> None:
-        """[tier-3/integration] wt sandbox prune: partial failure deletes 'sbx_clean', reports error on 'sbx_locked'; exit 1."""
         raise NotImplementedError
 ```
 
@@ -153,53 +130,21 @@ Use absolute `worktree.*` imports at module top level and reference only symbols
 
 ### Decisions: The sole home for rationale
 
-Record all design choices, rationale, and alternatives here:
-- Format: `- **<decision point>:** <choice>, because <one clause>. Rejected: <alternative>. [🚨]`
-- Append `🚨` if a decision requires confirmation.
+Format: `- **<decision point>:** <choice>, because <one clause>. Rejected: <alternative>. [🚨]`. Append `🚨` when a decision needs confirmation.
 
 ### Edge cases: Genuine implementation gotchas only
 
-Record non-obvious traps, execution gotchas, or sequencing constraints not already captured in Ground truth Traps or Decisions. Do not restate standard branch logic.
+Non-obvious traps, execution gotchas, or sequencing constraints not already in Ground truth Traps or Decisions. Do not restate standard branch logic.
 
 ### Tests: Summary index table and contract stubs
 
-Pair a concise summary index table with stubs carrying `[<tier>/<type>]` contract docstrings:
+A concise index table paired with the stubs from Code sample rules:
 
 | Test | Tier | Outcome |
 |---|---|---|
 | `SandboxPruneCliIntegrationTests::test_prune_empty_returns_nothing_to_prune` | Tier 3 (integration) | exit 0; "Nothing to prune" |
-| `SandboxPruneCliIntegrationTests::test_prune_partial_failure_deletes_succeeded_items` | Tier 3 (integration) | exit 1; succeeds on "sbx_clean", fails on "sbx_locked" |
-
-```python
-class SandboxPruneCliIntegrationTests:
-    def test_prune_empty_returns_nothing_to_prune(self, cli_runner: CliRunner, sandbox_workspace: Path) -> None:
-        """[tier-3/integration] wt sandbox prune: empty sandboxes directory prints 'Nothing to prune'; exit 0."""
-        raise NotImplementedError
-
-    def test_prune_partial_failure_deletes_succeeded_items(
-        self, cli_runner: CliRunner, sandbox_workspace: Path
-    ) -> None:
-        """[tier-3/integration] wt sandbox prune: partial failure deletes 'sbx_clean', reports error on 'sbx_locked'; exit 1."""
-        raise NotImplementedError
-```
 
 Assert exact contracts (literal JSON dict, exit code, filesystem state, or `*Result` fields). Ban vague phrasing (`"Verifies pruning works"`), piecewise assertions (`"Checks exit code is 0"`), and omitted fields.
-
-### Single-ownership principle: what gets cut vs. kept
-
-Assign each fact to exactly one owner and eliminate duplicates across sections:
-
-| Element | Anti-pattern / Redundant | Standard |
-|---|---|---|
-| Header | Multi-paragraph prose essay | One line: `Planning only. Grounded against <base branch> at <short sha>.` |
-| Contract | "Goal" prose, "As a user" stories | Verbatim FR-*/NFR-* list; no narrative paraphrasing |
-| Ground truth cells | Multi-sentence implementation essays | One clause per cell max; `file:line` citation is the reference |
-| Patterns & Traps | Repeated across Instructions or Edge cases | Ground truth section only |
-| Instructions | Inline "because Y" explanations | Strictly imperative verbs; rationale in Decisions |
-| Test stubs | Numbered steps, setup comments, body code | Single-line docstring with `[<tier>/<type>]` tag and exact outcome contract + `raise NotImplementedError` |
-| Tests table | Bloated duplicate of stub details | Concise summary index (`Test`, `Tier`, `Outcome`) |
-| Rule IDs | Cited then explained in prose | Rule ID only |
-| Edge cases | Restating traps, decisions, or normal branches | Genuine implementation gotchas only |
 
 ### Plan document template
 
@@ -295,28 +240,6 @@ class <TestClass>:
 
 ## Step 5: Save and hand off
 
-1. Verify the plan against `docs/agents/REVIEW_CHECKLIST.json` for all rules matching touched paths or domains, ensuring zero BLOCKER violations. Do not add a compliance table to the plan.
+1. Verify the plan against `docs/agents/REVIEW_CHECKLIST.json` and `docs/agents/PLANNER_RULES.md` for every rule matching touched paths or domains, ensuring zero BLOCKER violations. Reread the plan's actual paths, imports, and stubs against each clause — do not just restate the rule. No compliance table in the plan.
 2. Write the plan to `.agentic/plan.md` (overwriting any previous plan and deleting `.agentic/review.md`).
-3. Report the plan path and state that planning is complete (no code implemented, tested, committed, or pushed).
-
----
-
-## Self-check before handing off
-
-Verify before presenting the plan:
-
-- [ ] Header is `Planning only. Grounded against <base branch> at <short sha>.`
-- [ ] Contract lists verbatim FR-*/NFR-* requirements with zero narrative paragraphs.
-- [ ] Ground truth cells contain at most one clause per cell with exact `file:line` citations.
-- [ ] Patterns and Traps appear only in Ground truth.
-- [ ] Every FR and NFR maps to at least one artifact row with exact paths.
-- [ ] Every new field, flag, default, and message matches the issue's Pre-determined data.
-- [ ] Code samples use absolute `worktree.*` imports and reference verified symbols.
-- [ ] Instructions use strictly imperative verbs with zero inline rationale.
-- [ ] `### Decisions` holds all rationale; deviations flagged with `🚨`.
-- [ ] Production stubs are signature + one-line docstring + `raise NotImplementedError`.
-- [ ] Test stubs carry single-line `[<tier>/<type>]` docstrings with exact contracts + `raise NotImplementedError`.
-- [ ] `### Tests` table is a concise summary index (`Test`, `Tier`, `Outcome`).
-- [ ] Edge cases contain only genuine gotchas not captured in Traps or Decisions.
-- [ ] Planned functions decompose below cognitive complexity <= 10.
-- [ ] Zero BLOCKER violations against `docs/agents/REVIEW_CHECKLIST.json`.
+3. Report the plan path and state that planning is complete (no code implemented, tested, committed, or pushed). Restate every `🚨` decision and open question in the handoff message.
