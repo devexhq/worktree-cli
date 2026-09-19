@@ -152,8 +152,18 @@ All operations that can fail return a Pydantic result object subclassing `BaseRe
 - `DiagnosticCheckResult`: Individual check outcome model defined in `src/worktree/core/doctor/models.py`.
 - `DoctorReport`: Aggregated execution report model defined in `src/worktree/core/doctor/models.py`.
 - `DiagnosticCheck`: Protocol defining check identification and execution contract.
+- Built-in checks (`src/worktree/core/doctor/checks/`, registered by `get_default_registry()` in `src/worktree/core/doctor/services/registry.py`):
+  - `git.repo` (`GitRepoCheck`): validates the `git` binary is on `PATH` and `context.cwd` is a Git repository.
+  - `config.schema` (`ConfigSchemaCheck`): validates `.worktree/config.json` exists and passes schema V1 validation.
+  - `filesystem.writable` (`FilesystemWritableCheck`): probes write access across `PathsConfig`-declared directories.
 - Error codes:
   - `DOCTOR_CHECK_CRASH`: Diagnostic check threw an unhandled exception during execution.
+  - `DOCTOR_GIT_BINARY_MISSING`: `git` executable not found on `PATH`.
+  - `DOCTOR_GIT_NOT_REPO`: `context.cwd` is not a valid Git repository or worktree.
+  - `DOCTOR_CONFIG_NOT_FOUND`: `.worktree/config.json` does not exist.
+  - `DOCTOR_CONFIG_MALFORMED`: `.worktree/config.json` contains invalid JSON syntax.
+  - `DOCTOR_CONFIG_SCHEMA_INVALID`: `.worktree/config.json` fails schema V1 validation, has a non-object root, is a directory, or is unreadable.
+  - `DOCTOR_FS_UNWRITABLE`: One or more configured workspace paths rejected a probe write.
 
 ---
 

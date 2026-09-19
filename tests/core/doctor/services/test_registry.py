@@ -2,6 +2,9 @@
 
 import pytest
 
+from worktree.core.doctor.checks.config_schema import ConfigSchemaCheck
+from worktree.core.doctor.checks.filesystem_writable import FilesystemWritableCheck
+from worktree.core.doctor.checks.git_repo import GitRepoCheck
 from worktree.core.doctor.exceptions import CheckRegistrationError
 from worktree.core.doctor.models import (
     CheckCategory,
@@ -9,7 +12,7 @@ from worktree.core.doctor.models import (
     DiagnosticCheckResult,
     DoctorContext,
 )
-from worktree.core.doctor.services.registry import CheckRegistry
+from worktree.core.doctor.services.registry import CheckRegistry, get_default_registry
 
 
 class DummyCheck:
@@ -105,3 +108,16 @@ class CheckRegistryTests:
         registry.register(check2)
 
         assert registry.all() == [check1, check2]
+
+
+class DefaultRegistryTests:
+    """Unit tests for get_default_registry factory wiring."""
+
+    def test_get_default_registry_registers_all_three_builtin_checks(self) -> None:
+        """[tier-1/unit] get_default_registry: returns a registry with exactly the 3 built-in checks by check_id."""
+        registry = get_default_registry()
+
+        assert len(registry.all()) == 3
+        assert isinstance(registry.get("git.repo"), GitRepoCheck)
+        assert isinstance(registry.get("config.schema"), ConfigSchemaCheck)
+        assert isinstance(registry.get("filesystem.writable"), FilesystemWritableCheck)
