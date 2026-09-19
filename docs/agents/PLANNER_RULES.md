@@ -115,15 +115,15 @@ We will implement sandbox pruning for stale directories.
 
 ## [PLAN-007] Tree Grounding and Neighbor Mirroring
 - **Phase:** `Grounding & Traps`
-- **Scope:** `## Current state section in .agentic/plan.md`
-- **Requirement:** Never plan from memory: read live domain source and name the closest existing implementation to mirror with exact file:line citations. Reproduce a mirrored symbol's shape as signature + docstring only, never its full body.
-- **Deliverable Contract:** Ground-truth table with columns | Surface | Location | What exists today |, plus explicit 'Pattern to mirror: <path:line>', with any reproduced symbol shown as signature + docstring only.
+- **Scope:** `## Ground truth section in .agentic/plan.md`
+- **Requirement:** Never plan from memory: read live domain source and name the closest existing implementation to mirror with exact file:line citations. In the ground-truth table, write at most one clause per cell. Reproduce a mirrored symbol's shape as signature + docstring only, never its full body.
+- **Deliverable Contract:** Ground-truth table with columns | Surface | Location | What exists | (one clause per cell), plus explicit 'Pattern to mirror: <path:line>', with any reproduced symbol shown as signature + docstring only.
 - **Validation Check:** Verify cited file:line citations exist and match cited functionality; flag any quoted body, helper internals, or file dump beyond a signature and docstring.
 
 <!-- ✅ POSITIVE EXAMPLE -->
 ```markdown
-## Current state
-| Surface | Location | What exists today |
+## Ground truth
+| Surface | Location | What exists |
 | CLI app | `src/worktree/cli/sandbox/app.py:24` | Typer app registering sandbox subcommands |
 | Lifecycle | `src/worktree/core/sandbox/services/lifecycle.py:80` | `delete_sandbox` method |
 
@@ -230,28 +230,36 @@ def prune_sandboxes(db: SandboxesRepository, cwd: Path) -> SandboxPruneResult:
     raise NotImplementedError
 ```
 
-## [PLAN-018] Signature-Only Test Stubs, Docstring Only Where the Name Can't Carry It
+## [PLAN-018] Test Stubs with Mandatory Tier, Type, and Contract Docstrings
 - **Phase:** `Specification & Samples`
-- **Scope:** `### Code section in .agentic/plan.md`
-- **Requirement:** Write only a signature for every planned test, ending with `raise NotImplementedError`; the test name alone should state what's being verified. Add a docstring only when the name can't carry the exact outcome, and state that outcome as precisely as a literal assertion would (exact status/fields/exit code/wire dict) — never a vague or piecewise gloss.
-- **Deliverable Contract:** Signature + `raise NotImplementedError`, with a docstring added only when the test name alone doesn't state the exact expected outcome.
-- **Validation Check:** Flag any test stub with numbered steps, setup comments, or literal assertion code. Flag a docstring redundant with an already-descriptive name, and flag a missing docstring where the name alone can't distinguish the case (e.g. a specific partial-failure shape).
+- **Scope:** `### Tests section in .agentic/plan.md`
+- **Requirement:** Write a signature and a single-line contract docstring for every planned test stub, ending with `raise NotImplementedError`. The docstring must begin with `[<tier>/<type>]` (where tier is tier-1, tier-2, tier-3, or tier-4 per docs/agents/testing.md#the-four-execution-tiers and type is unit or integration), state the public symbol exercised, and state the exact outcome contract asserted. The `### Tests` table acts as a concise summary index.
+- **Deliverable Contract:** Signature + single-line docstring with `[<tier>/<type>]` tag and outcome contract + `raise NotImplementedError`.
+- **Validation Check:** Flag any test stub missing the tier/type tag (e.g. `[tier-1/unit]`, `[tier-3/integration]`), missing the outcome contract, or containing numbered steps/body code.
 
 <!-- ✅ POSITIVE EXAMPLE -->
+```markdown
+### Tests
+
+| Test | Tier | Outcome |
+|---|---|---|
+| `SandboxCreateCliIntegrationTests::test_create_cli_capacity_exceeded_exits_one` | Tier 3 (integration) | exit 1; capacity exceeded error |
+
 ```python
-def test_prune_empty_returns_nothing_to_prune(isolated_workspace: Path) -> None:
-    raise NotImplementedError
-
-
-def test_prune_partial_failure_lists_errors_but_deletes_succeeded_items(isolated_workspace: Path) -> None:
-    """Result has succeeded_items=["a", "b"] and errors=["c: permission denied"] when c fails and a, b succeed."""
-    raise NotImplementedError
+class SandboxCreateCliIntegrationTests:
+    def test_create_cli_capacity_exceeded_exits_one(
+        self, cli_runner: CliRunner, sandbox_workspace: Path
+    ) -> None:
+        """[tier-3/integration] wt sandbox create: 3 prior sandboxes exist → exit 1, 'Maximum active sandboxes reached' in stdout."""
+        raise NotImplementedError
+```
 ```
 
 <!-- ❌ NEGATIVE EXAMPLE -->
-```python
-def test_prune_empty_returns_nothing_to_prune(isolated_workspace: Path) -> None:
-    """Prune returns NOTHING_TO_PRUNE when sandboxes directory is empty."""  # redundant with the name
+```markdown
+# Test stub missing tier/type tag and specific contract
+def test_create_cli_capacity_exceeded_exits_one(self, cli_runner, sandbox_workspace):
+    """Verifies create fails when capacity exceeded."""
     raise NotImplementedError
 ```
 
