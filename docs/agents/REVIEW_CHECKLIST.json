@@ -341,7 +341,7 @@
       "severity": "BLOCKER",
       "domain": "tests",
       "scope": "tests/",
-      "evaluation_criteria": "Check every test file path against its source module using the fixed mappings. Flag part-numbered or grab-bag files (for example test_command_formatters_part1.py or a single test_<command>.py holding more than one command action), a CLI command test file left flat under tests/cli/ instead of nested under its own tests/cli/<command>/ subdirectory, missing __init__.py files, and source modules that are neither tested nor listed in PARITY_EXEMPT.",
+      "evaluation_criteria": "Check every test file path against its source module using the fixed mappings. Flag part-numbered or grab-bag files (for example test_command_formatters_part1.py or a single test_<command>.py holding more than one command action), a CLI command test file left flat under tests/cli/ instead of nested under its own tests/cli/<command>/ subdirectory, missing __init__.py files, and source modules with no test file.",
       "bad_pattern": "tests/cli/commands/test_sandbox_create.py  # flat under tests/cli/commands/, not nested under tests/cli/sandbox/"
     },
     {
