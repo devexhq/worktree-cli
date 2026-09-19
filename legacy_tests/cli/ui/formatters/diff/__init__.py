@@ -1,1 +1,0 @@
-"""Diff formatter tests."""

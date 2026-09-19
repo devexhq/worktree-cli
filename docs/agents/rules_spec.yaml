@@ -571,7 +571,6 @@ rules:
   positive_example: 'class ConfigSetRootTests: ...  # handler owns string-to-bool coercion, so it earns a root test'
   negative_example: 'class ConfigShowRootTests: ...  # pass-through handler re-asserting the ConfigLoadResult from tests/core/config/'
   citation: docs/agents/testing.md#tier-3---cli-wiring-runner-required-root-tests-when-earned
-  decision_log: docs/decisions/0002-simplify-cli-test-doctrine.md#d1-reversal-dual-tier-cli-mandate-test-004
 - id: TEST-005
   title: Formatter Presentation Contract Protocol
   severity: BLOCKER
@@ -595,7 +594,6 @@ rules:
   positive_example: 'assert formatter.to_json_serializable(data) == {"health": "ok", "warnings": []}  # exact literal'
   negative_example: 'ErrorPanelView = ErrorPanelEvent  # alias so an identity transform can be asserted'
   citation: docs/agents/testing.md#tier-2---presentation-contracts-three-tests-per-formatter-never-one
-  decision_log: docs/decisions/0001-test-doctrine-phase-0.md#d6-formatter-test-file-granularity
 - id: TEST-006
   title: Parameterization-First for Sibling Variations
   severity: BLOCKER
@@ -779,7 +777,6 @@ rules:
   positive_example: "assert res.exit_code == 1\nassert \"Status: valid with warnings\" in res.stdout  # literal rendered output, not restricted to an error-code token"
   negative_example: 'assert "Show the current configuration value" in res.output  # help text wording; assert Click metadata instead'
   citation: docs/agents/testing.md#core-testing-rules
-  decision_log: docs/decisions/0002-simplify-cli-test-doctrine.md#d2-reversal-cli-runner-assertion-boundary-test-017
 - id: TEST-018
   title: Test Layer Import Boundary
   severity: BLOCKER
@@ -955,7 +952,6 @@ rules:
   positive_example: uv run inv test -c && ruff format . && ruff check . && basedpyright src tests --level error && inv complexity
   negative_example: '# fail_under lowered so a commit can pass, or tests added purely to reach a percentage'
   citation: AGENTS.md#essential-commands
-  decision_log: docs/decisions/0001-test-doctrine-phase-0.md#d7-coverage-gate-timing-and-shape
 - id: CI-002
   title: Git and Pull Request Attribution Hygiene
   severity: BLOCKER
@@ -1007,7 +1003,6 @@ rules:
   positive_example: '# ARCH-001 enforced by tests/lint/test_import_boundaries.py'
   negative_example: '# Scanner walks only tree.body functions, so class-based tests are never inspected'
   citation: docs/agents/ci-and-tooling.md
-  decision_log: docs/decisions/0003-downgrade-test-007-to-suggestion.md
 planner_rules:
 - id: PLAN-001
   title: Read-Only Planning Discipline

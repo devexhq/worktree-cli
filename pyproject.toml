@@ -96,7 +96,7 @@ source = ["worktree"]
 branch = true
 
 [tool.coverage.report]
-fail_under = 0
+fail_under = 80
 show_missing = true
 skip_empty = true
 
@@ -114,7 +114,6 @@ exclude = [
     "bin",
     "docs/agents/PLANNER_RULES.md",
     "**/docs/RULES.md",
-    "legacy_tests",
 ]
 
 [tool.ruff.lint]
