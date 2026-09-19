@@ -831,7 +831,7 @@ rules:
     package boundaries).
   positive_example: '# Updating layers tree in architecture.md for new core/prune/ domain'
   negative_example: '# 100 lines of narrative prose explaining pruning heuristics in architecture.md'
-  citation: AGENTS.md#documentation
+  citation: docs/agents/documentation.md
 - id: DOC-002
   title: User-Visible Behavior Documentation Scope
   severity: BLOCKER
@@ -842,7 +842,7 @@ rules:
   evaluation_criteria: Verify new CLI options or behavioral changes are documented in docs/cli/.
   positive_example: '# Updating docs/cli/run.md with new --keep-on-failure flag'
   negative_example: '# Documenting user CLI flag --keep-on-failure inside architecture.md'
-  citation: AGENTS.md#documentation
+  citation: docs/agents/documentation.md
 - id: DOC-003
   title: Schema and Entity Documentation Gate
   severity: BLOCKER
@@ -854,7 +854,7 @@ rules:
   evaluation_criteria: Verify schemas.md is updated whenever new DTOs, Result models, or config fields are added in src/.
   positive_example: '# Adding SandboxPruneResult to section 2 of schemas.md'
   negative_example: '# Adding new Result model in core/models.py without updating schemas.md'
-  citation: AGENTS.md#documentation
+  citation: docs/agents/documentation.md
 - id: DOC-004
   title: Ban on Duplicating Source in Docs
   severity: SUGGESTION
@@ -868,7 +868,7 @@ rules:
   negative_example: '| Field | Type | Default |
 
     | session_id | str | required |'
-  citation: AGENTS.md#keeping-docs-accurate
+  citation: docs/agents/documentation.md
 - id: DOC-005
   title: Unavoidable Spec Tables Require Parity Tests
   severity: BLOCKER
@@ -886,7 +886,7 @@ rules:
     test, and flag doc sentences naming a parity test that is absent from the tree.
   positive_example: '# tests/lint/test_import_boundaries.py exists and is named by the doc claim it backs'
   negative_example: '# "enforced by tests/lint/test_doc_parity.py" where that module is nowhere in the tree'
-  citation: AGENTS.md#keeping-docs-accurate
+  citation: docs/agents/documentation.md
 - id: DOC-006
   title: Prefer Deletion Over Accretion
   severity: SUGGESTION
@@ -898,7 +898,7 @@ rules:
   evaluation_criteria: Review doc edits for conflicting old vs new statements.
   positive_example: '# Replaced outdated formatters.py reference with cli/ui/formatters/'
   negative_example: '# Appended new rule while leaving old formatters.py text intact'
-  citation: AGENTS.md#documentation
+  citation: docs/agents/documentation.md
 - id: DOC-007
   title: Canonical Terminology Invariant
   severity: SUGGESTION
@@ -930,7 +930,7 @@ rules:
     nonexistent modules, and doc paragraphs describing behavior absent from the tree.
   positive_example: '# "COLUMNS is pinned to 160 by [tool.pytest_env] in pyproject.toml" - resolvable and true'
   negative_example: '# "enforced by tests/lint/test_doc_parity.py" in AGENTS.md, where the module does not exist'
-  citation: AGENTS.md#keeping-docs-accurate
+  citation: docs/agents/documentation.md
 - id: CI-001
   title: Pre-Commit Quality Suite Gate
   severity: BLOCKER
