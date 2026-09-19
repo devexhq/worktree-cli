@@ -56,8 +56,8 @@ No subclass overrides `to_json_serializable` (enforced by `tests/lint/test_forma
 
 ### Tier 3 - CLI Wiring (Runner Required, Root Tests When Earned)
 Every command action gets a real `*CliIntegrationTests` suite (`runner.invoke(app, [...])`)
-covering happy path exit 0, failure path non-zero exit, `--format json` against wire schema, and
-any interactive confirm/abort branch.
+covering happy path exit 0, option and argument binding for every declared option or flag,
+failure path non-zero exit, `--format json` against wire schema, and any interactive confirm/abort branch.
 
 A `*RootTests` suite (direct handler call with `CliContext`, bypassing the runner) is added only
 when the handler owns logic the domain layer doesn't: input coercion, branch selection across

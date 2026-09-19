@@ -82,7 +82,7 @@ Record:
 - Exit behavior (`if not result.ok: raise typer.Exit(code=1)`).
 - Options and arguments handled exclusively by Typer.
 
-> **Rule**: Only test CLI option variations when Typer coercion or exit handling adds observable behavior beyond the domain handler contract.
+> **Rule**: Per TEST-004, ensure every declared Typer option, flag, and argument is exercised in at least one CLI invocation test to pin CLI option binding and wire propagation. Do not duplicate underlying domain matrix variations through the CLI runner.
 
 ---
 
@@ -244,10 +244,12 @@ Verify before presenting output:
 
 ### Planning mode (`--plan`)
 
-In planning mode, emit the `### Tests` section containing the summary table and companion stubs carrying `[<tier>/<type>]` contract docstrings:
+In planning mode, emit the `### Tests` section containing the summary table and companion stubs carrying `[<tier>/<type>]` contract docstrings, explicitly qualified with the target test file path:
 
 ````markdown
 ### Tests
+
+#### Target file: `tests/core/runtime/test_engine.py`
 
 | Test | Tier | Outcome |
 |---|---|---|
@@ -256,6 +258,9 @@ In planning mode, emit the `### Tests` section containing the summary table and 
 | `RunStepsExecutionTests::test_observer_receives_lifecycle_callbacks_in_order` | Tier 1 (integration) | observer receives callbacks in order |
 
 ```python
+# tests/core/runtime/test_engine.py
+
+
 class RunStepsExecutionTests:
     def test_two_sequential_steps_return_completed_outcome_with_both_results(self):
         """[tier-1/integration] run_steps: two steps succeed → COMPLETED, step_results contains both results with captured stdout."""
@@ -273,9 +278,10 @@ class RunStepsExecutionTests:
 
 ### Existing-code mode
 
-Present stubs as a fenced Python block. Group methods into tier-labelled classes. Every method contains its single-line `[<tier>/<type>]` docstring. Do not include import blocks or fixture bodies.
+Present stubs as a fenced Python block explicitly qualified with the target test file path. Group methods into tier-labelled classes. Every method contains its single-line `[<tier>/<type>]` docstring. Do not include import blocks or fixture bodies.
 
 ```python
+# Target file: tests/core/runtime/test_engine.py
 # ── Unit tests ──────────────────────────────────────────────────────────────
 
 

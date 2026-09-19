@@ -124,3 +124,83 @@ class SandboxCreateCliIntegrationTests:
                 "fixes": [],
             },
         }
+
+    def test_sandbox_create_cli_with_wip_flag_overlays_and_exits_zero(
+        self, cli_runner: CliRunner, sandbox_workspace: Path, dispatch_spy: list[Any]
+    ) -> None:
+        """wt sandbox create --wip binds the flag and dispatches SandboxCreateResult with wip_applied=True."""
+        (sandbox_workspace / "dirty.txt").write_text("uncommitted\n", encoding="utf-8")
+
+        result = cli_runner.invoke(
+            app,
+            ["-p", str(sandbox_workspace), "sandbox", "create", "--name", "wip-demo", "--wip"],
+        )
+
+        assert result.exit_code == 0
+        assert len(dispatch_spy) == 1
+        assert_model_equal(
+            dispatch_spy[0],
+            SandboxCreateResult.model_construct(
+                status=SandboxCreateStatus.OK,
+                session=SandboxSession.model_construct(
+                    session_id=_ANY_SESSION_ID,
+                    target_branch=_ANY_TARGET_BRANCH,
+                    sandbox_path=ANY_PATH,
+                    base_commit=ANY_GIT_SHA,
+                    name="wip-demo",
+                    created_at=ANY_ISO_TIMESTAMP,
+                    command_passed=None,
+                    wip_applied=True,
+                    wip_paths=["dirty.txt"],
+                ),
+                errors=[],
+                warnings=[],
+                fixes=[],
+            ),
+        )
+
+    def test_sandbox_create_cli_with_base_ref_option_branches_from_specified_target(
+        self, cli_runner: CliRunner, sandbox_workspace: Path, dispatch_spy: list[Any]
+    ) -> None:
+        """wt sandbox create --base-ref binds the option and creates a sandbox branching from the specified ref."""
+        (sandbox_workspace / "first.txt").write_text("first commit\n", encoding="utf-8")
+        GitRunner.add_all(sandbox_workspace)
+        GitRunner.commit(sandbox_workspace, "Add first.txt")
+        first_commit = GitRunner.rev_parse(sandbox_workspace, rev="HEAD")
+
+        (sandbox_workspace / "second.txt").write_text("second commit\n", encoding="utf-8")
+        GitRunner.add_all(sandbox_workspace)
+        GitRunner.commit(sandbox_workspace, "Add second.txt")
+        current_head = GitRunner.rev_parse(sandbox_workspace, rev="HEAD")
+        assert first_commit != current_head
+
+        result = cli_runner.invoke(
+            app,
+            ["-p", str(sandbox_workspace), "sandbox", "create", "--name", "ref-demo", "--base-ref", first_commit],
+        )
+
+        assert result.exit_code == 0
+        assert len(dispatch_spy) == 1
+        session = dispatch_spy[0].session
+        assert_model_equal(
+            dispatch_spy[0],
+            SandboxCreateResult.model_construct(
+                status=SandboxCreateStatus.OK,
+                session=SandboxSession.model_construct(
+                    session_id=_ANY_SESSION_ID,
+                    target_branch=_ANY_TARGET_BRANCH,
+                    sandbox_path=ANY_PATH,
+                    base_commit=first_commit,
+                    name="ref-demo",
+                    created_at=ANY_ISO_TIMESTAMP,
+                    command_passed=None,
+                    wip_applied=False,
+                    wip_paths=[],
+                ),
+                errors=[],
+                warnings=[],
+                fixes=[],
+            ),
+        )
+        assert (session.sandbox_path / "first.txt").read_text(encoding="utf-8") == "first commit\n"
+        assert not (session.sandbox_path / "second.txt").exists()

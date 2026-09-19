@@ -359,7 +359,7 @@
       "severity": "BLOCKER",
       "domain": "tests",
       "scope": "tests/cli/",
-      "evaluation_criteria": "For each command action, verify at least one runner integration test exists and covers the four scenarios. A command action with no *RootTests suite is not itself a violation. Flag *RootTests whose assertions duplicate an expected result object already asserted in tests/core/.",
+      "evaluation_criteria": "For each command action, verify at least one runner integration test exists and covers the scenario classes: exit 0, option and argument binding for every declared option or flag, non-zero exit, --format json, and interactive flows if present. A command action with no *RootTests suite is not itself a violation. Flag *RootTests whose assertions duplicate an expected result object already asserted in tests/core/.",
       "bad_pattern": "class ConfigShowRootTests: ...  # pass-through handler re-asserting the ConfigLoadResult from tests/core/config/"
     },
     {

@@ -550,20 +550,24 @@ rules:
   scope: tests/cli/
   guideline: >-
     Every CLI command action requires at least one real *CliIntegrationTests suite invoking
-    runner.invoke to pin option and argument binding, exit codes, and dispatcher output, covering
-    four scenarios: happy path exit 0, failure path with the expected non-zero exit code,
-    --format json emitting the wire schema, and any interactive confirmation or abort branch.
-    *RootTests calling the handler directly with a CliContext are added only when an author
-    judges the handler owns logic the domain layer does not: input coercion, branch selection
-    across services, result composition from more than one call, or an interactive abort path. A
-    pass-through handler is fully compliant with zero root tests; a root test is never required
-    per action. A root test may never restate a contract already asserted under tests/core/ for
-    the same result type.
+    runner.invoke to pin option and argument binding, exit codes, and dispatcher output. The suite
+    must cover five scenario classes: (1) happy path exit 0 with default arguments, (2) option and
+    argument binding, ensuring every declared Typer option, flag, and argument is exercised in at
+    least one invocation to verify CLI input binding and propagation to the domain layer without
+    duplicating domain branch matrices, (3) failure path with the expected non-zero exit code when
+    the domain returns a non-ok result, (4) --format json emitting the wire schema, and (5) any
+    interactive confirmation or abort branch. *RootTests calling the handler directly with a
+    CliContext are added only when an author judges the handler owns logic the domain layer does
+    not: input coercion, branch selection across services, result composition from more than one
+    call, or an interactive abort path. A pass-through handler is fully compliant with zero root
+    tests; a root test is never required per action. A root test may never restate a contract
+    already asserted under tests/core/ for the same result type.
   evaluation_criteria: >-
     For each command action, verify at least one runner integration test exists and covers the
-    four scenarios. A command action with no *RootTests suite is not itself a violation. Flag
-    *RootTests whose assertions duplicate an expected result object already asserted in
-    tests/core/.
+    scenario classes: exit 0, option and argument binding for every declared option or flag,
+    non-zero exit, --format json, and interactive flows if present. A command action with no
+    *RootTests suite is not itself a violation. Flag *RootTests whose assertions duplicate an
+    expected result object already asserted in tests/core/.
   positive_example: 'class ConfigSetRootTests: ...  # handler owns string-to-bool coercion, so it earns a root test'
   negative_example: 'class ConfigShowRootTests: ...  # pass-through handler re-asserting the ConfigLoadResult from tests/core/config/'
   citation: docs/agents/testing.md#tier-3---cli-wiring-runner-required-root-tests-when-earned
