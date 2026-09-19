@@ -1,0 +1,272 @@
+"""Integration contract tests for previous-step and historical-steps metadata propagation."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from tests.harness.builders import RunOutcomeBuilder
+from tests.harness.matchers import ANY_DURATION, assert_model_equal
+from worktree.common.models import FailurePolicy, OnFailureSpec
+from worktree.core.db import RunStatus
+from worktree.core.runtime import FailurePromptDecision, LoopPromptDecision, RunContext, run_steps
+from worktree.core.step.models import StepDefinition, StepResult, StepType
+
+
+class _ScriptedFailurePrompter:
+    """Test double returning a scripted queue of decisions for metadata-propagation tests."""
+
+    def __init__(self, decisions: list[FailurePromptDecision]) -> None:
+        self.decisions = list(decisions)
+
+    def prompt_step_failure(
+        self, *, step: StepDefinition, result: StepResult, diagnostic: str
+    ) -> FailurePromptDecision:
+        return self.decisions.pop(0)
+
+    def prompt_loop_max_iterations(self, **kwargs: object) -> LoopPromptDecision:
+        return LoopPromptDecision.ABORT
+
+
+def _step_result(
+    step_id: str,
+    *,
+    status: str,
+    exit_code: int,
+    stdout: str = "",
+    stderr: str = "",
+    attempts: int = 1,
+    error_message: str | None = None,
+) -> StepResult:
+    """Build an expected StepResult; duration_seconds is real wall-clock time, matched via ANY_DURATION."""
+    return StepResult.model_construct(
+        step_id=step_id,
+        status=status,
+        exit_code=exit_code,
+        stdout=stdout,
+        stderr=stderr,
+        duration_seconds=ANY_DURATION,
+        attempts=attempts,
+        error_message=error_message,
+        errors=[],
+        warnings=[],
+        fixes=[],
+    )
+
+
+class RunStepsMetadataPropagationTests:
+    """Contract tests for WT_PREVIOUS_STEP_*, WT_STEPS_JSON, and WT_STEP_ATTEMPT propagation."""
+
+    def test_run_steps_first_step_sees_empty_previous_step_env_vars(self, tmp_path: Path) -> None:
+        context = RunContext(
+            steps=[
+                StepDefinition(
+                    id="first_step",
+                    type=StepType.COMMAND,
+                    command='echo "PREV_ID=[$WT_PREVIOUS_STEP_ID] PREV_STATUS=[$WT_PREVIOUS_STEP_STATUS]"',
+                )
+            ],
+            cwd=tmp_path,
+            use_sandbox=False,
+        )
+
+        outcome = run_steps(context)
+
+        assert_model_equal(
+            outcome,
+            RunOutcomeBuilder(tmp_path.resolve())
+            .with_status(RunStatus.COMPLETED)
+            .with_step_results(
+                _step_result("first_step", status="completed", exit_code=0, stdout="PREV_ID=[] PREV_STATUS=[]\n")
+            )
+            .build(),
+        )
+
+    def test_run_steps_second_step_sees_previous_step_id_name_index_status_exit_code_env_vars(
+        self, tmp_path: Path
+    ) -> None:
+        context = RunContext(
+            steps=[
+                StepDefinition(
+                    id="setup_step",
+                    name="Setup Step",
+                    type=StepType.COMMAND,
+                    command="echo 'setup done'",
+                ),
+                StepDefinition(
+                    id="verify_step",
+                    name="Verify Step",
+                    type=StepType.COMMAND,
+                    command=(
+                        'echo "PREV_ID=$WT_PREVIOUS_STEP_ID PREV_NAME=$WT_PREVIOUS_STEP_NAME '
+                        "PREV_IDX=$WT_PREVIOUS_STEP_INDEX PREV_STATUS=$WT_PREVIOUS_STEP_STATUS "
+                        'PREV_EXIT=$WT_PREVIOUS_STEP_EXIT_CODE"'
+                    ),
+                ),
+            ],
+            cwd=tmp_path,
+            use_sandbox=False,
+        )
+
+        outcome = run_steps(context)
+
+        assert_model_equal(
+            outcome,
+            RunOutcomeBuilder(tmp_path.resolve())
+            .with_status(RunStatus.COMPLETED)
+            .with_step_results(
+                _step_result("setup_step", status="completed", exit_code=0, stdout="setup done\n"),
+                _step_result(
+                    "verify_step",
+                    status="completed",
+                    exit_code=0,
+                    stdout="PREV_ID=setup_step PREV_NAME=Setup Step PREV_IDX=1 PREV_STATUS=completed PREV_EXIT=0\n",
+                ),
+            )
+            .build(),
+        )
+
+    def test_run_steps_continue_on_failure_previous_step_status_is_ignored_with_exit_code_zero(
+        self, tmp_path: Path
+    ) -> None:
+        context = RunContext(
+            steps=[
+                StepDefinition(
+                    id="failing_step",
+                    name="Failing Step",
+                    type=StepType.COMMAND,
+                    command="exit 3",
+                    on_failure=OnFailureSpec(action=FailurePolicy.CONTINUE),
+                ),
+                StepDefinition(
+                    id="next_step",
+                    type=StepType.COMMAND,
+                    command=(
+                        'echo "PREV_ID=$WT_PREVIOUS_STEP_ID PREV_STATUS=$WT_PREVIOUS_STEP_STATUS '
+                        'PREV_EXIT=$WT_PREVIOUS_STEP_EXIT_CODE"'
+                    ),
+                ),
+            ],
+            cwd=tmp_path,
+            use_sandbox=False,
+        )
+
+        outcome = run_steps(context)
+
+        assert_model_equal(
+            outcome,
+            RunOutcomeBuilder(tmp_path.resolve())
+            .with_status(RunStatus.COMPLETED)
+            .with_step_results(
+                _step_result(
+                    "failing_step",
+                    status="ignored",
+                    exit_code=0,
+                    error_message="Command failed with exit code 3.",
+                ),
+                _step_result(
+                    "next_step",
+                    status="completed",
+                    exit_code=0,
+                    stdout="PREV_ID=failing_step PREV_STATUS=ignored PREV_EXIT=0\n",
+                ),
+            )
+            .build(),
+        )
+
+    def test_run_steps_prompt_user_retry_increments_step_attempt_env_var_from_one_to_two(self, tmp_path: Path) -> None:
+        prompter = _ScriptedFailurePrompter([FailurePromptDecision.RETRY])
+        context = RunContext(
+            steps=[
+                StepDefinition(
+                    id="retry_on_prompt",
+                    type=StepType.COMMAND,
+                    command=(
+                        'if [ "$WT_STEP_ATTEMPT" -eq 1 ]; then echo "fail1" >&2; exit 1; '
+                        'else echo "success2"; exit 0; fi'
+                    ),
+                    on_failure=OnFailureSpec(action=FailurePolicy.PROMPT_USER),
+                )
+            ],
+            cwd=tmp_path,
+            use_sandbox=False,
+            failure_prompter=prompter,
+        )
+
+        outcome = run_steps(context)
+
+        assert_model_equal(
+            outcome,
+            RunOutcomeBuilder(tmp_path.resolve())
+            .with_status(RunStatus.COMPLETED)
+            .with_step_results(
+                _step_result("retry_on_prompt", status="completed", exit_code=0, stdout="success2\n", attempts=2)
+            )
+            .build(),
+        )
+
+    def test_run_steps_three_step_run_propagates_steps_jinja_context_and_wt_steps_json_excluding_in_flight_step(
+        self, tmp_path: Path
+    ) -> None:
+        context = RunContext(
+            steps=[
+                StepDefinition(
+                    id="step_a",
+                    name="Step Alpha",
+                    type=StepType.COMMAND,
+                    command='echo "A_STEPS=[{{ steps[0].id }}] A_JSON=$WT_STEPS_JSON"',
+                ),
+                StepDefinition(
+                    id="step_b",
+                    name="Step Beta",
+                    type=StepType.COMMAND,
+                    command=(
+                        'echo "B_FIRST={{ steps[0].id }} B_LAST={{ steps[-1].id }} '
+                        'B_A_STAT={{ steps.step_a.status }} B_JSON=$WT_STEPS_JSON"'
+                    ),
+                ),
+                StepDefinition(
+                    id="step_c",
+                    name="Step Gamma",
+                    type=StepType.COMMAND,
+                    command=(
+                        'echo "C_FIRST={{ steps[0].id }} C_SECOND={{ steps[1].id }} '
+                        'C_LAST={{ steps[-1].id }} C_PREV={{ previous_step.id }} C_JSON=$WT_STEPS_JSON"'
+                    ),
+                ),
+            ],
+            cwd=tmp_path,
+            use_sandbox=False,
+        )
+
+        outcome = run_steps(context)
+
+        assert_model_equal(
+            outcome,
+            RunOutcomeBuilder(tmp_path.resolve())
+            .with_status(RunStatus.COMPLETED)
+            .with_step_results(
+                _step_result("step_a", status="completed", exit_code=0, stdout="A_STEPS=[] A_JSON=[]\n"),
+                _step_result(
+                    "step_b",
+                    status="completed",
+                    exit_code=0,
+                    stdout=(
+                        "B_FIRST=step_a B_LAST=step_a B_A_STAT=completed "
+                        'B_JSON=[{"id": "step_a", "name": "Step Alpha", "index": "1", '
+                        '"status": "completed", "exit_code": "0"}]\n'
+                    ),
+                ),
+                _step_result(
+                    "step_c",
+                    status="completed",
+                    exit_code=0,
+                    stdout=(
+                        "C_FIRST=step_a C_SECOND=step_b C_LAST=step_b C_PREV=step_b "
+                        'C_JSON=[{"id": "step_a", "name": "Step Alpha", "index": "1", '
+                        '"status": "completed", "exit_code": "0"}, {"id": "step_b", "name": "Step Beta", '
+                        '"index": "2", "status": "completed", "exit_code": "0"}]\n'
+                    ),
+                ),
+            )
+            .build(),
+        )
