@@ -24,6 +24,7 @@ src/worktree/core/                   Domain business logic and orchestration (no
   blueprint/                         Unified task and workflow document loading and inspection
   diff/                              Session unified diff computation and artifact retrieval
   status/                            Workspace health diagnostics and telemetry collection
+  doctor/                            Diagnostic check registry, execution runner, and health validation engine
   history/                           Execution run queries and history presentation
   step/                              Single-step execution, assertions evaluation, and step-local failure recovery
   runtime/                           In-process step-loop orchestration (run_steps), failure prompter, and pause checkpoints
@@ -61,6 +62,7 @@ src/worktree/schemas/v1/             Packaged, versioned JSON Schemas (config.js
 - **History** (`core/history/`): `HistoryListService`, `HistoryShowService`, result models (`HistoryListResult`, `HistoryShowResult`). UI formatters reside in `cli/ui/formatters/history/`.
 - **Diff** (`core/diff/`): `DiffService`, session diff resolution, artifact loading, result models (`DiffResult`). UI formatters reside in `cli/ui/formatters/diff/`.
 - **Status** (`core/status/`): Workspace health and runtime telemetry collection (`collect_status`), result models (`WorktreeStatusResult`), warning aggregation.
+- **Doctor** (`core/doctor/`): Diagnostic check registry (`CheckRegistry`), execution runner (`DiagnosticRunner`), entrypoint coordinator (`Doctor`), check protocol (`DiagnosticCheck`), and result models (`DiagnosticCheckResult`, `DoctorReport`).
 - **Sandbox** (`core/sandbox/`): Isolated git worktree checkout creation, deletion, listing, show, prune, and patch application (`Sandbox` facade, `services/lifecycle.py`).
 - **Shared core infra**: `config/`, `db/`, `git/`, `bootstrap/`.
 
@@ -69,7 +71,7 @@ src/worktree/schemas/v1/             Packaged, versioned JSON Schemas (config.js
 Dependencies flow one way down the stack; do not import upward:
 
 ```
-common/  ->  core/{db,git,sandbox,catalog,inputs,patch,history,diff,status}/  ->  core/agents/  ->  core/step/  ->  {core/runtime/, core/blueprint/}  ->  core/engine/  ->  cli/
+common/  ->  core/{db,git,sandbox,catalog,inputs,patch,history,diff,status,doctor}/  ->  core/agents/  ->  core/step/  ->  {core/runtime/, core/blueprint/}  ->  core/engine/  ->  cli/
 ```
 
 - `common/` never depends on `core/` or `cli/`.

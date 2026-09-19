@@ -50,6 +50,9 @@ Comprehensive reference for the shape of entities across the Worktree CLI codeba
   - `PromptUserInterruptedError`: User aborted interactive failure prompt (e.g. Ctrl-C after checkpoint persisted).
 - **Patch** (`core/patch/exceptions.py`):
   - `MalformedDiffHeader`: Invalid unified diff format.
+- **Doctor** (`core/doctor/exceptions.py`):
+  - `DoctorError`: Base exception for doctor domain errors.
+  - `CheckRegistrationError`: Raised when registering a check with an existing check_id.
 - **Lock** (`common/lock.py`):
   - `LockTimeoutError`: Timeout acquiring `.worktree/.lock` advisory lock.
 
@@ -140,6 +143,17 @@ All operations that can fail return a Pydantic result object subclassing `BaseRe
 - `HistoryListResult`, `HistoryShowResult`: History query results.
 - `DiffResult`: Session unified-diff and artifact outcome (`status`, `diff_text`, `files_changed`, `errors`, `ok`).
 - `WorktreeStatusResult`: Workspace health, repository status, and collected developer warnings.
+
+### Doctor Models
+**Relevant sources:** `src/worktree/core/doctor/models.py`, `src/worktree/core/doctor/services/runner.py`.
+- `CheckStatus`: `StrEnum` (`ok`, `warning`, `failed`, `skipped`).
+- `CheckCategory`: `StrEnum` (`git`, `config`, `filesystem`, `sandbox`, `agent`, `environment`).
+- `DoctorContext`: Contextual environment supplied to checks (`cwd`, `config`).
+- `DiagnosticCheckResult`: Individual check outcome model defined in `src/worktree/core/doctor/models.py`.
+- `DoctorReport`: Aggregated execution report model defined in `src/worktree/core/doctor/models.py`.
+- `DiagnosticCheck`: Protocol defining check identification and execution contract.
+- Error codes:
+  - `DOCTOR_CHECK_CRASH`: Diagnostic check threw an unhandled exception during execution.
 
 ---
 
