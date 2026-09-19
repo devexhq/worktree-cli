@@ -32,11 +32,15 @@ The issue body is the contract (see
 
 - Copy every `FR-*` and `NFR-*` **verbatim, with its ID**. Never paraphrase a
   requirement away. Paraphrase is how a clause gets dropped.
+- **No discursive framing:** Stop at the verbatim FRs/NFRs. Do not add a "Goal"
+  prose paragraph or "As a user" framing. The verbatim requirement list *is* the
+  goal. Paraphrasing or adding narrative summaries introduces scope drift.
 - Copy **Pre-determined data** exactly. Field names, types, defaults, file
   paths, constants, error codes, and template bodies stated there are
   **normative**. You may not invent, rename, or "improve" them.
 - Copy **Out of scope** verbatim into the plan's guardrail section. It is a stop
   sign, not a hint.
+- Copy any **Definition of Done** checklist verbatim from the issue body.
 - Everything in scope is **mandatory**. There is no optional, stretch, or
   nice-to-have work in an issue body.
 - **Do not open sibling issues.** The issue plus the in-repo docs it cites is
@@ -92,8 +96,16 @@ Never plan against a memory of how the codebase works. Read it.
    similarly-named-but-unrelated symbol, a duplicate implementation, a stale
    doc. Mark each one explicitly out of scope so it is not touched by accident.
 
-Record the result as a ground-truth table (surface, `file:line`, what exists
-today) in the plan.
+Record the result as a ground-truth table (`Surface`, `Location`, `What exists`)
+in the plan:
+
+- **One clause per cell, max.** The `file:line` citation is the reference —
+  the cell should name what exists, not explain it. If an implementer needs
+  more detail, they follow the citation. Never write multi-sentence narrative
+  essays inside table cells.
+- **Single ownership for patterns and traps:** "**Pattern to mirror**" and
+  "**Traps (explicitly not touched)**" live in the Ground truth section and
+  **only** here — never repeat them in Instructions, Decisions, or Edge cases.
 
 ---
 
@@ -161,19 +173,31 @@ the implementer to untangle.
 
 ## Step 4: Write the plan
 
-Work one FR (or one testable clause of an FR) at a time. Under each: the ordered
-instructions, then the code samples, then the decisions, then the edge cases.
+Work one FR (or one testable group of FRs) at a time. The fundamental rule:
+**each fact in exactly one place**. Under each FR section:
+1. `> <verbatim requirement text>`
+2. `### Instructions`
+3. `### Code`
+4. `### Decisions`
+5. `### Edge cases`
+6. `### Tests`
+
+### Instructions: Imperative verbs only
+
+- Write instructions using strictly imperative verbs (e.g., "Create `...`", "Assert `...`").
+- State **what** to do, not **why**. No "because", no rationale — that belongs exclusively in `### Decisions`.
+- Do not restate what code samples or test tables already demonstrate.
 
 ### Code sample rules
 
-Two kinds of sample, and the distinction matters:
+Three kinds of sample, and the distinction matters:
 
 **Write literal, final code for anything that is a contract.** Model and enum
 definitions with every field, type, and default. Function and method signatures
 with full type hints and a Google-style docstring. Typer argument and option
 declarations with exact flag names and help text. Formatter class shells. Exact
-JSON payload dicts. Exact error, warning, and fix strings. These leave no room
-for interpretation, so spell them out.
+JSON payload dicts. Exact error, warning, and fix strings. Non-obvious fixtures
+and regex patterns. These leave no room for interpretation, so spell them out.
 
 ```python
 class SandboxPruneStatus(StrEnum):
@@ -206,77 +230,117 @@ def prune_sandboxes(context: CliContext, dry_run: bool = False) -> SandboxPruneR
     raise NotImplementedError
 ```
 
-**Write signature only for test stubs — add a docstring only when the test
-name can't carry the exact outcome.** A well-named test needs nothing else:
-`test_prune_empty_returns_nothing_to_prune` already states the contract. Reach
-for a docstring only when the name alone would leave the outcome ambiguous
-(a specific partial-failure shape, an exact wire dict), and then state that
-outcome as precisely as a literal assertion would: the exact status enum,
-every field the test owns and its value, the exact exit code, or the exact
-wire dict.
+**Remove docstrings from test stubs entirely — the Tests table is the single source of truth.**
+A test stub is merely a compiler-checkable placeholder (`raise NotImplementedError`). Do not
+write docstrings on test stubs: any docstring is a second copy of the contract that will
+drift or go stale. The `### Tests` table carries 100% of the verification contract (exact exit
+codes, stdout substrings, disk/git mutations, and literal wire envelopes).
 
 ```python
-def test_prune_empty_returns_nothing_to_prune(isolated_workspace: Path) -> None:
-    raise NotImplementedError
+# stubs — outcomes defined in the Tests table above
+class SandboxPruneCliIntegrationTests:
+    def test_prune_empty_returns_nothing_to_prune(self, cli_runner: CliRunner, sandbox_workspace: Path) -> None:
+        raise NotImplementedError
 
-
-def test_prune_partial_failure_lists_errors_but_deletes_succeeded_items(
-    isolated_workspace: Path,
-) -> None:
-    """succeeded_items=["a", "b"] and errors=["c: permission denied"] when c fails
-    and a, b succeed."""
-    raise NotImplementedError
+    def test_prune_partial_failure_deletes_succeeded_items(
+        self, cli_runner: CliRunner, sandbox_workspace: Path
+    ) -> None:
+        raise NotImplementedError
 ```
 
 Every sample must use absolute `worktree.*` imports at module top level and must
 reference only symbols you actually read in Step 2. A sample that calls a helper
 you did not verify exists is a bug you handed to someone else.
 
-Whichever carries it — test name or docstring — the outcome must be the
-**exact contract asserted**: the exact dict for JSON output, the exit code,
-the file or git ref on disk, or the exact `*Result` field values (as
-`assert_model_equal(...)` or whole-dict equality would compare them). "Assert
-it works" is not a plan. **Strictly ban conversational vagueness**
-(`"""Verifies pruning works."""`), **piecewise framing**
-(`"""Checks exit code is 0."""`, `"""Checks status is ok."""`), **a docstring
-redundant with an already-descriptive name**, and **silent exclusions** (a
-docstring that omits a field the test owns) in test stubs and test-ledger
-`Contract pinned` cells. The named outcome must cover every field the test
-owns; a value the test cannot own (a dynamic timestamp, a random UUID) is
-called out by name as a matcher, never silently dropped.
+### Decisions: The sole home for rationale
+
+`### Decisions` is the single place where rationale, justifications, and trade-offs live:
+- Use bullet format: `- **<decision point>:** <choice>, because <one clause>. Rejected: <alternative>. [🚨]`
+- Absorb all "because X" clauses from instructions here.
+- Flag any unspecified detail or deviation with 🚨.
+
+### Edge cases: Genuine implementation gotchas only
+
+- Record only non-obvious traps, execution gotchas, or sequencing constraints not already covered under `Traps` in Ground truth or `Decisions`.
+- Do not restate standard happy/unhappy branch logic.
+
+### Tests: Single source of truth table
+
+The `### Tests` table is the implementation contract for all tests in the section.
+Use a clean two-column format: `| Test | Exact outcome |` (do not add redundant `Tier` or `Path` columns when the test path and tier are evident from context).
+
+| Test | Exact outcome |
+|---|---|
+| `SandboxPruneCliIntegrationTests::test_prune_empty_returns_nothing_to_prune` | exit 0; "Nothing to prune" in stdout; no filesystem mutations |
+| `SandboxPruneCliIntegrationTests::test_prune_partial_failure_deletes_succeeded_items` | exit 1; succeeds deleting "sbx_clean" but fails on "sbx_locked"; "Error pruning sbx_locked: permission denied" in stdout |
+
+The outcome must be the **exact contract asserted**: the exact dict for JSON output, the exit code,
+the file or git ref on disk, or the exact `*Result` field values. "Assert it works" is not a plan.
+**Strictly ban conversational vagueness** (`"Verifies pruning works"`), **piecewise framing**
+(`"Checks exit code is 0"`, `"Checks status is ok"`), and **silent exclusions** (omitting a field the test owns).
+
+### Single-ownership principle: what gets cut vs. kept
+
+Every piece of information in a plan must appear in exactly one place. The fix for bloated plans
+is assigning each fact to exactly one owner and deleting every duplicate.
+
+| Element | Anti-pattern / Redundant | Standard |
+|---|---|---|
+| Header | Multi-paragraph "nothing was implemented" essay | One line: `Planning only. Grounded against <branch> at <sha>.` |
+| Contract | "Goal" prose, "As a user" stories | Verbatim FR-*/NFR-* list is the goal; no narrative paraphrasing |
+| Ground truth cells | 3–5 sentence paragraphs explaining implementation | One clause per cell max; `file:line` citation is the reference |
+| Patterns & Traps | Repeated across Ground truth, Instructions, Edge cases | Ground truth section only |
+| Instructions | "Do X because Y" inline explanations | Strictly imperative verbs; rationale moved to Decisions |
+| Test stubs | Full docstrings restating test outcomes | Zero docstrings; signature + `raise NotImplementedError` only |
+| Tests contract | Split between stub docstrings, table, and ledger | `### Tests` table is the single source of truth (`Test` and `Exact outcome`) |
+| Rule IDs | Cited then explained in prose | Rule ID only — implementer/reviewer reads the spec |
+| Edge cases | Restating traps, decisions, or normal branches | Genuine implementation gotchas only |
 
 ### Plan document template
 
 ````markdown
 # Issue #<n>: <title>
 
-Planning only, nothing was implemented. Grounded against `<base branch>` at
-`<short sha>`.
+Planning only. Grounded against `<base branch>` at `<short sha>`.
 
 ## Contract
 
 <Verbatim FR-*/NFR-* list with IDs. Pre-determined data reproduced exactly.>
 
-### Out of scope (verbatim from the issue)
-
+**Out of scope:**
 - ...
 
-## Current state
+**Pre-determined data:**
+- ...
 
-| Surface | Location | What exists today |
+**Definition of Done:**
+- [ ] ...
+
+---
+
+## Ground truth
+
+| Surface | Location | What exists |
 |---|---|---|
 | <surface> | `path:line` | <one clause> |
 
 **Pattern to mirror:** <domain path chain, with citations; reproduced symbols shown as signature + docstring only>
 
-**Traps (explicitly not touched):** <dead code, lookalike symbol, stale doc>
+**Traps (explicitly not touched):**
+- <dead code, lookalike symbol, stale doc>
+
+---
 
 ## Artifact inventory
 
 | Artifact | Kind | Path | New or changed | Requirement |
 |---|---|---|---|---|
 
-Not needed for this issue: <kinds from the Step 3 checklist that are "none">
+Not needed: <kinds from the Step 3 checklist that are "none">
+
+## Deletion ledger
+
+<Deletion table or 'Deletes nothing: greenfield.'>
 
 ---
 
@@ -286,34 +350,38 @@ Not needed for this issue: <kinds from the Step 3 checklist that are "none">
 
 ### Instructions
 
-1. <exact file, exact symbol, exact change>
+1. <imperative action: exact file, exact symbol, exact change; no inline rationale>
 
 ### Code
 
-<literal contracts; production stubs as signature + one-line intent docstring; test stubs as signature-only, docstring only where the name can't carry the outcome>
+<literal contracts, fixtures, constants; production stubs as signature + one-line intent docstring + raise NotImplementedError>
 
 ### Decisions
 
-- **<decision point>:** <choice>, because <one clause>. Rejected: <alternative>.
-  <🚨 if a reviewer should confirm this.>
+- **<decision point>:** <choice>, because <one clause>. Rejected: <alternative>. <🚨 if a reviewer should confirm this.>
 
 ### Edge cases
 
-- <failure mode, default, or existing behavior a naive implementation misses>
+- <genuine implementation gotcha not in Traps or Decisions>
 
 ### Tests
 
-| Test | Tier | Path | Exact outcome |
-|---|---|---|---|
+| Test | Exact outcome |
+|---|---|
+| `<TestClass>::<test_method>` | <exact exit code, stdout substring, disk/git state, or literal JSON envelope> |
+
+```python
+# stubs — outcomes in the Tests table above
+class <TestClass>:
+    def <test_method>(self, ...): raise NotImplementedError
+```
 
 ---
 
 ## Cross-cutting
 
 - **Docs gates that fire:** <specific docs, or "none" with the reason>
-- **Validation:** `uv run inv test`, `ruff format .`, `ruff check .`,
-  `basedpyright src --level error`,
-  `inv complexity --paths <files> --plain --failed`
+- **Validation:** `uv run inv test`, `uv run ruff format .`, `uv run ruff check .`, `uv run basedpyright src tests --level error`, `inv complexity --paths <files> --plain --failed`
 - **Open questions:** <blocking ambiguities, each flagged 🚨, or "none">
 ````
 
@@ -343,20 +411,23 @@ implemented, tested, committed, or pushed.
 
 Do not hand off a plan that fails any of these:
 
+- Header is a single line: `Planning only. Grounded against <base branch> at <short sha>.`
+- Contract contains verbatim FR-*/NFR-* requirements with zero discursive "Goal" paragraphs or "As a user" narratives.
+- Ground truth table cells contain at most one clause per cell with exact `file:line` citations.
+- "Pattern to mirror" and "Traps (explicitly not touched)" live exclusively in Ground truth and are not repeated elsewhere.
 - Every FR and NFR maps to at least one artifact row.
-- Every artifact row has a real, exact path, verified to exist (or explicitly
-  marked new).
-- Every new field, flag, default, and message string traces to the issue's
-  Pre-determined data or to a cited existing model.
+- Every artifact row has a real, exact path, verified to exist (or explicitly marked new).
+- Every new field, flag, default, and message string traces to the issue's Pre-determined data or to a cited existing model.
 - Every code sample's imports and referenced symbols were read in Step 2.
 - No planned production symbol whose only consumer would be a test.
 - No compatibility shim, alias, or dual code path unless the issue demanded one.
-- Every Out of scope bullet is reproduced, and every trap found is marked
-  not-touched.
+- Every Out of scope bullet is reproduced, and every trap found is marked not-touched.
+- Instructions use strictly imperative verbs with zero inline rationale ("because X") or repeated code details.
+- `### Decisions` is the sole owner of all rationale, choices, and rejected alternatives.
+- Every production stub in `### Code` is signature + one-line intent docstring + `raise NotImplementedError` only — zero numbered steps or body code.
+- Every test stub has **zero docstrings** and ends with `raise NotImplementedError` — the `### Tests` table is the single source of truth for exact outcomes.
+- Every test's stated outcome in the `### Tests` table states the exact outcome in prose (exact status/field values, exit code, or wire dict), naming every field the test owns; zero vague phrasing (`"Verifies pruning works."`), zero piecewise framing (`"Checks exit code is 0."`), and zero silently dropped fields.
+- Edge cases contain only genuine gotchas not already captured in Traps or Decisions.
 - Every planned function decomposes below complexity 10.
 - The validation commands listed are this repo's real ones, not guessed.
 - Every rule in `docs/agents/REVIEW_CHECKLIST.json` matching the touched paths or domains was re-checked against the plan's actual content (not restated from memory), with zero BLOCKER violations remaining — and no compliance table was added to the plan to report it.
-- Every production stub in `### Code` is signature + one-line intent docstring + `raise NotImplementedError` only — zero numbered steps or body code.
-- Every test stub in `### Code` is signature-only + `raise NotImplementedError`, with a docstring added only where the name can't carry the exact outcome — zero numbered steps, setup comments, literal assertion code, or docstrings redundant with the name.
-- Every test's stated outcome (name or docstring) and every `### Tests` / test-ledger `Contract pinned` cell states the exact outcome in prose (exact status/field values, exit code, or wire dict), naming every field the test owns; zero vague phrasing (`"""Verifies pruning works."""`), zero piecewise framing (`"""Checks exit code is 0."""`), and zero silently dropped fields.
-- Every "Pattern to mirror" citation that reproduces a symbol's shape quotes only its signature + docstring, never a full body or file dump.
