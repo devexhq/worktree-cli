@@ -1,0 +1,209 @@
+"""Unit tests for worktree.core.doctor.doctor entrypoint coordinator."""
+
+from pathlib import Path
+
+from tests.harness import ANY_DURATION, assert_model_equal
+from worktree.common.filesystem import Filesystem
+from worktree.core.config.models import (
+    DoctorConfig,
+    ProjectConfig,
+    WorktreeConfig,
+)
+from worktree.core.config.serialize import serialize_config
+from worktree.core.doctor.doctor import Doctor
+from worktree.core.doctor.models import (
+    CheckCategory,
+    CheckStatus,
+    DiagnosticCheckResult,
+    DoctorContext,
+    DoctorReport,
+)
+
+
+class DummyDoctorCheck:
+    """Protocol-conforming test double for DiagnosticCheck."""
+
+    def __init__(
+        self,
+        check_id: str,
+        name: str = "Dummy Doctor Check",
+        category: CheckCategory = CheckCategory.GIT,
+    ) -> None:
+        self.check_id = check_id
+        self.name = name
+        self.category = category
+        self.captured_context: DoctorContext | None = None
+
+    def execute(self, context: DoctorContext) -> DiagnosticCheckResult:
+        self.captured_context = context
+        return DiagnosticCheckResult(
+            check_id=self.check_id,
+            name=self.name,
+            category=self.category,
+            status=CheckStatus.OK,
+            message=f"Executed {self.check_id}",
+            details={},
+            duration_ms=0.5,
+            error_code=None,
+            errors=[],
+            warnings=[],
+            fixes=[],
+        )
+
+
+class DoctorCoordinatorTests:
+    """Unit tests for Doctor entrypoint coordinator."""
+
+    def test_run_diagnostics_delegates_to_runner_with_registered_checks(self, tmp_path: Path) -> None:
+        """[tier-2/unit] Doctor.run_diagnostics: initializes context with self.path and executes checks registered in self.registry."""
+        doctor = Doctor(tmp_path)
+        check = DummyDoctorCheck(check_id="test.delegation", category=CheckCategory.GIT)
+        doctor.registry.register(check)
+
+        report = doctor.run_diagnostics()
+
+        assert_model_equal(
+            report,
+            DoctorReport.model_construct(
+                workspace_root=tmp_path.resolve(),
+                checks=[
+                    DiagnosticCheckResult.model_construct(
+                        check_id="test.delegation",
+                        name="Dummy Doctor Check",
+                        category=CheckCategory.GIT,
+                        status=CheckStatus.OK,
+                        message="Executed test.delegation",
+                        details={},
+                        duration_ms=0.5,
+                        error_code=None,
+                        errors=[],
+                        warnings=[],
+                        fixes=[],
+                    ),
+                ],
+                total_duration_ms=ANY_DURATION,
+            ),
+        )
+        assert report.workspace_root == tmp_path.resolve()
+        assert len(report.checks) == 1
+        assert report.checks[0].check_id == "test.delegation"
+        assert report.ok is True
+        assert check.captured_context is not None
+        assert check.captured_context.cwd == tmp_path.resolve()
+
+    def test_run_diagnostics_resolves_config_when_none_provided(self, tmp_path: Path) -> None:
+        """[tier-2/unit] Doctor.run_diagnostics: when config is None, attempts loading config from path and attaches to DoctorContext."""
+        config_dir = tmp_path / ".worktree"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        config = WorktreeConfig(
+            version=1,
+            project=ProjectConfig(name="resolved-project"),
+            doctor=DoctorConfig(check_git=False),
+        )
+        Filesystem.atomic_write_json(config_dir / "config.json", serialize_config(config))
+
+        doctor = Doctor(tmp_path)
+        git_check = DummyDoctorCheck(check_id="git.repo", category=CheckCategory.GIT)
+        doctor.registry.register(git_check)
+
+        report = doctor.run_diagnostics(config=None)
+
+        assert_model_equal(
+            report,
+            DoctorReport.model_construct(
+                workspace_root=tmp_path.resolve(),
+                checks=[
+                    DiagnosticCheckResult.model_construct(
+                        check_id="git.repo",
+                        name="Dummy Doctor Check",
+                        category=CheckCategory.GIT,
+                        status=CheckStatus.SKIPPED,
+                        message="Check 'git.repo' skipped by configuration.",
+                        details={},
+                        duration_ms=0.0,
+                        error_code=None,
+                        errors=[],
+                        warnings=[],
+                        fixes=[],
+                    ),
+                ],
+                total_duration_ms=ANY_DURATION,
+            ),
+        )
+        assert len(report.checks) == 1
+        assert report.checks[0].status == CheckStatus.SKIPPED
+        assert report.checks[0].message == "Check 'git.repo' skipped by configuration."
+
+    def test_run_diagnostics_uses_explicit_config_when_provided(self, tmp_path: Path) -> None:
+        """[tier-2/unit] Doctor.run_diagnostics: when config is provided explicitly, uses it directly in DoctorContext."""
+        explicit_config = WorktreeConfig(
+            version=1,
+            project=ProjectConfig(name="explicit-project"),
+            doctor=DoctorConfig(check_git=False),
+        )
+
+        doctor = Doctor(tmp_path)
+        git_check = DummyDoctorCheck(check_id="git.repo", category=CheckCategory.GIT)
+        doctor.registry.register(git_check)
+
+        report = doctor.run_diagnostics(config=explicit_config)
+
+        assert_model_equal(
+            report,
+            DoctorReport.model_construct(
+                workspace_root=tmp_path.resolve(),
+                checks=[
+                    DiagnosticCheckResult.model_construct(
+                        check_id="git.repo",
+                        name="Dummy Doctor Check",
+                        category=CheckCategory.GIT,
+                        status=CheckStatus.SKIPPED,
+                        message="Check 'git.repo' skipped by configuration.",
+                        details={},
+                        duration_ms=0.0,
+                        error_code=None,
+                        errors=[],
+                        warnings=[],
+                        fixes=[],
+                    ),
+                ],
+                total_duration_ms=ANY_DURATION,
+            ),
+        )
+        assert len(report.checks) == 1
+        assert report.checks[0].status == CheckStatus.SKIPPED
+
+    def test_run_diagnostics_propagates_category_filter(self, tmp_path: Path) -> None:
+        """[tier-2/unit] Doctor.run_diagnostics: category filter argument is passed to DiagnosticRunner and filters report checks."""
+        doctor = Doctor(tmp_path)
+        git_check = DummyDoctorCheck(check_id="git.repo", category=CheckCategory.GIT)
+        config_check = DummyDoctorCheck(check_id="config.schema", category=CheckCategory.CONFIG)
+        doctor.registry.register(git_check)
+        doctor.registry.register(config_check)
+
+        report = doctor.run_diagnostics(categories=[CheckCategory.CONFIG])
+
+        assert_model_equal(
+            report,
+            DoctorReport.model_construct(
+                workspace_root=tmp_path.resolve(),
+                checks=[
+                    DiagnosticCheckResult.model_construct(
+                        check_id="config.schema",
+                        name="Dummy Doctor Check",
+                        category=CheckCategory.CONFIG,
+                        status=CheckStatus.OK,
+                        message="Executed config.schema",
+                        details={},
+                        duration_ms=0.5,
+                        error_code=None,
+                        errors=[],
+                        warnings=[],
+                        fixes=[],
+                    ),
+                ],
+                total_duration_ms=ANY_DURATION,
+            ),
+        )
+        assert len(report.checks) == 1
+        assert report.checks[0].check_id == "config.schema"

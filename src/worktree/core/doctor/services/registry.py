@@ -1,0 +1,29 @@
+"""Registry managing diagnostic check definitions."""
+
+from worktree.core.doctor.exceptions import CheckRegistrationError
+from worktree.core.doctor.models import CheckCategory, DiagnosticCheck
+
+
+class CheckRegistry:
+    """Registry managing diagnostic checks by unique check_id."""
+
+    def __init__(self) -> None:
+        self._checks: dict[str, DiagnosticCheck] = {}
+
+    def register(self, check: DiagnosticCheck) -> None:
+        """Register a diagnostic check, raising CheckRegistrationError on duplicate check_id."""
+        if check.check_id in self._checks:
+            raise CheckRegistrationError(f"Check with ID '{check.check_id}' is already registered.")
+        self._checks[check.check_id] = check
+
+    def get(self, check_id: str) -> DiagnosticCheck | None:
+        """Retrieve a registered check by unique check_id, or None if not registered."""
+        return self._checks.get(check_id)
+
+    def list_by_category(self, category: CheckCategory) -> list[DiagnosticCheck]:
+        """Return registered checks matching the specified category."""
+        return [c for c in self._checks.values() if c.category == category]
+
+    def all(self) -> list[DiagnosticCheck]:
+        """Return all registered checks."""
+        return list(self._checks.values())
