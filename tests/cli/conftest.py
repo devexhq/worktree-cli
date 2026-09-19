@@ -1,0 +1,26 @@
+"""Shared fixtures for CLI command integration tests across every command domain."""
+
+from __future__ import annotations
+
+from typing import Any
+
+import pytest
+
+from worktree.cli.ui.dispatcher import ui_dispatcher
+
+
+@pytest.fixture
+def dispatch_spy(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
+    """Capture every DTO a command handler passes to ui_dispatcher.dispatch during a CLI invocation.
+
+    Calls through to the real dispatcher, so exit code and rendered stdout still behave normally.
+    """
+    captured: list[Any] = []
+    original_dispatch = ui_dispatcher.dispatch
+
+    def _spy_dispatch(data: Any, **kwargs: Any) -> None:
+        captured.append(data)
+        original_dispatch(data, **kwargs)
+
+    monkeypatch.setattr(ui_dispatcher, "dispatch", _spy_dispatch)
+    return captured

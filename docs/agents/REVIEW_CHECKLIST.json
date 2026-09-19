@@ -341,8 +341,8 @@
       "severity": "BLOCKER",
       "domain": "tests",
       "scope": "tests/",
-      "evaluation_criteria": "Check every test file path against its source module using the fixed mappings. Flag part-numbered or grab-bag files (for example test_command_formatters_part1.py), missing __init__.py files, and source modules that are neither tested nor listed in PARITY_EXEMPT.",
-      "bad_pattern": "tests/cli/formatters/test_command_formatters_part1.py  # 12 formatters in one unmirrored file"
+      "evaluation_criteria": "Check every test file path against its source module using the fixed mappings. Flag part-numbered or grab-bag files (for example test_command_formatters_part1.py or a single test_<command>.py holding more than one command action), a CLI command test file left flat under tests/cli/ instead of nested under its own tests/cli/<command>/ subdirectory, missing __init__.py files, and source modules that are neither tested nor listed in PARITY_EXEMPT.",
+      "bad_pattern": "tests/cli/commands/test_sandbox_create.py  # flat under tests/cli/commands/, not nested under tests/cli/sandbox/"
     },
     {
       "id": "TEST-003",
@@ -466,8 +466,8 @@
       "name": "CLI Runner Assertion Boundary",
       "severity": "BLOCKER",
       "domain": "tests",
-      "scope": "tests/cli/commands/",
-      "evaluation_criteria": "Scan tests/cli/commands/ for containment or equality checks against stdout or rendered output; any literal assertion, including a snapshot comparison, is permitted. Flag only assertions against help text wording, and name the Click metadata check that should replace them.",
+      "scope": "tests/cli/",
+      "evaluation_criteria": "Scan each CLI command domain's test directory under tests/cli/<command>/ for containment or equality checks against stdout or rendered output; any literal assertion, including a snapshot comparison, is permitted. Flag only assertions against help text wording, and name the Click metadata check that should replace them.",
       "bad_pattern": "assert \"Show the current configuration value\" in res.output  # help text wording; assert Click metadata instead"
     },
     {
@@ -478,6 +478,15 @@
       "scope": "tests/core/",
       "evaluation_criteria": "Scan import statements in changed files under tests/core/. Flag any import of worktree.cli or a submodule of it.",
       "bad_pattern": "from worktree.cli.sandbox.commands.prune import prune_command  # imported from tests/core/sandbox/test_prune.py"
+    },
+    {
+      "id": "TEST-019",
+      "name": "Command Result DTO Spy Scope for CLI Integration Tests",
+      "severity": "BLOCKER",
+      "domain": "tests",
+      "scope": "tests/cli/",
+      "evaluation_criteria": "Inspect any dispatch-spy fixture use under tests/cli/. Verify every assertion made against a captured item is an instance of that command action's own declared Result type. Flag an assertion against any other dispatched event type captured by the same spy, and flag spy[0]/len(spy) == 1 relied on without isolating the command's own Result type for a command action that can plausibly dispatch more than its terminal result in the same invocation.",
+      "bad_pattern": "assert_model_equal(dispatch_spy[-1], MessageEvent(message=\"Running...\"))  # asserting an incidental progress event through the result spy"
     },
     {
       "id": "DOC-001",
