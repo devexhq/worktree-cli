@@ -1,1 +1,0 @@
-"""Catalog formatter tests."""
