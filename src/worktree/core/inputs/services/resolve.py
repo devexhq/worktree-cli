@@ -180,12 +180,12 @@ def _consume_one_token(
 ) -> bool:
     """Consume one CLI token. Returns False when parsing must stop."""
     token = args[state.index]
-    if _is_generic_input_token(token):
-        return _parse_generic_override(args, state, declarations)
-
     flag = _match_alias_token(token, aliases)
     if flag is not None:
         return _parse_alias_token(args, state, declarations, aliases, flag)
+
+    if _is_generic_input_token(token):
+        return _parse_generic_override(args, state, declarations)
 
     _warn_unknown_token(state, token)
     return True
