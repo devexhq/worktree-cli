@@ -181,3 +181,29 @@ class CatalogCreateResult(BaseResult):
     def ok(self) -> bool:
         """Return True if blueprint creation succeeded."""
         return not self.errors and self.item is not None
+
+
+class CatalogValidateStatus(StrEnum):
+    """Classified outcomes for validating a catalog blueprint or step definition."""
+
+    OK = "ok"
+    INVALID = "invalid"
+    SYNTAX_ERROR = "syntax_error"
+    NOT_FOUND = "not_found"
+    UNREADABLE = "unreadable"
+    TYPE_REQUIRED = "type_required"
+
+
+class CatalogValidateResult(BaseResult):
+    """Non-raising result of validating one catalog blueprint or step definition."""
+
+    status: CatalogValidateStatus
+    valid: bool
+    target: str
+    resolved_path: Path | None = None
+    item_type: str | None = None
+
+    @property
+    def ok(self) -> bool:
+        """Return True when the item is valid and carries no errors."""
+        return self.valid and not self.errors

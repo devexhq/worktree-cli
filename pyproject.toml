@@ -179,6 +179,7 @@ max-args = 5
 "src/worktree/core/engine/services/reconcile.py" = ["PLC0415"]
 "src/worktree/core/db/alembic/env.py" = ["PLC0415"]
 "src/worktree/core/catalog/services/inventory.py" = ["TID251"]
+"src/worktree/core/catalog/services/validate.py" = ["PLR0913"]
 "src/worktree/common/types.py" = ["TID251"]
 
 [tool.ruff.lint.isort]

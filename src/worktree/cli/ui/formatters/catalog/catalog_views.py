@@ -53,3 +53,19 @@ class CatalogShowView(BaseModel):
     errors: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     fixes: list[str] = Field(default_factory=list)
+
+
+class CatalogValidateView(BaseModel):
+    """Semantic view of catalog validate results."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    status: str
+    valid: bool
+    status_label: str
+    target: str
+    resolved_path: str | None = None
+    item_type: str | None = None
+    errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    fixes: list[str] = Field(default_factory=list)

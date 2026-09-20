@@ -130,6 +130,7 @@ All operations that can fail return a Pydantic result object subclassing `BaseRe
 - `CatalogItemType`: `StrEnum` (`workflow`, `task`, `step`, `template`).
 - `CatalogInventory`: Collection of scanned catalog items.
 - `SeedResult`: Template seeding outcome (`created_files`, `skipped_existing_files`, `overwritten_files`, `warnings`, `errors`, `ok`).
+- `CatalogValidateResult`: Result of validating a catalog blueprint or step definition without executing it (`status`, `valid`, `target`, `resolved_path`, `item_type`, `errors`, `warnings`, `ok`); `CatalogValidateStatus`: `StrEnum` (`ok`, `invalid`, `syntax_error`, `not_found`, `unreadable`, `type_required`).
 
 ### Database SQLModel Records
 **Relevant sources:** `src/worktree/core/db/models.py`.

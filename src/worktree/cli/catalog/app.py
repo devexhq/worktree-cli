@@ -1,11 +1,16 @@
+from typing import Annotated
+
 import typer
 
 from worktree.cli.context import CliContext
+from worktree.core.catalog.models import CatalogValidateStatus
+from worktree.core.db import CatalogItemType
 
 from .commands.catalog_create import catalog_create_command
 from .commands.catalog_delete import catalog_delete_command
 from .commands.catalog_list import catalog_list_command
 from .commands.catalog_show import catalog_show_command
+from .commands.catalog_validate import catalog_validate_command
 
 catalog_app = typer.Typer(
     name="catalog",
@@ -110,5 +115,32 @@ def catalog_delete(
     """Delete a catalog blueprint file and its database index record."""
     context: CliContext = ctx.obj["context"]
     result = catalog_delete_command(context, name, force=force, output_format=format)
+    if not result.ok:
+        raise typer.Exit(code=1)
+
+
+@catalog_app.command("validate")
+def catalog_validate(
+    ctx: typer.Context,
+    target: str = typer.Argument(..., help="Catalog item name, namespaced identifier, or file path to validate."),
+    type: Annotated[
+        CatalogItemType | None,
+        typer.Option("--type", help="Item type to validate against. Required when target is a file path."),
+    ] = None,
+    format: str = typer.Option(
+        "terminal",
+        "--format",
+        help="Presentation format ('terminal' or 'json').",
+    ),
+):
+    """Validate a catalog blueprint or step definition without executing it."""
+    context: CliContext = ctx.obj["context"]
+    result = catalog_validate_command(context, target, item_type=type, output_format=format)
+    if result.status in (
+        CatalogValidateStatus.NOT_FOUND,
+        CatalogValidateStatus.UNREADABLE,
+        CatalogValidateStatus.TYPE_REQUIRED,
+    ):
+        raise typer.Exit(code=2)
     if not result.ok:
         raise typer.Exit(code=1)

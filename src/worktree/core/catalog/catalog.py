@@ -24,6 +24,8 @@ from worktree.core.catalog.models import (
     CatalogResolveStatus,
     CatalogScanResult,
     CatalogShowResult,
+    CatalogValidateResult,
+    CatalogValidateStatus,
     DefinitionValidationOutcome,
     YamlParseOutcome,
 )
@@ -40,6 +42,7 @@ from worktree.core.catalog.services.seeder import (
     SeedResult,
     seed_all_catalog_templates,
 )
+from worktree.core.catalog.services.validate import validate_catalog_item
 from worktree.core.db import (
     CatalogItemType,
     CatalogRecord,
@@ -131,7 +134,7 @@ class Catalog:
     def resolve(self, name: str, item_type: CatalogItemType) -> CatalogResolveResult:
         """Load a task or blueprint YAML by SHA or catalog name."""
         """Reindex, find typed matches, and load the winning YAML object."""
-        scan_and_index_catalog(self.path, db=self.db)
+        self.sync()
         non_namespaced_name, namespace = self._split_name_and_namespace(name)
         matches = self._find_typed_matches(non_namespaced_name, [item_type], namespace=namespace)
         if not matches:
@@ -301,16 +304,20 @@ class Catalog:
             rel_path = Path(f"{type_enum.value}s") / f"{stem}.yml"
             target_path = catalog_dir / rel_path
             text = yaml.safe_dump(payload, sort_keys=False, allow_unicode=True, default_flow_style=False)
+
             if not text.endswith("\n"):
                 text += "\n"
             try:
                 Filesystem.atomic_write_text(target_path, text)
             except OSError as exc:
                 raise CatalogWriteError(f"Failed to write catalog blueprint '{target_path}': {exc}") from exc
-            scan_and_index_catalog(self.path, db=self.db)
+
+            self.sync()
+
             record = self._record_for_rel_path(rel_path)
             if record is None:
                 raise CatalogWriteError(f"Failed to reindex catalog blueprint '{rel_path.as_posix()}'.")
+
             return record
 
     def seed(self, *, force: bool = False) -> SeedResult:
@@ -318,8 +325,86 @@ class Catalog:
         return seed_all_catalog_templates(self.path, force=force)
 
     def sync(self) -> CatalogScanResult:
-        """Synchronize database index with on-disk YAML blueprints."""
+        """Synchronize database index with on-disk YAML blueprints.
+
+        Called automatically by every name/SHA-resolving method (``list``, ``resolve``, ``get``,
+        ``get_by_key``, ``save``, and ``validate`` for a catalog-name target) so a lookup always sees
+        the current contents of ``.worktree/catalog/``, never a stale index. ``validate`` is the one
+        exception within itself: a direct file-path target is inspected without calling ``get``/``sync``
+        at all, so validating a file never touches the index or acquires the workspace lock.
+        """
         return scan_and_index_catalog(self.path, db=self.db)
+
+    def validate(
+        self,
+        target: str,
+        *,
+        item_type: CatalogItemType | None = None,
+        blueprint_cls: type[_PydanticModel],
+        step_cls: type[_PydanticModel],
+    ) -> CatalogValidateResult:
+        """Validate a catalog blueprint or step definition without executing it.
+
+        A catalog-name target is resolved via ``get()``, which re-syncs the index first, like every
+        other name-based lookup on this class (see ``sync()``). A file-path target is inspected
+        directly and never touches the index.
+        """
+        resolution = self._resolve_validate_target(target, item_type=item_type)
+        if isinstance(resolution, CatalogValidateResult):
+            return resolution
+        return validate_catalog_item(
+            target,
+            repo_root=self.path,
+            resolved=resolution,
+            blueprint_cls=blueprint_cls,
+            step_cls=step_cls,
+        )
+
+    def _resolve_validate_target(
+        self,
+        target: str,
+        *,
+        item_type: CatalogItemType | None,
+    ) -> CatalogValidateResult | tuple[Path, str, str, list[str]]:
+        """Resolve target to (absolute_path, item_type_value, definition_key, warnings), or a terminal not-found/type-required result.
+
+        Kept on ``Catalog`` rather than in ``services/validate.py`` so the catalog-name branch can call
+        ``self.get()`` directly instead of duplicating its matching and duplicate-name-warning logic;
+        ``services/validate.py`` never imports ``Catalog``, which would create an import cycle
+        (``catalog.py`` already imports ``services/validate.py`` for the YAML/schema/semantic checks).
+        """
+        candidate = Path(target)
+        file_candidate = candidate if candidate.is_absolute() else self.path / candidate
+
+        if file_candidate.is_file():
+            if item_type is None:
+                return CatalogValidateResult(
+                    status=CatalogValidateStatus.TYPE_REQUIRED,
+                    valid=False,
+                    target=target,
+                    resolved_path=file_candidate,
+                    item_type=None,
+                    errors=[f"'--type' is required to validate file target '{target}' (CATALOG_TYPE_REQUIRED)."],
+                    warnings=[],
+                    fixes=["Pass --type blueprint or --type step for a file target."],
+                )
+            return file_candidate, item_type.value, file_candidate.stem, []
+
+        resolution = self.get(target)
+        if resolution.resolved is None:
+            return CatalogValidateResult(
+                status=CatalogValidateStatus.NOT_FOUND,
+                valid=False,
+                target=target,
+                resolved_path=None,
+                item_type=None,
+                errors=[f"Catalog item '{target}' not found (CATALOG_ITEM_NOT_FOUND)."],
+                warnings=[],
+                fixes=[f"Check that '{target}' names an indexed catalog item, or pass a file path instead."],
+            )
+
+        record = resolution.resolved
+        return self.root_dir / record.path, record.item_type.value, record.key, list(resolution.warnings)
 
     @staticmethod
     def list_packaged_templates() -> list[tuple[str, str]]:
