@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import click
 import pytest
 import yaml
 from typer.testing import CliRunner
@@ -77,7 +78,10 @@ class CatalogValidateCliIntegrationTests:
         )
 
         assert result.exit_code == 2
-        assert "'--type'" in result.output
+        # click.unstyle strips ANSI styling Typer applies to recognized --option tokens; without it this
+        # assertion is flaky, since GitHub Actions sets GITHUB_ACTIONS=1, which typer.rich_utils reads once
+        # at import time to force-style CLI usage errors even under Click's non-terminal test runner.
+        assert "'--type'" in click.unstyle(result.output)
 
     def test_catalog_validate_format_json_matches_wire_schema(
         self, cli_runner: CliRunner, isolated_workspace: Path
@@ -113,4 +117,4 @@ class CatalogValidateCliIntegrationTests:
         result = cli_runner.invoke(app, ["-p", str(isolated_workspace), "catalog", "validate"])
 
         assert result.exit_code == 2
-        assert "'target'" in result.output
+        assert "'target'" in click.unstyle(result.output)
