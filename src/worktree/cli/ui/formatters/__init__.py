@@ -7,6 +7,7 @@ from worktree.cli.ui.formatters.catalog import (
     CatalogDeleteFormatter,
     CatalogListFormatter,
     CatalogShowFormatter,
+    CatalogValidateFormatter,
 )
 from worktree.cli.ui.formatters.common import (
     DispatcherProtocol,
@@ -71,6 +72,7 @@ __all__ = [
     "CatalogDeleteFormatter",
     "CatalogListFormatter",
     "CatalogShowFormatter",
+    "CatalogValidateFormatter",
     "ConfigLoadFormatter",
     "ConfigSetFormatter",
     "ConfigShowFormatter",

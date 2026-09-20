@@ -15,6 +15,8 @@ from worktree.core.catalog.models import (
     CatalogResolveResult,
     CatalogResolveStatus,
     CatalogShowResult,
+    CatalogValidateResult,
+    CatalogValidateStatus,
 )
 
 __all__ = [
@@ -28,6 +30,8 @@ __all__ = [
     "CatalogResolveResult",
     "CatalogResolveStatus",
     "CatalogShowResult",
+    "CatalogValidateResult",
+    "CatalogValidateStatus",
     "CatalogWriteError",
     "CatalogYamlError",
 ]

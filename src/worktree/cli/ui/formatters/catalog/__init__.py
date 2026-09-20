@@ -6,11 +6,13 @@ from .catalog_create import CatalogCreateFormatter
 from .catalog_delete import CatalogDeleteFormatter
 from .catalog_list import CatalogListFormatter
 from .catalog_show import CatalogShowFormatter
+from .catalog_validate import CatalogValidateFormatter
 from .catalog_views import (
     CatalogItemView,
     CatalogListView,
     CatalogShowView,
     CatalogTemplateView,
+    CatalogValidateView,
 )
 
 __all__ = [
@@ -22,4 +24,6 @@ __all__ = [
     "CatalogShowFormatter",
     "CatalogShowView",
     "CatalogTemplateView",
+    "CatalogValidateFormatter",
+    "CatalogValidateView",
 ]

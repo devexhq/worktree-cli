@@ -2,6 +2,10 @@
 
 The `wt catalog` command manages project blueprint templates for workflows, tasks, and steps. Catalog blueprints are stored as YAML files under `.worktree/catalog/` and indexed into the SQLite database (`.worktree/data.db`).
 
+## Auto-sync
+
+`wt catalog list`, `wt catalog show`, `wt catalog delete`, and `wt catalog validate <catalog-name>` all re-synchronize the SQLite index against `.worktree/catalog/` before resolving their target, so a lookup always reflects files added, edited, or removed on disk since the last run — there is no separate sync step to run first. `wt catalog create` indexes the new file it just wrote. The one exception is `wt catalog validate <file-path>`: validating a direct file path is read-only and never touches the index.
+
 ## Catalog Directory Structure
 
 ```text
@@ -102,4 +106,38 @@ wt catalog delete <sha_or_name> [OPTIONS]
 
 ```bash
 wt catalog delete my-feature --force
+```
+
+### `wt catalog validate`
+
+Validates a catalog blueprint or step definition (YAML syntax, schema, and semantic invariants such as duplicate step IDs, undeclared input placeholders, and unsafe `script_path` values) without executing it:
+
+```bash
+wt catalog validate <target> [--type blueprint|step] [--format terminal|json]
+```
+
+#### Arguments
+
+- `target`: A catalog item name or namespaced identifier (e.g. `commit-plan`, `wt/fix-tests`), or a relative/absolute file path.
+
+#### Options
+
+- `--type [blueprint|step]`: The item type to validate `target` against. Required only when `target` resolves to a file path rather than an indexed catalog name — a file has no catalog record to read the type from. Ignored for a catalog-name target, since the item type is already known from the matched record.
+- `--format [terminal|json]`: Presentation format (`terminal` or `json`).
+
+#### Exit codes
+
+- `0`: Validation passed (warnings permitted).
+- `1`: Validation failed (YAML syntax error, schema violation, or a broken invariant such as a duplicate step ID or unsafe `script_path`).
+- `2`: Validation could not run at all — the target was not found, the file was unreadable, or a file target was given without the required `--type`.
+
+```bash
+# Validate an indexed blueprint by catalog name
+wt catalog validate commit-plan
+
+# Validate a step file not yet indexed in the catalog
+wt catalog validate .worktree/catalog/steps/run-pytest.yml --type step
+
+# Output structured NDJSON envelope
+wt catalog validate commit-plan --format json
 ```

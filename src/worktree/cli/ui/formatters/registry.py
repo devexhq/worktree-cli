@@ -49,6 +49,7 @@ FORMATTER_REGISTRY: Final[dict[type[BaseModel], type[ComponentFormatter[Any, Any
     catalog_models.CatalogShowResult: catalog_formatters.CatalogShowFormatter,
     catalog_models.CatalogDeleteResult: catalog_formatters.CatalogDeleteFormatter,
     catalog_models.CatalogCreateResult: catalog_formatters.CatalogCreateFormatter,
+    catalog_models.CatalogValidateResult: catalog_formatters.CatalogValidateFormatter,
     # Config
     config_models.ConfigLoadResult: config_formatters.ConfigLoadFormatter,
     config_models.WorktreeConfig: config_formatters.ConfigShowFormatter,
