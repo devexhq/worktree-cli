@@ -1,8 +1,11 @@
 """Registry managing diagnostic check definitions."""
 
+from worktree.core.doctor.checks.agent_setup import AgentSetupCheck
 from worktree.core.doctor.checks.config_schema import ConfigSchemaCheck
+from worktree.core.doctor.checks.env_binaries import EnvBinariesCheck
 from worktree.core.doctor.checks.filesystem_writable import FilesystemWritableCheck
 from worktree.core.doctor.checks.git_repo import GitRepoCheck
+from worktree.core.doctor.checks.sandbox_refs import SandboxRefsCheck
 from worktree.core.doctor.exceptions import CheckRegistrationError
 from worktree.core.doctor.models import CheckCategory, DiagnosticCheck
 
@@ -38,4 +41,7 @@ def get_default_registry() -> CheckRegistry:
     registry.register(GitRepoCheck())
     registry.register(ConfigSchemaCheck())
     registry.register(FilesystemWritableCheck())
+    registry.register(SandboxRefsCheck())
+    registry.register(EnvBinariesCheck())
+    registry.register(AgentSetupCheck())
     return registry
