@@ -235,3 +235,25 @@ class InputFlagResolutionTests:
                 fixes=[],
             ),
         )
+
+    def test_resolve_prioritizes_declared_alias_matching_generic_flag(self) -> None:
+        """Resolve declared '-i' flag alias onto target input instead of treating as generic override."""
+        inputs = {
+            "issue": ParameterInput(
+                type=InputType.STRING,
+                required=True,
+                aliases=["-i", "--issue"],
+            ),
+        }
+        result = resolve_inputs(inputs, cli_args=["-i", "616"])
+
+        assert_model_equal(
+            result,
+            InputResolveResult(
+                values={"issue": "616"},
+                missing=[],
+                errors=[],
+                warnings=[],
+                fixes=[],
+            ),
+        )
