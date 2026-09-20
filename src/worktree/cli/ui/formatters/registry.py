@@ -10,6 +10,7 @@ import worktree.cli.ui.events as event_models
 import worktree.cli.ui.formatters.catalog as catalog_formatters
 import worktree.cli.ui.formatters.config as config_formatters
 import worktree.cli.ui.formatters.diff as diff_formatters
+import worktree.cli.ui.formatters.doctor as doctor_formatters
 import worktree.cli.ui.formatters.events as event_formatters
 import worktree.cli.ui.formatters.global_cli as global_formatters
 import worktree.cli.ui.formatters.history as history_formatters
@@ -20,6 +21,7 @@ import worktree.core.bootstrap as bootstrap_models
 import worktree.core.catalog as catalog_models
 import worktree.core.config as config_models
 import worktree.core.diff as diff_models
+import worktree.core.doctor as doctor_models
 import worktree.core.history as history_models
 import worktree.core.sandbox as sandbox_models
 import worktree.core.status as status_models
@@ -54,6 +56,8 @@ FORMATTER_REGISTRY: Final[dict[type[BaseModel], type[ComponentFormatter[Any, Any
     config_models.ConfigSetResult: config_formatters.ConfigSetFormatter,
     # Diff
     diff_models.DiffResult: diff_formatters.DiffResultFormatter,
+    # Doctor
+    doctor_models.DoctorReport: doctor_formatters.DoctorReportFormatter,
     # History
     history_models.HistoryListResult: history_formatters.HistoryListFormatter,
     history_models.HistoryShowResult: history_formatters.HistoryShowFormatter,

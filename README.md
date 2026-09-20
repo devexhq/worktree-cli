@@ -51,6 +51,7 @@ wt history
 - `wt init`
 - `wt status`
 - `wt diff [session-id]` — view syntax-highlighted session diff
+- `wt doctor` — run diagnostic checks and print a workspace health report
 - `wt run <blueprint>` — execute a task or workflow blueprint
 - `wt resume <session-id>` — resume a paused run
 - `wt history [show <session-id>]` — list or inspect past runs
