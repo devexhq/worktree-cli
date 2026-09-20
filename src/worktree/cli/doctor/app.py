@@ -1,0 +1,55 @@
+"""Typer CLI entrypoint for ``wt doctor``."""
+
+from __future__ import annotations
+
+from typing import Annotated
+
+import typer
+
+from worktree.cli.context import CliContext
+from worktree.common.filesystem import Filesystem
+from worktree.core.config import Config
+from worktree.core.db.facade import WorktreeDb
+from worktree.core.doctor import CheckCategory
+
+from .commands.root import doctor_command
+
+doctor_app = typer.Typer(
+    name="doctor",
+    help="Run registered diagnostic checks and print a scannable workspace health report.",
+    invoke_without_command=True,
+)
+
+
+@doctor_app.callback(invoke_without_command=True)
+def doctor_callback(
+    ctx: typer.Context,
+    category: Annotated[
+        CheckCategory | None,
+        typer.Option(
+            "--category",
+            help="Restrict execution to a single check category "
+            "(git, config, filesystem, sandbox, agent, environment).",
+            case_sensitive=False,
+        ),
+    ] = None,
+    format: str = typer.Option(
+        "terminal",
+        "--format",
+        help="Presentation format ('terminal' or 'json').",
+    ),
+) -> None:
+    """Run registered diagnostic checks, dispatch the report, and exit 1 when any check failed."""
+    context: CliContext | None = ctx.obj.get("context") if ctx.obj else None
+    if context is None:
+        target_path = ctx.obj.get("path") if ctx.obj else None
+        fs = Filesystem.configure(target_path)
+        Config.configure(target_path)
+        cwd = fs.root_dir
+        context = CliContext(cwd=cwd, db=WorktreeDb(path=cwd), fs=fs)
+
+    categories = [category] if category is not None else None
+    result = doctor_command(context, categories=categories, output_format=format)
+
+    if not result.ok:
+        raise typer.Exit(code=1)

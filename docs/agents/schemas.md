@@ -172,6 +172,7 @@ All operations that can fail return a Pydantic result object subclassing `BaseRe
   - `DOCTOR_BINARY_MISSING`: Configured provider binary is missing from `PATH`.
   - `DOCTOR_AGENT_KEY_MISSING`: Required API key environment variable is missing.
   - `DOCTOR_AGENT_NO_MODEL`: Agent provider model is not configured.
+- `DoctorCheckView`, `DoctorReportView` (`src/worktree/cli/ui/formatters/doctor/doctor_views.py`): CLI presentation reshaping of `DiagnosticCheckResult`/`DoctorReport` for `wt doctor`, field for field.
 
 ---
 
@@ -234,6 +235,7 @@ Each CLI command package under `src/worktree/cli/<name>/` contains:
 - `wt sandbox`: Manage git worktree sandboxes (`create`, `list`, `show`, `delete`, `prune`, `apply`).
 - `wt history`: Query past run records (`history`, `history show`).
 - `wt diff`: Show uncommitted or session diffs.
+- `wt doctor`: Run registered diagnostic checks and print a scannable workspace health report (`--category`, `--format`).
 
 ---
 

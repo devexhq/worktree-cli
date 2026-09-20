@@ -11,6 +11,7 @@ from worktree.cli.catalog.app import catalog_app
 from worktree.cli.config.app import config_app
 from worktree.cli.context import CliContext, default_lock_wait_notifier
 from worktree.cli.diff.app import register_diff_command
+from worktree.cli.doctor.app import doctor_app
 from worktree.cli.history.app import history_app
 from worktree.cli.init.app import init_app
 from worktree.cli.resume.app import resume_app
@@ -52,6 +53,7 @@ app = typer.Typer(
 app.add_typer(catalog_app, name="catalog")
 app.add_typer(config_app, name="config")
 register_diff_command(app)
+app.add_typer(doctor_app, name="doctor")
 app.add_typer(history_app, name="history")
 app.add_typer(init_app, name="init")
 app.add_typer(resume_app, name="resume")
@@ -121,7 +123,7 @@ def main(
         )
 
     # 2. Edge validation & exclusion list
-    excluded_commands = {"config", "init", "install", "status"}
+    excluded_commands = {"config", "doctor", "init", "install", "status"}
     if ctx.invoked_subcommand not in excluded_commands and not ctx.obj.get("is_help", False):
         try:
             ctx.obj["context"] = CliContext.build(path=path)
