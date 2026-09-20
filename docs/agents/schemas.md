@@ -156,6 +156,9 @@ All operations that can fail return a Pydantic result object subclassing `BaseRe
   - `git.repo` (`GitRepoCheck`): validates the `git` binary is on `PATH` and `context.cwd` is a Git repository.
   - `config.schema` (`ConfigSchemaCheck`): validates `.worktree/config.json` exists and passes schema V1 validation.
   - `filesystem.writable` (`FilesystemWritableCheck`): probes write access across `PathsConfig`-declared directories.
+  - `sandbox.refs` (`SandboxRefsCheck`): validates registered sandbox directories against `SandboxesRepository` and Git worktree state.
+  - `env.binaries` (`EnvBinariesCheck`): validates required host and active agent provider CLI binaries are on `PATH`.
+  - `agent.setup` (`AgentSetupCheck`): validates the active agent provider's credential and configured model.
 - Error codes:
   - `DOCTOR_CHECK_CRASH`: Diagnostic check threw an unhandled exception during execution.
   - `DOCTOR_GIT_BINARY_MISSING`: `git` executable not found on `PATH`.
@@ -164,6 +167,11 @@ All operations that can fail return a Pydantic result object subclassing `BaseRe
   - `DOCTOR_CONFIG_MALFORMED`: `.worktree/config.json` contains invalid JSON syntax.
   - `DOCTOR_CONFIG_SCHEMA_INVALID`: `.worktree/config.json` fails schema V1 validation, has a non-object root, is a directory, or is unreadable.
   - `DOCTOR_FS_UNWRITABLE`: One or more configured workspace paths rejected a probe write.
+  - `DOCTOR_SANDBOX_STALE`: Stale or broken sandbox references detected.
+  - `DOCTOR_SANDBOX_ORPHAN`: Unregistered sandbox worktree folders found.
+  - `DOCTOR_BINARY_MISSING`: Configured provider binary is missing from `PATH`.
+  - `DOCTOR_AGENT_KEY_MISSING`: Required API key environment variable is missing.
+  - `DOCTOR_AGENT_NO_MODEL`: Agent provider model is not configured.
 
 ---
 

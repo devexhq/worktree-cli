@@ -71,7 +71,7 @@ src/worktree/schemas/v1/             Packaged, versioned JSON Schemas (config.js
 Dependencies flow one way down the stack; do not import upward:
 
 ```
-common/  ->  core/{db,git,sandbox,catalog,inputs,patch,history,diff,status,doctor}/  ->  core/agents/  ->  core/step/  ->  {core/runtime/, core/blueprint/}  ->  core/engine/  ->  cli/
+common/  ->  core/{db,git,sandbox,catalog,inputs,patch,history,diff,status}/  ->  core/agents/  ->  core/doctor/  ->  core/step/  ->  {core/runtime/, core/blueprint/}  ->  core/engine/  ->  cli/
 ```
 
 - `common/` never depends on `core/` or `cli/`.

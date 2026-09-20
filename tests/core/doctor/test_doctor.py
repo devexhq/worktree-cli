@@ -10,9 +10,12 @@ from worktree.core.config.models import (
     WorktreeConfig,
 )
 from worktree.core.config.serialize import serialize_config
+from worktree.core.doctor.checks.agent_setup import AgentSetupCheck
 from worktree.core.doctor.checks.config_schema import ConfigSchemaCheck
+from worktree.core.doctor.checks.env_binaries import EnvBinariesCheck
 from worktree.core.doctor.checks.filesystem_writable import FilesystemWritableCheck
 from worktree.core.doctor.checks.git_repo import GitRepoCheck
+from worktree.core.doctor.checks.sandbox_refs import SandboxRefsCheck
 from worktree.core.doctor.doctor import Doctor
 from worktree.core.doctor.models import (
     CheckCategory,
@@ -217,15 +220,18 @@ class DoctorDefaultRegistryTests:
     """Unit tests for Doctor.__init__ registry default-wiring."""
 
     def test_init_without_registry_uses_default_registry_with_all_builtin_checks(self, tmp_path: Path) -> None:
-        """[tier-1/unit] Doctor.__init__: called with no registry argument -> self.registry has the 3 built-in checks."""
+        """[tier-1/unit] Doctor.__init__: called with no registry argument -> self.registry has the 6 built-in checks."""
         doctor = Doctor(tmp_path)
 
         checks = doctor.registry.all()
 
-        assert len(checks) == 3
+        assert len(checks) == 6
         assert isinstance(doctor.registry.get("git.repo"), GitRepoCheck)
         assert isinstance(doctor.registry.get("config.schema"), ConfigSchemaCheck)
         assert isinstance(doctor.registry.get("filesystem.writable"), FilesystemWritableCheck)
+        assert isinstance(doctor.registry.get("sandbox.refs"), SandboxRefsCheck)
+        assert isinstance(doctor.registry.get("env.binaries"), EnvBinariesCheck)
+        assert isinstance(doctor.registry.get("agent.setup"), AgentSetupCheck)
 
     def test_init_with_explicit_registry_does_not_use_default_registry(self, tmp_path: Path) -> None:
         """[tier-1/unit] Doctor.__init__: called with registry=CheckRegistry() -> self.registry stays that empty instance."""
