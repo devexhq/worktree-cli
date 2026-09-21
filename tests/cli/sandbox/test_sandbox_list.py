@@ -90,5 +90,12 @@ class SandboxListCliIntegrationTests:
         assert result.exit_code == 0
         assert json.loads(result.stdout) == {
             "event_type": "SandboxListResult",
-            "payload": {"status": "ok", "sandboxes": [], "errors": [], "warnings": [], "fixes": []},
+            "payload": {
+                "status": "ok",
+                "sandboxes": [],
+                "errors": [],
+                "warnings": [],
+                "fixes": [],
+                "error_code": None,
+            },
         }

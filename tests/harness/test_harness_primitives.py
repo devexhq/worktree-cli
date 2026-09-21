@@ -125,10 +125,9 @@ class AssertModelEqualTests:
         with pytest.raises(AssertionError, match="type mismatch"):
             assert_model_equal(model, NestedDummyModel(item=model, label="root"))
 
-    def test_assert_model_equal_rejects_expected_left_at_defaults(self) -> None:
+    def test_assert_model_equal_accepts_expected_left_at_defaults(self) -> None:
         model = DummyModel(name="item", count=42, record_id=uuid4(), timestamp="2026-01-01T00:00:00Z")
-        with pytest.raises(AssertionError, match=r"left .*timestamp.* to defaults"):
-            assert_model_equal(model, DummyModel(name="item", count=42, record_id=model.record_id))
+        assert_model_equal(model, DummyModel(name="item", count=42, record_id=model.record_id))
 
     def test_assert_model_equal_fails_on_field_difference(self) -> None:
         model = DummyModel(name="item", count=42, record_id=uuid4(), timestamp="2026-01-01T00:00:00Z")

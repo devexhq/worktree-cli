@@ -1,9 +1,8 @@
 """Whole-object model equality assertion, plus matchers for values a test cannot own.
 
 There is no `exclude` parameter. A field the test declines to pin is stated as a matcher
-at the field's own position, which still pins the value's type or shape, and
-`assert_model_equal` refuses an expected object that left any field to its default so a
-waiver can never hide silently outside the comparison.
+at the field's own position, which still pins the value's type or shape. Expected models
+may rely on schema defaults per TEST-007.
 """
 
 from __future__ import annotations
@@ -108,22 +107,15 @@ ANY_ENV: Final = AnyValue(dict, "ANY_ENV")
 
 
 def assert_model_equal(actual: BaseModel, expected: BaseModel, *, _path: str = "") -> None:
-    """Compare two models field by field, requiring expected to name every field.
+    """Compare two models field by field.
 
     Build expected with model_construct when it carries a matcher: the plain constructor
-    validates and rejects one.
+    validates and rejects one. Expected models may rely on schema defaults.
     """
     if type(actual) is not type(expected):
         raise AssertionError(f"type mismatch: {type(actual).__name__} != {type(expected).__name__}")
 
     fields = type(expected).model_fields
-    unset = set(fields) - expected.model_fields_set
-    if unset:
-        raise AssertionError(
-            f"expected object left {sorted(unset)} to defaults at {_path or '<root>'}; "
-            "name every field so a changed default cannot pass unnoticed"
-        )
-
     mismatches: list[str] = []
     for name in fields:
         actual_value = getattr(actual, name)

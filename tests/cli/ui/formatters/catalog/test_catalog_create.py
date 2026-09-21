@@ -61,6 +61,7 @@ CATALOG_CREATE_PAYLOAD_CASES = [
             "errors": [],
             "warnings": [],
             "fixes": [],
+            "error_code": None,
             "item": {
                 "id": 1,
                 "key": "test-blueprint",
@@ -82,6 +83,7 @@ CATALOG_CREATE_PAYLOAD_CASES = [
             "errors": ["Naming collision on blueprint."],
             "warnings": [],
             "fixes": ["Choose a different name"],
+            "error_code": None,
             "item": None,
         },
         id="creation_error",

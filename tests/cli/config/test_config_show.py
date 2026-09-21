@@ -103,6 +103,7 @@ class ConfigShowCliIntegrationTests:
                 "errors": [],
                 "warnings": [],
                 "fixes": [],
+                "error_code": None,
             },
         }
 

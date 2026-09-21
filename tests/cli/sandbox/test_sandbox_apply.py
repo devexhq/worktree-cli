@@ -106,5 +106,6 @@ class SandboxApplyCliIntegrationTests:
                 "errors": [],
                 "warnings": [],
                 "fixes": [],
+                "error_code": None,
             },
         }

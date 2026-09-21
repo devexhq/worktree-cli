@@ -174,6 +174,7 @@ class SandboxDeleteCliIntegrationTests:
                 "errors": [],
                 "warnings": [],
                 "fixes": [],
+                "error_code": None,
             },
         }
 
@@ -216,6 +217,7 @@ class SandboxDeleteCliIntegrationTests:
                 "errors": ["Aborted."],
                 "warnings": [],
                 "fixes": [],
+                "error_code": None,
             },
         }
 
@@ -239,5 +241,6 @@ class SandboxDeleteCliIntegrationTests:
                 "errors": ["Sandbox 'missing-id' not found."],
                 "warnings": [],
                 "fixes": ["Run `wt sandbox list` to see known sandboxes"],
+                "error_code": None,
             },
         }

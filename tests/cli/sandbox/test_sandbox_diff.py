@@ -126,5 +126,6 @@ class SandboxDiffCliIntegrationTests:
                 "errors": [],
                 "warnings": [],
                 "fixes": [],
+                "error_code": None,
             },
         }

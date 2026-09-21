@@ -112,5 +112,6 @@ class SandboxShowCliIntegrationTests:
                 "errors": [],
                 "warnings": [],
                 "fixes": [],
+                "error_code": None,
             },
         }

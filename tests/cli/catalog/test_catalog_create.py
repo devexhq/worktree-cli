@@ -242,6 +242,7 @@ class CatalogCreateCliIntegrationTests:
                 "errors": [],
                 "warnings": [],
                 "fixes": [],
+                "error_code": None,
             },
         }
 
