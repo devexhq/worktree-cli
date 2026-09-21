@@ -194,7 +194,7 @@ For destructive or unreachable error paths (e.g. atomic write `OSError`), patch 
 
 ### Assertion contracts (TEST-001, TEST-007)
 
-- `BaseResult`/`BaseModel`: assert every field via `assert_model_equal`.
+- `BaseResult`/`BaseModel`: assert relevant domain fields and invariants; reserve whole-schema pinning for dedicated model contract tests.
 - Scalar values: assert exact return values.
 - Event sequences: assert the full ordered list.
 - Ordering: assert filesystem or state artifacts proving sequence.
@@ -235,7 +235,7 @@ Verify before presenting output:
 | Sibling contract variations parameterised | TEST-006 |
 | Method names follow `test_<condition>_<outcome>` with no banned names | TEST-003 |
 | No assertions on call counts, private state, or console layout | TEST-001 |
-| BaseModel assertions check all fields | TEST-007 |
+| Model assertions check domain invariants; dedicated contract tests pin schema | TEST-007 |
 | Test file path mirrors source under `tests/` | TEST-002 |
 
 ---

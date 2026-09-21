@@ -132,7 +132,7 @@ Write this to `.agentic/review.md` (create `.agentic/` if needed), overwriting t
 
 | Rule ID | Clause | Severity | Status | Evidence (quoted) |
 |---|---|---|---|---|
-| `TEST-007` | no waiver outside the comparison | SUGGESTION | FAIL | `tests/core/config/test_loader.py:134` reads `assert_model_equal(result, expected, exclude={"errors"})`; `errors` is deterministic and the parameter no longer exists |
+| `TEST-007` | assert relevant domain invariants | SUGGESTION | FAIL | `tests/cli/sandbox/test_diff.py:88` mechanically asserts empty default envelope fields instead of targeted domain invariants |
 | `TEST-011` | no wall-clock sleeps | BLOCKER | FAIL | `tests/core/step/test_process_group.py:58` reads `time.sleep(0.05)` |
 
 ### Plan fidelity
