@@ -55,6 +55,7 @@ FORMATTER_REGISTRY: Final[dict[type[BaseModel], type[ComponentFormatter[Any, Any
     config_models.WorktreeConfig: config_formatters.ConfigShowFormatter,
     config_models.ConfigValidationResult: config_formatters.ConfigValidateFormatter,
     config_models.ConfigSetResult: config_formatters.ConfigSetFormatter,
+    config_models.ConfigUnsetResult: config_formatters.ConfigUnsetFormatter,
     # Diff
     diff_models.DiffResult: diff_formatters.DiffResultFormatter,
     # Doctor

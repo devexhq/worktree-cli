@@ -7,6 +7,7 @@ from worktree.core.db.facade import WorktreeDb
 
 from .commands.config_set import config_set_command
 from .commands.config_show import config_show_command
+from .commands.config_unset import config_unset_command
 from .commands.config_validate import config_validate_command
 
 config_app = typer.Typer(
@@ -63,6 +64,26 @@ def config_set(
     """Set a configuration value by key or nested dot-path."""
     context = _get_or_build_context(ctx)
     result = config_set_command(context, key, value, output_format=format)
+    if not result.ok:
+        raise typer.Exit(code=1)
+
+
+@config_app.command("unset")
+def config_unset(
+    ctx: typer.Context,
+    key: str = typer.Argument(
+        ...,
+        help="Config key or nested dot-path (e.g. agent.model).",
+    ),
+    format: str = typer.Option(
+        "terminal",
+        "--format",
+        help="Presentation format ('terminal' or 'json').",
+    ),
+):
+    """Remove a configuration value by key or nested dot-path, falling back to its schema default."""
+    context = _get_or_build_context(ctx)
+    result = config_unset_command(context, key, output_format=format)
     if not result.ok:
         raise typer.Exit(code=1)
 

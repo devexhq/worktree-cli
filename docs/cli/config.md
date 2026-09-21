@@ -38,6 +38,30 @@ wt config set agent.model llama3.1
 wt config set sandbox.default_branch_prefix "agent/"
 ```
 
+### `wt config unset`
+
+Removes a configuration value at a dot-path key, falling back to its schema default on next load:
+
+```bash
+wt config unset <key>
+```
+
+#### Arguments
+
+- `key`: Key or nested dot-path (e.g. `agent.model`, `telemetry.enabled`).
+
+#### Examples
+
+```bash
+# Remove a custom model override, falling back to the schema default
+wt config unset agent.model
+
+# Remove an entire section, falling back to its section defaults
+wt config unset agent
+```
+
+Removing a key that is already absent is a no-op and exits successfully without writing to disk.
+
 ### `wt config validate`
 
 Validates `.worktree/config.json` against the Worktree V1 JSON Schema and semantic rules:

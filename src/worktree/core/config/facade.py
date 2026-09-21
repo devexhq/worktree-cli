@@ -7,9 +7,11 @@ from typing import Any
 
 from worktree.common.filesystem import Filesystem
 from worktree.core.config.exceptions import ConfigLoadError
-from worktree.core.config.generator import ConfigGenerationResult
+from worktree.core.config.generator import ConfigGenerationResult, generate_default_config
 from worktree.core.config.loader import (
     ConfigLoadResult,
+    clear_config_cache,
+    load_config,
 )
 from worktree.core.config.models import (
     AgentConfig,
@@ -25,11 +27,15 @@ from worktree.core.config.models import (
 )
 from worktree.core.config.mutate import (
     ConfigSetResult,
+    ConfigUnsetResult,
+    set_config_value_result,
+    unset_config_value_result,
 )
 from worktree.core.config.parser import parse_config_value
 from worktree.core.config.serialize import as_json, serialize_config
 from worktree.core.config.validate import (
     ConfigValidationResult,
+    validate_config_result,
 )
 
 
@@ -72,8 +78,6 @@ class Config:
     @classmethod
     def reset(cls) -> None:
         """Reset the singleton instance and clear in-memory config loader caches."""
-        from worktree.core.config.loader import clear_config_cache
-
         clear_config_cache()
         cls._instance = None
 
@@ -84,24 +88,25 @@ class Config:
 
     def load(self, *, config_path: Path | None = None) -> ConfigLoadResult:
         """Load and parse ``config.json`` returning a structured result."""
-        from worktree.core.config.loader import load_config
-
         target_cfg = config_path if config_path is not None else self._fs.config_file
         return load_config(path=self._fs.root_dir, config_path=target_cfg)
 
     def validate(self, *, config_path: Path | None = None) -> ConfigValidationResult:
         """Validate ``config.json`` against schema constraints and return structured report."""
-        from worktree.core.config.validate import validate_config_result
-
         target_cfg = config_path if config_path is not None else self._fs.config_file
         return validate_config_result(path=self._fs.root_dir, config_path=target_cfg)
 
     def set(self, key: str, value: Any) -> ConfigSetResult:
         """Set a dot-path configuration key and persist to disk."""
-        from worktree.core.config.mutate import set_config_value_result
-
         parsed_value = self.parse_value(value) if isinstance(value, str) else value
         result = set_config_value_result(key, parsed_value, path=self._fs.root_dir)
+        if result.ok:
+            self._cached_config = None
+        return result
+
+    def unset(self, key: str) -> ConfigUnsetResult:
+        """Remove a dot-path configuration key and persist to disk."""
+        result = unset_config_value_result(key, path=self._fs.root_dir)
         if result.ok:
             self._cached_config = None
         return result
@@ -114,8 +119,6 @@ class Config:
         project_name: str | None = None,
     ) -> ConfigGenerationResult:
         """Generate a default ``config.json`` file in workspace."""
-        from worktree.core.config.generator import generate_default_config
-
         p_name = project_name or self._fs.root_dir.name
         cfg_path = self._fs.config_file
         result = generate_default_config(cfg_path, p_name, overwrite=overwrite, repair=repair)
@@ -224,3 +227,8 @@ class Config:
     def set_value(cls, path: Path, key: str, value: Any) -> ConfigSetResult:
         """Helper to set config value at specified path."""
         return cls(path).set(key, value)
+
+    @classmethod
+    def unset_value(cls, path: Path, key: str) -> ConfigUnsetResult:
+        """Helper to unset config value at specified path."""
+        return cls(path).unset(key)

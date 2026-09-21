@@ -80,6 +80,7 @@ All operations that can fail return a Pydantic result object subclassing `BaseRe
 - `ConfigLoadResult`: Result of loading and validating `.worktree/config.json` (`status`, `config_path`, `raw`, `config`, `errors`, `ok`).
 - `ConfigValidationResult`: Result of semantic config validation (`status`, `config_path`, `raw`, `config`, `errors`, `warnings`, `ok`).
 - `ConfigSetResult`: Result of mutating a dot-path key in config (`status`, `config_path`, `key`, `value`, `errors`, `ok`).
+- `ConfigUnsetResult`: Result of removing a dot-path key from config (`status`, `config_path`, `key`, `existed`, `previous_value`, `errors`, `ok`).
 - `ConfigGenerationResult`: Result of creating, repairing, or overwriting config (`created`, `skipped_existing`, `repaired`, `overwritten`, `inserted_keys`, `warnings`, `errors`, `ok`).
 
 ### Blueprint & Step Models
@@ -195,7 +196,7 @@ Each core domain exposes a cohesive facade class that encapsulates domain servic
 | `Bootstrap` | `core/bootstrap/facade.py` | Idempotent workspace initialization and repair (`ensure_workspace`, `initialize_workspace`). |
 | `GitRunner` | `core/git/runner.py` | Low-level git CLI execution (`run`, `worktree_add`, `worktree_remove`, `worktree_list`, `diff`). |
 | `Sandbox` | `core/sandbox/facade.py` | Worktree sandbox lifecycle (`create`, `show`, `list`, `delete`, `prune`, `apply`, `diff`). |
-| `Config` | `core/config/facade.py` | Config loading, validation, generation, and mutation (`load`, `validate`, `set`, `generate`, `show`). |
+| `Config` | `core/config/facade.py` | Config loading, validation, generation, and mutation (`load`, `validate`, `set`, `unset`, `generate`, `show`). |
 | `WorktreeDb` | `core/db/facade.py` | Central database access point (`sandboxes`, `runs`, `catalog`, `costs` repositories). |
 | `Inputs` | `core/inputs/facade.py` | Input flag parsing, default resolution, and placeholder interpolation (`parse_args`, `resolve`, `interpolate`). |
 | `Catalog` | `core/catalog/facade.py` | Template scanning, indexing, retrieval, and seeding (`list_items`, `get_item`, `seed_templates`, `scan_and_index`). |

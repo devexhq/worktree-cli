@@ -60,6 +60,7 @@ wt history
 
 - `wt config show`
 - `wt config set <key> <value>`
+- `wt config unset <key>`
 - `wt config validate`
 
 ### Catalog
