@@ -81,9 +81,9 @@ Static AST analysis and architectural boundary enforcement: layer isolation, out
 - **Fluent builders** (`tests/harness/builders/`): construct domain objects with sensible
   defaults and chained mutations, never raw dicts or monkeypatched internal state.
 - **`assert_model_equal(actual, expected)`** (`tests/harness/matchers.py`): field-by-field model
-  comparison, no `exclude` param, `expected` names every field. For values a test can't own (a
-  real git SHA, OS pid, DB timestamp), use a matcher (`ANY_DATETIME`, `ANY_UUID`, `ANY_PATH`,
-  `ANY_PID`, `ANY_GIT_SHA`, `ANY_TIMESTAMP`, `ANY_ISO_TIMESTAMP`, `ANY_DURATION`) at that field.
+  comparison, no `exclude` param. When used, expected models may rely on schema defaults. For values
+  a test can't own (a real git SHA, OS pid), use a matcher (`ANY_GIT_SHA`, `ANY_PID`, `ANY_DURATION`)
+  at that field. Prefer targeted assertions on relevant fields for scenario and integration tests.
 - **`assert_exact_json(actual, expected_dict)`**: byte/key-exact wire format, no ignored extras.
 - Legacy helpers (`tests/helpers/legacy.py`, `make.py`, old `git_fs`/`fs` wrappers) are obsolete;
   do not reference or extend them.
@@ -117,7 +117,10 @@ Always `pytest.param(..., id="descriptive_case_id")`, no broad `Any` in signatur
 
 - Parameterize sibling variations; separate tests for distinct behaviors. Never a `for` loop,
   stacked assertions, or copy-pasted sibling functions differing only by inputs.
-- Compare the object, not its fields: `assert result == Expected(...)` or `assert_model_equal(...)`.
+- Assert domain invariants and behavioral contracts: prefer targeted assertions on the relevant
+  fields for scenario tests, and reserve full schema / default verification for dedicated contract tests.
+  When using whole-object comparisons (`assert result == Expected(...)` or `assert_model_equal`), allow
+  schema defaults to populate incidental envelope fields.
 - No test seams in production code; monkeypatch collaborators at module boundaries instead.
 - A seam is not tested until a test proves a real caller uses it from the production path.
 - Test doubles must be types production actually passes, or a Protocol production is typed against.

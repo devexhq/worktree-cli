@@ -606,35 +606,30 @@ rules:
   negative_example: 'def test_eval_model(self): ...; def test_eval_dict(self): ...  # duplicate sibling methods'
   citation: docs/agents/testing.md#parameterization-as-primary-approach
 - id: TEST-007
-  title: No Unasserted Fields on the Result Under Test
+  title: Assert Domain Invariants on Results; Pin Schemas in Dedicated Contract Tests
   severity: SUGGESTION
   category: Testing
   domain: tests
   scope: tests/
   guideline: >-
-    Every field of the result under test is asserted. The result under test is the Pydantic model or BaseResult
-    returned by a core service or domain entrypoint, or a formatter's JSON wire payload; click.testing.Result is
-    not one, so asserting res.exit_code is required by TEST-004 and TEST-017 rather than forbidden here.
-    Satisfy the invariant with assert_model_equal(result, Expected(...)) naming every field, or for a wire
-    payload an exact literal dict. Asserting a subset of the result and stopping is prohibited: a piecewise
-    assertion is blind to every field it does not name, which is where the regression you did not anticipate
-    lands. Piecewise assertions are permitted alongside a whole-object comparison, never instead of one, and on
-    values that are not the result under test (exit codes, preconditions, an incidental single-column read).
-    Non-determinism is removed at its seam first: inject the clock and the id factory per TEST-011 so a
-    timestamp or generated id is a literal the test can state. Only for a value the test genuinely cannot own (a
-    real git SHA, an OS pid, an id minted by the database) use a matcher from tests/harness/matchers.py at that
-    field's own position, which still pins the value's type or shape. assert_model_equal has no exclude
-    parameter; a waiver expressed outside the comparison is prohibited because a reader cannot see it at the
-    field and it asserts nothing about the waived value. An expected object that leaves a field to its default
-    is rejected, since a changed default would otherwise pass unnoticed.
+    Tests must assert the specific domain invariants, state transitions, and outcomes relevant to the scenario
+    under test. Do not write indiscriminate change-detector assertions that mechanically enumerate every incidental
+    envelope field or default (e.g. forcing tests to redundantly assert error_code=None, warnings=[], fixes=[]).
+    Model shapes, default values, and serialization contracts belong in dedicated contract tests (1–2 per model
+    under tests/common/ or tests/core/*/test_models.py). For wire payloads (e.g. CLI JSON formatters with a
+    published schema contract), exact wire payload verification is required. In scenario and integration tests,
+    targeted assertions on the relevant fields (e.g. assert result.status == ...; assert result.item.name == ...)
+    are preferred when testing specific behaviors or error conditions. When whole-model equality is used because
+    the entire entity is the subject under test, expected models are allowed to rely on their schema defaults
+    rather than forcing every field to be explicitly named in kwargs. Faux-matchers (ANY_TIMESTAMP, ANY_UUID)
+    should not be used merely to satisfy whole-object matching on database records or unowned system state;
+    assert the deterministic business fields directly instead.
   evaluation_criteria: >-
-    For each test, identify the result under test and verify every field is asserted through one whole-object
-    comparison or an exact literal dict. Flag subset assertions on that result, any use of an exclude parameter,
-    any expected object that omits a field, and any matcher standing in for a value the test could have made
-    deterministic by injecting the clock or id factory. Do not flag attribute assertions on click.testing.Result
-    or on values that are not the result under test.
-  positive_example: "assert_model_equal(result, SandboxCreateResult.model_construct(status=CREATED, sandbox_id=ANY_UUID, head_sha=ANY_GIT_SHA, worktree_path=tmp_path / 'alpha', created_at=ANY_DATETIME, errors=[]))"
-  negative_example: "assert_model_equal(result, expected, exclude={'errors'})  # invisible waiver, asserts nothing about errors"
+    Flag tests that mechanically enumerate empty or default envelope fields (error_code=None, warnings=[], fixes=[])
+    when testing unrelated behavior. Verify that models have dedicated contract tests asserting their defaults and
+    schema. In scenario tests, verify assertions check meaningful domain contracts rather than incidental defaults.
+  positive_example: "assert result.status == SandboxDiffStatus.NOT_FOUND; assert 'not found' in result.errors[0].lower()"
+  negative_example: "assert_model_equal(result, SandboxDiffResult(status=NOT_FOUND, diff_text='', stat_text='', files_changed=[], errors=['...'], warnings=[], fixes=[], error_code=None))  # mechanical enumeration of incidental defaults"
   citation: docs/agents/testing.md#core-testing-rules
 - id: TEST-008
   title: Test Double Realism and Production Types
@@ -683,8 +678,7 @@ rules:
     No hardcoded sleeps in test bodies. Retry and backoff intervals use VirtualClock or monkeypatch the clock at
     the module boundary (time.monotonic, asyncio.sleep), and a retry test asserts the resulting schedule rather
     than that a retry eventually happened. Inject the clock and the id factory anywhere their output reaches a
-    result field, so timestamps and generated ids are literals a test can state rather than values TEST-007 has
-    to waive with a matcher. Waiting on an operating system event that has no virtual equivalent,
+    result field, so timestamps and generated ids are literals a test can state when asserting time-dependent contracts. Waiting on an operating system event that has no virtual equivalent,
     such as a process group being reaped after SIGKILL, is permitted only through a shared harness helper that
     owns the poll interval and deadline; tests must not open-code a poll loop. Registering spawned processes with
     the harness process registry is mandatory so a failing test cannot leak a process group.

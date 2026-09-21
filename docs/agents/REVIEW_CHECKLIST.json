@@ -382,12 +382,12 @@
     },
     {
       "id": "TEST-007",
-      "name": "No Unasserted Fields on the Result Under Test",
+      "name": "Assert Domain Invariants on Results; Pin Schemas in Dedicated Contract Tests",
       "severity": "SUGGESTION",
       "domain": "tests",
       "scope": "tests/",
-      "evaluation_criteria": "For each test, identify the result under test and verify every field is asserted through one whole-object comparison or an exact literal dict. Flag subset assertions on that result, any use of an exclude parameter, any expected object that omits a field, and any matcher standing in for a value the test could have made deterministic by injecting the clock or id factory. Do not flag attribute assertions on click.testing.Result or on values that are not the result under test.",
-      "bad_pattern": "assert_model_equal(result, expected, exclude={'errors'})  # invisible waiver, asserts nothing about errors"
+      "evaluation_criteria": "Flag tests that mechanically enumerate empty or default envelope fields (error_code=None, warnings=[], fixes=[]) when testing unrelated behavior. Verify that models have dedicated contract tests asserting their defaults and schema. In scenario tests, verify assertions check meaningful domain contracts rather than incidental defaults.",
+      "bad_pattern": "assert_model_equal(result, SandboxDiffResult(status=NOT_FOUND, diff_text='', stat_text='', files_changed=[], errors=['...'], warnings=[], fixes=[], error_code=None))  # mechanical enumeration of incidental defaults"
     },
     {
       "id": "TEST-008",
