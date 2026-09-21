@@ -5,11 +5,9 @@ from pathlib import Path
 import pytest
 
 from tests.harness.builders import WorkspaceBuilder
-from tests.harness.matchers import ANY_GIT_SHA, ANY_TIMESTAMP, assert_model_equal
-from worktree.core.db import SandboxesRepository, SandboxRecord, SandboxStatus
+from worktree.core.db import SandboxesRepository, SandboxStatus
 from worktree.core.git.runner import GitRunner
 from worktree.core.sandbox.models import (
-    SandboxApplyResult,
     SandboxApplyStatus,
     SandboxApplyStrategy,
     SandboxCreateStatus,
@@ -57,19 +55,16 @@ class SandboxSquashApplyTests:
             message="Squash sandbox feature",
         )
 
-        expected_result = SandboxApplyResult.model_construct(
-            status=SandboxApplyStatus.OK,
-            sandbox_id="sbx_squash",
-            strategy=SandboxApplyStrategy.SQUASH,
-            touched_files=["feature1.py", "feature2.py"],
-            conflicting_files=[],
-            cleaned_up=False,
-            commit_sha=ANY_GIT_SHA,
-            errors=[],
-            warnings=[],
-            fixes=[],
-        )
-        assert_model_equal(result, expected_result)
+        assert result.status == SandboxApplyStatus.OK
+        assert result.sandbox_id == "sbx_squash"
+        assert result.strategy == SandboxApplyStrategy.SQUASH
+        assert result.touched_files == ["feature1.py", "feature2.py"]
+        assert result.conflicting_files == []
+        assert result.cleaned_up is False
+        assert result.commit_sha is not None
+        assert result.errors == []
+        assert result.warnings == []
+        assert result.fixes == []
         assert GitRunner.rev_parse(sandbox_workspace, rev="HEAD") == result.commit_sha
         assert GitRunner.run(["log", "-1", "--format=%B"], sandbox_workspace).strip() == "Squash sandbox feature"
         assert GitRunner.rev_parse(sandbox_workspace, rev="HEAD~1") == head_before
@@ -103,32 +98,27 @@ class SandboxSquashApplyTests:
             message="Squash and cleanup",
         )
 
-        expected_result = SandboxApplyResult.model_construct(
-            status=SandboxApplyStatus.OK,
-            sandbox_id="sbx_squash_del",
-            strategy=SandboxApplyStrategy.SQUASH,
-            touched_files=["feature.py"],
-            conflicting_files=[],
-            cleaned_up=True,
-            commit_sha=ANY_GIT_SHA,
-            errors=[],
-            warnings=[],
-            fixes=[],
-        )
-        assert_model_equal(result, expected_result)
+        assert result.status == SandboxApplyStatus.OK
+        assert result.sandbox_id == "sbx_squash_del"
+        assert result.strategy == SandboxApplyStrategy.SQUASH
+        assert result.touched_files == ["feature.py"]
+        assert result.conflicting_files == []
+        assert result.cleaned_up is True
+        assert result.commit_sha is not None
+        assert result.errors == []
+        assert result.warnings == []
+        assert result.fixes == []
+
         assert "worktree/sandbox-sbx_squash_del" not in GitRunner.list_branches(sandbox_workspace)
         assert not (sandbox_workspace / ".worktree" / "sandboxes" / "sbx_squash_del").exists()
 
-        expected_record = SandboxRecord.model_construct(
-            id="sbx_squash_del",
-            name=None,
-            branch_name="worktree/sandbox-sbx_squash_del",
-            base_commit=initial_commit,
-            sandbox_path=(sandbox_workspace / ".worktree" / "sandboxes" / "sbx_squash_del").resolve(),
-            status=SandboxStatus.MERGED,
-            created_at=ANY_TIMESTAMP,
-            updated_at=ANY_TIMESTAMP,
-        )
         record = db.get("sbx_squash_del")
         assert record is not None
-        assert_model_equal(record, expected_record)
+        assert record.id == "sbx_squash_del"
+        assert record.name is None
+        assert record.branch_name == "worktree/sandbox-sbx_squash_del"
+        assert record.base_commit == initial_commit
+        assert record.sandbox_path == (sandbox_workspace / ".worktree" / "sandboxes" / "sbx_squash_del").resolve()
+        assert record.status == SandboxStatus.MERGED
+        assert record.created_at is not None
+        assert record.updated_at is not None

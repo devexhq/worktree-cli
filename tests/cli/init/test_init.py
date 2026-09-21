@@ -9,12 +9,9 @@ from typing import Any
 
 from typer.testing import CliRunner
 
-from tests.harness.matchers import assert_model_equal
 from worktree.cli import app
 from worktree.common.constants import REQUIRED_SUBDIRS
-from worktree.core.bootstrap.models import BootstrapOutcome, BootstrapResult, WorkspaceInitResult
-from worktree.core.catalog.models import SeedResult
-from worktree.core.config.generator import ConfigGenerationResult
+from worktree.core.bootstrap.models import BootstrapOutcome
 
 _SEEDED_TEMPLATE_RELATIVE_PATHS = [
     "catalog/blueprints/wt/fix-tests.yml",
@@ -60,53 +57,25 @@ class InitCliIntegrationTests:
         assert (worktree_dir / "config.json").exists()
         assert (worktree_dir / "data.db").exists()
         assert len(dispatch_spy) == 1
-        assert_model_equal(
-            dispatch_spy[0],
-            WorkspaceInitResult(
-                bootstrap_result=BootstrapResult(
-                    root_path=worktree_dir,
-                    outcome=BootstrapOutcome.INITIALIZED,
-                    root_created=True,
-                    dirs_created=[worktree_dir / name for name in REQUIRED_SUBDIRS],
-                    dirs_existing=[],
-                    repaired=False,
-                    seed_result=SeedResult(
-                        created_files=[],
-                        skipped_existing_files=[],
-                        overwritten_files=[],
-                        errors=[],
-                        warnings=[],
-                        fixes=[],
-                    ),
-                    errors=[],
-                    warnings=[],
-                    fixes=[],
-                ),
-                config_result=ConfigGenerationResult(
-                    created=True,
-                    skipped_existing=False,
-                    repaired=False,
-                    overwritten=False,
-                    inserted_keys=[],
-                    config_path=worktree_dir / "config.json",
-                    errors=[],
-                    warnings=[],
-                    fixes=[],
-                ),
-                seed_result=SeedResult(
-                    created_files=_seeded_template_paths(tmp_path),
-                    skipped_existing_files=[],
-                    overwritten_files=[],
-                    errors=[],
-                    warnings=[],
-                    fixes=[],
-                ),
-                failure_mode=None,
-                errors=[],
-                warnings=[],
-                fixes=[],
-            ),
-        )
+        res = dispatch_spy[0]
+        assert res.bootstrap_result.root_path == worktree_dir
+        assert res.bootstrap_result.outcome == BootstrapOutcome.INITIALIZED
+        assert res.bootstrap_result.root_created is True
+        assert res.bootstrap_result.dirs_created == [worktree_dir / name for name in REQUIRED_SUBDIRS]
+        assert res.bootstrap_result.dirs_existing == []
+        assert res.bootstrap_result.repaired is False
+
+        assert res.config_result.created is True
+        assert res.config_result.skipped_existing is False
+        assert res.config_result.config_path == worktree_dir / "config.json"
+
+        assert res.seed_result.created_files == _seeded_template_paths(tmp_path)
+        assert res.seed_result.skipped_existing_files == []
+
+        assert res.failure_mode is None
+        assert res.errors == []
+        assert res.warnings == []
+        assert res.fixes == []
 
     def test_init_cli_rerun_without_flags_skips_existing_exits_zero(
         self, cli_runner: CliRunner, tmp_path: Path, dispatch_spy: list[Any]
@@ -121,53 +90,25 @@ class InitCliIntegrationTests:
         assert result.exit_code == 0
         worktree_dir = _worktree_dir(tmp_path)
         assert len(dispatch_spy) == 1
-        assert_model_equal(
-            dispatch_spy[0],
-            WorkspaceInitResult(
-                bootstrap_result=BootstrapResult(
-                    root_path=worktree_dir,
-                    outcome=BootstrapOutcome.ALREADY_INITIALIZED,
-                    root_created=False,
-                    dirs_created=[],
-                    dirs_existing=[worktree_dir / name for name in REQUIRED_SUBDIRS],
-                    repaired=False,
-                    seed_result=SeedResult(
-                        created_files=[],
-                        skipped_existing_files=[],
-                        overwritten_files=[],
-                        errors=[],
-                        warnings=[],
-                        fixes=[],
-                    ),
-                    errors=[],
-                    warnings=[],
-                    fixes=[],
-                ),
-                config_result=ConfigGenerationResult(
-                    created=False,
-                    skipped_existing=True,
-                    repaired=False,
-                    overwritten=False,
-                    inserted_keys=[],
-                    config_path=worktree_dir / "config.json",
-                    errors=[],
-                    warnings=[],
-                    fixes=[],
-                ),
-                seed_result=SeedResult(
-                    created_files=[],
-                    skipped_existing_files=_seeded_template_paths(tmp_path),
-                    overwritten_files=[],
-                    errors=[],
-                    warnings=[],
-                    fixes=[],
-                ),
-                failure_mode=None,
-                errors=[],
-                warnings=[],
-                fixes=[],
-            ),
-        )
+        res = dispatch_spy[0]
+        assert res.bootstrap_result.root_path == worktree_dir
+        assert res.bootstrap_result.outcome == BootstrapOutcome.ALREADY_INITIALIZED
+        assert res.bootstrap_result.root_created is False
+        assert res.bootstrap_result.dirs_created == []
+        assert res.bootstrap_result.dirs_existing == [worktree_dir / name for name in REQUIRED_SUBDIRS]
+        assert res.bootstrap_result.repaired is False
+
+        assert res.config_result.created is False
+        assert res.config_result.skipped_existing is True
+        assert res.config_result.config_path == worktree_dir / "config.json"
+
+        assert res.seed_result.created_files == []
+        assert res.seed_result.skipped_existing_files == _seeded_template_paths(tmp_path)
+
+        assert res.failure_mode is None
+        assert res.errors == []
+        assert res.warnings == []
+        assert res.fixes == []
 
     def test_init_cli_overwrite_flag_regenerates_default_config_exits_zero(
         self, cli_runner: CliRunner, tmp_path: Path

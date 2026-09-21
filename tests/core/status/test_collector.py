@@ -11,7 +11,7 @@ from typing import Any
 
 import pytest
 
-from tests.harness import StatusBuilder, WorkspaceBuilder, assert_model_equal
+from tests.harness import StatusBuilder, WorkspaceBuilder
 from worktree.common.filesystem import Filesystem
 from worktree.core.config.loader import ConfigLoadStatus
 from worktree.core.config.models import AgentConfig, ProjectConfig, SandboxConfig, WorktreeConfig
@@ -56,7 +56,8 @@ class StatusFacadeTests:
 
         result = invoke(workspace)
 
-        assert_model_equal(result, StatusBuilder(workspace).with_git(branch="feature-facade").build())
+        expected = StatusBuilder(workspace).with_git(branch="feature-facade").build()
+        assert result == expected
 
 
 class StatusCollectorGitCollectionTests:
@@ -108,7 +109,7 @@ class StatusCollectorGitCollectionTests:
             .with_sandboxes(active_sandboxes=1, total_sandboxes=1, max_active_sandboxes=3)
             .build()
         )
-        assert_model_equal(result, expected)
+        assert result == expected
 
     def test_collect_status_dirty_worktree(self, tmp_path: Path) -> None:
         workspace = (
@@ -132,7 +133,7 @@ class StatusCollectorGitCollectionTests:
             .with_warnings("Working tree has 1 uncommitted change(s).")
             .build()
         )
-        assert_model_equal(result, expected)
+        assert result == expected
 
     def test_collect_status_detached_head(self, tmp_path: Path) -> None:
         workspace = (
@@ -151,7 +152,7 @@ class StatusCollectorGitCollectionTests:
         result = collect_status(workspace)
 
         expected = StatusBuilder(workspace).with_git(branch="HEAD (detached)").build()
-        assert_model_equal(result, expected)
+        assert result == expected
 
     def test_collect_status_non_git_directory(self, tmp_path: Path) -> None:
         non_git_dir = tmp_path / "non_git"
@@ -171,7 +172,7 @@ class StatusCollectorGitCollectionTests:
             )
             .build()
         )
-        assert_model_equal(result, expected)
+        assert result == expected
 
     @pytest.mark.parametrize(
         "git_error",
@@ -208,7 +209,7 @@ class StatusCollectorGitCollectionTests:
             .with_fixes("Run 'git init' or navigate to a Git repository.")
             .build()
         )
-        assert_model_equal(result, expected)
+        assert result == expected
 
     def test_collect_status_git_rev_parse_not_true(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         workspace = (
@@ -234,7 +235,7 @@ class StatusCollectorGitCollectionTests:
             .with_fixes("Run 'git init' or navigate to a Git repository.")
             .build()
         )
-        assert_model_equal(result, expected)
+        assert result == expected
 
 
 class StatusCollectorConfigAndCatalogTests:
@@ -258,7 +259,7 @@ class StatusCollectorConfigAndCatalogTests:
             .with_fixes("Run 'wt init' to initialize Worktree in this repository.")
             .build()
         )
-        assert_model_equal(result, expected)
+        assert result == expected
 
     def test_collect_status_malformed_config(self, tmp_path: Path) -> None:
         workspace = (
@@ -291,7 +292,7 @@ class StatusCollectorConfigAndCatalogTests:
             .with_fixes("Repair JSON syntax in .worktree/config.json or restore from backup.")
             .build()
         )
-        assert_model_equal(result, expected)
+        assert result == expected
 
     def test_collect_status_missing_catalog_directory(self, tmp_path: Path) -> None:
         workspace = (
@@ -305,7 +306,8 @@ class StatusCollectorConfigAndCatalogTests:
 
         result = collect_status(workspace)
 
-        assert_model_equal(result, StatusBuilder(workspace).build())
+        expected = StatusBuilder(workspace).build()
+        assert result == expected
 
     def test_collect_status_invalid_catalog_blueprint(self, tmp_path: Path) -> None:
         workspace = (
@@ -332,7 +334,7 @@ class StatusCollectorConfigAndCatalogTests:
             .with_warnings("1 invalid blueprint file(s) detected in catalog.")
             .build()
         )
-        assert_model_equal(result, expected)
+        assert result == expected
 
 
 class StatusCollectorDatabaseAndSandboxTests:
@@ -352,7 +354,7 @@ class StatusCollectorDatabaseAndSandboxTests:
         result = collect_status(workspace)
 
         expected = StatusBuilder(workspace).without_database().build()
-        assert_model_equal(result, expected)
+        assert result == expected
 
     def test_collect_status_corrupted_database(self, tmp_path: Path) -> None:
         workspace = (
@@ -369,7 +371,7 @@ class StatusCollectorDatabaseAndSandboxTests:
         result = collect_status(workspace)
 
         expected = StatusBuilder(workspace).with_database(exists=True, is_accessible=False, total_runs=0).build()
-        assert_model_equal(result, expected)
+        assert result == expected
 
     def test_collect_status_sandboxes_directory_fallback(self, tmp_path: Path) -> None:
         workspace = (
@@ -394,7 +396,7 @@ class StatusCollectorDatabaseAndSandboxTests:
             .with_sandboxes(active_sandboxes=2, total_sandboxes=2, max_active_sandboxes=4)
             .build()
         )
-        assert_model_equal(result, expected)
+        assert result == expected
 
     def test_collect_status_sandboxes_db_query_error(
         self,
@@ -433,7 +435,7 @@ class StatusCollectorDatabaseAndSandboxTests:
             .with_sandboxes(active_sandboxes=1, total_sandboxes=1)
             .build()
         )
-        assert_model_equal(result, expected)
+        assert result == expected
 
 
 class StatusCollectorWarningsOrderingTests:

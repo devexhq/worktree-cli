@@ -72,6 +72,7 @@ CATALOG_DELETE_PAYLOAD_CASES = [
             "errors": [],
             "warnings": [],
             "fixes": [],
+            "error_code": None,
             "item": {
                 "id": 1,
                 "key": "test-blueprint",
@@ -95,6 +96,7 @@ CATALOG_DELETE_PAYLOAD_CASES = [
             "errors": ["Deletion cancelled."],
             "warnings": [],
             "fixes": [],
+            "error_code": None,
             "item": None,
             "deleted": False,
             "cancelled": True,
@@ -107,6 +109,7 @@ CATALOG_DELETE_PAYLOAD_CASES = [
             "errors": ["Catalog blueprint 'missing' not found."],
             "warnings": [],
             "fixes": ["Run `wt catalog list` to inspect available items"],
+            "error_code": None,
             "item": None,
             "deleted": False,
             "cancelled": False,

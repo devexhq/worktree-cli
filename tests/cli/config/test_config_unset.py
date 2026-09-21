@@ -84,6 +84,7 @@ class ConfigUnsetCliIntegrationTests:
                 "key": "agent.model",
                 "existed": True,
                 "previous_value": payload["agent"]["model"],
+                "error_code": None,
                 "errors": [],
                 "warnings": [],
                 "fixes": [],

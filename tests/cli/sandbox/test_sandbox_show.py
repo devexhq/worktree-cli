@@ -8,9 +8,8 @@ from typing import Any
 
 from typer.testing import CliRunner
 
-from tests.harness.matchers import ANY_TIMESTAMP, assert_model_equal
 from worktree.cli import app
-from worktree.core.db import SandboxRecord, SandboxStatus
+from worktree.core.db import SandboxStatus
 from worktree.core.sandbox.facade import Sandbox
 from worktree.core.sandbox.models import SandboxShowResult, SandboxShowStatus
 
@@ -31,27 +30,21 @@ class SandboxShowCliIntegrationTests:
         assert result.exit_code == 0
         assert session.session_id in result.stdout
         assert len(dispatch_spy) == 1
-        assert_model_equal(
-            dispatch_spy[0],
-            SandboxShowResult(
-                status=SandboxShowStatus.OK,
-                sandbox=SandboxRecord.model_construct(
-                    id=session.session_id,
-                    name="show-me",
-                    branch_name=session.target_branch,
-                    base_commit=session.base_commit,
-                    sandbox_path=session.sandbox_path,
-                    status=SandboxStatus.ACTIVE,
-                    created_at=ANY_TIMESTAMP,
-                    updated_at=ANY_TIMESTAMP,
-                ),
-                disk_present=True,
-                reconciled=False,
-                errors=[],
-                warnings=[],
-                fixes=[],
-            ),
-        )
+        result_dto = dispatch_spy[0]
+        assert isinstance(result_dto, SandboxShowResult)
+        assert result_dto.status == SandboxShowStatus.OK
+        assert result_dto.sandbox is not None
+        assert result_dto.sandbox.id == session.session_id
+        assert result_dto.sandbox.name == "show-me"
+        assert result_dto.sandbox.branch_name == session.target_branch
+        assert result_dto.sandbox.base_commit == session.base_commit
+        assert result_dto.sandbox.sandbox_path == session.sandbox_path
+        assert result_dto.sandbox.status == SandboxStatus.ACTIVE
+        assert result_dto.disk_present is True
+        assert result_dto.reconciled is False
+        assert len(result_dto.errors) == 0
+        assert len(result_dto.warnings) == 0
+        assert len(result_dto.fixes) == 0
 
     def test_sandbox_show_cli_missing_sandbox_exits_one(
         self, cli_runner: CliRunner, sandbox_workspace: Path, dispatch_spy: list[Any]
@@ -62,18 +55,15 @@ class SandboxShowCliIntegrationTests:
         assert result.exit_code == 1
         assert "not found" in result.stdout
         assert len(dispatch_spy) == 1
-        assert_model_equal(
-            dispatch_spy[0],
-            SandboxShowResult(
-                status=SandboxShowStatus.NOT_FOUND,
-                sandbox=None,
-                disk_present=False,
-                reconciled=False,
-                errors=["Sandbox 'missing-id' not found."],
-                warnings=[],
-                fixes=["Run `wt sandbox list` to see known sandboxes"],
-            ),
-        )
+        result_dto = dispatch_spy[0]
+        assert isinstance(result_dto, SandboxShowResult)
+        assert result_dto.status == SandboxShowStatus.NOT_FOUND
+        assert result_dto.sandbox is None
+        assert result_dto.disk_present is False
+        assert result_dto.reconciled is False
+        assert result_dto.errors == ["Sandbox 'missing-id' not found."]
+        assert len(result_dto.warnings) == 0
+        assert result_dto.fixes == ["Run `wt sandbox list` to see known sandboxes"]
 
     def test_sandbox_show_cli_renders_json(self, cli_runner: CliRunner, sandbox_workspace: Path) -> None:
         """wt sandbox show <id> --format json emits a SandboxShowResult envelope matching the seeded record."""
@@ -112,5 +102,6 @@ class SandboxShowCliIntegrationTests:
                 "errors": [],
                 "warnings": [],
                 "fixes": [],
+                "error_code": None,
             },
         }

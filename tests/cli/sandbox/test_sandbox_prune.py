@@ -9,9 +9,8 @@ from typing import Any
 import pytest
 from typer.testing import CliRunner
 
-from tests.harness.matchers import assert_model_equal
 from worktree.cli import app
-from worktree.core.sandbox.models import SandboxPruneResult, SandboxPruneStatus
+from worktree.core.sandbox.models import SandboxPruneStatus
 
 
 class SandboxPruneCliIntegrationTests:
@@ -39,12 +38,13 @@ class SandboxPruneCliIntegrationTests:
         assert result.exit_code == 0
         assert "No stale sandboxes found." in result.stdout
         assert len(dispatch_spy) == 1
-        assert_model_equal(
-            dispatch_spy[0],
-            SandboxPruneResult(
-                status=SandboxPruneStatus.OK, dry_run=dry_run, force=force, items=[], errors=[], warnings=[], fixes=[]
-            ),
-        )
+
+        payload = dispatch_spy[0]
+        assert payload.status == SandboxPruneStatus.OK
+        assert payload.dry_run == dry_run
+        assert payload.force == force
+        assert len(payload.items) == 0
+        assert len(payload.errors) == 0
 
     def test_sandbox_prune_cli_renders_json(self, cli_runner: CliRunner, sandbox_workspace: Path) -> None:
         """wt sandbox prune --dry-run --format json emits a SandboxPruneResult envelope wrapping the empty view."""

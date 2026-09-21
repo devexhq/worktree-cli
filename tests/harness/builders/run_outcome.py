@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Self
 
-from tests.harness.matchers import AnyMatching, AnyValue
 from worktree.core.db import RunStatus
 from worktree.core.runtime import RunOutcome
 from worktree.core.step.models import StepResult
@@ -14,14 +13,14 @@ from worktree.core.step.models import StepResult
 class RunOutcomeBuilder:
     """Fluent builder for constructing expected RunOutcome models in tests."""
 
-    def __init__(self, sandbox_path: Path | AnyMatching | AnyValue) -> None:
+    def __init__(self, sandbox_path: Path | None = None) -> None:
         self._status: RunStatus = RunStatus.COMPLETED
         self._step_results: list[StepResult] = []
-        self._errors: list[str | AnyMatching | AnyValue] = []
-        self._warnings: list[str | AnyMatching | AnyValue] = []
+        self._errors: list[str] = []
+        self._warnings: list[str] = []
         self._sandbox_kept: bool = False
-        self._sandbox_path: Path | AnyMatching | AnyValue = sandbox_path
-        self._session_id: str | AnyMatching | AnyValue | None = None
+        self._sandbox_path: Path | None = sandbox_path
+        self._session_id: str | None = None
 
     def with_status(self, status: RunStatus) -> Self:
         """Set the classified run outcome status."""
@@ -33,12 +32,12 @@ class RunOutcomeBuilder:
         self._step_results.extend(step_results)
         return self
 
-    def with_errors(self, *errors: str | AnyMatching | AnyValue) -> Self:
+    def with_errors(self, *errors: str) -> Self:
         """Append expected error messages."""
         self._errors.extend(errors)
         return self
 
-    def with_warnings(self, *warnings: str | AnyMatching | AnyValue) -> Self:
+    def with_warnings(self, *warnings: str) -> Self:
         """Append expected warning messages."""
         self._warnings.extend(warnings)
         return self
@@ -48,12 +47,12 @@ class RunOutcomeBuilder:
         self._sandbox_kept = kept
         return self
 
-    def with_sandbox_path(self, sandbox_path: Path | AnyMatching | AnyValue) -> Self:
+    def with_sandbox_path(self, sandbox_path: Path | None = None) -> Self:
         """Override the execution directory or sandbox worktree path."""
         self._sandbox_path = sandbox_path
         return self
 
-    def with_session_id(self, session_id: str | AnyMatching | AnyValue | None) -> Self:
+    def with_session_id(self, session_id: str | None) -> Self:
         """Set the associated session identifier."""
         self._session_id = session_id
         return self

@@ -5,14 +5,11 @@ from pathlib import Path
 import pytest
 
 from tests.harness.builders import WorkspaceBuilder
-from tests.harness.matchers import ANY_ISO_TIMESTAMP, ANY_TIMESTAMP, assert_model_equal
 from worktree.common.constants import DEFAULT_MAXIMUM_SANDBOXES_ALLOWED
-from worktree.core.db import SandboxesRepository, SandboxRecord, SandboxStatus
+from worktree.core.db import SandboxesRepository, SandboxStatus
 from worktree.core.git.runner import GitRunner
 from worktree.core.sandbox.models import (
-    SandboxCreateResult,
     SandboxCreateStatus,
-    SandboxSession,
 )
 from worktree.core.sandbox.services.lifecycle import SandboxLifecycle
 
@@ -40,41 +37,33 @@ class SandboxCreationTests:
         expected_branch = "worktree/sandbox-sbx_test001"
         head_commit = GitRunner.rev_parse(sandbox_workspace, rev="HEAD")
 
-        expected_session = SandboxSession.model_construct(
-            session_id="sbx_test001",
-            target_branch=expected_branch,
-            sandbox_path=expected_sandbox_path,
-            base_commit=head_commit,
-            name="test-sandbox",
-            created_at=ANY_ISO_TIMESTAMP,
-            command_passed=None,
-            wip_applied=False,
-            wip_paths=[],
-        )
-        expected_result = SandboxCreateResult(
-            status=SandboxCreateStatus.OK,
-            session=expected_session,
-            warnings=[],
-            errors=[],
-            fixes=[],
-        )
-        assert_model_equal(result, expected_result)
+        assert result.status == SandboxCreateStatus.OK
+        assert result.session is not None
+        assert result.session.session_id == "sbx_test001"
+        assert result.session.target_branch == expected_branch
+        assert result.session.sandbox_path == expected_sandbox_path
+        assert result.session.base_commit == head_commit
+        assert result.session.name == "test-sandbox"
+        assert result.session.created_at is not None
+        assert result.session.command_passed is None
+        assert result.session.wip_applied is False
+        assert result.session.wip_paths == []
+        assert result.warnings == []
+        assert result.errors == []
+        assert result.fixes == []
         assert expected_sandbox_path.is_dir()
         assert expected_branch in GitRunner.list_branches(sandbox_workspace)
 
         record = db.get("sbx_test001")
         assert record is not None
-        expected_record = SandboxRecord.model_construct(
-            id="sbx_test001",
-            name="test-sandbox",
-            branch_name=expected_branch,
-            base_commit=head_commit,
-            sandbox_path=expected_sandbox_path,
-            status=SandboxStatus.ACTIVE,
-            created_at=ANY_TIMESTAMP,
-            updated_at=ANY_TIMESTAMP,
-        )
-        assert_model_equal(record, expected_record)
+        assert record.id == "sbx_test001"
+        assert record.name == "test-sandbox"
+        assert record.branch_name == expected_branch
+        assert record.base_commit == head_commit
+        assert record.sandbox_path == expected_sandbox_path
+        assert record.status == SandboxStatus.ACTIVE
+        assert record.created_at is not None
+        assert record.updated_at is not None
 
 
 class SandboxCapacityTests:
@@ -95,19 +84,16 @@ class SandboxCapacityTests:
         overflow_id = f"sbx_cap_{DEFAULT_MAXIMUM_SANDBOXES_ALLOWED + 1}"
         overflow = lifecycle.create(overflow_id)
 
-        expected_overflow = SandboxCreateResult(
-            status=SandboxCreateStatus.CAPACITY_EXCEEDED,
-            session=None,
-            errors=[
-                f"Maximum active sandboxes reached ({DEFAULT_MAXIMUM_SANDBOXES_ALLOWED}/{DEFAULT_MAXIMUM_SANDBOXES_ALLOWED})."
-            ],
-            warnings=[],
-            fixes=[
-                "Run `wt prune` to remove stale sandboxes, or",
-                "Raise sandbox.max_active_sandboxes in .worktree/config.json",
-            ],
-        )
-        assert_model_equal(overflow, expected_overflow)
+        assert overflow.status == SandboxCreateStatus.CAPACITY_EXCEEDED
+        assert overflow.session is None
+        assert overflow.errors == [
+            f"Maximum active sandboxes reached ({DEFAULT_MAXIMUM_SANDBOXES_ALLOWED}/{DEFAULT_MAXIMUM_SANDBOXES_ALLOWED})."
+        ]
+        assert overflow.warnings == []
+        assert overflow.fixes == [
+            "Run `wt prune` to remove stale sandboxes, or",
+            "Raise sandbox.max_active_sandboxes in .worktree/config.json",
+        ]
         assert not (sandbox_workspace / ".worktree" / "sandboxes" / overflow_id).exists()
         assert f"worktree/sandbox-{overflow_id}" not in GitRunner.list_branches(sandbox_workspace)
         assert db.get(overflow_id) is None

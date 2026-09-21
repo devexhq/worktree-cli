@@ -7,13 +7,12 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from tests.harness.matchers import assert_model_equal
 from worktree.cli import app
 from worktree.cli.config.commands.config_show import config_show_command
 from worktree.cli.context import CliContext
 from worktree.common.filesystem import Filesystem
 from worktree.core.config.generator import build_default_config
-from worktree.core.config.loader import ConfigLoadResult, ConfigLoadStatus
+from worktree.core.config.loader import ConfigLoadStatus
 from worktree.core.config.models import WorktreeConfig
 from worktree.core.db.facade import WorktreeDb
 
@@ -31,18 +30,13 @@ class ConfigShowRootTests:
         context = CliContext(cwd=isolated_workspace, db=WorktreeDb(path=isolated_workspace), fs=fs)
         result = config_show_command(context)
 
-        assert_model_equal(
-            result,
-            ConfigLoadResult(
-                status=ConfigLoadStatus.OK,
-                config_path=config_path,
-                config=WorktreeConfig.model_validate(payload),
-                raw=payload,
-                errors=[],
-                warnings=[],
-                fixes=[],
-            ),
-        )
+        assert result.status == ConfigLoadStatus.OK
+        assert result.config_path == config_path
+        assert result.config == WorktreeConfig.model_validate(payload)
+        assert result.raw == payload
+        assert result.errors == []
+        assert result.warnings == []
+        assert result.fixes == []
 
     def test_config_show_missing_config_returns_not_found(self, isolated_workspace: Path) -> None:
         """Handler returns NOT_FOUND status when config.json is missing."""
@@ -51,18 +45,13 @@ class ConfigShowRootTests:
         context = CliContext(cwd=isolated_workspace, db=WorktreeDb(path=isolated_workspace), fs=fs)
         result = config_show_command(context)
 
-        assert_model_equal(
-            result,
-            ConfigLoadResult(
-                status=ConfigLoadStatus.NOT_FOUND,
-                config_path=config_path,
-                config=None,
-                raw=None,
-                errors=[f"Configuration file not found at '{config_path}' (CONFIG_NOT_FOUND)."],
-                fixes=["Run `wt init` to create `.worktree/config.json`"],
-                warnings=[],
-            ),
-        )
+        assert result.status == ConfigLoadStatus.NOT_FOUND
+        assert result.config_path == config_path
+        assert result.config is None
+        assert result.raw is None
+        assert result.errors == [f"Configuration file not found at '{config_path}' (CONFIG_NOT_FOUND)."]
+        assert result.fixes == ["Run `wt init` to create `.worktree/config.json`"]
+        assert result.warnings == []
 
 
 class ConfigShowCliIntegrationTests:
@@ -100,6 +89,7 @@ class ConfigShowCliIntegrationTests:
                 "config_path": str(config_path),
                 "raw": raw_payload,
                 "config": raw_payload,
+                "error_code": None,
                 "errors": [],
                 "warnings": [],
                 "fixes": [],

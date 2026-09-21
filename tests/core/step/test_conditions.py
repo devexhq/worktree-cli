@@ -4,7 +4,6 @@ import json
 
 import pytest
 
-from tests.harness.matchers import assert_model_equal
 from worktree.core.step.models import ConditionEvaluationResult, StepResult
 from worktree.core.step.services.conditions import (
     ParsedCondition,
@@ -174,19 +173,14 @@ class ConditionExpressionEvaluatorTests:
             "steps.build.outputs.metrics.coverage >= 80",
             step_results={"build": step_res},
         )
-        assert_model_equal(
-            result,
-            ConditionEvaluationResult(
-                expression="steps.build.outputs.metrics.coverage >= 80",
-                passed=True,
-                actual=85,
-                expected=80,
-                detail="TRUE",
-                errors=[],
-                warnings=[],
-                fixes=[],
-            ),
-        )
+        assert result.expression == "steps.build.outputs.metrics.coverage >= 80"
+        assert result.passed is True
+        assert result.actual == 85
+        assert result.expected == 80
+        assert result.detail == "TRUE"
+        assert result.errors == []
+        assert result.warnings == []
+        assert result.fixes == []
 
     @pytest.mark.parametrize(("expression", "expected"), BOOLEAN_CASING_CASES)
     def test_evaluate_condition_parses_boolean_literals_case_insensitively(
@@ -207,7 +201,7 @@ class ConditionExpressionEvaluatorTests:
             expression,
             step_results={"check": step_res},
         )
-        assert_model_equal(result, expected)
+        assert result == expected
 
 
 class ConditionExpressionValidatorTests:

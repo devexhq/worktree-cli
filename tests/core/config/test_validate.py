@@ -2,12 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from tests.harness.matchers import assert_model_equal
 from worktree.common.filesystem import Filesystem
 from worktree.core.config.generator import build_default_config
 from worktree.core.config.models import WorktreeConfig
 from worktree.core.config.validate import (
-    ConfigValidationResult,
     ConfigValidationStatus,
     validate_config_result,
 )
@@ -25,24 +23,19 @@ class ConfigSemanticValidationTests:
 
         result = validate_config_result(config_path=config_path)
 
-        assert_model_equal(
-            result,
-            ConfigValidationResult(
-                status=ConfigValidationStatus.INVALID,
-                config_path=config_path,
-                raw=payload,
-                config=None,
-                errors=[
-                    "paths.db_path contains invalid control characters (CONFIG_SEMANTIC_PATH_INVALID).",
-                    "paths.sessions_dir contains invalid control characters (CONFIG_SEMANTIC_PATH_INVALID).",
-                ],
-                warnings=[],
-                fixes=[
-                    "Use a plain relative path string without newlines or NUL bytes",
-                    "Use a plain relative path string without newlines or NUL bytes",
-                ],
-            ),
-        )
+        assert result.status == ConfigValidationStatus.INVALID
+        assert result.config_path == config_path
+        assert result.raw == payload
+        assert result.config is None
+        assert result.errors == [
+            "paths.db_path contains invalid control characters (CONFIG_SEMANTIC_PATH_INVALID).",
+            "paths.sessions_dir contains invalid control characters (CONFIG_SEMANTIC_PATH_INVALID).",
+        ]
+        assert result.warnings == []
+        assert result.fixes == [
+            "Use a plain relative path string without newlines or NUL bytes",
+            "Use a plain relative path string without newlines or NUL bytes",
+        ]
 
     def test_validate_config_warns_when_non_local_agent_has_no_model(self, tmp_path: Path) -> None:
         payload = build_default_config("demo")
@@ -53,20 +46,15 @@ class ConfigSemanticValidationTests:
 
         result = validate_config_result(config_path=config_path)
 
-        assert_model_equal(
-            result,
-            ConfigValidationResult(
-                status=ConfigValidationStatus.VALID,
-                config_path=config_path,
-                raw=payload,
-                config=WorktreeConfig.model_validate(payload),
-                errors=[],
-                warnings=[
-                    "agent.provider is not 'local' but agent.model is missing (CONFIG_WARN_AGENT_MODEL_MISSING)."
-                ],
-                fixes=["Set agent.model or use provider=local"],
-            ),
-        )
+        assert result.status == ConfigValidationStatus.VALID
+        assert result.config_path == config_path
+        assert result.raw == payload
+        assert result.config == WorktreeConfig.model_validate(payload)
+        assert result.errors == []
+        assert result.warnings == [
+            "agent.provider is not 'local' but agent.model is missing (CONFIG_WARN_AGENT_MODEL_MISSING)."
+        ]
+        assert result.fixes == ["Set agent.model or use provider=local"]
 
     def test_validate_config_warns_when_agent_endpoint_is_not_absolute_url(self, tmp_path: Path) -> None:
         payload = build_default_config("demo")
@@ -76,20 +64,15 @@ class ConfigSemanticValidationTests:
 
         result = validate_config_result(config_path=config_path)
 
-        assert_model_equal(
-            result,
-            ConfigValidationResult(
-                status=ConfigValidationStatus.VALID,
-                config_path=config_path,
-                raw=payload,
-                config=WorktreeConfig.model_validate(payload),
-                errors=[],
-                warnings=[
-                    "agent.endpoint is not an absolute http(s) URL: 'ftp://example.com/api' (CONFIG_WARN_AGENT_ENDPOINT)."
-                ],
-                fixes=["Set agent.endpoint to an absolute http:// or https:// URL, or null"],
-            ),
-        )
+        assert result.status == ConfigValidationStatus.VALID
+        assert result.config_path == config_path
+        assert result.raw == payload
+        assert result.config == WorktreeConfig.model_validate(payload)
+        assert result.errors == []
+        assert result.warnings == [
+            "agent.endpoint is not an absolute http(s) URL: 'ftp://example.com/api' (CONFIG_WARN_AGENT_ENDPOINT)."
+        ]
+        assert result.fixes == ["Set agent.endpoint to an absolute http:// or https:// URL, or null"]
 
     def test_validate_config_warns_when_sandbox_limit_exceeds_threshold(self, tmp_path: Path) -> None:
         payload = build_default_config("demo")
@@ -99,15 +82,10 @@ class ConfigSemanticValidationTests:
 
         result = validate_config_result(config_path=config_path)
 
-        assert_model_equal(
-            result,
-            ConfigValidationResult(
-                status=ConfigValidationStatus.VALID,
-                config_path=config_path,
-                raw=payload,
-                config=WorktreeConfig.model_validate(payload),
-                errors=[],
-                warnings=["sandbox.max_active_sandboxes (11) exceeds 10 (CONFIG_WARN_SANDBOX_LIMIT)."],
-                fixes=["Lower sandbox.max_active_sandboxes to 10 or fewer"],
-            ),
-        )
+        assert result.status == ConfigValidationStatus.VALID
+        assert result.config_path == config_path
+        assert result.raw == payload
+        assert result.config == WorktreeConfig.model_validate(payload)
+        assert result.errors == []
+        assert result.warnings == ["sandbox.max_active_sandboxes (11) exceeds 10 (CONFIG_WARN_SANDBOX_LIMIT)."]
+        assert result.fixes == ["Lower sandbox.max_active_sandboxes to 10 or fewer"]

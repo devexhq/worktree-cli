@@ -7,14 +7,11 @@ from pathlib import Path
 
 import pytest
 
-from tests.harness.matchers import assert_model_equal
 from worktree.core.db import RunRecord, RunsRepository, RunStatus
 from worktree.core.engine.models import ReconciliationResult
 from worktree.core.history import History
 from worktree.core.history.models import (
-    HistoryListResult,
     HistoryListStatus,
-    HistoryShowResult,
     HistoryShowStatus,
 )
 
@@ -60,14 +57,11 @@ class HistoryListTests:
 
         result = history.list()
 
-        expected = HistoryListResult(
-            status=HistoryListStatus.OK,
-            runs=[],
-            errors=[],
-            warnings=[],
-            fixes=[],
-        )
-        assert_model_equal(result, expected)
+        assert result.status == HistoryListStatus.OK
+        assert result.runs == []
+        assert result.errors == []
+        assert result.warnings == []
+        assert result.fixes == []
         assert result.ok is True
 
     def test_unfiltered_list_returns_runs_ordered_with_ok_status(self, isolated_workspace: Path) -> None:
@@ -88,14 +82,11 @@ class HistoryListTests:
 
         result = history.list()
 
-        expected = HistoryListResult(
-            status=HistoryListStatus.OK,
-            runs=[_as_expected_record(run_second), _as_expected_record(run_first)],
-            errors=[],
-            warnings=[],
-            fixes=[],
-        )
-        assert_model_equal(result, expected)
+        assert result.status == HistoryListStatus.OK
+        assert result.runs == [_as_expected_record(run_second), _as_expected_record(run_first)]
+        assert result.errors == []
+        assert result.warnings == []
+        assert result.fixes == []
         assert result.ok is True
 
     def test_limit_parameter_restricts_number_of_returned_runs(self, isolated_workspace: Path) -> None:
@@ -122,14 +113,11 @@ class HistoryListTests:
 
         result = history.list(limit=1)
 
-        expected = HistoryListResult(
-            status=HistoryListStatus.OK,
-            runs=[_as_expected_record(run_third)],
-            errors=[],
-            warnings=[],
-            fixes=[],
-        )
-        assert_model_equal(result, expected)
+        assert result.status == HistoryListStatus.OK
+        assert result.runs == [_as_expected_record(run_third)]
+        assert result.errors == []
+        assert result.warnings == []
+        assert result.fixes == []
         assert result.ok is True
 
     @pytest.mark.parametrize(
@@ -175,14 +163,11 @@ class HistoryListTests:
 
         result = history.list(status=status_arg)
 
-        expected = HistoryListResult(
-            status=HistoryListStatus.OK,
-            runs=[_as_expected_record(lookup[expected_session_id])],
-            errors=[],
-            warnings=[],
-            fixes=[],
-        )
-        assert_model_equal(result, expected)
+        assert result.status == HistoryListStatus.OK
+        assert result.runs == [_as_expected_record(lookup[expected_session_id])]
+        assert result.errors == []
+        assert result.warnings == []
+        assert result.fixes == []
         assert result.ok is True
 
     def test_unknown_status_filter_fallback_passes_raw_string_to_query(self, isolated_workspace: Path) -> None:
@@ -197,14 +182,11 @@ class HistoryListTests:
 
         result = history.list(status="nonexistent_status_value")
 
-        expected = HistoryListResult(
-            status=HistoryListStatus.OK,
-            runs=[],
-            errors=[],
-            warnings=[],
-            fixes=[],
-        )
-        assert_model_equal(result, expected)
+        assert result.status == HistoryListStatus.OK
+        assert result.runs == []
+        assert result.errors == []
+        assert result.warnings == []
+        assert result.fixes == []
         assert result.ok is True
 
     def test_stale_run_reconciliation_warning_is_captured_in_result(
@@ -220,14 +202,11 @@ class HistoryListTests:
 
         result = history.list()
 
-        expected = HistoryListResult(
-            status=HistoryListStatus.OK,
-            runs=[],
-            errors=[],
-            warnings=["Session was terminated abnormally"],
-            fixes=[],
-        )
-        assert_model_equal(result, expected)
+        assert result.status == HistoryListStatus.OK
+        assert result.runs == []
+        assert result.errors == []
+        assert result.warnings == ["Session was terminated abnormally"]
+        assert result.fixes == []
         assert result.ok is True
 
 
@@ -240,15 +219,12 @@ class HistoryShowTests:
 
         result = history.show("nonexistent-session")
 
-        expected = HistoryShowResult(
-            status=HistoryShowStatus.NOT_FOUND,
-            session_id="nonexistent-session",
-            run=None,
-            errors=[],
-            warnings=[],
-            fixes=[],
-        )
-        assert_model_equal(result, expected)
+        assert result.status == HistoryShowStatus.NOT_FOUND
+        assert result.session_id == "nonexistent-session"
+        assert result.run is None
+        assert result.errors == []
+        assert result.warnings == []
+        assert result.fixes == []
         assert result.ok is False
 
     def test_existing_session_id_returns_ok_status_with_run_record(self, isolated_workspace: Path) -> None:
@@ -263,13 +239,10 @@ class HistoryShowTests:
 
         result = history.show("session-alpha")
 
-        expected = HistoryShowResult(
-            status=HistoryShowStatus.OK,
-            session_id="session-alpha",
-            run=_as_expected_record(seeded_run),
-            errors=[],
-            warnings=[],
-            fixes=[],
-        )
-        assert_model_equal(result, expected)
+        assert result.status == HistoryShowStatus.OK
+        assert result.session_id == "session-alpha"
+        assert result.run == _as_expected_record(seeded_run)
+        assert result.errors == []
+        assert result.warnings == []
+        assert result.fixes == []
         assert result.ok is True

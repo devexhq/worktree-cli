@@ -3,12 +3,10 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from tests.harness.matchers import ANY_DURATION, assert_model_equal
 from worktree.core.step.models import (
     StepAssert,
     StepDefinition,
     StepExecutionContext,
-    StepResult,
     StepType,
 )
 from worktree.core.step.runner import StepExecution
@@ -27,23 +25,16 @@ class StepRunnerAssertionContractTests:
         )
         result = StepExecution(StepExecutionContext(step=step, sandbox_path=tmp_path)).run()
 
-        assert_model_equal(
-            result,
-            StepResult.model_construct(
-                step_id="test-assert-fail",
-                status="failed",
-                exit_code=0,
-                stdout="ok\n",
-                stderr="",
-                duration_seconds=ANY_DURATION,
-                attempts=1,
-                error_message=(
-                    "Step 'test-assert-fail' failed assertion checks:\n"
-                    "  [FAIL] file_exists: path 'missing.bin' does not exist"
-                ),
-                errors=[],
-                warnings=[],
-                fixes=[],
-            ),
+        assert result.step_id == "test-assert-fail"
+        assert result.status == "failed"
+        assert result.exit_code == 0
+        assert result.stdout == "ok\n"
+        assert result.stderr == ""
+        assert result.attempts == 1
+        assert result.error_message == (
+            "Step 'test-assert-fail' failed assertion checks:\n  [FAIL] file_exists: path 'missing.bin' does not exist"
         )
+        assert result.errors == []
+        assert result.warnings == []
+        assert result.fixes == []
         assert result.duration_seconds >= 0.0

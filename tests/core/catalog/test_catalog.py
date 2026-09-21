@@ -6,16 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from tests.harness.matchers import ANY_TIMESTAMP, assert_model_equal
 from worktree.common.filesystem import Filesystem
 from worktree.core.catalog import Catalog
-from worktree.core.catalog.models import (
-    CatalogCreateResult,
-    CatalogDeleteResult,
-    CatalogShowResult,
-)
 from worktree.core.catalog.services.inventory import compute_catalog_sha
-from worktree.core.db import CatalogItemType, CatalogRecord
+from worktree.core.db import CatalogItemType
 
 
 class CatalogTemplateScaffoldingTests:
@@ -47,26 +41,18 @@ class CatalogTemplateScaffoldingTests:
         content = target_file.read_text(encoding="utf-8")
         expected_sha, expected_checksum = compute_catalog_sha(item_type, content)
 
-        assert_model_equal(
-            result,
-            CatalogCreateResult(
-                item=CatalogRecord.model_construct(
-                    id=1,
-                    key=name,
-                    sha=expected_sha,
-                    item_type=item_type,
-                    name=name,
-                    namespace=None,
-                    path=expected_rel_path,
-                    checksum=expected_checksum,
-                    created_at=ANY_TIMESTAMP,
-                    updated_at=ANY_TIMESTAMP,
-                ),
-                errors=[],
-                warnings=[],
-                fixes=[],
-            ),
-        )
+        assert result.item is not None
+        assert result.item.id == 1
+        assert result.item.key == name
+        assert result.item.sha == expected_sha
+        assert result.item.item_type == item_type
+        assert result.item.name == name
+        assert result.item.namespace is None
+        assert result.item.path == expected_rel_path
+        assert result.item.checksum == expected_checksum
+        assert result.errors == []
+        assert result.warnings == []
+        assert result.fixes == []
 
 
 class CatalogProtectionTests:
@@ -86,17 +72,12 @@ class CatalogProtectionTests:
         catalog = Catalog(isolated_workspace)
         result = catalog.delete(template_name)
 
-        assert_model_equal(
-            result,
-            CatalogDeleteResult(
-                item=None,
-                deleted=False,
-                cancelled=False,
-                errors=[f"Cannot delete bundled catalog template '{template_name}'."],
-                warnings=[],
-                fixes=[],
-            ),
-        )
+        assert result.item is None
+        assert result.deleted is False
+        assert result.cancelled is False
+        assert result.errors == [f"Cannot delete bundled catalog template '{template_name}'."]
+        assert result.warnings == []
+        assert result.fixes == []
 
 
 class CatalogDiscoveryFallbackTests:
@@ -117,17 +98,12 @@ class CatalogDiscoveryFallbackTests:
         expected_file = Filesystem().catalog_templates_dir / "blueprints" / "wt" / "fix-tests.yml"
         expected_content = expected_file.read_text(encoding="utf-8")
 
-        assert_model_equal(
-            result,
-            CatalogShowResult(
-                item=None,
-                content=expected_content,
-                template_matches=[("blueprints/wt/fix-tests.yml", expected_content)],
-                errors=[],
-                warnings=[],
-                fixes=[],
-            ),
-        )
+        assert result.item is None
+        assert result.content == expected_content
+        assert result.template_matches == [("blueprints/wt/fix-tests.yml", expected_content)]
+        assert result.errors == []
+        assert result.warnings == []
+        assert result.fixes == []
 
 
 class CatalogCollisionTests:
@@ -166,12 +142,7 @@ class CatalogCollisionTests:
         assert target_file.is_file()
 
         result_second = catalog.create(item_type, name)
-        assert_model_equal(
-            result_second,
-            CatalogCreateResult(
-                item=None,
-                errors=[f"Catalog blueprint collision at path '{expected_rel_path.as_posix()}'"],
-                warnings=[],
-                fixes=[],
-            ),
-        )
+        assert result_second.item is None
+        assert result_second.errors == [f"Catalog blueprint collision at path '{expected_rel_path.as_posix()}'"]
+        assert result_second.warnings == []
+        assert result_second.fixes == []

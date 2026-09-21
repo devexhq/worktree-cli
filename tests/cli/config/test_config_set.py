@@ -7,13 +7,12 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from tests.harness.matchers import assert_model_equal
 from worktree.cli import app
 from worktree.cli.config.commands.config_set import config_set_command
 from worktree.cli.context import CliContext
 from worktree.common.filesystem import Filesystem
 from worktree.core.config.generator import build_default_config
-from worktree.core.config.mutate import ConfigSetResult, ConfigSetStatus
+from worktree.core.config.mutate import ConfigSetStatus
 from worktree.core.db.facade import WorktreeDb
 
 
@@ -30,18 +29,13 @@ class ConfigSetRootTests:
         context = CliContext(cwd=isolated_workspace, db=WorktreeDb(path=isolated_workspace), fs=fs)
         result = config_set_command(context, "agent.model", "qwen2.5-coder")
 
-        assert_model_equal(
-            result,
-            ConfigSetResult(
-                status=ConfigSetStatus.OK,
-                config_path=config_path,
-                key="agent.model",
-                value="qwen2.5-coder",
-                errors=[],
-                warnings=[],
-                fixes=[],
-            ),
-        )
+        assert result.status == ConfigSetStatus.OK
+        assert result.config_path == config_path
+        assert result.key == "agent.model"
+        assert result.value == "qwen2.5-coder"
+        assert result.errors == []
+        assert result.warnings == []
+        assert result.fixes == []
         assert json.loads(config_path.read_text())["agent"]["model"] == "qwen2.5-coder"
 
     def test_config_set_schema_violation_returns_error(self, isolated_workspace: Path) -> None:
@@ -54,23 +48,18 @@ class ConfigSetRootTests:
         context = CliContext(cwd=isolated_workspace, db=WorktreeDb(path=isolated_workspace), fs=fs)
         result = config_set_command(context, "sandboxes.max_active_sandboxes", "3")
 
-        assert_model_equal(
-            result,
-            ConfigSetResult(
-                status=ConfigSetStatus.SCHEMA_INVALID,
-                config_path=config_path,
-                key="sandboxes.max_active_sandboxes",
-                value=3,
-                errors=[
-                    "Config schema validation failed (CONFIG_SCHEMA_INVALID):\n- (root): Additional properties are not allowed ('sandboxes' was unexpected)"
-                ],
-                fixes=[
-                    "Run `wt config validate` for details",
-                    "Or `wt init --repair` to insert missing keys without overwriting values",
-                ],
-                warnings=[],
-            ),
-        )
+        assert result.status == ConfigSetStatus.SCHEMA_INVALID
+        assert result.config_path == config_path
+        assert result.key == "sandboxes.max_active_sandboxes"
+        assert result.value == 3
+        assert result.errors == [
+            "Config schema validation failed (CONFIG_SCHEMA_INVALID):\n- (root): Additional properties are not allowed ('sandboxes' was unexpected)"
+        ]
+        assert result.fixes == [
+            "Run `wt config validate` for details",
+            "Or `wt init --repair` to insert missing keys without overwriting values",
+        ]
+        assert result.warnings == []
         assert json.loads(config_path.read_text()) == payload
 
 

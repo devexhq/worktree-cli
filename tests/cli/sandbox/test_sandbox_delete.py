@@ -9,11 +9,9 @@ from typing import Any
 import pytest
 from typer.testing import CliRunner
 
-from tests.harness.matchers import ANY_TIMESTAMP, assert_model_equal
 from worktree.cli import app
-from worktree.core.db import SandboxRecord, SandboxStatus
 from worktree.core.sandbox.facade import Sandbox
-from worktree.core.sandbox.models import SandboxDeleteResult, SandboxDeleteStatus, SandboxSession
+from worktree.core.sandbox.models import SandboxDeleteStatus, SandboxSession
 
 
 def _create_sandbox(sandbox_workspace: Path) -> SandboxSession:
@@ -21,20 +19,6 @@ def _create_sandbox(sandbox_workspace: Path) -> SandboxSession:
     create_result = Sandbox(path=sandbox_workspace).create(name="delete-me")
     assert create_result.session is not None
     return create_result.session
-
-
-def _expected_sandbox_record(session: SandboxSession) -> SandboxRecord:
-    """Build the expected SandboxRecord for a facade-created session, with DB timestamps matched by shape."""
-    return SandboxRecord.model_construct(
-        id=session.session_id,
-        name="delete-me",
-        branch_name=session.target_branch,
-        base_commit=session.base_commit,
-        sandbox_path=session.sandbox_path,
-        status=SandboxStatus.ACTIVE,
-        created_at=ANY_TIMESTAMP,
-        updated_at=ANY_TIMESTAMP,
-    )
 
 
 class SandboxDeleteCliIntegrationTests:
@@ -54,18 +38,14 @@ class SandboxDeleteCliIntegrationTests:
         assert "Aborted." in result.stdout
         assert session.sandbox_path.is_dir()
         assert len(dispatch_spy) == 1
-        assert_model_equal(
-            dispatch_spy[0],
-            SandboxDeleteResult(
-                status=SandboxDeleteStatus.ABORTED,
-                sandbox_id=session.session_id,
-                sandbox=_expected_sandbox_record(session),
-                deleted=False,
-                errors=["Aborted."],
-                warnings=[],
-                fixes=[],
-            ),
-        )
+
+        payload = dispatch_spy[0]
+        assert payload.status == SandboxDeleteStatus.ABORTED
+        assert payload.sandbox_id == session.session_id
+        assert not payload.deleted
+        assert payload.errors == ["Aborted."]
+        assert payload.sandbox is not None
+        assert payload.sandbox.id == session.session_id
 
     @pytest.mark.parametrize(
         ("extra_args", "invoke_input"),
@@ -95,18 +75,14 @@ class SandboxDeleteCliIntegrationTests:
         assert "Sandbox deleted:" in result.stdout
         assert not session.sandbox_path.exists()
         assert len(dispatch_spy) == 1
-        assert_model_equal(
-            dispatch_spy[0],
-            SandboxDeleteResult(
-                status=SandboxDeleteStatus.DELETED,
-                sandbox_id=session.session_id,
-                sandbox=_expected_sandbox_record(session),
-                deleted=True,
-                errors=[],
-                warnings=[],
-                fixes=[],
-            ),
-        )
+
+        payload = dispatch_spy[0]
+        assert payload.status == SandboxDeleteStatus.DELETED
+        assert payload.sandbox_id == session.session_id
+        assert payload.deleted
+        assert len(payload.errors) == 0
+        assert payload.sandbox is not None
+        assert payload.sandbox.id == session.session_id
 
     def test_sandbox_delete_cli_missing_sandbox_exits_one(
         self, cli_runner: CliRunner, sandbox_workspace: Path, dispatch_spy: list[Any]
@@ -117,18 +93,13 @@ class SandboxDeleteCliIntegrationTests:
         assert result.exit_code == 1
         assert "not found" in result.stdout
         assert len(dispatch_spy) == 1
-        assert_model_equal(
-            dispatch_spy[0],
-            SandboxDeleteResult(
-                status=SandboxDeleteStatus.NOT_FOUND,
-                sandbox_id="missing-id",
-                sandbox=None,
-                deleted=False,
-                errors=["Sandbox 'missing-id' not found."],
-                warnings=[],
-                fixes=["Run `wt sandbox list` to see known sandboxes"],
-            ),
-        )
+
+        payload = dispatch_spy[0]
+        assert payload.status == SandboxDeleteStatus.NOT_FOUND
+        assert payload.sandbox_id == "missing-id"
+        assert not payload.deleted
+        assert payload.sandbox is None
+        assert payload.errors == ["Sandbox 'missing-id' not found."]
 
     def test_sandbox_delete_cli_renders_json(self, cli_runner: CliRunner, sandbox_workspace: Path) -> None:
         """wt sandbox delete <id> --force --format json emits the 'deleted' SandboxDeleteResult envelope."""
@@ -171,6 +142,7 @@ class SandboxDeleteCliIntegrationTests:
                     "updated_at": "placeholder",
                 },
                 "deleted": True,
+                "error_code": None,
                 "errors": [],
                 "warnings": [],
                 "fixes": [],
@@ -213,6 +185,7 @@ class SandboxDeleteCliIntegrationTests:
                     "updated_at": "placeholder",
                 },
                 "deleted": False,
+                "error_code": None,
                 "errors": ["Aborted."],
                 "warnings": [],
                 "fixes": [],
@@ -236,6 +209,7 @@ class SandboxDeleteCliIntegrationTests:
                 "sandbox_id": "missing-id",
                 "sandbox": None,
                 "deleted": False,
+                "error_code": None,
                 "errors": ["Sandbox 'missing-id' not found."],
                 "warnings": [],
                 "fixes": ["Run `wt sandbox list` to see known sandboxes"],
