@@ -6,9 +6,7 @@ import re
 
 import pytest
 
-from tests.harness.matchers import assert_model_equal
 from worktree.core.inputs.models import (
-    InputResolveResult,
     InputType,
     ParameterInput,
 )
@@ -106,16 +104,11 @@ class InputSyntaxValidationTests:
         """Reject malformed input overrides and report expected syntax error."""
         result = resolve_inputs(_sample_declarations(), cli_args=cli_args)
 
-        assert_model_equal(
-            result,
-            InputResolveResult(
-                values={},
-                missing=[],
-                errors=["Invalid input syntax 'malformed_token'. Expected key=value (e.g. -i message=value)."],
-                warnings=[],
-                fixes=[],
-            ),
-        )
+        assert result.values == {}
+        assert result.missing == []
+        assert result.errors == ["Invalid input syntax 'malformed_token'. Expected key=value (e.g. -i message=value)."]
+        assert result.warnings == []
+        assert result.fixes == []
 
     def test_resolve_inputs_warns_on_unrecognized_cli_options(self) -> None:
         """Collect warnings on unrecognized options and unexpected positional arguments."""
@@ -124,19 +117,14 @@ class InputSyntaxValidationTests:
             cli_args=["-m", "ship it", "--unrecognized-option", "positional_arg"],
         )
 
-        assert_model_equal(
-            result,
-            InputResolveResult(
-                values={"message": "ship it", "allow_empty": False},
-                missing=[],
-                errors=[],
-                warnings=[
-                    "Ignoring unrecognized option '--unrecognized-option'.",
-                    "Ignoring unexpected argument 'positional_arg'.",
-                ],
-                fixes=[],
-            ),
-        )
+        assert result.values == {"message": "ship it", "allow_empty": False}
+        assert result.missing == []
+        assert result.errors == []
+        assert result.warnings == [
+            "Ignoring unrecognized option '--unrecognized-option'.",
+            "Ignoring unexpected argument 'positional_arg'.",
+        ]
+        assert result.fixes == []
 
     def test_format_missing_inputs_error_includes_cli_usage_example(self) -> None:
         """Format structured missing-input error with actionable CLI usage examples."""
@@ -225,16 +213,11 @@ class InputFlagResolutionTests:
         """Resolve declared flag aliases and generic overrides into typed parameter values."""
         result = resolve_inputs(_sample_declarations(), cli_args=cli_args)
 
-        assert_model_equal(
-            result,
-            InputResolveResult(
-                values=expected_values,
-                missing=[],
-                errors=[],
-                warnings=[],
-                fixes=[],
-            ),
-        )
+        assert result.values == expected_values
+        assert result.missing == []
+        assert result.errors == []
+        assert result.warnings == []
+        assert result.fixes == []
 
     def test_resolve_prioritizes_declared_alias_matching_generic_flag(self) -> None:
         """Resolve declared '-i' flag alias onto target input instead of treating as generic override."""
@@ -247,13 +230,8 @@ class InputFlagResolutionTests:
         }
         result = resolve_inputs(inputs, cli_args=["-i", "616"])
 
-        assert_model_equal(
-            result,
-            InputResolveResult(
-                values={"issue": "616"},
-                missing=[],
-                errors=[],
-                warnings=[],
-                fixes=[],
-            ),
-        )
+        assert result.values == {"issue": "616"}
+        assert result.missing == []
+        assert result.errors == []
+        assert result.warnings == []
+        assert result.fixes == []

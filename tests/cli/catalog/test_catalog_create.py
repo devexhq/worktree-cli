@@ -8,15 +8,13 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from tests.harness.matchers import ANY_TIMESTAMP, assert_model_equal
 from worktree.cli import app
 from worktree.cli.catalog.commands.catalog_create import catalog_create_command
 from worktree.cli.context import CliContext
 from worktree.common.filesystem import Filesystem
-from worktree.core.catalog.models import CatalogCreateResult
 from worktree.core.catalog.services.inventory import compute_catalog_sha
 from worktree.core.config.generator import build_default_config
-from worktree.core.db import CatalogItemType, CatalogRecord
+from worktree.core.db import CatalogItemType
 from worktree.core.db.facade import WorktreeDb
 
 
@@ -75,26 +73,18 @@ class CatalogCreateRootTests:
         content = target_file.read_text(encoding="utf-8")
         expected_sha, expected_checksum = compute_catalog_sha(item_type_enum, content)
 
-        assert_model_equal(
-            result,
-            CatalogCreateResult(
-                item=CatalogRecord.model_construct(
-                    id=1,
-                    key=name,
-                    sha=expected_sha,
-                    item_type=item_type_enum,
-                    name=name,
-                    namespace=None,
-                    path=rel_path,
-                    checksum=expected_checksum,
-                    created_at=ANY_TIMESTAMP,
-                    updated_at=ANY_TIMESTAMP,
-                ),
-                errors=[],
-                warnings=[],
-                fixes=[],
-            ),
-        )
+        assert result.item is not None
+        assert result.item.id == 1
+        assert result.item.key == name
+        assert result.item.sha == expected_sha
+        assert result.item.item_type == item_type_enum
+        assert result.item.name == name
+        assert result.item.namespace is None
+        assert result.item.path == rel_path
+        assert result.item.checksum == expected_checksum
+        assert result.errors == []
+        assert result.warnings == []
+        assert result.fixes == []
 
     @pytest.mark.parametrize(
         ("item_type_str", "name", "rel_path"),
@@ -116,15 +106,10 @@ class CatalogCreateRootTests:
 
         result_collision = catalog_create_command(context, item_type_str, name=name)
 
-        assert_model_equal(
-            result_collision,
-            CatalogCreateResult(
-                item=None,
-                errors=[f"Catalog blueprint collision at path '{rel_path}'"],
-                warnings=[],
-                fixes=[],
-            ),
-        )
+        assert result_collision.item is None
+        assert result_collision.errors == [f"Catalog blueprint collision at path '{rel_path}'"]
+        assert result_collision.warnings == []
+        assert result_collision.fixes == []
 
     @pytest.mark.parametrize(
         "invalid_type",
@@ -139,15 +124,10 @@ class CatalogCreateRootTests:
 
         result = catalog_create_command(context, invalid_type, name="cli-blueprint")
 
-        assert_model_equal(
-            result,
-            CatalogCreateResult(
-                item=None,
-                errors=[f"Invalid item_type '{invalid_type}'. Allowed choices: blueprint, step"],
-                warnings=[],
-                fixes=[],
-            ),
-        )
+        assert result.item is None
+        assert result.errors == [f"Invalid item_type '{invalid_type}'. Allowed choices: blueprint, step"]
+        assert result.warnings == []
+        assert result.fixes == []
 
 
 class CatalogCreateCliIntegrationTests:
@@ -242,6 +222,7 @@ class CatalogCreateCliIntegrationTests:
                 "errors": [],
                 "warnings": [],
                 "fixes": [],
+                "error_code": None,
             },
         }
 

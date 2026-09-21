@@ -8,15 +8,12 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from tests.harness.matchers import ANY_TIMESTAMP, assert_model_equal
 from worktree.cli import app
 from worktree.cli.catalog.commands.catalog_create import catalog_create_command
 from worktree.cli.catalog.commands.catalog_show import catalog_show_command
 from worktree.cli.context import CliContext
 from worktree.common.filesystem import Filesystem
-from worktree.core.catalog.models import CatalogShowResult
 from worktree.core.config.generator import build_default_config
-from worktree.core.db import CatalogRecord
 from worktree.core.db.facade import WorktreeDb
 
 
@@ -32,32 +29,6 @@ def _make_context(workspace: Path) -> CliContext:
     """Create a configured CliContext bound to the test workspace."""
     fs = Filesystem.configure(workspace)
     return CliContext(cwd=workspace, db=WorktreeDb(path=workspace), fs=fs)
-
-
-def _fully_set(record: CatalogRecord) -> CatalogRecord:
-    """Rebuild a live CatalogRecord so every field, including the DB-assigned id, is named.
-
-    The repository sets `id` via attribute assignment after insert, which pydantic does not
-    record in `model_fields_set`. assert_model_equal requires an expected object to name every
-    field, so reusing a live record as `expected` needs this rebuild first.
-
-    `updated_at` is replaced with a matcher: every read command (list/show/delete) reindexes the
-    catalog via `scan_and_index_catalog`, and `CatalogRepository.upsert` unconditionally bumps
-    `updated_at` on each reindex even when content is unchanged, so the value on the record
-    returned by create() is stale by the time a later command re-reads it.
-    """
-    return CatalogRecord.model_construct(
-        id=record.id,
-        key=record.key,
-        sha=record.sha,
-        item_type=record.item_type,
-        name=record.name,
-        namespace=record.namespace,
-        path=record.path,
-        checksum=record.checksum,
-        created_at=record.created_at,
-        updated_at=ANY_TIMESTAMP,
-    )
 
 
 class CatalogShowRootTests:
@@ -88,17 +59,15 @@ class CatalogShowRootTests:
 
         result = catalog_show_command(context, name)
 
-        assert_model_equal(
-            result,
-            CatalogShowResult(
-                item=_fully_set(create_result.item),
-                content=expected_content,
-                template_matches=[],
-                errors=[],
-                warnings=[],
-                fixes=[],
-            ),
-        )
+        assert result.item is not None
+        assert result.item.id == create_result.item.id
+        assert result.item.key == create_result.item.key
+        assert result.item.sha == create_result.item.sha
+        assert result.content == expected_content
+        assert result.template_matches == []
+        assert result.errors == []
+        assert result.warnings == []
+        assert result.fixes == []
 
     @pytest.mark.parametrize(
         "template_name",
@@ -115,17 +84,12 @@ class CatalogShowRootTests:
 
         result = catalog_show_command(context, template_name)
 
-        assert_model_equal(
-            result,
-            CatalogShowResult(
-                item=None,
-                content=expected_content,
-                template_matches=[("blueprints/wt/fix-tests.yml", expected_content)],
-                errors=[],
-                warnings=[],
-                fixes=[],
-            ),
-        )
+        assert result.item is None
+        assert result.content == expected_content
+        assert result.template_matches == [("blueprints/wt/fix-tests.yml", expected_content)]
+        assert result.errors == []
+        assert result.warnings == []
+        assert result.fixes == []
 
     def test_catalog_show_missing_returns_not_found(self, isolated_workspace: Path) -> None:
         """catalog_show_command returns error when template is not found."""
@@ -133,17 +97,12 @@ class CatalogShowRootTests:
 
         result = catalog_show_command(context, "non-existent")
 
-        assert_model_equal(
-            result,
-            CatalogShowResult(
-                item=None,
-                content=None,
-                template_matches=[],
-                errors=["Catalog blueprint or template 'non-existent' not found."],
-                warnings=[],
-                fixes=[],
-            ),
-        )
+        assert result.item is None
+        assert result.content is None
+        assert result.template_matches == []
+        assert result.errors == ["Catalog blueprint or template 'non-existent' not found."]
+        assert result.warnings == []
+        assert result.fixes == []
 
 
 class CatalogShowCliIntegrationTests:

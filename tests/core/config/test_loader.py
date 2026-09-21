@@ -5,11 +5,9 @@ from typing import Any
 
 import pytest
 
-from tests.harness.matchers import assert_model_equal
 from worktree.common.filesystem import Filesystem
 from worktree.core.config.generator import build_default_config
 from worktree.core.config.loader import (
-    ConfigLoadResult,
     ConfigLoadStatus,
     load_config,
 )
@@ -54,36 +52,26 @@ class ConfigLoaderTests:
 
         result = load_config(isolated_workspace)
 
-        assert_model_equal(
-            result,
-            ConfigLoadResult(
-                status=ConfigLoadStatus.OK,
-                config_path=config_path,
-                raw=payload,
-                config=WorktreeConfig.model_validate(payload),
-                errors=[],
-                warnings=[],
-                fixes=[],
-            ),
-        )
+        assert result.status == ConfigLoadStatus.OK
+        assert result.config_path == config_path
+        assert result.raw == payload
+        assert result.config == WorktreeConfig.model_validate(payload)
+        assert result.errors == []
+        assert result.warnings == []
+        assert result.fixes == []
 
     def test_load_missing_config_returns_failure_result(self, isolated_workspace: Path) -> None:
         config_path = isolated_workspace / ".worktree" / "config.json"
 
         result = load_config(isolated_workspace)
 
-        assert_model_equal(
-            result,
-            ConfigLoadResult(
-                status=ConfigLoadStatus.NOT_FOUND,
-                config_path=config_path,
-                raw=None,
-                config=None,
-                errors=[f"Configuration file not found at '{config_path}' (CONFIG_NOT_FOUND)."],
-                warnings=[],
-                fixes=["Run `wt init` to create `.worktree/config.json`"],
-            ),
-        )
+        assert result.status == ConfigLoadStatus.NOT_FOUND
+        assert result.config_path == config_path
+        assert result.raw is None
+        assert result.config is None
+        assert result.errors == [f"Configuration file not found at '{config_path}' (CONFIG_NOT_FOUND)."]
+        assert result.warnings == []
+        assert result.fixes == ["Run `wt init` to create `.worktree/config.json`"]
 
     @pytest.mark.parametrize(("payload", "expected_error"), SCHEMA_VIOLATION_PAYLOADS)
     def test_load_schema_violation_returns_validation_errors(
@@ -97,18 +85,13 @@ class ConfigLoaderTests:
 
         result = load_config(isolated_workspace)
 
-        assert_model_equal(
-            result,
-            ConfigLoadResult(
-                status=ConfigLoadStatus.SCHEMA_INVALID,
-                config_path=config_path,
-                raw=payload,
-                config=None,
-                errors=[expected_error],
-                warnings=[],
-                fixes=[
-                    "Run `wt config validate` for details",
-                    "Or `wt init --repair` to insert missing keys without overwriting values",
-                ],
-            ),
-        )
+        assert result.status == ConfigLoadStatus.SCHEMA_INVALID
+        assert result.config_path == config_path
+        assert result.raw == payload
+        assert result.config is None
+        assert result.errors == [expected_error]
+        assert result.warnings == []
+        assert result.fixes == [
+            "Run `wt config validate` for details",
+            "Or `wt init --repair` to insert missing keys without overwriting values",
+        ]

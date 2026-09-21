@@ -8,13 +8,10 @@ from typing import Any
 
 import pytest
 
-from tests.harness.matchers import assert_model_equal
 from worktree.common.filesystem import Filesystem
 from worktree.core.config.generator import build_default_config
 from worktree.core.config.mutate import (
-    ConfigSetResult,
     ConfigSetStatus,
-    ConfigUnsetResult,
     ConfigUnsetStatus,
     set_config_value_result,
     unset_config_value_result,
@@ -33,18 +30,14 @@ class ConfigMutationTests:
 
         result = set_config_value_result("agent.model", "qwen2.5-coder", path=isolated_workspace)
 
-        assert_model_equal(
-            result,
-            ConfigSetResult(
-                status=ConfigSetStatus.OK,
-                config_path=config_path,
-                key="agent.model",
-                value="qwen2.5-coder",
-                errors=[],
-                warnings=[],
-                fixes=[],
-            ),
-        )
+        assert result.status == ConfigSetStatus.OK
+        assert result.config_path == config_path
+        assert result.key == "agent.model"
+        assert result.value == "qwen2.5-coder"
+        assert result.errors == []
+        assert result.warnings == []
+        assert result.fixes == []
+
         data = json.loads(config_path.read_text())
         assert data["agent"]["model"] == "qwen2.5-coder"
         assert data["agent"]["provider"] == payload["agent"]["provider"]
@@ -56,40 +49,30 @@ class ConfigMutationTests:
         Filesystem.atomic_write_json(config_path, payload)
 
         bool_result = set_config_value_result("telemetry.enabled", "true", path=isolated_workspace)
-        assert_model_equal(
-            bool_result,
-            ConfigSetResult(
-                status=ConfigSetStatus.OK,
-                config_path=config_path,
-                key="telemetry.enabled",
-                value=True,
-                errors=[],
-                warnings=[],
-                fixes=[],
-            ),
-        )
+        assert bool_result.status == ConfigSetStatus.OK
+        assert bool_result.config_path == config_path
+        assert bool_result.key == "telemetry.enabled"
+        assert bool_result.value is True
+        assert bool_result.errors == []
+        assert bool_result.warnings == []
+        assert bool_result.fixes == []
         assert json.loads(config_path.read_text())["telemetry"]["enabled"] is True
 
         schema_error_result = set_config_value_result(
             "sandbox.max_active_sandboxes", "not_an_int", path=isolated_workspace
         )
-        assert_model_equal(
-            schema_error_result,
-            ConfigSetResult(
-                status=ConfigSetStatus.SCHEMA_INVALID,
-                config_path=config_path,
-                key="sandbox.max_active_sandboxes",
-                value="not_an_int",
-                errors=[
-                    "Config schema validation failed (CONFIG_SCHEMA_INVALID):\n- sandbox.max_active_sandboxes: 'not_an_int' is not of type 'integer'"
-                ],
-                fixes=[
-                    "Run `wt config validate` for details",
-                    "Or `wt init --repair` to insert missing keys without overwriting values",
-                ],
-                warnings=[],
-            ),
-        )
+        assert schema_error_result.status == ConfigSetStatus.SCHEMA_INVALID
+        assert schema_error_result.config_path == config_path
+        assert schema_error_result.key == "sandbox.max_active_sandboxes"
+        assert schema_error_result.value == "not_an_int"
+        assert schema_error_result.errors == [
+            "Config schema validation failed (CONFIG_SCHEMA_INVALID):\n- sandbox.max_active_sandboxes: 'not_an_int' is not of type 'integer'"
+        ]
+        assert schema_error_result.fixes == [
+            "Run `wt config validate` for details",
+            "Or `wt init --repair` to insert missing keys without overwriting values",
+        ]
+        assert schema_error_result.warnings == []
         assert json.loads(config_path.read_text())["sandbox"]["max_active_sandboxes"] == 3
 
         disk_data = json.loads(config_path.read_text())
@@ -97,18 +80,13 @@ class ConfigMutationTests:
         Filesystem.atomic_write_json(config_path, disk_data)
 
         collision_result = set_config_value_result("agent.model", "qwen2.5-coder", path=isolated_workspace)
-        assert_model_equal(
-            collision_result,
-            ConfigSetResult(
-                status=ConfigSetStatus.TYPE_COLLISION,
-                config_path=config_path,
-                key="agent.model",
-                value="qwen2.5-coder",
-                errors=["Cannot set 'agent.model'. 'agent' is already defined as a scalar value."],
-                warnings=[],
-                fixes=[],
-            ),
-        )
+        assert collision_result.status == ConfigSetStatus.TYPE_COLLISION
+        assert collision_result.config_path == config_path
+        assert collision_result.key == "agent.model"
+        assert collision_result.value == "qwen2.5-coder"
+        assert collision_result.errors == ["Cannot set 'agent.model'. 'agent' is already defined as a scalar value."]
+        assert collision_result.warnings == []
+        assert collision_result.fixes == []
 
 
 class ConfigUnsetNestedValueTests:
@@ -191,19 +169,14 @@ class ConfigUnsetMutationTests:
 
         result = unset_config_value_result("agent.model", path=isolated_workspace)
 
-        assert_model_equal(
-            result,
-            ConfigUnsetResult(
-                status=ConfigUnsetStatus.OK,
-                config_path=config_path,
-                key="agent.model",
-                existed=True,
-                previous_value=previous_model,
-                errors=[],
-                warnings=[],
-                fixes=[],
-            ),
-        )
+        assert result.status == ConfigUnsetStatus.OK
+        assert result.config_path == config_path
+        assert result.key == "agent.model"
+        assert result.existed is True
+        assert result.previous_value == previous_model
+        assert result.errors == []
+        assert result.warnings == []
+        assert result.fixes == []
         data = json.loads(config_path.read_text())
         assert "model" not in data["agent"]
         assert data["agent"]["provider"] == payload["agent"]["provider"]
@@ -230,19 +203,14 @@ class ConfigUnsetMutationTests:
 
         result = unset_config_value_result("telemetry.nonexistent", path=isolated_workspace)
 
-        assert_model_equal(
-            result,
-            ConfigUnsetResult(
-                status=ConfigUnsetStatus.OK,
-                config_path=config_path,
-                key="telemetry.nonexistent",
-                existed=False,
-                previous_value=None,
-                errors=[],
-                warnings=[],
-                fixes=[],
-            ),
-        )
+        assert result.status == ConfigUnsetStatus.OK
+        assert result.config_path == config_path
+        assert result.key == "telemetry.nonexistent"
+        assert result.existed is False
+        assert result.previous_value is None
+        assert result.errors == []
+        assert result.warnings == []
+        assert result.fixes == []
         assert config_path.read_bytes() == before
 
     def test_unset_missing_config_returns_not_found(self, isolated_workspace: Path) -> None:
@@ -251,19 +219,14 @@ class ConfigUnsetMutationTests:
 
         result = unset_config_value_result("agent.model", path=isolated_workspace)
 
-        assert_model_equal(
-            result,
-            ConfigUnsetResult(
-                status=ConfigUnsetStatus.NOT_FOUND,
-                config_path=config_path,
-                key="agent.model",
-                existed=False,
-                previous_value=None,
-                errors=[f"Configuration file not found at '{config_path}' (CONFIG_NOT_FOUND)."],
-                warnings=[],
-                fixes=["Run `wt init` to create `.worktree/config.json`"],
-            ),
-        )
+        assert result.status == ConfigUnsetStatus.NOT_FOUND
+        assert result.config_path == config_path
+        assert result.key == "agent.model"
+        assert result.existed is False
+        assert result.previous_value is None
+        assert result.errors == [f"Configuration file not found at '{config_path}' (CONFIG_NOT_FOUND)."]
+        assert result.warnings == []
+        assert result.fixes == ["Run `wt init` to create `.worktree/config.json`"]
 
     def test_unset_config_path_is_directory_returns_path_is_directory(self, isolated_workspace: Path) -> None:
         """[tier-1/domain] unset_config_value_result: config.json existing as a directory returns ConfigUnsetStatus.PATH_IS_DIRECTORY."""
@@ -272,19 +235,14 @@ class ConfigUnsetMutationTests:
 
         result = unset_config_value_result("agent.model", path=isolated_workspace)
 
-        assert_model_equal(
-            result,
-            ConfigUnsetResult(
-                status=ConfigUnsetStatus.PATH_IS_DIRECTORY,
-                config_path=config_path,
-                key="agent.model",
-                existed=False,
-                previous_value=None,
-                errors=[f"Config path is a directory, not a file: '{config_path}' (CONFIG_PATH_IS_DIRECTORY)."],
-                warnings=[],
-                fixes=["Remove the directory or point config_path at a file"],
-            ),
-        )
+        assert result.status == ConfigUnsetStatus.PATH_IS_DIRECTORY
+        assert result.config_path == config_path
+        assert result.key == "agent.model"
+        assert result.existed is False
+        assert result.previous_value is None
+        assert result.errors == [f"Config path is a directory, not a file: '{config_path}' (CONFIG_PATH_IS_DIRECTORY)."]
+        assert result.warnings == []
+        assert result.fixes == ["Remove the directory or point config_path at a file"]
 
     def test_unset_malformed_json_returns_malformed_json(self, isolated_workspace: Path) -> None:
         """[tier-1/domain] unset_config_value_result: invalid JSON text returns ConfigUnsetStatus.MALFORMED_JSON."""
@@ -293,23 +251,18 @@ class ConfigUnsetMutationTests:
 
         result = unset_config_value_result("agent.model", path=isolated_workspace)
 
-        assert_model_equal(
-            result,
-            ConfigUnsetResult(
-                status=ConfigUnsetStatus.MALFORMED_JSON,
-                config_path=config_path,
-                key="agent.model",
-                existed=False,
-                previous_value=None,
-                errors=[
-                    f"Malformed config.json at '{config_path}': "
-                    "Expecting property name enclosed in double quotes at line 1 column 2 (char 1) "
-                    "(CONFIG_MALFORMED_JSON)."
-                ],
-                warnings=[],
-                fixes=["Repair JSON syntax, or restore from backup"],
-            ),
-        )
+        assert result.status == ConfigUnsetStatus.MALFORMED_JSON
+        assert result.config_path == config_path
+        assert result.key == "agent.model"
+        assert result.existed is False
+        assert result.previous_value is None
+        assert result.errors == [
+            f"Malformed config.json at '{config_path}': "
+            "Expecting property name enclosed in double quotes at line 1 column 2 (char 1) "
+            "(CONFIG_MALFORMED_JSON)."
+        ]
+        assert result.warnings == []
+        assert result.fixes == ["Repair JSON syntax, or restore from backup"]
 
     def test_unset_root_not_object_returns_root_not_object(self, isolated_workspace: Path) -> None:
         """[tier-1/domain] unset_config_value_result: a JSON array root returns ConfigUnsetStatus.ROOT_NOT_OBJECT."""
@@ -318,19 +271,16 @@ class ConfigUnsetMutationTests:
 
         result = unset_config_value_result("agent.model", path=isolated_workspace)
 
-        assert_model_equal(
-            result,
-            ConfigUnsetResult(
-                status=ConfigUnsetStatus.ROOT_NOT_OBJECT,
-                config_path=config_path,
-                key="agent.model",
-                existed=False,
-                previous_value=None,
-                errors=[f"Malformed config.json at '{config_path}': root must be an object (CONFIG_ROOT_NOT_OBJECT)."],
-                warnings=[],
-                fixes=["Ensure config.json is a JSON object, not an array or scalar"],
-            ),
-        )
+        assert result.status == ConfigUnsetStatus.ROOT_NOT_OBJECT
+        assert result.config_path == config_path
+        assert result.key == "agent.model"
+        assert result.existed is False
+        assert result.previous_value is None
+        assert result.errors == [
+            f"Malformed config.json at '{config_path}': root must be an object (CONFIG_ROOT_NOT_OBJECT)."
+        ]
+        assert result.warnings == []
+        assert result.fixes == ["Ensure config.json is a JSON object, not an array or scalar"]
 
     def test_unset_schema_invalid_removal_rejected_without_write(self, isolated_workspace: Path) -> None:
         """[tier-1/domain] unset_config_value_result: removing the required 'project' key returns ConfigUnsetStatus.SCHEMA_INVALID and leaves config.json unchanged on disk."""
@@ -341,24 +291,19 @@ class ConfigUnsetMutationTests:
 
         result = unset_config_value_result("project", path=isolated_workspace)
 
-        assert_model_equal(
-            result,
-            ConfigUnsetResult(
-                status=ConfigUnsetStatus.SCHEMA_INVALID,
-                config_path=config_path,
-                key="project",
-                existed=True,
-                previous_value=payload["project"],
-                errors=[
-                    "Config schema validation failed (CONFIG_SCHEMA_INVALID):\n- (root): 'project' is a required property"
-                ],
-                warnings=[],
-                fixes=[
-                    "Run `wt config validate` for details",
-                    "Or `wt init --repair` to insert missing keys without overwriting values",
-                ],
-            ),
-        )
+        assert result.status == ConfigUnsetStatus.SCHEMA_INVALID
+        assert result.config_path == config_path
+        assert result.key == "project"
+        assert result.existed is True
+        assert result.previous_value == payload["project"]
+        assert result.errors == [
+            "Config schema validation failed (CONFIG_SCHEMA_INVALID):\n- (root): 'project' is a required property"
+        ]
+        assert result.warnings == []
+        assert result.fixes == [
+            "Run `wt config validate` for details",
+            "Or `wt init --repair` to insert missing keys without overwriting values",
+        ]
         assert config_path.read_bytes() == before
 
     def test_unset_write_failure_returns_write_failed(
@@ -376,19 +321,14 @@ class ConfigUnsetMutationTests:
 
         result = unset_config_value_result("agent.model", path=isolated_workspace)
 
-        assert_model_equal(
-            result,
-            ConfigUnsetResult(
-                status=ConfigUnsetStatus.WRITE_FAILED,
-                config_path=config_path,
-                key="agent.model",
-                existed=True,
-                previous_value=payload["agent"]["model"],
-                errors=[f"Unable to write config.json at '{config_path}': disk full (CONFIG_WRITE_FAILED)."],
-                warnings=[],
-                fixes=["Check file permissions and free disk space"],
-            ),
-        )
+        assert result.status == ConfigUnsetStatus.WRITE_FAILED
+        assert result.config_path == config_path
+        assert result.key == "agent.model"
+        assert result.existed is True
+        assert result.previous_value == payload["agent"]["model"]
+        assert result.errors == [f"Unable to write config.json at '{config_path}': disk full (CONFIG_WRITE_FAILED)."]
+        assert result.warnings == []
+        assert result.fixes == ["Check file permissions and free disk space"]
 
     def test_unset_empty_path_returns_invalid_path(self, isolated_workspace: Path) -> None:
         """[tier-1/domain] unset_config_value_result: an empty dot-path key returns ConfigUnsetStatus.INVALID_PATH."""
@@ -398,19 +338,14 @@ class ConfigUnsetMutationTests:
 
         result = unset_config_value_result("", path=isolated_workspace)
 
-        assert_model_equal(
-            result,
-            ConfigUnsetResult(
-                status=ConfigUnsetStatus.INVALID_PATH,
-                config_path=config_path,
-                key="",
-                existed=False,
-                previous_value=None,
-                errors=["Cannot unset '': config key path must be a non-empty dot path."],
-                warnings=[],
-                fixes=[],
-            ),
-        )
+        assert result.status == ConfigUnsetStatus.INVALID_PATH
+        assert result.config_path == config_path
+        assert result.key == ""
+        assert result.existed is False
+        assert result.previous_value is None
+        assert result.errors == ["Cannot unset '': config key path must be a non-empty dot path."]
+        assert result.warnings == []
+        assert result.fixes == []
 
     def test_unset_type_collision_returns_type_collision(self, isolated_workspace: Path) -> None:
         """[tier-1/domain] unset_config_value_result: traversing through a scalar-valued intermediate returns ConfigUnsetStatus.TYPE_COLLISION and leaves config.json unchanged."""
@@ -422,17 +357,12 @@ class ConfigUnsetMutationTests:
 
         result = unset_config_value_result("agent.model", path=isolated_workspace)
 
-        assert_model_equal(
-            result,
-            ConfigUnsetResult(
-                status=ConfigUnsetStatus.TYPE_COLLISION,
-                config_path=config_path,
-                key="agent.model",
-                existed=False,
-                previous_value=None,
-                errors=["Cannot unset 'agent.model'. 'agent' is already defined as a scalar value."],
-                warnings=[],
-                fixes=[],
-            ),
-        )
+        assert result.status == ConfigUnsetStatus.TYPE_COLLISION
+        assert result.config_path == config_path
+        assert result.key == "agent.model"
+        assert result.existed is False
+        assert result.previous_value is None
+        assert result.errors == ["Cannot unset 'agent.model'. 'agent' is already defined as a scalar value."]
+        assert result.warnings == []
+        assert result.fixes == []
         assert config_path.read_bytes() == before

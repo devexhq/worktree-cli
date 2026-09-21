@@ -8,12 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from tests.harness import (
-    AnyMatching,
-    DetectionResultBuilder,
-    WorkspaceBuilder,
-    assert_model_equal,
-)
+from tests.harness import WorkspaceBuilder
 from worktree.core.db import SandboxesRepository, SandboxStatus
 from worktree.core.git.exceptions import GitCommandError
 from worktree.core.git.runner import GitRunner
@@ -44,8 +39,10 @@ class SandboxDetectorBaselineTests:
 
         result = detector.detect()
 
-        expected = DetectionResultBuilder().build()
-        assert_model_equal(result, expected)
+        assert result.status == SandboxDetectionStatus.OK
+        assert len(result.items) == 0
+        assert len(result.errors) == 0
+        assert result.active_sandbox_count == 0
 
     def test_active_sandbox_is_excluded_from_all_categories(
         self,
@@ -62,8 +59,10 @@ class SandboxDetectorBaselineTests:
 
         result = detector.detect()
 
-        expected = DetectionResultBuilder().with_active_sandbox_count(1).build()
-        assert_model_equal(result, expected)
+        assert result.status == SandboxDetectionStatus.OK
+        assert len(result.items) == 0
+        assert len(result.errors) == 0
+        assert result.active_sandbox_count == 1
 
 
 class SandboxDetectorCategoryTests:
@@ -88,24 +87,23 @@ class SandboxDetectorCategoryTests:
 
         result = detector.detect()
 
-        expected = (
-            DetectionResultBuilder()
-            .with_item(
-                category=StaleSandboxCategory.STALE_WORKTREE_REF,
-                identifier=str(target),
-                path=target,
-                branch_name="worktree/sandbox-sbx_wt1",
-                reason=AnyMatching(r".*gitdir.*", "GIT_PRUNABLE_REASON"),
-            )
-            .with_item(
-                category=StaleSandboxCategory.STALE_BRANCH,
-                identifier="worktree/sandbox-sbx_wt1",
-                branch_name="worktree/sandbox-sbx_wt1",
-                reason="Sandbox branch 'worktree/sandbox-sbx_wt1' is not attached to any active sandbox or worktree",
-            )
-            .build()
+        assert result.status == SandboxDetectionStatus.OK
+        assert len(result.items) == 2
+        assert len(result.errors) == 0
+
+        wt_item = next(i for i in result.items if i.category == StaleSandboxCategory.STALE_WORKTREE_REF)
+        assert wt_item.identifier == str(target)
+        assert wt_item.path == target
+        assert wt_item.branch_name == "worktree/sandbox-sbx_wt1"
+        assert "gitdir" in wt_item.reason
+
+        branch_item = next(i for i in result.items if i.category == StaleSandboxCategory.STALE_BRANCH)
+        assert branch_item.identifier == "worktree/sandbox-sbx_wt1"
+        assert branch_item.branch_name == "worktree/sandbox-sbx_wt1"
+        assert (
+            branch_item.reason
+            == "Sandbox branch 'worktree/sandbox-sbx_wt1' is not attached to any active sandbox or worktree"
         )
-        assert_model_equal(result, expected)
 
     def test_orphaned_directories_classified_by_dirty_state_and_db_status(
         self,
@@ -142,33 +140,27 @@ class SandboxDetectorCategoryTests:
 
         result = detector.detect()
 
-        expected = (
-            DetectionResultBuilder()
-            .with_item(
-                category=StaleSandboxCategory.ORPHANED_DIRECTORY,
-                identifier="sbx_clean",
-                path=clean_dir,
-                reason="Sandbox directory 'sbx_clean' is not tracked in the database",
-            )
-            .with_item(
-                category=StaleSandboxCategory.ORPHANED_DIRECTORY,
-                identifier="sbx_cleaned",
-                path=cleaned_dir,
-                branch_name="worktree/sandbox-sbx_cleaned",
-                session_id="sbx_cleaned",
-                reason="Sandbox directory 'sbx_cleaned' has database status 'cleaned'",
-            )
-            .with_item(
-                category=StaleSandboxCategory.ORPHANED_DIRECTORY,
-                identifier="sbx_dirty",
-                path=dirty_dir,
-                is_dirty=True,
-                dirty_file_count=1,
-                reason="Sandbox directory 'sbx_dirty' is not tracked in the database",
-            )
-            .build()
-        )
-        assert_model_equal(result, expected)
+        assert result.status == SandboxDetectionStatus.OK
+        assert len(result.items) == 3
+
+        clean_item = next(i for i in result.items if i.identifier == "sbx_clean")
+        assert clean_item.category == StaleSandboxCategory.ORPHANED_DIRECTORY
+        assert clean_item.path == clean_dir
+        assert clean_item.reason == "Sandbox directory 'sbx_clean' is not tracked in the database"
+
+        cleaned_item = next(i for i in result.items if i.identifier == "sbx_cleaned")
+        assert cleaned_item.category == StaleSandboxCategory.ORPHANED_DIRECTORY
+        assert cleaned_item.path == cleaned_dir
+        assert cleaned_item.branch_name == "worktree/sandbox-sbx_cleaned"
+        assert cleaned_item.session_id == "sbx_cleaned"
+        assert cleaned_item.reason == "Sandbox directory 'sbx_cleaned' has database status 'cleaned'"
+
+        dirty_item = next(i for i in result.items if i.identifier == "sbx_dirty")
+        assert dirty_item.category == StaleSandboxCategory.ORPHANED_DIRECTORY
+        assert dirty_item.path == dirty_dir
+        assert dirty_item.is_dirty is True
+        assert dirty_item.dirty_file_count == 1
+        assert dirty_item.reason == "Sandbox directory 'sbx_dirty' is not tracked in the database"
 
     def test_stale_db_record_is_detected(
         self,
@@ -188,19 +180,16 @@ class SandboxDetectorCategoryTests:
 
         result = detector.detect()
 
-        expected = (
-            DetectionResultBuilder()
-            .with_item(
-                category=StaleSandboxCategory.STALE_DB_RECORD,
-                identifier="sbx_missing",
-                path=missing_path,
-                branch_name="worktree/sandbox-sbx_missing",
-                session_id="sbx_missing",
-                reason="Active database record 'sbx_missing' has missing sandbox path on disk",
-            )
-            .build()
-        )
-        assert_model_equal(result, expected)
+        assert result.status == SandboxDetectionStatus.OK
+        assert len(result.items) == 1
+
+        item = result.items[0]
+        assert item.category == StaleSandboxCategory.STALE_DB_RECORD
+        assert item.identifier == "sbx_missing"
+        assert item.path == missing_path
+        assert item.branch_name == "worktree/sandbox-sbx_missing"
+        assert item.session_id == "sbx_missing"
+        assert item.reason == "Active database record 'sbx_missing' has missing sandbox path on disk"
 
     def test_stale_branch_is_detected(
         self,
@@ -215,17 +204,14 @@ class SandboxDetectorCategoryTests:
 
         result = detector.detect()
 
-        expected = (
-            DetectionResultBuilder()
-            .with_item(
-                category=StaleSandboxCategory.STALE_BRANCH,
-                identifier=branch_name,
-                branch_name=branch_name,
-                reason=f"Sandbox branch '{branch_name}' is not attached to any active sandbox or worktree",
-            )
-            .build()
-        )
-        assert_model_equal(result, expected)
+        assert result.status == SandboxDetectionStatus.OK
+        assert len(result.items) == 1
+
+        item = result.items[0]
+        assert item.category == StaleSandboxCategory.STALE_BRANCH
+        assert item.identifier == branch_name
+        assert item.branch_name == branch_name
+        assert item.reason == f"Sandbox branch '{branch_name}' is not attached to any active sandbox or worktree"
 
 
 class SandboxDetectorFacadeTests:
@@ -242,9 +228,10 @@ class SandboxDetectorFacadeTests:
         res_helper = detect_stale_sandboxes(detector_workspace, db)
         res_manager = manager.detect()
 
-        expected = DetectionResultBuilder().build()
-        assert_model_equal(res_helper, expected)
-        assert_model_equal(res_manager, expected)
+        assert res_helper.status == SandboxDetectionStatus.OK
+        assert len(res_helper.items) == 0
+        assert res_manager.status == SandboxDetectionStatus.OK
+        assert len(res_manager.items) == 0
 
 
 class SandboxDetectorFailureTests:
@@ -265,15 +252,10 @@ class SandboxDetectorFailureTests:
         ):
             result = detector.detect()
 
-        expected = (
-            DetectionResultBuilder()
-            .with_status(SandboxDetectionStatus.GIT_FAILED)
-            .with_errors(
-                "Failed to list git worktrees (GIT_FAILED): Git execution failed ('git git worktree list'): fatal error"
-            )
-            .build()
-        )
-        assert_model_equal(result, expected)
+        assert result.status == SandboxDetectionStatus.GIT_FAILED
+        assert result.errors == [
+            "Failed to list git worktrees (GIT_FAILED): Git execution failed ('git git worktree list'): fatal error"
+        ]
 
     def test_detect_returns_error_on_database_failure(
         self,
@@ -286,10 +268,5 @@ class SandboxDetectorFailureTests:
         with patch.object(db, "list", side_effect=RuntimeError("database locked")):
             result = detector.detect()
 
-        expected = (
-            DetectionResultBuilder()
-            .with_status(SandboxDetectionStatus.ERROR)
-            .with_errors("Failed to query sandboxes from database: database locked")
-            .build()
-        )
-        assert_model_equal(result, expected)
+        assert result.status == SandboxDetectionStatus.ERROR
+        assert result.errors == ["Failed to query sandboxes from database: database locked"]

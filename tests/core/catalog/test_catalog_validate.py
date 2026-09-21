@@ -10,7 +10,6 @@ import pytest
 import yaml
 
 from tests.harness.catalog import write_runnable_blueprint
-from tests.harness.matchers import assert_model_equal
 from worktree.core.blueprint.models import BlueprintDefinition
 from worktree.core.catalog import Catalog
 from worktree.core.catalog.models import CatalogValidateResult, CatalogValidateStatus
@@ -46,19 +45,14 @@ class CatalogValidateServiceTests:
 
         result = _validate(str(target_path), path=isolated_workspace, item_type=CatalogItemType.BLUEPRINT)
 
-        assert_model_equal(
-            result,
-            CatalogValidateResult(
-                status=CatalogValidateStatus.OK,
-                valid=True,
-                target=str(target_path),
-                resolved_path=target_path,
-                item_type="blueprint",
-                errors=[],
-                warnings=[],
-                fixes=[],
-            ),
-        )
+        assert result.status == CatalogValidateStatus.OK
+        assert result.valid is True
+        assert result.target == str(target_path)
+        assert result.resolved_path == target_path
+        assert result.item_type == "blueprint"
+        assert result.errors == []
+        assert result.warnings == []
+        assert result.fixes == []
 
     def test_validate_catalog_name_resolves_via_get(self, isolated_workspace: Path) -> None:
         """[tier-1/domain] Catalog.validate: indexed catalog name resolves via Catalog.get; item_type='blueprint' taken from the record."""
@@ -66,37 +60,29 @@ class CatalogValidateServiceTests:
 
         result = _validate("sample-flow", path=isolated_workspace)
 
-        assert_model_equal(
-            result,
-            CatalogValidateResult(
-                status=CatalogValidateStatus.OK,
-                valid=True,
-                target="sample-flow",
-                resolved_path=isolated_workspace / ".worktree" / "catalog" / "blueprints" / "sample-flow.yml",
-                item_type="blueprint",
-                errors=[],
-                warnings=[],
-                fixes=[],
-            ),
-        )
+        assert result.status == CatalogValidateStatus.OK
+        assert result.valid is True
+        assert result.target == "sample-flow"
+        assert result.resolved_path == isolated_workspace / ".worktree" / "catalog" / "blueprints" / "sample-flow.yml"
+        assert result.item_type == "blueprint"
+        assert result.errors == []
+        assert result.warnings == []
+        assert result.fixes == []
 
     def test_validate_unknown_name_returns_not_found(self, isolated_workspace: Path) -> None:
         """[tier-1/domain] Catalog.validate: unmatched name returns status=NOT_FOUND with CATALOG_ITEM_NOT_FOUND error."""
         result = _validate("nonexistent-flow", path=isolated_workspace)
 
-        assert_model_equal(
-            result,
-            CatalogValidateResult(
-                status=CatalogValidateStatus.NOT_FOUND,
-                valid=False,
-                target="nonexistent-flow",
-                resolved_path=None,
-                item_type=None,
-                errors=["Catalog item 'nonexistent-flow' not found (CATALOG_ITEM_NOT_FOUND)."],
-                warnings=[],
-                fixes=["Check that 'nonexistent-flow' names an indexed catalog item, or pass a file path instead."],
-            ),
-        )
+        assert result.status == CatalogValidateStatus.NOT_FOUND
+        assert result.valid is False
+        assert result.target == "nonexistent-flow"
+        assert result.resolved_path is None
+        assert result.item_type is None
+        assert result.errors == ["Catalog item 'nonexistent-flow' not found (CATALOG_ITEM_NOT_FOUND)."]
+        assert result.warnings == []
+        assert result.fixes == [
+            "Check that 'nonexistent-flow' names an indexed catalog item, or pass a file path instead."
+        ]
 
     def test_validate_file_target_without_type_returns_type_required(
         self, isolated_workspace: Path, monkeypatch: pytest.MonkeyPatch
@@ -111,19 +97,14 @@ class CatalogValidateServiceTests:
 
         result = _validate("draft.yml", path=isolated_workspace, item_type=None)
 
-        assert_model_equal(
-            result,
-            CatalogValidateResult(
-                status=CatalogValidateStatus.TYPE_REQUIRED,
-                valid=False,
-                target="draft.yml",
-                resolved_path=draft_path,
-                item_type=None,
-                errors=["'--type' is required to validate file target 'draft.yml' (CATALOG_TYPE_REQUIRED)."],
-                warnings=[],
-                fixes=["Pass --type blueprint or --type step for a file target."],
-            ),
-        )
+        assert result.status == CatalogValidateStatus.TYPE_REQUIRED
+        assert result.valid is False
+        assert result.target == "draft.yml"
+        assert result.resolved_path == draft_path
+        assert result.item_type is None
+        assert result.errors == ["'--type' is required to validate file target 'draft.yml' (CATALOG_TYPE_REQUIRED)."]
+        assert result.warnings == []
+        assert result.fixes == ["Pass --type blueprint or --type step for a file target."]
 
     def test_validate_unreadable_file_returns_unreadable_status(self, isolated_workspace: Path) -> None:
         """[tier-1/domain] Catalog.validate: unreadable file path (item_type=BLUEPRINT) returns status=UNREADABLE with CATALOG_FILE_UNREADABLE."""
@@ -137,22 +118,16 @@ class CatalogValidateServiceTests:
         finally:
             target_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
 
-        assert_model_equal(
-            result,
-            CatalogValidateResult(
-                status=CatalogValidateStatus.UNREADABLE,
-                valid=False,
-                target="noperm.yml",
-                resolved_path=target_path,
-                item_type="blueprint",
-                errors=[
-                    f"Failed to read '{target_path}': [Errno 13] Permission denied: '{target_path}' "
-                    "(CATALOG_FILE_UNREADABLE)."
-                ],
-                warnings=[],
-                fixes=[f"Check that '{target_path}' exists and is readable."],
-            ),
-        )
+        assert result.status == CatalogValidateStatus.UNREADABLE
+        assert result.valid is False
+        assert result.target == "noperm.yml"
+        assert result.resolved_path == target_path
+        assert result.item_type == "blueprint"
+        assert result.errors == [
+            f"Failed to read '{target_path}': [Errno 13] Permission denied: '{target_path}' (CATALOG_FILE_UNREADABLE)."
+        ]
+        assert result.warnings == []
+        assert result.fixes == [f"Check that '{target_path}' exists and is readable."]
 
     def test_validate_yaml_syntax_error_reports_line_and_column(self, isolated_workspace: Path) -> None:
         """[tier-1/domain] Catalog.validate: YAML scanner error (item_type=BLUEPRINT) returns status=SYNTAX_ERROR with line/column in the error text."""
@@ -174,19 +149,14 @@ class CatalogValidateServiceTests:
 
         result = _validate("list.yml", path=isolated_workspace, item_type=CatalogItemType.BLUEPRINT)
 
-        assert_model_equal(
-            result,
-            CatalogValidateResult(
-                status=CatalogValidateStatus.INVALID,
-                valid=False,
-                target="list.yml",
-                resolved_path=target_path,
-                item_type="blueprint",
-                errors=[f"'{target_path}' root content must be a YAML mapping (CATALOG_ROOT_NOT_OBJECT)."],
-                warnings=[],
-                fixes=[f"Rewrite '{target_path}' with a top-level YAML mapping (key: value pairs)."],
-            ),
-        )
+        assert result.status == CatalogValidateStatus.INVALID
+        assert result.valid is False
+        assert result.target == "list.yml"
+        assert result.resolved_path == target_path
+        assert result.item_type == "blueprint"
+        assert result.errors == [f"'{target_path}' root content must be a YAML mapping (CATALOG_ROOT_NOT_OBJECT)."]
+        assert result.warnings == []
+        assert result.fixes == [f"Rewrite '{target_path}' with a top-level YAML mapping (key: value pairs)."]
 
     def test_validate_schema_invalid_blueprint_reports_field_paths(self, isolated_workspace: Path) -> None:
         """[tier-1/domain] Catalog.validate: invalid timeout_seconds type reports 'timeout_seconds' field path and CATALOG_SCHEMA_INVALID."""
@@ -225,19 +195,14 @@ class CatalogValidateServiceTests:
 
         result = _validate("missing_id.yml", path=isolated_workspace, item_type=CatalogItemType.STEP)
 
-        assert_model_equal(
-            result,
-            CatalogValidateResult(
-                status=CatalogValidateStatus.INVALID,
-                valid=False,
-                target="missing_id.yml",
-                resolved_path=isolated_workspace / "missing_id.yml",
-                item_type="step",
-                errors=["id: Field required (CATALOG_SCHEMA_INVALID)."],
-                warnings=[],
-                fixes=["Fix the reported schema error for target 'missing_id'."],
-            ),
-        )
+        assert result.status == CatalogValidateStatus.INVALID
+        assert result.valid is False
+        assert result.target == "missing_id.yml"
+        assert result.resolved_path == isolated_workspace / "missing_id.yml"
+        assert result.item_type == "step"
+        assert result.errors == ["id: Field required (CATALOG_SCHEMA_INVALID)."]
+        assert result.warnings == []
+        assert result.fixes == ["Fix the reported schema error for target 'missing_id'."]
 
     def test_validate_duplicate_step_id_reports_error(self, isolated_workspace: Path) -> None:
         """[tier-1/domain] Catalog.validate: two top-level steps sharing id='run-tests' reports CATALOG_DUPLICATE_STEP_ID."""
@@ -248,19 +213,16 @@ class CatalogValidateServiceTests:
 
         result = _validate("dup.yml", path=isolated_workspace, item_type=CatalogItemType.BLUEPRINT)
 
-        assert_model_equal(
-            result,
-            CatalogValidateResult(
-                status=CatalogValidateStatus.INVALID,
-                valid=False,
-                target="dup.yml",
-                resolved_path=isolated_workspace / "dup.yml",
-                item_type="blueprint",
-                errors=["Step id 'run-tests' is used by more than one step (CATALOG_DUPLICATE_STEP_ID)."],
-                warnings=[],
-                fixes=["Resolve: Step id 'run-tests' is used by more than one step (CATALOG_DUPLICATE_STEP_ID)."],
-            ),
-        )
+        assert result.status == CatalogValidateStatus.INVALID
+        assert result.valid is False
+        assert result.target == "dup.yml"
+        assert result.resolved_path == isolated_workspace / "dup.yml"
+        assert result.item_type == "blueprint"
+        assert result.errors == ["Step id 'run-tests' is used by more than one step (CATALOG_DUPLICATE_STEP_ID)."]
+        assert result.warnings == []
+        assert result.fixes == [
+            "Resolve: Step id 'run-tests' is used by more than one step (CATALOG_DUPLICATE_STEP_ID)."
+        ]
 
     def test_validate_duplicate_step_id_in_nested_loop_reports_error(self, isolated_workspace: Path) -> None:
         """[tier-1/domain] Catalog.validate: duplicate ids inside a loop's 'do' block report CATALOG_DUPLICATE_STEP_ID."""
@@ -304,19 +266,16 @@ class CatalogValidateServiceTests:
 
         result = _validate("alias.yml", path=isolated_workspace, item_type=CatalogItemType.BLUEPRINT)
 
-        assert_model_equal(
-            result,
-            CatalogValidateResult(
-                status=CatalogValidateStatus.INVALID,
-                valid=False,
-                target="alias.yml",
-                resolved_path=isolated_workspace / "alias.yml",
-                item_type="blueprint",
-                errors=["Alias '-f' is declared by both 'foo' and 'bar' (CATALOG_DUPLICATE_INPUT_ALIAS)."],
-                warnings=[],
-                fixes=["Resolve: Alias '-f' is declared by both 'foo' and 'bar' (CATALOG_DUPLICATE_INPUT_ALIAS)."],
-            ),
-        )
+        assert result.status == CatalogValidateStatus.INVALID
+        assert result.valid is False
+        assert result.target == "alias.yml"
+        assert result.resolved_path == isolated_workspace / "alias.yml"
+        assert result.item_type == "blueprint"
+        assert result.errors == ["Alias '-f' is declared by both 'foo' and 'bar' (CATALOG_DUPLICATE_INPUT_ALIAS)."]
+        assert result.warnings == []
+        assert result.fixes == [
+            "Resolve: Alias '-f' is declared by both 'foo' and 'bar' (CATALOG_DUPLICATE_INPUT_ALIAS)."
+        ]
 
     def test_validate_undeclared_placeholder_reports_warning(self, isolated_workspace: Path) -> None:
         """[tier-1/domain] Catalog.validate: '${{ inputs.missing }}' with no declared 'missing' input reports CATALOG_UNDECLARED_INPUT_PLACEHOLDER warning; status stays OK."""
@@ -327,21 +286,16 @@ class CatalogValidateServiceTests:
 
         result = _validate("ph.yml", path=isolated_workspace, item_type=CatalogItemType.BLUEPRINT)
 
-        assert_model_equal(
-            result,
-            CatalogValidateResult(
-                status=CatalogValidateStatus.OK,
-                valid=True,
-                target="ph.yml",
-                resolved_path=isolated_workspace / "ph.yml",
-                item_type="blueprint",
-                errors=[],
-                warnings=[
-                    "Placeholder 'inputs.missing' is not declared in 'inputs:' (CATALOG_UNDECLARED_INPUT_PLACEHOLDER)."
-                ],
-                fixes=[],
-            ),
-        )
+        assert result.status == CatalogValidateStatus.OK
+        assert result.valid is True
+        assert result.target == "ph.yml"
+        assert result.resolved_path == isolated_workspace / "ph.yml"
+        assert result.item_type == "blueprint"
+        assert result.errors == []
+        assert result.warnings == [
+            "Placeholder 'inputs.missing' is not declared in 'inputs:' (CATALOG_UNDECLARED_INPUT_PLACEHOLDER)."
+        ]
+        assert result.fixes == []
 
     def test_validate_unsafe_script_path_reports_error(self, isolated_workspace: Path) -> None:
         """[tier-1/domain] Catalog.validate: script_path='../escape.sh' reports CATALOG_UNSAFE_SCRIPT_PATH error."""
@@ -352,24 +306,18 @@ class CatalogValidateServiceTests:
 
         result = _validate("script.yml", path=isolated_workspace, item_type=CatalogItemType.BLUEPRINT)
 
-        assert_model_equal(
-            result,
-            CatalogValidateResult(
-                status=CatalogValidateStatus.INVALID,
-                valid=False,
-                target="script.yml",
-                resolved_path=isolated_workspace / "script.yml",
-                item_type="blueprint",
-                errors=[
-                    "Step 's1' script_path '../escape.sh' is not a safe relative path (CATALOG_UNSAFE_SCRIPT_PATH)."
-                ],
-                warnings=[],
-                fixes=[
-                    "Resolve: Step 's1' script_path '../escape.sh' is not a safe relative path "
-                    "(CATALOG_UNSAFE_SCRIPT_PATH)."
-                ],
-            ),
-        )
+        assert result.status == CatalogValidateStatus.INVALID
+        assert result.valid is False
+        assert result.target == "script.yml"
+        assert result.resolved_path == isolated_workspace / "script.yml"
+        assert result.item_type == "blueprint"
+        assert result.errors == [
+            "Step 's1' script_path '../escape.sh' is not a safe relative path (CATALOG_UNSAFE_SCRIPT_PATH)."
+        ]
+        assert result.warnings == []
+        assert result.fixes == [
+            "Resolve: Step 's1' script_path '../escape.sh' is not a safe relative path (CATALOG_UNSAFE_SCRIPT_PATH)."
+        ]
 
     def test_validate_missing_script_file_reports_warning(self, isolated_workspace: Path) -> None:
         """[tier-1/domain] Catalog.validate: safe but nonexistent script_path reports CATALOG_SCRIPT_NOT_FOUND warning; status stays OK."""
@@ -380,19 +328,16 @@ class CatalogValidateServiceTests:
 
         result = _validate("missing_script.yml", path=isolated_workspace, item_type=CatalogItemType.BLUEPRINT)
 
-        assert_model_equal(
-            result,
-            CatalogValidateResult(
-                status=CatalogValidateStatus.OK,
-                valid=True,
-                target="missing_script.yml",
-                resolved_path=isolated_workspace / "missing_script.yml",
-                item_type="blueprint",
-                errors=[],
-                warnings=["Step 's1' script_path 'scripts/none.sh' does not exist on disk (CATALOG_SCRIPT_NOT_FOUND)."],
-                fixes=[],
-            ),
-        )
+        assert result.status == CatalogValidateStatus.OK
+        assert result.valid is True
+        assert result.target == "missing_script.yml"
+        assert result.resolved_path == isolated_workspace / "missing_script.yml"
+        assert result.item_type == "blueprint"
+        assert result.errors == []
+        assert result.warnings == [
+            "Step 's1' script_path 'scripts/none.sh' does not exist on disk (CATALOG_SCRIPT_NOT_FOUND)."
+        ]
+        assert result.fixes == []
 
     def test_validate_valid_blueprint_returns_ok_status(self, isolated_workspace: Path) -> None:
         """[tier-1/domain] Catalog.validate: fully valid indexed blueprint returns status=OK, valid=True, errors=[]."""

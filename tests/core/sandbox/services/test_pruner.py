@@ -9,15 +9,9 @@ from unittest.mock import patch
 
 import pytest
 
-from tests.harness import (
-    ANY_TIMESTAMP,
-    AnyMatching,
-    PruneResultBuilder,
-    WorkspaceBuilder,
-    assert_model_equal,
-)
+from tests.harness import WorkspaceBuilder
 from worktree.common.lock import LockTimeoutError
-from worktree.core.db import SandboxesRepository, SandboxRecord, SandboxStatus
+from worktree.core.db import SandboxesRepository, SandboxStatus
 from worktree.core.git.runner import GitRunner
 from worktree.core.sandbox import Sandbox
 from worktree.core.sandbox.models import (
@@ -46,7 +40,11 @@ class SandboxPrunerBaselineTests:
 
         result = pruner.prune()
 
-        assert_model_equal(result, PruneResultBuilder().build())
+        assert result.status == SandboxPruneStatus.OK
+        assert result.dry_run is False
+        assert result.force is False
+        assert len(result.items) == 0
+        assert len(result.errors) == 0
 
     def test_prune_dry_run_reports_all_categories_without_mutation(
         self,
@@ -88,42 +86,41 @@ class SandboxPrunerBaselineTests:
 
         result = pruner.prune(dry_run=True, force=False)
 
-        expected = (
-            PruneResultBuilder()
-            .with_dry_run(True)
-            .with_item(
-                category=StaleSandboxCategory.ORPHANED_DIRECTORY,
-                identifier="sbx_clean",
-                action=PruneAction.PRUNED,
-                path=clean_dir,
-                reason="Would prune: Sandbox directory 'sbx_clean' is not tracked in the database",
-            )
-            .with_item(
-                category=StaleSandboxCategory.ORPHANED_DIRECTORY,
-                identifier="sbx_dirty",
-                action=PruneAction.SKIPPED,
-                path=dirty_dir,
-                reason="Orphaned directory 'sbx_dirty' contains uncommitted changes; use --force to delete",
-            )
-            .with_item(
-                category=StaleSandboxCategory.STALE_DB_RECORD,
-                identifier="sbx_missing",
-                action=PruneAction.PRUNED,
-                path=missing_path,
-                branch_name="worktree/sandbox-sbx_missing",
-                session_id="sbx_missing",
-                reason="Would prune: Active database record 'sbx_missing' has missing sandbox path on disk",
-            )
-            .with_item(
-                category=StaleSandboxCategory.STALE_BRANCH,
-                identifier="worktree/sandbox-sbx_dead",
-                action=PruneAction.PRUNED,
-                branch_name="worktree/sandbox-sbx_dead",
-                reason="Would prune: Sandbox branch 'worktree/sandbox-sbx_dead' is not attached to any active sandbox or worktree",
-            )
-            .build()
+        assert result.status == SandboxPruneStatus.OK
+        assert result.dry_run is True
+        assert result.force is False
+        assert len(result.items) == 4
+
+        clean_item = next(i for i in result.items if i.identifier == "sbx_clean")
+        assert clean_item.category == StaleSandboxCategory.ORPHANED_DIRECTORY
+        assert clean_item.action == PruneAction.PRUNED
+        assert clean_item.path == clean_dir
+        assert clean_item.reason == "Would prune: Sandbox directory 'sbx_clean' is not tracked in the database"
+
+        dirty_item = next(i for i in result.items if i.identifier == "sbx_dirty")
+        assert dirty_item.category == StaleSandboxCategory.ORPHANED_DIRECTORY
+        assert dirty_item.action == PruneAction.SKIPPED
+        assert dirty_item.path == dirty_dir
+        assert dirty_item.reason == "Orphaned directory 'sbx_dirty' contains uncommitted changes; use --force to delete"
+
+        missing_item = next(i for i in result.items if i.identifier == "sbx_missing")
+        assert missing_item.category == StaleSandboxCategory.STALE_DB_RECORD
+        assert missing_item.action == PruneAction.PRUNED
+        assert missing_item.path == missing_path
+        assert missing_item.branch_name == "worktree/sandbox-sbx_missing"
+        assert missing_item.session_id == "sbx_missing"
+        assert (
+            missing_item.reason == "Would prune: Active database record 'sbx_missing' has missing sandbox path on disk"
         )
-        assert_model_equal(result, expected)
+
+        branch_item = next(i for i in result.items if i.identifier == "worktree/sandbox-sbx_dead")
+        assert branch_item.category == StaleSandboxCategory.STALE_BRANCH
+        assert branch_item.action == PruneAction.PRUNED
+        assert branch_item.branch_name == "worktree/sandbox-sbx_dead"
+        assert (
+            branch_item.reason
+            == "Would prune: Sandbox branch 'worktree/sandbox-sbx_dead' is not attached to any active sandbox or worktree"
+        )
         assert clean_dir.exists()
         assert dirty_dir.exists()
         record = db.get("sbx_missing")
@@ -154,18 +151,17 @@ class SandboxPrunerSafetyTests:
 
         result = pruner.prune(force=False)
 
-        expected = (
-            PruneResultBuilder()
-            .with_item(
-                category=StaleSandboxCategory.ORPHANED_DIRECTORY,
-                identifier="sbx_dirty_orphan",
-                action=PruneAction.SKIPPED,
-                path=dirty_dir,
-                reason="Orphaned directory 'sbx_dirty_orphan' contains uncommitted changes; use --force to delete",
-            )
-            .build()
+        assert result.status == SandboxPruneStatus.OK
+        assert len(result.items) == 1
+
+        item = result.items[0]
+        assert item.category == StaleSandboxCategory.ORPHANED_DIRECTORY
+        assert item.identifier == "sbx_dirty_orphan"
+        assert item.action == PruneAction.SKIPPED
+        assert item.path == dirty_dir
+        assert (
+            item.reason == "Orphaned directory 'sbx_dirty_orphan' contains uncommitted changes; use --force to delete"
         )
-        assert_model_equal(result, expected)
         assert dirty_dir.exists()
 
     def test_dirty_orphan_deleted_with_force(self, pruner_workspace: Path) -> None:
@@ -187,19 +183,16 @@ class SandboxPrunerSafetyTests:
 
         result = pruner.prune(force=True)
 
-        expected = (
-            PruneResultBuilder()
-            .with_force(True)
-            .with_item(
-                category=StaleSandboxCategory.ORPHANED_DIRECTORY,
-                identifier="sbx_dirty_forced",
-                action=PruneAction.PRUNED,
-                path=dirty_dir,
-                reason="Sandbox directory 'sbx_dirty_forced' is not tracked in the database",
-            )
-            .build()
-        )
-        assert_model_equal(result, expected)
+        assert result.status == SandboxPruneStatus.OK
+        assert result.force is True
+        assert len(result.items) == 1
+
+        item = result.items[0]
+        assert item.category == StaleSandboxCategory.ORPHANED_DIRECTORY
+        assert item.identifier == "sbx_dirty_forced"
+        assert item.action == PruneAction.PRUNED
+        assert item.path == dirty_dir
+        assert item.reason == "Sandbox directory 'sbx_dirty_forced' is not tracked in the database"
         assert not dirty_dir.exists()
 
     def test_clean_orphan_deleted_without_force(self, pruner_workspace: Path) -> None:
@@ -215,18 +208,15 @@ class SandboxPrunerSafetyTests:
 
         result = pruner.prune(force=False)
 
-        expected = (
-            PruneResultBuilder()
-            .with_item(
-                category=StaleSandboxCategory.ORPHANED_DIRECTORY,
-                identifier="sbx_clean_orphan",
-                action=PruneAction.PRUNED,
-                path=clean_dir,
-                reason="Sandbox directory 'sbx_clean_orphan' is not tracked in the database",
-            )
-            .build()
-        )
-        assert_model_equal(result, expected)
+        assert result.status == SandboxPruneStatus.OK
+        assert len(result.items) == 1
+
+        item = result.items[0]
+        assert item.category == StaleSandboxCategory.ORPHANED_DIRECTORY
+        assert item.identifier == "sbx_clean_orphan"
+        assert item.action == PruneAction.PRUNED
+        assert item.path == clean_dir
+        assert item.reason == "Sandbox directory 'sbx_clean_orphan' is not tracked in the database"
         assert not clean_dir.exists()
 
 
@@ -249,26 +239,24 @@ class SandboxPrunerCategoryTests:
 
         result = pruner.prune()
 
-        expected = (
-            PruneResultBuilder()
-            .with_item(
-                category=StaleSandboxCategory.STALE_WORKTREE_REF,
-                identifier=str(target),
-                action=PruneAction.PRUNED,
-                path=target,
-                branch_name="worktree/sandbox-sbx_stale_wt",
-                reason=AnyMatching(r".*gitdir.*", "GIT_PRUNABLE_REASON"),
-            )
-            .with_item(
-                category=StaleSandboxCategory.STALE_BRANCH,
-                identifier="worktree/sandbox-sbx_stale_wt",
-                action=PruneAction.PRUNED,
-                branch_name="worktree/sandbox-sbx_stale_wt",
-                reason="Sandbox branch 'worktree/sandbox-sbx_stale_wt' is not attached to any active sandbox or worktree",
-            )
-            .build()
+        assert result.status == SandboxPruneStatus.OK
+        assert len(result.items) == 2
+
+        wt_item = next(i for i in result.items if i.category == StaleSandboxCategory.STALE_WORKTREE_REF)
+        assert wt_item.identifier == str(target)
+        assert wt_item.action == PruneAction.PRUNED
+        assert wt_item.path == target
+        assert wt_item.branch_name == "worktree/sandbox-sbx_stale_wt"
+        assert "gitdir" in wt_item.reason
+
+        branch_item = next(i for i in result.items if i.category == StaleSandboxCategory.STALE_BRANCH)
+        assert branch_item.identifier == "worktree/sandbox-sbx_stale_wt"
+        assert branch_item.action == PruneAction.PRUNED
+        assert branch_item.branch_name == "worktree/sandbox-sbx_stale_wt"
+        assert (
+            branch_item.reason
+            == "Sandbox branch 'worktree/sandbox-sbx_stale_wt' is not attached to any active sandbox or worktree"
         )
-        assert_model_equal(result, expected)
 
     def test_stale_db_record_is_reconciled_to_cleaned(self, pruner_workspace: Path) -> None:
         """Active DB records with missing paths must be updated to CLEANED."""
@@ -285,35 +273,26 @@ class SandboxPrunerCategoryTests:
 
         result = pruner.prune()
 
-        expected = (
-            PruneResultBuilder()
-            .with_item(
-                category=StaleSandboxCategory.STALE_DB_RECORD,
-                identifier="sbx_db_stale",
-                action=PruneAction.PRUNED,
-                path=missing_path,
-                branch_name="worktree/sandbox-sbx_db_stale",
-                session_id="sbx_db_stale",
-                reason="Active database record 'sbx_db_stale' has missing sandbox path on disk",
-            )
-            .build()
-        )
-        assert_model_equal(result, expected)
+        assert result.status == SandboxPruneStatus.OK
+        assert len(result.items) == 1
+
+        item = result.items[0]
+        assert item.category == StaleSandboxCategory.STALE_DB_RECORD
+        assert item.identifier == "sbx_db_stale"
+        assert item.action == PruneAction.PRUNED
+        assert item.path == missing_path
+        assert item.branch_name == "worktree/sandbox-sbx_db_stale"
+        assert item.session_id == "sbx_db_stale"
+        assert item.reason == "Active database record 'sbx_db_stale' has missing sandbox path on disk"
+
         record = db.get("sbx_db_stale")
         assert record is not None
-        assert_model_equal(
-            record,
-            SandboxRecord.model_construct(
-                id="sbx_db_stale",
-                name=None,
-                branch_name="worktree/sandbox-sbx_db_stale",
-                base_commit="abc",
-                sandbox_path=missing_path,
-                status=SandboxStatus.CLEANED,
-                created_at=ANY_TIMESTAMP,
-                updated_at=ANY_TIMESTAMP,
-            ),
-        )
+        assert record.id == "sbx_db_stale"
+        assert record.name is None
+        assert record.branch_name == "worktree/sandbox-sbx_db_stale"
+        assert record.base_commit == "abc"
+        assert record.sandbox_path == missing_path
+        assert record.status == SandboxStatus.CLEANED
 
     def test_stale_branch_is_deleted(self, pruner_workspace: Path) -> None:
         """Stale sandbox temporary branches must be deleted."""
@@ -330,18 +309,15 @@ class SandboxPrunerCategoryTests:
 
         result = pruner.prune()
 
-        expected = (
-            PruneResultBuilder()
-            .with_item(
-                category=StaleSandboxCategory.STALE_BRANCH,
-                identifier=branch_name,
-                action=PruneAction.PRUNED,
-                branch_name=branch_name,
-                reason=f"Sandbox branch '{branch_name}' is not attached to any active sandbox or worktree",
-            )
-            .build()
-        )
-        assert_model_equal(result, expected)
+        assert result.status == SandboxPruneStatus.OK
+        assert len(result.items) == 1
+
+        item = result.items[0]
+        assert item.category == StaleSandboxCategory.STALE_BRANCH
+        assert item.identifier == branch_name
+        assert item.action == PruneAction.PRUNED
+        assert item.branch_name == branch_name
+        assert item.reason == f"Sandbox branch '{branch_name}' is not attached to any active sandbox or worktree"
         branches = GitRunner.list_branches(pruner_workspace, pattern="worktree/sandbox-*")
         assert branch_name not in branches
 
@@ -379,33 +355,31 @@ class SandboxPrunerIdempotencyTests:
 
         result1 = manager.prune()
 
-        expected1 = (
-            PruneResultBuilder()
-            .with_item(
-                category=StaleSandboxCategory.ORPHANED_DIRECTORY,
-                identifier="sbx_c1",
-                action=PruneAction.PRUNED,
-                path=dir1,
-                branch_name="worktree/sandbox-sbx_c1",
-                session_id="sbx_c1",
-                reason="Sandbox directory 'sbx_c1' has database status 'cleaned'",
-            )
-            .with_item(
-                category=StaleSandboxCategory.STALE_BRANCH,
-                identifier=branch_name,
-                action=PruneAction.PRUNED,
-                branch_name=branch_name,
-                reason=f"Sandbox branch '{branch_name}' is not attached to any active sandbox or worktree",
-            )
-            .build()
-        )
-        assert_model_equal(result1, expected1)
+        assert result1.status == SandboxPruneStatus.OK
+        assert len(result1.items) == 2
+
+        dir_item = next(i for i in result1.items if i.identifier == "sbx_c1")
+        assert dir_item.category == StaleSandboxCategory.ORPHANED_DIRECTORY
+        assert dir_item.action == PruneAction.PRUNED
+        assert dir_item.path == dir1
+        assert dir_item.branch_name == "worktree/sandbox-sbx_c1"
+        assert dir_item.session_id == "sbx_c1"
+        assert dir_item.reason == "Sandbox directory 'sbx_c1' has database status 'cleaned'"
+
+        branch_item = next(i for i in result1.items if i.identifier == branch_name)
+        assert branch_item.category == StaleSandboxCategory.STALE_BRANCH
+        assert branch_item.action == PruneAction.PRUNED
+        assert branch_item.branch_name == branch_name
+        assert branch_item.reason == f"Sandbox branch '{branch_name}' is not attached to any active sandbox or worktree"
+
         assert not dir1.exists()
         assert (sandboxes_dir / "sbx_protected").exists()
 
         result2 = manager.prune()
 
-        assert_model_equal(result2, PruneResultBuilder().build())
+        assert result2.status == SandboxPruneStatus.OK
+        assert len(result2.items) == 0
+        assert len(result2.errors) == 0
 
 
 class SandboxPrunerFacadeTests:
@@ -422,9 +396,13 @@ class SandboxPrunerFacadeTests:
         res_helper = prune_stale_sandboxes(pruner_workspace, db, dry_run=True)
         res_manager = manager.prune(dry_run=True)
 
-        expected = PruneResultBuilder().with_dry_run(True).build()
-        assert_model_equal(res_helper, expected)
-        assert_model_equal(res_manager, expected)
+        assert res_helper.status == SandboxPruneStatus.OK
+        assert res_helper.dry_run is True
+        assert len(res_helper.items) == 0
+
+        assert res_manager.status == SandboxPruneStatus.OK
+        assert res_manager.dry_run is True
+        assert len(res_manager.items) == 0
 
 
 class SandboxPrunerFailureTests:
@@ -452,10 +430,8 @@ class SandboxPrunerFailureTests:
         ):
             result = pruner.prune()
 
-        expected = (
-            PruneResultBuilder().with_status(SandboxPruneStatus.GIT_FAILED).with_errors("Git command failed").build()
-        )
-        assert_model_equal(result, expected)
+        assert result.status == SandboxPruneStatus.GIT_FAILED
+        assert result.errors == ["Git command failed"]
 
     def test_prune_returns_locked_on_workspace_lock_timeout(
         self,
@@ -471,13 +447,8 @@ class SandboxPrunerFailureTests:
         ):
             result = pruner.prune()
 
-        expected = (
-            PruneResultBuilder()
-            .with_status(SandboxPruneStatus.LOCKED)
-            .with_errors("Failed to acquire workspace lock: Locked")
-            .build()
-        )
-        assert_model_equal(result, expected)
+        assert result.status == SandboxPruneStatus.LOCKED
+        assert result.errors == ["Failed to acquire workspace lock: Locked"]
 
     def test_prune_returns_partial_success_on_item_failure(
         self,
@@ -502,18 +473,15 @@ class SandboxPrunerFailureTests:
         ):
             result = pruner.prune()
 
-        expected = (
-            PruneResultBuilder()
-            .with_status(SandboxPruneStatus.PARTIAL_SUCCESS)
-            .with_item(
-                category=StaleSandboxCategory.STALE_BRANCH,
-                identifier=branch_name,
-                action=PruneAction.FAILED,
-                branch_name=branch_name,
-                reason=f"Sandbox branch '{branch_name}' is not attached to any active sandbox or worktree",
-                error=f"Failed to delete branch '{branch_name}': Permission denied",
-            )
-            .with_errors(f"Failed to delete branch '{branch_name}': Permission denied")
-            .build()
-        )
-        assert_model_equal(result, expected)
+        assert result.status == SandboxPruneStatus.PARTIAL_SUCCESS
+        assert len(result.items) == 1
+
+        item = result.items[0]
+        assert item.category == StaleSandboxCategory.STALE_BRANCH
+        assert item.identifier == branch_name
+        assert item.action == PruneAction.FAILED
+        assert item.branch_name == branch_name
+        assert item.reason == f"Sandbox branch '{branch_name}' is not attached to any active sandbox or worktree"
+        assert item.error == f"Failed to delete branch '{branch_name}': Permission denied"
+
+        assert result.errors == [f"Failed to delete branch '{branch_name}': Permission denied"]

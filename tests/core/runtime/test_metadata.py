@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from tests.harness.builders import RunOutcomeBuilder
-from tests.harness.matchers import ANY_DURATION, assert_model_equal
 from worktree.common.models import FailurePolicy, OnFailureSpec
 from worktree.core.db import RunStatus
 from worktree.core.runtime import FailurePromptDecision, LoopPromptDecision, RunContext, run_steps
@@ -27,32 +25,6 @@ class _ScriptedFailurePrompter:
         return LoopPromptDecision.ABORT
 
 
-def _step_result(
-    step_id: str,
-    *,
-    status: str,
-    exit_code: int,
-    stdout: str = "",
-    stderr: str = "",
-    attempts: int = 1,
-    error_message: str | None = None,
-) -> StepResult:
-    """Build an expected StepResult; duration_seconds is real wall-clock time, matched via ANY_DURATION."""
-    return StepResult.model_construct(
-        step_id=step_id,
-        status=status,
-        exit_code=exit_code,
-        stdout=stdout,
-        stderr=stderr,
-        duration_seconds=ANY_DURATION,
-        attempts=attempts,
-        error_message=error_message,
-        errors=[],
-        warnings=[],
-        fixes=[],
-    )
-
-
 class RunStepsMetadataPropagationTests:
     """Contract tests for WT_PREVIOUS_STEP_*, WT_STEPS_JSON, and WT_STEP_ATTEMPT propagation."""
 
@@ -71,15 +43,12 @@ class RunStepsMetadataPropagationTests:
 
         outcome = run_steps(context)
 
-        assert_model_equal(
-            outcome,
-            RunOutcomeBuilder(tmp_path.resolve())
-            .with_status(RunStatus.COMPLETED)
-            .with_step_results(
-                _step_result("first_step", status="completed", exit_code=0, stdout="PREV_ID=[] PREV_STATUS=[]\n")
-            )
-            .build(),
-        )
+        assert outcome.status == RunStatus.COMPLETED
+        assert len(outcome.step_results) == 1
+        assert outcome.step_results[0].step_id == "first_step"
+        assert outcome.step_results[0].status == "completed"
+        assert outcome.step_results[0].exit_code == 0
+        assert outcome.step_results[0].stdout == "PREV_ID=[] PREV_STATUS=[]\n"
 
     def test_run_steps_second_step_sees_previous_step_id_name_index_status_exit_code_env_vars(
         self, tmp_path: Path
@@ -109,20 +78,20 @@ class RunStepsMetadataPropagationTests:
 
         outcome = run_steps(context)
 
-        assert_model_equal(
-            outcome,
-            RunOutcomeBuilder(tmp_path.resolve())
-            .with_status(RunStatus.COMPLETED)
-            .with_step_results(
-                _step_result("setup_step", status="completed", exit_code=0, stdout="setup done\n"),
-                _step_result(
-                    "verify_step",
-                    status="completed",
-                    exit_code=0,
-                    stdout="PREV_ID=setup_step PREV_NAME=Setup Step PREV_IDX=1 PREV_STATUS=completed PREV_EXIT=0\n",
-                ),
-            )
-            .build(),
+        assert outcome.status == RunStatus.COMPLETED
+        assert len(outcome.step_results) == 2
+
+        assert outcome.step_results[0].step_id == "setup_step"
+        assert outcome.step_results[0].status == "completed"
+        assert outcome.step_results[0].exit_code == 0
+        assert outcome.step_results[0].stdout == "setup done\n"
+
+        assert outcome.step_results[1].step_id == "verify_step"
+        assert outcome.step_results[1].status == "completed"
+        assert outcome.step_results[1].exit_code == 0
+        assert (
+            outcome.step_results[1].stdout
+            == "PREV_ID=setup_step PREV_NAME=Setup Step PREV_IDX=1 PREV_STATUS=completed PREV_EXIT=0\n"
         )
 
     def test_run_steps_continue_on_failure_previous_step_status_is_ignored_with_exit_code_zero(
@@ -152,26 +121,18 @@ class RunStepsMetadataPropagationTests:
 
         outcome = run_steps(context)
 
-        assert_model_equal(
-            outcome,
-            RunOutcomeBuilder(tmp_path.resolve())
-            .with_status(RunStatus.COMPLETED)
-            .with_step_results(
-                _step_result(
-                    "failing_step",
-                    status="ignored",
-                    exit_code=0,
-                    error_message="Command failed with exit code 3.",
-                ),
-                _step_result(
-                    "next_step",
-                    status="completed",
-                    exit_code=0,
-                    stdout="PREV_ID=failing_step PREV_STATUS=ignored PREV_EXIT=0\n",
-                ),
-            )
-            .build(),
-        )
+        assert outcome.status == RunStatus.COMPLETED
+        assert len(outcome.step_results) == 2
+
+        assert outcome.step_results[0].step_id == "failing_step"
+        assert outcome.step_results[0].status == "ignored"
+        assert outcome.step_results[0].exit_code == 0
+        assert outcome.step_results[0].error_message == "Command failed with exit code 3."
+
+        assert outcome.step_results[1].step_id == "next_step"
+        assert outcome.step_results[1].status == "completed"
+        assert outcome.step_results[1].exit_code == 0
+        assert outcome.step_results[1].stdout == "PREV_ID=failing_step PREV_STATUS=ignored PREV_EXIT=0\n"
 
     def test_run_steps_prompt_user_retry_increments_step_attempt_env_var_from_one_to_two(self, tmp_path: Path) -> None:
         prompter = _ScriptedFailurePrompter([FailurePromptDecision.RETRY])
@@ -194,15 +155,14 @@ class RunStepsMetadataPropagationTests:
 
         outcome = run_steps(context)
 
-        assert_model_equal(
-            outcome,
-            RunOutcomeBuilder(tmp_path.resolve())
-            .with_status(RunStatus.COMPLETED)
-            .with_step_results(
-                _step_result("retry_on_prompt", status="completed", exit_code=0, stdout="success2\n", attempts=2)
-            )
-            .build(),
-        )
+        assert outcome.status == RunStatus.COMPLETED
+        assert len(outcome.step_results) == 1
+
+        assert outcome.step_results[0].step_id == "retry_on_prompt"
+        assert outcome.step_results[0].status == "completed"
+        assert outcome.step_results[0].exit_code == 0
+        assert outcome.step_results[0].stdout == "success2\n"
+        assert outcome.step_results[0].attempts == 2
 
     def test_run_steps_three_step_run_propagates_steps_jinja_context_and_wt_steps_json_excluding_in_flight_step(
         self, tmp_path: Path
@@ -240,33 +200,29 @@ class RunStepsMetadataPropagationTests:
 
         outcome = run_steps(context)
 
-        assert_model_equal(
-            outcome,
-            RunOutcomeBuilder(tmp_path.resolve())
-            .with_status(RunStatus.COMPLETED)
-            .with_step_results(
-                _step_result("step_a", status="completed", exit_code=0, stdout="A_STEPS=[] A_JSON=[]\n"),
-                _step_result(
-                    "step_b",
-                    status="completed",
-                    exit_code=0,
-                    stdout=(
-                        "B_FIRST=step_a B_LAST=step_a B_A_STAT=completed "
-                        'B_JSON=[{"id": "step_a", "name": "Step Alpha", "index": "1", '
-                        '"status": "completed", "exit_code": "0"}]\n'
-                    ),
-                ),
-                _step_result(
-                    "step_c",
-                    status="completed",
-                    exit_code=0,
-                    stdout=(
-                        "C_FIRST=step_a C_SECOND=step_b C_LAST=step_b C_PREV=step_b "
-                        'C_JSON=[{"id": "step_a", "name": "Step Alpha", "index": "1", '
-                        '"status": "completed", "exit_code": "0"}, {"id": "step_b", "name": "Step Beta", '
-                        '"index": "2", "status": "completed", "exit_code": "0"}]\n'
-                    ),
-                ),
-            )
-            .build(),
+        assert outcome.status == RunStatus.COMPLETED
+        assert len(outcome.step_results) == 3
+
+        assert outcome.step_results[0].step_id == "step_a"
+        assert outcome.step_results[0].status == "completed"
+        assert outcome.step_results[0].exit_code == 0
+        assert outcome.step_results[0].stdout == "A_STEPS=[] A_JSON=[]\n"
+
+        assert outcome.step_results[1].step_id == "step_b"
+        assert outcome.step_results[1].status == "completed"
+        assert outcome.step_results[1].exit_code == 0
+        assert outcome.step_results[1].stdout == (
+            "B_FIRST=step_a B_LAST=step_a B_A_STAT=completed "
+            'B_JSON=[{"id": "step_a", "name": "Step Alpha", "index": "1", '
+            '"status": "completed", "exit_code": "0"}]\n'
+        )
+
+        assert outcome.step_results[2].step_id == "step_c"
+        assert outcome.step_results[2].status == "completed"
+        assert outcome.step_results[2].exit_code == 0
+        assert outcome.step_results[2].stdout == (
+            "C_FIRST=step_a C_SECOND=step_b C_LAST=step_b C_PREV=step_b "
+            'C_JSON=[{"id": "step_a", "name": "Step Alpha", "index": "1", '
+            '"status": "completed", "exit_code": "0"}, {"id": "step_b", "name": "Step Beta", '
+            '"index": "2", "status": "completed", "exit_code": "0"}]\n'
         )

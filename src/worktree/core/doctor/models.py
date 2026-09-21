@@ -72,7 +72,6 @@ class DiagnosticCheckResult(BaseResult):
     message: str
     details: dict[str, Any] = Field(default_factory=dict)
     duration_ms: float = 0.0
-    error_code: str | None = None
     remediations: list[Remediation] = Field(default_factory=list)
 
     @property

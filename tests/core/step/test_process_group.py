@@ -10,8 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from tests.harness.builders import StepBuilder
-from tests.harness.matchers import ANY_DURATION, assert_model_equal
-from worktree.core.step.models import StepExecutionContext, StepResult
+from worktree.core.step.models import StepExecutionContext
 from worktree.core.step.runner import StepExecution
 
 pytestmark = pytest.mark.slow
@@ -64,22 +63,16 @@ class ProcessGroupEscalationTests:
         result = execution.run()
         elapsed = time.monotonic() - start_time
 
-        assert_model_equal(
-            result,
-            StepResult.model_construct(
-                step_id="timeout-escalate",
-                status="failed",
-                exit_code=124,
-                stdout="",
-                stderr="",
-                duration_seconds=ANY_DURATION,
-                attempts=1,
-                error_message="Command step execution timed out after 1 seconds.",
-                errors=[],
-                warnings=[],
-                fixes=[],
-            ),
-        )
+        assert result.step_id == "timeout-escalate"
+        assert result.status == "failed"
+        assert result.exit_code == 124
+        assert result.stdout == ""
+        assert result.stderr == ""
+        assert result.attempts == 1
+        assert result.error_message == "Command step execution timed out after 1 seconds."
+        assert result.errors == []
+        assert result.warnings == []
+        assert result.fixes == []
         assert result.duration_seconds >= 2.0
         assert elapsed >= 2.0
 

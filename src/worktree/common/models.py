@@ -1,5 +1,5 @@
 from enum import StrEnum
-from typing import Any
+from typing import Any, Self
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -39,6 +39,12 @@ class BaseResult(BaseModel):
     errors: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     fixes: list[str] = Field(default_factory=list)
+    error_code: str | None = None
+
+    @model_validator(mode="after")
+    def validate_error_code_presence(self) -> Self:
+        """Require error_code when errors or remediations are present; enforcement is short-circuited pending #641 (see plan Decisions)."""
+        return self
 
 
 class DefinitionResolutionResult[T](BaseResult):

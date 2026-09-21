@@ -97,6 +97,7 @@ CONFIG_UNSET_PAYLOAD_CASES = [
             "previous_value": "qwen2.5-coder",
             "warnings": [],
             "errors": [],
+            "error_code": None,
             "fixes": [],
         },
         id="ok_existed",
@@ -111,6 +112,7 @@ CONFIG_UNSET_PAYLOAD_CASES = [
             "previous_value": None,
             "warnings": [],
             "errors": [],
+            "error_code": None,
             "fixes": [],
         },
         id="ok_not_existed",
@@ -127,6 +129,7 @@ CONFIG_UNSET_PAYLOAD_CASES = [
             "errors": [
                 "Config schema validation failed (CONFIG_SCHEMA_INVALID):\n- (root): 'project' is a required property"
             ],
+            "error_code": None,
             "fixes": [
                 "Run `wt config validate` for details",
                 "Or `wt init --repair` to insert missing keys without overwriting values",

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from tests.harness.matchers import assert_model_equal
 from worktree.common.models import FailurePolicy, OnFailureSpec
 from worktree.core.runtime import USER_CONTINUED_MARKER, effective_terminal_policy
 from worktree.core.runtime.failure import mark_continued_after_prompt, step_failure_diagnostic
@@ -39,22 +38,17 @@ class FailurePolicyHelperTests:
 
         updated = mark_continued_after_prompt(original)
 
-        assert_model_equal(
-            updated,
-            StepResult(
-                step_id="publish",
-                status="ignored",
-                exit_code=1,
-                stdout="",
-                stderr="",
-                duration_seconds=0.1,
-                attempts=1,
-                error_message=f"boom ({USER_CONTINUED_MARKER})",
-                errors=[],
-                warnings=[],
-                fixes=[],
-            ),
-        )
+        assert updated.step_id == "publish"
+        assert updated.status == "ignored"
+        assert updated.exit_code == 1
+        assert updated.stdout == ""
+        assert updated.stderr == ""
+        assert updated.duration_seconds == 0.1
+        assert updated.attempts == 1
+        assert updated.error_message == f"boom ({USER_CONTINUED_MARKER})"
+        assert updated.errors == []
+        assert updated.warnings == []
+        assert updated.fixes == []
         assert updated.ok is True
 
     def test_step_failure_diagnostic_prefers_error_message_over_stderr_and_exit_code(self) -> None:

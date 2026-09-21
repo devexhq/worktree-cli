@@ -4,10 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from tests.harness.matchers import assert_model_equal
 from worktree.core.step.assertions import evaluate_assertions, evaluate_json_match
 from worktree.core.step.assertions.filesystem import evaluate_file_exists
-from worktree.core.step.models import AssertionResult, StepAssert
+from worktree.core.step.models import StepAssert
 
 
 class StepAssertionOrderingTests:
@@ -29,25 +28,20 @@ class StepAssertionOrderingTests:
             sandbox_path=tmp_path,
         )
 
-        assert_model_equal(
-            result,
-            AssertionResult(
-                passed=False,
-                failed_conditions=[
-                    "exit_code: expected [0], got 2",
-                    "output_contains: substring 'expected-marker' not found in output",
-                    "file_exists: path 'absent.txt' does not exist",
-                ],
-                message=(
-                    "exit_code: expected [0], got 2\n"
-                    "output_contains: substring 'expected-marker' not found in output\n"
-                    "file_exists: path 'absent.txt' does not exist"
-                ),
-                errors=[],
-                warnings=[],
-                fixes=[],
-            ),
+        assert result.passed is False
+        assert result.failed_conditions == [
+            "exit_code: expected [0], got 2",
+            "output_contains: substring 'expected-marker' not found in output",
+            "file_exists: path 'absent.txt' does not exist",
+        ]
+        assert result.message == (
+            "exit_code: expected [0], got 2\n"
+            "output_contains: substring 'expected-marker' not found in output\n"
+            "file_exists: path 'absent.txt' does not exist"
         )
+        assert result.errors == []
+        assert result.warnings == []
+        assert result.fixes == []
 
 
 class FilesystemAssertionSafetyTests:

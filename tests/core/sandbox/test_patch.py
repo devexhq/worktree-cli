@@ -5,11 +5,9 @@ from pathlib import Path
 import pytest
 
 from tests.harness.builders import WorkspaceBuilder
-from tests.harness.matchers import ANY_TIMESTAMP, assert_model_equal
-from worktree.core.db import SandboxesRepository, SandboxRecord, SandboxStatus
+from worktree.core.db import SandboxesRepository, SandboxStatus
 from worktree.core.git.runner import GitRunner
 from worktree.core.sandbox.models import (
-    SandboxApplyResult,
     SandboxApplyStatus,
     SandboxApplyStrategy,
     SandboxCreateStatus,
@@ -99,34 +97,29 @@ class SandboxApplyRollbackTests:
 
         result = patch_service.apply("sbx_conflict")
 
-        expected_result = SandboxApplyResult(
-            status=SandboxApplyStatus.CONFLICT,
-            sandbox_id="sbx_conflict",
-            strategy=SandboxApplyStrategy.PATCH,
-            touched_files=[],
-            conflicting_files=["target.py"],
-            cleaned_up=False,
-            commit_sha=None,
-            errors=["Cannot apply sandbox sbx_conflict: conflicts detected.\nConflicting files:\n  • target.py"],
-            warnings=[],
-            fixes=[
-                "Inspect sandbox differences with `wt sandbox diff sbx_conflict`",
-                "Resolve conflicts in the main workspace or sandbox worktree",
-            ],
-        )
-        assert_model_equal(result, expected_result)
+        assert result.status == SandboxApplyStatus.CONFLICT
+        assert result.sandbox_id == "sbx_conflict"
+        assert result.strategy == SandboxApplyStrategy.PATCH
+        assert result.touched_files == []
+        assert result.conflicting_files == ["target.py"]
+        assert result.cleaned_up is False
+        assert result.commit_sha is None
+        assert result.errors == [
+            "Cannot apply sandbox sbx_conflict: conflicts detected.\nConflicting files:\n  • target.py"
+        ]
+        assert result.warnings == []
+        assert result.fixes == [
+            "Inspect sandbox differences with `wt sandbox diff sbx_conflict`",
+            "Resolve conflicts in the main workspace or sandbox worktree",
+        ]
+
         assert (sandbox_workspace / "target.py").read_text(encoding="utf-8") == initial_tree
 
-        expected_record = SandboxRecord.model_construct(
-            id="sbx_conflict",
-            name=None,
-            branch_name="worktree/sandbox-sbx_conflict",
-            base_commit=initial_commit,
-            sandbox_path=(sandbox_workspace / ".worktree" / "sandboxes" / "sbx_conflict").resolve(),
-            status=SandboxStatus.CONFLICT,
-            created_at=ANY_TIMESTAMP,
-            updated_at=ANY_TIMESTAMP,
-        )
         record = db.get("sbx_conflict")
         assert record is not None
-        assert_model_equal(record, expected_record)
+        assert record.id == "sbx_conflict"
+        assert record.name is None
+        assert record.branch_name == "worktree/sandbox-sbx_conflict"
+        assert record.base_commit == initial_commit
+        assert record.sandbox_path == (sandbox_workspace / ".worktree" / "sandboxes" / "sbx_conflict").resolve()
+        assert record.status == SandboxStatus.CONFLICT

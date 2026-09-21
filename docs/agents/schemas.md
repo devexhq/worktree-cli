@@ -70,6 +70,7 @@ All operations that can fail return a Pydantic result object subclassing `BaseRe
 - `errors: list[str]`: Fatal error messages (inherited from `BaseResult`).
 - `warnings: list[str]`: Non-fatal warning messages (inherited from `BaseResult`).
 - `fixes: list[str]`: Suggested fixes or remediations (inherited from `BaseResult`).
+- `error_code: str | None`: Machine-readable failure code from `worktree.common.error_codes.ErrorCode` or a plain string (inherited from `BaseResult`); `None` on success. A model validator enforces presence when `errors` or `remediations` are populated, currently short-circuited pending caller migration (issue #641).
 - `ok: bool`: Property returning `True` when `not bool(self.errors)` or `status == OK`.
 - Standard configuration: `model_config = {"extra": "forbid", "strict": True}` on `BaseResult`.
 
@@ -153,7 +154,7 @@ All operations that can fail return a Pydantic result object subclassing `BaseRe
 - `DoctorContext`: Contextual environment supplied to checks (`cwd`, `config`).
 - `RemediationType`: `StrEnum` classifying how a remediation is carried out.
 - `Remediation`: Deterministic, copy-pasteable remediation action for a failing or warning check.
-- `DiagnosticCheckResult`: Individual check outcome model defined in `src/worktree/core/doctor/models.py`, including its `remediations: list[Remediation]` field.
+- `DiagnosticCheckResult`: Individual check outcome model defined in `src/worktree/core/doctor/models.py`, including its `remediations: list[Remediation]` field; `error_code` is inherited from `BaseResult`, not defined on this class.
 - `DoctorReport`: Aggregated execution report model defined in `src/worktree/core/doctor/models.py`.
 - `DiagnosticCheck`: Protocol defining check identification and execution contract.
 - Built-in checks (`src/worktree/core/doctor/checks/`, registered by `get_default_registry()` in `src/worktree/core/doctor/services/registry.py`):
