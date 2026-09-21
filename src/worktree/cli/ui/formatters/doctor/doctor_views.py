@@ -7,7 +7,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from worktree.core.doctor import CheckCategory, CheckStatus
+from worktree.core.doctor import CheckCategory, CheckStatus, Remediation
 
 
 class DoctorCheckView(BaseModel):
@@ -25,7 +25,7 @@ class DoctorCheckView(BaseModel):
     error_code: str | None
     errors: list[str]
     warnings: list[str]
-    fixes: list[str]
+    remediations: list[Remediation]
 
 
 class DoctorReportView(BaseModel):

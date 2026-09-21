@@ -10,7 +10,8 @@ from rich.text import Text
 
 from worktree.cli.ui.formatters.doctor.doctor_views import DoctorCheckView, DoctorReportView
 from worktree.common.types import ComponentFormatter
-from worktree.core.doctor import CheckStatus, DoctorReport
+from worktree.core.doctor import CheckStatus, DoctorReport, Remediation
+from worktree.core.doctor.services.remediation import format_remediation_summary
 
 _STATUS_STYLE: Final[dict[CheckStatus, str]] = {
     CheckStatus.OK: "green",
@@ -50,9 +51,9 @@ def _summary_line(view: DoctorReportView) -> str:
     )
 
 
-def _fix_bullets(view: DoctorReportView) -> list[str]:
-    """Return one '  • {check_id}: {fix}' string per (check_id, fix) pair in view.checks order."""
-    return [f"  • {check.check_id}: {fix}" for check in view.checks for fix in check.fixes]
+def _all_remediations(view: DoctorReportView) -> list[Remediation]:
+    """Return every remediation across view.checks, in check order."""
+    return [remediation for check in view.checks for remediation in check.remediations]
 
 
 class DoctorReportFormatter(ComponentFormatter[DoctorReport, DoctorReportView]):
@@ -77,20 +78,19 @@ class DoctorReportFormatter(ComponentFormatter[DoctorReport, DoctorReportView]):
                     error_code=check.error_code,
                     errors=check.errors,
                     warnings=check.warnings,
-                    fixes=check.fixes,
+                    remediations=check.remediations,
                 )
                 for check in data.checks
             ],
         )
 
     def to_rich(self, data: DoctorReport) -> Any:
-        """Render the checks table, summary line, and (when any check has fixes) a Fixes: bullet section from transform(data)."""
+        """Render the checks table, summary line, and (when any check has remediations) a Fix: summary from transform(data)."""
         view = self.transform(data)
         renderables: list[Any] = [_build_checks_table(view), Text(_summary_line(view))]
 
-        fix_bullets = _fix_bullets(view)
-        if fix_bullets:
-            renderables.append(Text("Fixes:"))
-            renderables.extend(Text(bullet) for bullet in fix_bullets)
+        remediation_summary = format_remediation_summary(_all_remediations(view))
+        if remediation_summary:
+            renderables.append(Text(remediation_summary))
 
         return Group(*renderables)

@@ -45,6 +45,7 @@ class SandboxRefsCheckTests:
                 errors=[],
                 warnings=[],
                 fixes=[],
+                remediations=[],
             ),
         )
         assert not (tmp_path / ".worktree" / "data.db").exists()
@@ -70,6 +71,7 @@ class SandboxRefsCheckTests:
                 errors=[],
                 warnings=[],
                 fixes=[],
+                remediations=[],
             ),
         )
 
@@ -102,7 +104,8 @@ class SandboxRefsCheckTests:
                 error_code="DOCTOR_SANDBOX_STALE",
                 errors=[],
                 warnings=[message],
-                fixes=["Run `wt sandbox prune` to reconcile stale sandbox references"],
+                fixes=[],
+                remediations=[],
             ),
         )
 
@@ -135,7 +138,8 @@ class SandboxRefsCheckTests:
                 error_code="DOCTOR_SANDBOX_STALE",
                 errors=[],
                 warnings=[message],
-                fixes=["Run `wt sandbox prune` to reconcile stale sandbox references"],
+                fixes=[],
+                remediations=[],
             ),
         )
 
@@ -163,7 +167,8 @@ class SandboxRefsCheckTests:
                 error_code="DOCTOR_SANDBOX_ORPHAN",
                 errors=[],
                 warnings=[message],
-                fixes=["Run `wt sandbox prune` to remove orphaned sandbox directories"],
+                fixes=[],
+                remediations=[],
             ),
         )
 
@@ -199,7 +204,8 @@ class SandboxRefsCheckTests:
                 error_code="DOCTOR_SANDBOX_STALE",
                 errors=[],
                 warnings=[message],
-                fixes=["Run `wt sandbox prune` to reconcile stale sandbox references"],
+                fixes=[],
+                remediations=[],
             ),
         )
 
@@ -232,5 +238,6 @@ class SandboxRefsCheckTests:
                 errors=[],
                 warnings=[message],
                 fixes=[],
+                remediations=[],
             ),
         )

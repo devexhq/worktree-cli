@@ -14,7 +14,14 @@ from tests.harness.formatter import (
     assert_transform_derives_expected_view,
 )
 from worktree.cli.ui.formatters.doctor import DoctorCheckView, DoctorReportFormatter, DoctorReportView
-from worktree.core.doctor import CheckCategory, CheckStatus, DiagnosticCheckResult, DoctorReport
+from worktree.core.doctor import (
+    CheckCategory,
+    CheckStatus,
+    DiagnosticCheckResult,
+    DoctorReport,
+    Remediation,
+    RemediationType,
+)
 
 ROOT = Path("/workspace/my-repo")
 
@@ -29,7 +36,7 @@ OK_CHECK = DiagnosticCheckResult(
     error_code=None,
     errors=[],
     warnings=[],
-    fixes=[],
+    remediations=[],
 )
 
 WARNING_CHECK = DiagnosticCheckResult(
@@ -43,7 +50,20 @@ WARNING_CHECK = DiagnosticCheckResult(
     error_code="DOCTOR_AGENT_NO_MODEL",
     errors=[],
     warnings=["Agent provider 'local' has no model configured."],
-    fixes=["Configure `agent.model` in `.worktree/config.json`"],
+    remediations=[
+        Remediation(
+            code="DOCTOR_AGENT_NO_MODEL",
+            title="Configure agent model",
+            action_type=RemediationType.COMMAND,
+            command='wt config set agent.model "<model>"',
+            description=(
+                "Set `agent.model` in `.worktree/config.json` to a model supported by the configured provider, "
+                "e.g. `wt config set agent.model <model-name>`."
+            ),
+            doc_path="docs/cli/config.md",
+            is_automated=False,
+        )
+    ],
 )
 
 FAILED_CHECK = DiagnosticCheckResult(
@@ -57,7 +77,17 @@ FAILED_CHECK = DiagnosticCheckResult(
     error_code="DOCTOR_CONFIG_NOT_FOUND",
     errors=["Configuration file not found at '/workspace/my-repo/.worktree/config.json'."],
     warnings=[],
-    fixes=["Run `wt init` to create `.worktree/config.json`"],
+    remediations=[
+        Remediation(
+            code="DOCTOR_CONFIG_NOT_FOUND",
+            title="Initialize Worktree workspace",
+            action_type=RemediationType.COMMAND,
+            command="wt init",
+            description="Run `wt init` to create `.worktree/config.json` and the required workspace directory structure.",
+            doc_path="docs/cli/init.md",
+            is_automated=False,
+        )
+    ],
 )
 
 SKIPPED_CHECK = DiagnosticCheckResult(
@@ -71,7 +101,7 @@ SKIPPED_CHECK = DiagnosticCheckResult(
     error_code=None,
     errors=[],
     warnings=[],
-    fixes=[],
+    remediations=[],
 )
 
 
@@ -88,7 +118,7 @@ def _check_view(check: DiagnosticCheckResult) -> DoctorCheckView:
         error_code=check.error_code,
         errors=check.errors,
         warnings=check.warnings,
-        fixes=check.fixes,
+        remediations=check.remediations,
     )
 
 
@@ -115,8 +145,10 @@ MIXED_STATUS = FormatterCase(
         "sandbox.refs",
         "SKIPPED",
         "4 checks: 1 ok, 1 warning, 1 failed (12.4ms)",
-        "config.schema: Run `wt init` to create `.worktree/config.json`",
-        "agent.setup: Configure `agent.model` in `.worktree/config.json`",
+        "Configure agent model:",
+        'wt config set agent.model "<model>"',
+        "Initialize Worktree workspace:",
+        "wt init",
     ],
 )
 
@@ -151,7 +183,7 @@ DOCTOR_REPORT_PAYLOAD_CASES = [
                     "error_code": None,
                     "errors": [],
                     "warnings": [],
-                    "fixes": [],
+                    "remediations": [],
                 },
                 {
                     "check_id": "agent.setup",
@@ -164,7 +196,20 @@ DOCTOR_REPORT_PAYLOAD_CASES = [
                     "error_code": "DOCTOR_AGENT_NO_MODEL",
                     "errors": [],
                     "warnings": ["Agent provider 'local' has no model configured."],
-                    "fixes": ["Configure `agent.model` in `.worktree/config.json`"],
+                    "remediations": [
+                        {
+                            "code": "DOCTOR_AGENT_NO_MODEL",
+                            "title": "Configure agent model",
+                            "action_type": "command",
+                            "command": 'wt config set agent.model "<model>"',
+                            "description": (
+                                "Set `agent.model` in `.worktree/config.json` to a model supported by the "
+                                "configured provider, e.g. `wt config set agent.model <model-name>`."
+                            ),
+                            "doc_path": "docs/cli/config.md",
+                            "is_automated": False,
+                        }
+                    ],
                 },
                 {
                     "check_id": "config.schema",
@@ -177,7 +222,20 @@ DOCTOR_REPORT_PAYLOAD_CASES = [
                     "error_code": "DOCTOR_CONFIG_NOT_FOUND",
                     "errors": ["Configuration file not found at '/workspace/my-repo/.worktree/config.json'."],
                     "warnings": [],
-                    "fixes": ["Run `wt init` to create `.worktree/config.json`"],
+                    "remediations": [
+                        {
+                            "code": "DOCTOR_CONFIG_NOT_FOUND",
+                            "title": "Initialize Worktree workspace",
+                            "action_type": "command",
+                            "command": "wt init",
+                            "description": (
+                                "Run `wt init` to create `.worktree/config.json` and the required workspace "
+                                "directory structure."
+                            ),
+                            "doc_path": "docs/cli/init.md",
+                            "is_automated": False,
+                        }
+                    ],
                 },
                 {
                     "check_id": "sandbox.refs",
@@ -190,7 +248,7 @@ DOCTOR_REPORT_PAYLOAD_CASES = [
                     "error_code": None,
                     "errors": [],
                     "warnings": [],
-                    "fixes": [],
+                    "remediations": [],
                 },
             ],
         },

@@ -42,7 +42,7 @@ class FilesystemWritableCheck:
                 error_code="DOCTOR_FS_UNWRITABLE",
                 errors=[message],
                 warnings=[],
-                fixes=["Check directory permissions and try again"],
+                fixes=[],
             )
 
         return DiagnosticCheckResult(

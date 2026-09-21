@@ -41,7 +41,8 @@ class AgentSetupCheckTests:
                 error_code="DOCTOR_AGENT_NO_MODEL",
                 errors=[],
                 warnings=[message],
-                fixes=["Configure `agent.model` in `.worktree/config.json`"],
+                fixes=[],
+                remediations=[],
             ),
         )
 
@@ -66,6 +67,7 @@ class AgentSetupCheckTests:
                 errors=[],
                 warnings=[],
                 fixes=[],
+                remediations=[],
             ),
         )
 
@@ -90,7 +92,8 @@ class AgentSetupCheckTests:
                 error_code="DOCTOR_AGENT_NO_MODEL",
                 errors=[],
                 warnings=[message],
-                fixes=["Configure `agent.model` in `.worktree/config.json`"],
+                fixes=[],
+                remediations=[],
             ),
         )
 
@@ -130,7 +133,8 @@ class AgentSetupCheckTests:
                 error_code="DOCTOR_AGENT_KEY_MISSING",
                 errors=[message],
                 warnings=[],
-                fixes=[f"Set the {expected_env} environment variable"],
+                fixes=[],
+                remediations=[],
             ),
         )
 
@@ -167,5 +171,6 @@ class AgentSetupCheckTests:
                 errors=[],
                 warnings=[],
                 fixes=[],
+                remediations=[],
             ),
         )

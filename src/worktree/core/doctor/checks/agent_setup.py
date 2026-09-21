@@ -68,7 +68,7 @@ def _key_missing_result(
         error_code="DOCTOR_AGENT_KEY_MISSING",
         errors=[message],
         warnings=[],
-        fixes=[f"Set the {env_name} environment variable"],
+        fixes=[],
     )
 
 
@@ -88,7 +88,7 @@ def _no_model_result(
         error_code="DOCTOR_AGENT_NO_MODEL",
         errors=[],
         warnings=[message],
-        fixes=["Configure `agent.model` in `.worktree/config.json`"],
+        fixes=[],
     )
 
 

@@ -55,6 +55,7 @@ class DummyDoctorCheck:
             errors=[],
             warnings=[],
             fixes=[],
+            remediations=[],
         )
 
 
@@ -86,6 +87,7 @@ class DoctorCoordinatorTests:
                         errors=[],
                         warnings=[],
                         fixes=[],
+                        remediations=[],
                     ),
                 ],
                 total_duration_ms=ANY_DURATION,
@@ -132,6 +134,7 @@ class DoctorCoordinatorTests:
                         errors=[],
                         warnings=[],
                         fixes=[],
+                        remediations=[],
                     ),
                 ],
                 total_duration_ms=ANY_DURATION,
@@ -172,6 +175,7 @@ class DoctorCoordinatorTests:
                         errors=[],
                         warnings=[],
                         fixes=[],
+                        remediations=[],
                     ),
                 ],
                 total_duration_ms=ANY_DURATION,
@@ -207,6 +211,7 @@ class DoctorCoordinatorTests:
                         errors=[],
                         warnings=[],
                         fixes=[],
+                        remediations=[],
                     ),
                 ],
                 total_duration_ms=ANY_DURATION,

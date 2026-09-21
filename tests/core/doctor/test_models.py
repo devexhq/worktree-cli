@@ -37,6 +37,7 @@ class ConformingCheck:
             errors=[],
             warnings=[],
             fixes=[],
+            remediations=[],
         )
 
 
@@ -77,6 +78,7 @@ class DoctorModelsTests:
             errors=[f"Error: {status}"] if status == CheckStatus.FAILED else [],
             warnings=[f"Warning: {status}"] if status == CheckStatus.WARNING else [],
             fixes=[],
+            remediations=[],
         )
 
         assert result.ok is expected_ok
@@ -94,6 +96,7 @@ class DoctorModelsTests:
                 errors=[f"Error: {status}"] if status == CheckStatus.FAILED else [],
                 warnings=[f"Warning: {status}"] if status == CheckStatus.WARNING else [],
                 fixes=[],
+                remediations=[],
             ),
         )
 
@@ -141,6 +144,7 @@ class DoctorReportModelsTests:
             errors=[],
             warnings=[],
             fixes=[],
+            remediations=[],
         )
         check2 = DiagnosticCheckResult(
             check_id="check.two",
@@ -154,6 +158,7 @@ class DoctorReportModelsTests:
             errors=[],
             warnings=[],
             fixes=[],
+            remediations=[],
         )
         report = DoctorReport(
             workspace_root=tmp_path,
@@ -188,6 +193,7 @@ class DoctorReportModelsTests:
             errors=[],
             warnings=[],
             fixes=[],
+            remediations=[],
         )
         check_failed = DiagnosticCheckResult(
             check_id="check.failed",
@@ -201,6 +207,7 @@ class DoctorReportModelsTests:
             errors=["broken"],
             warnings=[],
             fixes=[],
+            remediations=[],
         )
         report = DoctorReport(
             workspace_root=tmp_path,
@@ -234,6 +241,7 @@ class DoctorReportModelsTests:
             errors=[],
             warnings=["disk space low"],
             fixes=[],
+            remediations=[],
         )
         report = DoctorReport(
             workspace_root=tmp_path,
@@ -268,6 +276,7 @@ class DoctorReportModelsTests:
             errors=[],
             warnings=[],
             fixes=[],
+            remediations=[],
         )
         check_warn = DiagnosticCheckResult(
             check_id="c.warn",
@@ -281,6 +290,7 @@ class DoctorReportModelsTests:
             errors=[],
             warnings=["warn"],
             fixes=[],
+            remediations=[],
         )
         check_fail = DiagnosticCheckResult(
             check_id="c.fail",
@@ -294,6 +304,7 @@ class DoctorReportModelsTests:
             errors=["fail"],
             warnings=[],
             fixes=[],
+            remediations=[],
         )
         check_skip = DiagnosticCheckResult(
             check_id="c.skip",
@@ -307,6 +318,7 @@ class DoctorReportModelsTests:
             errors=[],
             warnings=[],
             fixes=[],
+            remediations=[],
         )
 
         report = DoctorReport(

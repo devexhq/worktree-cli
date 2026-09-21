@@ -59,7 +59,7 @@ def _missing_result(check_id: str, name: str, category: CheckCategory, missing: 
         error_code="DOCTOR_BINARY_MISSING",
         errors=[],
         warnings=[message],
-        fixes=[f"Install '{binary}' and ensure it is available on PATH" for binary in missing],
+        fixes=[],
     )
 
 

@@ -78,7 +78,7 @@ def _stale_result(check_id: str, name: str, category: CheckCategory, stale_ids: 
         error_code="DOCTOR_SANDBOX_STALE",
         errors=[],
         warnings=[message],
-        fixes=["Run `wt sandbox prune` to reconcile stale sandbox references"],
+        fixes=[],
     )
 
 
@@ -96,7 +96,7 @@ def _orphan_result(check_id: str, name: str, category: CheckCategory, orphan_dir
         error_code="DOCTOR_SANDBOX_ORPHAN",
         errors=[],
         warnings=[message],
-        fixes=["Run `wt sandbox prune` to remove orphaned sandbox directories"],
+        fixes=[],
     )
 
 
