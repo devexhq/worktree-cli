@@ -3,10 +3,6 @@
 from tests.harness.builders import (
     AgentRequestBuilder,
     BlueprintBuilder,
-    DetectionResultBuilder,
-    PruneResultBuilder,
-    RunOutcomeBuilder,
-    StatusBuilder,
     StepBuilder,
     WorkspaceBuilder,
 )
@@ -22,13 +18,9 @@ from tests.harness.formatter import (
 __all__ = [
     "AgentRequestBuilder",
     "BlueprintBuilder",
-    "DetectionResultBuilder",
     "FakeAgentRunner",
     "FakeAgentRunnerCall",
     "FormatterCase",
-    "PruneResultBuilder",
-    "RunOutcomeBuilder",
-    "StatusBuilder",
     "StepBuilder",
     "WorkspaceBuilder",
     "assert_json_payload_matches_published_shape",
