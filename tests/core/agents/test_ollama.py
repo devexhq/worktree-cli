@@ -11,7 +11,7 @@ from urllib.error import HTTPError, URLError
 
 import pytest
 
-from tests.harness import AgentRequestBuilder, AgentResponseBuilder, assert_model_equal
+from tests.harness import AgentRequestBuilder
 from worktree.core.agents import (
     AgentFailurePayload,
     AgentRequest,
@@ -227,15 +227,10 @@ class OllamaAdapterTests:
 
         resp = OllamaAgentAdapter().propose_fix(request)
 
-        assert_model_equal(
-            resp,
-            AgentResponseBuilder()
-            .with_status(AgentResponseStatus.PROPOSED_PATCH)
-            .with_unified_diff("diff --git a/x b/x\n")
-            .with_summary("fixed")
-            .with_raw_text(content)
-            .build(),
-        )
+        assert resp.status == AgentResponseStatus.PROPOSED_PATCH
+        assert resp.unified_diff == "diff --git a/x b/x\n"
+        assert resp.summary == "fixed"
+        assert resp.raw_text == content
 
     def test_unfixable_flag_returns_unfixable_status(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """A model response declaring unfixable=true maps to UNFIXABLE with its reason and summary."""
@@ -246,15 +241,10 @@ class OllamaAdapterTests:
 
         resp = OllamaAgentAdapter().propose_fix(_ollama_request(tmp_path))
 
-        assert_model_equal(
-            resp,
-            AgentResponseBuilder()
-            .with_status(AgentResponseStatus.UNFIXABLE)
-            .with_summary("nope")
-            .with_unfixable_reason("needs redesign")
-            .with_raw_text(content)
-            .build(),
-        )
+        assert resp.status == AgentResponseStatus.UNFIXABLE
+        assert resp.summary == "nope"
+        assert resp.unfixable_reason == "needs redesign"
+        assert resp.raw_text == content
 
     def test_empty_diff_returns_no_op_status(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """An explicit empty unified_diff maps to NO_OP, preserving the empty string rather than None."""
@@ -265,15 +255,10 @@ class OllamaAdapterTests:
 
         resp = OllamaAgentAdapter().propose_fix(_ollama_request(tmp_path))
 
-        assert_model_equal(
-            resp,
-            AgentResponseBuilder()
-            .with_status(AgentResponseStatus.NO_OP)
-            .with_unified_diff("")
-            .with_summary("nothing")
-            .with_raw_text(content)
-            .build(),
-        )
+        assert resp.status == AgentResponseStatus.NO_OP
+        assert resp.unified_diff == ""
+        assert resp.summary == "nothing"
+        assert resp.raw_text == content
 
     def test_fenced_json_response_returns_proposed_patch(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Model output wrapped in a ```json fence is unwrapped before parsing, and raw_text keeps the fence."""
@@ -284,15 +269,10 @@ class OllamaAdapterTests:
 
         resp = OllamaAgentAdapter().propose_fix(_ollama_request(tmp_path))
 
-        assert_model_equal(
-            resp,
-            AgentResponseBuilder()
-            .with_status(AgentResponseStatus.PROPOSED_PATCH)
-            .with_unified_diff("d\n")
-            .with_summary("x")
-            .with_raw_text(content)
-            .build(),
-        )
+        assert resp.status == AgentResponseStatus.PROPOSED_PATCH
+        assert resp.unified_diff == "d\n"
+        assert resp.summary == "x"
+        assert resp.raw_text == content
 
     def test_unparseable_model_text_returns_unfixable(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Model text with no extractable JSON object maps to UNFIXABLE with the unparseable-output reason."""
@@ -303,14 +283,9 @@ class OllamaAdapterTests:
 
         resp = OllamaAgentAdapter().propose_fix(_ollama_request(tmp_path))
 
-        assert_model_equal(
-            resp,
-            AgentResponseBuilder()
-            .with_status(AgentResponseStatus.UNFIXABLE)
-            .with_unfixable_reason(MODEL_OUTPUT_UNPARSEABLE)
-            .with_raw_text("sorry I cannot produce JSON today")
-            .build(),
-        )
+        assert resp.status == AgentResponseStatus.UNFIXABLE
+        assert resp.unfixable_reason == MODEL_OUTPUT_UNPARSEABLE
+        assert resp.raw_text == "sorry I cannot produce JSON today"
 
     def test_missing_model_returns_provider_error(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """A blank model fails before any HTTP call is made."""
@@ -322,16 +297,11 @@ class OllamaAdapterTests:
 
         resp = OllamaAgentAdapter().propose_fix(_ollama_request(tmp_path, model=None))
 
-        assert_model_equal(
-            resp,
-            AgentResponseBuilder()
-            .with_status(AgentResponseStatus.PROVIDER_ERROR)
-            .with_errors(
-                "Agent provider error (AGENT_PROVIDER_ERROR): "
-                "ollama requires a non-empty model. Fix: set agent.model in .worktree/config.json"
-            )
-            .build(),
-        )
+        assert resp.status == AgentResponseStatus.PROVIDER_ERROR
+        assert resp.errors == [
+            "Agent provider error (AGENT_PROVIDER_ERROR): "
+            "ollama requires a non-empty model. Fix: set agent.model in .worktree/config.json"
+        ]
 
     def test_invalid_endpoint_scheme_returns_provider_error(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -345,16 +315,11 @@ class OllamaAdapterTests:
 
         resp = OllamaAgentAdapter().propose_fix(_ollama_request(tmp_path, endpoint="127.0.0.1:11434"))
 
-        assert_model_equal(
-            resp,
-            AgentResponseBuilder()
-            .with_status(AgentResponseStatus.PROVIDER_ERROR)
-            .with_errors(
-                "Agent provider error (AGENT_PROVIDER_ERROR): "
-                "invalid Ollama endpoint '127.0.0.1:11434': must be an absolute http:// or https:// URL"
-            )
-            .build(),
-        )
+        assert resp.status == AgentResponseStatus.PROVIDER_ERROR
+        assert resp.errors == [
+            "Agent provider error (AGENT_PROVIDER_ERROR): "
+            "invalid Ollama endpoint '127.0.0.1:11434': must be an absolute http:// or https:// URL"
+        ]
 
     @pytest.mark.parametrize(
         "reason",
@@ -375,16 +340,10 @@ class OllamaAdapterTests:
 
         resp = OllamaAgentAdapter().propose_fix(_ollama_request(tmp_path))
 
-        assert_model_equal(
-            resp,
-            AgentResponseBuilder()
-            .with_status(AgentResponseStatus.PROVIDER_ERROR)
-            .with_errors(
-                "Agent provider error (AGENT_PROVIDER_ERROR): "
-                f"failed to reach Ollama at 'http://127.0.0.1:11434': {reason}"
-            )
-            .build(),
-        )
+        assert resp.status == AgentResponseStatus.PROVIDER_ERROR
+        assert resp.errors == [
+            f"Agent provider error (AGENT_PROVIDER_ERROR): failed to reach Ollama at 'http://127.0.0.1:11434': {reason}"
+        ]
 
     def test_http_500_status_returns_provider_error(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """A non-2xx HTTP status maps to PROVIDER_ERROR naming the status and response snippet."""
@@ -394,17 +353,12 @@ class OllamaAdapterTests:
 
         resp = OllamaAgentAdapter().propose_fix(_ollama_request(tmp_path))
 
-        assert_model_equal(
-            resp,
-            AgentResponseBuilder()
-            .with_status(AgentResponseStatus.PROVIDER_ERROR)
-            .with_raw_text("internal boom")
-            .with_errors(
-                "Agent provider error (AGENT_PROVIDER_ERROR): "
-                "Ollama HTTP 500 from 'http://127.0.0.1:11434/api/chat': internal boom"
-            )
-            .build(),
-        )
+        assert resp.status == AgentResponseStatus.PROVIDER_ERROR
+        assert resp.raw_text == "internal boom"
+        assert resp.errors == [
+            "Agent provider error (AGENT_PROVIDER_ERROR): "
+            "Ollama HTTP 500 from 'http://127.0.0.1:11434/api/chat': internal boom"
+        ]
 
     def test_http_post_timeout_returns_timeout_status(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """A TimeoutError from the HTTP boundary maps to TIMEOUT, not PROVIDER_ERROR."""
@@ -416,15 +370,10 @@ class OllamaAdapterTests:
 
         resp = OllamaAgentAdapter().propose_fix(_ollama_request(tmp_path))
 
-        assert_model_equal(
-            resp,
-            AgentResponseBuilder()
-            .with_status(AgentResponseStatus.TIMEOUT)
-            .with_errors(
-                "Agent timed out after 10s (provider=ollama).\nFix:\n- raise agent.timeout_seconds on the blueprint"
-            )
-            .build(),
-        )
+        assert resp.status == AgentResponseStatus.TIMEOUT
+        assert resp.errors == [
+            "Agent timed out after 10s (provider=ollama).\nFix:\n- raise agent.timeout_seconds on the blueprint"
+        ]
 
     def test_non_object_json_body_returns_provider_error(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """A JSON array or scalar chat body maps to PROVIDER_ERROR rather than crashing on attribute access."""
@@ -432,14 +381,9 @@ class OllamaAdapterTests:
 
         resp = OllamaAgentAdapter().propose_fix(_ollama_request(tmp_path))
 
-        assert_model_equal(
-            resp,
-            AgentResponseBuilder()
-            .with_status(AgentResponseStatus.PROVIDER_ERROR)
-            .with_raw_text("[1, 2, 3]")
-            .with_errors("Agent provider error (AGENT_PROVIDER_ERROR): Ollama chat API returned a non-object")
-            .build(),
-        )
+        assert resp.status == AgentResponseStatus.PROVIDER_ERROR
+        assert resp.raw_text == "[1, 2, 3]"
+        assert resp.errors == ["Agent provider error (AGENT_PROVIDER_ERROR): Ollama chat API returned a non-object"]
 
     def test_missing_message_content_returns_provider_error(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -450,16 +394,11 @@ class OllamaAdapterTests:
 
         resp = OllamaAgentAdapter().propose_fix(_ollama_request(tmp_path))
 
-        assert_model_equal(
-            resp,
-            AgentResponseBuilder()
-            .with_status(AgentResponseStatus.PROVIDER_ERROR)
-            .with_raw_text(body)
-            .with_errors(
-                "Agent provider error (AGENT_PROVIDER_ERROR): Ollama chat API response missing message.content"
-            )
-            .build(),
-        )
+        assert resp.status == AgentResponseStatus.PROVIDER_ERROR
+        assert resp.raw_text == body
+        assert resp.errors == [
+            "Agent provider error (AGENT_PROVIDER_ERROR): Ollama chat API response missing message.content"
+        ]
 
     def test_invalid_json_http_body_returns_provider_error(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -471,14 +410,9 @@ class OllamaAdapterTests:
 
         resp = OllamaAgentAdapter().propose_fix(_ollama_request(tmp_path))
 
-        assert_model_equal(
-            resp,
-            AgentResponseBuilder()
-            .with_status(AgentResponseStatus.PROVIDER_ERROR)
-            .with_raw_text("invalid json {")
-            .with_errors(
-                "Agent provider error (AGENT_PROVIDER_ERROR): "
-                "invalid JSON from Ollama chat API: Expecting value: line 1 column 1 (char 0)"
-            )
-            .build(),
-        )
+        assert resp.status == AgentResponseStatus.PROVIDER_ERROR
+        assert resp.raw_text == "invalid json {"
+        assert resp.errors == [
+            "Agent provider error (AGENT_PROVIDER_ERROR): "
+            "invalid JSON from Ollama chat API: Expecting value: line 1 column 1 (char 0)"
+        ]

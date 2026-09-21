@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from tests.harness import ANY_STRING, AgentRequestBuilder, AgentResponseBuilder, assert_model_equal
+from tests.harness import AgentRequestBuilder
 from worktree.core.agents import AgentResponseStatus, CursorAgentAdapter, get_agent_adapter
 from worktree.core.agents.cli_mutation import CliMutationOutcome, CliMutationRunRequest, CliMutationRunStatus
 from worktree.core.agents.cursor import (
@@ -85,9 +85,8 @@ class CursorOutcomeMappingTests:
     ) -> None:
         """Every SDK wait() status/text combination maps to the documented outcome fields."""
         outcome = cursor_outcome_from_result(SimpleNamespace(status=raw_status, result=result_text))
-        assert_model_equal(
-            outcome,
-            CliMutationOutcome(status=expected_status, result_text=result_text, error_detail=expected_error_detail),
+        assert outcome == CliMutationOutcome(
+            status=expected_status, result_text=result_text, error_detail=expected_error_detail
         )
 
 
@@ -133,16 +132,11 @@ class CursorAdapterTests:
 
         resp = adapter.propose_fix(AgentRequestBuilder().with_sandbox_path(tmp_path).build())
 
-        assert_model_equal(
-            resp,
-            AgentResponseBuilder()
-            .with_status(AgentResponseStatus.PROVIDER_ERROR)
-            .with_errors(
-                "Agent provider error (AGENT_PROVIDER_ERROR): "
-                "cursor requires a non-empty model. Fix: set agent.model in .worktree/config.json"
-            )
-            .build(),
-        )
+        assert resp.status == AgentResponseStatus.PROVIDER_ERROR
+        assert resp.errors == [
+            "Agent provider error (AGENT_PROVIDER_ERROR): "
+            "cursor requires a non-empty model. Fix: set agent.model in .worktree/config.json"
+        ]
 
     def test_missing_api_key_returns_provider_error_before_run(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -153,16 +147,11 @@ class CursorAdapterTests:
 
         resp = adapter.propose_fix(AgentRequestBuilder().with_sandbox_path(tmp_path).with_model("composer-2.5").build())
 
-        assert_model_equal(
-            resp,
-            AgentResponseBuilder()
-            .with_status(AgentResponseStatus.PROVIDER_ERROR)
-            .with_errors(
-                f"Agent provider error (AGENT_PROVIDER_ERROR): "
-                f"missing {CURSOR_API_KEY_ENV}. Fix: export {CURSOR_API_KEY_ENV}=..."
-            )
-            .build(),
-        )
+        assert resp.status == AgentResponseStatus.PROVIDER_ERROR
+        assert resp.errors == [
+            f"Agent provider error (AGENT_PROVIDER_ERROR): "
+            f"missing {CURSOR_API_KEY_ENV}. Fix: export {CURSOR_API_KEY_ENV}=..."
+        ]
 
 
 class DefaultCursorRunTests:
@@ -176,13 +165,8 @@ class DefaultCursorRunTests:
             CliMutationRunRequest(model="composer-2.5", sandbox_path=tmp_path, prompt="fix it", timeout_seconds=1.0)
         )
 
-        # error_detail is ANY_STRING here, not a pinned literal, because it embeds the
-        # ImportError's own message; the follow-up assertion pins the "src[cursor]" install
-        # hint this test does own.
-        assert_model_equal(
-            outcome,
-            CliMutationOutcome.model_construct(status="error", result_text=None, error_detail=ANY_STRING),
-        )
+        assert outcome.status == "error"
+        assert outcome.result_text is None
         assert outcome.error_detail is not None and "src[cursor]" in outcome.error_detail
 
     def test_missing_api_key_returns_error_outcome(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -195,10 +179,9 @@ class DefaultCursorRunTests:
             CliMutationRunRequest(model="composer-2.5", sandbox_path=tmp_path, prompt="fix it", timeout_seconds=1.0)
         )
 
-        assert_model_equal(
-            outcome,
-            CliMutationOutcome(status="error", result_text=None, error_detail=f"missing {CURSOR_API_KEY_ENV}"),
-        )
+        assert outcome.status == "error"
+        assert outcome.result_text is None
+        assert outcome.error_detail == f"missing {CURSOR_API_KEY_ENV}"
 
     def test_thread_worker_timeout_invokes_cancel_and_returns_timeout(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -242,9 +225,9 @@ class DefaultCursorRunTests:
             CliMutationRunRequest(model="composer-2.5", sandbox_path=tmp_path, prompt="fix it", timeout_seconds=0.01)
         )
 
-        assert_model_equal(outcome, CliMutationOutcome(status="timeout", result_text=None, error_detail=None))
-        # cancelled is a side effect observed on the fake run double, not a field of the
-        # result under test, so it stays a plain assertion alongside the whole-object one.
+        assert outcome.status == "timeout"
+        assert outcome.result_text is None
+        assert outcome.error_detail is None
         assert cancelled is True
 
     def test_thread_worker_exception_returns_error_outcome(
@@ -262,7 +245,9 @@ class DefaultCursorRunTests:
             CliMutationRunRequest(model="composer-2.5", sandbox_path=tmp_path, prompt="fix it", timeout_seconds=1.0)
         )
 
-        assert_model_equal(outcome, CliMutationOutcome(status="error", result_text=None, error_detail="socket closed"))
+        assert outcome.status == "error"
+        assert outcome.result_text is None
+        assert outcome.error_detail == "socket closed"
 
     def test_thread_worker_missing_result_returns_error_outcome(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -276,4 +261,6 @@ class DefaultCursorRunTests:
             CliMutationRunRequest(model="composer-2.5", sandbox_path=tmp_path, prompt="fix it", timeout_seconds=1.0)
         )
 
-        assert_model_equal(outcome, CliMutationOutcome(status="error", result_text=None, error_detail="no run result"))
+        assert outcome.status == "error"
+        assert outcome.result_text is None
+        assert outcome.error_detail == "no run result"

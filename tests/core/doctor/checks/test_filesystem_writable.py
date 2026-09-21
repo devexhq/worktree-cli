@@ -2,10 +2,9 @@
 
 from pathlib import Path
 
-from tests.harness import assert_model_equal
 from worktree.core.config.models import PathsConfig, ProjectConfig, WorktreeConfig
 from worktree.core.doctor.checks.filesystem_writable import FilesystemWritableCheck
-from worktree.core.doctor.models import CheckCategory, CheckStatus, DiagnosticCheckResult, DoctorContext
+from worktree.core.doctor.models import CheckCategory, CheckStatus, DoctorContext
 
 
 class FilesystemWritableCheckTests:
@@ -19,31 +18,19 @@ class FilesystemWritableCheckTests:
 
         result = check.execute(context)
 
-        assert_model_equal(
-            result,
-            DiagnosticCheckResult.model_construct(
-                check_id="filesystem.writable",
-                name="Filesystem Writable Check",
-                category=CheckCategory.FILESYSTEM,
-                status=CheckStatus.OK,
-                message="All configured workspace paths are writable.",
-                details={
-                    "verified_paths": [
-                        str(tmp_path / ".worktree"),
-                        str(tmp_path / ".worktree/sessions"),
-                        str(tmp_path / ".worktree/artifacts"),
-                        str(tmp_path / ".worktree/sandboxes"),
-                        str(tmp_path / ".worktree"),
-                    ]
-                },
-                duration_ms=0.0,
-                error_code=None,
-                errors=[],
-                warnings=[],
-                fixes=[],
-                remediations=[],
-            ),
-        )
+        assert result.check_id == "filesystem.writable"
+        assert result.category == CheckCategory.FILESYSTEM
+        assert result.status == CheckStatus.OK
+        assert result.error_code is None
+        assert result.details == {
+            "verified_paths": [
+                str(tmp_path / ".worktree"),
+                str(tmp_path / ".worktree/sessions"),
+                str(tmp_path / ".worktree/artifacts"),
+                str(tmp_path / ".worktree/sandboxes"),
+                str(tmp_path / ".worktree"),
+            ]
+        }
 
     def test_execute_readonly_directory_returns_unwritable_failure(self, tmp_path: Path) -> None:
         """[tier-1/unit] FilesystemWritableCheck.execute: artifacts_dir pre-created read-only -> FAILED with DOCTOR_FS_UNWRITABLE."""
@@ -60,23 +47,12 @@ class FilesystemWritableCheckTests:
             artifacts_dir.chmod(0o700)
 
         message = "1 configured path(s) are not writable."
-        assert_model_equal(
-            result,
-            DiagnosticCheckResult.model_construct(
-                check_id="filesystem.writable",
-                name="Filesystem Writable Check",
-                category=CheckCategory.FILESYSTEM,
-                status=CheckStatus.FAILED,
-                message=message,
-                details={"unwritable_paths": [str(artifacts_dir)]},
-                duration_ms=0.0,
-                error_code="DOCTOR_FS_UNWRITABLE",
-                errors=[message],
-                warnings=[],
-                fixes=[],
-                remediations=[],
-            ),
-        )
+        assert result.check_id == "filesystem.writable"
+        assert result.category == CheckCategory.FILESYSTEM
+        assert result.status == CheckStatus.FAILED
+        assert result.error_code == "DOCTOR_FS_UNWRITABLE"
+        assert result.details == {"unwritable_paths": [str(artifacts_dir)]}
+        assert result.errors == [message]
 
     def test_execute_readonly_parent_directory_returns_unwritable_failure(self, tmp_path: Path) -> None:
         """[tier-1/unit] FilesystemWritableCheck.execute: cwd read-only, target dirs not yet created -> mkdir raises OSError -> FAILED with DOCTOR_FS_UNWRITABLE."""
@@ -98,23 +74,12 @@ class FilesystemWritableCheckTests:
             str(tmp_path / ".worktree"),
         ]
         message = f"{len(unwritable_paths)} configured path(s) are not writable."
-        assert_model_equal(
-            result,
-            DiagnosticCheckResult.model_construct(
-                check_id="filesystem.writable",
-                name="Filesystem Writable Check",
-                category=CheckCategory.FILESYSTEM,
-                status=CheckStatus.FAILED,
-                message=message,
-                details={"unwritable_paths": unwritable_paths},
-                duration_ms=0.0,
-                error_code="DOCTOR_FS_UNWRITABLE",
-                errors=[message],
-                warnings=[],
-                fixes=[],
-                remediations=[],
-            ),
-        )
+        assert result.check_id == "filesystem.writable"
+        assert result.category == CheckCategory.FILESYSTEM
+        assert result.status == CheckStatus.FAILED
+        assert result.error_code == "DOCTOR_FS_UNWRITABLE"
+        assert result.details == {"unwritable_paths": unwritable_paths}
+        assert result.errors == [message]
 
     def test_execute_missing_config_falls_back_to_default_paths(self, tmp_path: Path) -> None:
         """[tier-1/unit] FilesystemWritableCheck.execute: context.config=None -> probes PathsConfig() defaults."""
@@ -124,28 +89,16 @@ class FilesystemWritableCheckTests:
         result = check.execute(context)
 
         defaults = PathsConfig()
-        assert_model_equal(
-            result,
-            DiagnosticCheckResult.model_construct(
-                check_id="filesystem.writable",
-                name="Filesystem Writable Check",
-                category=CheckCategory.FILESYSTEM,
-                status=CheckStatus.OK,
-                message="All configured workspace paths are writable.",
-                details={
-                    "verified_paths": [
-                        str(tmp_path / defaults.root_dir),
-                        str(tmp_path / defaults.sessions_dir),
-                        str(tmp_path / defaults.artifacts_dir),
-                        str(tmp_path / defaults.root_dir / "sandboxes"),
-                        str((tmp_path / defaults.db_path).parent),
-                    ]
-                },
-                duration_ms=0.0,
-                error_code=None,
-                errors=[],
-                warnings=[],
-                fixes=[],
-                remediations=[],
-            ),
-        )
+        assert result.check_id == "filesystem.writable"
+        assert result.category == CheckCategory.FILESYSTEM
+        assert result.status == CheckStatus.OK
+        assert result.error_code is None
+        assert result.details == {
+            "verified_paths": [
+                str(tmp_path / defaults.root_dir),
+                str(tmp_path / defaults.sessions_dir),
+                str(tmp_path / defaults.artifacts_dir),
+                str(tmp_path / defaults.root_dir / "sandboxes"),
+                str((tmp_path / defaults.db_path).parent),
+            ]
+        }

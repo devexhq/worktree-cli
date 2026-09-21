@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Self
 
-from tests.harness.matchers import AnyMatching, AnyValue
 from worktree.core.sandbox.models import (
     PruneAction,
     PrunedItem,
@@ -48,11 +47,11 @@ class PruneResultBuilder:
         category: StaleSandboxCategory,
         identifier: str,
         action: PruneAction = PruneAction.PRUNED,
-        path: Path | AnyMatching | AnyValue | None = None,
-        branch_name: str | AnyMatching | AnyValue | None = None,
-        session_id: str | AnyMatching | AnyValue | None = None,
-        reason: str | AnyMatching | AnyValue = "",
-        error: str | AnyMatching | AnyValue | None = None,
+        path: Path | None = None,
+        branch_name: str | None = None,
+        session_id: str | None = None,
+        reason: str = "",
+        error: str | None = None,
     ) -> Self:
         """Append an expected pruned item by field values."""
         item = PrunedItem.model_construct(

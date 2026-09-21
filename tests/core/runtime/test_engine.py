@@ -208,7 +208,7 @@ def _step_result(
     attempts: int = 1,
     error_message: str | None = None,
 ) -> StepResult:
-    """Build an expected StepResult; duration_seconds is real wall-clock time, matched via ANY_DURATION."""
+    """Build an expected StepResult for comparison."""
     return StepResult.model_construct(
         step_id=step_id,
         status=status,

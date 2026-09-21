@@ -7,7 +7,6 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from tests.harness.matchers import ANY_TIMESTAMP
 from worktree.cli import app
 from worktree.core.db import RunStatus, WorktreeDb
 
@@ -49,25 +48,28 @@ class HistoryShowCliIntegrationTests:
         )
 
         assert result.exit_code == 0
-        assert json.loads(result.stdout) == {
-            "event_type": "HistoryShowResult",
-            "payload": {
-                "status": "ok",
+        data = json.loads(result.stdout)
+        assert data["event_type"] == "HistoryShowResult"
+        payload = data["payload"]
+        assert payload["run"] is not None
+        assert isinstance(payload["run"]["started_at"], str)
+        payload["run"]["started_at"] = "<timestamp>"
+        assert payload == {
+            "status": "ok",
+            "session_id": "session-known",
+            "run": {
                 "session_id": "session-known",
-                "run": {
-                    "session_id": "session-known",
-                    "blueprint_name": "task-a",
-                    "status": "completed",
-                    "branch_name": None,
-                    "started_at": ANY_TIMESTAMP,
-                    "completed_at": None,
-                    "duration_seconds": None,
-                    "error_message": None,
-                },
-                "checkpoint": None,
-                "checkpoint_raw": None,
-                "errors": [],
-                "warnings": [],
-                "fixes": [],
+                "blueprint_name": "task-a",
+                "status": "completed",
+                "branch_name": None,
+                "started_at": "<timestamp>",
+                "completed_at": None,
+                "duration_seconds": None,
+                "error_message": None,
             },
+            "checkpoint": None,
+            "checkpoint_raw": None,
+            "errors": [],
+            "warnings": [],
+            "fixes": [],
         }

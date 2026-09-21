@@ -629,7 +629,7 @@ rules:
     when testing unrelated behavior. Verify that models have dedicated contract tests asserting their defaults and
     schema. In scenario tests, verify assertions check meaningful domain contracts rather than incidental defaults.
   positive_example: "assert result.status == SandboxDiffStatus.NOT_FOUND; assert 'not found' in result.errors[0].lower()"
-  negative_example: "assert_model_equal(result, SandboxDiffResult(status=NOT_FOUND, diff_text='', stat_text='', files_changed=[], errors=['...'], warnings=[], fixes=[], error_code=None))  # mechanical enumeration of incidental defaults"
+  negative_example: "assert result == SandboxDiffResult(status=NOT_FOUND, diff_text='', stat_text='', files_changed=[], errors=['...'], warnings=[], fixes=[], error_code=None)  # mechanical enumeration of incidental defaults"
   citation: docs/agents/testing.md#core-testing-rules
 - id: TEST-008
   title: Test Double Realism and Production Types
@@ -811,8 +811,8 @@ rules:
     other dispatched event type captured by the same spy, and flag spy[0]/len(spy) == 1 relied on without
     isolating the command's own Result type for a command action that can plausibly dispatch more than its
     terminal result in the same invocation.
-  positive_example: 'assert len(dispatch_spy) == 1; assert_model_equal(dispatch_spy[0], SandboxCreateResult(...))  # sandbox create dispatches only its own terminal result'
-  negative_example: 'assert_model_equal(dispatch_spy[-1], MessageEvent(message="Running..."))  # asserting an incidental progress event through the result spy'
+  positive_example: 'assert len(dispatch_spy) == 1; assert isinstance(dispatch_spy[0], SandboxCreateResult)  # sandbox create dispatches only its own terminal result'
+  negative_example: 'assert isinstance(dispatch_spy[-1], MessageEvent)  # asserting an incidental progress event through the result spy'
   citation: docs/agents/testing.md#tier-3---cli-wiring-runner-required-root-tests-when-earned
 - id: DOC-001
   title: Architecture Doc Structural Gate

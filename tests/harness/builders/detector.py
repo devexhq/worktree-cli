@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Self
 
-from tests.harness.matchers import AnyMatching, AnyValue
 from worktree.core.sandbox.models import (
     SandboxDetectionResult,
     SandboxDetectionStatus,
@@ -39,13 +38,13 @@ class DetectionResultBuilder:
         self,
         *,
         category: StaleSandboxCategory,
-        identifier: str | AnyMatching | AnyValue,
-        path: Path | AnyMatching | AnyValue | None = None,
-        branch_name: str | AnyMatching | AnyValue | None = None,
-        session_id: str | AnyMatching | AnyValue | None = None,
+        identifier: str,
+        path: Path | None = None,
+        branch_name: str | None = None,
+        session_id: str | None = None,
         is_dirty: bool = False,
         dirty_file_count: int = 0,
-        reason: str | AnyMatching | AnyValue = "",
+        reason: str = "",
     ) -> Self:
         """Append an expected stale sandbox item by field values."""
         item = StaleSandboxItem.model_construct(

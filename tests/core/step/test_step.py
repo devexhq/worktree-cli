@@ -4,8 +4,6 @@ from pathlib import Path
 
 import pytest
 
-from tests.harness.matchers import assert_model_equal
-from worktree.common.models import FailurePolicy, OnFailureSpec
 from worktree.core.step import Step, StepDefinition, StepType, StepValidationError, resolve_step_definition
 
 
@@ -16,30 +14,10 @@ class StepShorthandExpansionTests:
         """Shorthand 'run' step expands to command type preserving explicit environment variables."""
         raw = {"id": "test", "run": "npm test", "env": {"CI": "1"}}
         step = resolve_step_definition(raw)
-        assert_model_equal(
-            step,
-            StepDefinition(
-                id="test",
-                uses=None,
-                run=None,
-                name=None,
-                type=StepType.COMMAND,
-                description=None,
-                command="npm test",
-                prompt=None,
-                script_path=None,
-                tools=[],
-                env={"CI": "1"},
-                timeout_seconds=120,
-                assert_=None,
-                on_failure=OnFailureSpec(
-                    action=FailurePolicy.ABORT,
-                    max_retries=3,
-                    backoff_ms=0,
-                    on_max_retries=FailurePolicy.ABORT,
-                ),
-            ),
-        )
+        assert step.id == "test"
+        assert step.type == StepType.COMMAND
+        assert step.command == "npm test"
+        assert step.env == {"CI": "1"}
 
     def test_step_facade_resolves_run_shorthand(self) -> None:
         """Step.load and Step.resolve expand shorthand run directly on facade."""
@@ -83,30 +61,13 @@ class StepResolutionTests:
 
         resolved = resolve_step_definition(overriding, path=tmp_path)
 
-        assert_model_equal(
-            resolved,
-            StepDefinition(
-                id="derived-step",
-                uses=None,
-                run=None,
-                name="Derived Step Name",
-                description="Base step description",
-                type=StepType.COMMAND,
-                command="echo base",
-                prompt=None,
-                script_path=None,
-                tools=[],
-                env={"BASE_VAR": "base", "SHARED_VAR": "overridden", "OVERRIDE_VAR": "derived"},
-                timeout_seconds=300,
-                assert_=None,
-                on_failure=OnFailureSpec(
-                    action=FailurePolicy.ABORT,
-                    max_retries=3,
-                    backoff_ms=0,
-                    on_max_retries=FailurePolicy.ABORT,
-                ),
-            ),
-        )
+        assert resolved.id == "derived-step"
+        assert resolved.name == "Derived Step Name"
+        assert resolved.description == "Base step description"
+        assert resolved.type == StepType.COMMAND
+        assert resolved.command == "echo base"
+        assert resolved.env == {"BASE_VAR": "base", "SHARED_VAR": "overridden", "OVERRIDE_VAR": "derived"}
+        assert resolved.timeout_seconds == 300
 
     def test_step_load_by_name_via_catalog(self, tmp_path: Path) -> None:
         """Step.load_by_name resolves indexed step from workspace catalog."""

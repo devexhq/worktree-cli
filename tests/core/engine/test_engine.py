@@ -9,11 +9,10 @@ from unittest.mock import MagicMock
 import pytest
 
 from tests.harness.builders import BlueprintBuilder, StepBuilder, WorkspaceBuilder
-from tests.harness.matchers import ANY_PID, ANY_TIMESTAMP, assert_model_equal
 from worktree.common.models import FailurePolicy, OnFailureSpec
 from worktree.core.blueprint import Blueprint
 from worktree.core.catalog import Catalog
-from worktree.core.db import RunRecord, RunsRepository, RunStatus
+from worktree.core.db import RunsRepository, RunStatus
 from worktree.core.engine import Engine, EngineResumeError, EngineResumeStatus
 from worktree.core.runtime import ExecutionIdentity, RunCheckpoint, RunContext, RunOutcome
 from worktree.core.step.models import LoopStepBlock, StepDefinition
@@ -218,22 +217,12 @@ class EngineResumeOrchestrationTests:
         )
         record = runs_repo.get(session_id)
         assert record is not None
-        assert_model_equal(
-            record,
-            RunRecord.model_construct(
-                id=1,
-                session_id=session_id,
-                blueprint_key=name,
-                blueprint_name=name,
-                branch_name="",
-                status=RunStatus.COMPLETED,
-                pid=ANY_PID,
-                started_at=ANY_TIMESTAMP,
-                completed_at=ANY_TIMESTAMP,
-                error_message=None,
-                checkpoint_json=checkpoint.model_dump_json(),
-            ),
-        )
+        assert record.session_id == session_id
+        assert record.blueprint_key == name
+        assert record.blueprint_name == name
+        assert record.status == RunStatus.COMPLETED
+        assert record.checkpoint_json == checkpoint.model_dump_json()
+        assert record.completed_at is not None
 
     def test_resume_accepts_loop_steps_in_workflow_and_finalizes_completed(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -257,22 +246,12 @@ class EngineResumeOrchestrationTests:
         )
         record = runs_repo.get("workflow_loop")
         assert record is not None
-        assert_model_equal(
-            record,
-            RunRecord.model_construct(
-                id=1,
-                session_id="workflow_loop",
-                blueprint_key="ship",
-                blueprint_name="ship",
-                branch_name="",
-                status=RunStatus.COMPLETED,
-                pid=ANY_PID,
-                started_at=ANY_TIMESTAMP,
-                completed_at=ANY_TIMESTAMP,
-                error_message=None,
-                checkpoint_json=checkpoint.model_dump_json(),
-            ),
-        )
+        assert record.session_id == "workflow_loop"
+        assert record.blueprint_key == "ship"
+        assert record.blueprint_name == "ship"
+        assert record.status == RunStatus.COMPLETED
+        assert record.checkpoint_json == checkpoint.model_dump_json()
+        assert record.completed_at is not None
 
     def test_resume_mark_running_failure_appends_warning_but_still_runs(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -334,22 +313,12 @@ class EngineResumeOrchestrationTests:
         )
         record = runs_repo.get("task_final")
         assert record is not None
-        assert_model_equal(
-            record,
-            RunRecord.model_construct(
-                id=1,
-                session_id="task_final",
-                blueprint_key="lint",
-                blueprint_name="lint",
-                branch_name="",
-                status=RunStatus.RUNNING,
-                pid=ANY_PID,
-                started_at=ANY_TIMESTAMP,
-                completed_at=None,
-                error_message=None,
-                checkpoint_json=checkpoint.model_dump_json(),
-            ),
-        )
+        assert record.session_id == "task_final"
+        assert record.blueprint_key == "lint"
+        assert record.blueprint_name == "lint"
+        assert record.status == RunStatus.RUNNING
+        assert record.checkpoint_json == checkpoint.model_dump_json()
+        assert record.completed_at is None
 
     @pytest.mark.parametrize("blueprint_given", [True, False], ids=["explicit_blueprint", "omitted_blueprint"])
     def test_resume_missing_session_raises_engine_resume_error_with_not_found_status(

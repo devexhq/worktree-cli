@@ -7,16 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from tests.harness import (
-    ANY_ENV,
-    AgentRequestBuilder,
-    AgentResponseBuilder,
-    FakeAgentRunner,
-    FakeAgentRunnerCall,
-    assert_model_equal,
-)
+from tests.harness import AgentRequestBuilder, FakeAgentRunner
 from worktree.core.agents import AgentResponseStatus
-from worktree.core.agents.cli_mutation import CliMutationOutcome, CliMutationRunRequest
+from worktree.core.agents.cli_mutation import CliMutationRunRequest
 from worktree.core.agents.copilot import (
     CopilotAgentAdapter,
     default_copilot_run,
@@ -50,16 +43,10 @@ class CopilotAuthTests:
 
         resp = adapter.propose_fix(AgentRequestBuilder().with_sandbox_path(tmp_path).build())
 
-        assert_model_equal(
-            resp,
-            AgentResponseBuilder()
-            .with_status(AgentResponseStatus.PROVIDER_ERROR)
-            .with_errors(
-                "Agent provider error (AGENT_PROVIDER_ERROR): "
-                "missing GH_TOKEN or GITHUB_TOKEN. Fix: export GH_TOKEN=..."
-            )
-            .build(),
-        )
+        assert resp.status == AgentResponseStatus.PROVIDER_ERROR
+        assert resp.errors == [
+            "Agent provider error (AGENT_PROVIDER_ERROR): missing GH_TOKEN or GITHUB_TOKEN. Fix: export GH_TOKEN=..."
+        ]
 
 
 class CopilotRunTests:
@@ -76,33 +63,28 @@ class CopilotRunTests:
             CliMutationRunRequest(sandbox_path=tmp_path, prompt="hi", model=None, timeout_seconds=3)
         )
 
-        assert_model_equal(outcome, CliMutationOutcome(status="finished", result_text="hello", error_detail=None))
-        # env is ANY_ENV, not a pinned literal, because it's os.environ.copy() plus the
-        # resolved token and so is host-dependent; the follow-up assertion pins the one
-        # key this test does own.
-        assert_model_equal(
-            runner.last_call,
-            FakeAgentRunnerCall.model_construct(
-                cmd=[
-                    "gh",
-                    "copilot",
-                    "--",
-                    "-p",
-                    "",
-                    "--output-format",
-                    "json",
-                    "--silent",
-                    "--allow-all-tools",
-                    "--allow-all-paths",
-                    "--allow-all-urls",
-                ],
-                cwd=tmp_path,
-                env=ANY_ENV,
-                input_data=b"hi",
-                timeout_seconds=3,
-            ),
-        )
-        assert runner.last_call.env["GH_TOKEN"] == "test-token"
+        assert outcome.status == "finished"
+        assert outcome.result_text == "hello"
+        assert outcome.error_detail is None
+
+        call = runner.last_call
+        assert call.cmd == [
+            "gh",
+            "copilot",
+            "--",
+            "-p",
+            "",
+            "--output-format",
+            "json",
+            "--silent",
+            "--allow-all-tools",
+            "--allow-all-paths",
+            "--allow-all-urls",
+        ]
+        assert call.cwd == tmp_path
+        assert call.input_data == b"hi"
+        assert call.timeout_seconds == 3
+        assert call.env["GH_TOKEN"] == "test-token"
 
     def test_missing_gh_binary_returns_error_status(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """A missing gh binary maps to an error outcome naming the GitHub CLI."""
@@ -113,15 +95,10 @@ class CopilotRunTests:
             CliMutationRunRequest(sandbox_path=tmp_path, prompt="hi", model=None, timeout_seconds=3)
         )
 
-        assert_model_equal(
-            outcome,
-            CliMutationOutcome(
-                status="error",
-                result_text=None,
-                error_detail=(
-                    "gh is not installed or not on PATH: gh. Fix: install the GitHub CLI (https://cli.github.com)"
-                ),
-            ),
+        assert outcome.status == "error"
+        assert outcome.result_text is None
+        assert outcome.error_detail == (
+            "gh is not installed or not on PATH: gh. Fix: install the GitHub CLI (https://cli.github.com)"
         )
 
     def test_process_timeout_returns_timeout_status(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -133,4 +110,6 @@ class CopilotRunTests:
             CliMutationRunRequest(sandbox_path=tmp_path, prompt="hi", model=None, timeout_seconds=3)
         )
 
-        assert_model_equal(outcome, CliMutationOutcome(status="timeout", result_text=None, error_detail=None))
+        assert outcome.status == "timeout"
+        assert outcome.result_text is None
+        assert outcome.error_detail is None

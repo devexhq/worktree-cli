@@ -6,10 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from tests.harness import assert_model_equal
 from worktree.core.config.models import AgentConfig, AgentProvider, ProjectConfig, WorktreeConfig
 from worktree.core.doctor.checks.env_binaries import EnvBinariesCheck
-from worktree.core.doctor.models import CheckCategory, CheckStatus, DiagnosticCheckResult, DoctorContext
+from worktree.core.doctor.models import CheckCategory, CheckStatus, DoctorContext
 
 
 def _context_with_provider(cwd: Path, provider: AgentProvider) -> DoctorContext:
@@ -29,23 +28,12 @@ class EnvBinariesCheckTests:
         result = check.execute(context)
 
         message = "1 required binary(s) not found on PATH: git."
-        assert_model_equal(
-            result,
-            DiagnosticCheckResult.model_construct(
-                check_id="env.binaries",
-                name="Environment Binaries Check",
-                category=CheckCategory.ENVIRONMENT,
-                status=CheckStatus.WARNING,
-                message=message,
-                details={"missing_binaries": ["git"]},
-                duration_ms=0.0,
-                error_code="DOCTOR_BINARY_MISSING",
-                errors=[],
-                warnings=[message],
-                fixes=[],
-                remediations=[],
-            ),
-        )
+        assert result.check_id == "env.binaries"
+        assert result.category == CheckCategory.ENVIRONMENT
+        assert result.status == CheckStatus.WARNING
+        assert result.error_code == "DOCTOR_BINARY_MISSING"
+        assert result.details == {"missing_binaries": ["git"]}
+        assert result.warnings == [message]
 
     def test_execute_config_none_defaults_to_local_provider(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -57,23 +45,11 @@ class EnvBinariesCheckTests:
 
         result = check.execute(context)
 
-        assert_model_equal(
-            result,
-            DiagnosticCheckResult.model_construct(
-                check_id="env.binaries",
-                name="Environment Binaries Check",
-                category=CheckCategory.ENVIRONMENT,
-                status=CheckStatus.OK,
-                message="1 required binary(s) verified on PATH.",
-                details={"verified_binaries": ["git"]},
-                duration_ms=0.0,
-                error_code=None,
-                errors=[],
-                warnings=[],
-                fixes=[],
-                remediations=[],
-            ),
-        )
+        assert result.check_id == "env.binaries"
+        assert result.category == CheckCategory.ENVIRONMENT
+        assert result.status == CheckStatus.OK
+        assert result.error_code is None
+        assert result.details == {"verified_binaries": ["git"]}
 
     @pytest.mark.parametrize(
         "provider",
@@ -89,23 +65,11 @@ class EnvBinariesCheckTests:
 
         result = check.execute(context)
 
-        assert_model_equal(
-            result,
-            DiagnosticCheckResult.model_construct(
-                check_id="env.binaries",
-                name="Environment Binaries Check",
-                category=CheckCategory.ENVIRONMENT,
-                status=CheckStatus.OK,
-                message="1 required binary(s) verified on PATH.",
-                details={"verified_binaries": ["git"]},
-                duration_ms=0.0,
-                error_code=None,
-                errors=[],
-                warnings=[],
-                fixes=[],
-                remediations=[],
-            ),
-        )
+        assert result.check_id == "env.binaries"
+        assert result.category == CheckCategory.ENVIRONMENT
+        assert result.status == CheckStatus.OK
+        assert result.error_code is None
+        assert result.details == {"verified_binaries": ["git"]}
 
     @pytest.mark.parametrize(
         ("provider", "provider_binary"),
@@ -126,23 +90,12 @@ class EnvBinariesCheckTests:
         result = check.execute(context)
 
         message = f"1 required binary(s) not found on PATH: {provider_binary}."
-        assert_model_equal(
-            result,
-            DiagnosticCheckResult.model_construct(
-                check_id="env.binaries",
-                name="Environment Binaries Check",
-                category=CheckCategory.ENVIRONMENT,
-                status=CheckStatus.WARNING,
-                message=message,
-                details={"missing_binaries": [provider_binary]},
-                duration_ms=0.0,
-                error_code="DOCTOR_BINARY_MISSING",
-                errors=[],
-                warnings=[message],
-                fixes=[],
-                remediations=[],
-            ),
-        )
+        assert result.check_id == "env.binaries"
+        assert result.category == CheckCategory.ENVIRONMENT
+        assert result.status == CheckStatus.WARNING
+        assert result.error_code == "DOCTOR_BINARY_MISSING"
+        assert result.details == {"missing_binaries": [provider_binary]}
+        assert result.warnings == [message]
 
     @pytest.mark.parametrize(
         ("provider", "provider_binary"),
@@ -158,20 +111,8 @@ class EnvBinariesCheckTests:
 
         result = check.execute(context)
 
-        assert_model_equal(
-            result,
-            DiagnosticCheckResult.model_construct(
-                check_id="env.binaries",
-                name="Environment Binaries Check",
-                category=CheckCategory.ENVIRONMENT,
-                status=CheckStatus.OK,
-                message="2 required binary(s) verified on PATH.",
-                details={"verified_binaries": ["git", provider_binary]},
-                duration_ms=0.0,
-                error_code=None,
-                errors=[],
-                warnings=[],
-                fixes=[],
-                remediations=[],
-            ),
-        )
+        assert result.check_id == "env.binaries"
+        assert result.category == CheckCategory.ENVIRONMENT
+        assert result.status == CheckStatus.OK
+        assert result.error_code is None
+        assert result.details == {"verified_binaries": ["git", provider_binary]}

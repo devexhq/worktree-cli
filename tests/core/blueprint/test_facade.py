@@ -2,10 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from tests.harness.matchers import assert_model_equal
-from worktree.common.models import FailurePolicy, OnFailureSpec
 from worktree.core.blueprint import Blueprint, BlueprintDefinition
-from worktree.core.blueprint.models import BlueprintDefaults
 from worktree.core.catalog import Catalog
 from worktree.core.step.models import StepDefinition
 
@@ -22,43 +19,12 @@ class BlueprintDocumentNormalizationTests:
 
         blueprint = Blueprint.load("lint-task", catalog=Catalog(tmp_path))
 
-        assert_model_equal(
-            blueprint.definition,
-            BlueprintDefinition(
-                name="lint-task",
-                description="",
-                summary="",
-                version=1,
-                use_sandbox=True,
-                timeout_seconds=None,
-                env={},
-                inputs={},
-                defaults=BlueprintDefaults(on_failure=None),
-                steps=[
-                    StepDefinition(
-                        id="ruff",
-                        uses=None,
-                        run="ruff check .",
-                        name=None,
-                        type=None,
-                        description=None,
-                        command=None,
-                        prompt=None,
-                        script_path=None,
-                        tools=[],
-                        env={},
-                        timeout_seconds=120,
-                        assert_=None,
-                        on_failure=OnFailureSpec(
-                            action=FailurePolicy.ABORT,
-                            max_retries=3,
-                            backoff_ms=0,
-                            on_max_retries=FailurePolicy.ABORT,
-                        ),
-                    )
-                ],
-            ),
-        )
+        assert blueprint.definition.name == "lint-task"
+        assert len(blueprint.definition.steps) == 1
+        step = blueprint.definition.steps[0]
+        assert isinstance(step, StepDefinition)
+        assert step.id == "ruff"
+        assert step.run == "ruff check ."
 
     def test_blueprint_normalizes_null_description_and_summary_to_empty(self) -> None:
         """Blueprint normalizes JSON/YAML null description and summary to empty strings."""
@@ -68,18 +34,6 @@ class BlueprintDocumentNormalizationTests:
         )
         blueprint = Blueprint(definition)
 
-        assert_model_equal(
-            blueprint.definition,
-            BlueprintDefinition(
-                name="ship",
-                description="",
-                summary="",
-                version=1,
-                use_sandbox=True,
-                timeout_seconds=None,
-                env={},
-                inputs={},
-                defaults=BlueprintDefaults(on_failure=None),
-                steps=[],
-            ),
-        )
+        assert blueprint.definition.name == "ship"
+        assert blueprint.definition.description == ""
+        assert blueprint.definition.summary == ""
