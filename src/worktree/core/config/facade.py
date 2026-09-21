@@ -227,8 +227,3 @@ class Config:
     def set_value(cls, path: Path, key: str, value: Any) -> ConfigSetResult:
         """Helper to set config value at specified path."""
         return cls(path).set(key, value)
-
-    @classmethod
-    def unset_value(cls, path: Path, key: str) -> ConfigUnsetResult:
-        """Helper to unset config value at specified path."""
-        return cls(path).unset(key)
