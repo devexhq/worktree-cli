@@ -41,6 +41,7 @@ class FilesystemWritableCheckTests:
                 errors=[],
                 warnings=[],
                 fixes=[],
+                remediations=[],
             ),
         )
 
@@ -72,7 +73,8 @@ class FilesystemWritableCheckTests:
                 error_code="DOCTOR_FS_UNWRITABLE",
                 errors=[message],
                 warnings=[],
-                fixes=["Check directory permissions and try again"],
+                fixes=[],
+                remediations=[],
             ),
         )
 
@@ -109,7 +111,8 @@ class FilesystemWritableCheckTests:
                 error_code="DOCTOR_FS_UNWRITABLE",
                 errors=[message],
                 warnings=[],
-                fixes=["Check directory permissions and try again"],
+                fixes=[],
+                remediations=[],
             ),
         )
 
@@ -143,5 +146,6 @@ class FilesystemWritableCheckTests:
                 errors=[],
                 warnings=[],
                 fixes=[],
+                remediations=[],
             ),
         )

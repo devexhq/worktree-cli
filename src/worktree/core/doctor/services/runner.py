@@ -13,6 +13,7 @@ from worktree.core.doctor.models import (
     DoctorReport,
 )
 from worktree.core.doctor.services.registry import CheckRegistry
+from worktree.core.doctor.services.remediation import resolve_remediations
 
 CHECK_ID_TO_DOCTOR_CONFIG_ATTR: Final[dict[str, str]] = {
     "git.repo": "check_git",
@@ -48,17 +49,17 @@ def execute_single_check(
     check: DiagnosticCheck,
     context: DoctorContext,
 ) -> DiagnosticCheckResult:
-    """Execute a single check with exception containment and timing."""
+    """Execute a single check with exception containment, timing, and remediation enrichment."""
     start_time = time.perf_counter()
     try:
         result = check.execute(context)
         elapsed_ms = (time.perf_counter() - start_time) * 1000.0
         if result.duration_ms == 0.0:
-            return result.model_copy(update={"duration_ms": elapsed_ms})
-        return result
+            result = result.model_copy(update={"duration_ms": elapsed_ms})
+        return _with_remediations(result)
     except Exception as exc:
         elapsed_ms = (time.perf_counter() - start_time) * 1000.0
-        return DiagnosticCheckResult(
+        result = DiagnosticCheckResult(
             check_id=check.check_id,
             name=check.name,
             category=check.category,
@@ -71,6 +72,12 @@ def execute_single_check(
             warnings=[],
             fixes=[],
         )
+        return _with_remediations(result)
+
+
+def _with_remediations(result: DiagnosticCheckResult) -> DiagnosticCheckResult:
+    """Return result with remediations populated via resolve_remediations."""
+    return result.model_copy(update={"remediations": resolve_remediations(result)})
 
 
 class DiagnosticRunner:

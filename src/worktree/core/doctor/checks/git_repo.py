@@ -60,7 +60,7 @@ def _binary_missing_result(check_id: str, name: str, category: CheckCategory) ->
         error_code="DOCTOR_GIT_BINARY_MISSING",
         errors=[message],
         warnings=[],
-        fixes=["Install Git and ensure it is available on PATH"],
+        fixes=[],
     )
 
 
@@ -78,7 +78,7 @@ def _not_repo_result(check_id: str, name: str, category: CheckCategory, cwd: Pat
         error_code="DOCTOR_GIT_NOT_REPO",
         errors=[message],
         warnings=[],
-        fixes=["Run `git init` to initialize a repository, or run this command from inside an existing one"],
+        fixes=[],
     )
 
 

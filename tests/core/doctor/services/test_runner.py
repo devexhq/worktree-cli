@@ -16,6 +16,8 @@ from worktree.core.doctor.models import (
     DiagnosticCheckResult,
     DoctorContext,
     DoctorReport,
+    Remediation,
+    RemediationType,
 )
 from worktree.core.doctor.services.registry import CheckRegistry
 from worktree.core.doctor.services.runner import (
@@ -105,6 +107,7 @@ class DiagnosticRunnerFilteringTests:
                         errors=[],
                         warnings=[],
                         fixes=[],
+                        remediations=[],
                     ),
                     DiagnosticCheckResult.model_construct(
                         check_id="agent.setup",
@@ -118,6 +121,7 @@ class DiagnosticRunnerFilteringTests:
                         errors=[],
                         warnings=[],
                         fixes=[],
+                        remediations=[],
                     ),
                 ],
                 total_duration_ms=ANY_DURATION,
@@ -170,6 +174,7 @@ class DiagnosticRunnerFilteringTests:
                         errors=[],
                         warnings=[],
                         fixes=[],
+                        remediations=[],
                     ),
                     DiagnosticCheckResult.model_construct(
                         check_id="check.two",
@@ -183,6 +188,7 @@ class DiagnosticRunnerFilteringTests:
                         errors=[],
                         warnings=[],
                         fixes=[],
+                        remediations=[],
                     ),
                 ],
                 total_duration_ms=ANY_DURATION,
@@ -263,6 +269,7 @@ class DiagnosticRunnerConfigToggleTests:
                 errors=[],
                 warnings=[],
                 fixes=[],
+                remediations=[],
             ),
         )
 
@@ -314,6 +321,20 @@ class DiagnosticRunnerContainmentTests:
                 errors=["Unhandled exception in crashing.check: Simulated crash in sandbox inspection"],
                 warnings=[],
                 fixes=[],
+                remediations=[
+                    Remediation(
+                        code="DOCTOR_CHECK_CRASH",
+                        title="Investigate check failure manually",
+                        action_type=RemediationType.MANUAL,
+                        command=None,
+                        description=(
+                            "No deterministic remediation is registered for check 'crashing.check' "
+                            "(error_code='DOCTOR_CHECK_CRASH'). Review the check message and details to diagnose and resolve the issue."
+                        ),
+                        doc_path=None,
+                        is_automated=False,
+                    )
+                ],
             ),
         )
 
@@ -363,6 +384,20 @@ class DiagnosticRunnerContainmentTests:
                         errors=["Unhandled exception in check.crash: crash 1"],
                         warnings=[],
                         fixes=[],
+                        remediations=[
+                            Remediation(
+                                code="DOCTOR_CHECK_CRASH",
+                                title="Investigate check failure manually",
+                                action_type=RemediationType.MANUAL,
+                                command=None,
+                                description=(
+                                    "No deterministic remediation is registered for check 'check.crash' "
+                                    "(error_code='DOCTOR_CHECK_CRASH'). Review the check message and details to diagnose and resolve the issue."
+                                ),
+                                doc_path=None,
+                                is_automated=False,
+                            )
+                        ],
                     ),
                     DiagnosticCheckResult.model_construct(
                         check_id="check.healthy",
@@ -376,6 +411,7 @@ class DiagnosticRunnerContainmentTests:
                         errors=[],
                         warnings=[],
                         fixes=[],
+                        remediations=[],
                     ),
                 ],
                 total_duration_ms=ANY_DURATION,
@@ -437,6 +473,7 @@ class DiagnosticRunnerMetricsTests:
                         errors=[],
                         warnings=[],
                         fixes=[],
+                        remediations=[],
                     ),
                     DiagnosticCheckResult.model_construct(
                         check_id="c2",
@@ -450,6 +487,7 @@ class DiagnosticRunnerMetricsTests:
                         errors=[],
                         warnings=[],
                         fixes=[],
+                        remediations=[],
                     ),
                 ],
                 total_duration_ms=10000.0,

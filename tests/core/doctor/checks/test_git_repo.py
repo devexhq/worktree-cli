@@ -36,7 +36,8 @@ class GitRepoCheckTests:
                 error_code="DOCTOR_GIT_BINARY_MISSING",
                 errors=["git binary was not found on PATH."],
                 warnings=[],
-                fixes=["Install Git and ensure it is available on PATH"],
+                fixes=[],
+                remediations=[],
             ),
         )
 
@@ -68,7 +69,8 @@ class GitRepoCheckTests:
                 error_code="DOCTOR_GIT_BINARY_MISSING",
                 errors=["git binary was not found on PATH."],
                 warnings=[],
-                fixes=["Install Git and ensure it is available on PATH"],
+                fixes=[],
+                remediations=[],
             ),
         )
 
@@ -92,7 +94,8 @@ class GitRepoCheckTests:
                 error_code="DOCTOR_GIT_NOT_REPO",
                 errors=[f"'{tmp_path}' is not a Git repository."],
                 warnings=[],
-                fixes=["Run `git init` to initialize a repository, or run this command from inside an existing one"],
+                fixes=[],
+                remediations=[],
             ),
         )
 
@@ -118,5 +121,6 @@ class GitRepoCheckTests:
                 errors=[],
                 warnings=[],
                 fixes=[],
+                remediations=[],
             ),
         )

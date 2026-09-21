@@ -42,7 +42,8 @@ class EnvBinariesCheckTests:
                 error_code="DOCTOR_BINARY_MISSING",
                 errors=[],
                 warnings=[message],
-                fixes=["Install 'git' and ensure it is available on PATH"],
+                fixes=[],
+                remediations=[],
             ),
         )
 
@@ -70,6 +71,7 @@ class EnvBinariesCheckTests:
                 errors=[],
                 warnings=[],
                 fixes=[],
+                remediations=[],
             ),
         )
 
@@ -101,6 +103,7 @@ class EnvBinariesCheckTests:
                 errors=[],
                 warnings=[],
                 fixes=[],
+                remediations=[],
             ),
         )
 
@@ -136,7 +139,8 @@ class EnvBinariesCheckTests:
                 error_code="DOCTOR_BINARY_MISSING",
                 errors=[],
                 warnings=[message],
-                fixes=[f"Install '{provider_binary}' and ensure it is available on PATH"],
+                fixes=[],
+                remediations=[],
             ),
         )
 
@@ -168,5 +172,6 @@ class EnvBinariesCheckTests:
                 errors=[],
                 warnings=[],
                 fixes=[],
+                remediations=[],
             ),
         )

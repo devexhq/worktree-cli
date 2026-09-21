@@ -57,7 +57,7 @@ def _failure_result(
         error_code=error_code,
         errors=loaded.errors,
         warnings=[],
-        fixes=loaded.fixes,
+        fixes=[],
     )
 
 

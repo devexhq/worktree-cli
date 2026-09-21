@@ -146,11 +146,13 @@ All operations that can fail return a Pydantic result object subclassing `BaseRe
 - `WorktreeStatusResult`: Workspace health, repository status, and collected developer warnings.
 
 ### Doctor Models
-**Relevant sources:** `src/worktree/core/doctor/models.py`, `src/worktree/core/doctor/services/runner.py`.
+**Relevant sources:** `src/worktree/core/doctor/models.py`, `src/worktree/core/doctor/services/runner.py`, `src/worktree/core/doctor/services/remediation.py`.
 - `CheckStatus`: `StrEnum` (`ok`, `warning`, `failed`, `skipped`).
 - `CheckCategory`: `StrEnum` (`git`, `config`, `filesystem`, `sandbox`, `agent`, `environment`).
 - `DoctorContext`: Contextual environment supplied to checks (`cwd`, `config`).
-- `DiagnosticCheckResult`: Individual check outcome model defined in `src/worktree/core/doctor/models.py`.
+- `RemediationType`: `StrEnum` classifying how a remediation is carried out.
+- `Remediation`: Deterministic, copy-pasteable remediation action for a failing or warning check.
+- `DiagnosticCheckResult`: Individual check outcome model defined in `src/worktree/core/doctor/models.py`, including its `remediations: list[Remediation]` field.
 - `DoctorReport`: Aggregated execution report model defined in `src/worktree/core/doctor/models.py`.
 - `DiagnosticCheck`: Protocol defining check identification and execution contract.
 - Built-in checks (`src/worktree/core/doctor/checks/`, registered by `get_default_registry()` in `src/worktree/core/doctor/services/registry.py`):
@@ -173,6 +175,7 @@ All operations that can fail return a Pydantic result object subclassing `BaseRe
   - `DOCTOR_BINARY_MISSING`: Configured provider binary is missing from `PATH`.
   - `DOCTOR_AGENT_KEY_MISSING`: Required API key environment variable is missing.
   - `DOCTOR_AGENT_NO_MODEL`: Agent provider model is not configured.
+- `resolve_remediations(result) -> list[Remediation]` / `format_remediation_summary(remediations) -> str` (`core/doctor/services/remediation.py`): deterministic mapping from `error_code`/`details` to remediation actions, and a terminal/log-friendly text renderer.
 - `DoctorCheckView`, `DoctorReportView` (`src/worktree/cli/ui/formatters/doctor/doctor_views.py`): CLI presentation reshaping of `DiagnosticCheckResult`/`DoctorReport` for `wt doctor`, field for field.
 
 ---

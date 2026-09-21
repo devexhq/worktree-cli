@@ -9,6 +9,8 @@ from worktree.core.doctor.models import (
     DiagnosticCheckResult,
     DoctorContext,
     DoctorReport,
+    Remediation,
+    RemediationType,
 )
 
 __all__ = [
@@ -21,4 +23,6 @@ __all__ = [
     "DoctorContext",
     "DoctorError",
     "DoctorReport",
+    "Remediation",
+    "RemediationType",
 ]

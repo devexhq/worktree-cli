@@ -11,6 +11,7 @@ from typer.testing import CliRunner
 from tests.harness.matchers import ANY_DURATION, assert_model_equal
 from worktree.cli import app
 from worktree.core.doctor import CheckCategory, CheckStatus, DiagnosticCheckResult, DoctorReport
+from worktree.core.doctor.models import Remediation, RemediationType
 
 
 def _check_result(
@@ -25,6 +26,7 @@ def _check_result(
     errors: list[str] | None = None,
     warnings: list[str] | None = None,
     fixes: list[str] | None = None,
+    remediations: list[Remediation] | None = None,
 ) -> DiagnosticCheckResult:
     """Build a DiagnosticCheckResult with an ANY_DURATION duration_ms, since wall-clock timing is unownable."""
     return DiagnosticCheckResult.model_construct(
@@ -39,6 +41,7 @@ def _check_result(
         errors=errors or [],
         warnings=warnings or [],
         fixes=fixes or [],
+        remediations=remediations or [],
     )
 
 
@@ -64,7 +67,17 @@ def _git_repo_not_a_repository(workspace: Path) -> DiagnosticCheckResult:
         details={},
         error_code="DOCTOR_GIT_NOT_REPO",
         errors=[message],
-        fixes=["Run `git init` to initialize a repository, or run this command from inside an existing one"],
+        remediations=[
+            Remediation(
+                code="DOCTOR_GIT_NOT_REPO",
+                title="Initialize Git repository",
+                action_type=RemediationType.COMMAND,
+                command="git init",
+                description="Run `git init` from the workspace root to create the Git repository worktree operations require.",
+                doc_path=None,
+                is_automated=False,
+            )
+        ],
     )
 
 
@@ -132,7 +145,17 @@ def _agent_setup_no_model_warning() -> DiagnosticCheckResult:
         details={"provider": "local"},
         error_code="DOCTOR_AGENT_NO_MODEL",
         warnings=[message],
-        fixes=["Configure `agent.model` in `.worktree/config.json`"],
+        remediations=[
+            Remediation(
+                code="DOCTOR_AGENT_NO_MODEL",
+                title="Configure agent model",
+                action_type=RemediationType.COMMAND,
+                command='wt config set agent.model "<model>"',
+                description="Set `agent.model` in `.worktree/config.json` to a model supported by the configured provider, e.g. `wt config set agent.model <model-name>`.",
+                doc_path="docs/cli/config.md",
+                is_automated=False,
+            )
+        ],
     )
 
 
@@ -203,10 +226,8 @@ class DoctorCliIntegrationTests:
 
         assert result.exit_code == 1
         assert "FAILED" in result.stdout
-        assert (
-            "Run `git init` to initialize a repository, or run this command from inside an existing one"
-            in result.stdout
-        )
+        assert "Initialize Git repository" in result.stdout
+        assert "git init" in result.stdout
         assert len(dispatch_spy) == 1
         assert_model_equal(
             dispatch_spy[0],
@@ -250,7 +271,7 @@ class DoctorCliIntegrationTests:
                     "error_code": None,
                     "errors": [],
                     "warnings": [],
-                    "fixes": [],
+                    "remediations": [],
                 }
             ],
         }

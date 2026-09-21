@@ -33,7 +33,8 @@ class ConfigSchemaCheckTests:
                 error_code="DOCTOR_CONFIG_NOT_FOUND",
                 errors=[f"Configuration file not found at '{config_path}' (CONFIG_NOT_FOUND)."],
                 warnings=[],
-                fixes=["Run `wt init` to create `.worktree/config.json`"],
+                fixes=[],
+                remediations=[],
             ),
         )
 
@@ -64,7 +65,8 @@ class ConfigSchemaCheckTests:
                 error_code="DOCTOR_CONFIG_MALFORMED",
                 errors=[message],
                 warnings=[],
-                fixes=["Repair JSON syntax, or restore from backup"],
+                fixes=[],
+                remediations=[],
             ),
         )
 
@@ -105,10 +107,8 @@ class ConfigSchemaCheckTests:
                 error_code="DOCTOR_CONFIG_SCHEMA_INVALID",
                 errors=[message],
                 warnings=[],
-                fixes=[
-                    "Run `wt config validate` for details",
-                    "Or `wt init --repair` to insert missing keys without overwriting values",
-                ],
+                fixes=[],
+                remediations=[],
             ),
         )
 
@@ -135,5 +135,6 @@ class ConfigSchemaCheckTests:
                 errors=[],
                 warnings=[],
                 fixes=[],
+                remediations=[],
             ),
         )
