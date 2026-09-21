@@ -222,8 +222,3 @@ class Config:
     def validate_at(cls, path: Path, *, config_path: Path | None = None) -> ConfigValidationResult:
         """Helper to validate config at specified path."""
         return cls(path).validate(config_path=config_path)
-
-    @classmethod
-    def set_value(cls, path: Path, key: str, value: Any) -> ConfigSetResult:
-        """Helper to set config value at specified path."""
-        return cls(path).set(key, value)
