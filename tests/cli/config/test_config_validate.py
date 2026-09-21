@@ -92,7 +92,7 @@ class ConfigValidateRootTests:
                 config=None,
                 raw=invalid_payload,
                 errors=[
-                    "Config schema validation failed (CONFIG_SCHEMA_INVALID):\n- (root): 'project' is a required property\n- (root): 'paths' is a required property\n- (root): 'sandbox' is a required property\n- (root): 'agent' is a required property\n- (root): 'history' is a required property\n- (root): 'doctor' is a required property\n- (root): 'prune' is a required property\n- (root): 'telemetry' is a required property\n- (root): 'concurrency' is a required property"
+                    "Config schema validation failed (CONFIG_SCHEMA_INVALID):\n- (root): 'project' is a required property"
                 ],
                 warnings=[],
                 fixes=[

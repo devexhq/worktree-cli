@@ -84,14 +84,6 @@ class ConfigSchemaCheckTests:
                 "Config schema validation failed (CONFIG_SCHEMA_INVALID):",
                 "- (root): 'version' is a required property",
                 "- (root): 'project' is a required property",
-                "- (root): 'paths' is a required property",
-                "- (root): 'sandbox' is a required property",
-                "- (root): 'agent' is a required property",
-                "- (root): 'history' is a required property",
-                "- (root): 'doctor' is a required property",
-                "- (root): 'prune' is a required property",
-                "- (root): 'telemetry' is a required property",
-                "- (root): 'concurrency' is a required property",
             ]
         )
         assert_model_equal(

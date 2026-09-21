@@ -18,18 +18,7 @@ from worktree.core.config.models import WorktreeConfig
 SCHEMA_VIOLATION_PAYLOADS = [
     pytest.param(
         {"version": 1},
-        (
-            "Config schema validation failed (CONFIG_SCHEMA_INVALID):\n"
-            "- (root): 'project' is a required property\n"
-            "- (root): 'paths' is a required property\n"
-            "- (root): 'sandbox' is a required property\n"
-            "- (root): 'agent' is a required property\n"
-            "- (root): 'history' is a required property\n"
-            "- (root): 'doctor' is a required property\n"
-            "- (root): 'prune' is a required property\n"
-            "- (root): 'telemetry' is a required property\n"
-            "- (root): 'concurrency' is a required property"
-        ),
+        ("Config schema validation failed (CONFIG_SCHEMA_INVALID):\n- (root): 'project' is a required property"),
         id="missing_sections",
     ),
     pytest.param(
@@ -40,16 +29,6 @@ SCHEMA_VIOLATION_PAYLOADS = [
         },
         (
             "Config schema validation failed (CONFIG_SCHEMA_INVALID):\n"
-            "- (root): 'paths' is a required property\n"
-            "- (root): 'agent' is a required property\n"
-            "- (root): 'history' is a required property\n"
-            "- (root): 'doctor' is a required property\n"
-            "- (root): 'prune' is a required property\n"
-            "- (root): 'telemetry' is a required property\n"
-            "- (root): 'concurrency' is a required property\n"
-            "- project: 'initialized_at' is a required property\n"
-            "- sandbox: 'base_ref' is a required property\n"
-            "- sandbox: 'default_timeout_seconds' is a required property\n"
             "- sandbox.max_active_sandboxes: 'five' is not of type 'integer'"
         ),
         id="invalid_types",

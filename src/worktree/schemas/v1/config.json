@@ -6,15 +6,7 @@
   "additionalProperties": false,
   "required": [
     "version",
-    "project",
-    "paths",
-    "sandbox",
-    "agent",
-    "history",
-    "doctor",
-    "prune",
-    "telemetry",
-    "concurrency"
+    "project"
   ],
   "properties": {
     "version": {
@@ -24,7 +16,7 @@
     "project": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "initialized_at"],
+      "required": ["name"],
       "properties": {
         "name": { "type": ["string", "null"] },
         "initialized_at": { "type": ["string", "null"] }
@@ -33,12 +25,6 @@
     "paths": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "root_dir",
-        "sessions_dir",
-        "artifacts_dir",
-        "db_path"
-      ],
       "properties": {
         "root_dir": { "type": "string", "minLength": 1 },
         "sessions_dir": { "type": "string", "minLength": 1 },
@@ -49,11 +35,6 @@
     "sandbox": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "base_ref",
-        "max_active_sandboxes",
-        "default_timeout_seconds"
-      ],
       "properties": {
         "base_ref": { "type": "string", "minLength": 1 },
         "max_active_sandboxes": { "type": "integer", "minimum": 1 },
@@ -63,13 +44,6 @@
     "agent": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "provider",
-        "model",
-        "endpoint",
-        "temperature",
-        "max_tokens"
-      ],
       "properties": {
         "provider": {
           "type": "string",
@@ -94,12 +68,6 @@
     "history": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "save_attempt_logs",
-        "save_agent_payloads",
-        "save_final_diff",
-        "max_sessions"
-      ],
       "properties": {
         "save_attempt_logs": { "type": "boolean" },
         "save_agent_payloads": { "type": "boolean" },
@@ -110,13 +78,6 @@
     "doctor": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "check_git",
-        "check_paths_writable",
-        "check_config_schema",
-        "check_stale_worktrees",
-        "check_required_binaries"
-      ],
       "properties": {
         "check_git": { "type": "boolean" },
         "check_paths_writable": { "type": "boolean" },
@@ -128,12 +89,6 @@
     "prune": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "remove_stale_worktrees",
-        "remove_orphaned_sandboxes",
-        "remove_expired_artifacts",
-        "artifact_ttl_days"
-      ],
       "properties": {
         "remove_stale_worktrees": { "type": "boolean" },
         "remove_orphaned_sandboxes": { "type": "boolean" },
@@ -144,7 +99,6 @@
     "telemetry": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled"],
       "properties": {
         "enabled": { "type": "boolean" }
       }
@@ -152,7 +106,6 @@
     "concurrency": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["lock_timeout_seconds"],
       "properties": {
         "lock_timeout_seconds": { "type": "number", "minimum": 0.1 }
       }

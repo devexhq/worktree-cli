@@ -19,6 +19,7 @@ from worktree.cli.ui.formatters.config import (
     ConfigLoadFormatter,
     ConfigSetFormatter,
     ConfigShowFormatter,
+    ConfigUnsetFormatter,
     ConfigValidateFormatter,
 )
 from worktree.cli.ui.formatters.diff import (
@@ -76,6 +77,7 @@ __all__ = [
     "ConfigLoadFormatter",
     "ConfigSetFormatter",
     "ConfigShowFormatter",
+    "ConfigUnsetFormatter",
     "ConfigValidateFormatter",
     "DiffResultFormatter",
     "ErrorPanelFormatter",
