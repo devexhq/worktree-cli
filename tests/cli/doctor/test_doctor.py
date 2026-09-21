@@ -8,164 +8,8 @@ from typing import Any
 
 from typer.testing import CliRunner
 
-from tests.harness.matchers import ANY_DURATION, assert_model_equal
 from worktree.cli import app
-from worktree.core.doctor import CheckCategory, CheckStatus, DiagnosticCheckResult, DoctorReport
-from worktree.core.doctor.models import Remediation, RemediationType
-
-
-def _check_result(
-    *,
-    check_id: str,
-    name: str,
-    category: CheckCategory,
-    status: CheckStatus,
-    message: str,
-    details: dict[str, object],
-    error_code: str | None = None,
-    errors: list[str] | None = None,
-    warnings: list[str] | None = None,
-    fixes: list[str] | None = None,
-    remediations: list[Remediation] | None = None,
-) -> DiagnosticCheckResult:
-    """Build a DiagnosticCheckResult with an ANY_DURATION duration_ms, since wall-clock timing is unownable."""
-    return DiagnosticCheckResult.model_construct(
-        check_id=check_id,
-        name=name,
-        category=category,
-        status=status,
-        message=message,
-        details=details,
-        duration_ms=ANY_DURATION,
-        error_code=error_code,
-        errors=errors or [],
-        warnings=warnings or [],
-        fixes=fixes or [],
-        remediations=remediations or [],
-    )
-
-
-def _git_repo_ok(workspace: Path) -> DiagnosticCheckResult:
-    return _check_result(
-        check_id="git.repo",
-        name="Git Repository Check",
-        category=CheckCategory.GIT,
-        status=CheckStatus.OK,
-        message=f"Git repository detected at '{workspace}' on branch 'main'.",
-        details={"root": str(workspace), "branch": "main"},
-    )
-
-
-def _git_repo_not_a_repository(workspace: Path) -> DiagnosticCheckResult:
-    message = f"'{workspace}' is not a Git repository."
-    return _check_result(
-        check_id="git.repo",
-        name="Git Repository Check",
-        category=CheckCategory.GIT,
-        status=CheckStatus.FAILED,
-        message=message,
-        details={},
-        error_code="DOCTOR_GIT_NOT_REPO",
-        errors=[message],
-        remediations=[
-            Remediation(
-                code="DOCTOR_GIT_NOT_REPO",
-                title="Initialize Git repository",
-                action_type=RemediationType.COMMAND,
-                command="git init",
-                description="Run `git init` from the workspace root to create the Git repository worktree operations require.",
-                doc_path=None,
-                is_automated=False,
-            )
-        ],
-    )
-
-
-def _config_schema_ok() -> DiagnosticCheckResult:
-    return _check_result(
-        check_id="config.schema",
-        name="Config Schema Check",
-        category=CheckCategory.CONFIG,
-        status=CheckStatus.OK,
-        message="`.worktree/config.json` is present and passes schema V1 validation.",
-        details={},
-    )
-
-
-def _filesystem_writable_ok(workspace: Path) -> DiagnosticCheckResult:
-    worktree_dir = workspace / ".worktree"
-    return _check_result(
-        check_id="filesystem.writable",
-        name="Filesystem Writable Check",
-        category=CheckCategory.FILESYSTEM,
-        status=CheckStatus.OK,
-        message="All configured workspace paths are writable.",
-        details={
-            "verified_paths": [
-                str(worktree_dir),
-                str(worktree_dir / "sessions"),
-                str(worktree_dir / "artifacts"),
-                str(worktree_dir / "sandboxes"),
-                str(worktree_dir),
-            ]
-        },
-    )
-
-
-def _sandbox_refs_ok() -> DiagnosticCheckResult:
-    return _check_result(
-        check_id="sandbox.refs",
-        name="Sandbox References Check",
-        category=CheckCategory.SANDBOX,
-        status=CheckStatus.OK,
-        message="0 sandbox(es) verified against database and Git worktree state.",
-        details={"verified_count": 0},
-    )
-
-
-def _env_binaries_ok() -> DiagnosticCheckResult:
-    return _check_result(
-        check_id="env.binaries",
-        name="Environment Binaries Check",
-        category=CheckCategory.ENVIRONMENT,
-        status=CheckStatus.OK,
-        message="1 required binary(s) verified on PATH.",
-        details={"verified_binaries": ["git"]},
-    )
-
-
-def _agent_setup_no_model_warning() -> DiagnosticCheckResult:
-    message = "Agent provider 'local' has no model configured."
-    return _check_result(
-        check_id="agent.setup",
-        name="Agent Setup Check",
-        category=CheckCategory.AGENT,
-        status=CheckStatus.WARNING,
-        message=message,
-        details={"provider": "local"},
-        error_code="DOCTOR_AGENT_NO_MODEL",
-        warnings=[message],
-        remediations=[
-            Remediation(
-                code="DOCTOR_AGENT_NO_MODEL",
-                title="Configure agent model",
-                action_type=RemediationType.COMMAND,
-                command='wt config set agent.model "<model>"',
-                description="Set `agent.model` in `.worktree/config.json` to a model supported by the configured provider, e.g. `wt config set agent.model <model-name>`.",
-                doc_path="docs/cli/config.md",
-                is_automated=False,
-            )
-        ],
-    )
-
-
-def _expected_report(workspace: Path, checks: list[DiagnosticCheckResult]) -> DoctorReport:
-    """Build the expected DoctorReport for workspace, with an ANY_DURATION total_duration_ms."""
-    return DoctorReport.model_construct(
-        workspace_root=workspace,
-        checks=checks,
-        total_duration_ms=ANY_DURATION,
-    )
+from worktree.core.doctor import CheckStatus, DoctorReport
 
 
 class DoctorCliIntegrationTests:
@@ -181,20 +25,26 @@ class DoctorCliIntegrationTests:
         assert "Worktree Doctor Report" in result.stdout
         assert "git.repo" in result.stdout
         assert len(dispatch_spy) == 1
-        assert_model_equal(
-            dispatch_spy[0],
-            _expected_report(
-                doctor_workspace,
-                [
-                    _git_repo_ok(doctor_workspace),
-                    _config_schema_ok(),
-                    _filesystem_writable_ok(doctor_workspace),
-                    _sandbox_refs_ok(),
-                    _env_binaries_ok(),
-                    _agent_setup_no_model_warning(),
-                ],
-            ),
-        )
+        report = dispatch_spy[0]
+        assert isinstance(report, DoctorReport)
+        assert report.workspace_root == doctor_workspace
+        assert [c.check_id for c in report.checks] == [
+            "git.repo",
+            "config.schema",
+            "filesystem.writable",
+            "sandbox.refs",
+            "env.binaries",
+            "agent.setup",
+        ]
+        assert [c.status for c in report.checks] == [
+            CheckStatus.OK,
+            CheckStatus.OK,
+            CheckStatus.OK,
+            CheckStatus.OK,
+            CheckStatus.OK,
+            CheckStatus.WARNING,
+        ]
+        assert report.total_duration_ms >= 0.0
 
     def test_doctor_cli_category_filter_runs_only_matching_check(
         self, cli_runner: CliRunner, doctor_workspace: Path, dispatch_spy: list[Any]
@@ -204,10 +54,12 @@ class DoctorCliIntegrationTests:
 
         assert result.exit_code == 0
         assert len(dispatch_spy) == 1
-        assert_model_equal(
-            dispatch_spy[0],
-            _expected_report(doctor_workspace, [_git_repo_ok(doctor_workspace)]),
-        )
+        report = dispatch_spy[0]
+        assert isinstance(report, DoctorReport)
+        assert report.workspace_root == doctor_workspace
+        assert len(report.checks) == 1
+        assert report.checks[0].check_id == "git.repo"
+        assert report.checks[0].status == CheckStatus.OK
 
     def test_doctor_cli_invalid_category_exits_two_without_dispatch(
         self, cli_runner: CliRunner, doctor_workspace: Path, dispatch_spy: list[Any]
@@ -229,10 +81,16 @@ class DoctorCliIntegrationTests:
         assert "Initialize Git repository" in result.stdout
         assert "git init" in result.stdout
         assert len(dispatch_spy) == 1
-        assert_model_equal(
-            dispatch_spy[0],
-            _expected_report(tmp_path, [_git_repo_not_a_repository(tmp_path)]),
-        )
+        report = dispatch_spy[0]
+        assert isinstance(report, DoctorReport)
+        assert report.workspace_root == tmp_path
+        assert len(report.checks) == 1
+        check = report.checks[0]
+        assert check.check_id == "git.repo"
+        assert check.status == CheckStatus.FAILED
+        assert check.error_code == "DOCTOR_GIT_NOT_REPO"
+        assert len(check.remediations) == 1
+        assert check.remediations[0].command == "git init"
 
     def test_doctor_cli_renders_json_wire_payload_for_category_git(
         self, cli_runner: CliRunner, doctor_workspace: Path

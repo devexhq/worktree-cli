@@ -7,10 +7,7 @@ from pathlib import Path
 import pytest
 
 from tests.harness.builders import BlueprintBuilder, StepBuilder, WorkspaceBuilder
-from tests.harness.matchers import assert_model_equal
-from worktree.common.models import FailurePolicy, OnFailureSpec
-from worktree.core.blueprint import Blueprint, BlueprintDefinition
-from worktree.core.blueprint.models import BlueprintDefaults
+from worktree.core.blueprint import Blueprint
 from worktree.core.catalog import Catalog
 from worktree.core.db import RunsRepository, RunStatus
 from worktree.core.engine import EngineResumeError, EngineResumeStatus, ResumableRun
@@ -50,28 +47,6 @@ def _task_blueprint(*, name: str = "lint", loop: bool = False) -> tuple[Blueprin
         builder.with_step(LoopStepBlock(id="retry", type="loop", until=["steps.unit.exit_code == 0"], do=[unit]))
         steps = [setup, publish, later, unit]
     return Blueprint(builder.build()), steps
-
-
-def _make_step_definition(step_id: str, run: str) -> StepDefinition:
-    """Build the StepDefinition a bare YAML `run:` shorthand step resolves to."""
-    return StepDefinition(
-        id=step_id,
-        uses=None,
-        run=run,
-        name=None,
-        type=None,
-        description=None,
-        command=None,
-        prompt=None,
-        script_path=None,
-        tools=[],
-        env={},
-        timeout_seconds=120,
-        assert_=None,
-        on_failure=OnFailureSpec(
-            action=FailurePolicy.ABORT, max_retries=3, backoff_ms=0, on_max_retries=FailurePolicy.ABORT
-        ),
-    )
 
 
 def _seed_paused_run(db: RunsRepository, session_id: str, checkpoint: RunCheckpoint, *, name: str = "lint") -> None:
@@ -133,25 +108,8 @@ class ResumableRunBlueprintResolutionTests:
 
         assert handle.is_resumable is True
         assert handle.blueprint is not None
-        assert_model_equal(
-            handle.blueprint.definition,
-            BlueprintDefinition(
-                name="lint",
-                description="",
-                summary="",
-                version=1,
-                use_sandbox=True,
-                timeout_seconds=None,
-                env={},
-                inputs={},
-                defaults=BlueprintDefaults(on_failure=None),
-                steps=[
-                    _make_step_definition("setup", "echo setup"),
-                    _make_step_definition("publish", "echo publish"),
-                    _make_step_definition("later", "echo later"),
-                ],
-            ),
-        )
+        assert handle.blueprint.definition.name == "lint"
+        assert [s.id for s in handle.blueprint.definition.steps] == ["setup", "publish", "later"]
 
     def test_resumable_run_load_omitted_blueprint_missing_from_catalog_is_classified_failed(
         self, tmp_path: Path

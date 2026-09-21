@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from tests.harness.builders import RunOutcomeBuilder, StepBuilder, WorkspaceBuilder
+from tests.harness.builders import StepBuilder, WorkspaceBuilder
 from worktree.common.models import FailurePolicy, OnFailureSpec
 from worktree.core.db import RunStatus
 from worktree.core.runtime import (
@@ -208,7 +208,7 @@ def _step_result(
     attempts: int = 1,
     error_message: str | None = None,
 ) -> StepResult:
-    """Build an expected StepResult; duration_seconds is real wall-clock time, matched via ANY_DURATION."""
+    """Build an expected StepResult for comparison."""
     return StepResult.model_construct(
         step_id=step_id,
         status=status,
@@ -222,6 +222,21 @@ def _step_result(
         warnings=[],
         fixes=[],
     )
+
+
+def _assert_step_results(actual_steps: list[StepResult], expected_steps: list[StepResult]) -> None:
+    assert len(actual_steps) == len(expected_steps)
+    for actual_step, expected_step in zip(actual_steps, expected_steps, strict=False):
+        assert actual_step.step_id == expected_step.step_id
+        assert actual_step.status == expected_step.status
+        assert actual_step.exit_code == expected_step.exit_code
+        if expected_step.stdout:
+            assert actual_step.stdout == expected_step.stdout
+        if expected_step.stderr:
+            assert actual_step.stderr == expected_step.stderr
+        if expected_step.error_message:
+            assert actual_step.error_message == expected_step.error_message
+        assert actual_step.attempts == expected_step.attempts
 
 
 class RunStepsExecutionTests:
@@ -239,29 +254,15 @@ class RunStepsExecutionTests:
 
         outcome = run_steps(context)
 
-        expected = (
-            RunOutcomeBuilder(tmp_path.resolve())
-            .with_status(RunStatus.COMPLETED)
-            .with_step_results(
+        assert outcome.status == RunStatus.COMPLETED
+        assert outcome.sandbox_path == tmp_path.resolve()
+        _assert_step_results(
+            outcome.step_results,
+            [
                 _step_result("s1", status="completed", exit_code=0, stdout="one\n"),
                 _step_result("s2", status="completed", exit_code=0, stdout="two\n"),
-            )
-            .build()
+            ],
         )
-        assert outcome.status == expected.status
-        assert outcome.sandbox_path == expected.sandbox_path
-        assert len(outcome.step_results) == len(expected.step_results)
-        for a, e in zip(outcome.step_results, expected.step_results, strict=False):
-            assert a.step_id == e.step_id
-            assert a.status == e.status
-            assert a.exit_code == e.exit_code
-            if e.stdout:
-                assert a.stdout == e.stdout
-            if e.stderr:
-                assert a.stderr == e.stderr
-            if e.error_message:
-                assert a.error_message == e.error_message
-            assert a.attempts == e.attempts
 
     def test_run_steps_streams_step_output_to_observer_by_line_and_stream(self, tmp_path: Path) -> None:
         observer = _RecordingRunObserver()
@@ -271,29 +272,15 @@ class RunStepsExecutionTests:
 
         outcome = run_steps(context)
 
-        expected = (
-            RunOutcomeBuilder(tmp_path.resolve())
-            .with_status(RunStatus.COMPLETED)
-            .with_step_results(
+        assert outcome.status == RunStatus.COMPLETED
+        assert outcome.sandbox_path == tmp_path.resolve()
+        _assert_step_results(
+            outcome.step_results,
+            [
                 _step_result("s1", status="completed", exit_code=0, stdout="line 1\nline 2\n"),
                 _step_result("s2", status="completed", exit_code=0, stderr="err 1\n"),
-            )
-            .build()
+            ],
         )
-        assert outcome.status == expected.status
-        assert outcome.sandbox_path == expected.sandbox_path
-        assert len(outcome.step_results) == len(expected.step_results)
-        for a, e in zip(outcome.step_results, expected.step_results, strict=False):
-            assert a.step_id == e.step_id
-            assert a.status == e.status
-            assert a.exit_code == e.exit_code
-            if e.stdout:
-                assert a.stdout == e.stdout
-            if e.stderr:
-                assert a.stderr == e.stderr
-            if e.error_message:
-                assert a.error_message == e.error_message
-            assert a.attempts == e.attempts
         output_events = [event for event in observer.events if event[0] == "step_output"]
         assert output_events == [
             ("step_output", 1, 2, "s1", "line 1\n", "stdout"),
@@ -312,27 +299,12 @@ class RunStepsExecutionTests:
 
         outcome = run_steps(context)
 
-        expected = (
-            RunOutcomeBuilder(None)
-            .with_status(RunStatus.COMPLETED)
-            .with_step_results(_step_result("s1", status="completed", exit_code=0, stdout="sandboxed\n"))
-            .with_sandbox_kept(False)
-            .build()
+        assert outcome.status == RunStatus.COMPLETED
+        assert outcome.sandbox_kept is False
+        _assert_step_results(
+            outcome.step_results,
+            [_step_result("s1", status="completed", exit_code=0, stdout="sandboxed\n")],
         )
-        assert outcome.status == expected.status
-        assert outcome.sandbox_kept == expected.sandbox_kept
-        assert len(outcome.step_results) == len(expected.step_results)
-        for a, e in zip(outcome.step_results, expected.step_results, strict=False):
-            assert a.step_id == e.step_id
-            assert a.status == e.status
-            assert a.exit_code == e.exit_code
-            if e.stdout:
-                assert a.stdout == e.stdout
-            if e.stderr:
-                assert a.stderr == e.stderr
-            if e.error_message:
-                assert a.error_message == e.error_message
-            assert a.attempts == e.attempts
         assert not outcome.sandbox_path.exists()
 
     def test_run_steps_abort_on_failure_stops_before_later_steps(self, tmp_path: Path) -> None:
@@ -347,35 +319,20 @@ class RunStepsExecutionTests:
 
         outcome = run_steps(context)
 
-        expected = (
-            RunOutcomeBuilder(tmp_path.resolve())
-            .with_status(RunStatus.FAILED)
-            .with_step_results(
+        assert outcome.status == RunStatus.FAILED
+        assert outcome.sandbox_path == tmp_path.resolve()
+        assert outcome.errors == ["Step 'fail' failed: Command failed with exit code 1."]
+        _assert_step_results(
+            outcome.step_results,
+            [
                 _step_result(
                     "fail",
                     status="failed",
                     exit_code=1,
                     error_message="Command failed with exit code 1.",
-                )
-            )
-            .with_errors("Step 'fail' failed: Command failed with exit code 1.")
-            .build()
+                ),
+            ],
         )
-        assert outcome.status == expected.status
-        assert outcome.sandbox_path == expected.sandbox_path
-        assert outcome.errors == expected.errors
-        assert len(outcome.step_results) == len(expected.step_results)
-        for a, e in zip(outcome.step_results, expected.step_results, strict=False):
-            assert a.step_id == e.step_id
-            assert a.status == e.status
-            assert a.exit_code == e.exit_code
-            if e.stdout:
-                assert a.stdout == e.stdout
-            if e.stderr:
-                assert a.stderr == e.stderr
-            if e.error_message:
-                assert a.error_message == e.error_message
-            assert a.attempts == e.attempts
 
     def test_run_steps_continue_on_failure_marks_step_ignored_and_runs_remaining_steps(self, tmp_path: Path) -> None:
         context = RunContext(
@@ -389,10 +346,11 @@ class RunStepsExecutionTests:
 
         outcome = run_steps(context)
 
-        expected = (
-            RunOutcomeBuilder(tmp_path.resolve())
-            .with_status(RunStatus.COMPLETED)
-            .with_step_results(
+        assert outcome.status == RunStatus.COMPLETED
+        assert outcome.sandbox_path == tmp_path.resolve()
+        _assert_step_results(
+            outcome.step_results,
+            [
                 _step_result(
                     "fail",
                     status="ignored",
@@ -400,23 +358,8 @@ class RunStepsExecutionTests:
                     error_message="Command failed with exit code 1.",
                 ),
                 _step_result("ok", status="completed", exit_code=0, stdout="recovered\n"),
-            )
-            .build()
+            ],
         )
-        assert outcome.status == expected.status
-        assert outcome.sandbox_path == expected.sandbox_path
-        assert len(outcome.step_results) == len(expected.step_results)
-        for a, e in zip(outcome.step_results, expected.step_results, strict=False):
-            assert a.step_id == e.step_id
-            assert a.status == e.status
-            assert a.exit_code == e.exit_code
-            if e.stdout:
-                assert a.stdout == e.stdout
-            if e.stderr:
-                assert a.stderr == e.stderr
-            if e.error_message:
-                assert a.error_message == e.error_message
-            assert a.attempts == e.attempts
 
     def test_run_steps_keep_sandbox_true_preserves_worktree_after_completed_run(self, tmp_path: Path) -> None:
         workspace = WorkspaceBuilder(tmp_path / "workspace").with_git().with_database().build()
@@ -429,27 +372,12 @@ class RunStepsExecutionTests:
 
         outcome = run_steps(context)
 
-        expected = (
-            RunOutcomeBuilder(None)
-            .with_status(RunStatus.COMPLETED)
-            .with_step_results(_step_result("s1", status="completed", exit_code=0, stdout="keep-me\n"))
-            .with_sandbox_kept(True)
-            .build()
+        assert outcome.status == RunStatus.COMPLETED
+        assert outcome.sandbox_kept is True
+        _assert_step_results(
+            outcome.step_results,
+            [_step_result("s1", status="completed", exit_code=0, stdout="keep-me\n")],
         )
-        assert outcome.status == expected.status
-        assert outcome.sandbox_kept == expected.sandbox_kept
-        assert len(outcome.step_results) == len(expected.step_results)
-        for a, e in zip(outcome.step_results, expected.step_results, strict=False):
-            assert a.step_id == e.step_id
-            assert a.status == e.status
-            assert a.exit_code == e.exit_code
-            if e.stdout:
-                assert a.stdout == e.stdout
-            if e.stderr:
-                assert a.stderr == e.stderr
-            if e.error_message:
-                assert a.error_message == e.error_message
-            assert a.attempts == e.attempts
         assert outcome.sandbox_path.is_dir()
 
     def test_run_steps_observer_receives_sandbox_step_and_cleanup_callbacks_in_order(self, tmp_path: Path) -> None:
@@ -464,26 +392,12 @@ class RunStepsExecutionTests:
         outcome = run_steps(context)
 
         resolved = tmp_path.resolve()
-        expected = (
-            RunOutcomeBuilder(resolved)
-            .with_status(RunStatus.COMPLETED)
-            .with_step_results(_step_result("s1", status="completed", exit_code=0, stdout="one\n"))
-            .build()
+        assert outcome.status == RunStatus.COMPLETED
+        assert outcome.sandbox_path == resolved
+        _assert_step_results(
+            outcome.step_results,
+            [_step_result("s1", status="completed", exit_code=0, stdout="one\n")],
         )
-        assert outcome.status == expected.status
-        assert outcome.sandbox_path == expected.sandbox_path
-        assert len(outcome.step_results) == len(expected.step_results)
-        for a, e in zip(outcome.step_results, expected.step_results, strict=False):
-            assert a.step_id == e.step_id
-            assert a.status == e.status
-            assert a.exit_code == e.exit_code
-            if e.stdout:
-                assert a.stdout == e.stdout
-            if e.stderr:
-                assert a.stderr == e.stderr
-            if e.error_message:
-                assert a.error_message == e.error_message
-            assert a.attempts == e.attempts
         lifecycle_events = [event for event in observer.events if event[0] != "step_output"]
         assert lifecycle_events == [
             ("sandbox_ready", resolved, False),
@@ -502,24 +416,18 @@ class RunStepsExecutionTests:
 
         outcome = run_steps(context)
 
-        expected = (
-            RunOutcomeBuilder(tmp_path.resolve())
-            .with_status(RunStatus.CANCELLED)
-            .with_errors("Execution cancelled by user.")
-            .build()
-        )
-        assert outcome.status == expected.status
-        assert outcome.sandbox_path == expected.sandbox_path
-        assert outcome.errors == expected.errors
+        assert outcome.status == RunStatus.CANCELLED
+        assert outcome.sandbox_path == tmp_path.resolve()
+        assert outcome.errors == ["Execution cancelled by user."]
 
     def test_run_steps_empty_step_list_returns_completed_outcome_with_no_results(self, tmp_path: Path) -> None:
         context = RunContext(steps=[], cwd=tmp_path, use_sandbox=False)
 
         outcome = run_steps(context)
 
-        expected = RunOutcomeBuilder(tmp_path.resolve()).with_status(RunStatus.COMPLETED).build()
-        assert outcome.status == expected.status
-        assert outcome.sandbox_path == expected.sandbox_path
+        assert outcome.status == RunStatus.COMPLETED
+        assert outcome.sandbox_path == tmp_path.resolve()
+        assert outcome.step_results == []
 
     def test_run_steps_sandbox_creation_failure_without_git_repo_returns_failed_outcome(self, tmp_path: Path) -> None:
         workspace = WorkspaceBuilder(tmp_path / "workspace").build()
@@ -531,9 +439,8 @@ class RunStepsExecutionTests:
 
         outcome = run_steps(context)
 
-        expected = RunOutcomeBuilder(workspace).with_status(RunStatus.FAILED).build()
-        assert outcome.status == expected.status
-        assert outcome.sandbox_path == expected.sandbox_path
+        assert outcome.status == RunStatus.FAILED
+        assert outcome.sandbox_path == workspace
         assert len(outcome.errors) > 0
         assert "Git sandbox creation failed" in outcome.errors[0]
 
@@ -555,35 +462,20 @@ class RunStepsFailurePromptTests:
 
         outcome = run_steps(context)
 
-        expected = (
-            RunOutcomeBuilder(tmp_path.resolve())
-            .with_status(RunStatus.FAILED)
-            .with_step_results(
+        assert outcome.status == RunStatus.FAILED
+        assert outcome.sandbox_path == tmp_path.resolve()
+        assert outcome.errors == ["Step 'fail' failed: Command failed with exit code 1."]
+        _assert_step_results(
+            outcome.step_results,
+            [
                 _step_result(
                     "fail",
                     status="failed",
                     exit_code=1,
                     error_message="Command failed with exit code 1.",
-                )
-            )
-            .with_errors("Step 'fail' failed: Command failed with exit code 1.")
-            .build()
+                ),
+            ],
         )
-        assert outcome.status == expected.status
-        assert outcome.sandbox_path == expected.sandbox_path
-        assert outcome.errors == expected.errors
-        assert len(outcome.step_results) == len(expected.step_results)
-        for a, e in zip(outcome.step_results, expected.step_results, strict=False):
-            assert a.step_id == e.step_id
-            assert a.status == e.status
-            assert a.exit_code == e.exit_code
-            if e.stdout:
-                assert a.stdout == e.stdout
-            if e.stderr:
-                assert a.stderr == e.stderr
-            if e.error_message:
-                assert a.error_message == e.error_message
-            assert a.attempts == e.attempts
         assert prompter.calls == 1
 
     def test_run_steps_prompt_user_continue_decision_marks_step_ignored_and_continues(self, tmp_path: Path) -> None:
@@ -600,10 +492,11 @@ class RunStepsFailurePromptTests:
 
         outcome = run_steps(context)
 
-        expected = (
-            RunOutcomeBuilder(tmp_path.resolve())
-            .with_status(RunStatus.COMPLETED)
-            .with_step_results(
+        assert outcome.status == RunStatus.COMPLETED
+        assert outcome.sandbox_path == tmp_path.resolve()
+        _assert_step_results(
+            outcome.step_results,
+            [
                 _step_result(
                     "fail",
                     status="ignored",
@@ -611,23 +504,8 @@ class RunStepsFailurePromptTests:
                     error_message=f"Command failed with exit code 1. ({USER_CONTINUED_MARKER})",
                 ),
                 _step_result("later", status="completed", exit_code=0, stdout="later\n"),
-            )
-            .build()
+            ],
         )
-        assert outcome.status == expected.status
-        assert outcome.sandbox_path == expected.sandbox_path
-        assert len(outcome.step_results) == len(expected.step_results)
-        for a, e in zip(outcome.step_results, expected.step_results, strict=False):
-            assert a.step_id == e.step_id
-            assert a.status == e.status
-            assert a.exit_code == e.exit_code
-            if e.stdout:
-                assert a.stdout == e.stdout
-            if e.stderr:
-                assert a.stderr == e.stderr
-            if e.error_message:
-                assert a.error_message == e.error_message
-            assert a.attempts == e.attempts
         assert prompter.calls == 1
 
     def test_run_steps_prompt_user_retry_decision_reexecutes_step_until_success(self, tmp_path: Path) -> None:
@@ -642,26 +520,12 @@ class RunStepsFailurePromptTests:
 
         outcome = run_steps(context)
 
-        expected = (
-            RunOutcomeBuilder(tmp_path.resolve())
-            .with_status(RunStatus.COMPLETED)
-            .with_step_results(_step_result("fail", status="completed", exit_code=0, attempts=2))
-            .build()
+        assert outcome.status == RunStatus.COMPLETED
+        assert outcome.sandbox_path == tmp_path.resolve()
+        _assert_step_results(
+            outcome.step_results,
+            [_step_result("fail", status="completed", exit_code=0, attempts=2)],
         )
-        assert outcome.status == expected.status
-        assert outcome.sandbox_path == expected.sandbox_path
-        assert len(outcome.step_results) == len(expected.step_results)
-        for a, e in zip(outcome.step_results, expected.step_results, strict=False):
-            assert a.step_id == e.step_id
-            assert a.status == e.status
-            assert a.exit_code == e.exit_code
-            if e.stdout:
-                assert a.stdout == e.stdout
-            if e.stderr:
-                assert a.stderr == e.stderr
-            if e.error_message:
-                assert a.error_message == e.error_message
-            assert a.attempts == e.attempts
         assert prompter.calls == 1
 
     @pytest.mark.parametrize(
@@ -688,36 +552,21 @@ class RunStepsFailurePromptTests:
 
         outcome = run_steps(context)
 
-        expected = (
-            RunOutcomeBuilder(tmp_path.resolve())
-            .with_status(RunStatus.FAILED)
-            .with_step_results(
+        assert outcome.status == RunStatus.FAILED
+        assert outcome.sandbox_path == tmp_path.resolve()
+        assert len(outcome.errors) > 0
+        assert len(outcome.warnings) > 0
+        _assert_step_results(
+            outcome.step_results,
+            [
                 _step_result(
                     "fail",
                     status="failed",
                     exit_code=1,
                     error_message="Command failed with exit code 1.",
-                )
-            )
-            .with_errors("Step 'fail' failed: Command failed with exit code 1.")
-            .build()
+                ),
+            ],
         )
-        assert outcome.status == expected.status
-        assert outcome.sandbox_path == expected.sandbox_path
-        assert len(outcome.errors) > 0
-        assert len(outcome.warnings) > 0
-        assert len(outcome.step_results) == len(expected.step_results)
-        for a, e in zip(outcome.step_results, expected.step_results, strict=False):
-            assert a.step_id == e.step_id
-            assert a.status == e.status
-            assert a.exit_code == e.exit_code
-            if e.stdout:
-                assert a.stdout == e.stdout
-            if e.stderr:
-                assert a.stderr == e.stderr
-            if e.error_message:
-                assert a.error_message == e.error_message
-            assert a.attempts == e.attempts
         assert warning_substr in outcome.warnings[0]
         if prompter is not None:
             assert prompter.calls == 0
@@ -740,36 +589,21 @@ class RunStepsFailurePromptTests:
 
         outcome = run_steps(context)
 
-        expected = (
-            RunOutcomeBuilder(tmp_path.resolve())
-            .with_status(RunStatus.FAILED)
-            .with_step_results(
+        assert outcome.status == RunStatus.FAILED
+        assert outcome.sandbox_path == tmp_path.resolve()
+        assert outcome.errors == ["Step 'fail' failed: Command failed with exit code 1."]
+        _assert_step_results(
+            outcome.step_results,
+            [
                 _step_result(
                     "fail",
                     status="failed",
                     exit_code=1,
                     attempts=2,
                     error_message="Command failed with exit code 1.",
-                )
-            )
-            .with_errors("Step 'fail' failed: Command failed with exit code 1.")
-            .build()
+                ),
+            ],
         )
-        assert outcome.status == expected.status
-        assert outcome.sandbox_path == expected.sandbox_path
-        assert outcome.errors == expected.errors
-        assert len(outcome.step_results) == len(expected.step_results)
-        for a, e in zip(outcome.step_results, expected.step_results, strict=False):
-            assert a.step_id == e.step_id
-            assert a.status == e.status
-            assert a.exit_code == e.exit_code
-            if e.stdout:
-                assert a.stdout == e.stdout
-            if e.stderr:
-                assert a.stderr == e.stderr
-            if e.error_message:
-                assert a.error_message == e.error_message
-            assert a.attempts == e.attempts
         assert prompter.calls == 1
 
 
@@ -791,35 +625,20 @@ class RunStepsPauseAndResumeTests:
 
         outcome = run_steps(context)
 
-        expected = (
-            RunOutcomeBuilder(tmp_path.resolve())
-            .with_status(RunStatus.FAILED)
-            .with_step_results(
+        assert outcome.status == RunStatus.FAILED
+        assert outcome.sandbox_path == tmp_path.resolve()
+        assert outcome.errors == ["Step 'fail' failed: Command failed with exit code 1."]
+        _assert_step_results(
+            outcome.step_results,
+            [
                 _step_result(
                     "fail",
                     status="failed",
                     exit_code=1,
                     error_message="Command failed with exit code 1.",
-                )
-            )
-            .with_errors("Step 'fail' failed: Command failed with exit code 1.")
-            .build()
+                ),
+            ],
         )
-        assert outcome.status == expected.status
-        assert outcome.sandbox_path == expected.sandbox_path
-        assert outcome.errors == expected.errors
-        assert len(outcome.step_results) == len(expected.step_results)
-        for a, e in zip(outcome.step_results, expected.step_results, strict=False):
-            assert a.step_id == e.step_id
-            assert a.status == e.status
-            assert a.exit_code == e.exit_code
-            if e.stdout:
-                assert a.stdout == e.stdout
-            if e.stderr:
-                assert a.stderr == e.stderr
-            if e.error_message:
-                assert a.error_message == e.error_message
-            assert a.attempts == e.attempts
         assert len(store.checkpoints) == 1
         assert store.checkpoints[0].pending_step_id == "fail"
         assert store.checkpoints[0].next_step_index == 0
@@ -837,36 +656,21 @@ class RunStepsPauseAndResumeTests:
 
         outcome = run_steps(context)
 
-        expected = (
-            RunOutcomeBuilder(tmp_path.resolve())
-            .with_status(RunStatus.FAILED)
-            .with_step_results(
+        assert outcome.status == RunStatus.FAILED
+        assert outcome.sandbox_path == tmp_path.resolve()
+        assert len(outcome.errors) > 0
+        assert len(outcome.warnings) > 0
+        _assert_step_results(
+            outcome.step_results,
+            [
                 _step_result(
                     "fail",
                     status="failed",
                     exit_code=1,
                     error_message="Command failed with exit code 1.",
-                )
-            )
-            .with_errors("Step 'fail' failed: Command failed with exit code 1.")
-            .build()
+                ),
+            ],
         )
-        assert outcome.status == expected.status
-        assert outcome.sandbox_path == expected.sandbox_path
-        assert len(outcome.errors) > 0
-        assert len(outcome.warnings) > 0
-        assert len(outcome.step_results) == len(expected.step_results)
-        for a, e in zip(outcome.step_results, expected.step_results, strict=False):
-            assert a.step_id == e.step_id
-            assert a.status == e.status
-            assert a.exit_code == e.exit_code
-            if e.stdout:
-                assert a.stdout == e.stdout
-            if e.stderr:
-                assert a.stderr == e.stderr
-            if e.error_message:
-                assert a.error_message == e.error_message
-            assert a.attempts == e.attempts
         assert store.checkpoints == []
         assert store.cleared == 0
 
@@ -884,17 +688,10 @@ class RunStepsPauseAndResumeTests:
 
         outcome = run_steps(context)
 
-        expected = (
-            RunOutcomeBuilder(tmp_path.resolve())
-            .with_status(RunStatus.PAUSED)
-            .with_errors("Step 'fail' failed: Command failed with exit code 1.")
-            .with_sandbox_kept(True)
-            .build()
-        )
-        assert outcome.status == expected.status
-        assert outcome.sandbox_path == expected.sandbox_path
-        assert outcome.sandbox_kept == expected.sandbox_kept
-        assert outcome.errors == expected.errors
+        assert outcome.status == RunStatus.PAUSED
+        assert outcome.sandbox_path == tmp_path.resolve()
+        assert outcome.sandbox_kept is True
+        assert outcome.errors == ["Step 'fail' failed: Command failed with exit code 1."]
         assert store.checkpoints
         assert store.cleared == 0
 
@@ -952,10 +749,11 @@ class RunStepsPauseAndResumeTests:
 
         outcome = run_steps(context)
 
-        expected = (
-            RunOutcomeBuilder(tmp_path.resolve())
-            .with_status(RunStatus.COMPLETED)
-            .with_step_results(
+        assert outcome.status == RunStatus.COMPLETED
+        assert outcome.sandbox_path == tmp_path.resolve()
+        _assert_step_results(
+            outcome.step_results,
+            [
                 prior_ok,
                 prior_fail.model_copy(
                     update={
@@ -964,23 +762,8 @@ class RunStepsPauseAndResumeTests:
                     }
                 ),
                 _step_result("later", status="completed", exit_code=0, stdout="later\n"),
-            )
-            .build()
+            ],
         )
-        assert outcome.status == expected.status
-        assert outcome.sandbox_path == expected.sandbox_path
-        assert len(outcome.step_results) == len(expected.step_results)
-        for a, e in zip(outcome.step_results, expected.step_results, strict=False):
-            assert a.step_id == e.step_id
-            assert a.status == e.status
-            assert a.exit_code == e.exit_code
-            if e.stdout:
-                assert a.stdout == e.stdout
-            if e.stderr:
-                assert a.stderr == e.stderr
-            if e.error_message:
-                assert a.error_message == e.error_message
-            assert a.attempts == e.attempts
         assert prompter.calls == 1
 
 
@@ -1000,29 +783,15 @@ class RunStepsRobustnessTests:
 
         outcome = run_steps(context)
 
-        expected = (
-            RunOutcomeBuilder(tmp_path.resolve())
-            .with_status(RunStatus.COMPLETED)
-            .with_step_results(
+        assert outcome.status == RunStatus.COMPLETED
+        assert outcome.sandbox_path == tmp_path.resolve()
+        _assert_step_results(
+            outcome.step_results,
+            [
                 _step_result("s1", status="completed", exit_code=0, stdout="one\n"),
                 _step_result("s2", status="completed", exit_code=0, stdout="two\n"),
-            )
-            .build()
+            ],
         )
-        assert outcome.status == expected.status
-        assert outcome.sandbox_path == expected.sandbox_path
-        assert len(outcome.step_results) == len(expected.step_results)
-        for a, e in zip(outcome.step_results, expected.step_results, strict=False):
-            assert a.step_id == e.step_id
-            assert a.status == e.status
-            assert a.exit_code == e.exit_code
-            if e.stdout:
-                assert a.stdout == e.stdout
-            if e.stderr:
-                assert a.stderr == e.stderr
-            if e.error_message:
-                assert a.error_message == e.error_message
-            assert a.attempts == e.attempts
 
     def test_run_steps_sandbox_cleanup_failure_after_step_failure_still_reports_failed_status(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -1041,36 +810,20 @@ class RunStepsRobustnessTests:
 
         outcome = run_steps(context)
 
-        expected = (
-            RunOutcomeBuilder(None)
-            .with_status(RunStatus.FAILED)
-            .with_step_results(
+        assert outcome.status == RunStatus.FAILED
+        assert outcome.sandbox_kept is False
+        assert outcome.errors == ["Step 'fail' failed: Command failed with exit code 1."]
+        _assert_step_results(
+            outcome.step_results,
+            [
                 _step_result(
                     "fail",
                     status="failed",
                     exit_code=1,
                     error_message="Command failed with exit code 1.",
-                )
-            )
-            .with_errors("Step 'fail' failed: Command failed with exit code 1.")
-            .with_sandbox_kept(False)
-            .build()
+                ),
+            ],
         )
-        assert outcome.status == expected.status
-        assert outcome.sandbox_kept == expected.sandbox_kept
-        assert outcome.errors == expected.errors
-        assert len(outcome.step_results) == len(expected.step_results)
-        for a, e in zip(outcome.step_results, expected.step_results, strict=False):
-            assert a.step_id == e.step_id
-            assert a.status == e.status
-            assert a.exit_code == e.exit_code
-            if e.stdout:
-                assert a.stdout == e.stdout
-            if e.stderr:
-                assert a.stderr == e.stderr
-            if e.error_message:
-                assert a.error_message == e.error_message
-            assert a.attempts == e.attempts
 
     def test_run_steps_executes_steps_strictly_serially_never_concurrently(self, tmp_path: Path) -> None:
         tracker = tmp_path / "tracker.log"
@@ -1090,30 +843,16 @@ class RunStepsRobustnessTests:
 
         outcome = run_steps(context)
 
-        expected = (
-            RunOutcomeBuilder(tmp_path.resolve())
-            .with_status(RunStatus.COMPLETED)
-            .with_step_results(
+        assert outcome.status == RunStatus.COMPLETED
+        assert outcome.sandbox_path == tmp_path.resolve()
+        _assert_step_results(
+            outcome.step_results,
+            [
                 _step_result("step1", status="completed", exit_code=0),
                 _step_result("step2", status="completed", exit_code=0),
                 _step_result("step3", status="completed", exit_code=0),
-            )
-            .build()
+            ],
         )
-        assert outcome.status == expected.status
-        assert outcome.sandbox_path == expected.sandbox_path
-        assert len(outcome.step_results) == len(expected.step_results)
-        for a, e in zip(outcome.step_results, expected.step_results, strict=False):
-            assert a.step_id == e.step_id
-            assert a.status == e.status
-            assert a.exit_code == e.exit_code
-            if e.stdout:
-                assert a.stdout == e.stdout
-            if e.stderr:
-                assert a.stderr == e.stderr
-            if e.error_message:
-                assert a.error_message == e.error_message
-            assert a.attempts == e.attempts
         assert tracker.read_text().splitlines() == [
             "step1 start",
             "step1 end",
@@ -1140,15 +879,9 @@ class RunStepsRobustnessTests:
 
         outcome = run_steps(context)
 
-        expected = (
-            RunOutcomeBuilder(tmp_path.resolve())
-            .with_status(RunStatus.CANCELLED)
-            .with_errors("Execution cancelled by user.")
-            .build()
-        )
-        assert outcome.status == expected.status
-        assert outcome.sandbox_path == expected.sandbox_path
-        assert outcome.errors == expected.errors
+        assert outcome.status == RunStatus.CANCELLED
+        assert outcome.sandbox_path == tmp_path.resolve()
+        assert outcome.errors == ["Execution cancelled by user."]
 
     def test_run_steps_sequential_loop_blocks_interleave_with_plain_steps_in_order(self, tmp_path: Path) -> None:
         observer = _RecordingRunObserver()
@@ -1172,31 +905,17 @@ class RunStepsRobustnessTests:
 
         outcome = run_steps(context)
 
-        expected = (
-            RunOutcomeBuilder(tmp_path.resolve())
-            .with_status(RunStatus.COMPLETED)
-            .with_step_results(
+        assert outcome.status == RunStatus.COMPLETED
+        assert outcome.sandbox_path == tmp_path.resolve()
+        _assert_step_results(
+            outcome.step_results,
+            [
                 _step_result("setup", status="completed", exit_code=0, stdout="ready\n"),
                 _step_result("poll1", status="completed", exit_code=0, stdout="p1\n"),
                 _step_result("poll2", status="completed", exit_code=0, stdout="p2\n"),
                 _step_result("teardown", status="completed", exit_code=0, stdout="done\n"),
-            )
-            .build()
+            ],
         )
-        assert outcome.status == expected.status
-        assert outcome.sandbox_path == expected.sandbox_path
-        assert len(outcome.step_results) == len(expected.step_results)
-        for a, e in zip(outcome.step_results, expected.step_results, strict=False):
-            assert a.step_id == e.step_id
-            assert a.status == e.status
-            assert a.exit_code == e.exit_code
-            if e.stdout:
-                assert a.stdout == e.stdout
-            if e.stderr:
-                assert a.stderr == e.stderr
-            if e.error_message:
-                assert a.error_message == e.error_message
-            assert a.attempts == e.attempts
         loop_starts = [event for event in observer.events if event[0] == "loop_start"]
         assert loop_starts == [("loop_start", "loop-one", 3), ("loop_start", "loop-two", 3)]
 
@@ -1220,28 +939,11 @@ class RunStepsRobustnessTests:
 
         outcome = run_steps(context)
 
-        expected = (
-            RunOutcomeBuilder(None)
-            .with_status(RunStatus.FAILED)
-            .with_step_results(_step_result("s1", status="completed", exit_code=0, stdout="change\n"))
-            .with_errors("Patch merge conflict in sandbox apply")
-            .with_warnings("Patch hunk rejected")
-            .with_sandbox_kept(True)
-            .build()
+        assert outcome.status == RunStatus.FAILED
+        assert outcome.sandbox_kept is True
+        assert outcome.errors == ["Patch merge conflict in sandbox apply"]
+        assert outcome.warnings == ["Patch hunk rejected"]
+        _assert_step_results(
+            outcome.step_results,
+            [_step_result("s1", status="completed", exit_code=0, stdout="change\n")],
         )
-        assert outcome.status == expected.status
-        assert outcome.sandbox_kept == expected.sandbox_kept
-        assert outcome.errors == expected.errors
-        assert outcome.warnings == expected.warnings
-        assert len(outcome.step_results) == len(expected.step_results)
-        for a, e in zip(outcome.step_results, expected.step_results, strict=False):
-            assert a.step_id == e.step_id
-            assert a.status == e.status
-            assert a.exit_code == e.exit_code
-            if e.stdout:
-                assert a.stdout == e.stdout
-            if e.stderr:
-                assert a.stderr == e.stderr
-            if e.error_message:
-                assert a.error_message == e.error_message
-            assert a.attempts == e.attempts

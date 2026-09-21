@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pytest
 
-from tests.harness import ANY_DURATION, assert_model_equal
 from worktree.core.config.models import (
     DoctorConfig,
     ProjectConfig,
@@ -15,8 +14,6 @@ from worktree.core.doctor.models import (
     CheckStatus,
     DiagnosticCheckResult,
     DoctorContext,
-    DoctorReport,
-    Remediation,
     RemediationType,
 )
 from worktree.core.doctor.services.registry import CheckRegistry
@@ -90,45 +87,9 @@ class DiagnosticRunnerFilteringTests:
         assert agent_check.executed is True
         assert config_check.executed is False
 
-        assert_model_equal(
-            report,
-            DoctorReport.model_construct(
-                workspace_root=tmp_path,
-                checks=[
-                    DiagnosticCheckResult.model_construct(
-                        check_id="git.repo",
-                        name="Mock Check",
-                        category=CheckCategory.GIT,
-                        status=CheckStatus.OK,
-                        message="Executed git.repo",
-                        details={"ran": True},
-                        duration_ms=ANY_DURATION,
-                        error_code=None,
-                        errors=[],
-                        warnings=[],
-                        fixes=[],
-                        remediations=[],
-                    ),
-                    DiagnosticCheckResult.model_construct(
-                        check_id="agent.setup",
-                        name="Mock Check",
-                        category=CheckCategory.AGENT,
-                        status=CheckStatus.OK,
-                        message="Executed agent.setup",
-                        details={"ran": True},
-                        duration_ms=ANY_DURATION,
-                        error_code=None,
-                        errors=[],
-                        warnings=[],
-                        fixes=[],
-                        remediations=[],
-                    ),
-                ],
-                total_duration_ms=ANY_DURATION,
-            ),
-        )
-        reported_check_ids = [c.check_id for c in report.checks]
-        assert reported_check_ids == ["git.repo", "agent.setup"]
+        assert report.workspace_root == tmp_path
+        assert [c.check_id for c in report.checks] == ["git.repo", "agent.setup"]
+        assert all(c.status == CheckStatus.OK for c in report.checks)
 
     @pytest.mark.parametrize(
         "categories",
@@ -157,43 +118,9 @@ class DiagnosticRunnerFilteringTests:
 
         assert check1.executed is True
         assert check2.executed is True
-        assert_model_equal(
-            report,
-            DoctorReport.model_construct(
-                workspace_root=tmp_path,
-                checks=[
-                    DiagnosticCheckResult.model_construct(
-                        check_id="check.one",
-                        name="Mock Check",
-                        category=CheckCategory.GIT,
-                        status=CheckStatus.OK,
-                        message="Executed check.one",
-                        details={"ran": True},
-                        duration_ms=ANY_DURATION,
-                        error_code=None,
-                        errors=[],
-                        warnings=[],
-                        fixes=[],
-                        remediations=[],
-                    ),
-                    DiagnosticCheckResult.model_construct(
-                        check_id="check.two",
-                        name="Mock Check",
-                        category=CheckCategory.ENVIRONMENT,
-                        status=CheckStatus.OK,
-                        message="Executed check.two",
-                        details={"ran": True},
-                        duration_ms=ANY_DURATION,
-                        error_code=None,
-                        errors=[],
-                        warnings=[],
-                        fixes=[],
-                        remediations=[],
-                    ),
-                ],
-                total_duration_ms=ANY_DURATION,
-            ),
-        )
+        assert report.workspace_root == tmp_path
+        assert [c.check_id for c in report.checks] == ["check.one", "check.two"]
+        assert all(c.status == CheckStatus.OK for c in report.checks)
 
 
 class DiagnosticRunnerConfigToggleTests:
@@ -255,23 +182,12 @@ class DiagnosticRunnerConfigToggleTests:
 
         assert check.executed is False
         assert len(report.checks) == 1
-        assert_model_equal(
-            report.checks[0],
-            DiagnosticCheckResult.model_construct(
-                check_id=check_id,
-                name=check.name,
-                category=category,
-                status=CheckStatus.SKIPPED,
-                message=f"Check '{check_id}' skipped by configuration.",
-                details={},
-                duration_ms=0.0,
-                error_code=None,
-                errors=[],
-                warnings=[],
-                fixes=[],
-                remediations=[],
-            ),
-        )
+        res = report.checks[0]
+        assert res.check_id == check_id
+        assert res.name == check.name
+        assert res.category == category
+        assert res.status == CheckStatus.SKIPPED
+        assert res.message == f"Check '{check_id}' skipped by configuration."
 
     def test_config_none_does_not_skip_checks(self, tmp_path: Path) -> None:
         """[tier-1/unit] DiagnosticRunner.run_checks: when context.config is None, config toggle skipping is bypassed and checks execute."""
@@ -304,39 +220,19 @@ class DiagnosticRunnerContainmentTests:
 
         result = execute_single_check(check, context)
 
-        assert_model_equal(
-            result,
-            DiagnosticCheckResult.model_construct(
-                check_id="crashing.check",
-                name="Crashing Check",
-                category=CheckCategory.SANDBOX,
-                status=CheckStatus.FAILED,
-                message="Unhandled exception during check execution: Simulated crash in sandbox inspection",
-                details={
-                    "exception": "Simulated crash in sandbox inspection",
-                    "type": "RuntimeError",
-                },
-                duration_ms=ANY_DURATION,
-                error_code="DOCTOR_CHECK_CRASH",
-                errors=["Unhandled exception in crashing.check: Simulated crash in sandbox inspection"],
-                warnings=[],
-                fixes=[],
-                remediations=[
-                    Remediation(
-                        code="DOCTOR_CHECK_CRASH",
-                        title="Investigate check failure manually",
-                        action_type=RemediationType.MANUAL,
-                        command=None,
-                        description=(
-                            "No deterministic remediation is registered for check 'crashing.check' "
-                            "(error_code='DOCTOR_CHECK_CRASH'). Review the check message and details to diagnose and resolve the issue."
-                        ),
-                        doc_path=None,
-                        is_automated=False,
-                    )
-                ],
-            ),
-        )
+        assert result.check_id == "crashing.check"
+        assert result.name == "Crashing Check"
+        assert result.category == CheckCategory.SANDBOX
+        assert result.status == CheckStatus.FAILED
+        assert result.error_code == "DOCTOR_CHECK_CRASH"
+        assert "Simulated crash in sandbox inspection" in result.message
+        assert result.details == {
+            "exception": "Simulated crash in sandbox inspection",
+            "type": "RuntimeError",
+        }
+        assert len(result.remediations) == 1
+        assert result.remediations[0].code == "DOCTOR_CHECK_CRASH"
+        assert result.remediations[0].action_type == RemediationType.MANUAL
 
     def test_crashing_check_does_not_halt_subsequent_checks(self, tmp_path: Path) -> None:
         """[tier-1/unit] DiagnosticRunner.run_checks: first check raising exception does not prevent subsequent checks from executing and reporting results."""
@@ -364,59 +260,10 @@ class DiagnosticRunnerContainmentTests:
         assert crash_check.executed is True
         assert healthy_check.executed is True
         assert report.ok is False
-        assert_model_equal(
-            report,
-            DoctorReport.model_construct(
-                workspace_root=tmp_path,
-                checks=[
-                    DiagnosticCheckResult.model_construct(
-                        check_id="check.crash",
-                        name="Mock Check",
-                        category=CheckCategory.GIT,
-                        status=CheckStatus.FAILED,
-                        message="Unhandled exception during check execution: crash 1",
-                        details={
-                            "exception": "crash 1",
-                            "type": "RuntimeError",
-                        },
-                        duration_ms=ANY_DURATION,
-                        error_code="DOCTOR_CHECK_CRASH",
-                        errors=["Unhandled exception in check.crash: crash 1"],
-                        warnings=[],
-                        fixes=[],
-                        remediations=[
-                            Remediation(
-                                code="DOCTOR_CHECK_CRASH",
-                                title="Investigate check failure manually",
-                                action_type=RemediationType.MANUAL,
-                                command=None,
-                                description=(
-                                    "No deterministic remediation is registered for check 'check.crash' "
-                                    "(error_code='DOCTOR_CHECK_CRASH'). Review the check message and details to diagnose and resolve the issue."
-                                ),
-                                doc_path=None,
-                                is_automated=False,
-                            )
-                        ],
-                    ),
-                    DiagnosticCheckResult.model_construct(
-                        check_id="check.healthy",
-                        name="Mock Check",
-                        category=CheckCategory.CONFIG,
-                        status=CheckStatus.OK,
-                        message="Executed check.healthy",
-                        details={"ran": True},
-                        duration_ms=ANY_DURATION,
-                        error_code=None,
-                        errors=[],
-                        warnings=[],
-                        fixes=[],
-                        remediations=[],
-                    ),
-                ],
-                total_duration_ms=ANY_DURATION,
-            ),
-        )
+        assert [c.check_id for c in report.checks] == ["check.crash", "check.healthy"]
+        assert report.checks[0].status == CheckStatus.FAILED
+        assert report.checks[0].error_code == "DOCTOR_CHECK_CRASH"
+        assert report.checks[1].status == CheckStatus.OK
 
 
 class DiagnosticRunnerMetricsTests:
@@ -456,40 +303,5 @@ class DiagnosticRunnerMetricsTests:
         assert report.checks[0].duration_ms == 2000.0
         assert report.checks[1].duration_ms == 3000.0
         assert report.total_duration_ms == 10000.0
-        assert_model_equal(
-            report,
-            DoctorReport.model_construct(
-                workspace_root=tmp_path,
-                checks=[
-                    DiagnosticCheckResult.model_construct(
-                        check_id="c1",
-                        name="Mock Check",
-                        category=CheckCategory.GIT,
-                        status=CheckStatus.OK,
-                        message="Executed c1",
-                        details={"ran": True},
-                        duration_ms=2000.0,
-                        error_code=None,
-                        errors=[],
-                        warnings=[],
-                        fixes=[],
-                        remediations=[],
-                    ),
-                    DiagnosticCheckResult.model_construct(
-                        check_id="c2",
-                        name="Mock Check",
-                        category=CheckCategory.FILESYSTEM,
-                        status=CheckStatus.OK,
-                        message="Executed c2",
-                        details={"ran": True},
-                        duration_ms=3000.0,
-                        error_code=None,
-                        errors=[],
-                        warnings=[],
-                        fixes=[],
-                        remediations=[],
-                    ),
-                ],
-                total_duration_ms=10000.0,
-            ),
-        )
+        assert [c.check_id for c in report.checks] == ["c1", "c2"]
+        assert report.workspace_root == tmp_path

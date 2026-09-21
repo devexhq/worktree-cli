@@ -4,9 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from tests.harness import assert_model_equal
 from worktree.core.doctor.checks.git_repo import GitRepoCheck
-from worktree.core.doctor.models import CheckCategory, CheckStatus, DiagnosticCheckResult, DoctorContext
+from worktree.core.doctor.models import CheckCategory, CheckStatus, DoctorContext
 from worktree.core.git import GitNotFoundError
 
 
@@ -23,23 +22,11 @@ class GitRepoCheckTests:
 
         result = check.execute(context)
 
-        assert_model_equal(
-            result,
-            DiagnosticCheckResult.model_construct(
-                check_id="git.repo",
-                name="Git Repository Check",
-                category=CheckCategory.GIT,
-                status=CheckStatus.FAILED,
-                message="git binary was not found on PATH.",
-                details={},
-                duration_ms=0.0,
-                error_code="DOCTOR_GIT_BINARY_MISSING",
-                errors=["git binary was not found on PATH."],
-                warnings=[],
-                fixes=[],
-                remediations=[],
-            ),
-        )
+        assert result.check_id == "git.repo"
+        assert result.category == CheckCategory.GIT
+        assert result.status == CheckStatus.FAILED
+        assert result.error_code == "DOCTOR_GIT_BINARY_MISSING"
+        assert result.errors == ["git binary was not found on PATH."]
 
     def test_execute_git_disappears_after_which_returns_binary_missing_failure(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -56,23 +43,11 @@ class GitRepoCheckTests:
 
         result = check.execute(context)
 
-        assert_model_equal(
-            result,
-            DiagnosticCheckResult.model_construct(
-                check_id="git.repo",
-                name="Git Repository Check",
-                category=CheckCategory.GIT,
-                status=CheckStatus.FAILED,
-                message="git binary was not found on PATH.",
-                details={},
-                duration_ms=0.0,
-                error_code="DOCTOR_GIT_BINARY_MISSING",
-                errors=["git binary was not found on PATH."],
-                warnings=[],
-                fixes=[],
-                remediations=[],
-            ),
-        )
+        assert result.check_id == "git.repo"
+        assert result.category == CheckCategory.GIT
+        assert result.status == CheckStatus.FAILED
+        assert result.error_code == "DOCTOR_GIT_BINARY_MISSING"
+        assert result.errors == ["git binary was not found on PATH."]
 
     def test_execute_outside_git_repository_returns_not_repo_failure(self, tmp_path: Path) -> None:
         """[tier-1/unit] GitRepoCheck.execute: context.cwd has no .git -> FAILED with DOCTOR_GIT_NOT_REPO."""
@@ -81,23 +56,11 @@ class GitRepoCheckTests:
 
         result = check.execute(context)
 
-        assert_model_equal(
-            result,
-            DiagnosticCheckResult.model_construct(
-                check_id="git.repo",
-                name="Git Repository Check",
-                category=CheckCategory.GIT,
-                status=CheckStatus.FAILED,
-                message=f"'{tmp_path}' is not a Git repository.",
-                details={},
-                duration_ms=0.0,
-                error_code="DOCTOR_GIT_NOT_REPO",
-                errors=[f"'{tmp_path}' is not a Git repository."],
-                warnings=[],
-                fixes=[],
-                remediations=[],
-            ),
-        )
+        assert result.check_id == "git.repo"
+        assert result.category == CheckCategory.GIT
+        assert result.status == CheckStatus.FAILED
+        assert result.error_code == "DOCTOR_GIT_NOT_REPO"
+        assert result.errors == [f"'{tmp_path}' is not a Git repository."]
 
     def test_execute_inside_git_repository_returns_ok_with_root_and_branch(self, git_repo: Path) -> None:
         """[tier-1/unit] GitRepoCheck.execute: context.cwd=git_repo (main, HEAD resolvable) -> OK with root and branch."""
@@ -107,20 +70,8 @@ class GitRepoCheckTests:
         result = check.execute(context)
 
         resolved_root = str(git_repo.resolve())
-        assert_model_equal(
-            result,
-            DiagnosticCheckResult.model_construct(
-                check_id="git.repo",
-                name="Git Repository Check",
-                category=CheckCategory.GIT,
-                status=CheckStatus.OK,
-                message=f"Git repository detected at '{resolved_root}' on branch 'main'.",
-                details={"root": resolved_root, "branch": "main"},
-                duration_ms=0.0,
-                error_code=None,
-                errors=[],
-                warnings=[],
-                fixes=[],
-                remediations=[],
-            ),
-        )
+        assert result.check_id == "git.repo"
+        assert result.category == CheckCategory.GIT
+        assert result.status == CheckStatus.OK
+        assert result.error_code is None
+        assert result.details == {"root": resolved_root, "branch": "main"}

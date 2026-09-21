@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from tests.harness.matchers import assert_model_equal
 from worktree.core.git.models import GitWorktreeEntry
 from worktree.core.git.runner import GitRunner
 
@@ -24,18 +23,10 @@ class GitRunnerPlumbingTests:
         entries = GitRunner.worktree_list(git_repo)
         wt_entries = [e for e in entries if e.path.resolve() == wt_path.resolve()]
         assert len(wt_entries) == 1
-        assert_model_equal(
-            wt_entries[0],
-            GitWorktreeEntry(
-                path=wt_path.resolve(),
-                head_sha=GitRunner.rev_parse(wt_path, rev="HEAD"),
-                branch="feature-wt",
-                is_bare=False,
-                is_detached=False,
-                is_locked=False,
-                is_prunable=False,
-                prunable_reason=None,
-            ),
+        assert wt_entries[0] == GitWorktreeEntry(
+            path=wt_path.resolve(),
+            head_sha=GitRunner.rev_parse(wt_path, rev="HEAD"),
+            branch="feature-wt",
         )
 
     def test_worktree_remove_detaches_and_cleans_directory(self, git_repo: Path, tmp_path: Path) -> None:

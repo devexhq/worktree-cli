@@ -7,7 +7,6 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from tests.harness.matchers import ANY_TIMESTAMP
 from worktree.cli import app
 from worktree.core.db import RunStatus, WorktreeDb
 
@@ -48,35 +47,40 @@ class HistoryListCliIntegrationTests:
         result = cli_runner.invoke(app, ["-p", str(history_workspace), "history", "list", "--format", "json"])
 
         assert result.exit_code == 0
-        assert json.loads(result.stdout) == {
-            "event_type": "HistoryListResult",
-            "payload": {
-                "status": "ok",
-                "runs": [
-                    {
-                        "session_id": "session-failed",
-                        "blueprint_name": "task-b",
-                        "status": "failed",
-                        "branch_name": None,
-                        "started_at": ANY_TIMESTAMP,
-                        "completed_at": None,
-                        "duration_seconds": None,
-                        "error_message": None,
-                    },
-                    {
-                        "session_id": "session-completed",
-                        "blueprint_name": "task-a",
-                        "status": "completed",
-                        "branch_name": None,
-                        "started_at": ANY_TIMESTAMP,
-                        "completed_at": None,
-                        "duration_seconds": None,
-                        "error_message": None,
-                    },
-                ],
-                "total_runs": 2,
-                "errors": [],
-                "warnings": [],
-                "fixes": [],
-            },
+        data = json.loads(result.stdout)
+        assert data["event_type"] == "HistoryListResult"
+        payload = data["payload"]
+        runs = payload["runs"]
+        assert len(runs) == 2
+        for r in runs:
+            assert isinstance(r["started_at"], str)
+            r["started_at"] = "<timestamp>"
+        assert payload == {
+            "status": "ok",
+            "runs": [
+                {
+                    "session_id": "session-failed",
+                    "blueprint_name": "task-b",
+                    "status": "failed",
+                    "branch_name": None,
+                    "started_at": "<timestamp>",
+                    "completed_at": None,
+                    "duration_seconds": None,
+                    "error_message": None,
+                },
+                {
+                    "session_id": "session-completed",
+                    "blueprint_name": "task-a",
+                    "status": "completed",
+                    "branch_name": None,
+                    "started_at": "<timestamp>",
+                    "completed_at": None,
+                    "duration_seconds": None,
+                    "error_message": None,
+                },
+            ],
+            "total_runs": 2,
+            "errors": [],
+            "warnings": [],
+            "fixes": [],
         }

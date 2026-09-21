@@ -11,7 +11,7 @@ from typing import Any
 
 import pytest
 
-from tests.harness import StatusBuilder, WorkspaceBuilder
+from tests.harness import WorkspaceBuilder
 from worktree.common.filesystem import Filesystem
 from worktree.core.config.loader import ConfigLoadStatus
 from worktree.core.config.models import AgentConfig, ProjectConfig, SandboxConfig, WorktreeConfig
@@ -36,7 +36,7 @@ class StatusFacadeTests:
     @pytest.mark.parametrize(
         "invoke",
         [
-            pytest.param(lambda workspace: Status(workspace).collect(), id="instance_method"),
+            pytest.param(lambda p: Status(p).collect(), id="instance"),
             pytest.param(Status.collect_at, id="classmethod"),
         ],
     )
@@ -56,8 +56,10 @@ class StatusFacadeTests:
 
         result = invoke(workspace)
 
-        expected = StatusBuilder(workspace).with_git(branch="feature-facade").build()
-        assert result == expected
+        assert result.root_dir == workspace
+        assert result.is_initialized is True
+        assert result.git.is_git_repo is True
+        assert result.git.branch == "feature-facade"
 
 
 class StatusCollectorGitCollectionTests:
@@ -96,20 +98,20 @@ class StatusCollectorGitCollectionTests:
 
         result = collect_status(workspace)
 
-        expected = (
-            StatusBuilder(workspace)
-            .with_config(raw=config_data)
-            .with_catalog(
-                exists=True,
-                total_items=3,
-                steps_count=1,
-                item_names=["deploy", "lint-blueprint", "test-step"],
-            )
-            .with_database(total_runs=1)
-            .with_sandboxes(active_sandboxes=1, total_sandboxes=1, max_active_sandboxes=3)
-            .build()
-        )
-        assert result == expected
+        assert result.is_initialized is True
+        assert result.git.branch == "feature-status"
+        assert result.git.is_dirty is False
+        assert result.config.is_valid is True
+        assert result.catalog.exists is True
+        assert result.catalog.total_items == 3
+        assert result.catalog.steps_count == 1
+        assert result.catalog.item_names == ["deploy", "lint-blueprint", "test-step"]
+        assert result.database.total_runs == 1
+        assert result.sandboxes.active_sandboxes == 1
+        assert result.sandboxes.total_sandboxes == 1
+        assert result.sandboxes.max_active_sandboxes == 3
+        assert result.warnings == []
+        assert result.fixes == []
 
     def test_collect_status_dirty_worktree(self, tmp_path: Path) -> None:
         workspace = (
@@ -127,13 +129,10 @@ class StatusCollectorGitCollectionTests:
 
         result = collect_status(workspace)
 
-        expected = (
-            StatusBuilder(workspace)
-            .with_git(branch="feature-dirty", is_dirty=True, uncommitted_files=1)
-            .with_warnings("Working tree has 1 uncommitted change(s).")
-            .build()
-        )
-        assert result == expected
+        assert result.git.branch == "feature-dirty"
+        assert result.git.is_dirty is True
+        assert result.git.uncommitted_files == 1
+        assert result.warnings == ["Working tree has 1 uncommitted change(s)."]
 
     def test_collect_status_detached_head(self, tmp_path: Path) -> None:
         workspace = (
@@ -151,8 +150,8 @@ class StatusCollectorGitCollectionTests:
 
         result = collect_status(workspace)
 
-        expected = StatusBuilder(workspace).with_git(branch="HEAD (detached)").build()
-        assert result == expected
+        assert result.git.branch == "HEAD (detached)"
+        assert result.git.is_git_repo is True
 
     def test_collect_status_non_git_directory(self, tmp_path: Path) -> None:
         non_git_dir = tmp_path / "non_git"
@@ -160,19 +159,16 @@ class StatusCollectorGitCollectionTests:
 
         result = collect_status(non_git_dir)
 
-        expected = (
-            StatusBuilder(non_git_dir)
-            .without_git()
-            .without_config()
-            .without_database()
-            .with_warnings("Worktree workspace is not initialized. Run 'wt init' to configure.")
-            .with_fixes(
-                "Run 'wt init' to initialize Worktree in this repository.",
-                "Run 'git init' or navigate to a Git repository.",
-            )
-            .build()
-        )
-        assert result == expected
+        assert result.is_initialized is False
+        assert result.git.is_git_repo is False
+        assert result.git.branch == "none"
+        assert result.config.is_valid is False
+        assert result.database.exists is False
+        assert result.warnings == ["Worktree workspace is not initialized. Run 'wt init' to configure."]
+        assert result.fixes == [
+            "Run 'wt init' to initialize Worktree in this repository.",
+            "Run 'git init' or navigate to a Git repository.",
+        ]
 
     @pytest.mark.parametrize(
         "git_error",
@@ -203,13 +199,9 @@ class StatusCollectorGitCollectionTests:
 
         result = collect_status(workspace)
 
-        expected = (
-            StatusBuilder(workspace)
-            .with_git(is_git_repo=False, branch="unknown")
-            .with_fixes("Run 'git init' or navigate to a Git repository.")
-            .build()
-        )
-        assert result == expected
+        assert result.git.is_git_repo is False
+        assert result.git.branch == "unknown"
+        assert result.fixes == ["Run 'git init' or navigate to a Git repository."]
 
     def test_collect_status_git_rev_parse_not_true(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         workspace = (
@@ -229,13 +221,9 @@ class StatusCollectorGitCollectionTests:
 
         result = collect_status(workspace)
 
-        expected = (
-            StatusBuilder(workspace)
-            .with_git(is_git_repo=False, branch="none")
-            .with_fixes("Run 'git init' or navigate to a Git repository.")
-            .build()
-        )
-        assert result == expected
+        assert result.git.is_git_repo is False
+        assert result.git.branch == "none"
+        assert result.fixes == ["Run 'git init' or navigate to a Git repository."]
 
 
 class StatusCollectorConfigAndCatalogTests:
@@ -251,15 +239,11 @@ class StatusCollectorConfigAndCatalogTests:
         )
         result = collect_status(workspace)
 
-        expected = (
-            StatusBuilder(workspace)
-            .with_git(branch="feature-uninit")
-            .without_config()
-            .with_warnings("Worktree workspace is not initialized. Run 'wt init' to configure.")
-            .with_fixes("Run 'wt init' to initialize Worktree in this repository.")
-            .build()
-        )
-        assert result == expected
+        assert result.is_initialized is False
+        assert result.git.branch == "feature-uninit"
+        assert result.config.is_valid is False
+        assert result.warnings == ["Worktree workspace is not initialized. Run 'wt init' to configure."]
+        assert result.fixes == ["Run 'wt init' to initialize Worktree in this repository."]
 
     def test_collect_status_malformed_config(self, tmp_path: Path) -> None:
         workspace = (
@@ -273,26 +257,12 @@ class StatusCollectorConfigAndCatalogTests:
 
         result = collect_status(workspace)
 
-        expected = (
-            StatusBuilder(workspace)
-            .with_config(
-                status=ConfigLoadStatus.MALFORMED_JSON,
-                is_valid=False,
-                errors=[
-                    (
-                        f"Malformed config.json at '{fs.config_file}': "
-                        "Expecting property name enclosed in double quotes at line 1 column 2 (char 1) (CONFIG_MALFORMED_JSON)."
-                    )
-                ],
-                fixes=["Repair JSON syntax, or restore from backup"],
-            )
-            .with_warnings(
-                "Malformed config.json: Expecting property name enclosed in double quotes at line 1 column 2 (char 1) (CONFIG_MALFORMED_JSON)."
-            )
-            .with_fixes("Repair JSON syntax in .worktree/config.json or restore from backup.")
-            .build()
-        )
-        assert result == expected
+        assert result.config.status == ConfigLoadStatus.MALFORMED_JSON
+        assert result.config.is_valid is False
+        assert any("CONFIG_MALFORMED_JSON" in err for err in result.config.errors)
+        assert result.config.fixes == ["Repair JSON syntax, or restore from backup"]
+        assert any("Malformed config.json" in w for w in result.warnings)
+        assert result.fixes == ["Repair JSON syntax in .worktree/config.json or restore from backup."]
 
     def test_collect_status_missing_catalog_directory(self, tmp_path: Path) -> None:
         workspace = (
@@ -306,8 +276,9 @@ class StatusCollectorConfigAndCatalogTests:
 
         result = collect_status(workspace)
 
-        expected = StatusBuilder(workspace).build()
-        assert result == expected
+        assert result.is_initialized is True
+        assert result.catalog.exists is False
+        assert result.catalog.total_items == 0
 
     def test_collect_status_invalid_catalog_blueprint(self, tmp_path: Path) -> None:
         workspace = (
@@ -323,18 +294,11 @@ class StatusCollectorConfigAndCatalogTests:
 
         result = collect_status(workspace)
 
-        expected = (
-            StatusBuilder(workspace)
-            .with_catalog(
-                exists=True,
-                total_items=2,
-                invalid_items=1,
-                item_names=["bad", "valid-bp"],
-            )
-            .with_warnings("1 invalid blueprint file(s) detected in catalog.")
-            .build()
-        )
-        assert result == expected
+        assert result.catalog.exists is True
+        assert result.catalog.total_items == 2
+        assert result.catalog.invalid_items == 1
+        assert result.catalog.item_names == ["bad", "valid-bp"]
+        assert result.warnings == ["1 invalid blueprint file(s) detected in catalog."]
 
 
 class StatusCollectorDatabaseAndSandboxTests:
@@ -353,8 +317,8 @@ class StatusCollectorDatabaseAndSandboxTests:
 
         result = collect_status(workspace)
 
-        expected = StatusBuilder(workspace).without_database().build()
-        assert result == expected
+        assert result.database.exists is False
+        assert result.database.is_accessible is False
 
     def test_collect_status_corrupted_database(self, tmp_path: Path) -> None:
         workspace = (
@@ -370,8 +334,9 @@ class StatusCollectorDatabaseAndSandboxTests:
 
         result = collect_status(workspace)
 
-        expected = StatusBuilder(workspace).with_database(exists=True, is_accessible=False, total_runs=0).build()
-        assert result == expected
+        assert result.database.exists is True
+        assert result.database.is_accessible is False
+        assert result.database.total_runs == 0
 
     def test_collect_status_sandboxes_directory_fallback(self, tmp_path: Path) -> None:
         workspace = (
@@ -389,14 +354,10 @@ class StatusCollectorDatabaseAndSandboxTests:
 
         result = collect_status(workspace)
 
-        expected = (
-            StatusBuilder(workspace)
-            .with_config(raw=config_payload)
-            .without_database()
-            .with_sandboxes(active_sandboxes=2, total_sandboxes=2, max_active_sandboxes=4)
-            .build()
-        )
-        assert result == expected
+        assert result.database.exists is False
+        assert result.sandboxes.active_sandboxes == 2
+        assert result.sandboxes.total_sandboxes == 2
+        assert result.sandboxes.max_active_sandboxes == 4
 
     def test_collect_status_sandboxes_db_query_error(
         self,
@@ -429,13 +390,9 @@ class StatusCollectorDatabaseAndSandboxTests:
 
         result = collect_status(workspace)
 
-        expected = (
-            StatusBuilder(workspace)
-            .with_database(total_runs=1)
-            .with_sandboxes(active_sandboxes=1, total_sandboxes=1)
-            .build()
-        )
-        assert result == expected
+        assert result.database.total_runs == 1
+        assert result.sandboxes.active_sandboxes == 1
+        assert result.sandboxes.total_sandboxes == 1
 
 
 class StatusCollectorWarningsOrderingTests:

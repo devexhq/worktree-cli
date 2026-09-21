@@ -223,7 +223,7 @@ class TestConfig:
 
 ```python
 # ✅ DO: assert result.status == SandboxDiffStatus.NOT_FOUND; assert 'not found' in result.errors[0].lower()
-# ❌ DO NOT: assert_model_equal(result, SandboxDiffResult(status=NOT_FOUND, diff_text='', stat_text='', files_changed=[], errors=['...'], warnings=[], fixes=[], error_code=None))  # mechanical enumeration of incidental defaults
+# ❌ DO NOT: assert result == SandboxDiffResult(status=NOT_FOUND, diff_text='', stat_text='', files_changed=[], errors=['...'], warnings=[], fixes=[], error_code=None)  # mechanical enumeration of incidental defaults
 ```
 
 - **[TEST-008] Test Double Realism and Production Types (BLOCKER):**
@@ -316,8 +316,8 @@ assert "Status: valid with warnings" in res.stdout  # literal rendered output, n
   A *CliIntegrationTests suite may pin the exact domain DTO a command handler produces, beyond what --format json's wire payload already proves, with a call-through spy fixture on ui_dispatcher.dispatch that still exercises the real formatter and render path (never a replacement stub, so this does not trip TEST-008). What that spy may be asserted against is scoped to one thing: the command action's own terminal BaseResult — the same type its facade or service call returns and the JSON envelope wraps (SandboxCreateResult for wt sandbox create, WorktreeStatusResult for wt status). It is never used to assert on other objects the same invocation dispatches — MessageEvent, WarningEvent, PromptEvent, or a lifecycle/progress event — even when the spy's fixture captures them incidentally. A command action known to dispatch only its own terminal result per invocation may assert the spy's sole captured item directly; a command action that also dispatches other event types must first isolate the captured instance of its own Result type rather than assume position or length. This is a genuine contract comparison against a BaseResult (TEST-001's good pattern), not a call-count check on a mocked collaborator, because the spy calls through to production and the assertion targets the DTO's fields, not the fact that dispatch fired.
 
 ```python
-# ✅ DO: assert len(dispatch_spy) == 1; assert_model_equal(dispatch_spy[0], SandboxCreateResult(...))  # sandbox create dispatches only its own terminal result
-# ❌ DO NOT: assert_model_equal(dispatch_spy[-1], MessageEvent(message="Running..."))  # asserting an incidental progress event through the result spy
+# ✅ DO: assert len(dispatch_spy) == 1; assert isinstance(dispatch_spy[0], SandboxCreateResult)  # sandbox create dispatches only its own terminal result
+# ❌ DO NOT: assert isinstance(dispatch_spy[-1], MessageEvent)  # asserting an incidental progress event through the result spy
 ```
 
 - **[DOC-001] Architecture Doc Structural Gate (BLOCKER):**

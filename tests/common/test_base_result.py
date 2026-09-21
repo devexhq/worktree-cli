@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pytest
 
-from tests.harness.matchers import assert_model_equal
 from worktree.common.error_codes import ErrorCode
 from worktree.common.models import BaseResult
 
@@ -20,17 +19,17 @@ class BaseResultTests:
     def test_no_errors_or_warnings_defaults_error_code_to_none(self) -> None:
         """[tier-1/unit] BaseResult: no-arg construction equals BaseResult(errors=[], warnings=[], fixes=[], error_code=None)."""
         result = BaseResult()
-        assert_model_equal(result, BaseResult(errors=[], warnings=[], fixes=[], error_code=None))
+        assert result == BaseResult(errors=[], warnings=[], fixes=[], error_code=None)
 
     def test_warnings_only_defaults_error_code_to_none(self) -> None:
         """[tier-1/unit] BaseResult: warnings-only construction equals BaseResult(errors=[], warnings=["careful"], fixes=[], error_code=None)."""
         result = BaseResult(warnings=["careful"])
-        assert_model_equal(result, BaseResult(errors=[], warnings=["careful"], fixes=[], error_code=None))
+        assert result == BaseResult(errors=[], warnings=["careful"], fixes=[], error_code=None)
 
     def test_errors_present_without_error_code_does_not_raise(self) -> None:
         """[tier-1/unit] BaseResult: errors present with no error_code constructs successfully (validator short-circuited); equals BaseResult(errors=["boom"], warnings=[], fixes=[], error_code=None)."""
         result = BaseResult(errors=["boom"])
-        assert_model_equal(result, BaseResult(errors=["boom"], warnings=[], fixes=[], error_code=None))
+        assert result == BaseResult(errors=["boom"], warnings=[], fixes=[], error_code=None)
 
     @pytest.mark.parametrize(("error_code_value", "expected_str"), ERROR_CODE_VALUE_CASES)
     def test_errors_present_with_error_code_value_is_stored(
@@ -38,4 +37,4 @@ class BaseResultTests:
     ) -> None:
         """[tier-1/unit] BaseResult: error_code accepts an ErrorCode member or a plain string; equals BaseResult(errors=["boom"], warnings=[], fixes=[], error_code=expected_str)."""
         result = BaseResult(errors=["boom"], error_code=error_code_value)
-        assert_model_equal(result, BaseResult(errors=["boom"], warnings=[], fixes=[], error_code=expected_str))
+        assert result == BaseResult(errors=["boom"], warnings=[], fixes=[], error_code=expected_str)

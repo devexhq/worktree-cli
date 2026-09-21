@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-from tests.harness import ANY_DURATION, assert_model_equal
 from worktree.common.filesystem import Filesystem
 from worktree.core.config.models import (
     DoctorConfig,
@@ -22,7 +21,6 @@ from worktree.core.doctor.models import (
     CheckStatus,
     DiagnosticCheckResult,
     DoctorContext,
-    DoctorReport,
 )
 from worktree.core.doctor.services.registry import CheckRegistry
 
@@ -70,32 +68,10 @@ class DoctorCoordinatorTests:
 
         report = doctor.run_diagnostics()
 
-        assert_model_equal(
-            report,
-            DoctorReport.model_construct(
-                workspace_root=tmp_path.resolve(),
-                checks=[
-                    DiagnosticCheckResult.model_construct(
-                        check_id="test.delegation",
-                        name="Dummy Doctor Check",
-                        category=CheckCategory.GIT,
-                        status=CheckStatus.OK,
-                        message="Executed test.delegation",
-                        details={},
-                        duration_ms=0.5,
-                        error_code=None,
-                        errors=[],
-                        warnings=[],
-                        fixes=[],
-                        remediations=[],
-                    ),
-                ],
-                total_duration_ms=ANY_DURATION,
-            ),
-        )
         assert report.workspace_root == tmp_path.resolve()
         assert len(report.checks) == 1
         assert report.checks[0].check_id == "test.delegation"
+        assert report.checks[0].status == CheckStatus.OK
         assert report.ok is True
         assert check.captured_context is not None
         assert check.captured_context.cwd == tmp_path.resolve()
@@ -117,30 +93,9 @@ class DoctorCoordinatorTests:
 
         report = doctor.run_diagnostics(config=None)
 
-        assert_model_equal(
-            report,
-            DoctorReport.model_construct(
-                workspace_root=tmp_path.resolve(),
-                checks=[
-                    DiagnosticCheckResult.model_construct(
-                        check_id="git.repo",
-                        name="Dummy Doctor Check",
-                        category=CheckCategory.GIT,
-                        status=CheckStatus.SKIPPED,
-                        message="Check 'git.repo' skipped by configuration.",
-                        details={},
-                        duration_ms=0.0,
-                        error_code=None,
-                        errors=[],
-                        warnings=[],
-                        fixes=[],
-                        remediations=[],
-                    ),
-                ],
-                total_duration_ms=ANY_DURATION,
-            ),
-        )
+        assert report.workspace_root == tmp_path.resolve()
         assert len(report.checks) == 1
+        assert report.checks[0].check_id == "git.repo"
         assert report.checks[0].status == CheckStatus.SKIPPED
         assert report.checks[0].message == "Check 'git.repo' skipped by configuration."
 
@@ -158,30 +113,9 @@ class DoctorCoordinatorTests:
 
         report = doctor.run_diagnostics(config=explicit_config)
 
-        assert_model_equal(
-            report,
-            DoctorReport.model_construct(
-                workspace_root=tmp_path.resolve(),
-                checks=[
-                    DiagnosticCheckResult.model_construct(
-                        check_id="git.repo",
-                        name="Dummy Doctor Check",
-                        category=CheckCategory.GIT,
-                        status=CheckStatus.SKIPPED,
-                        message="Check 'git.repo' skipped by configuration.",
-                        details={},
-                        duration_ms=0.0,
-                        error_code=None,
-                        errors=[],
-                        warnings=[],
-                        fixes=[],
-                        remediations=[],
-                    ),
-                ],
-                total_duration_ms=ANY_DURATION,
-            ),
-        )
+        assert report.workspace_root == tmp_path.resolve()
         assert len(report.checks) == 1
+        assert report.checks[0].check_id == "git.repo"
         assert report.checks[0].status == CheckStatus.SKIPPED
 
     def test_run_diagnostics_propagates_category_filter(self, tmp_path: Path) -> None:
@@ -194,31 +128,10 @@ class DoctorCoordinatorTests:
 
         report = doctor.run_diagnostics(categories=[CheckCategory.CONFIG])
 
-        assert_model_equal(
-            report,
-            DoctorReport.model_construct(
-                workspace_root=tmp_path.resolve(),
-                checks=[
-                    DiagnosticCheckResult.model_construct(
-                        check_id="config.schema",
-                        name="Dummy Doctor Check",
-                        category=CheckCategory.CONFIG,
-                        status=CheckStatus.OK,
-                        message="Executed config.schema",
-                        details={},
-                        duration_ms=0.5,
-                        error_code=None,
-                        errors=[],
-                        warnings=[],
-                        fixes=[],
-                        remediations=[],
-                    ),
-                ],
-                total_duration_ms=ANY_DURATION,
-            ),
-        )
+        assert report.workspace_root == tmp_path.resolve()
         assert len(report.checks) == 1
         assert report.checks[0].check_id == "config.schema"
+        assert report.checks[0].status == CheckStatus.OK
 
 
 class DoctorDefaultRegistryTests:

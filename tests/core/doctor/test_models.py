@@ -5,7 +5,6 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from tests.harness import assert_model_equal
 from worktree.core.config.models import ProjectConfig, WorktreeConfig
 from worktree.core.doctor.models import (
     CheckCategory,
@@ -82,23 +81,6 @@ class DoctorModelsTests:
         )
 
         assert result.ok is expected_ok
-        assert_model_equal(
-            result,
-            DiagnosticCheckResult(
-                check_id="test.status",
-                name="Status Check",
-                category=CheckCategory.CONFIG,
-                status=status,
-                message=f"Status is {status}",
-                details={"key": "value"},
-                duration_ms=4.2,
-                error_code="TEST_ERROR" if status == CheckStatus.FAILED else None,
-                errors=[f"Error: {status}"] if status == CheckStatus.FAILED else [],
-                warnings=[f"Warning: {status}"] if status == CheckStatus.WARNING else [],
-                fixes=[],
-                remediations=[],
-            ),
-        )
 
     def test_doctor_context_extra_fields_forbidden(self, tmp_path: Path) -> None:
         """[tier-1/unit] DoctorContext: instantiating with unknown keyword argument raises ValidationError."""
@@ -170,14 +152,6 @@ class DoctorReportModelsTests:
         assert report.has_warnings is False
         assert report.failed_checks == []
         assert report.warning_checks == []
-        assert_model_equal(
-            report,
-            DoctorReport(
-                workspace_root=tmp_path,
-                checks=[check1, check2],
-                total_duration_ms=1.0,
-            ),
-        )
 
     def test_report_ok_false_when_any_check_failed(self, tmp_path: Path) -> None:
         """[tier-1/unit] DoctorReport.ok: returns False when any executed check has status FAILED."""
@@ -215,14 +189,6 @@ class DoctorReportModelsTests:
             total_duration_ms=3.5,
         )
 
-        assert_model_equal(
-            report,
-            DoctorReport(
-                workspace_root=tmp_path,
-                checks=[check_ok, check_failed],
-                total_duration_ms=3.5,
-            ),
-        )
         assert report.ok is False
         assert report.failed_checks == [check_failed]
         assert report.warning_checks == []
@@ -249,14 +215,6 @@ class DoctorReportModelsTests:
             total_duration_ms=1.2,
         )
 
-        assert_model_equal(
-            report,
-            DoctorReport(
-                workspace_root=tmp_path,
-                checks=[check_warn],
-                total_duration_ms=1.2,
-            ),
-        )
         assert report.ok is True
         assert report.has_warnings is True
         assert report.warning_checks == [check_warn]
@@ -327,14 +285,6 @@ class DoctorReportModelsTests:
             total_duration_ms=5.0,
         )
 
-        assert_model_equal(
-            report,
-            DoctorReport(
-                workspace_root=tmp_path,
-                checks=[check_ok, check_warn, check_fail, check_skip],
-                total_duration_ms=5.0,
-            ),
-        )
         assert report.ok is False
         assert report.has_warnings is True
         assert report.failed_checks == [check_fail]

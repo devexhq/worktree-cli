@@ -5,7 +5,7 @@ subprocess boundary, so a test can monkeypatch a single configurable object inst
 hand-rolling a `fake_run` closure with an ad-hoc captured dict per test file. Configure it
 to return a canned CompletedProcess via `.returning(...)`, or to raise a canned exception
 via `.raising(...)`; every call is recorded on `.calls`/`.last_call` as a FakeAgentRunnerCall,
-a pydantic model so it can be checked with assert_model_equal like any other result.
+a pydantic model for inspecting call arguments.
 """
 
 from __future__ import annotations

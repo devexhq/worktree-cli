@@ -7,10 +7,10 @@ from pathlib import Path
 
 import pytest
 
-from tests.harness import WorkspaceBuilder, assert_model_equal
+from tests.harness import WorkspaceBuilder
 from worktree.core.db import SandboxesRepository
 from worktree.core.doctor.checks.sandbox_refs import SandboxRefsCheck
-from worktree.core.doctor.models import CheckCategory, CheckStatus, DiagnosticCheckResult, DoctorContext
+from worktree.core.doctor.models import CheckCategory, CheckStatus, DoctorContext
 from worktree.core.git.exceptions import GitCommandError
 from worktree.core.git.runner import GitRunner
 
@@ -31,23 +31,11 @@ class SandboxRefsCheckTests:
 
         result = check.execute(context)
 
-        assert_model_equal(
-            result,
-            DiagnosticCheckResult.model_construct(
-                check_id="sandbox.refs",
-                name="Sandbox References Check",
-                category=CheckCategory.SANDBOX,
-                status=CheckStatus.OK,
-                message="0 sandbox(es) verified against database and Git worktree state.",
-                details={"verified_count": 0},
-                duration_ms=0.0,
-                error_code=None,
-                errors=[],
-                warnings=[],
-                fixes=[],
-                remediations=[],
-            ),
-        )
+        assert result.check_id == "sandbox.refs"
+        assert result.category == CheckCategory.SANDBOX
+        assert result.status == CheckStatus.OK
+        assert result.error_code is None
+        assert result.details == {"verified_count": 0}
         assert not (tmp_path / ".worktree" / "data.db").exists()
 
     def test_execute_clean_workspace_returns_ok_with_verified_count(self, sandbox_refs_workspace: Path) -> None:
@@ -57,23 +45,11 @@ class SandboxRefsCheckTests:
 
         result = check.execute(context)
 
-        assert_model_equal(
-            result,
-            DiagnosticCheckResult.model_construct(
-                check_id="sandbox.refs",
-                name="Sandbox References Check",
-                category=CheckCategory.SANDBOX,
-                status=CheckStatus.OK,
-                message="0 sandbox(es) verified against database and Git worktree state.",
-                details={"verified_count": 0},
-                duration_ms=0.0,
-                error_code=None,
-                errors=[],
-                warnings=[],
-                fixes=[],
-                remediations=[],
-            ),
-        )
+        assert result.check_id == "sandbox.refs"
+        assert result.category == CheckCategory.SANDBOX
+        assert result.status == CheckStatus.OK
+        assert result.error_code is None
+        assert result.details == {"verified_count": 0}
 
     def test_execute_stale_worktree_ref_returns_warning_stale(self, sandbox_refs_workspace: Path) -> None:
         """[tier-1/unit] SandboxRefsCheck.execute: registered git worktree whose directory was removed -> WARNING, error_code='DOCTOR_SANDBOX_STALE', details={'stale_ids': [str(target_path)]}."""
@@ -90,24 +66,12 @@ class SandboxRefsCheckTests:
 
         result = check.execute(context)
 
-        message = "1 stale sandbox reference(s) detected."
-        assert_model_equal(
-            result,
-            DiagnosticCheckResult.model_construct(
-                check_id="sandbox.refs",
-                name="Sandbox References Check",
-                category=CheckCategory.SANDBOX,
-                status=CheckStatus.WARNING,
-                message=message,
-                details={"stale_ids": [str(target)]},
-                duration_ms=0.0,
-                error_code="DOCTOR_SANDBOX_STALE",
-                errors=[],
-                warnings=[message],
-                fixes=[],
-                remediations=[],
-            ),
-        )
+        assert result.check_id == "sandbox.refs"
+        assert result.category == CheckCategory.SANDBOX
+        assert result.status == CheckStatus.WARNING
+        assert result.error_code == "DOCTOR_SANDBOX_STALE"
+        assert result.details == {"stale_ids": [str(target)]}
+        assert result.warnings == ["1 stale sandbox reference(s) detected."]
 
     def test_execute_stale_db_record_returns_warning_stale(self, sandbox_refs_workspace: Path) -> None:
         """[tier-1/unit] SandboxRefsCheck.execute: active SandboxesRepository record 'sbx_missing' whose sandbox_path is absent on disk -> WARNING, error_code='DOCTOR_SANDBOX_STALE', details={'stale_ids': ['sbx_missing']}."""
@@ -124,24 +88,12 @@ class SandboxRefsCheckTests:
 
         result = check.execute(context)
 
-        message = "1 stale sandbox reference(s) detected."
-        assert_model_equal(
-            result,
-            DiagnosticCheckResult.model_construct(
-                check_id="sandbox.refs",
-                name="Sandbox References Check",
-                category=CheckCategory.SANDBOX,
-                status=CheckStatus.WARNING,
-                message=message,
-                details={"stale_ids": ["sbx_missing"]},
-                duration_ms=0.0,
-                error_code="DOCTOR_SANDBOX_STALE",
-                errors=[],
-                warnings=[message],
-                fixes=[],
-                remediations=[],
-            ),
-        )
+        assert result.check_id == "sandbox.refs"
+        assert result.category == CheckCategory.SANDBOX
+        assert result.status == CheckStatus.WARNING
+        assert result.error_code == "DOCTOR_SANDBOX_STALE"
+        assert result.details == {"stale_ids": ["sbx_missing"]}
+        assert result.warnings == ["1 stale sandbox reference(s) detected."]
 
     def test_execute_orphaned_directory_returns_warning_orphan(self, sandbox_refs_workspace: Path) -> None:
         """[tier-1/unit] SandboxRefsCheck.execute: untracked directory 'sbx_clean' under .worktree/sandboxes -> WARNING, error_code='DOCTOR_SANDBOX_ORPHAN', details={'orphan_directories': ['sbx_clean']}."""
@@ -153,24 +105,12 @@ class SandboxRefsCheckTests:
 
         result = check.execute(context)
 
-        message = "1 orphaned sandbox directory(s) detected."
-        assert_model_equal(
-            result,
-            DiagnosticCheckResult.model_construct(
-                check_id="sandbox.refs",
-                name="Sandbox References Check",
-                category=CheckCategory.SANDBOX,
-                status=CheckStatus.WARNING,
-                message=message,
-                details={"orphan_directories": ["sbx_clean"]},
-                duration_ms=0.0,
-                error_code="DOCTOR_SANDBOX_ORPHAN",
-                errors=[],
-                warnings=[message],
-                fixes=[],
-                remediations=[],
-            ),
-        )
+        assert result.check_id == "sandbox.refs"
+        assert result.category == CheckCategory.SANDBOX
+        assert result.status == CheckStatus.WARNING
+        assert result.error_code == "DOCTOR_SANDBOX_ORPHAN"
+        assert result.details == {"orphan_directories": ["sbx_clean"]}
+        assert result.warnings == ["1 orphaned sandbox directory(s) detected."]
 
     def test_execute_stale_and_orphan_both_present_prioritizes_stale(self, sandbox_refs_workspace: Path) -> None:
         """[tier-1/unit] SandboxRefsCheck.execute: both a stale DB record 'sbx_missing' and an orphaned directory 'sbx_clean' exist -> WARNING, error_code='DOCTOR_SANDBOX_STALE', details=={'stale_ids': ['sbx_missing']} only (no 'orphan_directories' key)."""
@@ -190,24 +130,12 @@ class SandboxRefsCheckTests:
 
         result = check.execute(context)
 
-        message = "1 stale sandbox reference(s) detected."
-        assert_model_equal(
-            result,
-            DiagnosticCheckResult.model_construct(
-                check_id="sandbox.refs",
-                name="Sandbox References Check",
-                category=CheckCategory.SANDBOX,
-                status=CheckStatus.WARNING,
-                message=message,
-                details={"stale_ids": ["sbx_missing"]},
-                duration_ms=0.0,
-                error_code="DOCTOR_SANDBOX_STALE",
-                errors=[],
-                warnings=[message],
-                fixes=[],
-                remediations=[],
-            ),
-        )
+        assert result.check_id == "sandbox.refs"
+        assert result.category == CheckCategory.SANDBOX
+        assert result.status == CheckStatus.WARNING
+        assert result.error_code == "DOCTOR_SANDBOX_STALE"
+        assert result.details == {"stale_ids": ["sbx_missing"]}
+        assert result.warnings == ["1 stale sandbox reference(s) detected."]
 
     def test_execute_git_worktree_list_failure_returns_warning_with_no_error_code(
         self, sandbox_refs_workspace: Path, monkeypatch: pytest.MonkeyPatch
@@ -223,21 +151,9 @@ class SandboxRefsCheckTests:
 
         result = check.execute(context)
 
-        message = "Sandbox detection could not complete (status='git_failed')."
-        assert_model_equal(
-            result,
-            DiagnosticCheckResult.model_construct(
-                check_id="sandbox.refs",
-                name="Sandbox References Check",
-                category=CheckCategory.SANDBOX,
-                status=CheckStatus.WARNING,
-                message=message,
-                details={"detection_status": "git_failed"},
-                duration_ms=0.0,
-                error_code=None,
-                errors=[],
-                warnings=[message],
-                fixes=[],
-                remediations=[],
-            ),
-        )
+        assert result.check_id == "sandbox.refs"
+        assert result.category == CheckCategory.SANDBOX
+        assert result.status == CheckStatus.WARNING
+        assert result.error_code is None
+        assert result.details == {"detection_status": "git_failed"}
+        assert result.warnings == ["Sandbox detection could not complete (status='git_failed')."]

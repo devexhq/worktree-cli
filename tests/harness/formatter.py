@@ -9,7 +9,6 @@ from typing import Any
 from pydantic import BaseModel
 from rich.console import Console
 
-from tests.harness.matchers import assert_model_equal
 from worktree.common.types import ComponentFormatter
 
 
@@ -173,10 +172,7 @@ def assert_transform_derives_expected_view[TData, TView: BaseModel](
     """
     formatter = formatter_cls() if isinstance(formatter_cls, type) else formatter_cls
     actual_view = formatter.transform(domain_result)
-    if isinstance(actual_view, BaseModel) and isinstance(expected_view, BaseModel):
-        assert_model_equal(actual_view, expected_view)
-    else:
-        assert actual_view == expected_view
+    assert actual_view == expected_view
 
 
 def _dump_without_formatter(target: object) -> dict[str, Any]:

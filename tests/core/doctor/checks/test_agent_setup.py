@@ -6,10 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from tests.harness import assert_model_equal
 from worktree.core.config.models import AgentConfig, AgentProvider, ProjectConfig, WorktreeConfig
 from worktree.core.doctor.checks.agent_setup import PROVIDER_CREDENTIAL_RESOLVERS, AgentSetupCheck
-from worktree.core.doctor.models import CheckCategory, CheckStatus, DiagnosticCheckResult, DoctorContext
+from worktree.core.doctor.models import CheckCategory, CheckStatus, DoctorContext
 
 
 def _context_with_agent(cwd: Path, agent: AgentConfig) -> DoctorContext:
@@ -27,24 +26,13 @@ class AgentSetupCheckTests:
 
         result = check.execute(context)
 
-        message = "Agent provider 'local' has no model configured."
-        assert_model_equal(
-            result,
-            DiagnosticCheckResult.model_construct(
-                check_id="agent.setup",
-                name="Agent Setup Check",
-                category=CheckCategory.AGENT,
-                status=CheckStatus.WARNING,
-                message=message,
-                details={"provider": "local"},
-                duration_ms=0.0,
-                error_code="DOCTOR_AGENT_NO_MODEL",
-                errors=[],
-                warnings=[message],
-                fixes=[],
-                remediations=[],
-            ),
-        )
+        assert result.check_id == "agent.setup"
+        assert result.category == CheckCategory.AGENT
+        assert result.status == CheckStatus.WARNING
+        assert result.error_code == "DOCTOR_AGENT_NO_MODEL"
+        assert result.details == {"provider": "local"}
+        assert "Agent provider 'local' has no model configured." in result.message
+        assert result.warnings == [result.message]
 
     def test_execute_local_provider_with_model_returns_ok(self, tmp_path: Path) -> None:
         """[tier-1/unit] AgentSetupCheck.execute: agent.provider='local', agent.model='worktree-local-agent' -> OK, error_code=None, details={'provider': 'local', 'model': 'worktree-local-agent'}."""
@@ -53,23 +41,11 @@ class AgentSetupCheckTests:
 
         result = check.execute(context)
 
-        assert_model_equal(
-            result,
-            DiagnosticCheckResult.model_construct(
-                check_id="agent.setup",
-                name="Agent Setup Check",
-                category=CheckCategory.AGENT,
-                status=CheckStatus.OK,
-                message="Agent provider 'local' is configured with model 'worktree-local-agent'.",
-                details={"provider": "local", "model": "worktree-local-agent"},
-                duration_ms=0.0,
-                error_code=None,
-                errors=[],
-                warnings=[],
-                fixes=[],
-                remediations=[],
-            ),
-        )
+        assert result.check_id == "agent.setup"
+        assert result.category == CheckCategory.AGENT
+        assert result.status == CheckStatus.OK
+        assert result.error_code is None
+        assert result.details == {"provider": "local", "model": "worktree-local-agent"}
 
     def test_execute_ollama_provider_no_resolver_missing_model_returns_warning(self, tmp_path: Path) -> None:
         """[tier-1/unit] AgentSetupCheck.execute: agent.provider='ollama', agent.model=None -> WARNING, error_code='DOCTOR_AGENT_NO_MODEL' (never FAILED, ollama has no credential resolver)."""
@@ -78,24 +54,13 @@ class AgentSetupCheckTests:
 
         result = check.execute(context)
 
-        message = "Agent provider 'ollama' has no model configured."
-        assert_model_equal(
-            result,
-            DiagnosticCheckResult.model_construct(
-                check_id="agent.setup",
-                name="Agent Setup Check",
-                category=CheckCategory.AGENT,
-                status=CheckStatus.WARNING,
-                message=message,
-                details={"provider": "ollama"},
-                duration_ms=0.0,
-                error_code="DOCTOR_AGENT_NO_MODEL",
-                errors=[],
-                warnings=[message],
-                fixes=[],
-                remediations=[],
-            ),
-        )
+        assert result.check_id == "agent.setup"
+        assert result.category == CheckCategory.AGENT
+        assert result.status == CheckStatus.WARNING
+        assert result.error_code == "DOCTOR_AGENT_NO_MODEL"
+        assert result.details == {"provider": "ollama"}
+        assert "Agent provider 'ollama' has no model configured." in result.message
+        assert result.warnings == [result.message]
 
     @pytest.mark.parametrize(
         ("provider", "expected_env"),
@@ -120,23 +85,12 @@ class AgentSetupCheckTests:
         result = check.execute(context)
 
         message = f"Agent provider '{provider}' is missing required credential '{expected_env}'."
-        assert_model_equal(
-            result,
-            DiagnosticCheckResult.model_construct(
-                check_id="agent.setup",
-                name="Agent Setup Check",
-                category=CheckCategory.AGENT,
-                status=CheckStatus.FAILED,
-                message=message,
-                details={"provider": provider, "missing_env_var": expected_env},
-                duration_ms=0.0,
-                error_code="DOCTOR_AGENT_KEY_MISSING",
-                errors=[message],
-                warnings=[],
-                fixes=[],
-                remediations=[],
-            ),
-        )
+        assert result.check_id == "agent.setup"
+        assert result.category == CheckCategory.AGENT
+        assert result.status == CheckStatus.FAILED
+        assert result.error_code == "DOCTOR_AGENT_KEY_MISSING"
+        assert result.details == {"provider": provider, "missing_env_var": expected_env}
+        assert result.errors == [message]
 
     @pytest.mark.parametrize(
         "provider",
@@ -157,20 +111,8 @@ class AgentSetupCheckTests:
 
         result = check.execute(context)
 
-        assert_model_equal(
-            result,
-            DiagnosticCheckResult.model_construct(
-                check_id="agent.setup",
-                name="Agent Setup Check",
-                category=CheckCategory.AGENT,
-                status=CheckStatus.OK,
-                message=f"Agent provider '{provider}' is configured with model 'claude-fake'.",
-                details={"provider": provider, "model": "claude-fake"},
-                duration_ms=0.0,
-                error_code=None,
-                errors=[],
-                warnings=[],
-                fixes=[],
-                remediations=[],
-            ),
-        )
+        assert result.check_id == "agent.setup"
+        assert result.category == CheckCategory.AGENT
+        assert result.status == CheckStatus.OK
+        assert result.error_code is None
+        assert result.details == {"provider": provider, "model": "claude-fake"}

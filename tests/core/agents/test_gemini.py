@@ -7,17 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from tests.harness import (
-    ANY_ENV,
-    ANY_STRING,
-    AgentRequestBuilder,
-    AgentResponseBuilder,
-    FakeAgentRunner,
-    FakeAgentRunnerCall,
-    assert_model_equal,
-)
+from tests.harness import AgentRequestBuilder, FakeAgentRunner
 from worktree.core.agents import AgentResponseStatus
-from worktree.core.agents.cli_mutation import CliMutationOutcome, CliMutationRunRequest
+from worktree.core.agents.cli_mutation import CliMutationRunRequest
 from worktree.core.agents.gemini import (
     GEMINI_API_KEY_ENV,
     GeminiAgentAdapter,
@@ -50,15 +42,10 @@ class GeminiAuthTests:
 
         resp = adapter.propose_fix(AgentRequestBuilder().with_sandbox_path(tmp_path).build())
 
-        assert_model_equal(
-            resp,
-            AgentResponseBuilder()
-            .with_status(AgentResponseStatus.PROVIDER_ERROR)
-            .with_errors(
-                "Agent provider error (AGENT_PROVIDER_ERROR): missing GEMINI_API_KEY. Fix: export GEMINI_API_KEY=..."
-            )
-            .build(),
-        )
+        assert resp.status == AgentResponseStatus.PROVIDER_ERROR
+        assert resp.errors == [
+            "Agent provider error (AGENT_PROVIDER_ERROR): missing GEMINI_API_KEY. Fix: export GEMINI_API_KEY=..."
+        ]
 
 
 class GeminiRunTests:
@@ -76,21 +63,16 @@ class GeminiRunTests:
             )
         )
 
-        assert_model_equal(outcome, CliMutationOutcome(status="finished", result_text="pong", error_detail=None))
-        # env is ANY_ENV, not a pinned literal, because it's os.environ.copy() plus the
-        # resolved API key and so is host-dependent; the follow-up assertion pins the one
-        # key this test does own.
-        assert_model_equal(
-            runner.last_call,
-            FakeAgentRunnerCall.model_construct(
-                cmd=["gemini", "-p", "", "-o", "json", "--yolo", "-m", "gemini-2.5-flash"],
-                cwd=tmp_path,
-                env=ANY_ENV,
-                input_data=b"hi",
-                timeout_seconds=3,
-            ),
-        )
-        assert runner.last_call.env[GEMINI_API_KEY_ENV] == "test-key"
+        assert outcome.status == "finished"
+        assert outcome.result_text == "pong"
+        assert outcome.error_detail is None
+
+        call = runner.last_call
+        assert call.cmd == ["gemini", "-p", "", "-o", "json", "--yolo", "-m", "gemini-2.5-flash"]
+        assert call.cwd == tmp_path
+        assert call.input_data == b"hi"
+        assert call.timeout_seconds == 3
+        assert call.env[GEMINI_API_KEY_ENV] == "test-key"
 
     def test_missing_gemini_binary_returns_error_status(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """A missing gemini binary maps to an error outcome naming the Gemini CLI."""
@@ -101,13 +83,8 @@ class GeminiRunTests:
             CliMutationRunRequest(sandbox_path=tmp_path, prompt="hi", model=None, timeout_seconds=3)
         )
 
-        # error_detail is ANY_STRING here, not a pinned literal, because it embeds a live
-        # external URL (the gemini-cli repo link) not worth hard-pinning; the follow-up
-        # assertion below pins the "install the Gemini CLI" part this test does own.
-        assert_model_equal(
-            outcome,
-            CliMutationOutcome.model_construct(status="error", result_text=None, error_detail=ANY_STRING),
-        )
+        assert outcome.status == "error"
+        assert outcome.result_text is None
         assert outcome.error_detail is not None and "install the Gemini CLI" in outcome.error_detail
 
     def test_process_timeout_returns_timeout_status(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -119,4 +96,6 @@ class GeminiRunTests:
             CliMutationRunRequest(sandbox_path=tmp_path, prompt="hi", model=None, timeout_seconds=3)
         )
 
-        assert_model_equal(outcome, CliMutationOutcome(status="timeout", result_text=None, error_detail=None))
+        assert outcome.status == "timeout"
+        assert outcome.result_text is None
+        assert outcome.error_detail is None

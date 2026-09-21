@@ -387,7 +387,7 @@
       "domain": "tests",
       "scope": "tests/",
       "evaluation_criteria": "Flag tests that mechanically enumerate empty or default envelope fields (error_code=None, warnings=[], fixes=[]) when testing unrelated behavior. Verify that models have dedicated contract tests asserting their defaults and schema. In scenario tests, verify assertions check meaningful domain contracts rather than incidental defaults.",
-      "bad_pattern": "assert_model_equal(result, SandboxDiffResult(status=NOT_FOUND, diff_text='', stat_text='', files_changed=[], errors=['...'], warnings=[], fixes=[], error_code=None))  # mechanical enumeration of incidental defaults"
+      "bad_pattern": "assert result == SandboxDiffResult(status=NOT_FOUND, diff_text='', stat_text='', files_changed=[], errors=['...'], warnings=[], fixes=[], error_code=None)  # mechanical enumeration of incidental defaults"
     },
     {
       "id": "TEST-008",
@@ -486,7 +486,7 @@
       "domain": "tests",
       "scope": "tests/cli/",
       "evaluation_criteria": "Inspect any dispatch-spy fixture use under tests/cli/. Verify every assertion made against a captured item is an instance of that command action's own declared Result type. Flag an assertion against any other dispatched event type captured by the same spy, and flag spy[0]/len(spy) == 1 relied on without isolating the command's own Result type for a command action that can plausibly dispatch more than its terminal result in the same invocation.",
-      "bad_pattern": "assert_model_equal(dispatch_spy[-1], MessageEvent(message=\"Running...\"))  # asserting an incidental progress event through the result spy"
+      "bad_pattern": "assert isinstance(dispatch_spy[-1], MessageEvent)  # asserting an incidental progress event through the result spy"
     },
     {
       "id": "DOC-001",
