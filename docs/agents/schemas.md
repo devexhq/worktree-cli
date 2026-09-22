@@ -84,6 +84,10 @@ All operations that can fail return a Pydantic result object subclassing `BaseRe
 - `ConfigUnsetResult`: Result of removing a dot-path key from config (`status`, `config_path`, `key`, `existed`, `previous_value`, `errors`, `ok`).
 - `ConfigGenerationResult`: Result of creating, repairing, or overwriting config (`created`, `skipped_existing`, `repaired`, `overwritten`, `inserted_keys`, `warnings`, `errors`, `ok`).
 
+### Project Identity Model
+**Relevant source:** `src/worktree/core/project/models.py`.
+- `ProjectIdentity`: Strict, extra-forbidding stable project identity. Its identifier is lowercase URL-safe text from 3 to 63 characters, optional display names must contain a non-whitespace character, and creation timestamps must be UTC.
+
 ### Blueprint & Step Models
 **Relevant sources:** `src/worktree/core/blueprint/models.py`, `src/worktree/core/step/models.py`, `src/worktree/core/inputs/models.py`.
 - `BlueprintDefinition`: Unified model for task and workflow blueprints (`id`, `name`, `description`, `kind`, `inputs`, `defaults`, `steps`, `use_sandbox`).
@@ -249,6 +253,7 @@ Each CLI command package under `src/worktree/cli/<name>/` contains:
 
 **Relevant sources:**
 - `src/worktree/schemas/v1/config.json`
+- `src/worktree/schemas/v1/project.json`
 - `src/worktree/schemas/v1/workflow.json`
 - `src/worktree/common/schema_validation.py`
 
@@ -261,6 +266,8 @@ Each CLI command package under `src/worktree/cli/<name>/` contains:
 - **Workflow V1 (`v1/workflow.json`)**:
   - Validates workflow and task YAML definitions.
   - Enforces schema for `steps`, `inputs`, `defaults`, and `assert` blocks.
+- **Project identity V1 (`v1/project.json`)**:
+  - Validates closed project identity objects with a lowercase URL-safe identifier, optional non-blank display name, and UTC ISO-8601 creation timestamp.
 - **Validation Engine**:
   - Evaluated via `SchemaValidator` (`common/schema_validation.py`).
   - Wraps `jsonschema.Draft202012Validator` and returns a non-raising `ValidationResult(ok, errors)`.
