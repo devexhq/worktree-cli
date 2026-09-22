@@ -1,11 +1,20 @@
 """Unit tests for worktree.core.project.models."""
 
 from datetime import UTC, datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
-from worktree.core.project.models import ProjectIdentity
+from worktree.core.project.models import (
+    ProjectIdentity,
+    ProjectIdentityError,
+    ProjectIdentityErrorType,
+    ProjectIdentityLoadResult,
+    ProjectIdentityLoadStatus,
+    ProjectIdentitySaveResult,
+    ProjectIdentitySaveStatus,
+)
 
 UTC_TIMESTAMP = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
 NAIVE_TIMESTAMP = datetime(2026, 1, 2, 3, 4, 5)
@@ -73,3 +82,60 @@ class ProjectIdentityModelsTests:
                     "unknown_field": "disallowed",
                 }
             )
+
+    @pytest.mark.parametrize(
+        ("dto_type", "payload"),
+        [
+            pytest.param(
+                ProjectIdentityError,
+                {
+                    "error_type": ProjectIdentityErrorType.NOT_FOUND,
+                    "message": "not found",
+                    "path": "project.json",
+                },
+                id="error",
+            ),
+            pytest.param(
+                ProjectIdentityLoadResult,
+                {
+                    "status": ProjectIdentityLoadStatus.OK,
+                    "path": Path("project.json"),
+                },
+                id="load_result",
+            ),
+            pytest.param(
+                ProjectIdentitySaveResult,
+                {
+                    "status": ProjectIdentitySaveStatus.OK,
+                    "path": Path("project.json"),
+                },
+                id="save_result",
+            ),
+        ],
+    )
+    def test_persistence_dtos_reject_unknown_fields(
+        self, dto_type: type[BaseModel], payload: dict[str, object]
+    ) -> None:
+        """Persistence DTOs reject fields outside their strict schemas."""
+        with pytest.raises(ValidationError):
+            dto_type.model_validate({**payload, "unknown_field": "disallowed"})
+
+    @pytest.mark.parametrize(
+        "result",
+        [
+            pytest.param(
+                ProjectIdentityLoadResult(status=ProjectIdentityLoadStatus.OK, path=Path("project.json")),
+                id="load_result",
+            ),
+            pytest.param(
+                ProjectIdentitySaveResult(status=ProjectIdentitySaveStatus.OK, path=Path("project.json")),
+                id="save_result",
+            ),
+        ],
+    )
+    def test_persistence_results_inherit_empty_base_result_envelope(
+        self, result: ProjectIdentityLoadResult | ProjectIdentitySaveResult
+    ) -> None:
+        """Persistence result DTOs retain BaseResult's empty success envelope."""
+        assert (result.errors, result.warnings, result.fixes, result.error_code) == ([], [], [], None)
+        assert result.ok
