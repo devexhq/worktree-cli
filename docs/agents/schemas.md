@@ -8,6 +8,7 @@ Comprehensive reference for the shape of entities across the Worktree CLI codeba
 
 **Relevant sources:**
 - `src/worktree/common/exceptions.py`
+- `src/worktree/common/filesystem/exceptions.py`
 - `src/worktree/common/lock.py`
 - `src/worktree/core/*/exceptions.py`
 
@@ -55,6 +56,8 @@ Comprehensive reference for the shape of entities across the Worktree CLI codeba
   - `CheckRegistrationError`: Raised when registering a check with an existing check_id.
 - **Lock** (`common/lock.py`):
   - `LockTimeoutError`: Timeout acquiring `.worktree/.lock` advisory lock.
+- **Global filesystem** ([`common/filesystem/exceptions.py`](../../src/worktree/common/filesystem/exceptions.py)):
+  - [`InvalidGlobalRootError`](../../src/worktree/common/filesystem/exceptions.py): The selected global Worktree root contains a `.git` directory.
 
 ---
 
@@ -63,6 +66,7 @@ Comprehensive reference for the shape of entities across the Worktree CLI codeba
 **Relevant sources:**
 - `src/worktree/core/*/models.py`
 - `src/worktree/common/models.py`
+- `src/worktree/common/filesystem/models.py`
 
 ### Result/Outcome Pattern
 All operations that can fail return a Pydantic result object subclassing `BaseResult` instead of raising:
@@ -76,13 +80,14 @@ All operations that can fail return a Pydantic result object subclassing `BaseRe
 
 ### Configuration Models
 **Relevant sources:** `src/worktree/core/config/models.py`, `loader.py`, `validate.py`, `mutate.py`, `generator.py`.
-- `WorktreeConfig`: Root configuration object (`version`, `project`, `paths`, `sandbox`, `agent`, `history`, `doctor`, `prune`, `telemetry`, `concurrency`).
+- `WorktreeConfig`: Root configuration object, including `ignore_global_root_error`, defined in [`core/config/models.py`](../../src/worktree/core/config/models.py).
 - Section configs: `ProjectConfig`, `PathsConfig`, `SandboxConfig`, `AgentConfig`, `HistoryConfig`, `DoctorConfig`, `PruneConfig`, `TelemetryConfig`, `ConcurrencyConfig`.
 - `ConfigLoadResult`: Result of loading and validating `.worktree/config.json` (`status`, `config_path`, `raw`, `config`, `errors`, `ok`).
 - `ConfigValidationResult`: Result of semantic config validation (`status`, `config_path`, `raw`, `config`, `errors`, `warnings`, `ok`).
 - `ConfigSetResult`: Result of mutating a dot-path key in config (`status`, `config_path`, `key`, `value`, `errors`, `ok`).
 - `ConfigUnsetResult`: Result of removing a dot-path key from config (`status`, `config_path`, `key`, `existed`, `previous_value`, `errors`, `ok`).
 - `ConfigGenerationResult`: Result of creating, repairing, or overwriting config (`created`, `skipped_existing`, `repaired`, `overwritten`, `inserted_keys`, `warnings`, `errors`, `ok`).
+- [`GlobalPaths`](../../src/worktree/common/filesystem/models.py): Canonical paths for the global Worktree hierarchy.
 
 ### Project Identity Model
 **Relevant source:** `src/worktree/core/project/models.py`.

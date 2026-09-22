@@ -23,6 +23,7 @@ CANONICAL_V1_DEFAULTS: dict[str, Any] = {
         "name": None,
         "initialized_at": None,
     },
+    "ignore_global_root_error": False,
     "paths": {
         "root_dir": ".worktree",
         "sessions_dir": ".worktree/sessions",

@@ -203,6 +203,7 @@ VALIDATION_PAYLOAD_CASES = [
                     "name": "valid-proj",
                     "initialized_at": None,
                 },
+                "ignore_global_root_error": False,
                 "paths": {
                     "root_dir": ".worktree",
                     "sessions_dir": ".worktree/sessions",

@@ -73,6 +73,39 @@ class ConfigLoaderTests:
         assert result.warnings == []
         assert result.fixes == ["Run `wt init` to create `.worktree/config.json`"]
 
+    def test_load_config_defaults_ignore_global_root_error_to_false(self, isolated_workspace: Path) -> None:
+        config_path = isolated_workspace / ".worktree" / "config.json"
+        legacy_payload = build_default_config("demo-workspace")
+        legacy_payload.pop("ignore_global_root_error")
+        Filesystem.atomic_write_json(config_path, legacy_payload)
+
+        result = load_config(isolated_workspace)
+        generated_payload = build_default_config("demo-workspace")
+
+        assert result.status == ConfigLoadStatus.OK
+        assert result.config is not None
+        assert result.config.ignore_global_root_error is False
+        assert generated_payload["ignore_global_root_error"] is False
+
+    def test_load_config_accepts_boolean_ignore_global_root_error(self, isolated_workspace: Path) -> None:
+        config_path = isolated_workspace / ".worktree" / "config.json"
+        enabled_payload = build_default_config("demo-workspace")
+        enabled_payload["ignore_global_root_error"] = True
+        Filesystem.atomic_write_json(config_path, enabled_payload)
+
+        enabled_result = load_config(isolated_workspace)
+
+        invalid_payload = build_default_config("demo-workspace")
+        invalid_payload["ignore_global_root_error"] = "true"
+        Filesystem.atomic_write_json(config_path, invalid_payload)
+        invalid_result = load_config(isolated_workspace, bypass_cache=True)
+
+        assert enabled_result.status == ConfigLoadStatus.OK
+        assert enabled_result.config is not None
+        assert enabled_result.config.ignore_global_root_error is True
+        assert invalid_result.status == ConfigLoadStatus.SCHEMA_INVALID
+        assert "is not of type 'boolean'" in invalid_result.errors[0]
+
     @pytest.mark.parametrize(("payload", "expected_error"), SCHEMA_VIOLATION_PAYLOADS)
     def test_load_schema_violation_returns_validation_errors(
         self,

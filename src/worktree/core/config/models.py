@@ -120,6 +120,7 @@ class WorktreeConfig(BaseModel):
 
     version: int
     project: ProjectConfig
+    ignore_global_root_error: bool = False
     paths: PathsConfig = Field(default_factory=PathsConfig)
     sandbox: SandboxConfig = Field(default_factory=SandboxConfig)
     agent: AgentConfig = Field(default_factory=AgentConfig)

@@ -83,3 +83,29 @@ class FilesystemPaths(BaseModel):
             return Path(path).resolve().relative_to(self.root_dir)
         except ValueError:
             return Path(path)
+
+
+class GlobalPaths(BaseModel):
+    """Paths for global ~/.worktree hierarchy."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    root: Path
+    global_dir: Path
+    user_dir: Path
+    user_catalog_dir: Path
+    data_dir: Path
+    storage_dir: Path
+
+    @classmethod
+    def from_root(cls, root: Path) -> GlobalPaths:
+        """Construct the canonical global Worktree path hierarchy."""
+        canonical_root = root.expanduser().resolve()
+        return cls(
+            root=canonical_root,
+            global_dir=canonical_root / "global",
+            user_dir=canonical_root / "user",
+            user_catalog_dir=canonical_root / "user" / "catalog",
+            data_dir=canonical_root / "data",
+            storage_dir=canonical_root / "storage",
+        )

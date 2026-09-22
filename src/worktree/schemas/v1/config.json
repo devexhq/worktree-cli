@@ -22,6 +22,7 @@
         "initialized_at": { "type": ["string", "null"] }
       }
     },
+    "ignore_global_root_error": { "type": "boolean" },
     "paths": {
       "type": "object",
       "additionalProperties": false,
