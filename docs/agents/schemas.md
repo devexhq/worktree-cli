@@ -86,7 +86,7 @@ All operations that can fail return a Pydantic result object subclassing `BaseRe
 
 ### Project Identity Model
 **Relevant source:** `src/worktree/core/project/models.py`.
-- `ProjectIdentity`: Strict, extra-forbidding stable project identity. Its identifier is lowercase URL-safe text from 3 to 63 characters, optional display names must contain a non-whitespace character, and creation timestamps must be UTC.
+- `ProjectIdentity`: Strict, extra-forbidding stable project identity. Its identifier is lowercase URL-safe text from 3 to 63 characters, optional display names must contain a non-whitespace character, and creation timestamps must be UTC. Its classified persistence DTOs and non-raising load/save behavior are defined alongside it; the operations are in `src/worktree/core/project/services/identity.py`.
 
 ### Blueprint & Step Models
 **Relevant sources:** `src/worktree/core/blueprint/models.py`, `src/worktree/core/step/models.py`, `src/worktree/core/inputs/models.py`.

@@ -1,8 +1,12 @@
 """Models for stable project identities."""
 
 from datetime import datetime, timedelta
+from enum import StrEnum
+from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from worktree.common.models import BaseResult
 
 PROJECT_ID_REGEX = r"^[a-z0-9][a-z0-9-_]{2,62}$"
 
@@ -33,3 +37,67 @@ class ProjectIdentity(BaseModel):
             raise ValueError("created_at must be a UTC timestamp")
 
         return value
+
+
+class ProjectIdentityErrorType(StrEnum):
+    """Classify project identity persistence failures."""
+
+    NOT_FOUND = "NOT_FOUND"
+    INVALID_SCHEMA = "INVALID_SCHEMA"
+    LOCKED = "LOCKED"
+    WRITE_FAILED = "WRITE_FAILED"
+    UNREADABLE = "UNREADABLE"
+
+
+class ProjectIdentityError(BaseModel):
+    """Describe one project identity persistence failure."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    error_type: ProjectIdentityErrorType
+    message: str
+    path: str
+
+
+class ProjectIdentityLoadStatus(StrEnum):
+    """Classify project identity loading outcomes."""
+
+    OK = "ok"
+    NOT_FOUND = "not_found"
+    INVALID_SCHEMA = "invalid_schema"
+    UNREADABLE = "unreadable"
+
+
+class ProjectIdentityLoadResult(BaseResult):
+    """Non-raising result of loading a project identity."""
+
+    status: ProjectIdentityLoadStatus
+    path: Path
+    identity: ProjectIdentity | None = None
+    error: ProjectIdentityError | None = None
+
+    @property
+    def ok(self) -> bool:
+        """Return True when a project identity was loaded."""
+        return self.status == ProjectIdentityLoadStatus.OK
+
+
+class ProjectIdentitySaveStatus(StrEnum):
+    """Classify project identity persistence outcomes."""
+
+    OK = "ok"
+    LOCKED = "locked"
+    WRITE_FAILED = "write_failed"
+
+
+class ProjectIdentitySaveResult(BaseResult):
+    """Non-raising result of saving a project identity."""
+
+    status: ProjectIdentitySaveStatus
+    path: Path
+    error: ProjectIdentityError | None = None
+
+    @property
+    def ok(self) -> bool:
+        """Return True when a project identity was saved."""
+        return self.status == ProjectIdentitySaveStatus.OK
