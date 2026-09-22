@@ -32,7 +32,10 @@ class SchemaValidator:
         with self.schema_path.open(encoding="utf-8") as handle:
             schema = json.load(handle)
 
-        validator = Draft202012Validator(schema)
+        validator = Draft202012Validator(
+            schema,
+            format_checker=Draft202012Validator.FORMAT_CHECKER,
+        )
         messages: list[str] = []
         for error in sorted(validator.iter_errors(document), key=lambda e: e.path):
             path = ".".join(str(p) for p in error.path) if error.path else "(root)"
@@ -46,3 +49,11 @@ def _config_schema_path() -> Traversable:
 
 
 CONFIG_VALIDATOR = SchemaValidator(_config_schema_path())
+
+
+def _project_schema_path() -> Traversable:
+    """Return the resource path to the bundled v1 project.json schema."""
+    return resources.files("worktree.schemas.v1") / "project.json"
+
+
+PROJECT_VALIDATOR = SchemaValidator(_project_schema_path())

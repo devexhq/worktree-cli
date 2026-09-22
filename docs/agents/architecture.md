@@ -18,6 +18,7 @@ src/worktree/core/                   Domain business logic and orchestration (no
   git/                               Low-level Git CLI subprocess invocation and plumbing
   sandbox/                           Isolated git worktree sandbox lifecycle (create, delete, list, prune, apply, diff)
   config/                            Workspace configuration loading, validation, generation, and mutation
+  project/                           Stable project identity model
   db/                                SQLite persistence, connection management, Alembic migrations, and repositories
   inputs/                            Parameter input declaration, CLI flag resolution, and placeholder interpolation
   catalog/                           Workflow/task/step template discovery, indexing, seeding, and inventory
@@ -37,7 +38,7 @@ src/worktree/common/                 Shared foundational utilities (never import
   schema_validation.py               JSON Schema Draft 2020-12 validation wrapper
   lock.py, process.py, utils.py      Cross-process advisory locks, subprocess helpers, and console formatters
 
-src/worktree/schemas/v1/             Packaged, versioned JSON Schemas (config.json, workflow.json)
+src/worktree/schemas/v1/             Packaged, versioned JSON Schemas (config.json, project.json, workflow.json)
 ```
 
 - Default for **new** domain code: `models.py` + `services/<verb>.py`. Do not extend the flat `config/` / `db/` pattern to new domains.
@@ -64,6 +65,7 @@ src/worktree/schemas/v1/             Packaged, versioned JSON Schemas (config.js
 - **Status** (`core/status/`): Workspace health and runtime telemetry collection (`collect_status`), result models (`WorktreeStatusResult`), warning aggregation.
 - **Doctor** (`core/doctor/`): Diagnostic check registry (`CheckRegistry`), execution runner (`DiagnosticRunner`), entrypoint coordinator (`Doctor`), check protocol (`DiagnosticCheck`), and result models (`DiagnosticCheckResult`, `DoctorReport`).
 - **Sandbox** (`core/sandbox/`): Isolated git worktree checkout creation, deletion, listing, show, prune, and patch application (`Sandbox` facade, `services/lifecycle.py`).
+- **Project** (`core/project/`): Stable project identity model (`ProjectIdentity`).
 - **Shared core infra**: `config/`, `db/`, `git/`, `bootstrap/`.
 
 ### Package boundaries (import direction)
