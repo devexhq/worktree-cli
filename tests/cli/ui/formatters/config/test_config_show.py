@@ -116,6 +116,7 @@ SHOW_PAYLOAD_CASES = [
                     "name": "test-show-app",
                     "initialized_at": None,
                 },
+                "ignore_global_root_error": False,
                 "paths": {
                     "root_dir": ".worktree",
                     "sessions_dir": ".worktree/sessions",
@@ -174,6 +175,7 @@ SHOW_PAYLOAD_CASES = [
                     "name": "custom-project",
                     "initialized_at": None,
                 },
+                "ignore_global_root_error": False,
                 "paths": {
                     "root_dir": ".worktree",
                     "sessions_dir": ".worktree/sessions",
