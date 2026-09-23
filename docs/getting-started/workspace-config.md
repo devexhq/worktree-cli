@@ -97,12 +97,6 @@ Below is the canonical `.worktree/config.json` structure:
     "name": "my-project",
     "initialized_at": "2026-08-06T00:00:00Z"
   },
-  "paths": {
-    "root_dir": ".worktree",
-    "sessions_dir": ".worktree/sessions",
-    "artifacts_dir": ".worktree/artifacts",
-    "db_path": ".worktree/data.db"
-  },
   "sandbox": {
     "base_ref": "HEAD",
     "max_active_sandboxes": 3,

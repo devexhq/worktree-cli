@@ -11,7 +11,6 @@ from worktree.core.bootstrap.models import (
 )
 from worktree.core.bootstrap.services.bootstrap import bootstrap_worktree
 from worktree.core.catalog.services.seeder import seed_all_catalog_templates
-from worktree.core.config import Config
 from worktree.core.config.generator import generate_default_config
 from worktree.core.db import init_database
 
@@ -64,8 +63,7 @@ def initialize_workspace(
             failure_mode=InitFailureMode.CONFIG_GENERATION,
         )
 
-    config = Config(resolved_root)
-    init_database(path=resolved_root, db_rel_path=config.paths.db_path)
+    init_database(path=resolved_root)
 
     seed_result = seed_all_catalog_templates(path=resolved_root)
     return WorkspaceInitResult(

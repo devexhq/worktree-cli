@@ -81,7 +81,7 @@ All operations that can fail return a Pydantic result object subclassing `BaseRe
 ### Configuration Models
 **Relevant sources:** `src/worktree/core/config/models.py`, `loader.py`, `validate.py`, `mutate.py`, `generator.py`.
 - `WorktreeConfig`: Root configuration object, including `ignore_global_root_error`, defined in [`core/config/models.py`](../../src/worktree/core/config/models.py).
-- Section configs: `ProjectConfig`, `PathsConfig`, `SandboxConfig`, `AgentConfig`, `HistoryConfig`, `DoctorConfig`, `PruneConfig`, `TelemetryConfig`, `ConcurrencyConfig`.
+- Section configs: `ProjectConfig`, `SandboxConfig`, `AgentConfig`, `HistoryConfig`, `DoctorConfig`, `PruneConfig`, `TelemetryConfig`, `ConcurrencyConfig`.
 - `ConfigLoadResult`: Result of loading and validating `.worktree/config.json` (`status`, `config_path`, `raw`, `config`, `errors`, `ok`).
 - `ConfigValidationResult`: Result of semantic config validation (`status`, `config_path`, `raw`, `config`, `errors`, `warnings`, `ok`).
 - `ConfigSetResult`: Result of mutating a dot-path key in config (`status`, `config_path`, `key`, `value`, `errors`, `ok`).
@@ -170,7 +170,7 @@ All operations that can fail return a Pydantic result object subclassing `BaseRe
 - Built-in checks (`src/worktree/core/doctor/checks/`, registered by `get_default_registry()` in `src/worktree/core/doctor/services/registry.py`):
   - `git.repo` (`GitRepoCheck`): validates the `git` binary is on `PATH` and `context.cwd` is a Git repository.
   - `config.schema` (`ConfigSchemaCheck`): validates `.worktree/config.json` exists and passes schema V1 validation.
-  - `filesystem.writable` (`FilesystemWritableCheck`): probes write access across `PathsConfig`-declared directories.
+  - `filesystem.writable` (`FilesystemWritableCheck`): probes write access across `FilesystemPaths`-declared directories.
   - `sandbox.refs` (`SandboxRefsCheck`): validates registered sandbox directories against `SandboxesRepository` and Git worktree state.
   - `env.binaries` (`EnvBinariesCheck`): validates required host and active agent provider CLI binaries are on `PATH`.
   - `agent.setup` (`AgentSetupCheck`): validates the active agent provider's credential and configured model.
@@ -267,7 +267,7 @@ Each CLI command package under `src/worktree/cli/<name>/` contains:
 - **Config V1 (`v1/config.json`)**:
   - Validates `.worktree/config.json`.
   - Enforces `additionalProperties: false` across all objects.
-  - Required top-level keys: `version`, `project`, `paths`, `sandbox`, `agent`, `history`, `doctor`, `prune`, `telemetry`, `concurrency`.
+  - Required top-level keys: `version`, `project`, `sandbox`, `agent`, `history`, `doctor`, `prune`, `telemetry`, `concurrency`.
   - Supported agent provider tokens: `local`, `ollama`, `cursor`, `gemini`, `copilot`, `openai`, `anthropic`, `azure_openai`, `custom`.
 - **Workflow V1 (`v1/workflow.json`)**:
   - Validates workflow and task YAML definitions.

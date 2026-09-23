@@ -22,7 +22,6 @@ from worktree.core.config.models import (
     ConcurrencyConfig,
     DoctorConfig,
     HistoryConfig,
-    PathsConfig,
     ProjectConfig,
     PruneConfig,
     SandboxConfig,
@@ -41,12 +40,6 @@ def _make_config(name: str = "valid-proj") -> WorktreeConfig:
     return WorktreeConfig(
         version=1,
         project=ProjectConfig(name=name, initialized_at=None),
-        paths=PathsConfig(
-            root_dir=".worktree",
-            sessions_dir=".worktree/sessions",
-            artifacts_dir=".worktree/artifacts",
-            db_path=".worktree/data.db",
-        ),
         sandbox=SandboxConfig(
             base_ref="HEAD",
             max_active_sandboxes=3,
@@ -138,9 +131,9 @@ INVALID_CASE = FormatterCase(
     data=ConfigValidationResult(
         status=ConfigValidationStatus.INVALID,
         config_path=CONFIG_PATH,
-        errors=["paths.root_dir contains invalid control characters (CONFIG_SEMANTIC_PATH_INVALID)."],
+        errors=["semantic failure (CONFIG_ERROR)."],
         warnings=[],
-        fixes=["Use a plain relative path string without newlines or NUL bytes"],
+        fixes=["Fix the reported configuration error"],
     ),
     view=ConfigValidationView(
         status=ConfigValidationStatus.INVALID,
@@ -148,13 +141,13 @@ INVALID_CASE = FormatterCase(
         status_label="invalid",
         raw=None,
         config=None,
-        errors=["paths.root_dir contains invalid control characters (CONFIG_SEMANTIC_PATH_INVALID)."],
+        errors=["semantic failure (CONFIG_ERROR)."],
         warnings=[],
-        fixes=["Use a plain relative path string without newlines or NUL bytes"],
+        fixes=["Fix the reported configuration error"],
     ),
     render_expectations=[
-        "paths.root_dir contains invalid control characters (CONFIG_SEMANTIC_PATH_INVALID).",
-        "Use a plain relative path string without newlines or NUL bytes",
+        "semantic failure (CONFIG_ERROR).",
+        "Fix the reported configuration error",
     ],
 )
 
@@ -204,12 +197,6 @@ VALIDATION_PAYLOAD_CASES = [
                     "initialized_at": None,
                 },
                 "ignore_global_root_error": False,
-                "paths": {
-                    "root_dir": ".worktree",
-                    "sessions_dir": ".worktree/sessions",
-                    "artifacts_dir": ".worktree/artifacts",
-                    "db_path": ".worktree/data.db",
-                },
                 "sandbox": {
                     "base_ref": "HEAD",
                     "max_active_sandboxes": 3,
@@ -262,9 +249,9 @@ VALIDATION_PAYLOAD_CASES = [
             "status_label": "invalid",
             "raw": None,
             "config": None,
-            "errors": ["paths.root_dir contains invalid control characters (CONFIG_SEMANTIC_PATH_INVALID)."],
+            "errors": ["semantic failure (CONFIG_ERROR)."],
             "warnings": [],
-            "fixes": ["Use a plain relative path string without newlines or NUL bytes"],
+            "fixes": ["Fix the reported configuration error"],
         },
         id="invalid_payload",
     ),

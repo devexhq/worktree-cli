@@ -30,17 +30,6 @@ class ProjectConfig(BaseModel):
     initialized_at: str | None = None
 
 
-class PathsConfig(BaseModel):
-    """Filesystem layout paths from config V1."""
-
-    model_config = {"extra": "forbid", "strict": True}
-
-    root_dir: str = Field(default=".worktree", min_length=1)
-    sessions_dir: str = Field(default=".worktree/sessions", min_length=1)
-    artifacts_dir: str = Field(default=".worktree/artifacts", min_length=1)
-    db_path: str = Field(default=".worktree/data.db", min_length=1)
-
-
 class SandboxConfig(BaseModel):
     """Background sandbox lifecycle settings."""
 
@@ -121,7 +110,6 @@ class WorktreeConfig(BaseModel):
     version: int
     project: ProjectConfig
     ignore_global_root_error: bool = False
-    paths: PathsConfig = Field(default_factory=PathsConfig)
     sandbox: SandboxConfig = Field(default_factory=SandboxConfig)
     agent: AgentConfig = Field(default_factory=AgentConfig)
     history: HistoryConfig = Field(default_factory=HistoryConfig)

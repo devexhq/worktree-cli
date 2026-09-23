@@ -18,7 +18,6 @@ from worktree.core.config.models import (
     ConcurrencyConfig,
     DoctorConfig,
     HistoryConfig,
-    PathsConfig,
     ProjectConfig,
     PruneConfig,
     SandboxConfig,
@@ -153,11 +152,6 @@ class Config:
     def project(self) -> ProjectConfig:
         """Return the project identity section of the loaded config."""
         return self._loaded_config.project
-
-    @property
-    def paths(self) -> PathsConfig:
-        """Return the filesystem paths section of the loaded config."""
-        return self._loaded_config.paths
 
     @property
     def agent(self) -> AgentConfig:

@@ -52,5 +52,5 @@ class CliContext:
         fs = Filesystem.configure(target_path)
         config = Config.configure(target_path)
         effective_cwd = fs.root_dir
-        db = WorktreeDb(path=effective_cwd, db_rel_path=config.paths.db_path)
+        db = WorktreeDb(path=effective_cwd)
         return cls(cwd=effective_cwd, db=db, config=config._loaded_config, fs=fs, on_lock_wait=on_lock_wait)
