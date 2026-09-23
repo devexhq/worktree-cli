@@ -5,7 +5,6 @@ from __future__ import annotations
 import uuid
 from pathlib import Path
 
-from worktree.core.config.models import PathsConfig
 from worktree.core.doctor.models import CheckCategory, CheckStatus, DiagnosticCheckResult, DoctorContext
 from worktree.core.project.services.storage import resolve_project_filesystem_paths
 
@@ -18,9 +17,8 @@ class FilesystemWritableCheck:
     category: CheckCategory = CheckCategory.FILESYSTEM
 
     def execute(self, context: DoctorContext) -> DiagnosticCheckResult:
-        """Probe-write every PathsConfig-declared directory (plus sandboxes) under context.cwd."""
-        paths = context.config.paths if context.config is not None else PathsConfig()
-        targets = _target_paths(context.cwd, paths)
+        """Probe-write every resolved workspace directory (plus sandboxes) under context.cwd."""
+        targets = _target_paths(context.cwd)
 
         verified_paths: list[str] = []
         unwritable_paths: list[str] = []
@@ -61,22 +59,15 @@ class FilesystemWritableCheck:
         )
 
 
-def _target_paths(cwd: Path, paths: PathsConfig) -> dict[str, Path]:
+def _target_paths(cwd: Path) -> dict[str, Path]:
     """Return the ordered label-to-directory mapping of paths to probe for write access."""
     filesystem_paths = resolve_project_filesystem_paths(cwd)
-    if filesystem_paths.project_id is None:
-        sessions_dir = cwd / paths.sessions_dir
-        artifacts_dir = cwd / paths.artifacts_dir
-    else:
-        sessions_dir = filesystem_paths.sessions_dir
-        artifacts_dir = filesystem_paths.artifacts_dir
-
     return {
-        "root_dir": cwd / paths.root_dir,
-        "sessions_dir": sessions_dir,
-        "artifacts_dir": artifacts_dir,
-        "sandboxes_dir": cwd / paths.root_dir / "sandboxes",
-        "database": (cwd / paths.db_path).parent,
+        "root_dir": filesystem_paths.worktree_dir,
+        "sessions_dir": filesystem_paths.sessions_dir,
+        "artifacts_dir": filesystem_paths.artifacts_dir,
+        "sandboxes_dir": filesystem_paths.sandboxes_dir,
+        "database": filesystem_paths.db_file.parent,
     }
 
 

@@ -11,7 +11,6 @@ from worktree.core.config.models import WorktreeConfig
 _TOP_LEVEL_KEYS: tuple[str, ...] = (
     "version",
     "project",
-    "paths",
     "sandbox",
     "agent",
     "history",

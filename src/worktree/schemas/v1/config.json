@@ -23,16 +23,6 @@
       }
     },
     "ignore_global_root_error": { "type": "boolean" },
-    "paths": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "root_dir": { "type": "string", "minLength": 1 },
-        "sessions_dir": { "type": "string", "minLength": 1 },
-        "artifacts_dir": { "type": "string", "minLength": 1 },
-        "db_path": { "type": "string", "minLength": 1 }
-      }
-    },
     "sandbox": {
       "type": "object",
       "additionalProperties": false,

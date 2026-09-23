@@ -10,8 +10,6 @@ import pytest
 from typer.testing import CliRunner
 
 from worktree.cli import app
-from worktree.common.filesystem import Filesystem
-from worktree.core.config.models import PathsConfig, ProjectConfig, WorktreeConfig
 from worktree.core.diff.writer import get_session_dir, write_session_diff
 from worktree.core.project.models import ProjectIdentity
 from worktree.core.project.services.identity import save_project_identity
@@ -136,26 +134,3 @@ class DiffCliIntegrationTests:
                 "fixes": [],
             },
         }
-
-    def test_diff_cli_without_project_identity_reads_configured_legacy_session_path(
-        self, cli_runner: CliRunner, diff_workspace: Path
-    ) -> None:
-        """A legacy workspace reads a patch from its configured session directory."""
-        config = WorktreeConfig(
-            version=1,
-            project=ProjectConfig(name="diff-workspace"),
-            paths=PathsConfig(sessions_dir="runtime/sessions"),
-        )
-        Filesystem.atomic_write_json(
-            diff_workspace / ".worktree" / "config.json",
-            config.model_dump(mode="json"),
-        )
-        patch_path = diff_workspace / "runtime" / "sessions" / "session-626" / "diff.patch"
-        patch_path.parent.mkdir(parents=True)
-        patch_path.write_text(_PATCH_TEXT, encoding="utf-8")
-
-        result = cli_runner.invoke(app, ["-p", str(diff_workspace), "diff", "session-626"])
-
-        assert result.exit_code == 0
-        assert "-old line" in result.stdout
-        assert "+new line" in result.stdout

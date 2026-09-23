@@ -14,29 +14,6 @@ from worktree.core.config.validate import (
 class ConfigSemanticValidationTests:
     """Unit tests verifying semantic validation rules and warning generation."""
 
-    def test_validate_config_detects_null_bytes_and_newlines_in_paths(self, tmp_path: Path) -> None:
-        payload = build_default_config("demo")
-        payload["paths"]["db_path"] = "state\x00.db"
-        payload["paths"]["sessions_dir"] = "sessions\ndir"
-        config_path = tmp_path / "config.json"
-        Filesystem.atomic_write_json(config_path, payload)
-
-        result = validate_config_result(config_path=config_path)
-
-        assert result.status == ConfigValidationStatus.INVALID
-        assert result.config_path == config_path
-        assert result.raw == payload
-        assert result.config is None
-        assert result.errors == [
-            "paths.db_path contains invalid control characters (CONFIG_SEMANTIC_PATH_INVALID).",
-            "paths.sessions_dir contains invalid control characters (CONFIG_SEMANTIC_PATH_INVALID).",
-        ]
-        assert result.warnings == []
-        assert result.fixes == [
-            "Use a plain relative path string without newlines or NUL bytes",
-            "Use a plain relative path string without newlines or NUL bytes",
-        ]
-
     def test_validate_config_warns_when_non_local_agent_has_no_model(self, tmp_path: Path) -> None:
         payload = build_default_config("demo")
         payload["agent"]["provider"] = "openai"

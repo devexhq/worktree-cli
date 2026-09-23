@@ -48,13 +48,6 @@ _LOAD_STATUS_TO_VALIDATION: dict[ConfigLoadStatus, ConfigValidationStatus] = {
     ConfigLoadStatus.UNREADABLE: ConfigValidationStatus.UNREADABLE,
 }
 
-_PATH_FIELD_NAMES = (
-    "root_dir",
-    "sessions_dir",
-    "artifacts_dir",
-    "db_path",
-)
-
 
 def validate_config_result(
     path: Path | None = None,
@@ -103,18 +96,7 @@ def validate_config_result(
             fixes=[],
         )
 
-    errors, error_fixes = _semantic_errors(loaded.config)
     warnings, warning_fixes = _semantic_warnings(loaded.config)
-    if errors:
-        return ConfigValidationResult(
-            status=ConfigValidationStatus.INVALID,
-            config_path=loaded.config_path,
-            raw=loaded.raw,
-            config=None,
-            errors=errors,
-            warnings=warnings,
-            fixes=[*error_fixes, *warning_fixes],
-        )
 
     return ConfigValidationResult(
         status=ConfigValidationStatus.VALID,
@@ -125,20 +107,6 @@ def validate_config_result(
         warnings=warnings,
         fixes=warning_fixes,
     )
-
-
-def _semantic_errors(config: WorktreeConfig) -> tuple[list[str], list[str]]:
-    """Return semantic errors and fixes in FR-6 rule order."""
-    errors: list[str] = []
-    fixes: list[str] = []
-
-    for field_name in sorted(_PATH_FIELD_NAMES):
-        value = getattr(config.paths, field_name)
-        if "\x00" in value or "\n" in value or "\r" in value:
-            errors.append(f"paths.{field_name} contains invalid control characters (CONFIG_SEMANTIC_PATH_INVALID).")
-            fixes.append("Use a plain relative path string without newlines or NUL bytes")
-
-    return errors, fixes
 
 
 def _semantic_warnings(config: WorktreeConfig) -> tuple[list[str], list[str]]:

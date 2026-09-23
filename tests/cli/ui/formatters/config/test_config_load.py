@@ -70,12 +70,6 @@ CONFIG_LOAD_PAYLOAD_CASES = [
                     "initialized_at": None,
                 },
                 "ignore_global_root_error": False,
-                "paths": {
-                    "root_dir": ".worktree",
-                    "sessions_dir": ".worktree/sessions",
-                    "artifacts_dir": ".worktree/artifacts",
-                    "db_path": ".worktree/data.db",
-                },
                 "sandbox": {
                     "base_ref": "HEAD",
                     "max_active_sandboxes": 3,
