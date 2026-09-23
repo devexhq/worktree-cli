@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import platform
 import shutil
 import uuid
 from datetime import UTC, datetime
@@ -19,6 +20,7 @@ from worktree.core.git.exceptions import (
     GitPlumbingTimeoutError,
 )
 from worktree.core.git.runner import GitRunner
+from worktree.core.project.services.storage import resolve_project_filesystem_paths
 from worktree.core.sandbox.models import (
     SandboxCreateResult,
     SandboxCreateStatus,
@@ -40,6 +42,13 @@ def _extract_target_metadata(target: SandboxSession | SandboxRecord) -> tuple[Pa
     if isinstance(target, SandboxRecord):
         return Path(target.sandbox_path), target.id, target.branch_name
     return target.sandbox_path, target.session_id, target.target_branch
+
+
+def _is_windows_symlink_fallback(exc: OSError) -> bool:
+    """Return whether an error is a documented Windows symlink limitation."""
+    winerror = getattr(exc, "winerror", None)
+    error_code = winerror if isinstance(winerror, int) else exc.errno
+    return platform.system() == "Windows" and error_code in (50, 1314)
 
 
 class SandboxLifecycle:
@@ -210,6 +219,63 @@ class SandboxLifecycle:
         except Exception as exc:
             return [f"Failed to persist sandbox metadata to the local database: {exc}"]
 
+    def _create_storage_bridge(self, sandbox_path: Path, session_id: str) -> SandboxCreateResult | None:
+        """Create the sandbox run bridge or classify an unsafe bridge collision."""
+        session_dir = resolve_project_filesystem_paths(self.path).session_dir(session_id)
+        bridge_dir = sandbox_path / ".worktree"
+        bridge_path = bridge_dir / "run"
+
+        try:
+            session_dir.mkdir(parents=True, exist_ok=True)
+            bridge_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            return SandboxCreateResult(
+                status=SandboxCreateStatus.STORAGE_BRIDGE_FAILED,
+                errors=[f"Unable to prepare sandbox storage bridge at '{bridge_path}': {exc}"],
+            )
+
+        if bridge_path.is_symlink():
+            try:
+                bridge_path.unlink()
+            except OSError as exc:
+                return SandboxCreateResult(
+                    status=SandboxCreateStatus.STORAGE_BRIDGE_FAILED,
+                    errors=[f"Unable to replace sandbox storage bridge at '{bridge_path}': {exc}"],
+                )
+        elif bridge_path.exists():
+            return SandboxCreateResult(
+                status=SandboxCreateStatus.STORAGE_BRIDGE_FAILED,
+                errors=[f"Sandbox storage bridge path '{bridge_path}' is not a symlink."],
+            )
+
+        try:
+            bridge_path.symlink_to(session_dir, target_is_directory=True)
+        except OSError as exc:
+            if not _is_windows_symlink_fallback(exc):
+                return SandboxCreateResult(
+                    status=SandboxCreateStatus.STORAGE_BRIDGE_FAILED,
+                    errors=[f"Unable to create sandbox storage bridge at '{bridge_path}': {exc}"],
+                )
+            return SandboxCreateResult(
+                status=SandboxCreateStatus.OK,
+                warnings=[f"Unable to create sandbox storage bridge at '{bridge_path}': {exc}"],
+            )
+
+        return None
+
+    def _unlink_storage_bridge(self, sandbox_path: Path) -> str | None:
+        """Unlink the sandbox run bridge without traversing its target."""
+        bridge_path = sandbox_path / ".worktree" / "run"
+        if not bridge_path.is_symlink():
+            return None
+
+        try:
+            bridge_path.unlink()
+        except OSError as exc:
+            return f"Failed to unlink sandbox storage bridge at '{bridge_path}': {exc}"
+
+        return None
+
     def create(
         self,
         session_id: str | None = None,
@@ -258,6 +324,11 @@ class SandboxLifecycle:
                 if wip_err is not None:
                     return wip_err
 
+            bridge_result = self._create_storage_bridge(sandbox_path, sid)
+            if bridge_result is not None and bridge_result.status != SandboxCreateStatus.OK:
+                self.discard_partial(sandbox_path, temp_branch)
+                return bridge_result
+
             session = SandboxSession(
                 session_id=sid,
                 target_branch=temp_branch,
@@ -269,7 +340,8 @@ class SandboxLifecycle:
                 wip_paths=wip_paths,
             )
 
-            warnings = self._persist_session(session)
+            bridge_warnings = bridge_result.warnings if bridge_result is not None else []
+            warnings = [*bridge_warnings, *self._persist_session(session)]
             return SandboxCreateResult(
                 status=SandboxCreateStatus.OK,
                 session=session,
@@ -319,6 +391,10 @@ class SandboxLifecycle:
         with WorkspaceLock(self.path):
             sandbox_path, session_id, branch_name = _extract_target_metadata(target)
             warnings: list[str] = []
+
+            bridge_warning = self._unlink_storage_bridge(sandbox_path)
+            if bridge_warning:
+                warnings.append(bridge_warning)
 
             dir_warning = self._remove_worktree_dir(sandbox_path, force=force)
             if dir_warning:

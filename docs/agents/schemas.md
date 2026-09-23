@@ -88,6 +88,7 @@ All operations that can fail return a Pydantic result object subclassing `BaseRe
 - `ConfigUnsetResult`: Result of removing a dot-path key from config (`status`, `config_path`, `key`, `existed`, `previous_value`, `errors`, `ok`).
 - `ConfigGenerationResult`: Result of creating, repairing, or overwriting config (`created`, `skipped_existing`, `repaired`, `overwritten`, `inserted_keys`, `warnings`, `errors`, `ok`).
 - [`GlobalPaths`](../../src/worktree/common/filesystem/models.py): Canonical paths for the global Worktree hierarchy.
+- [`FilesystemPaths`](../../src/worktree/common/filesystem/models.py): Keeps repository configuration, catalog, database, lock, and sandboxes local. When a persisted project identity is available, it resolves runtime sessions, artifacts, logs, and temporary files below `WORKTREE_HOME/storage/projects/<project-id>`; projects without an identity retain the repository-local runtime paths.
 
 ### Project Identity Model
 **Relevant source:** `src/worktree/core/project/models.py`.

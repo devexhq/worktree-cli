@@ -60,7 +60,7 @@ def load_project_identity(path: Path) -> ProjectIdentityLoadResult:
             ),
             errors=[message],
         )
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
         message = f"Unable to read project identity at '{path}': {exc} (PROJECT_IDENTITY_UNREADABLE)."
         return ProjectIdentityLoadResult(
             status=ProjectIdentityLoadStatus.UNREADABLE,

@@ -95,15 +95,25 @@ Provider behavior:
 - `local` and `ollama` return unified diffs
 - `cursor`, `gemini`, and `copilot` run as direct-mutation providers with shared safety gates before patches are accepted
 
-## Project layout
+## Reserved `.worktree` paths
 
-Worktree initializes and uses:
+Worktree reserves these paths under the repository-local `.worktree/` directory:
 
 - `.worktree/config.json`
+- `.worktree/project.json`
+- `.worktree/data.db`
 - `.worktree/catalog/workflows/*.yml`
 - `.worktree/catalog/tasks/*.yml`
-- `.worktree/sessions/`
-- `.worktree/artifacts/`
+- `.worktree/sandboxes/`
+- `.worktree/worktree.lock`
+- `.worktree/sessions/`, `.worktree/artifacts/`, `.worktree/logs/`, and `.worktree/tmp/` for legacy projects without `project.json`
+- `<sandbox>/.worktree/run`, a symlink to the selected session directory for a sandbox
+
+Identified projects keep runtime session, artifact, log, and temporary data outside the repository at:
+
+- `WORKTREE_HOME/storage/projects/<project-id>/sessions/` and `artifacts/` for projects with `.worktree/project.json` (`~/.worktree` when `WORKTREE_HOME` is unset)
+
+Projects without a persisted identity retain the legacy repository-local `.worktree/sessions/` and `.worktree/artifacts/` locations.
 
 ## Development
 
