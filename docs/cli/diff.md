@@ -1,6 +1,6 @@
 # `wt diff`
 
-The `wt diff` command views syntax-highlighted unified diffs from loop run sessions directly in the terminal without manually searching `.worktree/sessions/`.
+The `wt diff` command views syntax-highlighted unified diffs from loop run sessions directly in the terminal without manually locating their session storage.
 
 ## Usage
 
@@ -26,8 +26,10 @@ wt diff [session_id] [OPTIONS]
 
 1. **Initialization Gate**: Verifies that `.worktree/config.json` exists and is valid. If uninitialized, displays a **Worktree Not Initialized** error panel and exits with code `1`.
 2. **Session Resolution**:
-   - When `session_id` is supplied: resolves `.worktree/sessions/<session_id>/diff.patch`.
-   - When `session_id` is omitted: discovers the most recently modified session directory under `.worktree/sessions/`.
+   - For a workspace with `.worktree/project.json`, sessions resolve below `WORKTREE_HOME/storage/projects/<project-id>/sessions/` (or `~/.worktree/storage/projects/<project-id>/sessions/` when `WORKTREE_HOME` is unset).
+   - A workspace without a project identity retains the legacy `.worktree/sessions/` location.
+   - When `session_id` is supplied: resolves that session's `diff.patch`.
+   - When `session_id` is omitted: discovers the most recently modified session directory in the selected session store.
    - If no session exists: displays a **Session Not Found** error panel and exits with code `1`.
 3. **Artifact Loading**:
    - If `diff.patch` is missing: displays a **Diff Not Found** error panel and exits with code `1`.

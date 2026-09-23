@@ -1,10 +1,15 @@
 """Unit tests for worktree.core.doctor.checks.filesystem_writable."""
 
+from datetime import UTC, datetime
 from pathlib import Path
+
+import pytest
 
 from worktree.core.config.models import PathsConfig, ProjectConfig, WorktreeConfig
 from worktree.core.doctor.checks.filesystem_writable import FilesystemWritableCheck
 from worktree.core.doctor.models import CheckCategory, CheckStatus, DoctorContext
+from worktree.core.project.models import ProjectIdentity
+from worktree.core.project.services.identity import save_project_identity
 
 
 class FilesystemWritableCheckTests:
@@ -100,5 +105,57 @@ class FilesystemWritableCheckTests:
                 str(tmp_path / defaults.artifacts_dir),
                 str(tmp_path / defaults.root_dir / "sandboxes"),
                 str((tmp_path / defaults.db_path).parent),
+            ]
+        }
+
+    def test_execute_with_project_identity_probes_global_runtime_paths(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """An identified project probes global runtime paths and local workspace state."""
+        global_root = tmp_path / "global"
+        identity = ProjectIdentity(id="project-626", created_at=datetime(2026, 1, 1, tzinfo=UTC))
+        config = WorktreeConfig(version=1, project=ProjectConfig(name="demo"))
+        monkeypatch.setenv("WORKTREE_HOME", str(global_root))
+        save_project_identity(tmp_path / ".worktree" / "project.json", identity)
+
+        result = FilesystemWritableCheck().execute(DoctorContext(cwd=tmp_path, config=config))
+
+        project_storage = global_root / "storage" / "projects" / "project-626"
+        assert result.status == CheckStatus.OK
+        assert result.details == {
+            "verified_paths": [
+                str(tmp_path / ".worktree"),
+                str(project_storage / "sessions"),
+                str(project_storage / "artifacts"),
+                str(tmp_path / ".worktree" / "sandboxes"),
+                str(tmp_path / ".worktree"),
+            ]
+        }
+        assert not (tmp_path / ".worktree" / "sessions").exists()
+        assert not (tmp_path / ".worktree" / "artifacts").exists()
+
+    def test_execute_without_project_identity_probes_configured_legacy_runtime_paths(self, tmp_path: Path) -> None:
+        """A legacy workspace probes its configured session and artifact directories."""
+        config = WorktreeConfig(
+            version=1,
+            project=ProjectConfig(name="demo"),
+            paths=PathsConfig(
+                root_dir=".state",
+                sessions_dir="runtime/sessions",
+                artifacts_dir="runtime/artifacts",
+                db_path=".state/data.db",
+            ),
+        )
+
+        result = FilesystemWritableCheck().execute(DoctorContext(cwd=tmp_path, config=config))
+
+        assert result.status == CheckStatus.OK
+        assert result.details == {
+            "verified_paths": [
+                str(tmp_path / ".state"),
+                str(tmp_path / "runtime" / "sessions"),
+                str(tmp_path / "runtime" / "artifacts"),
+                str(tmp_path / ".state" / "sandboxes"),
+                str(tmp_path / ".state"),
             ]
         }

@@ -76,6 +76,7 @@ class SandboxCreateStatus(StrEnum):
     GIT_FAILED = "git_failed"
     GIT_TIMEOUT = "git_timeout"
     NOT_INITIALIZED = "not_initialized"
+    STORAGE_BRIDGE_FAILED = "storage_bridge_failed"
     UNREADABLE_CONFIG = "unreadable_config"
     WIP_FAILED = "wip_failed"
 

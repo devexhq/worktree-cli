@@ -7,6 +7,7 @@ from pathlib import Path
 
 from worktree.core.config.models import PathsConfig
 from worktree.core.doctor.models import CheckCategory, CheckStatus, DiagnosticCheckResult, DoctorContext
+from worktree.core.project.services.storage import resolve_project_filesystem_paths
 
 
 class FilesystemWritableCheck:
@@ -62,10 +63,18 @@ class FilesystemWritableCheck:
 
 def _target_paths(cwd: Path, paths: PathsConfig) -> dict[str, Path]:
     """Return the ordered label-to-directory mapping of paths to probe for write access."""
+    filesystem_paths = resolve_project_filesystem_paths(cwd)
+    if filesystem_paths.project_id is None:
+        sessions_dir = cwd / paths.sessions_dir
+        artifacts_dir = cwd / paths.artifacts_dir
+    else:
+        sessions_dir = filesystem_paths.sessions_dir
+        artifacts_dir = filesystem_paths.artifacts_dir
+
     return {
         "root_dir": cwd / paths.root_dir,
-        "sessions_dir": cwd / paths.sessions_dir,
-        "artifacts_dir": cwd / paths.artifacts_dir,
+        "sessions_dir": sessions_dir,
+        "artifacts_dir": artifacts_dir,
         "sandboxes_dir": cwd / paths.root_dir / "sandboxes",
         "database": (cwd / paths.db_path).parent,
     }

@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from worktree.cli import app
+from worktree.common.filesystem import Filesystem
+from worktree.core.config.models import PathsConfig, ProjectConfig, WorktreeConfig
+from worktree.core.diff.writer import get_session_dir, write_session_diff
+from worktree.core.project.models import ProjectIdentity
+from worktree.core.project.services.identity import save_project_identity
 
 _PATCH_TEXT = (
     "diff --git a/file.txt b/file.txt\n"
@@ -27,6 +34,14 @@ def _write_session_diff(diff_workspace: Path, session_id: str) -> Path:
     patch_path = session_dir / "diff.patch"
     patch_path.write_text(_PATCH_TEXT, encoding="utf-8")
     return patch_path
+
+
+def _write_global_session_diff(diff_workspace: Path, session_id: str) -> Path:
+    """Persist an identified project's patch in selected global session storage."""
+    identity = ProjectIdentity(id="project-626", created_at=datetime(2026, 1, 1, tzinfo=UTC))
+    save_project_identity(diff_workspace / ".worktree" / "project.json", identity)
+    session_dir = get_session_dir(diff_workspace, session_id)
+    return write_session_diff(session_dir, _PATCH_TEXT)
 
 
 class DiffCliIntegrationTests:
@@ -76,3 +91,71 @@ class DiffCliIntegrationTests:
                 "fixes": [],
             },
         }
+
+    def test_diff_cli_with_project_identity_reads_global_patch_and_exits_zero(
+        self, cli_runner: CliRunner, monkeypatch: pytest.MonkeyPatch, diff_workspace: Path, tmp_path: Path
+    ) -> None:
+        """An identified project presents the patch persisted in global storage."""
+        global_root = tmp_path / "global"
+        monkeypatch.setenv("WORKTREE_HOME", str(global_root))
+        _write_global_session_diff(diff_workspace, "session-626")
+
+        result = cli_runner.invoke(app, ["-p", str(diff_workspace), "diff", "session-626"])
+
+        assert result.exit_code == 0
+        assert "-old line" in result.stdout
+        assert "+new line" in result.stdout
+
+    def test_diff_cli_with_project_identity_json_emits_global_artifact_path(
+        self, cli_runner: CliRunner, monkeypatch: pytest.MonkeyPatch, diff_workspace: Path, tmp_path: Path
+    ) -> None:
+        """JSON output exposes the exact global patch path and patch body."""
+        global_root = tmp_path / "global"
+        monkeypatch.setenv("WORKTREE_HOME", str(global_root))
+        patch_path = _write_global_session_diff(diff_workspace, "session-626")
+
+        result = cli_runner.invoke(app, ["-p", str(diff_workspace), "diff", "session-626", "--format", "json"])
+
+        assert result.exit_code == 0
+        assert json.loads(result.stdout) == {
+            "event_type": "DiffResult",
+            "payload": {
+                "status": "ok",
+                "session_id": "session-626",
+                "artifact_path": str(patch_path),
+                "relative_path": str(patch_path),
+                "diff_text": _PATCH_TEXT,
+                "raw": False,
+                "full": False,
+                "max_lines": 500,
+                "total_lines": 7,
+                "truncated": False,
+                "truncated_lines": 0,
+                "errors": [],
+                "warnings": [],
+                "fixes": [],
+            },
+        }
+
+    def test_diff_cli_without_project_identity_reads_configured_legacy_session_path(
+        self, cli_runner: CliRunner, diff_workspace: Path
+    ) -> None:
+        """A legacy workspace reads a patch from its configured session directory."""
+        config = WorktreeConfig(
+            version=1,
+            project=ProjectConfig(name="diff-workspace"),
+            paths=PathsConfig(sessions_dir="runtime/sessions"),
+        )
+        Filesystem.atomic_write_json(
+            diff_workspace / ".worktree" / "config.json",
+            config.model_dump(mode="json"),
+        )
+        patch_path = diff_workspace / "runtime" / "sessions" / "session-626" / "diff.patch"
+        patch_path.parent.mkdir(parents=True)
+        patch_path.write_text(_PATCH_TEXT, encoding="utf-8")
+
+        result = cli_runner.invoke(app, ["-p", str(diff_workspace), "diff", "session-626"])
+
+        assert result.exit_code == 0
+        assert "-old line" in result.stdout
+        assert "+new line" in result.stdout

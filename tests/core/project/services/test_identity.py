@@ -116,6 +116,20 @@ class ProjectIdentityServiceTests:
         assert result.error.path == str(path)
         assert result.errors == [result.error.message]
 
+    def test_load_project_identity_invalid_utf8_bytes_returns_unreadable_result(self, tmp_path: Path) -> None:
+        """Invalid UTF-8 bytes return UNREADABLE with its requested path."""
+        path = tmp_path / "project.json"
+        path.write_bytes(b"\xff\xfe\x00invalid")
+
+        result = load_project_identity(path)
+
+        assert result.status == ProjectIdentityLoadStatus.UNREADABLE
+        assert result.path == path
+        assert result.error is not None
+        assert result.error.error_type == ProjectIdentityErrorType.UNREADABLE
+        assert result.error.path == str(path)
+        assert result.errors == [result.error.message]
+
     def test_save_project_identity_writes_indented_json_without_temp_sibling(self, tmp_path: Path) -> None:
         """A valid identity is persisted as indented JSON without a temporary sibling."""
         path = tmp_path / "project.json"
