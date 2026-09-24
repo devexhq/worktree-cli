@@ -1,6 +1,7 @@
 """Unit tests for worktree.core.project.services.identity."""
 
 import json
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
@@ -10,15 +11,18 @@ from freezegun import freeze_time
 
 from worktree.common.lock import LockTimeoutError
 from worktree.core.project.models import (
+    PROJECT_ID_REGEX,
     ProjectIdentity,
     ProjectIdentityErrorType,
     ProjectIdentityLoadStatus,
+    ProjectIdentityProvisionStatus,
     ProjectIdentitySaveStatus,
 )
 from worktree.core.project.services import identity as identity_service
 from worktree.core.project.services.identity import (
     generate_project_identity,
     load_project_identity,
+    provision_project_identity,
     save_project_identity,
 )
 
@@ -185,3 +189,122 @@ class ProjectIdentityServiceTests:
         assert result.error.path == str(path)
         assert "lock held" in result.error.message
         assert result.errors == [result.error.message]
+
+    def test_provision_project_identity_without_id_generates_slug_and_creates(self, tmp_path: Path) -> None:
+        """No --id writes project.json with a PROJECT_ID_REGEX-matching generated slug, status=CREATED."""
+        result = provision_project_identity(tmp_path)
+
+        assert result.status == ProjectIdentityProvisionStatus.CREATED
+        assert result.identity is not None
+        assert re.match(PROJECT_ID_REGEX, result.identity.id) is not None
+        assert (tmp_path / "project.json").exists()
+
+    def test_provision_project_identity_with_valid_id_creates_with_explicit_id(self, tmp_path: Path) -> None:
+        """A valid explicit --id and display name are persisted with status=CREATED."""
+        result = provision_project_identity(tmp_path, project_id="custom-id", display_name="Custom")
+
+        assert result.status == ProjectIdentityProvisionStatus.CREATED
+        assert result.identity is not None
+        assert result.identity.id == "custom-id"
+        assert result.identity.display_name == "Custom"
+
+    def test_provision_project_identity_with_invalid_id_returns_invalid_id_status(self, tmp_path: Path) -> None:
+        """A malformed --id returns status=INVALID_ID with the exact literal error and writes nothing."""
+        result = provision_project_identity(tmp_path, project_id="Bad Id!")
+
+        assert result.status == ProjectIdentityProvisionStatus.INVALID_ID
+        assert result.errors == [f"Invalid project ID: must match {PROJECT_ID_REGEX}"]
+        assert result.fixes == [f"Pass a valid --id matching {PROJECT_ID_REGEX}, or omit --id to generate one."]
+        assert not (tmp_path / "project.json").exists()
+
+    def test_provision_project_identity_existing_without_force_preserves_identity(self, tmp_path: Path) -> None:
+        """A pre-existing identity with no id/force is preserved with a generic warning."""
+        existing = ProjectIdentity(id="existing-id", display_name="Existing", created_at=UTC_TIMESTAMP)
+        path = tmp_path / "project.json"
+        path.write_text(existing.model_dump_json(), encoding="utf-8")
+        before = path.read_text(encoding="utf-8")
+
+        result = provision_project_identity(tmp_path)
+
+        assert result.status == ProjectIdentityProvisionStatus.PRESERVED
+        assert result.identity == existing
+        assert result.warnings == [
+            "Project identity already exists (id=existing-id); preserving existing identity. "
+            "Rerun with --id <new-id> --force to replace it."
+        ]
+        assert path.read_text(encoding="utf-8") == before
+
+    def test_provision_project_identity_existing_with_id_no_force_ignores_id_and_preserves(
+        self, tmp_path: Path
+    ) -> None:
+        """A pre-existing identity with --id but no --force is preserved, naming the ignored id."""
+        existing = ProjectIdentity(id="existing-id", display_name="Existing", created_at=UTC_TIMESTAMP)
+        path = tmp_path / "project.json"
+        path.write_text(existing.model_dump_json(), encoding="utf-8")
+
+        result = provision_project_identity(tmp_path, project_id="new-id")
+
+        assert result.status == ProjectIdentityProvisionStatus.PRESERVED
+        assert result.identity is not None
+        assert result.identity.id == "existing-id"
+        assert result.warnings == [
+            "Project identity already exists (id=existing-id); ignoring --id 'new-id' since --force "
+            "was not passed. Rerun with --id new-id --force to replace it."
+        ]
+
+    def test_provision_project_identity_existing_with_force_no_id_preserves(self, tmp_path: Path) -> None:
+        """A pre-existing identity with force=True but no id is preserved, warning that --force needs --id."""
+        existing = ProjectIdentity(id="existing-id", display_name="Existing", created_at=UTC_TIMESTAMP)
+        path = tmp_path / "project.json"
+        path.write_text(existing.model_dump_json(), encoding="utf-8")
+
+        result = provision_project_identity(tmp_path, force=True)
+
+        assert result.status == ProjectIdentityProvisionStatus.PRESERVED
+        assert result.identity is not None
+        assert result.identity.id == "existing-id"
+        assert result.warnings == [
+            "Project identity already exists (id=existing-id); --force has no effect without --id, "
+            "so the existing identity was preserved."
+        ]
+
+    @freeze_time(UTC_TIMESTAMP)
+    def test_provision_project_identity_existing_with_id_and_force_overwrites_identity(self, tmp_path: Path) -> None:
+        """A pre-existing identity with id and force=True is replaced and persisted to disk."""
+        existing = ProjectIdentity(id="existing-id", display_name="Existing", created_at=UTC_TIMESTAMP)
+        path = tmp_path / "project.json"
+        path.write_text(existing.model_dump_json(), encoding="utf-8")
+
+        result = provision_project_identity(tmp_path, project_id="new-id", force=True)
+
+        assert result.status == ProjectIdentityProvisionStatus.OVERWRITTEN
+        assert result.identity is not None
+        assert result.identity.id == "new-id"
+        persisted = ProjectIdentity.model_validate_json(path.read_text(encoding="utf-8"))
+        assert persisted.id == "new-id"
+
+    def test_provision_project_identity_existing_corrupt_without_force_returns_failed_status(
+        self, tmp_path: Path
+    ) -> None:
+        """An unreadable existing project.json without id+force returns FAILED, file left untouched."""
+        path = tmp_path / "project.json"
+        path.write_text("{not-json", encoding="utf-8")
+
+        result = provision_project_identity(tmp_path)
+
+        assert result.status == ProjectIdentityProvisionStatus.FAILED
+        assert result.errors
+        assert path.read_text(encoding="utf-8") == "{not-json"
+
+    def test_provision_project_identity_existing_corrupt_with_id_and_force_recovers(self, tmp_path: Path) -> None:
+        """An unreadable existing project.json with id+force returns OVERWRITTEN, replacing the corrupt file."""
+        path = tmp_path / "project.json"
+        path.write_text("{not-json", encoding="utf-8")
+
+        result = provision_project_identity(tmp_path, project_id="new-id", force=True)
+
+        assert result.status == ProjectIdentityProvisionStatus.OVERWRITTEN
+        assert result.identity is not None
+        assert result.identity.id == "new-id"
+        persisted = ProjectIdentity.model_validate_json(path.read_text(encoding="utf-8"))
+        assert persisted.id == "new-id"

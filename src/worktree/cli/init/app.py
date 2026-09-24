@@ -1,8 +1,11 @@
+from typing import Annotated
+
 import typer
 
 from worktree.cli.context import CliContext
 from worktree.common.filesystem import Filesystem
 from worktree.common.version import get_version
+from worktree.core.bootstrap import InitFailureMode
 from worktree.core.config import Config
 from worktree.core.db.db import WorktreeDb
 
@@ -29,6 +32,18 @@ def init_callback(
         "--format",
         help="Presentation format ('terminal' or 'json').",
     ),
+    id: Annotated[
+        str | None,
+        typer.Option(help="Explicit unique project ID slug."),
+    ] = None,
+    display_name: Annotated[
+        str | None,
+        typer.Option(help="Human-readable project display name."),
+    ] = None,
+    force: Annotated[
+        bool,
+        typer.Option(help="Overwrite an existing project.json's id when --id is also provided."),
+    ] = False,
 ):
     """Provision a secure local hidden folder path and tracking schemas."""
     target_path = ctx.obj.get("path") if ctx.obj else None
@@ -42,6 +57,11 @@ def init_callback(
         overwrite=overwrite,
         repair=repair,
         output_format=format,
+        project_id=id,
+        display_name=display_name,
+        force=force,
     )
+    if result.failure_mode == InitFailureMode.INVALID_PROJECT_ID:
+        raise typer.Exit(code=2)
     if not result.ok:
         raise typer.Exit(code=1)

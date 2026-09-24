@@ -9,6 +9,7 @@ from worktree.cli.ui.dispatcher import ui_dispatcher
 from worktree.cli.ui.events import LockWaitEvent
 from worktree.common.filesystem import Filesystem
 from worktree.common.lock import WorkspaceLock
+from worktree.core.bootstrap import initialize_workspace
 from worktree.core.config import Config
 from worktree.core.config.models import WorktreeConfig
 from worktree.core.db.db import WorktreeDb
@@ -23,6 +24,13 @@ def default_lock_wait_notifier(lock_path: Path, holder_pid: str | None, timeout_
             timeout_seconds=timeout_seconds,
         )
     )
+
+
+def ensure_lazy_project_init(fs: Filesystem) -> None:
+    """Auto-initialize the workspace when no project identity exists yet under fs.worktree_dir."""
+    if (fs.worktree_dir / "project.json").exists():
+        return
+    initialize_workspace(fs.root_dir)
 
 
 @dataclass

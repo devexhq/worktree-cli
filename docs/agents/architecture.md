@@ -135,12 +135,14 @@ Created and repaired idempotently by [core/bootstrap](../../src/worktree/core/bo
 .worktree/
   .meta/bootstrap.json
   .lock                       # cross-process advisory lock
+  .gitignore                  # local; ignores .meta/, .lock, sandboxes/, *.db*
   config.json                 # schemas/v1/config.json
+  project.json                # schemas/v1/project.json; stable project identity
   catalog/                    # workflows/, tasks/, steps/ + seeded wt/ templates
-  sessions/                   # per-session artifacts (e.g. diff.patch)
-  artifacts/, tmp/, logs/
   sandboxes/                  # git worktree checkouts
 ```
+
+`sessions/`, `artifacts/`, `tmp/`, and `logs/` are no longer created locally under `.worktree/`; that project-scoped runtime state resolves under the global `WORKTREE_HOME` storage root instead (see [`resolve_project_filesystem_paths`](../../src/worktree/core/project/services/storage.py)).
 
 ### Centralized SQLite database
 

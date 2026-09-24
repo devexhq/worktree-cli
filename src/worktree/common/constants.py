@@ -1,4 +1,27 @@
-GITIGNORE_ENTRY = "\n# Worktree CLI cache and local databases\n/.worktree/\n"
+# Single source of truth for every entry `wt init` seeds under `.worktree/`
+# and whether the local .gitignore ignores it. WORKTREE_GITIGNORE_CONTENT
+# (written to .worktree/.gitignore) and WORKTREE_GITIGNORE_TRACKED_ENTRIES
+# (surfaced by `wt init`'s "tracking only ..." message) are both derived from
+# this dict, not hand-maintained separately, so they cannot drift out of sync.
+WORKTREE_LOCAL_GITIGNORE_ENTRIES: dict[str, bool] = {
+    ".meta/": True,
+    ".lock": True,
+    "sandboxes/": True,
+    "*.db": True,
+    "*.db-journal": True,
+    "*.db-wal": True,
+    "config.json": False,
+    "project.json": False,
+    "catalog/": False,
+}
+
+WORKTREE_GITIGNORE_CONTENT = "".join(
+    f"{name}\n" for name, ignored in WORKTREE_LOCAL_GITIGNORE_ENTRIES.items() if ignored
+)
+
+WORKTREE_GITIGNORE_TRACKED_ENTRIES = tuple(
+    name for name, ignored in WORKTREE_LOCAL_GITIGNORE_ENTRIES.items() if not ignored
+)
 
 BOOTSTRAP_SCHEMA_VERSION = 1
 
@@ -9,14 +32,7 @@ BOOTSTRAP_META_REL = ".meta/bootstrap.json"
 # timeouts; prevents a hung git child from wedging ``wt run`` indefinitely.
 GIT_SUBPROCESS_TIMEOUT_SECONDS = 120
 
-# @TODO: Is this still used?
-REQUIRED_SUBDIRS = (
-    ".meta",
-    "sessions",
-    "artifacts",
-    "tmp",
-    "logs",
-)
+REQUIRED_SUBDIRS = (".meta",)
 
 # Maximum diff lines rendered before truncation in interactive terminals
 DEFAULT_MAX_DIFF_LINES = 500

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,7 @@ from worktree.cli.ui.formatters.init import (
     WorkspaceInitFormatter,
     WorkspaceInitView,
 )
+from worktree.common.constants import WORKTREE_GITIGNORE_TRACKED_ENTRIES
 from worktree.core.bootstrap.models import (
     BootstrapOutcome,
     BootstrapResult,
@@ -25,10 +27,17 @@ from worktree.core.bootstrap.models import (
 )
 from worktree.core.catalog.models import SeedResult
 from worktree.core.config.generator import ConfigGenerationResult
+from worktree.core.project.models import ProjectIdentity, ProjectIdentityProvisionResult, ProjectIdentityProvisionStatus
 
 ROOT = Path("/workspace/my-repo")
 WORKTREE = ROOT / ".worktree"
 CONFIG_PATH = WORKTREE / "config.json"
+
+BASELINE_IDENTITY_RESULT = ProjectIdentityProvisionResult(
+    status=ProjectIdentityProvisionStatus.CREATED,
+    path=WORKTREE / "project.json",
+    identity=ProjectIdentity(id="test-project", created_at=datetime(2026, 1, 1, tzinfo=UTC)),
+)
 
 
 def make_init_view(**overrides: Any) -> WorkspaceInitView:
@@ -39,6 +48,11 @@ def make_init_view(**overrides: Any) -> WorkspaceInitView:
         "root_path_relative": ".worktree",
         "bootstrap_outcome": BootstrapOutcome.INITIALIZED,
         "dirs_created": [".worktree/sessions"],
+        "project_id": None,
+        "identity_path_relative": None,
+        "identity_preserved": False,
+        "gitignore_path_relative": ".worktree/.gitignore",
+        "gitignore_tracked_entries": list(WORKTREE_GITIGNORE_TRACKED_ENTRIES),
         "config_created": True,
         "config_overwritten": False,
         "config_repaired": False,
@@ -64,6 +78,7 @@ INITIALIZED = FormatterCase(
             root_created=True,
             dirs_created=[WORKTREE / "sessions"],
         ),
+        identity_result=BASELINE_IDENTITY_RESULT,
         config_result=ConfigGenerationResult(
             config_path=CONFIG_PATH,
             created=True,
@@ -72,12 +87,53 @@ INITIALIZED = FormatterCase(
             created_files=[WORKTREE / "workflows" / "test.yml"],
         ),
     ),
-    view=make_init_view(),
+    view=make_init_view(
+        project_id="test-project",
+        identity_path_relative=".worktree/project.json",
+    ),
     render_expectations=[
         ".worktree",
         ".worktree/config.json",
         ".worktree/sessions",
         ".worktree/workflows/test.yml",
+    ],
+)
+
+INITIALIZED_WITH_IDENTITY = FormatterCase(
+    data=WorkspaceInitResult(
+        bootstrap_result=BootstrapResult(
+            root_path=WORKTREE,
+            root_created=True,
+            dirs_created=[WORKTREE / ".meta"],
+            gitignore_created=True,
+        ),
+        identity_result=ProjectIdentityProvisionResult(
+            status=ProjectIdentityProvisionStatus.CREATED,
+            path=WORKTREE / "project.json",
+            identity=ProjectIdentity(id="brave-otter", created_at=datetime(2026, 1, 1, tzinfo=UTC)),
+        ),
+        config_result=ConfigGenerationResult(
+            config_path=CONFIG_PATH,
+            created=True,
+        ),
+        seed_result=SeedResult(
+            created_files=[WORKTREE / "workflows" / "test.yml"],
+        ),
+    ),
+    view=make_init_view(
+        dirs_created=[".worktree/.meta"],
+        project_id="brave-otter",
+        identity_path_relative=".worktree/project.json",
+        identity_preserved=False,
+    ),
+    render_expectations=[
+        ".worktree",
+        ".worktree/config.json",
+        ".worktree/.meta",
+        ".worktree/workflows/test.yml",
+        "brave-otter",
+        ".worktree/project.json",
+        "catalog/",
     ],
 )
 
@@ -88,6 +144,7 @@ REPAIRED = FormatterCase(
             repaired=True,
             dirs_created=[WORKTREE / "sessions"],
         ),
+        identity_result=BASELINE_IDENTITY_RESULT,
         config_result=ConfigGenerationResult(
             config_path=CONFIG_PATH,
             repaired=True,
@@ -99,6 +156,8 @@ REPAIRED = FormatterCase(
     ),
     view=make_init_view(
         bootstrap_outcome=BootstrapOutcome.REPAIRED,
+        project_id="test-project",
+        identity_path_relative=".worktree/project.json",
         config_created=False,
         config_repaired=True,
         inserted_keys=["telemetry.enabled"],
@@ -121,6 +180,7 @@ ALREADY_INITIALIZED_OVERWRITTEN = FormatterCase(
             outcome=BootstrapOutcome.ALREADY_INITIALIZED,
             dirs_created=[],
         ),
+        identity_result=BASELINE_IDENTITY_RESULT,
         config_result=ConfigGenerationResult(
             config_path=CONFIG_PATH,
             overwritten=True,
@@ -132,6 +192,8 @@ ALREADY_INITIALIZED_OVERWRITTEN = FormatterCase(
     view=make_init_view(
         bootstrap_outcome=BootstrapOutcome.ALREADY_INITIALIZED,
         dirs_created=[],
+        project_id="test-project",
+        identity_path_relative=".worktree/project.json",
         config_created=False,
         config_overwritten=True,
         seeded_files=[],
@@ -147,6 +209,7 @@ CONFIG_SKIPPED_EXISTING = FormatterCase(
             outcome=BootstrapOutcome.INITIALIZED,
             dirs_created=[],
         ),
+        identity_result=BASELINE_IDENTITY_RESULT,
         config_result=ConfigGenerationResult(
             config_path=CONFIG_PATH,
             skipped_existing=True,
@@ -155,6 +218,8 @@ CONFIG_SKIPPED_EXISTING = FormatterCase(
     ),
     view=make_init_view(
         dirs_created=[],
+        project_id="test-project",
+        identity_path_relative=".worktree/project.json",
         config_created=False,
         config_skipped_existing=True,
         seeded_files=[],
@@ -169,11 +234,14 @@ NO_CONFIG_PATH = FormatterCase(
             outcome=BootstrapOutcome.INITIALIZED,
             dirs_created=[],
         ),
+        identity_result=BASELINE_IDENTITY_RESULT,
         config_result=ConfigGenerationResult(config_path=None),
         seed_result=SeedResult(),
     ),
     view=make_init_view(
         dirs_created=[],
+        project_id="test-project",
+        identity_path_relative=".worktree/project.json",
         config_created=False,
         config_path_relative=None,
         seeded_files=[],
@@ -212,6 +280,8 @@ PREFLIGHT_FAILURE = FormatterCase(
         root_path_relative=None,
         bootstrap_outcome=None,
         dirs_created=[],
+        gitignore_path_relative=None,
+        gitignore_tracked_entries=[],
         config_created=False,
         config_path_relative=None,
         seeded_files=[],
@@ -284,6 +354,7 @@ CONFIG_GENERATION_FAILURE = FormatterCase(
 
 INIT_CASES = [
     pytest.param(INITIALIZED, id="initialized"),
+    pytest.param(INITIALIZED_WITH_IDENTITY, id="initialized_with_identity"),
     pytest.param(REPAIRED, id="repaired"),
     pytest.param(ALREADY_INITIALIZED_OVERWRITTEN, id="already_initialized_overwritten"),
     pytest.param(CONFIG_SKIPPED_EXISTING, id="config_skipped_existing"),
@@ -303,6 +374,11 @@ INIT_PAYLOAD_CASES = [
             "root_path_relative": ".worktree",
             "bootstrap_outcome": "initialized",
             "dirs_created": [".worktree/sessions"],
+            "project_id": "test-project",
+            "identity_path_relative": ".worktree/project.json",
+            "identity_preserved": False,
+            "gitignore_path_relative": ".worktree/.gitignore",
+            "gitignore_tracked_entries": list(WORKTREE_GITIGNORE_TRACKED_ENTRIES),
             "config_created": True,
             "config_overwritten": False,
             "config_repaired": False,
@@ -320,6 +396,35 @@ INIT_PAYLOAD_CASES = [
         id="initialized_payload",
     ),
     pytest.param(
+        INITIALIZED_WITH_IDENTITY,
+        {
+            "ok": True,
+            "root_path": "/workspace/my-repo/.worktree",
+            "root_path_relative": ".worktree",
+            "bootstrap_outcome": "initialized",
+            "dirs_created": [".worktree/.meta"],
+            "project_id": "brave-otter",
+            "identity_path_relative": ".worktree/project.json",
+            "identity_preserved": False,
+            "gitignore_path_relative": ".worktree/.gitignore",
+            "gitignore_tracked_entries": list(WORKTREE_GITIGNORE_TRACKED_ENTRIES),
+            "config_created": True,
+            "config_overwritten": False,
+            "config_repaired": False,
+            "config_skipped_existing": False,
+            "config_path_relative": ".worktree/config.json",
+            "inserted_keys": [],
+            "seeded_files": [".worktree/workflows/test.yml"],
+            "skipped_seed_files": [],
+            "overwritten_seed_files": [],
+            "failure_mode": None,
+            "errors": [],
+            "warnings": [],
+            "fixes": [],
+        },
+        id="initialized_with_identity_payload",
+    ),
+    pytest.param(
         REPAIRED,
         {
             "ok": True,
@@ -327,6 +432,11 @@ INIT_PAYLOAD_CASES = [
             "root_path_relative": ".worktree",
             "bootstrap_outcome": "repaired",
             "dirs_created": [".worktree/sessions"],
+            "project_id": "test-project",
+            "identity_path_relative": ".worktree/project.json",
+            "identity_preserved": False,
+            "gitignore_path_relative": ".worktree/.gitignore",
+            "gitignore_tracked_entries": list(WORKTREE_GITIGNORE_TRACKED_ENTRIES),
             "config_created": False,
             "config_overwritten": False,
             "config_repaired": True,
@@ -351,6 +461,11 @@ INIT_PAYLOAD_CASES = [
             "root_path_relative": None,
             "bootstrap_outcome": None,
             "dirs_created": [],
+            "project_id": None,
+            "identity_path_relative": None,
+            "identity_preserved": False,
+            "gitignore_path_relative": None,
+            "gitignore_tracked_entries": [],
             "config_created": False,
             "config_overwritten": False,
             "config_repaired": False,
