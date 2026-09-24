@@ -1,0 +1,7 @@
+id: git-sync-base
+name: git-sync-base
+description: Fetch origin and fast-forward the current branch when possible
+type: command
+command: git fetch origin && git merge --ff-only @{upstream} || git status -sb
+timeout_seconds: 120
+on_failure: abort
