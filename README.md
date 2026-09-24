@@ -101,7 +101,6 @@ Worktree reserves these paths under the repository-local `.worktree/` directory:
 
 - `.worktree/config.json`
 - `.worktree/project.json`
-- `.worktree/data.db`
 - `.worktree/catalog/workflows/*.yml`
 - `.worktree/catalog/tasks/*.yml`
 - `.worktree/sandboxes/`

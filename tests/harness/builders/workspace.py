@@ -11,8 +11,9 @@ from worktree.common.filesystem import Filesystem
 from worktree.core.bootstrap.services.bootstrap import bootstrap_worktree
 from worktree.core.catalog.services.seeder import seed_all_catalog_templates
 from worktree.core.config.generator import generate_default_config
-from worktree.core.db.connection import DEFAULT_DB_REL_PATH
+from worktree.core.db.connection import DEFAULT_DB_FILENAME
 from worktree.core.db.migrations import init_database
+from worktree.core.project.services.identity import generate_project_identity, save_project_identity
 
 
 class WorkspaceBuilder:
@@ -28,7 +29,7 @@ class WorkspaceBuilder:
         self._catalog_force: bool = True
         self._init_git: bool = False
         self._config_data: dict[str, Any] | None = None
-        self._db_rel_path: str = DEFAULT_DB_REL_PATH
+        self._db_filename: str = DEFAULT_DB_FILENAME
         self._git_branch: str = "main"
         self._git_user_name: str = "Test User"
         self._git_user_email: str = "test@example.com"
@@ -55,10 +56,10 @@ class WorkspaceBuilder:
         self._scaffold_config = False
         return self
 
-    def with_database(self, db_rel_path: str = DEFAULT_DB_REL_PATH) -> WorkspaceBuilder:
+    def with_database(self, db_filename: str = DEFAULT_DB_FILENAME) -> WorkspaceBuilder:
         """Enable SQLite database migration."""
         self._scaffold_database = True
-        self._db_rel_path = db_rel_path
+        self._db_filename = db_filename
         return self
 
     def without_database(self) -> WorkspaceBuilder:
@@ -112,7 +113,9 @@ class WorkspaceBuilder:
             self._scaffold_workspace_config(workspace_root, dot_worktree)
 
         if self._scaffold_database:
-            init_database(workspace_root, db_rel_path=self._db_rel_path)
+            identity = generate_project_identity()
+            save_project_identity(dot_worktree / "project.json", identity)
+            init_database(db_filename=self._db_filename)
 
         if self._scaffold_catalog:
             seed_all_catalog_templates(workspace_root, force=self._catalog_force)

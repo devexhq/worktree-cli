@@ -3,7 +3,7 @@ import typer
 from worktree.cli.context import CliContext
 from worktree.common.filesystem import Filesystem
 from worktree.core.config import Config
-from worktree.core.db.facade import WorktreeDb
+from worktree.core.db.db import WorktreeDb
 
 from .commands.config_set import config_set_command
 from .commands.config_show import config_show_command

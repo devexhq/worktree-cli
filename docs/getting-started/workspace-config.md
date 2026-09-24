@@ -1,6 +1,6 @@
 # Workspace Configuration
 
-Worktree (`wt`) operates with a local `.worktree/` directory in your Git repository root. This directory contains the configuration file (`config.json`), the SQLite state database (`data.db`), and the blueprint catalog (`catalog/`).
+Worktree (`wt`) operates with a local `.worktree/` directory in your Git repository root. This directory contains the configuration file (`config.json`) and the blueprint catalog (`catalog/`). Run and session state lives in a centralized SQLite database shared across all projects (under `WORKTREE_HOME` or `~/.worktree` by default), scoped to this project.
 
 ---
 
@@ -17,7 +17,6 @@ This provisions the local `.worktree/` directory structure:
 ```text
 .worktree/
 ├── config.json         # Workspace configuration settings
-├── data.db             # SQLite state database (runs, history, sessions)
 └── catalog/            # Project blueprint definitions
     ├── workflows/
     ├── tasks/

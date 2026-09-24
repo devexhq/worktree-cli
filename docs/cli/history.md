@@ -22,7 +22,7 @@ wt history list [OPTIONS]
 
 ### `wt history` / `wt history list` (Default)
 
-Lists execution history runs recorded in `.worktree/data.db`. Executing `wt history` without subcommands defaults to listing runs.
+Lists execution history runs recorded in the centralized database. Executing `wt history` without subcommands defaults to listing runs.
 
 ```bash
 wt history [OPTIONS]

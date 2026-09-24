@@ -11,6 +11,7 @@ from worktree.core.db import (
     SandboxesRepository,
     SandboxStatus,
 )
+from worktree.core.db.connection import resolve_db_path
 from worktree.core.git import (
     GitCommandError,
     GitNotFoundError,
@@ -128,8 +129,8 @@ def _collect_catalog_status(root_dir: Path) -> CatalogStatusInfo:
 
 
 def _collect_database_status(root_dir: Path) -> DatabaseStatusInfo:
-    """Collect SQLite database accessibility and total recorded runs."""
-    db_path = Filesystem(root_dir).db_file
+    """Collect centralized SQLite database accessibility and total recorded runs."""
+    db_path = resolve_db_path()
     if not db_path.is_file():
         return DatabaseStatusInfo(
             exists=False,

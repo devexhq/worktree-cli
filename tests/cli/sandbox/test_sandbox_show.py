@@ -79,7 +79,7 @@ class SandboxShowCliIntegrationTests:
         assert result.exit_code == 0
         actual_json = json.loads(result.stdout)
         sandbox = actual_json["payload"]["sandbox"]
-        for field in ("created_at", "updated_at"):
+        for field in ("created_at", "updated_at", "project_id"):
             assert sandbox[field]
             sandbox[field] = "placeholder"
 
@@ -89,6 +89,7 @@ class SandboxShowCliIntegrationTests:
                 "status": "ok",
                 "sandbox": {
                     "id": session.session_id,
+                    "project_id": "placeholder",
                     "name": "show-me",
                     "branch_name": session.target_branch,
                     "base_commit": session.base_commit,

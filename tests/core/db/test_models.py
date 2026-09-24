@@ -1,0 +1,98 @@
+"""Contract tests for centralized database record models."""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from pathlib import Path
+
+import pytest
+from sqlalchemy import Engine
+from sqlalchemy.exc import IntegrityError
+from sqlmodel import Session, SQLModel
+
+from worktree.core.db.connection import get_engine
+from worktree.core.db.migrations import init_database
+from worktree.core.db.models import (
+    CatalogItemType,
+    CatalogRecord,
+    CostRecord,
+    RunRecord,
+    SandboxRecord,
+)
+
+RecordClass = type[RunRecord] | type[SandboxRecord] | type[CostRecord] | type[CatalogRecord]
+
+
+@pytest.fixture
+def migrated_engine(tmp_path: Path) -> Engine:
+    """Engine bound to a freshly migrated, isolated SQLite database file."""
+    db_path = tmp_path / "worktree.db"
+    init_database(db_path=db_path)
+    return get_engine(db_path)
+
+
+class DbRecordModelTests:
+    """Contract tests pinning project_id as a required, NOT NULL column on every centralized record."""
+
+    @pytest.mark.parametrize(
+        ("record_cls", "expected_tablename"),
+        [
+            pytest.param(RunRecord, "runs", id="run_record"),
+            pytest.param(SandboxRecord, "sandboxes", id="sandbox_record"),
+            pytest.param(CostRecord, "costs", id="cost_record"),
+            pytest.param(CatalogRecord, "catalog", id="catalog_record"),
+        ],
+    )
+    def test_record_declares_project_id_as_required_field(
+        self, record_cls: RecordClass, expected_tablename: str
+    ) -> None:
+        """[tier-1/unit] Record: __tablename__ matches the centralized table and project_id has no default."""
+        assert record_cls.__tablename__ == expected_tablename
+        assert record_cls.model_fields["project_id"].is_required()
+
+    @pytest.mark.parametrize(
+        "record_factory",
+        [
+            pytest.param(
+                lambda: RunRecord(session_id="wf_abc123", blueprint_name="deploy", blueprint_key="deploy"),
+                id="run_record",
+            ),
+            pytest.param(
+                lambda: SandboxRecord(
+                    id="sbx_abc123",
+                    branch_name="worktree/sandbox-sbx_abc123",
+                    base_commit="deadbeef",
+                    sandbox_path="/tmp/sbx_abc123",
+                ),
+                id="sandbox_record",
+            ),
+            pytest.param(
+                lambda: CostRecord(  # pyright: ignore[reportCallIssue] # intentional: omitted project_id is this test's subject
+                    session_id="wf_abc123", branch_name="deploy", model_id="claude-sonnet-5"
+                ),
+                id="cost_record",
+            ),
+            pytest.param(
+                lambda: CatalogRecord(
+                    key="deploy",
+                    sha="deadbeef",
+                    item_type=CatalogItemType.BLUEPRINT,
+                    name="deploy",
+                    path="blueprints/deploy.yaml",
+                    checksum="deadbeef",
+                ),
+                id="catalog_record",
+            ),
+        ],
+    )
+    def test_record_missing_project_id_violates_not_null_constraint(
+        self,
+        migrated_engine: Engine,
+        record_factory: Callable[[], SQLModel],
+    ) -> None:
+        """[tier-1/integration] RunRecord/SandboxRecord/CostRecord/CatalogRecord: omitting project_id raises IntegrityError on commit."""
+        record = record_factory()
+        with Session(migrated_engine) as session:
+            session.add(record)
+            with pytest.raises(IntegrityError):
+                session.commit()

@@ -98,7 +98,7 @@ Every execution via `wt run` is tracked as a **Session**:
 4. **Assertions & Quality Gates**: Output and filesystem state are validated after each step.
 5. **Resilience & Resumption**:
    - On error, `on_failure` policies determine whether to `abort`, `continue`, `retry`, or `prompt_user`.
-   - If an interactive prompt is interrupted or paused, a **checkpoint** is saved in `.worktree/data.db`.
+   - If an interactive prompt is interrupted or paused, a **checkpoint** is saved in the centralized database.
    - The session can be resumed at any time using `wt resume <session-id>`.
 6. **Audit History**: All runs, durations, and outputs are recorded and accessible via `wt history`.
 

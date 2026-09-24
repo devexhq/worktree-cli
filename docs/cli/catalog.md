@@ -1,6 +1,6 @@
 # `wt catalog`
 
-The `wt catalog` command manages project blueprint templates for workflows, tasks, and steps. Catalog blueprints are stored as YAML files under `.worktree/catalog/` and indexed into the SQLite database (`.worktree/data.db`).
+The `wt catalog` command manages project blueprint templates for workflows, tasks, and steps. Catalog blueprints are stored as YAML files under `.worktree/catalog/` and indexed into the centralized SQLite database, scoped to this project.
 
 ## Auto-sync
 
@@ -24,7 +24,7 @@ The `wt catalog` command manages project blueprint templates for workflows, task
 
 ### `wt catalog` / `wt catalog list` (Default)
 
-Lists catalog blueprints indexed in `.worktree/data.db`. Executing `wt catalog` without subcommands defaults to listing blueprints.
+Lists catalog blueprints indexed in the centralized database for this project. Executing `wt catalog` without subcommands defaults to listing blueprints.
 
 ```bash
 wt catalog [--type <type>] [--format terminal|json]

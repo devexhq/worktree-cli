@@ -10,13 +10,14 @@ from sqlalchemy import Engine, event
 from sqlalchemy.pool import NullPool
 from sqlmodel import Session, create_engine
 
-DEFAULT_DB_REL_PATH = ".worktree/data.db"
+from worktree.common.filesystem.services.global_root import resolve_global_paths
+
+DEFAULT_DB_FILENAME = "worktree.db"
 
 
-def resolve_db_path(path: Path, db_rel_path: str = DEFAULT_DB_REL_PATH) -> Path:
-    """Resolve database path relative to project root, ensuring target parent directory exists."""
-    base_dir = path.resolve()
-    db_path = base_dir / db_rel_path
+def resolve_db_path(db_filename: str = DEFAULT_DB_FILENAME) -> Path:
+    """Resolve the centralized database file path under the global Worktree data directory."""
+    db_path = resolve_global_paths().data_dir / db_filename
     db_path.parent.mkdir(parents=True, exist_ok=True)
     return db_path
 

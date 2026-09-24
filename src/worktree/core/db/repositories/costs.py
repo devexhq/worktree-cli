@@ -3,7 +3,7 @@
 from sqlalchemy import func
 from sqlmodel import select
 
-from worktree.core.db.models import WorkflowCostRecord
+from worktree.core.db.models import CostRecord
 from worktree.core.db.repositories.base import BaseRepository
 
 
@@ -19,12 +19,13 @@ class CostsRepository(BaseRepository):
         completion_tokens: int,
         estimated_usd_cost: float,
     ) -> int:
-        """Insert a WorkflowCostRecord and return the integer primary key.
+        """Insert a CostRecord and return the integer primary key.
 
         Returns the auto-incremented primary key ID of the inserted record.
         """
         total_tokens = prompt_tokens + completion_tokens
-        record = WorkflowCostRecord(
+        record = CostRecord(
+            project_id=self.project_id,
             session_id=session_id,
             branch_name=branch_name,
             model_id=model_id,
@@ -36,18 +37,18 @@ class CostsRepository(BaseRepository):
         with self.session() as session:
             self._commit(session, record, "Failed to record workflow token usage")
             if record.id is None:
-                raise RuntimeError("Failed to retrieve generated id for WorkflowCostRecord.")
+                raise RuntimeError("Failed to retrieve generated id for CostRecord.")
             return record.id
 
     def get_session_total_cost(self, session_id: str) -> dict[str, float]:
         """Calculate aggregated token counts and dollar spend for a session."""
         with self.session() as session:
             statement = select(
-                func.coalesce(func.sum(WorkflowCostRecord.prompt_tokens), 0),
-                func.coalesce(func.sum(WorkflowCostRecord.completion_tokens), 0),
-                func.coalesce(func.sum(WorkflowCostRecord.total_tokens), 0),
-                func.coalesce(func.sum(WorkflowCostRecord.estimated_usd_cost), 0.0),
-            ).where(WorkflowCostRecord.session_id == session_id)
+                func.coalesce(func.sum(CostRecord.prompt_tokens), 0),
+                func.coalesce(func.sum(CostRecord.completion_tokens), 0),
+                func.coalesce(func.sum(CostRecord.total_tokens), 0),
+                func.coalesce(func.sum(CostRecord.estimated_usd_cost), 0.0),
+            ).where(CostRecord.session_id == session_id, CostRecord.project_id == self.project_id)
             row = session.exec(statement).one()
             return {
                 "total_prompt_tokens": float(row[0]),

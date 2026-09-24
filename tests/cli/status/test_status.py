@@ -10,6 +10,7 @@ from typer.testing import CliRunner
 
 from worktree.cli import app
 from worktree.core.config.loader import ConfigLoadStatus
+from worktree.core.db.connection import resolve_db_path
 from worktree.core.status.models import (
     WorktreeStatusResult,
 )
@@ -45,7 +46,7 @@ class StatusCliIntegrationTests:
         assert result_dto.catalog.exists is False
         assert result_dto.catalog.total_items == 0
         assert result_dto.database.exists is True
-        assert result_dto.database.db_path == status_workspace / ".worktree" / "data.db"
+        assert result_dto.database.db_path == resolve_db_path()
         assert result_dto.database.is_accessible is True
         assert result_dto.sandboxes.active_sandboxes == 0
         assert result_dto.sandboxes.max_active_sandboxes == 3
@@ -76,7 +77,7 @@ class StatusCliIntegrationTests:
         assert result_dto.catalog.exists is False
         assert result_dto.catalog.total_items == 0
         assert result_dto.database.exists is True
-        assert result_dto.database.db_path == status_workspace / ".worktree" / "data.db"
+        assert result_dto.database.db_path == resolve_db_path()
         assert result_dto.database.is_accessible is True
         assert result_dto.sandboxes.active_sandboxes == 0
         assert result_dto.sandboxes.max_active_sandboxes == 3

@@ -26,7 +26,13 @@ _PATCH_TEXT = (
 
 
 def _write_session_diff(diff_workspace: Path, session_id: str) -> Path:
-    """Write a real unified-diff patch file directly under .worktree/sessions/<id>/diff.patch."""
+    """Write a real unified-diff patch file directly under .worktree/sessions/<id>/diff.patch.
+
+    diff_workspace is built via WorkspaceBuilder.with_database(), which now persists a project
+    identity; remove it so session storage resolves to this local path rather than global
+    per-project storage (see resolve_project_filesystem_paths).
+    """
+    (diff_workspace / ".worktree" / "project.json").unlink(missing_ok=True)
     session_dir = diff_workspace / ".worktree" / "sessions" / session_id
     session_dir.mkdir(parents=True, exist_ok=True)
     patch_path = session_dir / "diff.patch"

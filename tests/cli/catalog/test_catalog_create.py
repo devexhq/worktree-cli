@@ -15,7 +15,7 @@ from worktree.common.filesystem import Filesystem
 from worktree.core.catalog.services.inventory import compute_catalog_sha
 from worktree.core.config.generator import build_default_config
 from worktree.core.db import CatalogItemType
-from worktree.core.db.facade import WorktreeDb
+from worktree.core.db.db import WorktreeDb
 
 
 @pytest.fixture(autouse=True)
@@ -201,14 +201,17 @@ class CatalogCreateCliIntegrationTests:
         actual_json = json.loads(result.stdout)
         assert actual_json["payload"]["item"]["created_at"] != ""
         assert actual_json["payload"]["item"]["updated_at"] != ""
+        assert actual_json["payload"]["item"]["project_id"] != ""
         actual_json["payload"]["item"]["created_at"] = "placeholder"
         actual_json["payload"]["item"]["updated_at"] = "placeholder"
+        actual_json["payload"]["item"]["project_id"] = "placeholder"
 
         assert actual_json == {
             "event_type": "CatalogCreateResult",
             "payload": {
                 "item": {
                     "id": 1,
+                    "project_id": "placeholder",
                     "key": name,
                     "sha": expected_sha,
                     "item_type": item_type_str,

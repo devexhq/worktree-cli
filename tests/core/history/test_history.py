@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from worktree.core.db import RunRecord, RunsRepository, RunStatus
+from worktree.core.db.connection import resolve_db_path
 from worktree.core.engine.models import ReconciliationResult
 from worktree.core.history import History
 from worktree.core.history.models import (
@@ -20,6 +21,7 @@ def _as_expected_record(record: RunRecord) -> RunRecord:
     """Construct an explicit expected RunRecord instance with all model fields set."""
     return RunRecord.model_construct(
         id=record.id,
+        project_id=record.project_id,
         session_id=record.session_id,
         blueprint_key=record.blueprint_key,
         blueprint_name=record.blueprint_name,
@@ -45,7 +47,7 @@ class HistoryInitializationTests:
         assert history.path == isolated_workspace.resolve()
         assert history.cwd == isolated_workspace.resolve()
         assert isinstance(history.db, RunsRepository)
-        assert history.db.db_path == (isolated_workspace.resolve() / ".worktree" / "data.db")
+        assert history.db.db_path == resolve_db_path()
 
 
 class HistoryListTests:

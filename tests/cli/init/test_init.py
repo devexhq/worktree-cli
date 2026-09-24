@@ -12,6 +12,7 @@ from typer.testing import CliRunner
 from worktree.cli import app
 from worktree.common.constants import REQUIRED_SUBDIRS
 from worktree.core.bootstrap.models import BootstrapOutcome
+from worktree.core.db.connection import resolve_db_path
 
 _SEEDED_TEMPLATE_RELATIVE_PATHS = [
     "catalog/blueprints/wt/fix-tests.yml",
@@ -47,7 +48,7 @@ class InitCliIntegrationTests:
     def test_init_cli_fresh_git_repo_creates_workspace_exits_zero(
         self, cli_runner: CliRunner, tmp_path: Path, dispatch_spy: list[Any]
     ) -> None:
-        """wt init: fresh git repo, exit 0, config.json and data.db created, dispatched WorkspaceInitResult.bootstrap_result.outcome=INITIALIZED."""
+        """wt init: fresh git repo, exit 0, config.json created and centralized database initialized, dispatched WorkspaceInitResult.bootstrap_result.outcome=INITIALIZED."""
         _init_git_repo(tmp_path)
 
         result = cli_runner.invoke(app, ["-p", str(tmp_path), "init"])
@@ -55,7 +56,7 @@ class InitCliIntegrationTests:
         assert result.exit_code == 0
         worktree_dir = _worktree_dir(tmp_path)
         assert (worktree_dir / "config.json").exists()
-        assert (worktree_dir / "data.db").exists()
+        assert resolve_db_path().is_file()
         assert len(dispatch_spy) == 1
         res = dispatch_spy[0]
         assert res.bootstrap_result.root_path == worktree_dir

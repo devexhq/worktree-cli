@@ -11,7 +11,7 @@ from worktree.common.filesystem import Filesystem
 from worktree.common.lock import WorkspaceLock
 from worktree.core.config import Config
 from worktree.core.config.models import WorktreeConfig
-from worktree.core.db.facade import WorktreeDb
+from worktree.core.db.db import WorktreeDb
 
 
 def default_lock_wait_notifier(lock_path: Path, holder_pid: str | None, timeout_seconds: float) -> None:

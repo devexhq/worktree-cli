@@ -24,7 +24,7 @@ Precise definitions for core concepts and terms in the Worktree CLI codebase.
   - *Model:* `RunContext` in [`core/runtime/models.py`](../../src/worktree/core/runtime/models.py).
 - **Run Outcome**: The terminal execution result containing status, step results, warnings, and errors.
   - *Model:* `RunOutcome` in [`core/runtime/models.py`](../../src/worktree/core/runtime/models.py).
-- **Session**: Unique execution identifier (`{kind}_{8-hex}`) linking a run to its DB record in `data.db` and session artifacts in `.worktree/sessions/<id>/`.
+- **Session**: Unique execution identifier (`{kind}_{8-hex}`) linking a run to its DB record in the centralized database and session artifacts in `.worktree/sessions/<id>/`.
 - **Sandbox**: An isolated git worktree checkout (`.worktree/sandboxes/<session_id>/`, branch `worktree/sandbox-<id>`).
   - *Facade/Services:* `Sandbox` in [`core/sandbox/facade.py`](../../src/worktree/core/sandbox/facade.py) and [`core/sandbox/services/lifecycle.py`](../../src/worktree/core/sandbox/services/lifecycle.py).
 - **Checkpoint**: Serialized state (`RunCheckpoint`) allowing paused runs (`prompt_user`) to resume later from the failed step.

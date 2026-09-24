@@ -146,9 +146,11 @@ All operations that can fail return a Pydantic result object subclassing `BaseRe
 
 ### Database SQLModel Records
 **Relevant sources:** `src/worktree/core/db/models.py`.
+
+All four tables live in one centralized SQLite database shared across projects (`resolve_db_path` in `core/db/connection.py`), and every record carries `project_id`; every `BaseRepository` query scopes on it (`core/db/repositories/base.py`).
 - `SandboxRecord`: Persisted sandbox rows in `sandboxes` table.
 - `RunRecord`: Persisted blueprint run rows in `runs` table (including `checkpoint_json`).
-- `CatalogRecord`: Persisted catalog index rows in the `catalog` table, including an optional path-derived namespace.
+- `CatalogRecord`: Persisted catalog index rows in the `catalog` table, including an optional path-derived namespace; uniqueness on `key`/`sha`/`path` is scoped per `project_id`.
 - `CostRecord`: Persisted token and execution cost tracking in `costs` table.
 
 ### History, Diff, and Status Models
@@ -208,7 +210,7 @@ Each core domain exposes a cohesive facade class that encapsulates domain servic
 | `GitRunner` | `core/git/runner.py` | Low-level git CLI execution (`run`, `worktree_add`, `worktree_remove`, `worktree_list`, `diff`). |
 | `Sandbox` | `core/sandbox/facade.py` | Worktree sandbox lifecycle (`create`, `show`, `list`, `delete`, `prune`, `apply`, `diff`). |
 | `Config` | `core/config/facade.py` | Config loading, validation, generation, and mutation (`load`, `validate`, `set`, `unset`, `generate`, `show`). |
-| `WorktreeDb` | `core/db/facade.py` | Central database access point (`sandboxes`, `runs`, `catalog`, `costs` repositories). |
+| `WorktreeDb` | `core/db/db.py` | Central database access point (`sandboxes`, `runs`, `catalog`, `costs` repositories). |
 | `Inputs` | `core/inputs/facade.py` | Input flag parsing, default resolution, and placeholder interpolation (`parse_args`, `resolve`, `interpolate`). |
 | `Catalog` | `core/catalog/facade.py` | Template scanning, indexing, retrieval, and seeding (`list_items`, `get_item`, `seed_templates`, `scan_and_index`). |
 | `Blueprint` | `core/blueprint/facade.py` | Loading and rendering unified blueprint documents (`load`, `from_path`, `from_document`, `render_show`). |
