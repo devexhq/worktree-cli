@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from enum import StrEnum
+from pathlib import Path
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
 from worktree.common.constants import DEFAULT_MAXIMUM_SANDBOXES_ALLOWED
+from worktree.common.models import BaseResult
 
 AgentProvider = Literal[
     "local",
@@ -122,3 +125,46 @@ class WorktreeConfig(BaseModel):
     def project_name(self) -> str:
         """Compatibility alias for project display name."""
         return self.project.name
+
+
+class ConfigTier(StrEnum):
+    """Precedence tiers for hierarchical configuration resolution."""
+
+    PACKAGED = "packaged"
+    GLOBAL = "global"
+    USER = "user"
+    REPO = "repo"
+
+
+class ConfigLayer(BaseModel):
+    """One resolved configuration tier: its precedence, source path, and raw data."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    tier: ConfigTier
+    path: Path | None
+    data: dict[str, Any]
+
+
+class HierarchicalConfigLoadStatus(StrEnum):
+    """Classified outcomes for resolving and merging the hierarchical WorktreeConfig tiers."""
+
+    OK = "ok"
+    UNREADABLE = "unreadable"
+    MALFORMED_JSON = "malformed_json"
+    ROOT_NOT_OBJECT = "root_not_object"
+    VALIDATION_FAILED = "validation_failed"
+
+
+class HierarchicalConfigLoadResult(BaseResult):
+    """Non-raising result of resolving and merging the Packaged, Global, User, and Repo config tiers."""
+
+    status: HierarchicalConfigLoadStatus
+    tier: ConfigTier | None = None
+    path: Path | None = None
+    config: WorktreeConfig | None = None
+
+    @property
+    def ok(self) -> bool:
+        """Return True when every tier read and validated successfully."""
+        return self.status == HierarchicalConfigLoadStatus.OK

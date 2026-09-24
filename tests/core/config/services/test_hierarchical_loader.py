@@ -1,0 +1,267 @@
+from __future__ import annotations
+
+import copy
+import json
+import os
+import stat
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from worktree.common.filesystem.services.global_root import resolve_global_paths
+from worktree.core.config.generator import CANONICAL_V1_DEFAULTS
+from worktree.core.config.loader import resolve_config_path
+from worktree.core.config.models import ConfigTier, HierarchicalConfigLoadStatus, WorktreeConfig
+from worktree.core.config.services.hierarchical_loader import (
+    load_hierarchical_config,
+    resolve_config_layers,
+)
+
+
+def _write_tier_config(path: Path, payload: dict[str, Any]) -> None:
+    """Write a tier config.json fixture, creating parent directories as needed."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+class ConfigLayerResolutionTests:
+    """[tier-1/unit] Layer discovery contracts for resolve_config_layers."""
+
+    def test_zero_optional_tiers_returns_only_packaged_layer(self, tmp_path: Path) -> None:
+        repo_root = tmp_path / "repo"
+        global_root = tmp_path / "global_home"
+
+        layers = resolve_config_layers(repo_root, global_root)
+
+        expected_data = {**CANONICAL_V1_DEFAULTS, "project": {"name": "unnamed_project", "initialized_at": None}}
+        assert len(layers) == 1
+        assert layers[0].tier == ConfigTier.PACKAGED
+        assert layers[0].path is None
+        assert layers[0].data == expected_data
+
+    def test_all_tiers_present_returns_four_layers_in_precedence_order(self, tmp_path: Path) -> None:
+        repo_root = tmp_path / "repo"
+        repo_root.mkdir()
+        global_root = tmp_path / "global_home"
+
+        global_paths = resolve_global_paths(global_root)
+        global_config_path = global_paths.global_dir / "config.json"
+        user_config_path = global_paths.user_dir / "config.json"
+        repo_config_path = resolve_config_path(path=repo_root)
+
+        global_data = {"agent": {"temperature": 0.5}}
+        user_data = {"agent": {"model": "local-llm"}}
+        repo_data = {"sandbox": {"base_ref": "main"}}
+        _write_tier_config(global_config_path, global_data)
+        _write_tier_config(user_config_path, user_data)
+        _write_tier_config(repo_config_path, repo_data)
+
+        layers = resolve_config_layers(repo_root, global_root)
+
+        assert [layer.tier for layer in layers] == [
+            ConfigTier.PACKAGED,
+            ConfigTier.GLOBAL,
+            ConfigTier.USER,
+            ConfigTier.REPO,
+        ]
+        assert layers[1].path == global_config_path
+        assert layers[1].data == global_data
+        assert layers[2].path == user_config_path
+        assert layers[2].data == user_data
+        assert layers[3].path == repo_config_path
+        assert layers[3].data == repo_data
+
+    def test_missing_global_tier_silently_skipped(self, tmp_path: Path) -> None:
+        repo_root = tmp_path / "repo"
+        repo_root.mkdir()
+        global_root = tmp_path / "global_home"
+
+        global_paths = resolve_global_paths(global_root)
+        user_config_path = global_paths.user_dir / "config.json"
+        repo_config_path = resolve_config_path(path=repo_root)
+        _write_tier_config(user_config_path, {"agent": {"model": "gemini-pro"}})
+        _write_tier_config(repo_config_path, {"sandbox": {"base_ref": "main"}})
+
+        layers = resolve_config_layers(repo_root, global_root)
+
+        assert [layer.tier for layer in layers] == [ConfigTier.PACKAGED, ConfigTier.USER, ConfigTier.REPO]
+
+
+class HierarchicalConfigMergeTests:
+    """[tier-1/unit] Precedence and recursive-merge contracts for load_hierarchical_config."""
+
+    def test_no_tier_files_returns_packaged_defaults_as_worktree_config(self, tmp_path: Path) -> None:
+        repo_root = tmp_path / "repo"
+        global_root = tmp_path / "global_home"
+
+        result = load_hierarchical_config(repo_root, global_root)
+
+        expected_data = {**CANONICAL_V1_DEFAULTS, "project": {"name": "unnamed_project", "initialized_at": None}}
+        assert result.status == HierarchicalConfigLoadStatus.OK
+        assert result.config == WorktreeConfig.model_validate(expected_data)
+
+    def test_user_tier_overrides_agent_model_when_repo_leaves_unset(
+        self, isolated_workspace: Path, tmp_path: Path
+    ) -> None:
+        global_root = tmp_path / "global_home"
+        global_paths = resolve_global_paths(global_root)
+        _write_tier_config(global_paths.user_dir / "config.json", {"agent": {"model": "gemini-pro"}})
+        _write_tier_config(isolated_workspace / ".worktree" / "config.json", {"sandbox": {"base_ref": "main"}})
+
+        result = load_hierarchical_config(isolated_workspace, global_root)
+
+        assert result.config is not None
+        assert result.config.agent.model == "gemini-pro"
+
+    def test_repo_tier_overrides_sandbox_base_ref_over_user_default(
+        self, isolated_workspace: Path, tmp_path: Path
+    ) -> None:
+        global_root = tmp_path / "global_home"
+        global_paths = resolve_global_paths(global_root)
+        _write_tier_config(global_paths.user_dir / "config.json", {"sandbox": {"base_ref": "develop"}})
+        _write_tier_config(isolated_workspace / ".worktree" / "config.json", {"sandbox": {"base_ref": "main"}})
+
+        result = load_hierarchical_config(isolated_workspace, global_root)
+
+        assert result.config is not None
+        assert result.config.sandbox.base_ref == "main"
+
+    def test_nested_dict_keys_merge_recursively_across_tiers(self, isolated_workspace: Path, tmp_path: Path) -> None:
+        # Pins FR-3 (recursive dict merge): distinct from the missing-tier test below,
+        # which pins FR-2 (a missing tier is non-fatal) using the same two-tier fixture shape.
+        global_root = tmp_path / "global_home"
+        global_paths = resolve_global_paths(global_root)
+        _write_tier_config(global_paths.global_dir / "config.json", {"agent": {"temperature": 0.5}})
+        _write_tier_config(global_paths.user_dir / "config.json", {"agent": {"model": "local-llm"}})
+
+        result = load_hierarchical_config(isolated_workspace, global_root)
+
+        assert result.config is not None
+        assert result.config.agent.temperature == 0.5
+        assert result.config.agent.model == "local-llm"
+
+    def test_global_root_none_resolves_via_worktree_home_env(
+        self, isolated_workspace: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        custom_home = tmp_path / "custom_home"
+        monkeypatch.setenv("WORKTREE_HOME", str(custom_home))
+        _write_tier_config(custom_home / "global" / "config.json", {"agent": {"temperature": 0.7}})
+        _write_tier_config(custom_home / "user" / "config.json", {"agent": {"model": "worktree-home-model"}})
+
+        result = load_hierarchical_config(isolated_workspace, global_root=None)
+
+        assert result.config is not None
+        assert result.config.agent.temperature == 0.7
+        assert result.config.agent.model == "worktree-home-model"
+
+
+class HierarchicalConfigErrorTests:
+    """[tier-1/unit] Tier-attributed error contracts for load_hierarchical_config."""
+
+    def test_malformed_json_in_user_tier_returns_malformed_json_status(
+        self, isolated_workspace: Path, tmp_path: Path
+    ) -> None:
+        global_root = tmp_path / "global_home"
+        global_paths = resolve_global_paths(global_root)
+        user_config_path = global_paths.user_dir / "config.json"
+        user_config_path.parent.mkdir(parents=True)
+        user_config_path.write_text("{not valid json", encoding="utf-8")
+
+        result = load_hierarchical_config(isolated_workspace, global_root)
+
+        assert result.status == HierarchicalConfigLoadStatus.MALFORMED_JSON
+        assert result.tier == ConfigTier.USER
+        assert result.path == user_config_path
+        assert "line" in result.errors[0]
+        assert "column" in result.errors[0]
+
+    def test_type_mismatch_in_repo_tier_returns_validation_failed_status(
+        self, isolated_workspace: Path, tmp_path: Path
+    ) -> None:
+        global_root = tmp_path / "global_home"
+        repo_config_path = isolated_workspace / ".worktree" / "config.json"
+        _write_tier_config(repo_config_path, {"sandbox": {"max_active_sandboxes": "many"}})
+
+        result = load_hierarchical_config(isolated_workspace, global_root)
+
+        assert result.status == HierarchicalConfigLoadStatus.VALIDATION_FAILED
+        assert result.tier == ConfigTier.REPO
+        assert result.path == repo_config_path
+        assert "max_active_sandboxes" in result.errors[0]
+
+    def test_unreadable_user_tier_file_returns_unreadable_status(
+        self, isolated_workspace: Path, tmp_path: Path
+    ) -> None:
+        global_root = tmp_path / "global_home"
+        global_paths = resolve_global_paths(global_root)
+        user_config_path = global_paths.user_dir / "config.json"
+        _write_tier_config(user_config_path, {})
+        user_config_path.chmod(0)
+        try:
+            if os.access(user_config_path, os.R_OK):
+                pytest.skip("filesystem still allows reading unreadable mode")
+
+            result = load_hierarchical_config(isolated_workspace, global_root)
+        finally:
+            user_config_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+
+        assert result.status == HierarchicalConfigLoadStatus.UNREADABLE
+        assert result.tier == ConfigTier.USER
+        assert "Check file permissions and that the path is readable" in result.errors[0]
+
+    def test_missing_repo_config_is_silently_skipped_not_raised(self, isolated_workspace: Path, tmp_path: Path) -> None:
+        # Pins FR-2 (a missing tier is non-fatal): distinct from the recursive-merge test
+        # above, which pins FR-3 using the same two-tier fixture shape.
+        global_root = tmp_path / "global_home"
+        global_paths = resolve_global_paths(global_root)
+        _write_tier_config(global_paths.global_dir / "config.json", {"agent": {"temperature": 0.3}})
+        _write_tier_config(global_paths.user_dir / "config.json", {"agent": {"model": "user-model"}})
+
+        result = load_hierarchical_config(isolated_workspace, global_root)
+
+        assert result.status == HierarchicalConfigLoadStatus.OK
+        assert result.config is not None
+        assert result.config.agent.temperature == 0.3
+        assert result.config.agent.model == "user-model"
+
+
+class HierarchicalMergePurityTests:
+    """[tier-1/unit] NFR-1/NFR-2 purity and determinism contracts for the merge pipeline."""
+
+    def test_deep_merge_does_not_mutate_source_tier_dicts(self, isolated_workspace: Path, tmp_path: Path) -> None:
+        global_root = tmp_path / "global_home"
+        global_paths = resolve_global_paths(global_root)
+        _write_tier_config(global_paths.user_dir / "config.json", {"agent": {"model": "gemini-pro"}})
+        _write_tier_config(isolated_workspace / ".worktree" / "config.json", {"agent": {"temperature": 0.9}})
+
+        layers = resolve_config_layers(isolated_workspace, global_root)
+        snapshot = [copy.deepcopy(layer.data) for layer in layers]
+
+        load_hierarchical_config(isolated_workspace, global_root)
+
+        for layer, before in zip(layers, snapshot, strict=True):
+            assert layer.data == before
+
+    def test_merge_output_is_deterministic_regardless_of_json_key_order(
+        self, isolated_workspace: Path, tmp_path: Path
+    ) -> None:
+        global_root = tmp_path / "global_home"
+        repo_root_a = tmp_path / "repo_a"
+        repo_root_a.mkdir()
+        repo_root_b = tmp_path / "repo_b"
+        repo_root_b.mkdir()
+
+        (repo_root_a / ".worktree").mkdir()
+        (repo_root_a / ".worktree" / "config.json").write_text(
+            '{"sandbox": {"base_ref": "main"}, "agent": {"model": "x"}}', encoding="utf-8"
+        )
+        (repo_root_b / ".worktree").mkdir()
+        (repo_root_b / ".worktree" / "config.json").write_text(
+            '{"agent": {"model": "x"}, "sandbox": {"base_ref": "main"}}', encoding="utf-8"
+        )
+
+        result_a = load_hierarchical_config(repo_root_a, global_root)
+        result_b = load_hierarchical_config(repo_root_b, global_root)
+
+        assert result_a.config == result_b.config

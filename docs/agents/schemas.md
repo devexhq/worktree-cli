@@ -33,6 +33,7 @@ Comprehensive reference for the shape of entities across the Worktree CLI codeba
   - `CatalogWriteError`: File write or permission failure during catalog mutation.
 - **Config** (`core/config/exceptions.py`):
   - `ConfigLoadError`: Fatal configuration loading failure.
+  - `ConfigTierValidationError`: A hierarchical config tier file is unreadable, malformed, or fails `WorktreeConfig` validation; carries `tier`, `path`, and `details`.
 - **Engine** (`core/engine/exceptions.py`):
   - `EngineError`: Base process engine error.
   - `EngineRuntimeError`: Execution runtime error.
@@ -89,6 +90,8 @@ All operations that can fail return a Pydantic result object subclassing `BaseRe
 - `ConfigGenerationResult`: Result of creating, repairing, or overwriting config (`created`, `skipped_existing`, `repaired`, `overwritten`, `inserted_keys`, `warnings`, `errors`, `ok`).
 - [`GlobalPaths`](../../src/worktree/common/filesystem/models.py): Canonical paths for the global Worktree hierarchy.
 - [`FilesystemPaths`](../../src/worktree/common/filesystem/models.py): Keeps repository configuration, catalog, database, lock, and sandboxes local. When a persisted project identity is available, it resolves runtime sessions, artifacts, logs, and temporary files below `WORKTREE_HOME/storage/projects/<project-id>`; projects without an identity retain the repository-local runtime paths.
+- `ConfigTier`, `ConfigLayer`: Precedence-tier enum and resolved-layer DTO for hierarchical config resolution, defined in [`core/config/models.py`](../../src/worktree/core/config/models.py). [`core/config/services/hierarchical_loader.py`](../../src/worktree/core/config/services/hierarchical_loader.py) exposes `load_hierarchical_config` and `resolve_config_layers`, merging Packaged, Global, User, and Repo tiers into a validated `WorktreeConfig`.
+- `HierarchicalConfigLoadResult` / `HierarchicalConfigLoadStatus`: Non-raising result of `load_hierarchical_config` (`status`, `tier`, `path`, `config`, `errors`, `ok`); `status` classifies which tier's file was unreadable, malformed, non-object, or failed `WorktreeConfig` validation.
 
 ### Project Identity Model
 **Relevant source:** `src/worktree/core/project/models.py`.
