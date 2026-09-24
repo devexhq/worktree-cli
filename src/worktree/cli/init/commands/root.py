@@ -13,6 +13,9 @@ def init_command(
     overwrite: bool = False,
     repair: bool = False,
     output_format: str = "terminal",
+    project_id: str | None = None,
+    display_name: str | None = None,
+    force: bool = False,
 ) -> WorkspaceInitResult:
     """Initialize a local project workspace for Worktree CLI and desktop sync.
 
@@ -22,12 +25,18 @@ def init_command(
         overwrite: When True, replace existing config with V1 defaults.
         repair: When True, non-destructively add missing required keys.
         output_format: Presentation format ("terminal" or "json").
+        project_id: Explicit unique project ID slug.
+        display_name: Human-readable project display name.
+        force: When True with project_id, overwrite an existing project identity.
     """
     result = initialize_workspace(
         context.cwd,
         tool_version=tool_version,
         overwrite=overwrite,
         repair=repair,
+        project_id=project_id,
+        display_name=display_name,
+        force=force,
     )
     ui_dispatcher.dispatch(result, output_format=output_format)
     return result

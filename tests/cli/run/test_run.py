@@ -160,3 +160,13 @@ class RunCliIntegrationTests:
         success_events = [e for e in events if e["event_type"] == "RunSuccessEvent"]
         assert len(success_events) == 1
         assert success_events[0]["payload"]["status"] == "completed"
+
+    def test_run_cli_uninitialized_git_repo_auto_initializes_and_proceeds(
+        self, cli_runner: CliRunner, git_repo: Path
+    ) -> None:
+        """wt run: git repo with no .worktree/ auto-initializes (project.json + config.json written) instead of raising ConfigLoadError."""
+        result = cli_runner.invoke(app, ["-p", str(git_repo), "run", "missing-workflow", "--no-sandbox"])
+
+        assert "CONFIG_NOT_FOUND" not in result.stdout
+        assert (git_repo / ".worktree" / "project.json").exists()
+        assert (git_repo / ".worktree" / "config.json").exists()

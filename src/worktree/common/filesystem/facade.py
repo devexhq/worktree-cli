@@ -5,10 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from worktree.common.filesystem.models import FilesystemPaths, YamlFile
-from worktree.common.filesystem.services.git import (
-    is_git_repository as _is_git_repository,
-    update_gitignore as _update_gitignore,
-)
+from worktree.common.filesystem.services.git import is_git_repository as _is_git_repository
 from worktree.common.filesystem.services.operations import (
     atomic_write_json as _atomic_write_json,
     atomic_write_text as _atomic_write_text,
@@ -196,11 +193,6 @@ class Filesystem:
         """Scan a directory recursively for matching YAML files, sorted by path."""
         return _scan_yaml_directory(directory, suffixes=suffixes)
 
-    def update_gitignore(self, path: Path | None = None) -> bool:
-        """Ensure /.worktree/ is excluded in .gitignore."""
-        target = path if path is not None else self.paths.gitignore_file
-        return _update_gitignore(target)
-
     def is_git_repo(self, path: Path | None = None) -> bool:
         """Check whether the given directory contains a .git directory or file."""
         target = path if path is not None else self.paths.root_dir
@@ -220,11 +212,6 @@ class Filesystem:
     def is_git_repository(path: Path) -> bool:
         """Check whether the given directory contains a .git directory or file."""
         return _is_git_repository(path)
-
-    @staticmethod
-    def update_gitignore_file(path: Path) -> bool:
-        """Ensure /.worktree/ is excluded in the specified .gitignore file."""
-        return _update_gitignore(path)
 
     @staticmethod
     def atomic_write_text(path: Path, text: str) -> None:

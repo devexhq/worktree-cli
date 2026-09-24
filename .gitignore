@@ -177,8 +177,5 @@ complexipy-results.json
 
 # End of https://www.toptal.com/developers/gitignore/api/python
 
-# Worktree CLI cache and local databases
-/.worktree/
-
 scratch/
 .agentic

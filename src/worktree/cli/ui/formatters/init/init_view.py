@@ -19,6 +19,11 @@ class WorkspaceInitView(BaseModel):
     root_path_relative: str | None = None
     bootstrap_outcome: BootstrapOutcome | None = None
     dirs_created: list[str] = Field(default_factory=list)
+    project_id: str | None = None
+    identity_path_relative: str | None = None
+    identity_preserved: bool = False
+    gitignore_path_relative: str | None = None
+    gitignore_tracked_entries: list[str] = Field(default_factory=list)
     config_created: bool = False
     config_overwritten: bool = False
     config_repaired: bool = False

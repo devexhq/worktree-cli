@@ -13,6 +13,7 @@ from worktree.core.bootstrap.services.bootstrap import bootstrap_worktree
 from worktree.core.catalog.services.seeder import seed_all_catalog_templates
 from worktree.core.config.generator import generate_default_config
 from worktree.core.db import init_database
+from worktree.core.project.services.identity import provision_project_identity
 
 
 def initialize_workspace(
@@ -21,12 +22,15 @@ def initialize_workspace(
     tool_version: str | None = None,
     overwrite: bool = False,
     repair: bool = False,
+    project_id: str | None = None,
+    display_name: str | None = None,
+    force: bool = False,
 ) -> WorkspaceInitResult:
     """Initialize a local project workspace for Worktree CLI and desktop sync.
 
-    Performs git preflight, bootstraps the .worktree/ directory tree, updates
-    .gitignore, generates canonical default configuration, initializes the SQLite
-    state database, and seeds starter catalog templates.
+    Performs git preflight, bootstraps the .worktree/ directory tree, provisions
+    the project identity, generates canonical default configuration, initializes
+    the SQLite state database, and seeds starter catalog templates.
     """
     fs = Filesystem(root)
     resolved_root = fs.root_dir
@@ -46,8 +50,18 @@ def initialize_workspace(
             failure_mode=InitFailureMode.BOOTSTRAP,
         )
 
-    if result.root_created:
-        fs.update_gitignore()
+    identity_result = provision_project_identity(
+        fs.worktree_dir,
+        project_id=project_id,
+        display_name=display_name,
+        force=force,
+    )
+    if not identity_result.ok:
+        return WorkspaceInitResult(
+            bootstrap_result=result,
+            identity_result=identity_result,
+            errors=list(identity_result.errors),
+        )
 
     config_result = generate_default_config(
         fs.config_file,
@@ -58,6 +72,7 @@ def initialize_workspace(
     if not config_result.ok:
         return WorkspaceInitResult(
             bootstrap_result=result,
+            identity_result=identity_result,
             config_result=config_result,
             errors=list(config_result.errors),
             failure_mode=InitFailureMode.CONFIG_GENERATION,
@@ -68,6 +83,7 @@ def initialize_workspace(
     seed_result = seed_all_catalog_templates(path=resolved_root)
     return WorkspaceInitResult(
         bootstrap_result=result,
+        identity_result=identity_result,
         config_result=config_result,
         seed_result=seed_result,
         errors=list(seed_result.errors),

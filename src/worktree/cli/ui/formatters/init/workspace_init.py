@@ -13,9 +13,11 @@ from worktree.cli.ui.formatters.init.common import (
     render_bootstrap_lines,
     render_config_lines,
     render_failure_panel,
+    render_identity_lines,
     render_seed_lines,
 )
 from worktree.cli.ui.formatters.init.init_view import WorkspaceInitView
+from worktree.common.constants import WORKTREE_GITIGNORE_TRACKED_ENTRIES
 from worktree.common.models import BaseResult
 from worktree.common.types import ComponentFormatter
 from worktree.common.utils import display_path
@@ -26,6 +28,7 @@ from worktree.core.bootstrap.models import (
 )
 from worktree.core.catalog.models import SeedResult
 from worktree.core.config.generator import ConfigGenerationResult
+from worktree.core.project.models import ProjectIdentityProvisionResult, ProjectIdentityProvisionStatus
 
 
 class _ConfigPresentation(NamedTuple):
@@ -54,6 +57,26 @@ def _extract_bootstrap_fields(
     root_path_relative = display_path(root_path, cwd) if root_path is not None else None
     dirs_created = [display_path(p, cwd) for p in result.dirs_created]
     return root_path, root_path_relative, result.outcome, dirs_created
+
+
+def _extract_gitignore_fields(result: BootstrapResult | None, cwd: Path) -> tuple[str | None, list[str]]:
+    """Extract the local .worktree/.gitignore relative path and tracked entries."""
+    if result is None:
+        return None, []
+    gitignore_path_relative = display_path(result.root_path / ".gitignore", cwd)
+    return gitignore_path_relative, list(WORKTREE_GITIGNORE_TRACKED_ENTRIES)
+
+
+def _extract_identity_fields(
+    result: ProjectIdentityProvisionResult | None, cwd: Path
+) -> tuple[str | None, str | None, bool]:
+    """Extract project id, relative identity path, and whether it was preserved."""
+    if result is None:
+        return None, None, False
+    project_id = result.identity.id if result.identity is not None else None
+    identity_path_relative = display_path(result.path, cwd)
+    identity_preserved = result.status == ProjectIdentityProvisionStatus.PRESERVED
+    return project_id, identity_path_relative, identity_preserved
 
 
 def _extract_config_presentation(result: ConfigGenerationResult | None, cwd: Path) -> _ConfigPresentation:
@@ -97,7 +120,7 @@ def _collect_messages(
     """Collect top-level messages or fallback to nested results."""
     messages = list(primary)
     if not messages:
-        for sub_result in (data.bootstrap_result, data.config_result, data.seed_result):
+        for sub_result in (data.bootstrap_result, data.identity_result, data.config_result, data.seed_result):
             if sub_result is not None:
                 messages.extend(getter(sub_result))
     return messages
@@ -135,6 +158,8 @@ class WorkspaceInitFormatter(ComponentFormatter[WorkspaceInitResult, WorkspaceIn
         root_path, root_path_relative, bootstrap_outcome, dirs_created = _extract_bootstrap_fields(
             data.bootstrap_result, cwd
         )
+        gitignore_path_relative, gitignore_tracked_entries = _extract_gitignore_fields(data.bootstrap_result, cwd)
+        project_id, identity_path_relative, identity_preserved = _extract_identity_fields(data.identity_result, cwd)
         config_presentation = _extract_config_presentation(data.config_result, cwd)
         seeded_files, skipped_seed_files, overwritten_seed_files = _extract_seed_fields(data.seed_result, cwd)
 
@@ -144,6 +169,11 @@ class WorkspaceInitFormatter(ComponentFormatter[WorkspaceInitResult, WorkspaceIn
             root_path_relative=root_path_relative,
             bootstrap_outcome=bootstrap_outcome,
             dirs_created=dirs_created,
+            project_id=project_id,
+            identity_path_relative=identity_path_relative,
+            identity_preserved=identity_preserved,
+            gitignore_path_relative=gitignore_path_relative,
+            gitignore_tracked_entries=gitignore_tracked_entries,
             config_created=config_presentation.created,
             config_overwritten=config_presentation.overwritten,
             config_repaired=config_presentation.repaired,
@@ -169,6 +199,7 @@ class WorkspaceInitFormatter(ComponentFormatter[WorkspaceInitResult, WorkspaceIn
         renderables: list[Any] = [Text("")]
         if view.bootstrap_outcome is not None:
             renderables.extend(render_bootstrap_lines(view))
+            renderables.extend(render_identity_lines(view))
             if view.config_path_relative is not None:
                 renderables.extend(render_config_lines(view))
             renderables.extend(render_seed_lines(view))

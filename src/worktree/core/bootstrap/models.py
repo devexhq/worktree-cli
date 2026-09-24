@@ -11,6 +11,7 @@ from pydantic import Field, model_validator
 from worktree.common.models import BaseResult
 from worktree.core.catalog.models import SeedResult
 from worktree.core.config.generator import ConfigGenerationResult
+from worktree.core.project.models import ProjectIdentityProvisionResult, ProjectIdentityProvisionStatus
 
 
 class DirEnsureOutcome(Enum):
@@ -35,6 +36,7 @@ class InitFailureMode(StrEnum):
     PREFLIGHT = "preflight"
     BOOTSTRAP = "bootstrap"
     CONFIG_GENERATION = "config_generation"
+    INVALID_PROJECT_ID = "invalid_project_id"
 
 
 class BootstrapResult(BaseResult):
@@ -46,6 +48,7 @@ class BootstrapResult(BaseResult):
     dirs_created: list[Path] = Field(default_factory=list)
     dirs_existing: list[Path] = Field(default_factory=list)
     repaired: bool = False
+    gitignore_created: bool = False
     seed_result: SeedResult = Field(default_factory=SeedResult)
 
     @property
@@ -68,21 +71,45 @@ class BootstrapResult(BaseResult):
         return self
 
 
+def _classify_init_failure_mode(
+    *,
+    bootstrap_result: BootstrapResult | None,
+    identity_result: ProjectIdentityProvisionResult | None,
+    config_result: ConfigGenerationResult | None,
+    has_top_level_errors: bool,
+) -> InitFailureMode | None:
+    """Classify a WorkspaceInitResult's failure mode from its child results."""
+    if bootstrap_result is None:
+        return InitFailureMode.PREFLIGHT if has_top_level_errors else None
+    if not bootstrap_result.ok:
+        return InitFailureMode.BOOTSTRAP
+    if identity_result is not None and identity_result.status == ProjectIdentityProvisionStatus.INVALID_ID:
+        return InitFailureMode.INVALID_PROJECT_ID
+    if identity_result is not None and not identity_result.ok:
+        return InitFailureMode.BOOTSTRAP
+    if config_result is not None and not config_result.ok:
+        return InitFailureMode.CONFIG_GENERATION
+    return None
+
+
 class WorkspaceInitResult(BaseResult):
     """Structured outcome of initializing a project workspace."""
 
     bootstrap_result: BootstrapResult | None = None
+    identity_result: ProjectIdentityProvisionResult | None = None
     config_result: ConfigGenerationResult | None = None
     seed_result: SeedResult | None = None
     failure_mode: InitFailureMode | None = None
 
     @property
     def ok(self) -> bool:
-        """True when bootstrap, config, and catalog seeding all succeed with no errors."""
+        """True when bootstrap, identity, config, and catalog seeding all succeed with no errors."""
         return (
             not self.errors
             and self.bootstrap_result is not None
             and self.bootstrap_result.ok
+            and self.identity_result is not None
+            and self.identity_result.ok
             and self.config_result is not None
             and self.config_result.ok
             and self.seed_result is not None
@@ -93,10 +120,10 @@ class WorkspaceInitResult(BaseResult):
     def _resolve_failure_mode(self) -> Self:
         """Derive failure mode from child results when not explicitly provided."""
         if "failure_mode" not in self.model_fields_set:
-            if self.bootstrap_result is None and self.errors:
-                self.failure_mode = InitFailureMode.PREFLIGHT
-            elif self.bootstrap_result is not None and not self.bootstrap_result.ok:
-                self.failure_mode = InitFailureMode.BOOTSTRAP
-            elif self.config_result is not None and not self.config_result.ok:
-                self.failure_mode = InitFailureMode.CONFIG_GENERATION
+            self.failure_mode = _classify_init_failure_mode(
+                bootstrap_result=self.bootstrap_result,
+                identity_result=self.identity_result,
+                config_result=self.config_result,
+                has_top_level_errors=bool(self.errors),
+            )
         return self

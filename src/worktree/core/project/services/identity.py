@@ -1,5 +1,6 @@
 """Project identity creation and persistence services."""
 
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -8,11 +9,14 @@ from pydantic import ValidationError
 from worktree.common.filesystem.facade import Filesystem
 from worktree.common.lock import LockTimeoutError, WorkspaceLock
 from worktree.core.project.models import (
+    PROJECT_ID_REGEX,
     ProjectIdentity,
     ProjectIdentityError,
     ProjectIdentityErrorType,
     ProjectIdentityLoadResult,
     ProjectIdentityLoadStatus,
+    ProjectIdentityProvisionResult,
+    ProjectIdentityProvisionStatus,
     ProjectIdentitySaveResult,
     ProjectIdentitySaveStatus,
 )
@@ -111,3 +115,99 @@ def save_project_identity(path: Path, identity: ProjectIdentity) -> ProjectIdent
         )
 
     return ProjectIdentitySaveResult(status=ProjectIdentitySaveStatus.OK, path=path)
+
+
+def _validate_project_id_format(project_id: str) -> str | None:
+    """Return an error message when project_id does not match PROJECT_ID_REGEX, else None."""
+    if re.match(PROJECT_ID_REGEX, project_id) is None:
+        return f"Invalid project ID: must match {PROJECT_ID_REGEX}"
+
+    return None
+
+
+def _create_identity(
+    path: Path,
+    project_id: str | None,
+    display_name: str | None,
+    status: ProjectIdentityProvisionStatus,
+) -> ProjectIdentityProvisionResult:
+    """Generate and persist a fresh identity, returning the given status on success."""
+    identity = generate_project_identity(project_id, display_name)
+    save_result = save_project_identity(path, identity)
+    if not save_result.ok:
+        return ProjectIdentityProvisionResult(
+            status=ProjectIdentityProvisionStatus.FAILED,
+            path=path,
+            errors=list(save_result.errors),
+        )
+
+    return ProjectIdentityProvisionResult(status=status, path=path, identity=identity)
+
+
+def _preserve_existing_identity(
+    path: Path,
+    *,
+    project_id: str | None,
+    force: bool,
+) -> ProjectIdentityProvisionResult:
+    """Load and preserve the existing identity, warning the user why nothing changed."""
+    loaded = load_project_identity(path)
+    if not loaded.ok or loaded.identity is None:
+        return ProjectIdentityProvisionResult(
+            status=ProjectIdentityProvisionStatus.FAILED,
+            path=path,
+            errors=list(loaded.errors),
+        )
+
+    existing = loaded.identity
+    if project_id is not None:
+        warning = (
+            f"Project identity already exists (id={existing.id}); ignoring --id '{project_id}' since --force "
+            f"was not passed. Rerun with --id {project_id} --force to replace it."
+        )
+    elif force:
+        warning = (
+            f"Project identity already exists (id={existing.id}); --force has no effect without --id, "
+            "so the existing identity was preserved."
+        )
+    else:
+        warning = (
+            f"Project identity already exists (id={existing.id}); preserving existing identity. "
+            "Rerun with --id <new-id> --force to replace it."
+        )
+
+    return ProjectIdentityProvisionResult(
+        status=ProjectIdentityProvisionStatus.PRESERVED,
+        path=path,
+        identity=existing,
+        warnings=[warning],
+    )
+
+
+def provision_project_identity(
+    worktree_dir: Path,
+    *,
+    project_id: str | None = None,
+    display_name: str | None = None,
+    force: bool = False,
+) -> ProjectIdentityProvisionResult:
+    """Create, preserve, or overwrite `<worktree_dir>/project.json` for `wt init`."""
+    path = worktree_dir / "project.json"
+
+    if project_id is not None:
+        format_error = _validate_project_id_format(project_id)
+        if format_error is not None:
+            return ProjectIdentityProvisionResult(
+                status=ProjectIdentityProvisionStatus.INVALID_ID,
+                path=path,
+                errors=[format_error],
+                fixes=[f"Pass a valid --id matching {PROJECT_ID_REGEX}, or omit --id to generate one."],
+            )
+
+    if not path.exists():
+        return _create_identity(path, project_id, display_name, ProjectIdentityProvisionStatus.CREATED)
+
+    if force and project_id is not None:
+        return _create_identity(path, project_id, display_name, ProjectIdentityProvisionStatus.OVERWRITTEN)
+
+    return _preserve_existing_identity(path, project_id=project_id, force=force)

@@ -44,6 +44,27 @@ def render_bootstrap_lines(view: WorkspaceInitView) -> list[Any]:
     return renderables
 
 
+def render_identity_lines(view: WorkspaceInitView) -> list[Any]:
+    """Render project identity and local .worktree/.gitignore result lines."""
+    renderables: list[Any] = []
+    if view.project_id is not None:
+        identity_label = view.identity_path_relative or ".worktree/project.json"
+        renderables.append(Text.from_markup(f"  [dim]•[/dim] Project ID: [cyan]{view.project_id}[/cyan]"))
+        renderables.append(Text.from_markup(f"  [dim]•[/dim] Identity: [cyan]{identity_label}[/cyan]"))
+        if view.identity_preserved and view.warnings:
+            renderables.append(Text.from_markup(f"[bold yellow]  {view.warnings[0]}[/bold yellow]"))
+
+    if view.gitignore_path_relative is not None:
+        tracked_entries = ", ".join(view.gitignore_tracked_entries)
+        renderables.append(
+            Text.from_markup(
+                f"  [dim]•[/dim] Gitignore populated at {view.gitignore_path_relative}; "
+                f"tracking only {tracked_entries}."
+            )
+        )
+    return renderables
+
+
 def render_config_lines(view: WorkspaceInitView) -> list[Any]:
     """Render config generation result lines."""
     if not view.config_path_relative:
@@ -121,7 +142,7 @@ def render_failure_panel(view: WorkspaceInitView) -> Panel | None:
     """Render failure panels for preflight, bootstrap, or configuration generation errors."""
     if view.failure_mode == InitFailureMode.PREFLIGHT:
         return render_preflight_failure(view)
-    if view.failure_mode == InitFailureMode.BOOTSTRAP:
+    if view.failure_mode in (InitFailureMode.BOOTSTRAP, InitFailureMode.INVALID_PROJECT_ID):
         return render_bootstrap_failure(view)
     if view.failure_mode == InitFailureMode.CONFIG_GENERATION:
         return render_config_failure(view)

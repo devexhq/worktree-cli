@@ -9,7 +9,7 @@ from typer.core import TyperGroup
 
 from worktree.cli.catalog.app import catalog_app
 from worktree.cli.config.app import config_app
-from worktree.cli.context import CliContext, default_lock_wait_notifier
+from worktree.cli.context import CliContext, default_lock_wait_notifier, ensure_lazy_project_init
 from worktree.cli.diff.app import register_diff_command
 from worktree.cli.doctor.app import doctor_app
 from worktree.cli.history.app import history_app
@@ -20,6 +20,7 @@ from worktree.cli.sandbox.app import sandbox_app
 from worktree.cli.status.app import status_app
 from worktree.cli.ui.dispatcher import ui_dispatcher
 from worktree.cli.ui.events import ErrorPanelEvent, MessageEvent, WelcomeBannerEvent
+from worktree.common.filesystem import Filesystem
 from worktree.common.lock import LockTimeoutError, WorkspaceLock
 from worktree.common.version import get_version
 from worktree.core.config import ConfigLoadError, ConfigLoadResult, ConfigLoadStatus
@@ -126,6 +127,8 @@ def main(
     excluded_commands = {"config", "doctor", "init", "install", "status"}
     if ctx.invoked_subcommand not in excluded_commands and not ctx.obj.get("is_help", False):
         try:
+            if ctx.invoked_subcommand == "run":
+                ensure_lazy_project_init(Filesystem.configure(path))
             ctx.obj["context"] = CliContext.build(path=path)
         except ConfigLoadError as exc:
             cfg_path = resolve_config_path(path)

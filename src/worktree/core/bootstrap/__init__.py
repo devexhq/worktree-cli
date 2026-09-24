@@ -5,7 +5,6 @@ from worktree.common.constants import (
     BOOTSTRAP_SCHEMA_VERSION,
     REQUIRED_SUBDIRS,
 )
-from worktree.core.bootstrap.facade import Bootstrap
 from worktree.core.bootstrap.models import (
     BootstrapOutcome,
     BootstrapResult,
@@ -26,7 +25,6 @@ __all__ = [
     "BOOTSTRAP_META_REL",
     "BOOTSTRAP_SCHEMA_VERSION",
     "REQUIRED_SUBDIRS",
-    "Bootstrap",
     "BootstrapOutcome",
     "BootstrapResult",
     "DirEnsureOutcome",

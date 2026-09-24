@@ -101,3 +101,30 @@ class ProjectIdentitySaveResult(BaseResult):
     def ok(self) -> bool:
         """Return True when a project identity was saved."""
         return self.status == ProjectIdentitySaveStatus.OK
+
+
+class ProjectIdentityProvisionStatus(StrEnum):
+    """Classify outcomes of provisioning a project identity for `wt init`."""
+
+    CREATED = "created"
+    PRESERVED = "preserved"
+    OVERWRITTEN = "overwritten"
+    INVALID_ID = "invalid_id"
+    FAILED = "failed"
+
+
+class ProjectIdentityProvisionResult(BaseResult):
+    """Non-raising result of creating, preserving, or overwriting a project identity."""
+
+    status: ProjectIdentityProvisionStatus
+    path: Path
+    identity: ProjectIdentity | None = None
+
+    @property
+    def ok(self) -> bool:
+        """Return True when a valid identity is present on disk after provisioning."""
+        return self.status in (
+            ProjectIdentityProvisionStatus.CREATED,
+            ProjectIdentityProvisionStatus.PRESERVED,
+            ProjectIdentityProvisionStatus.OVERWRITTEN,
+        )

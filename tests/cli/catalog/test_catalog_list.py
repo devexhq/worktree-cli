@@ -189,3 +189,12 @@ class CatalogListCliIntegrationTests:
 
         assert result.exit_code == 1
         assert "Invalid --type argument" in result.stdout
+
+    def test_catalog_list_cli_uninitialized_git_repo_exits_nonzero_without_writing(
+        self, cli_runner: CliRunner, git_repo: Path
+    ) -> None:
+        """wt catalog list: git repo with no .worktree/ keeps today's ConfigLoadError exit path and creates no .worktree/ directory — lazy init is scoped to wt run only."""
+        result = cli_runner.invoke(app, ["-p", str(git_repo), "catalog", "list"])
+
+        assert result.exit_code != 0
+        assert not (git_repo / ".worktree").exists()

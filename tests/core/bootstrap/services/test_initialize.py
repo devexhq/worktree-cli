@@ -8,6 +8,7 @@ from pathlib import Path
 from tests.harness.builders import WorkspaceBuilder
 from worktree.core.bootstrap.models import BootstrapOutcome, InitFailureMode
 from worktree.core.bootstrap.services.initialize import initialize_workspace
+from worktree.core.project.models import ProjectIdentityProvisionStatus
 
 
 class InitializeWorkspaceTests:
@@ -44,3 +45,68 @@ class InitializeWorkspaceTests:
         assert result.bootstrap_result.outcome == BootstrapOutcome.ALREADY_INITIALIZED
         persisted = json.loads(config_path.read_text(encoding="utf-8"))
         assert persisted["project"]["name"] == "custom-project-name"
+
+    def test_initialize_workspace_fresh_repo_creates_identity_with_generated_slug(self, git_repo: Path) -> None:
+        """initialize_workspace: fresh git repo without --id creates a project identity, status=CREATED."""
+        result = initialize_workspace(git_repo)
+
+        assert result.ok is True
+        assert result.identity_result is not None
+        assert result.identity_result.status == ProjectIdentityProvisionStatus.CREATED
+        assert (git_repo / ".worktree" / "project.json").exists()
+
+    def test_initialize_workspace_rerun_without_force_preserves_identity(self, git_repo: Path) -> None:
+        """initialize_workspace: rerunning without --id/--force preserves the previously generated identity."""
+        first = initialize_workspace(git_repo)
+        assert first.identity_result is not None
+        assert first.identity_result.identity is not None
+        original_id = first.identity_result.identity.id
+
+        second = initialize_workspace(git_repo)
+
+        assert second.ok is True
+        assert second.identity_result is not None
+        assert second.identity_result.status == ProjectIdentityProvisionStatus.PRESERVED
+        assert second.identity_result.identity is not None
+        assert second.identity_result.identity.id == original_id
+
+    def test_initialize_workspace_rerun_with_id_and_force_overwrites_identity(self, git_repo: Path) -> None:
+        """initialize_workspace: rerunning with --id and --force overwrites the previous identity."""
+        initialize_workspace(git_repo)
+
+        result = initialize_workspace(git_repo, project_id="new-id", force=True)
+
+        assert result.ok is True
+        assert result.identity_result is not None
+        assert result.identity_result.status == ProjectIdentityProvisionStatus.OVERWRITTEN
+        assert result.identity_result.identity is not None
+        assert result.identity_result.identity.id == "new-id"
+
+    def test_initialize_workspace_invalid_project_id_sets_invalid_project_id_failure_mode(self, git_repo: Path) -> None:
+        """initialize_workspace: a malformed --id sets failure_mode=INVALID_PROJECT_ID and skips config generation."""
+        result = initialize_workspace(git_repo, project_id="Bad Id!")
+
+        assert result.ok is False
+        assert result.failure_mode == InitFailureMode.INVALID_PROJECT_ID
+        assert result.config_result is None
+        assert not (git_repo / ".worktree" / "project.json").exists()
+
+    def test_initialize_workspace_fresh_repo_creates_only_meta_subdir(self, git_repo: Path) -> None:
+        """initialize_workspace: fresh git repo, bootstrap_result.dirs_created == [worktree_dir / '.meta'], no sessions/artifacts/tmp/logs directories created."""
+        result = initialize_workspace(git_repo)
+
+        assert result.bootstrap_result is not None
+        assert result.bootstrap_result.dirs_created == [result.bootstrap_result.root_path / ".meta"]
+        for legacy_dir in ("sessions", "artifacts", "tmp", "logs"):
+            assert not (result.bootstrap_result.root_path / legacy_dir).exists()
+
+    def test_initialize_workspace_rerun_preserves_legacy_runtime_dirs_and_contents(self, git_repo: Path) -> None:
+        """initialize_workspace: rerun on a workspace with a pre-existing .worktree/sessions/existing.json leaves that file's bytes and the directory unchanged."""
+        initialize_workspace(git_repo)
+        legacy_file = git_repo / ".worktree" / "sessions" / "existing.json"
+        legacy_file.parent.mkdir(parents=True, exist_ok=True)
+        legacy_file.write_text('{"a": 1}', encoding="utf-8")
+
+        initialize_workspace(git_repo)
+
+        assert legacy_file.read_text(encoding="utf-8") == '{"a": 1}'

@@ -117,3 +117,17 @@ class StatusCliIntegrationTests:
                 "remediations": [],
             },
         }
+
+    def test_status_cli_uninitialized_git_repo_reports_not_initialized_unchanged(
+        self, cli_runner: CliRunner, git_repo: Path, dispatch_spy: list[Any]
+    ) -> None:
+        """wt status: git repo with no .worktree/ still reports is_initialized=False and writes no project.json/config.json — lazy init does not extend to status."""
+        result = cli_runner.invoke(app, ["-p", str(git_repo), "status"])
+
+        assert result.exit_code == 0
+        assert len(dispatch_spy) == 1
+        result_dto = dispatch_spy[0]
+        assert isinstance(result_dto, WorktreeStatusResult)
+        assert result_dto.is_initialized is False
+        assert not (git_repo / ".worktree" / "project.json").exists()
+        assert not (git_repo / ".worktree" / "config.json").exists()

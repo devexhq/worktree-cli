@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -10,9 +11,10 @@ from typing import Any
 from typer.testing import CliRunner
 
 from worktree.cli import app
-from worktree.common.constants import REQUIRED_SUBDIRS
+from worktree.common.constants import WORKTREE_GITIGNORE_CONTENT, WORKTREE_GITIGNORE_TRACKED_ENTRIES
 from worktree.core.bootstrap.models import BootstrapOutcome
 from worktree.core.db.connection import resolve_db_path
+from worktree.core.project.models import PROJECT_ID_REGEX, ProjectIdentityProvisionStatus
 
 _SEEDED_TEMPLATE_RELATIVE_PATHS = [
     "catalog/blueprints/wt/fix-tests.yml",
@@ -62,9 +64,14 @@ class InitCliIntegrationTests:
         assert res.bootstrap_result.root_path == worktree_dir
         assert res.bootstrap_result.outcome == BootstrapOutcome.INITIALIZED
         assert res.bootstrap_result.root_created is True
-        assert res.bootstrap_result.dirs_created == [worktree_dir / name for name in REQUIRED_SUBDIRS]
+        assert res.bootstrap_result.dirs_created == [worktree_dir / ".meta"]
         assert res.bootstrap_result.dirs_existing == []
         assert res.bootstrap_result.repaired is False
+        assert res.bootstrap_result.gitignore_created is True
+
+        assert res.identity_result is not None
+        assert res.identity_result.status == ProjectIdentityProvisionStatus.CREATED
+        assert res.identity_result.identity is not None
 
         assert res.config_result.created is True
         assert res.config_result.skipped_existing is False
@@ -96,8 +103,12 @@ class InitCliIntegrationTests:
         assert res.bootstrap_result.outcome == BootstrapOutcome.ALREADY_INITIALIZED
         assert res.bootstrap_result.root_created is False
         assert res.bootstrap_result.dirs_created == []
-        assert res.bootstrap_result.dirs_existing == [worktree_dir / name for name in REQUIRED_SUBDIRS]
+        assert res.bootstrap_result.dirs_existing == [worktree_dir / ".meta"]
         assert res.bootstrap_result.repaired is False
+        assert res.bootstrap_result.gitignore_created is False
+
+        assert res.identity_result is not None
+        assert res.identity_result.status == ProjectIdentityProvisionStatus.PRESERVED
 
         assert res.config_result.created is False
         assert res.config_result.skipped_existing is True
@@ -137,10 +148,10 @@ class InitCliIntegrationTests:
         assert not (tmp_path / ".worktree").exists()
 
     def test_init_cli_json_format_emits_literal_wire_payload(self, cli_runner: CliRunner, tmp_path: Path) -> None:
-        """wt init --format json: fresh git repo, stdout equals the literal WorkspaceInitView envelope."""
+        """wt init --format json: fresh git repo with an explicit --id, stdout equals the literal WorkspaceInitView envelope."""
         _init_git_repo(tmp_path)
 
-        result = cli_runner.invoke(app, ["-p", str(tmp_path), "init", "--format", "json"])
+        result = cli_runner.invoke(app, ["-p", str(tmp_path), "init", "--id", "test-project", "--format", "json"])
 
         assert result.exit_code == 0
         assert json.loads(result.stdout) == {
@@ -150,13 +161,12 @@ class InitCliIntegrationTests:
                 "root_path": str(tmp_path / ".worktree"),
                 "root_path_relative": ".worktree",
                 "bootstrap_outcome": "initialized",
-                "dirs_created": [
-                    ".worktree/.meta",
-                    ".worktree/sessions",
-                    ".worktree/artifacts",
-                    ".worktree/tmp",
-                    ".worktree/logs",
-                ],
+                "dirs_created": [".worktree/.meta"],
+                "project_id": "test-project",
+                "identity_path_relative": ".worktree/project.json",
+                "identity_preserved": False,
+                "gitignore_path_relative": ".worktree/.gitignore",
+                "gitignore_tracked_entries": list(WORKTREE_GITIGNORE_TRACKED_ENTRIES),
                 "config_created": True,
                 "config_overwritten": False,
                 "config_repaired": False,
@@ -180,3 +190,110 @@ class InitCliIntegrationTests:
                 "fixes": [],
             },
         }
+
+    def test_init_cli_with_id_flag_creates_project_json_with_explicit_id(
+        self, cli_runner: CliRunner, tmp_path: Path
+    ) -> None:
+        """wt init --id: exit 0; .worktree/project.json contains the explicit id."""
+        _init_git_repo(tmp_path)
+
+        result = cli_runner.invoke(app, ["-p", str(tmp_path), "init", "--id", "custom-id"])
+
+        assert result.exit_code == 0
+        project_json = json.loads((_worktree_dir(tmp_path) / "project.json").read_text(encoding="utf-8"))
+        assert project_json["id"] == "custom-id"
+
+    def test_init_cli_with_invalid_id_flag_exits_two(self, cli_runner: CliRunner, tmp_path: Path) -> None:
+        """wt init --id: malformed slug exits 2, stdout contains the literal invalid-id message, no project.json written."""
+        _init_git_repo(tmp_path)
+
+        result = cli_runner.invoke(app, ["-p", str(tmp_path), "init", "--id", "Bad Id!"])
+
+        assert result.exit_code == 2
+        assert "Invalid project ID: must match" in result.stdout
+        assert "Pass a valid --id matching" in result.stdout
+        assert not (_worktree_dir(tmp_path) / "project.json").exists()
+
+    def test_init_cli_without_id_flag_generates_slug(self, cli_runner: CliRunner, tmp_path: Path) -> None:
+        """wt init: without --id, .worktree/project.json's id matches PROJECT_ID_REGEX."""
+        _init_git_repo(tmp_path)
+
+        result = cli_runner.invoke(app, ["-p", str(tmp_path), "init"])
+
+        assert result.exit_code == 0
+        project_json = json.loads((_worktree_dir(tmp_path) / "project.json").read_text(encoding="utf-8"))
+        assert re.match(PROJECT_ID_REGEX, project_json["id"]) is not None
+
+    def test_init_cli_force_without_id_preserves_identity_and_config(
+        self, cli_runner: CliRunner, tmp_path: Path
+    ) -> None:
+        """wt init --force (no --id): rerun leaves project.json's id and a prior mutated config.json project.name both unchanged, exit 0."""
+        _init_git_repo(tmp_path)
+        cli_runner.invoke(app, ["-p", str(tmp_path), "init"])
+        project_json_path = _worktree_dir(tmp_path) / "project.json"
+        original_id = json.loads(project_json_path.read_text(encoding="utf-8"))["id"]
+        config_path = _worktree_dir(tmp_path) / "config.json"
+        config_data = json.loads(config_path.read_text(encoding="utf-8"))
+        config_data["project"]["name"] = "mutated-name"
+        config_path.write_text(json.dumps(config_data), encoding="utf-8")
+
+        result = cli_runner.invoke(app, ["-p", str(tmp_path), "init", "--force"])
+
+        assert result.exit_code == 0
+        assert json.loads(project_json_path.read_text(encoding="utf-8"))["id"] == original_id
+        assert json.loads(config_path.read_text(encoding="utf-8"))["project"]["name"] == "mutated-name"
+
+    def test_init_cli_force_with_id_overwrites_identity_only(self, cli_runner: CliRunner, tmp_path: Path) -> None:
+        """wt init --id new-id --force: rerun rewrites project.json's id to new-id but leaves a prior mutated config.json project.name unchanged, exit 0."""
+        _init_git_repo(tmp_path)
+        cli_runner.invoke(app, ["-p", str(tmp_path), "init"])
+        config_path = _worktree_dir(tmp_path) / "config.json"
+        config_data = json.loads(config_path.read_text(encoding="utf-8"))
+        config_data["project"]["name"] = "mutated-name"
+        config_path.write_text(json.dumps(config_data), encoding="utf-8")
+
+        result = cli_runner.invoke(app, ["-p", str(tmp_path), "init", "--id", "new-id", "--force"])
+
+        assert result.exit_code == 0
+        project_json = json.loads((_worktree_dir(tmp_path) / "project.json").read_text(encoding="utf-8"))
+        assert project_json["id"] == "new-id"
+        assert json.loads(config_path.read_text(encoding="utf-8"))["project"]["name"] == "mutated-name"
+
+    def test_init_cli_fresh_git_repo_seeds_worktree_gitignore(self, cli_runner: CliRunner, tmp_path: Path) -> None:
+        """wt init: exit 0; .worktree/.gitignore exists with the literal WORKTREE_GITIGNORE_CONTENT; repository-root .gitignore is not created/modified."""
+        _init_git_repo(tmp_path)
+        root_gitignore = tmp_path / ".gitignore"
+        assert not root_gitignore.exists()
+
+        result = cli_runner.invoke(app, ["-p", str(tmp_path), "init"])
+
+        assert result.exit_code == 0
+        assert (_worktree_dir(tmp_path) / ".gitignore").read_text(encoding="utf-8") == WORKTREE_GITIGNORE_CONTENT
+        assert not root_gitignore.exists()
+
+    def test_init_cli_rerun_without_force_preserves_existing_project_id(
+        self, cli_runner: CliRunner, tmp_path: Path
+    ) -> None:
+        """wt init: rerun without --force, .worktree/project.json's id unchanged across two wt init invocations."""
+        _init_git_repo(tmp_path)
+        cli_runner.invoke(app, ["-p", str(tmp_path), "init"])
+        project_json_path = _worktree_dir(tmp_path) / "project.json"
+        original_id = json.loads(project_json_path.read_text(encoding="utf-8"))["id"]
+
+        result = cli_runner.invoke(app, ["-p", str(tmp_path), "init"])
+
+        assert result.exit_code == 0
+        assert json.loads(project_json_path.read_text(encoding="utf-8"))["id"] == original_id
+
+    def test_init_cli_fresh_git_repo_reports_gitignore_tracked_entries(
+        self, cli_runner: CliRunner, tmp_path: Path
+    ) -> None:
+        """wt init: fresh git repo stdout reports .worktree/.gitignore populated and names config.json, project.json, catalog/ as tracked."""
+        _init_git_repo(tmp_path)
+
+        result = cli_runner.invoke(app, ["-p", str(tmp_path), "init"])
+
+        assert result.exit_code == 0
+        assert "tracking only" in result.stdout
+        for entry in WORKTREE_GITIGNORE_TRACKED_ENTRIES:
+            assert entry in result.stdout

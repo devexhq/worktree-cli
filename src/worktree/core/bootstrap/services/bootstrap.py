@@ -15,6 +15,7 @@ from worktree.common.constants import (
     BOOTSTRAP_META_REL,
     BOOTSTRAP_SCHEMA_VERSION,
     REQUIRED_SUBDIRS,
+    WORKTREE_GITIGNORE_CONTENT,
 )
 from worktree.common.filesystem import Filesystem
 from worktree.common.utils import display_path
@@ -112,6 +113,16 @@ def _ensure_required_subdirs(root_path: Path, result: BootstrapResult) -> bool:
             result.dirs_created.append(sub_path)
         else:
             result.dirs_existing.append(sub_path)
+    return True
+
+
+def _seed_local_gitignore(root_path: Path) -> bool:
+    """Write `.worktree/.gitignore` with WORKTREE_GITIGNORE_CONTENT if it does not already exist."""
+    gitignore_path = root_path / ".gitignore"
+    if gitignore_path.exists():
+        return False
+
+    Filesystem.atomic_write_text(gitignore_path, WORKTREE_GITIGNORE_CONTENT)
     return True
 
 
@@ -213,6 +224,7 @@ def bootstrap_worktree(
     if not _ensure_required_subdirs(root_path, result):
         result.outcome = BootstrapOutcome.FAILED
         return result
+    result.gitignore_created = _seed_local_gitignore(root_path)
     if not _assert_layout_writable(root_path, result):
         result.outcome = BootstrapOutcome.FAILED
         return result

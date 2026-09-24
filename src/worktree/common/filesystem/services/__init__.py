@@ -1,4 +1,4 @@
-from .git import is_git_repository, update_gitignore
+from .git import is_git_repository
 from .global_root import ensure_global_layout, resolve_global_paths
 from .operations import atomic_write_json, atomic_write_text, compute_content_checksum, delete_file
 from .paths import (
@@ -27,5 +27,4 @@ __all__ = [
     "read_yaml_file",
     "resolve_global_paths",
     "scan_yaml_directory",
-    "update_gitignore",
 ]
