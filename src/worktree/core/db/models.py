@@ -5,7 +5,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any, ClassVar
 
-from sqlalchemy import String, TypeDecorator
+from sqlalchemy import String, TypeDecorator, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -142,12 +142,13 @@ class RunStatusType(TypeDecorator[RunStatus]):
 
 
 class SandboxRecord(SQLModel, table=True):
-    """Row shape for the local `sandboxes` table."""
+    """Row shape for the centralized `sandboxes` table."""
 
     __tablename__: ClassVar[str] = "sandboxes"  # pyright: ignore[reportIncompatibleVariableOverride]
     model_config = {"extra": "forbid"}
 
     id: str = Field(primary_key=True)
+    project_id: str = Field(index=True, nullable=False)
     name: str | None = Field(default=None)
     branch_name: str
     base_commit: str
@@ -164,18 +165,24 @@ class SandboxRecord(SQLModel, table=True):
 
 
 class CatalogRecord(SQLModel, table=True):
-    """Row shape for the local `catalog` table."""
+    """Row shape for the centralized `catalog` table, scoped per project."""
 
     __tablename__: ClassVar[str] = "catalog"  # pyright: ignore[reportIncompatibleVariableOverride]
     model_config = {"extra": "forbid"}
+    __table_args__ = (
+        UniqueConstraint("project_id", "key", name="uq_catalog_project_key"),
+        UniqueConstraint("project_id", "sha", name="uq_catalog_project_sha"),
+        UniqueConstraint("project_id", "path", name="uq_catalog_project_path"),
+    )
 
     id: int | None = Field(default=None, primary_key=True)
-    key: str = Field(unique=True)
-    sha: str = Field(unique=True)
+    project_id: str = Field(nullable=False)
+    key: str
+    sha: str
     item_type: CatalogItemType = Field(sa_type=CatalogItemTypeType, index=True)
     name: str
     namespace: str | None = Field(default=None)
-    path: Path = Field(sa_type=PathType, unique=True)
+    path: Path = Field(sa_type=PathType)
     checksum: str
     created_at: str = Field(default_factory=_now_utc_str)
     updated_at: str = Field(default_factory=_now_utc_str)
@@ -188,12 +195,13 @@ class CatalogRecord(SQLModel, table=True):
 
 
 class RunRecord(SQLModel, table=True):
-    """Row shape for the local `runs` table."""
+    """Row shape for the centralized `runs` table."""
 
     __tablename__: ClassVar[str] = "runs"  # pyright: ignore[reportIncompatibleVariableOverride]
     model_config = {"extra": "forbid"}
 
     id: int | None = Field(default=None, primary_key=True)
+    project_id: str = Field(index=True, nullable=False)
     session_id: str = Field(unique=True)
     blueprint_key: str
     blueprint_name: str
@@ -224,13 +232,14 @@ class RunRecord(SQLModel, table=True):
         return elapsed if elapsed >= 0 else None
 
 
-class WorkflowCostRecord(SQLModel, table=True):
-    """Row shape for the local `workflow_costs` table."""
+class CostRecord(SQLModel, table=True):
+    """Row shape for the centralized `costs` table."""
 
-    __tablename__: ClassVar[str] = "workflow_costs"  # pyright: ignore[reportIncompatibleVariableOverride]
+    __tablename__: ClassVar[str] = "costs"  # pyright: ignore[reportIncompatibleVariableOverride]
     model_config = {"extra": "forbid"}
 
     id: int | None = Field(default=None, primary_key=True)
+    project_id: str = Field(index=True, nullable=False)
     session_id: str = Field(index=True)
     branch_name: str
     model_id: str

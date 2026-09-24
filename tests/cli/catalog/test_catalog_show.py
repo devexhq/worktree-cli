@@ -14,7 +14,7 @@ from worktree.cli.catalog.commands.catalog_show import catalog_show_command
 from worktree.cli.context import CliContext
 from worktree.common.filesystem import Filesystem
 from worktree.core.config.generator import build_default_config
-from worktree.core.db.facade import WorktreeDb
+from worktree.core.db.db import WorktreeDb
 
 
 @pytest.fixture(autouse=True)

@@ -5,7 +5,7 @@ from pathlib import Path
 from sqlalchemy import Engine
 
 from worktree.core.db.connection import (
-    DEFAULT_DB_REL_PATH,
+    DEFAULT_DB_FILENAME,
     get_engine,
     resolve_db_path,
 )
@@ -22,12 +22,12 @@ class WorktreeDb:
     def __init__(
         self,
         path: Path,
-        db_rel_path: str = DEFAULT_DB_REL_PATH,
+        db_filename: str = DEFAULT_DB_FILENAME,
         db_engine: Engine | None = None,
     ) -> None:
         self.path = path.resolve()
         self.cwd = self.path
-        self.db_rel_path = db_rel_path
+        self.db_filename = db_filename
         self._db_engine = db_engine
         self._sandboxes: SandboxesRepository | None = None
         self._runs: RunsRepository | None = None
@@ -38,20 +38,15 @@ class WorktreeDb:
     def db_engine(self) -> Engine:
         """SQLAlchemy / SQLModel Engine bound to resolved database path."""
         if self._db_engine is None:
-            self._db_engine = get_engine(resolve_db_path(self.path, self.db_rel_path))
+            self._db_engine = get_engine(resolve_db_path(self.db_filename))
         return self._db_engine
-
-    @property
-    def engine(self) -> Engine:
-        """Alias to db_engine for compatibility."""
-        return self.db_engine
 
     @property
     def sandboxes(self) -> SandboxesRepository:
         """Repository managing sandbox worktrees and metadata."""
         if self._sandboxes is None:
             self._sandboxes = SandboxesRepository(
-                self.path, db_rel_path=self.db_rel_path, auto_init=True, db_engine=self.db_engine
+                self.path, db_filename=self.db_filename, auto_init=True, db_engine=self.db_engine
             )
         return self._sandboxes
 
@@ -60,7 +55,7 @@ class WorktreeDb:
         """Repository managing blueprint execution runs."""
         if self._runs is None:
             self._runs = RunsRepository(
-                self.path, db_rel_path=self.db_rel_path, auto_init=True, db_engine=self.db_engine
+                self.path, db_filename=self.db_filename, auto_init=True, db_engine=self.db_engine
             )
         return self._runs
 
@@ -69,7 +64,7 @@ class WorktreeDb:
         """Repository managing indexed blueprint definitions."""
         if self._catalog is None:
             self._catalog = CatalogRepository(
-                self.path, db_rel_path=self.db_rel_path, auto_init=True, db_engine=self.db_engine
+                self.path, db_filename=self.db_filename, auto_init=True, db_engine=self.db_engine
             )
         return self._catalog
 
@@ -78,13 +73,13 @@ class WorktreeDb:
         """Repository managing tracked token costs."""
         if self._costs is None:
             self._costs = CostsRepository(
-                self.path, db_rel_path=self.db_rel_path, auto_init=True, db_engine=self.db_engine
+                self.path, db_filename=self.db_filename, auto_init=True, db_engine=self.db_engine
             )
         return self._costs
 
     def init_db(self) -> Path:
         """Run migrations and mark all child repositories as initialized."""
-        path = init_database(self.path, self.db_rel_path)
+        path = init_database(db_filename=self.db_filename)
         self.sandboxes._initialized = True
         self.runs._initialized = True
         self.catalog._initialized = True

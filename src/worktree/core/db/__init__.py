@@ -5,14 +5,14 @@ usage tracking, catalog indexing, and unified run execution tracking.
 """
 
 from worktree.core.db.connection import (
-    DEFAULT_DB_REL_PATH,
+    DEFAULT_DB_FILENAME,
     get_db_connection,
     get_engine,
     get_session,
     resolve_db_path,
     sqlite_url,
 )
-from worktree.core.db.facade import WorktreeDb
+from worktree.core.db.db import WorktreeDb
 from worktree.core.db.migrations import (
     INITIAL_SCHEMA_REVISION,
     LATEST_SCHEMA_REVISION,
@@ -21,11 +21,11 @@ from worktree.core.db.migrations import (
 from worktree.core.db.models import (
     CatalogItemType,
     CatalogRecord,
+    CostRecord,
     RunRecord,
     RunStatus,
     SandboxRecord,
     SandboxStatus,
-    WorkflowCostRecord,
     parse_timestamp,
 )
 from worktree.core.db.repositories import (
@@ -37,13 +37,14 @@ from worktree.core.db.repositories import (
 )
 
 __all__ = [
-    "DEFAULT_DB_REL_PATH",
+    "DEFAULT_DB_FILENAME",
     "INITIAL_SCHEMA_REVISION",
     "LATEST_SCHEMA_REVISION",
     "BaseRepository",
     "CatalogItemType",
     "CatalogRecord",
     "CatalogRepository",
+    "CostRecord",
     "CostsRepository",
     "RunRecord",
     "RunStatus",
@@ -51,7 +52,6 @@ __all__ = [
     "SandboxRecord",
     "SandboxStatus",
     "SandboxesRepository",
-    "WorkflowCostRecord",
     "WorktreeDb",
     "get_db_connection",
     "get_engine",

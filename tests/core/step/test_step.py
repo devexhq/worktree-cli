@@ -4,7 +4,13 @@ from pathlib import Path
 
 import pytest
 
+from worktree.core.project.services.identity import generate_project_identity, save_project_identity
 from worktree.core.step import Step, StepDefinition, StepType, StepValidationError, resolve_step_definition
+
+
+def _persist_project_identity(root: Path) -> None:
+    """Persist a project identity so catalog-backed step resolution can resolve project_id."""
+    save_project_identity(root / ".worktree" / "project.json", generate_project_identity())
 
 
 class StepShorthandExpansionTests:
@@ -37,6 +43,7 @@ class StepResolutionTests:
         """Inherited step overlays explicitly set fields while preserving base definition defaults."""
         steps_dir = tmp_path / ".worktree" / "catalog" / "steps"
         steps_dir.mkdir(parents=True, exist_ok=True)
+        _persist_project_identity(tmp_path)
         base_yaml = (
             "id: base-step\n"
             "name: Base Step Name\n"
@@ -73,6 +80,7 @@ class StepResolutionTests:
         """Step.load_by_name resolves indexed step from workspace catalog."""
         steps_dir = tmp_path / ".worktree" / "catalog" / "steps"
         steps_dir.mkdir(parents=True, exist_ok=True)
+        _persist_project_identity(tmp_path)
         (steps_dir / "catalog-step.yaml").write_text("id: catalog-step\nrun: echo hello\n", encoding="utf-8")
 
         loaded = Step.load_by_name("catalog-step", path=tmp_path)
@@ -118,6 +126,7 @@ class StepResolutionTests:
         """Step inheriting from another shorthand step resolves recursively."""
         steps_dir = tmp_path / ".worktree" / "catalog" / "steps"
         steps_dir.mkdir(parents=True, exist_ok=True)
+        _persist_project_identity(tmp_path)
         (steps_dir / "root.yaml").write_text("id: root\nrun: echo root\n", encoding="utf-8")
         (steps_dir / "mid.yaml").write_text("id: mid\nuses: root\nname: Mid Name\n", encoding="utf-8")
 

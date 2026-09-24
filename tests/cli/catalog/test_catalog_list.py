@@ -16,7 +16,7 @@ from worktree.common.filesystem import Filesystem
 from worktree.core.catalog import Catalog
 from worktree.core.config.generator import build_default_config
 from worktree.core.db import CatalogItemType
-from worktree.core.db.facade import WorktreeDb
+from worktree.core.db.db import WorktreeDb
 
 
 @pytest.fixture(autouse=True)

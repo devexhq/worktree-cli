@@ -17,7 +17,6 @@ This provisions the `.worktree/` state directory:
 ```text
 .worktree/
 ├── config.json         # Project settings and provider configuration
-├── data.db             # SQLite database tracking sessions and sandboxes
 └── catalog/            # Project blueprint definitions
     ├── workflows/
     ├── tasks/

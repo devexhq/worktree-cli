@@ -53,7 +53,7 @@ class CatalogStatusInfo(BaseModel):
 
 
 class DatabaseStatusInfo(BaseModel):
-    """Local SQLite database status and run metrics."""
+    """Centralized SQLite database status and run metrics."""
 
     model_config = {"extra": "forbid", "strict": True}
 

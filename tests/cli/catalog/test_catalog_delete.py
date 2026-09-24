@@ -16,7 +16,7 @@ from worktree.common.filesystem import Filesystem
 from worktree.core.catalog import Catalog
 from worktree.core.config.generator import build_default_config
 from worktree.core.db import CatalogItemType
-from worktree.core.db.facade import WorktreeDb
+from worktree.core.db.db import WorktreeDb
 
 
 @pytest.fixture(autouse=True)
@@ -184,14 +184,17 @@ class CatalogDeleteCliIntegrationTests:
         actual_json = json.loads(result.stdout)
         assert actual_json["payload"]["item"]["created_at"] != ""
         assert actual_json["payload"]["item"]["updated_at"] != ""
+        assert actual_json["payload"]["item"]["project_id"] != ""
         actual_json["payload"]["item"]["created_at"] = "placeholder"
         actual_json["payload"]["item"]["updated_at"] = "placeholder"
+        actual_json["payload"]["item"]["project_id"] = "placeholder"
 
         assert actual_json == {
             "event_type": "CatalogDeleteResult",
             "payload": {
                 "item": {
                     "id": create_result.item.id,
+                    "project_id": "placeholder",
                     "key": "del-json-blueprint",
                     "sha": create_result.item.sha,
                     "item_type": "blueprint",

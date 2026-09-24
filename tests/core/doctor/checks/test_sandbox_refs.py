@@ -9,6 +9,7 @@ import pytest
 
 from tests.harness import WorkspaceBuilder
 from worktree.core.db import SandboxesRepository
+from worktree.core.db.connection import resolve_db_path
 from worktree.core.doctor.checks.sandbox_refs import SandboxRefsCheck
 from worktree.core.doctor.models import CheckCategory, CheckStatus, DoctorContext
 from worktree.core.git.exceptions import GitCommandError
@@ -17,7 +18,7 @@ from worktree.core.git.runner import GitRunner
 
 @pytest.fixture
 def sandbox_refs_workspace(tmp_path: Path) -> Path:
-    """Create a workspace with Git and an initialized SQLite database for sandbox.refs tests."""
+    """Create a workspace with Git and an initialized centralized SQLite database for sandbox.refs tests."""
     return WorkspaceBuilder(tmp_path / "sandbox_refs_ws").with_git().with_database().build()
 
 
@@ -25,7 +26,7 @@ class SandboxRefsCheckTests:
     """Unit tests for SandboxRefsCheck diagnostic outcomes."""
 
     def test_execute_missing_database_returns_ok_with_zero_verified_count(self, tmp_path: Path) -> None:
-        """[tier-1/unit] SandboxRefsCheck.execute: no .worktree/data.db on disk -> OK, message='0 sandbox(es) verified against database and Git worktree state.', details={'verified_count': 0}, error_code=None, and no data.db file is created as a side effect."""
+        """[tier-1/unit] SandboxRefsCheck.execute: no centralized database file on disk -> OK, message='0 sandbox(es) verified against database and Git worktree state.', details={'verified_count': 0}, error_code=None, and no database file is created as a side effect."""
         check = SandboxRefsCheck()
         context = DoctorContext(cwd=tmp_path)
 
@@ -36,7 +37,7 @@ class SandboxRefsCheckTests:
         assert result.status == CheckStatus.OK
         assert result.error_code is None
         assert result.details == {"verified_count": 0}
-        assert not (tmp_path / ".worktree" / "data.db").exists()
+        assert not resolve_db_path().is_file()
 
     def test_execute_clean_workspace_returns_ok_with_verified_count(self, sandbox_refs_workspace: Path) -> None:
         """[tier-1/unit] SandboxRefsCheck.execute: git+db workspace with zero sandboxes -> OK, message='0 sandbox(es) verified against database and Git worktree state.', details={'verified_count': 0}, error_code=None."""

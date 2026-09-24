@@ -59,7 +59,7 @@ src/worktree/schemas/v1/             Packaged, versioned JSON Schemas (config.js
 - **Blueprint** (`core/blueprint/`): Unified task/workflow document handle (`Blueprint`), catalog/path loader, input declaration schema. Must not import runtime, engine, or cli.
 - **Runtime** (`core/runtime/`): Step-loop execution (`run_steps`), `RunContext` / `RunObserver` / `RunOutcome`, failure orchestration (abort / continue / `prompt_user`), and pause checkpoint persistence. Runtime must not import cli.
 - **Engine** (`core/engine/`): Process-level run persistence, session ID minting (`RunRequest`), DB run records, run/resume services (`BlueprintRunService`, `BlueprintResumeService`, `reconcile_stale_runs`). Must not import cli.
-- **Catalog** (`core/catalog/`): Template scanning, indexing, `CatalogDb` sync hooks, packaged seeds under `templates/`.
+- **Catalog** (`core/catalog/`): Template scanning, indexing, `CatalogRepository` sync hooks, packaged seeds under `templates/`.
 - **History** (`core/history/`): `History` entrypoint (`history.py`), result models (`HistoryListResult`, `HistoryShowResult`). UI formatters reside in `cli/ui/formatters/history/`.
 - **Diff** (`core/diff/`): `DiffService`, session diff resolution, artifact loading, result models (`DiffResult`). UI formatters reside in `cli/ui/formatters/diff/`.
 - **Status** (`core/status/`): Workspace health and runtime telemetry collection (`collect_status`), result models (`WorktreeStatusResult`), warning aggregation.
@@ -73,10 +73,11 @@ src/worktree/schemas/v1/             Packaged, versioned JSON Schemas (config.js
 Dependencies flow one way down the stack; do not import upward:
 
 ```
-common/  ->  core/{db,git,sandbox,catalog,inputs,patch,history,diff,status}/  ->  core/agents/  ->  core/doctor/  ->  core/step/  ->  {core/runtime/, core/blueprint/}  ->  core/engine/  ->  cli/
+common/  ->  core/project/  ->  core/{db,git,sandbox,catalog,inputs,patch,history,diff,status}/  ->  core/agents/  ->  core/doctor/  ->  core/step/  ->  {core/runtime/, core/blueprint/}  ->  core/engine/  ->  cli/
 ```
 
 - `common/` never depends on `core/` or `cli/`.
+- `core/project/` depends only on `common/`; `core/db/`, `core/diff/`, `core/engine/`, `core/sandbox/`, and `core/doctor/` may resolve project identity via `core/project/services/storage`.
 - `core/` and `common/` never import `cli/` or `rich`. All terminal rendering is driven through `ui_dispatcher.dispatch(result)`.
 - `core/inputs/` must not import `step`, `runtime`, `agents`, or `patch`.
 - `core/patch/` must not import `agents`, `step`, or `runtime`.
@@ -124,7 +125,7 @@ common/  ->  core/{db,git,sandbox,catalog,inputs,patch,history,diff,status}/  ->
 **Relevant sources:** `src/worktree/core/agents/`
 
 - API keys (`CURSOR_API_KEY`, `GEMINI_API_KEY`, `GH_TOKEN`, `GITHUB_TOKEN`) are resolved from the environment at call time.
-- Secrets are never accepted as `config.json` fields, never persisted to `data.db`, and never passed into prompt builders.
+- Secrets are never accepted as `config.json` fields, never persisted to the centralized database, and never passed into prompt builders.
 
 ## The `.worktree/` directory
 
@@ -139,15 +140,15 @@ Created and repaired idempotently by [core/bootstrap](../../src/worktree/core/bo
   sessions/                   # per-session artifacts (e.g. diff.patch)
   artifacts/, tmp/, logs/
   sandboxes/                  # git worktree checkouts
-  data.db                     # SQLite database (core/db)
 ```
 
-### Local SQLite (`data.db`)
+### Centralized SQLite database
 
 **Relevant sources:** `src/worktree/core/db/`
 
-- Migrated by `init_database` in `core/db/connection.py`.
-- Repositories: `SandboxesDb`, `RunsRepository`, `CatalogDb`, `CostsDb` accessed via `WorktreeDb` facade.
+- A single SQLite database at `<global_root>/data/worktree.db` (resolved by `resolve_db_path` in `core/db/connection.py`, under `WORKTREE_HOME` or `~/.worktree` by default) backs every project, migrated by `init_database`.
+- `runs`, `sandboxes`, `costs`, and `catalog` rows carry `project_id` and are scoped to it by every repository query, so multiple projects share the physical file without colliding.
+- Repositories: `SandboxesRepository`, `RunsRepository`, `CatalogRepository`, `CostsRepository` accessed via `WorktreeDb` facade.
 - Construct repositories/facades once per command invocation rather than per query.
 
 ## Sandboxes (core)

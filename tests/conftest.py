@@ -9,6 +9,18 @@ import pytest
 from typer.testing import CliRunner
 
 from worktree.common.constants import REQUIRED_SUBDIRS
+from worktree.core.project.services.identity import generate_project_identity, save_project_identity
+
+
+@pytest.fixture(autouse=True)
+def _isolated_worktree_home(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Redirect WORKTREE_HOME to an ephemeral per-test directory.
+
+    The centralized database and other global-path resolution default to
+    WORKTREE_HOME (or ~/.worktree). Without this override every test would
+    read and write the real machine's global Worktree directory.
+    """
+    monkeypatch.setenv("WORKTREE_HOME", str(tmp_path_factory.mktemp("worktree_home")))
 
 
 @pytest.fixture
@@ -30,6 +42,8 @@ def isolated_workspace(tmp_path: Path) -> Path:
 
     (dot_worktree / "sandboxes").mkdir(parents=True, exist_ok=True)
     (dot_worktree / "catalog").mkdir(parents=True, exist_ok=True)
+
+    save_project_identity(dot_worktree / "project.json", generate_project_identity())
 
     return workspace
 

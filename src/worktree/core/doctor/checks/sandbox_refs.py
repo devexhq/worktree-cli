@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from worktree.common.filesystem import Filesystem
 from worktree.core.db import SandboxesRepository
+from worktree.core.db.connection import resolve_db_path
 from worktree.core.doctor.models import CheckCategory, CheckStatus, DiagnosticCheckResult, DoctorContext
 from worktree.core.sandbox.models import SandboxDetectionResult, SandboxDetectionStatus, StaleSandboxItem
 from worktree.core.sandbox.services.detector import detect_stale_sandboxes
@@ -18,7 +18,7 @@ class SandboxRefsCheck:
 
     def execute(self, context: DoctorContext) -> DiagnosticCheckResult:
         """Scan sandbox directories against DB records and Git worktree metadata for stale or orphaned entries."""
-        db_path = Filesystem(context.cwd).db_file
+        db_path = resolve_db_path()
         if not db_path.is_file():
             return _ok_result(self.check_id, self.name, self.category, verified_count=0)
 

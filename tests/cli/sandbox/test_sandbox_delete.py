@@ -122,7 +122,7 @@ class SandboxDeleteCliIntegrationTests:
         assert result.exit_code == 0
         actual_json = json.loads(result.stdout)
         sandbox = actual_json["payload"]["sandbox"]
-        for field in ("created_at", "updated_at"):
+        for field in ("created_at", "updated_at", "project_id"):
             assert sandbox[field]
             sandbox[field] = "placeholder"
 
@@ -133,6 +133,7 @@ class SandboxDeleteCliIntegrationTests:
                 "sandbox_id": session.session_id,
                 "sandbox": {
                     "id": session.session_id,
+                    "project_id": "placeholder",
                     "name": "delete-me",
                     "branch_name": session.target_branch,
                     "base_commit": session.base_commit,
@@ -165,7 +166,7 @@ class SandboxDeleteCliIntegrationTests:
         json_line = result.stdout.strip().splitlines()[-1]
         actual_json = json.loads(json_line)
         sandbox = actual_json["payload"]["sandbox"]
-        for field in ("created_at", "updated_at"):
+        for field in ("created_at", "updated_at", "project_id"):
             assert sandbox[field]
             sandbox[field] = "placeholder"
 
@@ -176,6 +177,7 @@ class SandboxDeleteCliIntegrationTests:
                 "sandbox_id": session.session_id,
                 "sandbox": {
                     "id": session.session_id,
+                    "project_id": "placeholder",
                     "name": "delete-me",
                     "branch_name": session.target_branch,
                     "base_commit": session.base_commit,

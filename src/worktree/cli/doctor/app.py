@@ -9,7 +9,7 @@ import typer
 from worktree.cli.context import CliContext
 from worktree.common.filesystem import Filesystem
 from worktree.core.config import Config
-from worktree.core.db.facade import WorktreeDb
+from worktree.core.db.db import WorktreeDb
 from worktree.core.doctor import CheckCategory
 
 from .commands.root import doctor_command

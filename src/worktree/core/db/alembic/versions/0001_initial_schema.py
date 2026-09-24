@@ -22,10 +22,11 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    """Create initial tables for sandboxes, catalog, runs, and workflow_costs."""
+    """Create centralized, project-scoped tables for sandboxes, catalog, runs, and costs."""
     op.create_table(
         "sandboxes",
         sa.Column("id", AutoString(), nullable=False),
+        sa.Column("project_id", AutoString(), nullable=False),
         sa.Column("name", AutoString(), nullable=True),
         sa.Column("branch_name", AutoString(), nullable=False),
         sa.Column("base_commit", AutoString(), nullable=False),
@@ -51,13 +52,17 @@ def upgrade() -> None:
         ),
     )
     op.create_index("idx_sandboxes_status", "sandboxes", ["status"], unique=False)
+    op.create_index("idx_sandboxes_project_id", "sandboxes", ["project_id"], unique=False)
 
     op.create_table(
         "catalog",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
+        sa.Column("project_id", AutoString(), nullable=False),
+        sa.Column("key", AutoString(), nullable=False),
         sa.Column("sha", AutoString(), nullable=False),
         sa.Column("item_type", AutoString(), nullable=False),
         sa.Column("name", AutoString(), nullable=False),
+        sa.Column("namespace", AutoString(), nullable=True),
         sa.Column("path", AutoString(), nullable=False),
         sa.Column("checksum", AutoString(), nullable=False),
         sa.Column(
@@ -73,25 +78,26 @@ def upgrade() -> None:
             server_default=sa.text("CURRENT_TIMESTAMP"),
         ),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("path"),
-        sa.UniqueConstraint("sha"),
+        sa.UniqueConstraint("project_id", "key", name="uq_catalog_project_key"),
+        sa.UniqueConstraint("project_id", "sha", name="uq_catalog_project_sha"),
+        sa.UniqueConstraint("project_id", "path", name="uq_catalog_project_path"),
         sa.CheckConstraint(
-            "item_type IN ('workflow', 'task', 'step')",
+            "item_type IN ('blueprint', 'step')",
             name="ck_catalog_item_type",
         ),
     )
-    op.create_index("idx_catalog_sha", "catalog", ["sha"], unique=True)
     op.create_index("idx_catalog_type", "catalog", ["item_type"], unique=False)
-    op.create_index("idx_catalog_path", "catalog", ["path"], unique=True)
 
     op.create_table(
         "runs",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
+        sa.Column("project_id", AutoString(), nullable=False),
         sa.Column("session_id", AutoString(), nullable=False),
+        sa.Column("blueprint_key", AutoString(), nullable=False),
         sa.Column("blueprint_name", AutoString(), nullable=False),
-        sa.Column("kind", AutoString(), nullable=False),
         sa.Column("branch_name", AutoString(), nullable=False, server_default=""),
         sa.Column("status", AutoString(), nullable=False, server_default="running"),
+        sa.Column("pid", sa.Integer(), nullable=True),
         sa.Column(
             "started_at",
             AutoString(),
@@ -104,21 +110,18 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("session_id"),
         sa.CheckConstraint(
-            "kind IN ('task', 'workflow')",
-            name="ck_runs_kind",
-        ),
-        sa.CheckConstraint(
             "status IN ('running', 'completed', 'failed', 'cancelled', 'paused')",
             name="ck_runs_status",
         ),
     )
-    op.create_index("idx_runs_session", "runs", ["session_id"], unique=True)
     op.create_index("idx_runs_status", "runs", ["status"], unique=False)
     op.create_index("idx_runs_started", "runs", ["started_at"], unique=False)
+    op.create_index("idx_runs_project_id", "runs", ["project_id"], unique=False)
 
     op.create_table(
-        "workflow_costs",
+        "costs",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
+        sa.Column("project_id", AutoString(), nullable=False),
         sa.Column("session_id", AutoString(), nullable=False),
         sa.Column("branch_name", AutoString(), nullable=False),
         sa.Column("model_id", AutoString(), nullable=False),
@@ -134,25 +137,26 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("idx_workflow_costs_session", "workflow_costs", ["session_id"], unique=False)
-    op.create_index("idx_workflow_costs_created", "workflow_costs", ["created_at"], unique=False)
+    op.create_index("idx_costs_session", "costs", ["session_id"], unique=False)
+    op.create_index("idx_costs_created", "costs", ["created_at"], unique=False)
+    op.create_index("idx_costs_project_id", "costs", ["project_id"], unique=False)
 
 
 def downgrade() -> None:
     """Drop all tables created in initial migration."""
-    op.drop_index("idx_workflow_costs_created", table_name="workflow_costs")
-    op.drop_index("idx_workflow_costs_session", table_name="workflow_costs")
-    op.drop_table("workflow_costs")
+    op.drop_index("idx_costs_project_id", table_name="costs")
+    op.drop_index("idx_costs_created", table_name="costs")
+    op.drop_index("idx_costs_session", table_name="costs")
+    op.drop_table("costs")
 
+    op.drop_index("idx_runs_project_id", table_name="runs")
     op.drop_index("idx_runs_started", table_name="runs")
     op.drop_index("idx_runs_status", table_name="runs")
-    op.drop_index("idx_runs_session", table_name="runs")
     op.drop_table("runs")
 
-    op.drop_index("idx_catalog_path", table_name="catalog")
     op.drop_index("idx_catalog_type", table_name="catalog")
-    op.drop_index("idx_catalog_sha", table_name="catalog")
     op.drop_table("catalog")
 
+    op.drop_index("idx_sandboxes_project_id", table_name="sandboxes")
     op.drop_index("idx_sandboxes_status", table_name="sandboxes")
     op.drop_table("sandboxes")

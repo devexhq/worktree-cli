@@ -79,7 +79,7 @@ For full details on assertion operators, see the [Assertions Schema Reference](.
 
 When a step fails with `on_failure: prompt_user`:
 1. Worktree pauses the execution loop.
-2. A durable **session checkpoint** is persisted in `.worktree/data.db`.
+2. A durable **session checkpoint** is persisted in the centralized database.
 3. The user is prompted interactively:
    ```text
    Step 'verify-tests' failed (exit code: 1).

@@ -14,7 +14,7 @@ from worktree.common.filesystem import Filesystem
 from worktree.core.config.generator import build_default_config
 from worktree.core.config.loader import ConfigLoadStatus
 from worktree.core.config.models import WorktreeConfig
-from worktree.core.db.facade import WorktreeDb
+from worktree.core.db.db import WorktreeDb
 
 
 class ConfigShowRootTests:

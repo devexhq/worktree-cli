@@ -4,6 +4,7 @@ from pathlib import Path
 
 from worktree.core.blueprint import Blueprint, BlueprintDefinition
 from worktree.core.catalog import Catalog
+from worktree.core.project.services.identity import generate_project_identity, save_project_identity
 from worktree.core.step.models import StepDefinition
 
 
@@ -14,6 +15,7 @@ class BlueprintDocumentNormalizationTests:
         """Blueprint loaded without explicit 'name' inherits catalog key / file stem."""
         blueprints_dir = tmp_path / ".worktree" / "catalog" / "blueprints"
         blueprints_dir.mkdir(parents=True, exist_ok=True)
+        save_project_identity(tmp_path / ".worktree" / "project.json", generate_project_identity())
         raw_yaml = "steps:\n  - id: ruff\n    run: ruff check .\n"
         (blueprints_dir / "lint-task.yml").write_text(raw_yaml, encoding="utf-8")
 

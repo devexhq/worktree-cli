@@ -16,6 +16,7 @@ from worktree.common.filesystem import Filesystem
 from worktree.core.config.loader import ConfigLoadStatus
 from worktree.core.config.models import AgentConfig, ProjectConfig, SandboxConfig, WorktreeConfig
 from worktree.core.db import RunsRepository, RunStatus, SandboxesRepository
+from worktree.core.db.connection import resolve_db_path
 from worktree.core.git import GitNotFoundError, GitPlumbingTimeoutError, GitRunner
 from worktree.core.status import Status, WorktreeStatusResult
 from worktree.core.status.services.collector import collect_status
@@ -106,6 +107,8 @@ class StatusCollectorGitCollectionTests:
         assert result.catalog.total_items == 3
         assert result.catalog.steps_count == 1
         assert result.catalog.item_names == ["deploy", "lint-blueprint", "test-step"]
+        assert result.database.exists is True
+        assert result.database.is_accessible is True
         assert result.database.total_runs == 1
         assert result.sandboxes.active_sandboxes == 1
         assert result.sandboxes.total_sandboxes == 1
@@ -330,7 +333,7 @@ class StatusCollectorDatabaseAndSandboxTests:
         )
         fs = Filesystem(workspace)
         Filesystem.atomic_write_json(fs.config_file, _config_payload(model="gpt-4o"))
-        fs.db_file.write_bytes(b"NOT A SQLITE DATABASE")
+        resolve_db_path().write_bytes(b"NOT A SQLITE DATABASE")
 
         result = collect_status(workspace)
 

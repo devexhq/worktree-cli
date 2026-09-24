@@ -22,7 +22,7 @@ def _coerce_item_type(item_type: CatalogItemType | str) -> CatalogItemType:
 
 
 def _derive_catalog_key(namespace: str | None, path: Path) -> str:
-    """Derive the globally unique catalog key from namespace and file stem."""
+    """Derive the project-scoped catalog key from namespace and file stem."""
     stem = path.stem
     return f"{namespace}/{stem}" if namespace else stem
 
@@ -59,7 +59,9 @@ class CatalogRepository(BaseRepository):
         now_utc = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
 
         with self.session() as session:
-            statement = select(CatalogRecord).where(CatalogRecord.path == coerced_path)
+            statement = select(CatalogRecord).where(
+                CatalogRecord.path == coerced_path, CatalogRecord.project_id == self.project_id
+            )
             existing = session.exec(statement).first()
 
             if existing is not None:
@@ -73,6 +75,7 @@ class CatalogRepository(BaseRepository):
                 record = existing
             else:
                 record = CatalogRecord(
+                    project_id=self.project_id,
                     sha=sha,
                     key=key,
                     item_type=type_enum,
@@ -87,16 +90,20 @@ class CatalogRepository(BaseRepository):
             return self._commit(session, record, "Invalid catalog item constraint violation")
 
     def get_by_key(self, key: str) -> CatalogRecord | None:
-        """Fetch a catalog record by its globally unique key."""
+        """Fetch a catalog record by its key, unique within this repository's project."""
         with self.session() as session:
-            statement = select(CatalogRecord).where(CatalogRecord.key == key)
+            statement = select(CatalogRecord).where(
+                CatalogRecord.key == key, CatalogRecord.project_id == self.project_id
+            )
             return session.exec(statement).first()
 
     def get_by_path(self, path: Path | str) -> CatalogRecord | None:
         """Fetch a catalog record by its relative or stored path."""
         coerced_path = Path(str(path))
         with self.session() as session:
-            statement = select(CatalogRecord).where(CatalogRecord.path == coerced_path)
+            statement = select(CatalogRecord).where(
+                CatalogRecord.path == coerced_path, CatalogRecord.project_id == self.project_id
+            )
             return session.exec(statement).first()
 
     def list(
@@ -105,7 +112,7 @@ class CatalogRepository(BaseRepository):
     ) -> list[CatalogRecord]:
         """List catalog records, optionally filtered by ``item_type``."""
         with self.session() as session:
-            statement = select(CatalogRecord)
+            statement = select(CatalogRecord).where(CatalogRecord.project_id == self.project_id)
             if item_type is not None:
                 type_enum = _coerce_item_type(item_type)
                 statement = statement.where(CatalogRecord.item_type == type_enum)
@@ -115,7 +122,9 @@ class CatalogRepository(BaseRepository):
     def get_by_sha(self, sha: str) -> CatalogRecord | None:
         """Return the catalog record matching ``sha``, or ``None``."""
         with self.session() as session:
-            statement = select(CatalogRecord).where(CatalogRecord.sha == sha)
+            statement = select(CatalogRecord).where(
+                CatalogRecord.sha == sha, CatalogRecord.project_id == self.project_id
+            )
             return session.exec(statement).first()
 
     def list_by_name(
@@ -126,7 +135,11 @@ class CatalogRepository(BaseRepository):
     ) -> list[CatalogRecord]:
         """Return all catalog records matching ``name`` (and optional ``item_type``), ordered by path ASC."""
         with self.session() as session:
-            statement = select(CatalogRecord).where(CatalogRecord.name == name, CatalogRecord.namespace == namespace)
+            statement = select(CatalogRecord).where(
+                CatalogRecord.name == name,
+                CatalogRecord.namespace == namespace,
+                CatalogRecord.project_id == self.project_id,
+            )
             if item_type is not None:
                 type_enum = _coerce_item_type(item_type)
                 statement = statement.where(CatalogRecord.item_type == type_enum)
@@ -156,4 +169,7 @@ class CatalogRepository(BaseRepository):
     def delete(self, sha: str) -> bool:
         """Delete a catalog record by ``sha``. Returns ``True`` if a row was deleted."""
         with self.session() as session:
-            return self._delete_where(session, select(CatalogRecord).where(CatalogRecord.sha == sha))
+            return self._delete_where(
+                session,
+                select(CatalogRecord).where(CatalogRecord.sha == sha, CatalogRecord.project_id == self.project_id),
+            )

@@ -16,7 +16,7 @@ from worktree.core.config.models import WorktreeConfig
 from worktree.core.config.validate import (
     ConfigValidationStatus,
 )
-from worktree.core.db.facade import WorktreeDb
+from worktree.core.db.db import WorktreeDb
 
 
 class ConfigValidateRootTests:

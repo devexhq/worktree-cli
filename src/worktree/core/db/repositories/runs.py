@@ -33,6 +33,7 @@ class RunsRepository(BaseRepository):
         status_enum = RunStatus(status) if isinstance(status, str) else status
 
         record = RunRecord(
+            project_id=self.project_id,
             session_id=session_id,
             blueprint_name=blueprint_name,
             blueprint_key=blueprint_key,
@@ -51,7 +52,9 @@ class RunsRepository(BaseRepository):
     def get(self, session_id: str) -> RunRecord | None:
         """Return the run record matching session_id, or None."""
         with self.session() as session:
-            statement = select(RunRecord).where(RunRecord.session_id == session_id)
+            statement = select(RunRecord).where(
+                RunRecord.session_id == session_id, RunRecord.project_id == self.project_id
+            )
             return session.exec(statement).first()
 
     def update_status(
@@ -76,7 +79,9 @@ class RunsRepository(BaseRepository):
             completed_at = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
 
         with self.session() as session:
-            statement = select(RunRecord).where(RunRecord.session_id == session_id)
+            statement = select(RunRecord).where(
+                RunRecord.session_id == session_id, RunRecord.project_id == self.project_id
+            )
             record = session.exec(statement).first()
             if record is None:
                 return None
@@ -117,7 +122,7 @@ class RunsRepository(BaseRepository):
     ) -> list[RunRecord]:
         """List run records ordered by started_at DESC, id DESC with optional filters."""
         with self.session() as session:
-            statement = select(RunRecord)
+            statement = select(RunRecord).where(RunRecord.project_id == self.project_id)
 
             status_enum = _coerce_status(status)
             if status_enum is not None:
@@ -135,7 +140,7 @@ class RunsRepository(BaseRepository):
         with self.session() as session:
             statement = (
                 select(RunRecord)
-                .where(RunRecord.status == RunStatus.PAUSED)
+                .where(RunRecord.status == RunStatus.PAUSED, RunRecord.project_id == self.project_id)
                 .order_by(col(RunRecord.started_at).desc(), col(RunRecord.id).desc())
                 .limit(1)
             )

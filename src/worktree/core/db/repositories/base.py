@@ -11,12 +11,13 @@ from sqlmodel import Session, SQLModel
 from sqlmodel.sql.expression import Select, SelectOfScalar
 
 from worktree.core.db.connection import (
-    DEFAULT_DB_REL_PATH,
+    DEFAULT_DB_FILENAME,
     get_engine,
     get_session,
     resolve_db_path,
 )
 from worktree.core.db.migrations import init_database
+from worktree.core.project.services.storage import resolve_project_filesystem_paths
 
 RecordT = TypeVar("RecordT", bound=SQLModel)
 
@@ -27,27 +28,39 @@ class BaseRepository:
     def __init__(
         self,
         path: Path | None = None,
-        db_rel_path: str = DEFAULT_DB_REL_PATH,
+        db_filename: str = DEFAULT_DB_FILENAME,
         db_path: Path | None = None,
         auto_init: bool = True,
         db_engine: Engine | None = None,
+        project_id: str | None = None,
     ) -> None:
         self.path = path
         self.cwd = path
-        self.db_rel_path = db_rel_path
+        self.db_filename = db_filename
         self._db_path = db_path
         self._auto_init = auto_init
         self._initialized = False
         self._db_engine: Engine | None = db_engine
+        self._project_id = project_id
 
     @property
     def db_path(self) -> Path:
         """Lazy-resolved database file path."""
         if self._db_path is None:
-            if self.path is None:
-                raise ValueError("Repository path must be provided when db_path is omitted.")
-            self._db_path = resolve_db_path(self.path, self.db_rel_path)
+            self._db_path = resolve_db_path(self.db_filename)
         return self._db_path
+
+    @property
+    def project_id(self) -> str:
+        """Lazy-resolved project identifier scoping this repository's queries."""
+        if self._project_id is None:
+            if self.path is None:
+                raise ValueError("project_id must be provided")
+            resolved = resolve_project_filesystem_paths(self.path).project_id
+            if resolved is None:
+                raise ValueError("project_id must be provided")
+            self._project_id = resolved
+        return self._project_id
 
     @property
     def db_engine(self) -> Engine:
@@ -95,7 +108,7 @@ class BaseRepository:
 
     def init_db(self) -> Path:
         """Explicitly run table migrations and mark repository initialized."""
-        path = init_database(self.path, db_rel_path=self.db_rel_path, db_path=self._db_path)
+        path = init_database(db_filename=self.db_filename, db_path=self._db_path)
         self._initialized = True
         return path
 

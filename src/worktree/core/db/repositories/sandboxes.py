@@ -32,6 +32,7 @@ class SandboxesRepository(BaseRepository):
         """
         record = SandboxRecord(
             id=id,
+            project_id=self.project_id,
             name=name,
             branch_name=branch_name,
             base_commit=base_commit,
@@ -45,7 +46,7 @@ class SandboxesRepository(BaseRepository):
     def get(self, id: str) -> SandboxRecord | None:
         """Return the sandbox row for ``id``, or ``None`` when missing."""
         with self.session() as session:
-            statement = select(SandboxRecord).where(SandboxRecord.id == id)
+            statement = select(SandboxRecord).where(SandboxRecord.id == id, SandboxRecord.project_id == self.project_id)
             return session.exec(statement).first()
 
     def list(self, status: SandboxStatus | None = None) -> list[SandboxRecord]:
@@ -54,7 +55,7 @@ class SandboxesRepository(BaseRepository):
         When ``status`` is set, only rows with that status are returned.
         """
         with self.session() as session:
-            statement = select(SandboxRecord)
+            statement = select(SandboxRecord).where(SandboxRecord.project_id == self.project_id)
             if status is not None:
                 statement = statement.where(SandboxRecord.status == status)
             statement = statement.order_by(col(SandboxRecord.created_at).desc())
@@ -63,7 +64,7 @@ class SandboxesRepository(BaseRepository):
     def update_status(self, id: str, status: SandboxStatus) -> SandboxRecord | None:
         """Update sandbox status and ``updated_at``; return the row or ``None``."""
         with self.session() as session:
-            statement = select(SandboxRecord).where(SandboxRecord.id == id)
+            statement = select(SandboxRecord).where(SandboxRecord.id == id, SandboxRecord.project_id == self.project_id)
             record = session.exec(statement).first()
             if record is None:
                 return None
@@ -76,7 +77,10 @@ class SandboxesRepository(BaseRepository):
     def delete(self, id: str) -> bool:
         """Hard-delete a sandbox metadata row. Returns whether a row was removed."""
         with self.session() as session:
-            return self._delete_where(session, select(SandboxRecord).where(SandboxRecord.id == id))
+            return self._delete_where(
+                session,
+                select(SandboxRecord).where(SandboxRecord.id == id, SandboxRecord.project_id == self.project_id),
+            )
 
     def _reconcile_single_record(self, record: SandboxRecord | None) -> SandboxRecord | None:
         """Mark a single record as CLEANED if active and missing on disk."""

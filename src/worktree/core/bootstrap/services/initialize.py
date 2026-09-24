@@ -63,7 +63,7 @@ def initialize_workspace(
             failure_mode=InitFailureMode.CONFIG_GENERATION,
         )
 
-    init_database(path=resolved_root)
+    init_database()
 
     seed_result = seed_all_catalog_templates(path=resolved_root)
     return WorkspaceInitResult(
