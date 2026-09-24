@@ -25,6 +25,23 @@ def _write_tier_config(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload), encoding="utf-8")
 
 
+def _tier_config_path(tier: ConfigTier, isolated_workspace: Path, global_root: Path) -> Path:
+    """Resolve the on-disk config.json path for a file-based tier (GLOBAL, USER, or REPO)."""
+    global_paths = resolve_global_paths(global_root)
+    if tier == ConfigTier.GLOBAL:
+        return global_paths.global_dir / "config.json"
+    if tier == ConfigTier.USER:
+        return global_paths.user_dir / "config.json"
+    return isolated_workspace / ".worktree" / "config.json"
+
+
+FILE_BASED_TIERS = [
+    pytest.param(ConfigTier.GLOBAL, id="global"),
+    pytest.param(ConfigTier.USER, id="user"),
+    pytest.param(ConfigTier.REPO, id="repo"),
+]
+
+
 class ConfigLayerResolutionTests:
     """[tier-1/unit] Layer discovery contracts for resolve_config_layers."""
 
@@ -159,55 +176,56 @@ class HierarchicalConfigMergeTests:
 class HierarchicalConfigErrorTests:
     """[tier-1/unit] Tier-attributed error contracts for load_hierarchical_config."""
 
-    def test_malformed_json_in_user_tier_returns_malformed_json_status(
-        self, isolated_workspace: Path, tmp_path: Path
+    @pytest.mark.parametrize("tier", FILE_BASED_TIERS)
+    def test_malformed_json_in_tier_returns_malformed_json_status(
+        self, isolated_workspace: Path, tmp_path: Path, tier: ConfigTier
     ) -> None:
         global_root = tmp_path / "global_home"
-        global_paths = resolve_global_paths(global_root)
-        user_config_path = global_paths.user_dir / "config.json"
-        user_config_path.parent.mkdir(parents=True)
-        user_config_path.write_text("{not valid json", encoding="utf-8")
+        tier_config_path = _tier_config_path(tier, isolated_workspace, global_root)
+        tier_config_path.parent.mkdir(parents=True, exist_ok=True)
+        tier_config_path.write_text("{not valid json", encoding="utf-8")
 
         result = load_hierarchical_config(isolated_workspace, global_root)
 
         assert result.status == HierarchicalConfigLoadStatus.MALFORMED_JSON
-        assert result.tier == ConfigTier.USER
-        assert result.path == user_config_path
+        assert result.tier == tier
+        assert result.path == tier_config_path
         assert "line" in result.errors[0]
         assert "column" in result.errors[0]
 
-    def test_type_mismatch_in_repo_tier_returns_validation_failed_status(
-        self, isolated_workspace: Path, tmp_path: Path
+    @pytest.mark.parametrize("tier", FILE_BASED_TIERS)
+    def test_type_mismatch_in_tier_returns_validation_failed_status(
+        self, isolated_workspace: Path, tmp_path: Path, tier: ConfigTier
     ) -> None:
         global_root = tmp_path / "global_home"
-        repo_config_path = isolated_workspace / ".worktree" / "config.json"
-        _write_tier_config(repo_config_path, {"sandbox": {"max_active_sandboxes": "many"}})
+        tier_config_path = _tier_config_path(tier, isolated_workspace, global_root)
+        _write_tier_config(tier_config_path, {"sandbox": {"max_active_sandboxes": "many"}})
 
         result = load_hierarchical_config(isolated_workspace, global_root)
 
         assert result.status == HierarchicalConfigLoadStatus.VALIDATION_FAILED
-        assert result.tier == ConfigTier.REPO
-        assert result.path == repo_config_path
+        assert result.tier == tier
+        assert result.path == tier_config_path
         assert "max_active_sandboxes" in result.errors[0]
 
-    def test_unreadable_user_tier_file_returns_unreadable_status(
-        self, isolated_workspace: Path, tmp_path: Path
+    @pytest.mark.parametrize("tier", FILE_BASED_TIERS)
+    def test_unreadable_tier_file_returns_unreadable_status(
+        self, isolated_workspace: Path, tmp_path: Path, tier: ConfigTier
     ) -> None:
         global_root = tmp_path / "global_home"
-        global_paths = resolve_global_paths(global_root)
-        user_config_path = global_paths.user_dir / "config.json"
-        _write_tier_config(user_config_path, {})
-        user_config_path.chmod(0)
+        tier_config_path = _tier_config_path(tier, isolated_workspace, global_root)
+        _write_tier_config(tier_config_path, {})
+        tier_config_path.chmod(0)
         try:
-            if os.access(user_config_path, os.R_OK):
+            if os.access(tier_config_path, os.R_OK):
                 pytest.skip("filesystem still allows reading unreadable mode")
 
             result = load_hierarchical_config(isolated_workspace, global_root)
         finally:
-            user_config_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+            tier_config_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
 
         assert result.status == HierarchicalConfigLoadStatus.UNREADABLE
-        assert result.tier == ConfigTier.USER
+        assert result.tier == tier
         assert "Check file permissions and that the path is readable" in result.errors[0]
 
     def test_missing_repo_config_is_silently_skipped_not_raised(self, isolated_workspace: Path, tmp_path: Path) -> None:
