@@ -1,0 +1,7 @@
+id: run-tests
+name: run-tests
+description: Run the project test suite
+type: command
+command: pytest
+timeout_seconds: 600
+on_failure: abort
