@@ -16,6 +16,7 @@ from worktree.cli.ui.formatters.catalog.catalog_views import (
 from worktree.cli.ui.formatters.catalog.common import (
     build_catalog_table,
     build_catalog_template_table,
+    catalog_type_label,
 )
 from worktree.cli.ui.formatters.common import build_error_panel
 from worktree.common.types import ComponentFormatter
@@ -25,7 +26,8 @@ from worktree.core.catalog.models import CatalogListResult
 
 def _render_list_empty(view: CatalogListView) -> Any:
     """Render empty state message and any warnings for catalog list."""
-    renderables: list[Any] = [Text("No catalog blueprints found.")]
+    label = catalog_type_label(view.type_filter, view.items).lower()
+    renderables: list[Any] = [Text(f"No {label} found.")]
     for warning in view.warnings:
         renderables.append(Panel(warning, title="Catalog Scan Warning", border_style="red"))
     return Group(*renderables) if view.warnings else renderables[0]
@@ -33,7 +35,7 @@ def _render_list_empty(view: CatalogListView) -> Any:
 
 def _render_list_items(view: CatalogListView) -> Any:
     """Render table of catalog items along with any warnings."""
-    table = build_catalog_table(view.items)
+    table = build_catalog_table(view.items, type_filter=view.type_filter)
     if not view.warnings:
         return table
     renderables: list[Any] = [table]
@@ -56,14 +58,12 @@ class CatalogListFormatter(ComponentFormatter[CatalogListResult, CatalogListView
         """
         items = [
             CatalogItemView(
-                id=item.id,
                 sha=item.sha,
                 item_type=enum_value(item.item_type),
                 name=item.name,
                 path=item.path.as_posix(),
                 checksum=item.checksum,
-                created_at=item.created_at,
-                updated_at=item.updated_at,
+                tier=enum_value(item.tier),
             )
             for item in data.items
         ]

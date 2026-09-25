@@ -39,7 +39,7 @@ pip install "worktree-cli[cursor]"
 wt init
 wt status
 wt config validate
-wt catalog list
+wt blueprint list
 wt run fix-tests
 wt history
 ```
@@ -63,12 +63,21 @@ wt history
 - `wt config unset <key>`
 - `wt config validate`
 
-### Catalog
+### Blueprints
 
-- `wt catalog list` — list catalog blueprints/templates
-- `wt catalog create` — create a new catalog blueprint
-- `wt catalog show <sha-or-name>`
-- `wt catalog delete <sha-or-name>`
+- `wt blueprint list` / `wt blueprint ls` — list blueprint catalog items across all tiers
+- `wt blueprint create --name <name>` — create a new repo-tier blueprint
+- `wt blueprint show <sha-or-name>`
+- `wt blueprint delete <sha-or-name>`
+- `wt blueprint validate <target>` — validate a blueprint definition without executing it
+
+### Steps
+
+- `wt step list` / `wt step ls` — list step catalog items across all tiers
+- `wt step create --name <name>` — create a new repo-tier step
+- `wt step show <sha-or-name>`
+- `wt step delete <sha-or-name>`
+- `wt step validate <target>` — validate a step definition without executing it
 
 ### Sandbox
 

@@ -66,7 +66,7 @@ While tasks and workflows share the same YAML structure, they have different arc
 ### 1. Identity & Metadata
 * `name` *(string, required)*: Unique display name.
 * `description` *(string, optional)*: In-depth explanation of the blueprint's purpose.
-* `summary` *(string, optional)*: Short single-sentence summary shown in `wt catalog list`.
+* `summary` *(string, optional)*: Short single-sentence summary shown in `wt blueprint list`.
 * `version` *(integer | string, default `1`)*: Format schema version.
 
 ### 2. Execution Controls
@@ -109,17 +109,16 @@ If a step defines its own `on_failure`, the step-specific configuration takes pr
 
 ## Creating Blueprints via CLI
 
-You can generate blueprint template scaffolds using `wt catalog create`:
+You can generate blueprint template scaffolds using `wt blueprint create`:
 
 ```bash
-# Create a new workflow blueprint
-wt catalog create workflow --name fix-issue
+# Create a new blueprint
+wt blueprint create --name fix-issue
 
-# Create a new task blueprint
-wt catalog create task --name audit-deps
+wt blueprint create --name audit-deps
 ```
 
-This generates a pre-populated template in `.worktree/catalog/<type>s/<name>.yml`.
+This generates a pre-populated template in `.worktree/catalog/blueprints/<name>.yml`.
 
 ---
 

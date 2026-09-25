@@ -27,10 +27,12 @@ Comprehensive reference for the shape of entities across the Worktree CLI codeba
   - `StepNotFoundError` (subclasses `DefinitionNotFoundError`)
   - `StepValidationError` (subclasses `DefinitionValidationError`)
 - **Catalog** (`core/catalog/exceptions.py`):
-  - `CatalogError`: Base catalog exception.
+  - `CatalogError` (subclasses `DefinitionError`): Base catalog exception.
   - `CatalogFileNotFoundError`: Specified catalog resource not on disk.
   - `CatalogYamlError`: YAML syntax error when parsing catalog item.
   - `CatalogWriteError`: File write or permission failure during catalog mutation.
+  - `CatalogProtectionError`: Attempted delete/mutate of a protected bundled `wt/` template.
+  - `CatalogTierDeleteError`: Attempted delete of a catalog item resolved from a non-REPO tier.
 - **Config** (`core/config/exceptions.py`):
   - `ConfigLoadError`: Fatal configuration loading failure.
   - `ConfigTierValidationError`: A hierarchical config tier file is unreadable, malformed, or fails `WorktreeConfig` validation; carries `tier`, `path`, and `details`.
@@ -100,8 +102,7 @@ All operations that can fail return a Pydantic result object subclassing `BaseRe
 
 ### Blueprint & Step Models
 **Relevant sources:** `src/worktree/core/blueprint/models.py`, `src/worktree/core/step/models.py`, `src/worktree/core/inputs/models.py`.
-- `BlueprintDefinition`: Unified model for task and workflow blueprints (`id`, `name`, `description`, `kind`, `inputs`, `defaults`, `steps`, `use_sandbox`).
-- `BlueprintKind`: `StrEnum` (`task`, `workflow`). Injected at load time; tasks cannot contain loop steps.
+- `BlueprintDefinition`: Unified model for executable blueprints. See [`src/worktree/core/blueprint/models.py`](../../src/worktree/core/blueprint/models.py) for its fields; it carries no `kind` discriminator.
 - `BlueprintDefaults`: Blueprint-level defaults (`on_failure`).
 - `ParameterInput`: Declared parameter input (`type`, `description`, `required`, `default`, `aliases`).
 - `InputResolveResult`: Result of resolving input values from CLI flags and defaults (`values`, `missing`, `errors`, `warnings`, `ok`).
@@ -142,19 +143,23 @@ All operations that can fail return a Pydantic result object subclassing `BaseRe
 
 ### Catalog Models
 **Relevant sources:** `src/worktree/core/catalog/models.py`.
-- `CatalogItem`: Indexed item metadata (`id`, `name`, `type`, `path`, `source`, `sha256`, `description`).
-- `CatalogItemType`: `StrEnum` (`workflow`, `task`, `step`, `template`).
-- `CatalogInventory`: Collection of scanned catalog items.
+
+The catalog is disk-only: each of the REPO, USER, and GLOBAL tiers keeps its own `index.json` cache, rebuilt wholesale from a directory walk on every lookup; PACKAGED is read directly from bundled resources. There is no SQLite-backed catalog table.
+- `CatalogTier`: `StrEnum` (`packaged`, `global`, `user`, `repo`); resolution precedence is REPO, then USER, then GLOBAL, then PACKAGED.
+- `CatalogItemType`: `StrEnum` (`blueprint`, `step`).
+- `CatalogItemTypeDirectory`: `StrEnum` (`blueprints`, `steps`) — the on-disk subdirectory name for each item type.
+- `CatalogIndexEntry`: One item's identity and location as stored in a tier's `index.json` (`sha`, `key`, `item_type`, `name`, `namespace`, `path`, `checksum`).
+- `CatalogIndex`: On-disk contents of one tier root's `index.json` (`items: list[CatalogIndexEntry]`).
+- `CatalogRecord`: A `CatalogIndexEntry` plus the `tier` it was resolved from — the shape returned by `Catalog.list/show/get/create/delete`.
 - `SeedResult`: Template seeding outcome (`created_files`, `skipped_existing_files`, `overwritten_files`, `warnings`, `errors`, `ok`).
 - `CatalogValidateResult`: Result of validating a catalog blueprint or step definition without executing it (`status`, `valid`, `target`, `resolved_path`, `item_type`, `errors`, `warnings`, `ok`); `CatalogValidateStatus`: `StrEnum` (`ok`, `invalid`, `syntax_error`, `not_found`, `unreadable`, `type_required`).
 
 ### Database SQLModel Records
 **Relevant sources:** `src/worktree/core/db/models.py`.
 
-All four tables live in one centralized SQLite database shared across projects (`resolve_db_path` in `core/db/connection.py`), and every record carries `project_id`; every `BaseRepository` query scopes on it (`core/db/repositories/base.py`).
+All three tables live in one centralized SQLite database shared across projects (`resolve_db_path` in `core/db/connection.py`), and every record carries `project_id`; every `BaseRepository` query scopes on it (`core/db/repositories/base.py`). The catalog is no longer one of them — see Catalog Models above.
 - `SandboxRecord`: Persisted sandbox rows in `sandboxes` table.
 - `RunRecord`: Persisted blueprint run rows in `runs` table (including `checkpoint_json`).
-- `CatalogRecord`: Persisted catalog index rows in the `catalog` table, including an optional path-derived namespace; uniqueness on `key`/`sha`/`path` is scoped per `project_id`.
 - `CostRecord`: Persisted token and execution cost tracking in `costs` table.
 
 ### History, Diff, and Status Models
@@ -214,9 +219,9 @@ Each core domain exposes a cohesive facade class that encapsulates domain servic
 | `GitRunner` | `core/git/runner.py` | Low-level git CLI execution (`run`, `worktree_add`, `worktree_remove`, `worktree_list`, `diff`). |
 | `Sandbox` | `core/sandbox/facade.py` | Worktree sandbox lifecycle (`create`, `show`, `list`, `delete`, `prune`, `apply`, `diff`). |
 | `Config` | `core/config/facade.py` | Config loading, validation, generation, and mutation (`load`, `validate`, `set`, `unset`, `generate`, `show`). |
-| `WorktreeDb` | `core/db/db.py` | Central database access point (`sandboxes`, `runs`, `catalog`, `costs` repositories). |
+| `WorktreeDb` | `core/db/db.py` | Central database access point (`sandboxes`, `runs`, `costs` repositories). |
 | `Inputs` | `core/inputs/facade.py` | Input flag parsing, default resolution, and placeholder interpolation (`parse_args`, `resolve`, `interpolate`). |
-| `Catalog` | `core/catalog/facade.py` | Template scanning, indexing, retrieval, and seeding (`list_items`, `get_item`, `seed_templates`, `scan_and_index`). |
+| `Catalog` | `core/catalog/catalog.py` | Disk-only, multi-tier template scanning, indexing, retrieval, and seeding (`list`, `show`, `get`, `create`, `delete`, `sync`, `validate`, `seed`). |
 | `Blueprint` | `core/blueprint/facade.py` | Loading and rendering unified blueprint documents (`load`, `from_path`, `from_document`, `render_show`). |
 | `Diff` | `core/diff/facade.py` | Session diff calculation, artifact loading, and rendering (`get_diff`, `render`). |
 | `Status` | `core/status/facade.py` | Workspace health and telemetry aggregation (`collect`). |
@@ -251,7 +256,8 @@ Each CLI command package under `src/worktree/cli/<name>/` contains:
 - `wt init`: Initialize workspace, generate `.worktree/` directory, `project.json` identity, `.gitignore`, and `config.json` (`--id`, `--display-name`, `--force`).
 - `wt status`: Show workspace health, active sandboxes, and developer warnings.
 - `wt config`: Manage configuration (`show`, `set`, `validate`).
-- `wt catalog`: Manage catalog items (`list`, `show`, `create`, `delete`).
+- `wt blueprint`: Manage catalog blueprint items across all tiers (`list`/`ls`, `show`, `create`, `delete`, `validate`).
+- `wt step`: Manage catalog step items across all tiers (`list`/`ls`, `show`, `create`, `delete`, `validate`).
 - `wt run`: Execute a task or workflow blueprint.
 - `wt resume`: Resume a paused execution session.
 - `wt sandbox`: Manage git worktree sandboxes (`create`, `list`, `show`, `delete`, `prune`, `apply`).

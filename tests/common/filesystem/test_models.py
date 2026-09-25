@@ -20,6 +20,7 @@ class GlobalPathsTests:
         expected_root = source_root.resolve()
         assert paths.root == expected_root
         assert paths.global_dir == expected_root / "global"
+        assert paths.global_catalog_dir == expected_root / "global" / "catalog"
         assert paths.user_dir == expected_root / "user"
         assert paths.user_catalog_dir == expected_root / "user" / "catalog"
         assert paths.data_dir == expected_root / "data"

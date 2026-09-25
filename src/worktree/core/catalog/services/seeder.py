@@ -7,9 +7,7 @@ from pathlib import Path
 from worktree.common.filesystem import Filesystem
 from worktree.common.lock import WorkspaceLock
 from worktree.common.utils import display_path
-from worktree.core.catalog.models import SeedResult
-from worktree.core.db import CatalogItemType
-from worktree.core.db.models import CatalogItemTypeDirectory
+from worktree.core.catalog.models import CatalogItemType, CatalogItemTypeDirectory, SeedResult
 
 
 def _iter_source_files(source_dir: Path) -> list[Path]:

@@ -10,7 +10,7 @@ This reference documents the complete YAML schema for Task and Workflow blueprin
 |---|---|---|---|---|
 | `name` | `string` | **Yes** | — | Unique display name of the blueprint (must be at least 1 character). |
 | `description` | `string` | No | `""` | Detailed description of the blueprint's goal and behavior. |
-| `summary` | `string` | No | `""` | Short single-line description shown in `wt catalog list` output. |
+| `summary` | `string` | No | `""` | Short single-line description shown in `wt blueprint list` output. |
 | `id` | `string` | No | Matches `name` | Blueprint identifier. |
 | `version` | `integer \| string` | No | `1` | Blueprint schema format version. |
 | `use_sandbox` | `boolean` | No | `true` | When `true`, execution runs in an isolated Git worktree branch (`wt/*`). |

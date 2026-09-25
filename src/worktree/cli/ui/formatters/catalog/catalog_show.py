@@ -17,7 +17,7 @@ from worktree.cli.ui.formatters.catalog.catalog_views import (
 from worktree.cli.ui.formatters.common import build_error_panel
 from worktree.common.types import ComponentFormatter
 from worktree.common.utils import enum_value
-from worktree.core.catalog.models import CatalogShowResult
+from worktree.core.catalog.models import CatalogShowResult, CatalogTier
 
 
 def _render_show_template_matches(matches: list[CatalogTemplateView], content: str | None) -> Any:
@@ -31,14 +31,18 @@ def _render_show_template_matches(matches: list[CatalogTemplateView], content: s
     return Group(*renderables) if len(renderables) > 1 else (renderables[0] if renderables else Text(""))
 
 
+_SHOW_LABEL_WIDTH = 13  # aligns every label to the width of "Checksum:" + 4 spaces
+
+
 def _render_show_item(item: CatalogItemView, content: str | None, catalog_path_relative: str | None) -> Group:
     """Render catalog item details, metadata, and optional YAML definition."""
     rel_path = catalog_path_relative or item.path
+    type_label = f"{item.item_type.capitalize()}:".ljust(_SHOW_LABEL_WIDTH)
     renderables: list[Any] = [
-        Text.from_markup(f"[bold green]Blueprint:[/]   {item.name} ({item.sha})"),
-        Text.from_markup(f"[bold green]Type:[/]        {item.item_type}"),
-        Text.from_markup(f"[bold green]Path:[/]        {rel_path}"),
-        Text.from_markup(f"[bold green]Checksum:[/]    {item.checksum}"),
+        Text.from_markup(f"[bold green]{type_label}[/]{item.name} ({item.sha})"),
+        Text.from_markup(f"[bold green]{'Type:'.ljust(_SHOW_LABEL_WIDTH)}[/]{item.item_type}"),
+        Text.from_markup(f"[bold green]{'Path:'.ljust(_SHOW_LABEL_WIDTH)}[/]{rel_path}"),
+        Text.from_markup(f"[bold green]{'Checksum:'.ljust(_SHOW_LABEL_WIDTH)}[/]{item.checksum}"),
     ]
     if content:
         renderables.append(Text.from_markup("\n[bold cyan]Definition:[/]\n"))
@@ -62,16 +66,15 @@ class CatalogShowFormatter(ComponentFormatter[CatalogShowResult, CatalogShowView
         catalog_path_relative = None
         if data.item is not None:
             item_view = CatalogItemView(
-                id=data.item.id,
                 sha=data.item.sha,
                 item_type=enum_value(data.item.item_type),
                 name=data.item.name,
                 path=data.item.path.as_posix(),
                 checksum=data.item.checksum,
-                created_at=data.item.created_at,
-                updated_at=data.item.updated_at,
+                tier=enum_value(data.item.tier),
             )
-            catalog_path_relative = (Path(".worktree") / "catalog" / data.item.path).as_posix()
+            if data.item.tier == CatalogTier.REPO:
+                catalog_path_relative = (Path(".worktree") / "catalog" / data.item.path).as_posix()
 
         template_matches = [
             CatalogTemplateView(item_type="template", path=template_path) for template_path, _ in data.template_matches

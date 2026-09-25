@@ -19,13 +19,11 @@ from worktree.cli.ui.formatters.catalog.catalog_views import (
     CatalogShowView,
     CatalogTemplateView,
 )
-from worktree.core.catalog.models import CatalogShowResult
-from worktree.core.db import CatalogItemType, CatalogRecord
+from worktree.core.catalog.models import CatalogItemType, CatalogRecord, CatalogShowResult, CatalogTier
 
 
 def _sample_catalog_record() -> CatalogRecord:
     return CatalogRecord(
-        id=1,
         key="test-blueprint",
         sha="blueprint_1234567",
         item_type=CatalogItemType.BLUEPRINT,
@@ -33,8 +31,20 @@ def _sample_catalog_record() -> CatalogRecord:
         namespace=None,
         path=Path("blueprints/test-blueprint.yml"),
         checksum="1234567890abcdef",
-        created_at="2026-08-17T00:00:00Z",
-        updated_at="2026-08-17T00:00:00Z",
+        tier=CatalogTier.REPO,
+    )
+
+
+def _sample_step_record() -> CatalogRecord:
+    return CatalogRecord(
+        key="test-step",
+        sha="step_1234567",
+        item_type=CatalogItemType.STEP,
+        name="test-step",
+        namespace=None,
+        path=Path("steps/test-step.yml"),
+        checksum="abcdef1234567890",
+        tier=CatalogTier.REPO,
     )
 
 
@@ -42,14 +52,12 @@ BLUEPRINT_FOUND = FormatterCase(
     data=CatalogShowResult(item=_sample_catalog_record(), content="name: test-blueprint\nversion: 1\n"),
     view=CatalogShowView(
         item=CatalogItemView(
-            id=1,
             sha="blueprint_1234567",
             item_type="blueprint",
             name="test-blueprint",
             path="blueprints/test-blueprint.yml",
             checksum="1234567890abcdef",
-            created_at="2026-08-17T00:00:00Z",
-            updated_at="2026-08-17T00:00:00Z",
+            tier="repo",
         ),
         content="name: test-blueprint\nversion: 1\n",
         template_matches=[],
@@ -67,6 +75,27 @@ BLUEPRINT_FOUND = FormatterCase(
         "name: test-blueprint",
         "version: 1",
     ],
+)
+
+STEP_FOUND = FormatterCase(
+    data=CatalogShowResult(item=_sample_step_record(), content="name: test-step\naction: run\n"),
+    view=CatalogShowView(
+        item=CatalogItemView(
+            sha="step_1234567",
+            item_type="step",
+            name="test-step",
+            path="steps/test-step.yml",
+            checksum="abcdef1234567890",
+            tier="repo",
+        ),
+        content="name: test-step\naction: run\n",
+        template_matches=[],
+        catalog_path_relative=".worktree/catalog/steps/test-step.yml",
+        errors=[],
+        warnings=[],
+        fixes=[],
+    ),
+    render_expectations=["test-step", "step_1234567", "Step:", "abcdef1234567890"],
 )
 
 TEMPLATE_MATCH = FormatterCase(
@@ -102,6 +131,7 @@ ERRORS = FormatterCase(
 
 SHOW_CASES = [
     pytest.param(BLUEPRINT_FOUND, id="blueprint_found"),
+    pytest.param(STEP_FOUND, id="step_found"),
     pytest.param(TEMPLATE_MATCH, id="template_match"),
     pytest.param(ERRORS, id="errors"),
 ]
@@ -114,14 +144,12 @@ PAYLOAD_CASES = [
             "warnings": [],
             "fixes": [],
             "item": {
-                "id": 1,
                 "sha": "blueprint_1234567",
                 "item_type": "blueprint",
                 "name": "test-blueprint",
                 "path": "blueprints/test-blueprint.yml",
                 "checksum": "1234567890abcdef",
-                "created_at": "2026-08-17T00:00:00Z",
-                "updated_at": "2026-08-17T00:00:00Z",
+                "tier": "repo",
             },
             "content": "name: test-blueprint\nversion: 1\n",
             "template_matches": [],

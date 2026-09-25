@@ -29,4 +29,4 @@ def write_runnable_blueprint(
         "steps": steps,
     }
     blueprint_path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
-    scan_and_index_catalog(path=workspace)
+    scan_and_index_catalog(repo_root=workspace)

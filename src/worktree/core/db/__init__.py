@@ -19,8 +19,6 @@ from worktree.core.db.migrations import (
     init_database,
 )
 from worktree.core.db.models import (
-    CatalogItemType,
-    CatalogRecord,
     CostRecord,
     RunRecord,
     RunStatus,
@@ -30,7 +28,6 @@ from worktree.core.db.models import (
 )
 from worktree.core.db.repositories import (
     BaseRepository,
-    CatalogRepository,
     CostsRepository,
     RunsRepository,
     SandboxesRepository,
@@ -41,9 +38,6 @@ __all__ = [
     "INITIAL_SCHEMA_REVISION",
     "LATEST_SCHEMA_REVISION",
     "BaseRepository",
-    "CatalogItemType",
-    "CatalogRecord",
-    "CatalogRepository",
     "CostRecord",
     "CostsRepository",
     "RunRecord",

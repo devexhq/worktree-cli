@@ -11,7 +11,7 @@ User-facing command behavior lives under [docs/cli/](../cli/). Entity shapes and
 ```
 src/worktree/cli/                    Typer CLI entrypoint and subcommand wrappers (no domain logic)
   cli.py                             Application definition, global options, top-level exception handling
-  <name>/                            Subcommand packages (catalog, config, diff, history, init, resume, run, sandbox, status)
+  <name>/                            Subcommand packages (blueprint, config, diff, history, init, resume, run, sandbox, status, step)
 
 src/worktree/core/                   Domain business logic and orchestration (no Typer imports)
   bootstrap/                         Workspace directory structure initialization and repair
@@ -21,7 +21,7 @@ src/worktree/core/                   Domain business logic and orchestration (no
   project/                           Stable project identity model, generation, and persistence services
   db/                                SQLite persistence, connection management, Alembic migrations, and repositories
   inputs/                            Parameter input declaration, CLI flag resolution, and placeholder interpolation
-  catalog/                           Workflow/task/step template discovery, indexing, seeding, and inventory
+  catalog/                           Blueprint/step template discovery, disk-only multi-tier indexing, seeding, and inventory
   blueprint/                         Unified task and workflow document loading and inspection
   diff/                              Session unified diff computation and artifact retrieval
   status/                            Workspace health diagnostics and telemetry collection
@@ -59,7 +59,7 @@ src/worktree/schemas/v1/             Packaged, versioned JSON Schemas (config.js
 - **Blueprint** (`core/blueprint/`): Unified task/workflow document handle (`Blueprint`), catalog/path loader, input declaration schema. Must not import runtime, engine, or cli.
 - **Runtime** (`core/runtime/`): Step-loop execution (`run_steps`), `RunContext` / `RunObserver` / `RunOutcome`, failure orchestration (abort / continue / `prompt_user`), and pause checkpoint persistence. Runtime must not import cli.
 - **Engine** (`core/engine/`): Process-level run persistence, session ID minting (`RunRequest`), DB run records, run/resume services (`BlueprintRunService`, `BlueprintResumeService`, `reconcile_stale_runs`). Must not import cli.
-- **Catalog** (`core/catalog/`): Template scanning, indexing, `CatalogRepository` sync hooks, packaged seeds under `templates/`.
+- **Catalog** (`core/catalog/`): Disk-only, multi-tier (REPO/USER/GLOBAL/PACKAGED) template scanning and indexing via per-tier `index.json` caches, packaged seeds under `templates/`.
 - **History** (`core/history/`): `History` entrypoint (`history.py`), result models (`HistoryListResult`, `HistoryShowResult`). UI formatters reside in `cli/ui/formatters/history/`.
 - **Diff** (`core/diff/`): `DiffService`, session diff resolution, artifact loading, result models (`DiffResult`). UI formatters reside in `cli/ui/formatters/diff/`.
 - **Status** (`core/status/`): Workspace health and runtime telemetry collection (`collect_status`), result models (`WorktreeStatusResult`), warning aggregation.
@@ -104,7 +104,7 @@ common/  ->  core/project/  ->  core/{db,git,sandbox,catalog,inputs,patch,histor
 
 1. **Models**: `<X>Definition` in `core/<x>/models.py`.
 2. **Exceptions**: `<X>LoadError` / `<X>ValidationError` subclassing definition errors in `core/<x>/exceptions.py`.
-3. **Loader**: `core/<x>/services/loader.py` -> `get_catalog_item(..., definition_cls=...)`.
+3. **Loader**: `core/<x>/services/loader.py` -> `Catalog.get(..., item_type=..., definition_cls=...)`.
 4. **Execution**: If executing steps, build `RunContext` and delegate to `run_steps` in `core.runtime.engine`.
 5. **CLI**: Thin `commands/root.py`, UI formatters in `cli/ui/formatters/<x>/`, plain-text formatters in `core/<x>/services/renderer.py` if needed for non-interactive diagnostics.
 
@@ -138,7 +138,7 @@ Created and repaired idempotently by [core/bootstrap](../../src/worktree/core/bo
   .gitignore                  # local; ignores .meta/, .lock, sandboxes/, *.db*
   config.json                 # schemas/v1/config.json
   project.json                # schemas/v1/project.json; stable project identity
-  catalog/                    # workflows/, tasks/, steps/ + seeded wt/ templates
+  catalog/                    # blueprints/, steps/ + seeded wt/ templates; index.json is a derived cache, never hand-edited
   sandboxes/                  # git worktree checkouts
 ```
 
@@ -149,8 +149,8 @@ Created and repaired idempotently by [core/bootstrap](../../src/worktree/core/bo
 **Relevant sources:** `src/worktree/core/db/`
 
 - A single SQLite database at `<global_root>/data/worktree.db` (resolved by `resolve_db_path` in `core/db/connection.py`, under `WORKTREE_HOME` or `~/.worktree` by default) backs every project, migrated by `init_database`.
-- `runs`, `sandboxes`, `costs`, and `catalog` rows carry `project_id` and are scoped to it by every repository query, so multiple projects share the physical file without colliding.
-- Repositories: `SandboxesRepository`, `RunsRepository`, `CatalogRepository`, `CostsRepository` accessed via `WorktreeDb` facade.
+- `runs`, `sandboxes`, and `costs` rows carry `project_id` and are scoped to it by every repository query, so multiple projects share the physical file without colliding. The catalog is disk-only and has no table here (see [Catalog](#layers) above).
+- Repositories: `SandboxesRepository`, `RunsRepository`, `CostsRepository` accessed via `WorktreeDb` facade.
 - Construct repositories/facades once per command invocation rather than per query.
 
 ## Sandboxes (core)

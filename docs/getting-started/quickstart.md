@@ -17,9 +17,8 @@ This provisions the `.worktree/` state directory:
 ```text
 .worktree/
 ├── config.json         # Project settings and provider configuration
-└── catalog/            # Project blueprint definitions
-    ├── workflows/
-    ├── tasks/
+└── catalog/            # Project blueprint definitions (this repo's REPO tier)
+    ├── blueprints/
     └── steps/
 ```
 
@@ -36,26 +35,26 @@ wt status
 Worktree comes with built-in blueprint templates. List the available catalog items:
 
 ```bash
-wt catalog list
+wt blueprint list
 ```
 
 You can view the contents of any catalog item or scaffold template:
 
 ```bash
-wt catalog show wt/git-sync-base
+wt step show wt/git-sync-base
 ```
 
 ---
 
 ## 3. Create a Custom Task Blueprint
 
-Create a new task blueprint called `lint-and-format`:
+Create a new blueprint called `lint-and-format`:
 
 ```bash
-wt catalog create task --name lint-and-format
+wt blueprint create --name lint-and-format
 ```
 
-Open `.worktree/catalog/tasks/lint-and-format.yml` in your editor and configure your task steps:
+Open `.worktree/catalog/blueprints/lint-and-format.yml` in your editor and configure your task steps:
 
 ```yaml
 name: lint-and-format

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from worktree.core.blueprint import BlueprintRunResult
 from worktree.core.catalog import Catalog
-from worktree.core.db import CatalogRepository, RunRecord, RunsRepository
+from worktree.core.db import RunRecord, RunsRepository
 from worktree.core.engine.engine import Engine
 from worktree.core.engine.exceptions import EngineResumeError, EngineRuntimeError
 from worktree.core.runtime import (
@@ -23,7 +23,6 @@ class BlueprintResumeService:
 
     path: Path
     db: RunsRepository
-    catalog_db: CatalogRepository
     session_id: str | None = None
     no_tty: bool = False
     observer: RunObserver | None = None
@@ -36,7 +35,7 @@ class BlueprintResumeService:
         if resolve_error is not None or not target_session_id:
             return self._fail(resolve_error or "No paused session found to resume.")
 
-        catalog = Catalog(path=self.path, db=self.catalog_db)
+        catalog = Catalog(path=self.path)
 
         try:
             run_outcome = Engine(self.path, db=self.db, catalog=catalog).resume(

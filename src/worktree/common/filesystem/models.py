@@ -115,6 +115,7 @@ class GlobalPaths(BaseModel):
 
     root: Path
     global_dir: Path
+    global_catalog_dir: Path
     user_dir: Path
     user_catalog_dir: Path
     data_dir: Path
@@ -127,6 +128,7 @@ class GlobalPaths(BaseModel):
         return cls(
             root=canonical_root,
             global_dir=canonical_root / "global",
+            global_catalog_dir=canonical_root / "global" / "catalog",
             user_dir=canonical_root / "user",
             user_catalog_dir=canonical_root / "user" / "catalog",
             data_dir=canonical_root / "data",

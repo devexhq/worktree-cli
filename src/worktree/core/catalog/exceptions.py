@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from worktree.common.exceptions import DefinitionError
 
-class CatalogError(Exception):
+
+class CatalogError(DefinitionError):
     """Base catalog facade error."""
 
 
@@ -21,3 +23,7 @@ class CatalogWriteError(CatalogError):
 
 class CatalogProtectionError(CatalogError):
     """Raised when attempting to delete or mutate a protected bundled catalog template."""
+
+
+class CatalogTierDeleteError(CatalogError):
+    """Raised when attempting to delete a catalog item resolved from a non-REPO tier."""

@@ -8,14 +8,12 @@ class CatalogItemView(BaseModel):
 
     model_config = {"extra": "forbid", "strict": True}
 
-    id: int | None = None
     sha: str
     item_type: str
     name: str
     path: str
     checksum: str
-    created_at: str
-    updated_at: str
+    tier: str
 
 
 class CatalogTemplateView(BaseModel):

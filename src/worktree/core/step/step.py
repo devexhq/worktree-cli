@@ -9,7 +9,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from worktree.core.catalog import Catalog, CatalogFileNotFoundError, CatalogYamlError
-from worktree.core.db import CatalogItemType
+from worktree.core.catalog.models import CatalogItemType
 from worktree.core.step.assertions import evaluate_assertions
 from worktree.core.step.exceptions import StepValidationError
 from worktree.core.step.models import (

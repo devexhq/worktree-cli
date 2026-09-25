@@ -1,39 +1,23 @@
-"""Catalog blueprint directory scanner, legacy migration engine, and inventory helper functions."""
+"""Catalog blueprint directory scanner and disk-backed multi-tier index services."""
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Protocol, cast
 
-from worktree.common.exceptions import DefinitionLoadError, DefinitionValidationError
 from worktree.common.filesystem import Filesystem, YamlFile
+from worktree.common.filesystem.services.global_root import resolve_global_paths
 from worktree.common.lock import WorkspaceLock
-from worktree.common.models import (
-    DefinitionResolutionResult,
-    DefinitionResolutionStatus,
-)
-from worktree.core.catalog.exceptions import CatalogProtectionError
+from worktree.core.catalog.exceptions import CatalogProtectionError, CatalogTierDeleteError, CatalogWriteError
 from worktree.core.catalog.models import (
+    CatalogIndex,
+    CatalogIndexEntry,
+    CatalogItemType,
+    CatalogItemTypeDirectory,
+    CatalogRecord,
     CatalogScanResult,
     CatalogSubdirectoryScanResult,
-    DefinitionValidationOutcome,
-    YamlParseOutcome,
+    CatalogTier,
 )
-from worktree.core.db import (
-    CatalogItemType,
-    CatalogRecord,
-    CatalogRepository,
-)
-from worktree.core.db.models import CatalogItemTypeDirectory
-
-
-class _PydanticModel(Protocol):
-    """Minimal protocol for catalog definition classes validated via Pydantic."""
-
-    @classmethod
-    def model_validate(cls, obj: Any) -> Any:
-        """Validate an arbitrary object against the schema."""
-        ...
 
 
 def get_catalog_dir(path: Path) -> Path:
@@ -68,107 +52,219 @@ def _catalog_namespace(file_path: Path, item_type_dir: CatalogItemTypeDirectory)
     return "/".join(namespace_parts) if namespace_parts else None
 
 
-def _index_catalog_entry(
-    db: CatalogRepository,
+def _catalog_key(namespace: str | None, stem: str) -> str:
+    """Derive the catalog lookup key from an optional namespace and the file stem."""
+    return f"{namespace}/{stem}" if namespace else stem
+
+
+def tier_root(tier: CatalogTier, *, repo_root: Path, global_root: Path | None) -> Path:
+    """Return the disk-backed catalog directory root for one tier (PACKAGED is not disk-backed and is not a valid input)."""
+    if tier is CatalogTier.REPO:
+        return get_catalog_dir(repo_root)
+    if tier is CatalogTier.USER:
+        return resolve_global_paths(global_root).user_catalog_dir
+    if tier is CatalogTier.GLOBAL:
+        return resolve_global_paths(global_root).global_catalog_dir
+    raise ValueError(f"Tier '{tier}' is not disk-backed and has no tier root.")
+
+
+def load_catalog_index(tier_dir: Path) -> CatalogIndex:
+    """Read and parse tier_dir/index.json, returning an empty CatalogIndex when the file is absent or invalid."""
+    index_path = tier_dir / "index.json"
+    try:
+        text = index_path.read_text(encoding="utf-8")
+    except OSError:
+        return CatalogIndex()
+
+    try:
+        return CatalogIndex.model_validate_json(text)
+    except ValueError:
+        return CatalogIndex()
+
+
+def write_catalog_index(tier_dir: Path, index: CatalogIndex) -> None:
+    """Atomically overwrite tier_dir/index.json with index's full contents."""
+    Filesystem.atomic_write_json(tier_dir / "index.json", index.model_dump(mode="json"))
+
+
+def _index_entry_for_file(
     item_type: CatalogItemType,
-    catalog_dir: Path,
+    tier_dir: Path,
     file_entry: YamlFile,
-) -> tuple[CatalogRecord | None, str | None]:
-    """Index one catalog YAML file into the SQLite database."""
+) -> tuple[CatalogIndexEntry | None, str | None]:
+    """Build one CatalogIndexEntry for a scanned YAML file, or return an error message."""
     if file_entry.error:
         return None, file_entry.error
     sha, checksum = compute_catalog_sha(item_type, str(file_entry.content))
-    rel_path = file_entry.path.relative_to(catalog_dir)
+    rel_path = file_entry.path.relative_to(tier_dir)
     namespace = _catalog_namespace(file_entry.path, CatalogItemTypeDirectory[item_type.name])
-
-    try:
-        record = db.upsert(
-            sha=sha,
-            item_type=item_type,
-            name=file_entry.name,
-            namespace=namespace,
-            path=rel_path,
-            checksum=checksum,
-        )
-        return record, None
-    except Exception as exc:
-        return None, f"Failed to index catalog record for '{rel_path}': {exc}"
-
-
-def _index_scanned_entry(
-    db: CatalogRepository,
-    item_type: CatalogItemType,
-    catalog_dir: Path,
-    file_entry: YamlFile,
-) -> tuple[CatalogRecord | None, str | None]:
-    """Index one catalog YAML entry and normalize the optional error payload."""
-    record, error = _index_catalog_entry(db, item_type, catalog_dir, file_entry)
-    if error is not None:
-        return None, error
-    return record, None
+    entry = CatalogIndexEntry(
+        sha=sha,
+        key=_catalog_key(namespace, rel_path.stem),
+        item_type=item_type,
+        name=file_entry.name,
+        namespace=namespace,
+        path=rel_path,
+        checksum=checksum,
+    )
+    return entry, None
 
 
 def _append_scan_result(
     result: CatalogSubdirectoryScanResult,
     *,
-    record: CatalogRecord | None,
+    entry: CatalogIndexEntry | None,
     error: str | None,
 ) -> None:
-    """Accumulate one indexed catalog entry into the scan result."""
+    """Accumulate one scanned catalog entry into the scan result."""
     if error is not None:
         result.errors.append(error)
         return
-    if record is None:
+    if entry is None:
         return
-    result.scanned_records.append(record)
-    result.scanned_shas.add(record.sha)
+    result.scanned_records.append(entry)
+    result.scanned_shas.add(entry.sha)
 
 
-def _scan_catalog_subdirectories(
-    *, db: CatalogRepository, catalog_dir: Path, subdirs: list[tuple[CatalogItemType, Path]]
-) -> CatalogSubdirectoryScanResult:
-    """Scan catalog subdirectories for YAML files and index each entry."""
+def _scan_tier_subdirectories(tier_dir: Path) -> CatalogSubdirectoryScanResult:
+    """Scan one tier's blueprints/steps subdirectories for YAML files and index each entry."""
     result = CatalogSubdirectoryScanResult(scanned_records=[], errors=[], scanned_shas=set())
 
+    subdirs: list[tuple[CatalogItemType, Path]] = [
+        (CatalogItemType.BLUEPRINT, tier_dir / "blueprints"),
+        (CatalogItemType.STEP, tier_dir / "steps"),
+    ]
     for item_type, sub_dir in subdirs:
         if not sub_dir.exists():
             continue
         for file_entry in Filesystem.scan_yaml_directory(sub_dir):
-            record, error = _index_scanned_entry(db, item_type, catalog_dir, file_entry)
-            _append_scan_result(result, record=record, error=error)
+            entry, error = _index_entry_for_file(item_type, tier_dir, file_entry)
+            _append_scan_result(result, entry=entry, error=error)
 
     return result
 
 
-def scan_and_index_catalog(
-    path: Path,
-    db: CatalogRepository | None = None,
-) -> CatalogScanResult:
-    """Scan `.worktree/catalog/` subdirectories, compute SHA checksums, and sync SQLite database."""
-    with WorkspaceLock(path):
-        catalog_dir = ensure_catalog_dirs(path)
-        database = db if db is not None else CatalogRepository(path)
+def scan_and_index_tier(tier: CatalogTier, *, repo_root: Path, global_root: Path | None) -> CatalogScanResult:
+    """Walk one tier's blueprints/steps directories, compute SHAs, and rewrite that tier's index.json wholesale."""
+    tier_dir = tier_root(tier, repo_root=repo_root, global_root=global_root)
+    tier_dir.mkdir(parents=True, exist_ok=True)
 
-        subdirs: list[tuple[CatalogItemType, Path]] = [
-            (CatalogItemType.BLUEPRINT, catalog_dir / "blueprints"),
-            (CatalogItemType.STEP, catalog_dir / "steps"),
-        ]
-        scan_result = _scan_catalog_subdirectories(db=database, catalog_dir=catalog_dir, subdirs=subdirs)
-        errors = scan_result.errors
+    lock_root = repo_root if tier is CatalogTier.REPO else resolve_global_paths(global_root).root
+    with WorkspaceLock(lock_root):
+        scan_result = _scan_tier_subdirectories(tier_dir)
+        write_catalog_index(tier_dir, CatalogIndex(items=scan_result.scanned_records))
 
-        # Remove stale DB records for files no longer on disk
-        try:
-            # @TODO: GLOBAL - Filter by project
-            db_items = database.list()
-            for record in db_items:
-                if record.sha not in scan_result.scanned_shas:
-                    disk_file = catalog_dir / record.path
-                    if not disk_file.exists():
-                        database.delete(record.sha)
-        except Exception as exc:
-            errors.append(f"Error purging stale catalog DB records: {exc}")
+        records = [CatalogRecord(**entry.model_dump(), tier=tier) for entry in scan_result.scanned_records]
+        return CatalogScanResult(items=records, errors=scan_result.errors)
 
-        return CatalogScanResult(items=scan_result.scanned_records, errors=errors)
+
+def scan_and_index_catalog(*, repo_root: Path, global_root: Path | None = None) -> CatalogScanResult:
+    """Scan and reindex the GLOBAL, USER, and REPO catalog tiers in precedence order, aggregating warnings."""
+    items: list[CatalogRecord] = []
+    errors: list[str] = []
+    for tier in (CatalogTier.GLOBAL, CatalogTier.USER, CatalogTier.REPO):
+        result = scan_and_index_tier(tier, repo_root=repo_root, global_root=global_root)
+        items.extend(result.items)
+        errors.extend(result.errors)
+
+    return CatalogScanResult(items=items, errors=errors)
+
+
+def _packaged_default_records() -> list[CatalogRecord]:
+    """Build CatalogRecord entries for the packaged `default.yml` starter templates."""
+    root = Filesystem().catalog_templates_dir
+    records: list[CatalogRecord] = []
+    for item_type_value, rel_path in list_packaged_template_defaults():
+        item_type = CatalogItemType(item_type_value)
+        path = Path(rel_path)
+        content = (root / rel_path).read_text(encoding="utf-8")
+        sha, checksum = compute_catalog_sha(item_type, content)
+        records.append(
+            CatalogRecord(
+                sha=sha,
+                key=path.stem,
+                item_type=item_type,
+                name=path.stem,
+                namespace=None,
+                path=path,
+                checksum=checksum,
+                tier=CatalogTier.PACKAGED,
+            )
+        )
+    return records
+
+
+def resolve_catalog_records(*, repo_root: Path, global_root: Path | None) -> list[CatalogRecord]:
+    """Return every indexed record across all four tiers, ordered REPO, USER, GLOBAL, PACKAGED (most specific first)."""
+    records: list[CatalogRecord] = []
+    for tier in (CatalogTier.REPO, CatalogTier.USER, CatalogTier.GLOBAL):
+        tier_dir = tier_root(tier, repo_root=repo_root, global_root=global_root)
+        index = load_catalog_index(tier_dir)
+        records.extend(CatalogRecord(**entry.model_dump(), tier=tier) for entry in index.items)
+
+    records.extend(_packaged_default_records())
+    return records
+
+
+def _resolve_packaged_wt_fallback(key_or_sha: str, item_type: CatalogItemType | None) -> CatalogRecord | None:
+    """Resolve a `wt/`-namespaced packaged example by name, mirroring the pre-pivot lookup path."""
+    for rel_path, content in find_packaged_templates(key_or_sha):
+        path = Path(rel_path)
+        type_enum = CatalogItemType.BLUEPRINT if path.parts[0] == "blueprints" else CatalogItemType.STEP
+        if item_type is not None and type_enum != item_type:
+            continue
+        sha, checksum = compute_catalog_sha(type_enum, content)
+        namespace = _catalog_namespace(path, CatalogItemTypeDirectory[type_enum.name])
+        return CatalogRecord(
+            sha=sha,
+            key=_catalog_key(namespace, path.stem),
+            item_type=type_enum,
+            name=path.stem,
+            namespace=namespace,
+            path=path,
+            checksum=checksum,
+            tier=CatalogTier.PACKAGED,
+        )
+    return None
+
+
+def find_catalog_record_matches(
+    key_or_sha: str,
+    item_type: CatalogItemType | None,
+    *,
+    repo_root: Path,
+    global_root: Path | None,
+) -> list[CatalogRecord]:
+    """Return every CatalogRecord matching key_or_sha across tiers, in REPO, USER, GLOBAL, PACKAGED order."""
+    records = resolve_catalog_records(repo_root=repo_root, global_root=global_root)
+    if item_type is not None:
+        records = [record for record in records if record.item_type == item_type]
+
+    matches = [record for record in records if record.key == key_or_sha or record.sha == key_or_sha]
+    if matches:
+        return matches
+
+    fallback = _resolve_packaged_wt_fallback(key_or_sha, item_type)
+    return [fallback] if fallback is not None else []
+
+
+def get_catalog_record(
+    key_or_sha: str,
+    item_type: CatalogItemType | None = None,
+    *,
+    repo_root: Path,
+    global_root: Path | None,
+) -> CatalogRecord | None:
+    """Return the first CatalogRecord matching key_or_sha across tiers in REPO, USER, GLOBAL, PACKAGED order."""
+    matches = find_catalog_record_matches(key_or_sha, item_type, repo_root=repo_root, global_root=global_root)
+    return matches[0] if matches else None
+
+
+def resolve_catalog_record_path(record: CatalogRecord, *, repo_root: Path, global_root: Path | None) -> Path:
+    """Return the absolute file path for an indexed record, resolved against its own tier's root."""
+    if record.tier == CatalogTier.PACKAGED:
+        return Path(str(Filesystem().catalog_templates_dir)) / record.path
+    return tier_root(record.tier, repo_root=repo_root, global_root=global_root) / record.path
 
 
 def _get_initial_template_content(type_enum: CatalogItemType, stem: str) -> str:
@@ -188,19 +284,18 @@ def _get_initial_template_content(type_enum: CatalogItemType, stem: str) -> str:
 def create_catalog_item(
     item_type: CatalogItemType | str,
     name: str,
-    path: Path,
-    db: CatalogRepository | None = None,
+    *,
+    repo_root: Path,
 ) -> CatalogRecord:
-    """Create a new catalog blueprint under `.worktree/catalog/<type>s/<name>.yml` and sync database."""
-    with WorkspaceLock(path):
-        database = db if db is not None else CatalogRepository(path)
+    """Create a new catalog blueprint under the REPO tier's `<type>s/<name>.yml` and reindex that tier."""
+    with WorkspaceLock(repo_root):
         try:
             type_enum = item_type if isinstance(item_type, CatalogItemType) else CatalogItemType(str(item_type).lower())
         except ValueError as exc:
             allowed = ", ".join([t.value for t in CatalogItemType])
             raise ValueError(f"Invalid item_type '{item_type}'. Allowed choices: {allowed}") from exc
 
-        catalog_dir = ensure_catalog_dirs(path)
+        catalog_dir = ensure_catalog_dirs(repo_root)
         stem = name[:-4] if name.endswith(".yml") or name.endswith(".yaml") else name
         filename = f"{stem}.yml"
         target_path = catalog_dir / f"{type_enum.value}s" / filename
@@ -212,184 +307,49 @@ def create_catalog_item(
         content = _get_initial_template_content(type_enum, stem)
         Filesystem.atomic_write_text(target_path, content)
 
-        sha, checksum = compute_catalog_sha(type_enum, content)
+        scan_result = scan_and_index_tier(CatalogTier.REPO, repo_root=repo_root, global_root=None)
         rel_path = target_path.relative_to(catalog_dir)
-        namespace = _catalog_namespace(target_path, CatalogItemTypeDirectory[type_enum.name])
-
-        return database.upsert(
-            sha=sha,
-            item_type=type_enum,
-            name=stem,
-            namespace=namespace,
-            path=rel_path,
-            checksum=checksum,
-        )
-
-
-# @TODO: Move to repository
-def _find_catalog_matches(
-    sha_or_name: str,
-    type_filter: CatalogItemType | str | None,
-    db: CatalogRepository,
-) -> list[CatalogRecord]:
-    """Find catalog records matching a SHA prefix or item name, optionally filtered by type."""
-    type_filter_string = (
-        type_filter.value
-        if isinstance(type_filter, CatalogItemType)
-        else (str(type_filter).lower() if type_filter is not None else None)
-    )
-
-    item_by_sha = db.get_by_sha(sha_or_name)
-    if item_by_sha is not None:
-        if type_filter_string is None or item_by_sha.item_type.value == type_filter_string:
-            return [item_by_sha]
-        return []
-    return db.list_by_name(sha_or_name, item_type=type_filter)
-
-
-def _read_and_parse_yaml(file_path: Path, rel_path: Path) -> YamlParseOutcome:
-    """Read and parse a YAML file into dictionary data, capturing any errors."""
-    yaml_file = Filesystem.read_yaml_file(file_path)
-    if yaml_file.error or yaml_file.parsed is None or not isinstance(yaml_file.parsed, dict):
-        error_message = (
-            yaml_file.error or f"Failed to load catalog blueprint '{rel_path}': invalid or non-object YAML content."
-        )
-        return YamlParseOutcome(parsed_data=None, errors=[error_message])
-    return YamlParseOutcome(parsed_data=yaml_file.parsed, errors=[])
-
-
-def _validate_definition[T](
-    winner: CatalogRecord,
-    definition_cls: type[T],
-    path: Path,
-    sha_or_name: str,
-) -> DefinitionValidationOutcome:
-    """Validate a catalog record YAML payload against the requested definition class."""
-    catalog_dir = get_catalog_dir(path)
-    file_path = catalog_dir / winner.path
-    parse_outcome = _read_and_parse_yaml(file_path, winner.path)
-    if parse_outcome.errors or parse_outcome.parsed_data is None:
-        return DefinitionValidationOutcome(
-            definition=None,
-            status=DefinitionResolutionStatus.LOAD_ERROR,
-            errors=parse_outcome.errors,
-        )
-
-    parsed_data = parse_outcome.parsed_data
-    schema_validator = getattr(definition_cls, "schema_validator", None)
-    if schema_validator is not None and hasattr(schema_validator, "validate"):
-        validation_result = schema_validator.validate(parsed_data)
-        if hasattr(validation_result, "ok") and not validation_result.ok:
-            validation_errors = list(getattr(validation_result, "errors", [str(validation_result)]))
-            return DefinitionValidationOutcome(
-                definition=None,
-                status=DefinitionResolutionStatus.LOAD_ERROR,
-                errors=validation_errors,
-            )
-
-    try:
-        model_cls = cast(type[_PydanticModel], definition_cls)
-        definition = model_cls.model_validate(parsed_data)
-        return DefinitionValidationOutcome(
-            definition=definition,
-            status=DefinitionResolutionStatus.OK,
-            errors=[],
-        )
-    except (Exception, DefinitionLoadError, DefinitionValidationError) as exc:
-        return DefinitionValidationOutcome(
-            definition=None,
-            status=DefinitionResolutionStatus.LOAD_ERROR,
-            errors=[f"Model validation failed for '{sha_or_name}': {exc}"],
-        )
-
-
-def get_catalog_item[T](
-    sha_or_name: str,
-    type_filter: CatalogItemType | str | None = None,
-    *,
-    definition_cls: type[T] | None = None,
-    path: Path,
-    db: CatalogRepository | None = None,
-) -> DefinitionResolutionResult[CatalogRecord]:
-    """Retrieve catalog blueprint record by SHA or name, optionally validating its content into ``definition_cls``."""
-    database = db if db is not None else CatalogRepository(path)
-    scan_and_index_catalog(path, db=database)
-    matches = _find_catalog_matches(sha_or_name, type_filter, db=database)
-
-    if not matches:
-        return DefinitionResolutionResult[CatalogRecord](
-            status=DefinitionResolutionStatus.NOT_FOUND,
-            requested_name=sha_or_name,
-            resolved=None,
-            matches=[],
-            errors=[f"Catalog blueprint '{sha_or_name}' not found."],
-        )
-
-    winner = matches[0]
-    warnings: list[str] = []
-    if len(matches) > 1:
-        other_matching_paths = ", ".join(m.path.as_posix() for m in matches if m.path != winner.path)
-        warnings.append(
-            f"Duplicate catalog name '{sha_or_name}'; using '{winner.path.as_posix()}' (also found in: {other_matching_paths})."
-        )
-
-    definition: Any | None = None
-    errors: list[str] = []
-    status = DefinitionResolutionStatus.OK
-
-    if definition_cls is not None:
-        validation_outcome = _validate_definition(winner, definition_cls, path, sha_or_name)
-        definition = validation_outcome.definition
-        status = validation_outcome.status
-        errors = validation_outcome.errors
-
-    return DefinitionResolutionResult[CatalogRecord](
-        status=status,
-        requested_name=sha_or_name,
-        resolved=winner,
-        definition=definition,
-        matches=matches,
-        errors=errors,
-        warnings=warnings,
-    )
+        record = next((r for r in scan_result.items if r.path == rel_path), None)
+        if record is None:
+            raise CatalogWriteError(f"Failed to reindex newly created catalog blueprint '{rel_path}'.")
+        return record
 
 
 def delete_catalog_item_by_sha_or_name(
     sha_or_name: str,
-    path: Path,
-    db: CatalogRepository | None = None,
+    *,
+    repo_root: Path,
+    global_root: Path | None,
 ) -> CatalogRecord | None:
-    """Delete a catalog blueprint file and its database record.
-
-    Args:
-        sha_or_name: SHA identifier or name of the catalog item.
-        path: Workspace root directory.
-        db: Optional pre-configured CatalogRepository instance.
-
-    Returns:
-        Deleted CatalogRecord, or None if the record was not found.
+    """Delete a REPO-tier catalog file and reindex.
 
     Raises:
+        CatalogTierDeleteError: If the resolved match is not indexed at the REPO tier.
         CatalogProtectionError: If attempting to delete a template in the protected 'wt/' namespace.
     """
     if sha_or_name.startswith("wt/"):
         raise CatalogProtectionError(f"Cannot delete bundled catalog template '{sha_or_name}'.")
 
-    with WorkspaceLock(path):
-        database = db if db is not None else CatalogRepository(path)
-        result = get_catalog_item(sha_or_name, path=path, db=database)
-        item = result.resolved
-        if item is None:
+    catalog_dir = get_catalog_dir(repo_root)
+    with WorkspaceLock(repo_root):
+        scan_and_index_catalog(repo_root=repo_root, global_root=global_root)
+        matches = find_catalog_record_matches(sha_or_name, None, repo_root=repo_root, global_root=global_root)
+        if not matches:
             return None
+
+        item = matches[0]
+        if item.tier != CatalogTier.REPO:
+            raise CatalogTierDeleteError(
+                f"Catalog item '{item.key}' resolved from tier '{item.tier.value}'; only repo-tier items can be deleted."
+            )
 
         if item.namespace == "wt":
             raise CatalogProtectionError(f"Cannot delete bundled catalog template '{item.key}'.")
 
-        catalog_dir = get_catalog_dir(path)
         file_path = catalog_dir / item.path
         Filesystem().delete_file(file_path)
 
-        database.delete(item.sha)
+        scan_and_index_tier(CatalogTier.REPO, repo_root=repo_root, global_root=global_root)
         return item
 
 

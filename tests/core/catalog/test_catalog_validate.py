@@ -1,4 +1,4 @@
-"""Tier 1 domain contract tests for Catalog.validate (wt catalog validate)."""
+"""Tier 1 domain contract tests for Catalog.validate (wt blueprint validate / wt step validate)."""
 
 from __future__ import annotations
 
@@ -12,8 +12,7 @@ import yaml
 from tests.harness.catalog import write_runnable_blueprint
 from worktree.core.blueprint.models import BlueprintDefinition
 from worktree.core.catalog import Catalog
-from worktree.core.catalog.models import CatalogValidateResult, CatalogValidateStatus
-from worktree.core.db import CatalogItemType
+from worktree.core.catalog.models import CatalogItemType, CatalogValidateResult, CatalogValidateStatus
 from worktree.core.step.models import StepDefinition
 
 
