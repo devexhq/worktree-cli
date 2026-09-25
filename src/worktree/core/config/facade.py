@@ -11,7 +11,6 @@ from worktree.core.config.generator import ConfigGenerationResult, generate_defa
 from worktree.core.config.loader import (
     ConfigLoadResult,
     clear_config_cache,
-    load_config,
 )
 from worktree.core.config.models import (
     AgentConfig,
@@ -32,6 +31,7 @@ from worktree.core.config.mutate import (
 )
 from worktree.core.config.parser import parse_config_value
 from worktree.core.config.serialize import as_json, serialize_config
+from worktree.core.config.services.resolve import resolve_effective_config
 from worktree.core.config.validate import (
     ConfigValidationResult,
     validate_config_result,
@@ -86,9 +86,9 @@ class Config:
         return cls()
 
     def load(self, *, config_path: Path | None = None) -> ConfigLoadResult:
-        """Load and parse ``config.json`` returning a structured result."""
+        """Load the repo tier, merge Global/User tier overrides, and return a structured result."""
         target_cfg = config_path if config_path is not None else self._fs.config_file
-        return load_config(path=self._fs.root_dir, config_path=target_cfg)
+        return resolve_effective_config(self._fs.root_dir, config_path=target_cfg)
 
     def validate(self, *, config_path: Path | None = None) -> ConfigValidationResult:
         """Validate ``config.json`` against schema constraints and return structured report."""
@@ -139,7 +139,7 @@ class Config:
                 if result.fixes:
                     parts.append("Fix:\n" + "\n".join(f"- {f}" for f in result.fixes))
                 errors = "; ".join(parts) if parts else "unknown error"
-                raise ConfigLoadError(f"Failed to load config at '{self.path}': {errors}")
+                raise ConfigLoadError(f"Failed to load config at '{self.path}': {errors}", result)
             self._cached_config = result.config
         return self._cached_config
 
@@ -206,13 +206,3 @@ class Config:
     def serialize(config: WorktreeConfig) -> dict[str, Any]:
         """Serialize WorktreeConfig instance into JSON-ready dictionary."""
         return serialize_config(config)
-
-    @classmethod
-    def load_from(cls, path: Path, *, config_path: Path | None = None) -> ConfigLoadResult:
-        """Helper to load config at specified path."""
-        return cls(path).load(config_path=config_path)
-
-    @classmethod
-    def validate_at(cls, path: Path, *, config_path: Path | None = None) -> ConfigValidationResult:
-        """Helper to validate config at specified path."""
-        return cls(path).validate(config_path=config_path)

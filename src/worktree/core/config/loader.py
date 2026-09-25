@@ -24,6 +24,7 @@ class ConfigLoadStatus(StrEnum):
     SCHEMA_INVALID = "schema_invalid"
     PATH_IS_DIRECTORY = "path_is_directory"
     UNREADABLE = "unreadable"
+    TIER_INVALID = "tier_invalid"
 
 
 class ConfigLoadResult(BaseResult):

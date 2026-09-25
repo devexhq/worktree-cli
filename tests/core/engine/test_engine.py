@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
@@ -12,6 +13,7 @@ from tests.harness.builders import BlueprintBuilder, StepBuilder, WorkspaceBuild
 from worktree.common.models import FailurePolicy, OnFailureSpec
 from worktree.core.blueprint import Blueprint
 from worktree.core.catalog import Catalog
+from worktree.core.config.models import ConfigTier
 from worktree.core.db import RunsRepository, RunStatus
 from worktree.core.engine import Engine, EngineResumeError, EngineResumeStatus
 from worktree.core.runtime import ExecutionIdentity, RunCheckpoint, RunContext, RunOutcome
@@ -336,3 +338,71 @@ class EngineResumeOrchestrationTests:
                 engine.resume("missing")
 
         assert exc_info.value.status is EngineResumeStatus.NOT_FOUND
+
+
+class EngineConfigResolutionTests:
+    """[tier-1/unit] Engine.run/resume: RunContext.config observes the hierarchical Repo/Global/User merge."""
+
+    def test_run_passes_hierarchically_merged_config_into_run_context(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        write_tier_config: Callable[[ConfigTier, dict[str, Any] | str], Path],
+    ) -> None:
+        """[tier-1/unit] Engine.run: RunContext.config captured via monkeypatched run_steps equals the Global/User/Repo-merged WorktreeConfig for the workspace."""
+        write_tier_config(ConfigTier.USER, {"agent": {"model": "user-tier-model"}})
+        workspace = (
+            WorkspaceBuilder(tmp_path / "workspace")
+            .with_database()
+            .with_config(data={"version": 1, "project": {"name": "engine-test"}, "sandbox": {"base_ref": "main"}})
+            .build()
+        )
+        runs_repo = RunsRepository(workspace)
+        blueprint, _ = _task_blueprint()
+        captured: dict[str, RunContext] = {}
+
+        def fake_run_steps(context: RunContext) -> RunOutcome:
+            captured["context"] = context
+            return RunOutcome(status=RunStatus.COMPLETED, sandbox_path=workspace)
+
+        monkeypatch.setattr("worktree.core.engine.engine.run_steps", fake_run_steps)
+
+        Engine(workspace, db=runs_repo, catalog=Catalog(workspace)).run(blueprint)
+
+        context = captured["context"]
+        assert context.config is not None
+        assert context.config.agent.model == "user-tier-model"
+        assert context.config.sandbox.base_ref == "main"
+
+    def test_resume_passes_hierarchically_merged_config_into_run_context(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        write_tier_config: Callable[[ConfigTier, dict[str, Any] | str], Path],
+    ) -> None:
+        """[tier-1/unit] Engine.resume: RunContext.config captured via monkeypatched run_steps equals the Global/User/Repo-merged WorktreeConfig for the workspace."""
+        write_tier_config(ConfigTier.USER, {"agent": {"model": "user-tier-model"}})
+        workspace = (
+            WorkspaceBuilder(tmp_path / "workspace")
+            .with_database()
+            .with_config(data={"version": 1, "project": {"name": "engine-test"}, "sandbox": {"base_ref": "main"}})
+            .build()
+        )
+        runs_repo = RunsRepository(workspace)
+        blueprint, _ = _task_blueprint()
+        checkpoint = _checkpoint()
+        _seed_paused_run(runs_repo, "task_config_merge", checkpoint)
+        captured: dict[str, RunContext] = {}
+
+        def fake_run_steps(context: RunContext) -> RunOutcome:
+            captured["context"] = context
+            return RunOutcome(status=RunStatus.COMPLETED, sandbox_path=workspace)
+
+        monkeypatch.setattr("worktree.core.engine.engine.run_steps", fake_run_steps)
+
+        Engine(workspace, db=runs_repo, catalog=Catalog(workspace)).resume("task_config_merge", blueprint=blueprint)
+
+        context = captured["context"]
+        assert context.config is not None
+        assert context.config.agent.model == "user-tier-model"
+        assert context.config.sandbox.base_ref == "main"

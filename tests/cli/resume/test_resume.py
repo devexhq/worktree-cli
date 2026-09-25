@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from typer.testing import CliRunner
 
 from tests.harness.catalog import write_runnable_blueprint
 from worktree.cli import app
+from worktree.cli.ui.dispatcher import ui_dispatcher
+from worktree.core.config.models import ConfigTier
 from worktree.core.db import RunStatus, WorktreeDb
 from worktree.core.runtime.models import RunCheckpoint
 
@@ -96,3 +100,24 @@ class ResumeCliIntegrationTests:
         success_events = [e for e in events if e["event_type"] == "RunSuccessEvent"]
         assert len(success_events) == 1
         assert success_events[0]["payload"]["status"] == "completed"
+
+    def test_resume_cli_malformed_user_tier_exits_one_with_config_error_panel(
+        self,
+        cli_runner: CliRunner,
+        resume_workspace: Path,
+        write_tier_config: Callable[[ConfigTier, dict[str, Any] | str], Path],
+    ) -> None:
+        """[tier-3/integration] wt resume: malformed User tier config.json → exit 1, tier-attributed message in stdout, no unhandled exception.
+
+        The top-level callback resolves config before the resume handler ever runs, so a
+        tier failure here renders a "Config Error" panel, not "Resume Failed" — no paused
+        session is ever looked up.
+        """
+        ui_dispatcher.set_output_format("terminal")
+        write_tier_config(ConfigTier.USER, "{not valid json")
+
+        result = cli_runner.invoke(app, ["-p", str(resume_workspace), "resume", "unknown-session"])
+
+        assert result.exit_code == 1
+        assert "Config Error" in result.stdout
+        assert "Invalid configuration in user layer" in result.stdout

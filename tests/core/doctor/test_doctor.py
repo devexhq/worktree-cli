@@ -1,9 +1,12 @@
 """Unit tests for worktree.core.doctor.doctor entrypoint coordinator."""
 
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from worktree.common.filesystem import Filesystem
 from worktree.core.config.models import (
+    ConfigTier,
     DoctorConfig,
     ProjectConfig,
     WorktreeConfig,
@@ -95,6 +98,28 @@ class DoctorCoordinatorTests:
 
         assert report.workspace_root == tmp_path.resolve()
         assert len(report.checks) == 1
+        assert report.checks[0].check_id == "git.repo"
+        assert report.checks[0].status == CheckStatus.SKIPPED
+        assert report.checks[0].message == "Check 'git.repo' skipped by configuration."
+
+    def test_run_diagnostics_observes_user_tier_config_override(
+        self, tmp_path: Path, write_tier_config: Callable[[ConfigTier, dict[str, Any] | str], Path]
+    ) -> None:
+        """[tier-2/unit] Doctor.run_diagnostics: User tier doctor.check_git=False (absent from repo config) skips the git.repo check, proving a non-config-domain Config consumer observes a Global/User tier override."""
+        write_tier_config(ConfigTier.USER, {"doctor": {"check_git": False}})
+
+        config_dir = tmp_path / ".worktree"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        Filesystem.atomic_write_json(
+            config_dir / "config.json", {"version": 1, "project": {"name": "resolved-project"}}
+        )
+
+        doctor = Doctor(tmp_path, registry=CheckRegistry())
+        git_check = DummyDoctorCheck(check_id="git.repo", category=CheckCategory.GIT)
+        doctor.registry.register(git_check)
+
+        report = doctor.run_diagnostics(config=None)
+
         assert report.checks[0].check_id == "git.repo"
         assert report.checks[0].status == CheckStatus.SKIPPED
         assert report.checks[0].message == "Check 'git.repo' skipped by configuration."

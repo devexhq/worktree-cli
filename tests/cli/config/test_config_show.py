@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from typer.testing import CliRunner
 
@@ -13,7 +15,7 @@ from worktree.cli.context import CliContext
 from worktree.common.filesystem import Filesystem
 from worktree.core.config.generator import build_default_config
 from worktree.core.config.loader import ConfigLoadStatus
-from worktree.core.config.models import WorktreeConfig
+from worktree.core.config.models import ConfigTier, WorktreeConfig
 from worktree.core.db.db import WorktreeDb
 
 
@@ -103,3 +105,39 @@ class ConfigShowCliIntegrationTests:
         assert res.exit_code == 1
         assert "Config Error" in res.stdout
         assert "CONFIG_NOT_FOUND" in res.stdout
+
+    def test_config_show_cli_json_reflects_user_tier_override(
+        self,
+        cli_runner: CliRunner,
+        isolated_workspace: Path,
+        write_tier_config: Callable[[ConfigTier, dict[str, Any] | str], Path],
+    ) -> None:
+        """[tier-3/integration] wt config show --format json: User tier agent.model override appears in the config field; exit 0."""
+        write_tier_config(ConfigTier.USER, {"agent": {"model": "user-tier-model"}})
+
+        config_path = isolated_workspace / ".worktree" / "config.json"
+        Filesystem.atomic_write_json(config_path, {"version": 1, "project": {"name": "demo-workspace"}})
+
+        res = cli_runner.invoke(app, ["-p", str(isolated_workspace), "config", "show", "--format", "json"])
+
+        assert res.exit_code == 0
+        payload = json.loads(res.stdout)
+        assert payload["payload"]["config"]["agent"]["model"] == "user-tier-model"
+
+    def test_config_show_cli_malformed_user_tier_exits_one_with_config_error_panel(
+        self,
+        cli_runner: CliRunner,
+        isolated_workspace: Path,
+        write_tier_config: Callable[[ConfigTier, dict[str, Any] | str], Path],
+    ) -> None:
+        """[tier-3/integration] wt config show: malformed User tier config.json → exit 1, 'Config Error' and 'Invalid configuration in user layer' in stdout."""
+        write_tier_config(ConfigTier.USER, "{not valid json")
+
+        config_path = isolated_workspace / ".worktree" / "config.json"
+        Filesystem.atomic_write_json(config_path, build_default_config("demo-workspace"))
+
+        res = cli_runner.invoke(app, ["-p", str(isolated_workspace), "config", "show"])
+
+        assert res.exit_code == 1
+        assert "Config Error" in res.stdout
+        assert "Invalid configuration in user layer" in res.stdout

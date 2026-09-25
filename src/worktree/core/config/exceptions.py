@@ -4,11 +4,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from worktree.core.config.loader import ConfigLoadResult
 from worktree.core.config.models import ConfigTier
 
 
 class ConfigLoadError(RuntimeError):
     """Raised by Config accessor properties when config.json cannot be loaded."""
+
+    def __init__(self, message: str, result: ConfigLoadResult) -> None:
+        """Retain the structured, status-attributed load result alongside the formatted message."""
+        super().__init__(message)
+        self.result = result
 
 
 class ConfigTierValidationError(Exception):

@@ -57,6 +57,10 @@ Output includes:
 
 Inspect and modify your Worktree configuration directly using the `wt config` subcommands.
 
+### Configuration Precedence
+
+`wt config show` and blueprint execution (`wt run`/`wt resume`) both resolve the identical four-tier merged configuration: Packaged defaults, then Global (`$WORKTREE_HOME/global/config.json`), User (`$WORKTREE_HOME/user/config.json`), and Repo (`.worktree/config.json`), each tier overriding the fields the previous tiers set. `WORKTREE_HOME` defaults to `~/.worktree` when unset. See [`wt config`](../cli/config.md#configuration-precedence) for the full precedence and error-handling contract.
+
 ### Show Effective Configuration
 
 Display normalized effective configuration as formatted JSON:

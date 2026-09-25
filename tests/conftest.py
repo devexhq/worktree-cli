@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import pytest
 from typer.testing import CliRunner
 
 from worktree.common.constants import REQUIRED_SUBDIRS
+from worktree.common.filesystem.services.global_root import resolve_global_paths
+from worktree.core.config.models import ConfigTier
 from worktree.core.project.services.identity import generate_project_identity, save_project_identity
 
 
@@ -102,6 +107,21 @@ def git_repo(tmp_path: Path) -> Path:
     )
 
     return repo
+
+
+@pytest.fixture
+def write_tier_config() -> Callable[[ConfigTier, dict[str, Any] | str], Path]:
+    """Write a Global or User tier config.json under the test's isolated WORKTREE_HOME; returns its path."""
+
+    def _write(tier: ConfigTier, payload: dict[str, Any] | str) -> Path:
+        global_paths = resolve_global_paths(None)
+        tier_dir = global_paths.global_dir if tier is ConfigTier.GLOBAL else global_paths.user_dir
+        config_path = tier_dir / "config.json"
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(payload if isinstance(payload, str) else json.dumps(payload), encoding="utf-8")
+        return config_path
+
+    return _write
 
 
 @pytest.fixture
