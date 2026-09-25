@@ -37,7 +37,7 @@ class Blueprint:
             BlueprintNotFoundError: If no Blueprint record matches ``key``.
             BlueprintLoadError: If the record's YAML is unreadable or invalid.
         """
-        result = catalog.get_by_key(key, item_type=CatalogItemType.BLUEPRINT, definition_cls=BlueprintDefinition)
+        result = catalog.get(key, item_type=CatalogItemType.BLUEPRINT, definition_cls=BlueprintDefinition)
         if not result.ok or result.definition is None or result.resolved is None:
             message = "; ".join(result.errors) or f"Blueprint '{key}' not found."
             if result.resolved is None:

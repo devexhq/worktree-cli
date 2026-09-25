@@ -20,8 +20,6 @@ from worktree.core.catalog.models import (
     CatalogCreateResult,
     CatalogDeleteResult,
     CatalogListResult,
-    CatalogResolveResult,
-    CatalogResolveStatus,
     CatalogScanResult,
     CatalogShowResult,
     CatalogValidateResult,
@@ -131,75 +129,24 @@ class Catalog:
 
         return CatalogShowResult(item=item, content=content)
 
-    def resolve(self, name: str, item_type: CatalogItemType) -> CatalogResolveResult:
-        """Load a task or blueprint YAML by SHA or catalog name."""
-        """Reindex, find typed matches, and load the winning YAML object."""
-        self.sync()
-        non_namespaced_name, namespace = self._split_name_and_namespace(name)
-        matches = self._find_typed_matches(non_namespaced_name, [item_type], namespace=namespace)
-        if not matches:
-            return CatalogResolveResult(
-                status=CatalogResolveStatus.NOT_FOUND,
-                name=name,
-                errors=[f"Catalog blueprint '{name}' not found."],
-            )
-        winner = matches[0]
-        warnings = [self._duplicate_name_warning(name, winner, matches)] if len(matches) > 1 else []
-        raw, parse_errors = self._parse_catalog_yaml(get_catalog_dir(self.path) / winner.path, winner.path)
-        if parse_errors or raw is None:
-            return CatalogResolveResult(
-                status=CatalogResolveStatus.LOAD_ERROR,
-                name=name,
-                record=winner,
-                matches=matches,
-                errors=parse_errors,
-                warnings=warnings,
-            )
-        return CatalogResolveResult(
-            status=CatalogResolveStatus.OK,
-            name=name,
-            raw=raw,
-            record=winner,
-            matches=matches,
-            warnings=warnings,
-        )
-
-    def _split_name_and_namespace(self, name: str) -> tuple[str, str | None]:
-        """Split a potentially namespaced blueprint identifier into name and namespace."""
-        if "/" not in name:
-            return name, None
-        namespace_parts = name.split("/")
-        namespace = "/".join(namespace_parts[:-1])
-        non_namespaced_name = name.strip(f"{namespace}/")
-        return non_namespaced_name, namespace
-
     def get[T](
         self,
-        sha_or_name: str,
+        key_or_sha: str,
         item_type: CatalogItemType | str | None = None,
         definition_cls: type[_PydanticModel] | None = None,
     ) -> DefinitionResolutionResult[CatalogRecord]:
-        """Retrieve indexed catalog record by SHA or name."""
-        """Retrieve catalog blueprint record by SHA or name, optionally validating its content into ``definition_cls``."""
+        """Retrieve an indexed catalog record by its unique key or SHA, optionally validating its content into ``definition_cls``."""
         self.sync()
-        non_namespaced_name, namespace = self._split_name_and_namespace(sha_or_name)
-        matches = self.db.find_catalog_matches(non_namespaced_name, item_type, namespace=namespace)
+        record = self.db.get_by_key(key_or_sha) or self.db.get_by_sha(key_or_sha)
+        parsed_item_type = self._coerce_item_type(item_type) if item_type is not None else None
 
-        if not matches:
+        if record is None or (parsed_item_type is not None and record.item_type != parsed_item_type):
             return DefinitionResolutionResult[CatalogRecord](
                 status=DefinitionResolutionStatus.NOT_FOUND,
-                requested_name=sha_or_name,
+                requested_name=key_or_sha,
                 resolved=None,
                 matches=[],
-                errors=[f"Catalog blueprint '{sha_or_name}' not found."],
-            )
-
-        winner = matches[0]
-        warnings: list[str] = []
-        if len(matches) > 1:
-            other_matching_paths = ", ".join(m.path.as_posix() for m in matches if m.path != winner.path)
-            warnings.append(
-                f"Duplicate catalog name '{sha_or_name}'; using '{winner.path.as_posix()}' (also found in: {other_matching_paths})."
+                errors=[f"Catalog item '{key_or_sha}' not found."],
             )
 
         definition: Any | None = None
@@ -207,55 +154,14 @@ class Catalog:
         status = DefinitionResolutionStatus.OK
 
         if definition_cls is not None:
-            validation_outcome = self._validate_definition(winner, definition_cls, sha_or_name)
+            validation_outcome = self._validate_definition(record, definition_cls, key_or_sha)
             definition = validation_outcome.definition
             status = validation_outcome.status
             errors = validation_outcome.errors
 
         return DefinitionResolutionResult[CatalogRecord](
             status=status,
-            requested_name=sha_or_name,
-            resolved=winner,
-            definition=definition,
-            matches=matches,
-            errors=errors,
-            warnings=warnings,
-        )
-
-    def get_by_key[T](
-        self,
-        key: str,
-        item_type: CatalogItemType,
-        definition_cls: type[_PydanticModel] | None = None,
-    ) -> DefinitionResolutionResult[CatalogRecord]:
-        """Retrieve an indexed catalog record by its globally unique key.
-
-        Unlike ``get``/``resolve``, this performs no SHA or ambiguous-name
-        matching: ``key`` must equal exactly one indexed record's ``key``.
-        """
-        self.sync()
-        record = self.db.get_by_key(key)
-        if record is None or record.item_type != item_type:
-            return DefinitionResolutionResult[CatalogRecord](
-                status=DefinitionResolutionStatus.NOT_FOUND,
-                requested_name=key,
-                resolved=None,
-                matches=[],
-                errors=[f"Catalog {item_type.value} '{key}' not found."],
-            )
-
-        definition: Any | None = None
-        errors: list[str] = []
-        status = DefinitionResolutionStatus.OK
-        if definition_cls is not None:
-            validation_outcome = self._validate_definition(record, definition_cls, key)
-            definition = validation_outcome.definition
-            status = validation_outcome.status
-            errors = validation_outcome.errors
-
-        return DefinitionResolutionResult[CatalogRecord](
-            status=status,
-            requested_name=key,
+            requested_name=key_or_sha,
             resolved=record,
             definition=definition,
             matches=[record],
@@ -327,9 +233,9 @@ class Catalog:
     def sync(self) -> CatalogScanResult:
         """Synchronize database index with on-disk YAML blueprints.
 
-        Called automatically by every name/SHA-resolving method (``list``, ``resolve``, ``get``,
-        ``get_by_key``, ``save``, and ``validate`` for a catalog-name target) so a lookup always sees
-        the current contents of ``.worktree/catalog/``, never a stale index. ``validate`` is the one
+        Called automatically by every name/SHA-resolving method (``list``, ``get``, ``save``, and
+        ``validate`` for a catalog-name target) so a lookup always sees the current contents of
+        ``.worktree/catalog/``, never a stale index. ``validate`` is the one
         exception within itself: a direct file-path target is inspected without calling ``get``/``sync``
         at all, so validating a file never touches the index or acquires the workspace lock.
         """
@@ -369,7 +275,7 @@ class Catalog:
         """Resolve target to (absolute_path, item_type_value, definition_key, warnings), or a terminal not-found/type-required result.
 
         Kept on ``Catalog`` rather than in ``services/validate.py`` so the catalog-name branch can call
-        ``self.get()`` directly instead of duplicating its matching and duplicate-name-warning logic;
+        ``self.get()`` directly instead of duplicating its key/SHA lookup logic;
         ``services/validate.py`` never imports ``Catalog``, which would create an import cycle
         (``catalog.py`` already imports ``services/validate.py`` for the YAML/schema/semantic checks).
         """
@@ -446,37 +352,6 @@ class Catalog:
         if name.endswith(".yml"):
             return name[:-4]
         return name
-
-    def _find_typed_matches(
-        self, name: str, allowed_types: list[CatalogItemType], namespace: str | None = None
-    ) -> list[CatalogRecord]:
-        """Return SHA or name matches restricted to ``allowed_types``, path-ascending."""
-        by_sha = self.db.get_by_sha(name)
-        if by_sha is not None:
-            if by_sha.item_type in allowed_types:
-                return [by_sha]
-            return []
-        matches: list[CatalogRecord] = []
-        for item_type in allowed_types:
-            matches.extend(self.db.list_by_name(name, item_type=item_type, namespace=namespace))
-        return sorted(matches, key=lambda record: record.path.as_posix())
-
-    @staticmethod
-    def _duplicate_name_warning(name: str, winner: CatalogRecord, matches: list[CatalogRecord]) -> str:
-        """Match ``get_catalog_item`` duplicate-name warning wording."""
-        other_matching_paths = ", ".join(match.path.as_posix() for match in matches if match.path != winner.path)
-        return f"Duplicate catalog name '{name}'; using '{winner.path.as_posix()}' (also found in: {other_matching_paths})."
-
-    @staticmethod
-    def _parse_catalog_yaml(file_path: Path, rel_path: Path) -> tuple[dict[str, Any] | None, list[str]]:
-        """Read ``file_path`` as a YAML object, using ``rel_path`` in fallback errors."""
-        yaml_file = Filesystem.read_yaml_file(file_path)
-        if yaml_file.error or yaml_file.parsed is None or not isinstance(yaml_file.parsed, dict):
-            error_message = (
-                yaml_file.error or f"Failed to load catalog blueprint '{rel_path}': invalid or non-object YAML content."
-            )
-            return None, [error_message]
-        return yaml_file.parsed, []
 
     def _record_for_rel_path(self, rel_path: Path) -> CatalogRecord | None:
         """Return the indexed record whose path equals ``rel_path``."""

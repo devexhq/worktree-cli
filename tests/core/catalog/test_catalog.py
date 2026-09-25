@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from worktree.common.filesystem import Filesystem
+from worktree.common.models import DefinitionResolutionStatus
 from worktree.core.catalog import Catalog
 from worktree.core.catalog.services.inventory import compute_catalog_sha
 from worktree.core.db import CatalogItemType
@@ -146,3 +147,23 @@ class CatalogCollisionTests:
         assert result_second.errors == [f"Catalog blueprint collision at path '{expected_rel_path.as_posix()}'"]
         assert result_second.warnings == []
         assert result_second.fixes == []
+
+
+class CatalogNamespaceSplittingTests:
+    """Tests verifying namespaced identifiers split on the literal '/' boundary, not by character set."""
+
+    def test_name_sharing_trailing_characters_with_namespace_resolves(self, isolated_workspace: Path) -> None:
+        """catalog.get resolves 'wt/run-test', whose name ends in characters ('t') also present in its 'wt' namespace."""
+        catalog = Catalog(isolated_workspace)
+        catalog.save(
+            "wt/run-test",
+            {"name": "run-test", "description": "Regression fixture", "action": "run"},
+            item_type=CatalogItemType.STEP,
+        )
+
+        result = catalog.get("wt/run-test", item_type=CatalogItemType.STEP)
+
+        assert result.status == DefinitionResolutionStatus.OK
+        assert result.resolved is not None
+        assert result.resolved.name == "run-test"
+        assert result.resolved.namespace == "wt"
