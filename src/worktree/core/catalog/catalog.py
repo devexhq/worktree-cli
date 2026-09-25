@@ -132,7 +132,6 @@ class Catalog:
         return CatalogShowResult(item=item, content=content)
 
     def resolve(self, name: str, item_type: CatalogItemType) -> CatalogResolveResult:
-        """Load a task or blueprint YAML by SHA or catalog name."""
         """Reindex, find typed matches, and load the winning YAML object."""
         self.sync()
         non_namespaced_name, namespace = self._split_name_and_namespace(name)
@@ -170,7 +169,7 @@ class Catalog:
             return name, None
         namespace_parts = name.split("/")
         namespace = "/".join(namespace_parts[:-1])
-        non_namespaced_name = name.strip(f"{namespace}/")
+        non_namespaced_name = namespace_parts[-1]
         return non_namespaced_name, namespace
 
     def get[T](
@@ -179,7 +178,6 @@ class Catalog:
         item_type: CatalogItemType | str | None = None,
         definition_cls: type[_PydanticModel] | None = None,
     ) -> DefinitionResolutionResult[CatalogRecord]:
-        """Retrieve indexed catalog record by SHA or name."""
         """Retrieve catalog blueprint record by SHA or name, optionally validating its content into ``definition_cls``."""
         self.sync()
         non_namespaced_name, namespace = self._split_name_and_namespace(sha_or_name)
