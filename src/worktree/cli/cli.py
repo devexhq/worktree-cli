@@ -23,8 +23,7 @@ from worktree.cli.ui.events import ErrorPanelEvent, MessageEvent, WelcomeBannerE
 from worktree.common.filesystem import Filesystem
 from worktree.common.lock import LockTimeoutError, WorkspaceLock
 from worktree.common.version import get_version
-from worktree.core.config import ConfigLoadError, ConfigLoadResult, ConfigLoadStatus
-from worktree.core.config.loader import resolve_config_path
+from worktree.core.config import ConfigLoadError
 
 # Package Metadata matching our PyPI footprint
 __version__ = get_version()
@@ -131,13 +130,7 @@ def main(
                 ensure_lazy_project_init(Filesystem.configure(path))
             ctx.obj["context"] = CliContext.build(path=path)
         except ConfigLoadError as exc:
-            cfg_path = resolve_config_path(path)
-            result = ConfigLoadResult(
-                status=ConfigLoadStatus.NOT_FOUND,
-                config_path=cfg_path,
-                errors=[str(exc)],
-            )
-            ui_dispatcher.dispatch(result)
+            ui_dispatcher.dispatch(exc.result)
             raise typer.Exit(code=1) from exc
 
 
@@ -158,13 +151,7 @@ def run_cli() -> None:
         )
         sys.exit(1)
     except ConfigLoadError as exc:
-        cfg_path = resolve_config_path()
-        result = ConfigLoadResult(
-            status=ConfigLoadStatus.NOT_FOUND,
-            config_path=cfg_path,
-            errors=[str(exc)],
-        )
-        ui_dispatcher.dispatch(result)
+        ui_dispatcher.dispatch(exc.result)
         sys.exit(1)
     except Exception as exc:
         # Global Catch-All for unexpected bugs (e.g., missing record.id)

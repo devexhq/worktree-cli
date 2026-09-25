@@ -83,7 +83,7 @@ All operations that can fail return a Pydantic result object subclassing `BaseRe
 **Relevant sources:** `src/worktree/core/config/models.py`, `loader.py`, `validate.py`, `mutate.py`, `generator.py`.
 - `WorktreeConfig`: Root configuration object, including `ignore_global_root_error`, defined in [`core/config/models.py`](../../src/worktree/core/config/models.py).
 - Section configs: `ProjectConfig`, `SandboxConfig`, `AgentConfig`, `HistoryConfig`, `DoctorConfig`, `PruneConfig`, `TelemetryConfig`, `ConcurrencyConfig`.
-- `ConfigLoadResult`: Result of loading and validating `.worktree/config.json` (`status`, `config_path`, `raw`, `config`, `errors`, `ok`).
+- `ConfigLoadResult`: Result of loading and validating `.worktree/config.json` (`status`, `config_path`, `raw`, `config`, `errors`, `ok`). `ConfigLoadStatus.TIER_INVALID` classifies a Global or User tier failure surfaced by `resolve_effective_config` ([`core/config/services/resolve.py`](../../src/worktree/core/config/services/resolve.py)), which `Config.load()`/`Config._loaded_config` — and therefore every `Config.<section>` accessor, `wt config show`, and blueprint execution (`wt run`/`wt resume`) — route through.
 - `ConfigValidationResult`: Result of semantic config validation (`status`, `config_path`, `raw`, `config`, `errors`, `warnings`, `ok`).
 - `ConfigSetResult`: Result of mutating a dot-path key in config (`status`, `config_path`, `key`, `value`, `errors`, `ok`).
 - `ConfigUnsetResult`: Result of removing a dot-path key from config (`status`, `config_path`, `key`, `existed`, `previous_value`, `errors`, `ok`).

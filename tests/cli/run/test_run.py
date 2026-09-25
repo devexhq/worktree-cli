@@ -3,15 +3,20 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import pytest
 from typer.testing import CliRunner
 
 from tests.harness.catalog import write_runnable_blueprint
 from worktree.cli import app
-from worktree.cli.ui.dispatcher import UiDispatcher
+from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
+from worktree.common.filesystem import Filesystem
+from worktree.core.config.models import ConfigTier
 from worktree.core.db import RunStatus, WorktreeDb
+from worktree.core.runtime import RunContext, RunOutcome
 
 
 def _raise_keyboard_interrupt(*_args: object, **_kwargs: object) -> str:
@@ -115,19 +120,9 @@ class RunCliIntegrationTests:
     ) -> None:
         """wt run: a KeyboardInterrupt raised from the interactive prompter after the checkpoint is saved sets the run record's status to PAUSED.
 
-        🚨 Plan deviation: the plan's Instructions/Edge cases assert `--no-tty` on a
-        prompt_user step reaches RunStatus.PAUSED and exits 0. Ground truth contradicts
-        this on two points: (1) `_prompt_user_decision` in
-        worktree/core/runtime/engine.py short-circuits to ABORT *before* the prompter is
-        ever called whenever `context.no_tty` is True, so `--no-tty` can never reach the
-        PromptUserInterruptedError/PAUSED path; PAUSED is only reachable via a
-        KeyboardInterrupt raised *from inside* an interactive prompter call. (2) Even on
-        that real path, `_run_step_loop` sets `errors=[str(exc)]` from the checkpoint's
-        (always non-empty) diagnostic, so `BlueprintRunResult.ok` is False and
-        `run_callback` raises `typer.Exit(code=1)` — a paused run can never exit 0 through
-        this CLI path as currently implemented. This test exercises the real PAUSED
-        mechanism (forced interactivity + input() raising KeyboardInterrupt) and pins the
-        actual exit-1-with-PAUSED-record contract instead of the plan's unreachable one.
+        `--no-tty` short-circuits to ABORT before the prompter is ever called, so PAUSED
+        is only reachable via a KeyboardInterrupt from inside an interactive prompter
+        call; the run still exits 1 since the checkpoint's diagnostic populates `errors`.
         """
         _force_interactive(monkeypatch)
         monkeypatch.setattr("builtins.input", _raise_keyboard_interrupt)
@@ -170,3 +165,58 @@ class RunCliIntegrationTests:
         assert "CONFIG_NOT_FOUND" not in result.stdout
         assert (git_repo / ".worktree" / "project.json").exists()
         assert (git_repo / ".worktree" / "config.json").exists()
+
+    def test_run_cli_malformed_user_tier_exits_one_with_config_error_panel(
+        self,
+        cli_runner: CliRunner,
+        run_workspace: Path,
+        write_tier_config: Callable[[ConfigTier, dict[str, Any] | str], Path],
+    ) -> None:
+        """[tier-3/integration] wt run: malformed User tier config.json → exit 1, tier-attributed message in stdout, no unhandled exception.
+
+        The top-level callback resolves config before the run handler ever runs, so a
+        tier failure here renders a "Config Error" panel, not "Run Failed" — the blueprint
+        is never resolved and no run row is ever inserted.
+        """
+        ui_dispatcher.set_output_format("terminal")
+        write_tier_config(ConfigTier.USER, "{not valid json")
+
+        result = cli_runner.invoke(app, ["-p", str(run_workspace), "run", "unresolved-task", "--no-sandbox"])
+
+        assert result.exit_code == 1
+        assert "Config Error" in result.stdout
+        assert "Invalid configuration in user layer" in result.stdout
+
+    def test_run_cli_config_show_and_run_observe_identical_merged_config(
+        self,
+        cli_runner: CliRunner,
+        run_workspace: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        write_tier_config: Callable[[ConfigTier, dict[str, Any] | str], Path],
+    ) -> None:
+        """[tier-3/integration] wt config show --format json's config field equals RunContext.config (captured via monkeypatched run_steps) for the same Global/User/Repo tier setup during wt run."""
+        write_runnable_blueprint(run_workspace, key="identical-config-task", steps=[{"id": "s1", "run": "true"}])
+        write_tier_config(ConfigTier.USER, {"agent": {"model": "user-tier-model"}})
+        Filesystem.atomic_write_json(
+            run_workspace / ".worktree" / "config.json",
+            {"version": 1, "project": {"name": "identical-config"}, "sandbox": {"base_ref": "main"}},
+        )
+
+        show_result = cli_runner.invoke(app, ["-p", str(run_workspace), "config", "show", "--format", "json"])
+        assert show_result.exit_code == 0
+        shown_config = json.loads(show_result.stdout)["payload"]["config"]
+
+        captured: dict[str, RunContext] = {}
+
+        def fake_run_steps(context: RunContext) -> RunOutcome:
+            captured["context"] = context
+            return RunOutcome(status=RunStatus.COMPLETED, sandbox_path=run_workspace)
+
+        monkeypatch.setattr("worktree.core.engine.engine.run_steps", fake_run_steps)
+
+        run_result = cli_runner.invoke(app, ["-p", str(run_workspace), "run", "identical-config-task", "--no-sandbox"])
+
+        assert run_result.exit_code == 0
+        captured_config = captured["context"].config
+        assert captured_config is not None
+        assert captured_config.model_dump(mode="json") == shown_config

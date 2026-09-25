@@ -9,6 +9,12 @@ import pytest
 from worktree.cli.ui.dispatcher import ui_dispatcher
 
 
+@pytest.fixture(autouse=True)
+def _restore_output_format(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Restore ui_dispatcher's process-global output format after the test, undoing any set_output_format call."""
+    monkeypatch.setattr(ui_dispatcher, "_output_format", ui_dispatcher.output_format)
+
+
 @pytest.fixture
 def dispatch_spy(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
     """Capture every DTO a command handler passes to ui_dispatcher.dispatch during a CLI invocation.
