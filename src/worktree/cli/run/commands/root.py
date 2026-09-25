@@ -79,7 +79,6 @@ def run_command(
             name=name,
             path=context.cwd,
             runs_db=context.db.runs,
-            catalog_db=context.db.catalog,
             no_sandbox=no_sandbox,
             keep=keep,
             agent=agent,

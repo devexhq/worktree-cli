@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 from worktree.core.blueprint.exceptions import BlueprintLoadError, BlueprintNotFoundError
 from worktree.core.blueprint.models import BlueprintDefinition
-from worktree.core.db import CatalogItemType
+from worktree.core.catalog.models import CatalogItemType
 from worktree.core.inputs import (
     InputResolveResult,
     Inputs,

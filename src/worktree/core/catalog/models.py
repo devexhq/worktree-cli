@@ -9,7 +9,29 @@ from typing import Any, ClassVar
 from pydantic import BaseModel, Field, field_validator
 
 from worktree.common.models import BaseResult, DefinitionResolutionStatus
-from worktree.core.db import CatalogItemType, CatalogRecord
+
+
+class CatalogTier(StrEnum):
+    """Precedence tiers for multi-tier catalog resolution, matching ConfigTier's ordering."""
+
+    PACKAGED = "packaged"
+    GLOBAL = "global"
+    USER = "user"
+    REPO = "repo"
+
+
+class CatalogItemType(StrEnum):
+    """Supported catalog item classification types."""
+
+    BLUEPRINT = "blueprint"
+    STEP = "step"
+
+
+class CatalogItemTypeDirectory(StrEnum):
+    """Catalog item type directories."""
+
+    BLUEPRINT = "blueprints"
+    STEP = "steps"
 
 
 class CatalogItem[T](BaseModel):
@@ -60,6 +82,34 @@ class CatalogItem[T](BaseModel):
         return f"{self.namespace}/{self.file_stem}" if self.namespace else self.file_stem
 
 
+class CatalogIndexEntry(BaseModel):
+    """One catalog item's identity and disk location within a single tier's index.json."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    sha: str
+    key: str
+    item_type: CatalogItemType
+    name: str
+    namespace: str | None = None
+    path: Path
+    checksum: str
+
+
+class CatalogIndex(BaseModel):
+    """On-disk contents of one tier root's index.json."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    items: list[CatalogIndexEntry] = Field(default_factory=list)
+
+
+class CatalogRecord(CatalogIndexEntry):
+    """One resolved catalog item: its indexed identity plus the tier it was resolved from."""
+
+    tier: CatalogTier
+
+
 class SeedResult(BaseResult):
     """Outcome of seeding packaged catalog blueprint templates."""
 
@@ -80,14 +130,14 @@ class CatalogScanResult(BaseResult):
 
     @property
     def ok(self) -> bool:
-        """Return True when scanning and DB indexing completed without errors."""
+        """Return True when scanning and rewriting index.json completed without errors."""
         return not self.errors
 
 
 class CatalogSubdirectoryScanResult(BaseResult):
     """Result of scanning a catalog subdirectory."""
 
-    scanned_records: list[CatalogRecord] = Field(default_factory=list)
+    scanned_records: list[CatalogIndexEntry] = Field(default_factory=list)
     scanned_shas: set[str] = Field(default_factory=set)
 
 

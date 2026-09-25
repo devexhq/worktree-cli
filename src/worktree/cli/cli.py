@@ -7,7 +7,7 @@ from typing import Annotated, Any
 import typer
 from typer.core import TyperGroup
 
-from worktree.cli.catalog.app import catalog_app
+from worktree.cli.blueprint.app import blueprint_app
 from worktree.cli.config.app import config_app
 from worktree.cli.context import CliContext, default_lock_wait_notifier, ensure_lazy_project_init
 from worktree.cli.diff.app import register_diff_command
@@ -18,6 +18,7 @@ from worktree.cli.resume.app import resume_app
 from worktree.cli.run.app import run_app
 from worktree.cli.sandbox.app import sandbox_app
 from worktree.cli.status.app import status_app
+from worktree.cli.step.app import step_app
 from worktree.cli.ui.dispatcher import ui_dispatcher
 from worktree.cli.ui.events import ErrorPanelEvent, MessageEvent, WelcomeBannerEvent
 from worktree.common.filesystem import Filesystem
@@ -50,7 +51,7 @@ app = typer.Typer(
     rich_markup_mode="rich",
 )
 
-app.add_typer(catalog_app, name="catalog")
+app.add_typer(blueprint_app, name="blueprint")
 app.add_typer(config_app, name="config")
 register_diff_command(app)
 app.add_typer(doctor_app, name="doctor")
@@ -60,6 +61,7 @@ app.add_typer(resume_app, name="resume")
 app.add_typer(run_app, name="run")
 app.add_typer(sandbox_app, name="sandbox")
 app.add_typer(status_app, name="status")
+app.add_typer(step_app, name="step")
 
 
 def print_welcome_banner() -> None:

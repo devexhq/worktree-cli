@@ -10,7 +10,6 @@ from worktree.core.db.connection import (
     resolve_db_path,
 )
 from worktree.core.db.migrations import init_database
-from worktree.core.db.repositories.catalog import CatalogRepository
 from worktree.core.db.repositories.costs import CostsRepository
 from worktree.core.db.repositories.runs import RunsRepository
 from worktree.core.db.repositories.sandboxes import SandboxesRepository
@@ -31,7 +30,6 @@ class WorktreeDb:
         self._db_engine = db_engine
         self._sandboxes: SandboxesRepository | None = None
         self._runs: RunsRepository | None = None
-        self._catalog: CatalogRepository | None = None
         self._costs: CostsRepository | None = None
 
     @property
@@ -60,15 +58,6 @@ class WorktreeDb:
         return self._runs
 
     @property
-    def catalog(self) -> CatalogRepository:
-        """Repository managing indexed blueprint definitions."""
-        if self._catalog is None:
-            self._catalog = CatalogRepository(
-                self.path, db_filename=self.db_filename, auto_init=True, db_engine=self.db_engine
-            )
-        return self._catalog
-
-    @property
     def costs(self) -> CostsRepository:
         """Repository managing tracked token costs."""
         if self._costs is None:
@@ -82,6 +71,5 @@ class WorktreeDb:
         path = init_database(db_filename=self.db_filename)
         self.sandboxes._initialized = True
         self.runs._initialized = True
-        self.catalog._initialized = True
         self.costs._initialized = True
         return path

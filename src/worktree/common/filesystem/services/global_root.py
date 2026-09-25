@@ -32,10 +32,13 @@ def ensure_global_layout(override_root: Path | None = None, *, ignore_global_roo
 
     layout_directories = (
         paths.root,
+        paths.global_dir,
+        paths.global_catalog_dir,
+        paths.global_catalog_dir / "blueprints",
+        paths.global_catalog_dir / "steps",
         paths.user_dir,
         paths.user_catalog_dir,
-        paths.user_catalog_dir / "workflows",
-        paths.user_catalog_dir / "tasks",
+        paths.user_catalog_dir / "blueprints",
         paths.user_catalog_dir / "steps",
         paths.data_dir,
         paths.storage_dir,

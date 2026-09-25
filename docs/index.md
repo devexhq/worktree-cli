@@ -14,7 +14,7 @@ Key capabilities include:
 - **Unified Blueprint Execution**: Execute cataloged task and workflow blueprints via `wt run`.
 - **Durable Resumption**: Seamlessly resume paused sessions from saved checkpoints via `wt resume`.
 - **Execution History**: Inspect and audit recorded blueprint run sessions via `wt history`.
-- **Catalog System**: Discover and manage project task and workflow blueprints with `wt catalog`.
+- **Catalog System**: Discover and manage project blueprints and steps with `wt blueprint` and `wt step`.
 
 ---
 
@@ -30,7 +30,7 @@ pip install worktree-cli
 wt init
 
 # List available catalog items
-wt catalog list
+wt blueprint list
 
 # Create an isolated sandbox environment
 wt sandbox create my-feature
@@ -73,4 +73,5 @@ wt sandbox create my-feature
 - **[Resume (`wt resume`)](cli/resume.md)**: Resume paused blueprint sessions from checkpoint.
 - **[History (`wt history`)](cli/history.md)**: List and inspect recorded blueprint runs.
 - **[Sandbox (`wt sandbox`)](cli/sandbox.md)**: Git worktree isolation.
-- **[Catalog (`wt catalog`)](cli/catalog.md)**: Blueprint templates and catalog items.
+- **[Blueprint (`wt blueprint`)](cli/blueprint.md)**: Blueprint catalog items across all tiers.
+- **[Step (`wt step`)](cli/step.md)**: Step catalog items across all tiers.

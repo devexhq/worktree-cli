@@ -19,13 +19,11 @@ from worktree.cli.ui.formatters.catalog.catalog_views import (
     CatalogListView,
     CatalogTemplateView,
 )
-from worktree.core.catalog.models import CatalogListResult
-from worktree.core.db import CatalogItemType, CatalogRecord
+from worktree.core.catalog.models import CatalogItemType, CatalogListResult, CatalogRecord, CatalogTier
 
 
 def _sample_catalog_record() -> CatalogRecord:
     return CatalogRecord(
-        id=1,
         key="test-blueprint",
         sha="blueprint_1234567",
         item_type=CatalogItemType.BLUEPRINT,
@@ -33,8 +31,20 @@ def _sample_catalog_record() -> CatalogRecord:
         namespace=None,
         path=Path("blueprints/test-blueprint.yml"),
         checksum="1234567890abcdef",
-        created_at="2026-08-17T00:00:00Z",
-        updated_at="2026-08-17T00:00:00Z",
+        tier=CatalogTier.REPO,
+    )
+
+
+def _sample_step_record() -> CatalogRecord:
+    return CatalogRecord(
+        key="test-step",
+        sha="step_1234567",
+        item_type=CatalogItemType.STEP,
+        name="test-step",
+        namespace=None,
+        path=Path("steps/test-step.yml"),
+        checksum="abcdef1234567890",
+        tier=CatalogTier.REPO,
     )
 
 
@@ -43,14 +53,12 @@ WITH_ITEMS = FormatterCase(
     view=CatalogListView(
         items=[
             CatalogItemView(
-                id=1,
                 sha="blueprint_1234567",
                 item_type="blueprint",
                 name="test-blueprint",
                 path="blueprints/test-blueprint.yml",
                 checksum="1234567890abcdef",
-                created_at="2026-08-17T00:00:00Z",
-                updated_at="2026-08-17T00:00:00Z",
+                tier="repo",
             )
         ],
         type_filter=None,
@@ -60,7 +68,7 @@ WITH_ITEMS = FormatterCase(
         warnings=[],
         fixes=[],
     ),
-    render_expectations=["test-blueprint", "blueprint_1234567", "blueprint", "blueprints/test-blueprint.yml"],
+    render_expectations=["test-blueprint", "blueprint_1234567", "blueprint", "repo", "blueprints/test-blueprint.yml"],
 )
 
 EMPTY_ITEMS = FormatterCase(
@@ -75,6 +83,43 @@ EMPTY_ITEMS = FormatterCase(
         fixes=[],
     ),
     render_expectations=[],
+)
+
+WITH_STEP_ITEMS = FormatterCase(
+    data=CatalogListResult(items=[_sample_step_record()], type_filter=CatalogItemType.STEP),
+    view=CatalogListView(
+        items=[
+            CatalogItemView(
+                sha="step_1234567",
+                item_type="step",
+                name="test-step",
+                path="steps/test-step.yml",
+                checksum="abcdef1234567890",
+                tier="repo",
+            )
+        ],
+        type_filter="step",
+        templates=[],
+        total_items=1,
+        errors=[],
+        warnings=[],
+        fixes=[],
+    ),
+    render_expectations=["test-step", "step_1234567", "steps/test-step.yml", "Steps:"],
+)
+
+EMPTY_STEP_ITEMS = FormatterCase(
+    data=CatalogListResult(items=[], type_filter=CatalogItemType.STEP),
+    view=CatalogListView(
+        items=[],
+        type_filter="step",
+        templates=[],
+        total_items=0,
+        errors=[],
+        warnings=[],
+        fixes=[],
+    ),
+    render_expectations=["No steps found."],
 )
 
 TEMPLATES = FormatterCase(
@@ -124,14 +169,12 @@ WITH_WARNINGS = FormatterCase(
     view=CatalogListView(
         items=[
             CatalogItemView(
-                id=1,
                 sha="blueprint_1234567",
                 item_type="blueprint",
                 name="test-blueprint",
                 path="blueprints/test-blueprint.yml",
                 checksum="1234567890abcdef",
-                created_at="2026-08-17T00:00:00Z",
-                updated_at="2026-08-17T00:00:00Z",
+                tier="repo",
             )
         ],
         type_filter=None,
@@ -145,6 +188,7 @@ WITH_WARNINGS = FormatterCase(
         "test-blueprint",
         "blueprint_1234567",
         "blueprint",
+        "repo",
         "blueprints/test-blueprint.yml",
         "Failed to parse corrupted.yml",
     ],
@@ -153,6 +197,8 @@ WITH_WARNINGS = FormatterCase(
 LIST_CASES = [
     pytest.param(WITH_ITEMS, id="with_items"),
     pytest.param(EMPTY_ITEMS, id="empty_items"),
+    pytest.param(WITH_STEP_ITEMS, id="with_step_items"),
+    pytest.param(EMPTY_STEP_ITEMS, id="empty_step_items"),
     pytest.param(TEMPLATES, id="templates"),
     pytest.param(EMPTY_TEMPLATES, id="empty_templates"),
     pytest.param(WITH_ERRORS, id="with_errors"),
@@ -168,14 +214,12 @@ PAYLOAD_CASES = [
             "fixes": [],
             "items": [
                 {
-                    "id": 1,
                     "sha": "blueprint_1234567",
                     "item_type": "blueprint",
                     "name": "test-blueprint",
                     "path": "blueprints/test-blueprint.yml",
                     "checksum": "1234567890abcdef",
-                    "created_at": "2026-08-17T00:00:00Z",
-                    "updated_at": "2026-08-17T00:00:00Z",
+                    "tier": "repo",
                 }
             ],
             "type_filter": None,
@@ -231,14 +275,12 @@ PAYLOAD_CASES = [
             "fixes": [],
             "items": [
                 {
-                    "id": 1,
                     "sha": "blueprint_1234567",
                     "item_type": "blueprint",
                     "name": "test-blueprint",
                     "path": "blueprints/test-blueprint.yml",
                     "checksum": "1234567890abcdef",
-                    "created_at": "2026-08-17T00:00:00Z",
-                    "updated_at": "2026-08-17T00:00:00Z",
+                    "tier": "repo",
                 }
             ],
             "type_filter": None,

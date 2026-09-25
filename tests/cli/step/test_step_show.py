@@ -1,0 +1,56 @@
+"""CLI integration tests for wt step show."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from typer.testing import CliRunner
+
+from worktree.cli import app
+from worktree.core.catalog import Catalog
+from worktree.core.catalog.models import CatalogItemType
+
+
+class StepShowCliIntegrationTests:
+    """Typer runner integration tests for wt step show."""
+
+    def test_step_show_cli_renders_terminal_metadata(self, cli_runner: CliRunner, isolated_workspace: Path) -> None:
+        """wt step show <name>: renders step metadata and YAML definition; exit 0."""
+        Catalog(isolated_workspace).create(CatalogItemType.STEP, "show-step")
+
+        result = cli_runner.invoke(app, ["-p", str(isolated_workspace), "step", "show", "show-step"])
+
+        assert result.exit_code == 0
+        assert "show-step" in result.stdout
+        assert "Step:" in result.stdout
+        assert "Blueprint:" not in result.stdout
+
+    def test_step_show_cli_renders_json(self, cli_runner: CliRunner, isolated_workspace: Path) -> None:
+        """wt step show <name> --format json: envelope's item is tagged tier='repo'."""
+        Catalog(isolated_workspace).create(CatalogItemType.STEP, "json-show-step")
+
+        result = cli_runner.invoke(
+            app, ["-p", str(isolated_workspace), "step", "show", "json-show-step", "--format", "json"]
+        )
+
+        assert result.exit_code == 0
+        payload = json.loads(result.stdout)
+        assert payload["event_type"] == "CatalogShowResult"
+        assert payload["payload"]["item"]["tier"] == "repo"
+
+    def test_step_show_cli_scopes_to_step_type(self, cli_runner: CliRunner, isolated_workspace: Path) -> None:
+        """wt step show <name>: a same-named blueprint is not returned; exits 1 not found."""
+        Catalog(isolated_workspace).create(CatalogItemType.BLUEPRINT, "shared-name")
+
+        result = cli_runner.invoke(app, ["-p", str(isolated_workspace), "step", "show", "shared-name"])
+
+        assert result.exit_code == 1
+        assert "not found" in result.stdout
+
+    def test_step_show_cli_missing_exits_one(self, cli_runner: CliRunner, isolated_workspace: Path) -> None:
+        """wt step show missing-step: exits 1 with a not-found message."""
+        result = cli_runner.invoke(app, ["-p", str(isolated_workspace), "step", "show", "missing-step"])
+
+        assert result.exit_code == 1
+        assert "not found" in result.stdout

@@ -13,11 +13,9 @@ from tests.harness.formatter import (
     assert_rich_render_shows_every_view_value,
 )
 from worktree.cli.ui.formatters.catalog.catalog_delete import CatalogDeleteFormatter
-from worktree.core.catalog.models import CatalogDeleteResult
-from worktree.core.db import CatalogItemType, CatalogRecord
+from worktree.core.catalog.models import CatalogDeleteResult, CatalogItemType, CatalogRecord, CatalogTier
 
 _RECORD = CatalogRecord(
-    id=1,
     key="test-blueprint",
     sha="blueprint_1234567",
     item_type=CatalogItemType.BLUEPRINT,
@@ -25,8 +23,7 @@ _RECORD = CatalogRecord(
     namespace=None,
     path=Path("blueprints/test-blueprint.yml"),
     checksum="1234567890abcdef",
-    created_at="2026-08-17T00:00:00Z",
-    updated_at="2026-08-17T00:00:00Z",
+    tier=CatalogTier.REPO,
 )
 
 DELETED = FormatterCase(
@@ -47,16 +44,19 @@ DELETE_ERROR = FormatterCase(
         deleted=False,
         cancelled=False,
         errors=["Catalog blueprint 'missing' not found."],
-        fixes=["Run `wt catalog list` to inspect available items"],
+        fixes=["Run `wt blueprint list` to inspect available items"],
     ),
     view=CatalogDeleteResult(
         item=None,
         deleted=False,
         cancelled=False,
         errors=["Catalog blueprint 'missing' not found."],
-        fixes=["Run `wt catalog list` to inspect available items"],
+        fixes=["Run `wt blueprint list` to inspect available items"],
     ),
-    render_expectations=["Catalog blueprint 'missing' not found.", "Run `wt catalog list` to inspect available items"],
+    render_expectations=[
+        "Catalog blueprint 'missing' not found.",
+        "Run `wt blueprint list` to inspect available items",
+    ],
 )
 
 CATALOG_DELETE_CASES = [
@@ -74,7 +74,6 @@ CATALOG_DELETE_PAYLOAD_CASES = [
             "fixes": [],
             "error_code": None,
             "item": {
-                "id": 1,
                 "key": "test-blueprint",
                 "sha": "blueprint_1234567",
                 "item_type": "blueprint",
@@ -82,8 +81,7 @@ CATALOG_DELETE_PAYLOAD_CASES = [
                 "namespace": None,
                 "path": "blueprints/test-blueprint.yml",
                 "checksum": "1234567890abcdef",
-                "created_at": "2026-08-17T00:00:00Z",
-                "updated_at": "2026-08-17T00:00:00Z",
+                "tier": "repo",
             },
             "deleted": True,
             "cancelled": False,
@@ -108,7 +106,7 @@ CATALOG_DELETE_PAYLOAD_CASES = [
         {
             "errors": ["Catalog blueprint 'missing' not found."],
             "warnings": [],
-            "fixes": ["Run `wt catalog list` to inspect available items"],
+            "fixes": ["Run `wt blueprint list` to inspect available items"],
             "error_code": None,
             "item": None,
             "deleted": False,

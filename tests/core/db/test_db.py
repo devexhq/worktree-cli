@@ -9,7 +9,6 @@ import pytest
 from worktree.core.db.connection import DEFAULT_DB_FILENAME, resolve_db_path
 from worktree.core.db.db import WorktreeDb
 from worktree.core.db.migrations import init_database
-from worktree.core.db.repositories.catalog import CatalogRepository
 from worktree.core.db.repositories.costs import CostsRepository
 from worktree.core.db.repositories.runs import RunsRepository
 from worktree.core.db.repositories.sandboxes import SandboxesRepository
@@ -54,7 +53,6 @@ class WorktreeDbTests:
         [
             pytest.param("sandboxes", SandboxesRepository, id="sandboxes"),
             pytest.param("runs", RunsRepository, id="runs"),
-            pytest.param("catalog", CatalogRepository, id="catalog"),
             pytest.param("costs", CostsRepository, id="costs"),
         ],
     )
@@ -84,7 +82,7 @@ class WorktreeDbTests:
     def test_init_db_marks_repositories_initialized_so_first_query_skips_remigration(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """[tier-1/integration] WorktreeDb.init_db: migrates once and marks all four repositories initialized, so the first subsequent repository query does not re-run migrations."""
+        """[tier-1/integration] WorktreeDb.init_db: migrates once and marks all three repositories initialized, so the first subsequent repository query does not re-run migrations."""
         _persist_project_identity(tmp_path)
         db = WorktreeDb(tmp_path)
         call_count = 0

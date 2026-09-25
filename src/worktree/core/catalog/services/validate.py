@@ -11,8 +11,7 @@ import yaml
 from pydantic import ValidationError
 from pydantic_core import ErrorDetails
 
-from worktree.core.catalog.models import CatalogValidateResult, CatalogValidateStatus
-from worktree.core.db import CatalogItemType
+from worktree.core.catalog.models import CatalogItemType, CatalogValidateResult, CatalogValidateStatus
 
 _PLACEHOLDER_RE = re.compile(r"\$\{\{\s*inputs\.([a-zA-Z0-9_-]+)\s*\}\}")
 _PLACEHOLDER_FIELDS: Final[tuple[str, ...]] = ("run", "command", "prompt", "script_path")

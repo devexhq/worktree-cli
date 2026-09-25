@@ -81,7 +81,6 @@ def resume_command(
         result = BlueprintResumeService(
             path=context.cwd,
             db=context.db.runs,
-            catalog_db=context.db.catalog,
             session_id=session_id,
             no_tty=no_tty,
             observer=observer,

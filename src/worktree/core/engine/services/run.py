@@ -13,7 +13,7 @@ from worktree.core.blueprint import (
     BlueprintValidationError,
 )
 from worktree.core.catalog import Catalog
-from worktree.core.db import CatalogRepository, RunRecord, RunsRepository, RunStatus
+from worktree.core.db import RunRecord, RunsRepository, RunStatus
 from worktree.core.engine.engine import Engine
 from worktree.core.engine.exceptions import EngineInputError, EngineRuntimeError
 from worktree.core.engine.models import RunRequest
@@ -33,7 +33,6 @@ class BlueprintRunService:
     name: str
     path: Path
     runs_db: RunsRepository
-    catalog_db: CatalogRepository
     no_sandbox: bool = False
     keep: bool = False
     agent: str | None = None
@@ -51,7 +50,7 @@ class BlueprintRunService:
         if reconciliation_result.warning:
             self.warnings.append(reconciliation_result.warning)
 
-        catalog = Catalog(path=self.path, db=self.catalog_db)
+        catalog = Catalog(path=self.path)
         blueprint, fail_outcome = self._load_blueprint(catalog)
         if fail_outcome is not None or blueprint is None:
             return fail_outcome or self._fail(f"Failed to load Blueprint '{self.name}'.")

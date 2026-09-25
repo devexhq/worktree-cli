@@ -12,10 +12,13 @@ from worktree.common.filesystem.services.global_root import ensure_global_layout
 
 REQUIRED_LAYOUT_RELATIVE_PATHS = (
     Path("."),
+    Path("global"),
+    Path("global/catalog"),
+    Path("global/catalog/blueprints"),
+    Path("global/catalog/steps"),
     Path("user"),
     Path("user/catalog"),
-    Path("user/catalog/workflows"),
-    Path("user/catalog/tasks"),
+    Path("user/catalog/blueprints"),
     Path("user/catalog/steps"),
     Path("data"),
     Path("storage"),
@@ -130,7 +133,7 @@ class GlobalRootTests:
             f"Global Worktree root '{root.resolve()}' must not be a Git repository; "
             "remove its .git directory or choose a different WORKTREE_HOME."
         )
-        assert not (root / "user" / "catalog" / "workflows").exists()
+        assert not (root / "user" / "catalog" / "blueprints").exists()
 
     def test_ensure_global_layout_ignores_git_directory_when_config_option_is_true(self, tmp_path: Path) -> None:
         root = tmp_path / "global-root"
