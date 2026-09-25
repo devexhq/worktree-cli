@@ -60,29 +60,6 @@ class CatalogItem[T](BaseModel):
         return f"{self.namespace}/{self.file_stem}" if self.namespace else self.file_stem
 
 
-class CatalogResolveStatus(StrEnum):
-    """Classified outcomes for Catalog resolution."""
-
-    OK = "ok"
-    NOT_FOUND = "not_found"
-    LOAD_ERROR = "load_error"
-
-
-class CatalogResolveResult(BaseResult):
-    """Non-raising result of resolving a catalog YAML document."""
-
-    status: CatalogResolveStatus
-    name: str
-    raw: dict[str, Any] | None = None
-    record: CatalogRecord | None = None
-    matches: list[CatalogRecord] = Field(default_factory=list)
-
-    @property
-    def ok(self) -> bool:
-        """Return True when a catalog document was loaded as a YAML object."""
-        return self.status == CatalogResolveStatus.OK
-
-
 class SeedResult(BaseResult):
     """Outcome of seeding packaged catalog blueprint templates."""
 

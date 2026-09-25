@@ -85,10 +85,6 @@ class Step:
         if result.ok and result.definition is not None:
             return cls(instance=result.definition)
 
-        result_by_key = cat.get_by_key(name, item_type=cls.definition_type, definition_cls=cls.definition_cls)
-        if result_by_key.ok and result_by_key.definition is not None:
-            return cls(instance=result_by_key.definition)
-
         return None
 
     @classmethod
