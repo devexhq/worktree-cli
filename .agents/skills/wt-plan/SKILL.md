@@ -3,9 +3,9 @@ name: wt-plan
 description: >-
   Formulate a phased, invariant-safe implementation plan for a worktree-cli change
   before executing code changes. Audits repository constraints against REVIEW_CHECKLIST.json,
-  grounds artifacts in the tree, declares a test ledger with line budgets,
-  declares what the change deletes, and writes the plan directly to .agentic/plan.md.
-  Invoked as /wt-plan [<issue-number>].
+  grounds artifacts in the tree, declares per-FR test stubs and what the change deletes,
+  and writes the plan directly to .agentic/plan.md (with citations split into
+  .agentic/evidence.md when non-trivial). Invoked as /wt-plan [<issue-number>].
 disable-model-invocation: true
 ---
 
@@ -22,7 +22,7 @@ Plan when the issue adds or changes a command, DTO/`*Result` model, status enum,
 - **Never run tooling that mutates or validates.** No `inv test`, no `pytest`, no `ruff`, no `basedpyright`, no `inv complexity`, no `uv sync`, no `wt` command. Read-only git (`git log`, `git diff`, `git show`, `git rev-parse`) and read-only `gh` (`gh issue view`, `gh repo view`) are the only commands you need.
 - **Never edit `src/` or `tests/`.** The plan document (`.agentic/plan.md`) is the entire deliverable. No commits, no pushes, no PR state.
 - **Never plan from memory of the codebase.** Every path, symbol, and signature in the plan comes from a file read this session.
-- **Never plan a test whose contract is already pinned elsewhere** (`TEST-004`, `PLAN-013`). A plan that grows the suite without naming what each new test uniquely pins is a failed plan.
+- **Never plan a test whose contract is already pinned elsewhere** (`TEST-004`). A plan that grows the suite without naming what each new test uniquely pins is a failed plan.
 
 ## 1. Reset the workspace
 
@@ -38,7 +38,7 @@ Follow `docs/agents/planning.md` Steps 1-3: extract the issue's contract (or the
 
 ## 3. Write the plan
 
-Structure `.agentic/plan.md` per planning.md's Step 3 artifact checklist and Step 4 template: contract, current state, artifact inventory, deletion ledger, test ledger, phased FR sections with code samples, and cross-cutting doc updates.
+Structure `.agentic/plan.md` per planning.md's Step 3 artifact checklist and Step 4 template: Open Questions and GWT Scenarios leading the document, then contract, traps, ground truth and artifact inventory (pointers to `.agentic/evidence.md`, which carries the actual tables and citations), deletion ledger, phased FR sections with code samples and test stubs, and cross-cutting doc updates.
 
 When the issue leaves a detail genuinely unspecified, choose the option consistent with the nearest existing pattern, record the rejected alternative, and append 🚨 to that line rather than stalling or inventing product behavior. Ask at most one clarifying question when a tradeoff genuinely needs confirmation first.
 
@@ -46,6 +46,6 @@ When the issue leaves a detail genuinely unspecified, choose the option consiste
 
 Before saving, run the self-check list in `docs/agents/planning.md` and sweep `REVIEW_CHECKLIST.json` for every rule matching the touched paths (`PLAN-016`) — zero `BLOCKER` violations remaining, with no compliance table added to the plan itself.
 
-Report the path written, a one-paragraph summary, every 🚨 decision and open question restated in chat, and plainly that this was planning only: nothing was implemented, tested, committed, or pushed.
+Report the path(s) written, a one-paragraph summary, every numbered Open Questions entry restated in chat, and plainly that this was planning only: nothing was implemented, tested, committed, or pushed.
 
 **A human reviews the plan before implementation.** Do not offer to start implementing in the same breath; stop and wait. `/wt-code` consumes the approved `.agentic/plan.md`.

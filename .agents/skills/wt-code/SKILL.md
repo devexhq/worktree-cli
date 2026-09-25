@@ -31,7 +31,7 @@ If the input file is missing, stop and say so. Do not reconstruct a plan from th
 - **Never run the full gate suite mid-implementation.** Scoped tests only until the work is complete.
 - **The plan's contracts are binding.** Field names, types, defaults, flag names, exit codes, and message strings written as literal code in the plan are normative. Do not improve, rename, or extend them.
 - **Do not implement anything the plan marks out of scope or flags as a trap.**
-- **Never create a test file the plan's test ledger does not list** (`PLAN-013`), and never skip a deletion the deletion ledger lists (`PLAN-009`). Both directions are contract breaches, and the additive direction is the one that slips through unnoticed.
+- **Never create a test file the plan's `### Tests` stubs do not list**, and never skip a deletion the deletion ledger lists (`PLAN-009`). Both directions are contract breaches, and the additive direction is the one that slips through unnoticed.
 - **A green gate is not evidence that a check ran.** Report what each gate observed, never what a doc says it enforces.
 
 ## Implementation loop
@@ -44,6 +44,8 @@ Before writing or refactoring any code in a domain, load its `RULES.md`, which c
 | `common/` | [src/worktree/common/docs/RULES.md](../../../src/worktree/common/docs/RULES.md) |
 | `cli/` | [src/worktree/cli/docs/RULES.md](../../../src/worktree/cli/docs/RULES.md) |
 | `tests/` | [tests/docs/RULES.md](../../../tests/docs/RULES.md) |
+
+If `.agentic/plan.md`'s Ground truth and Artifact inventory sections point to `.agentic/evidence.md`, that file holds the citations and mirrored patterns behind the plan's Instructions — not additional instructions of its own. Consult it when you want to verify a claim or a cited symbol looks stale; don't treat it as required reading before every FR, since each FR's own `### Instructions` already carries the file:line detail it needs.
 
 Work one FR (or one testable clause) at a time, in the plan's order. For each:
 

@@ -282,28 +282,6 @@ def prune_sandboxes(...) -> SandboxPruneResult: ...
 # Single 80-line function planned to do querying, directory diffing, git branch deleting, and error handling
 ```
 
-## [PLAN-013] Test Ledger Specification
-- **Phase:** `Test Strategy`
-- **Scope:** `### Tests section in .agentic/plan.md`
-- **Requirement:** Specify planned tests as a ledger (Path | Est. lines | Contract pinned | Nearest existing coverage | Verdict), one row per test file, Path following the TEST-002 mapping. Contract pinned states the exact outcome in prose — every field the test owns, named with its value, never vague or piecewise — and Nearest existing coverage marks 'redundant-dropped' when a test already pins that contract.
-- **Deliverable Contract:** Markdown ledger: | Path | Est. lines | Contract pinned | Nearest existing coverage | Verdict |, with Contract pinned as a prose statement of the exact outcome — the same outcome the paired test stub's name or docstring states under PLAN-018.
-- **Validation Check:** Check every row resolves under TEST-002, states an exact outcome in prose with zero vague or piecewise phrasing, records the existing-coverage search, and names a negative fixture for any enforcement test (CI-004).
-
-<!-- ✅ POSITIVE EXAMPLE -->
-```markdown
-### Test ledger
-| Path | Est. lines | Contract pinned | Nearest existing coverage | Verdict |
-| `tests/core/bootstrap/test_initialize.py` | 120 | NOT_A_GIT_REPO abort returns InitResult(status=NOT_A_GIT_REPO, created=[]) | none found | new |
-| `tests/cli/init/test_init.py` | 90 | stdout JSON equals the literal init wire dict for a fresh repo | none found | new |
-| `tests/cli/config/test_config_show.py::ConfigShowRootTests` | - | ConfigLoadResult shape | `tests/core/config/test_loader.py` | redundant-dropped |
-```
-
-<!-- ❌ NEGATIVE EXAMPLE -->
-```markdown
-| Test | Path | Exact assertion |
-| Test pruning | tests/test_prune.py | checks that pruning works, ignoring errors field |
-```
-
 ## [PLAN-014] Flagging Unspecified Decisions with 🚨
 - **Phase:** `Cross-Cutting & Validation`
 - **Scope:** `### Decisions & ## Cross-cutting in .agentic/plan.md`

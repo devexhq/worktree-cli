@@ -62,7 +62,7 @@ Skip this axis only when `.agentic/plan.md` is absent, and say so in the report.
 - Every FR has landed, and every artifact row has its file.
 - Contracts match exactly: field names, types, defaults, `status` values, flag names, help copy, exit codes, and error, warning, and fix strings. A "better" name than the plan's is a finding, since the plan was human-reviewed.
 - Nothing landed that the plan marked out of scope or named as a trap.
-- **Test ledger fidelity, row by row.** Each planned test exists at the planned path, asserting the stated contract. Then check the other direction: every test file in the diff appears in the ledger. An unplanned test file is a scope breach that no gate catches.
+- **Test stub fidelity, one by one.** Each `### Tests` stub the plan wrote exists at its planned test file, asserting the docstring's stated contract. Then check the other direction: every test file in the diff traces back to a stub. An unplanned test file is a scope breach that no gate catches.
 - **Deletion ledger fidelity.** Every entry is gone.
 - **Budget.** Compare the diff size against the plan's estimate.
 - Where the code deviates, the deviation was surfaced rather than absorbed silently.
@@ -137,7 +137,7 @@ Write this to `.agentic/review.md` (create `.agentic/` if needed), overwriting t
 
 ### Plan fidelity
 - <FR-n> - implemented as specified | deviates: <what> | missing
-- Test ledger: <k> planned rows landed at path and marker | <deviations>
+- Test stubs: <k> planned stubs landed at path and marker | <deviations>
 - Unplanned test files: <paths or "none">
 - Deletion ledger: executed | <outstanding>
 - Budget: planned <n> lines, actual <m>
