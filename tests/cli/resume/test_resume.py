@@ -9,11 +9,15 @@ from typing import Any
 
 from typer.testing import CliRunner
 
-from tests.harness.catalog import write_runnable_blueprint
+from tests.harness.catalog import write_runnable_blueprint, write_runnable_step
 from worktree.cli import app
 from worktree.cli.ui.dispatcher import ui_dispatcher
+from worktree.core.blueprint import Blueprint
+from worktree.core.catalog import Catalog
 from worktree.core.config.models import ConfigTier
 from worktree.core.db import RunStatus, WorktreeDb
+from worktree.core.engine.models import SessionRunPayload
+from worktree.core.engine.writer import get_session_dir, snapshot_definitions, write_session_run_json
 from worktree.core.runtime.models import RunCheckpoint
 
 
@@ -32,6 +36,40 @@ def _seed_paused_session(
         use_sandbox=False,
     )
     db.runs.save_pause(session_id, checkpoint.model_dump_json(), checkpoint.diagnostic)
+
+
+def _seed_snapshotted_paused_session(
+    resume_workspace: Path, *, session_id: str, blueprint_key: str, pending_step_id: str, next_step_index: int
+) -> None:
+    """Snapshot blueprint_key's catalog blueprint/steps into session_id's definitions/ dir, matching Engine.run's own persistence, then seed a matching paused row."""
+    catalog = Catalog(resume_workspace)
+    blueprint = Blueprint.load(blueprint_key, catalog=catalog)
+    session_dir = get_session_dir(resume_workspace, session_id)
+    warnings: list[str] = []
+    manifest = snapshot_definitions(catalog, blueprint, session_dir, warnings)
+    assert manifest is not None
+
+    db = WorktreeDb(path=resume_workspace)
+    db.runs.create(
+        session_id=session_id, blueprint_name=blueprint_key, blueprint_key=blueprint_key, status=RunStatus.RUNNING
+    )
+    checkpoint = RunCheckpoint(
+        next_step_index=next_step_index,
+        pending_step_id=pending_step_id,
+        diagnostic="Step failed during interactive prompt.",
+        use_sandbox=False,
+    )
+    db.runs.save_pause(session_id, checkpoint.model_dump_json(), checkpoint.diagnostic)
+    write_session_run_json(
+        session_dir,
+        SessionRunPayload(
+            session_id=session_id,
+            name=blueprint.name,
+            status="paused",
+            started_at="2026-09-25T19:00:00+00:00",
+            definitions=manifest,
+        ),
+    )
 
 
 class ResumeCliIntegrationTests:
@@ -121,3 +159,37 @@ class ResumeCliIntegrationTests:
         assert result.exit_code == 1
         assert "Config Error" in result.stdout
         assert "Invalid configuration in user layer" in result.stdout
+
+    def test_resume_cli_completes_after_source_catalog_blueprint_deleted(
+        self, cli_runner: CliRunner, resume_workspace: Path
+    ) -> None:
+        """[tier-3/integration] wt resume <session_id>: a session paused by wt run with a uses: step still resumes and completes exit 0 after both the catalog blueprint and step YAML files are deleted from disk."""
+        write_runnable_step(
+            resume_workspace, key="lint-check", definition={"id": "lint-check", "type": "command", "command": "true"}
+        )
+        write_runnable_blueprint(
+            resume_workspace,
+            key="snapshot-resume-task",
+            steps=[
+                {"id": "s1", "uses": "lint-check"},
+                {"id": "s2", "run": "true", "on_failure": "continue"},
+                {"id": "s3", "run": "touch resumed.marker"},
+            ],
+        )
+        _seed_snapshotted_paused_session(
+            resume_workspace,
+            session_id="snap-resume-1",
+            blueprint_key="snapshot-resume-task",
+            pending_step_id="s2",
+            next_step_index=1,
+        )
+        (resume_workspace / ".worktree" / "catalog" / "blueprints" / "snapshot-resume-task.yml").unlink()
+        (resume_workspace / ".worktree" / "catalog" / "steps" / "lint-check.yml").unlink()
+
+        result = cli_runner.invoke(app, ["-p", str(resume_workspace), "resume", "snap-resume-1"])
+
+        assert result.exit_code == 0
+        record = WorktreeDb(path=resume_workspace).runs.get("snap-resume-1")
+        assert record is not None
+        assert record.status == RunStatus.COMPLETED
+        assert (resume_workspace / "resumed.marker").exists()

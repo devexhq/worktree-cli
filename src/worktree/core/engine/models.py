@@ -21,6 +21,7 @@ class EngineResumeStatus(StrEnum):
     WRONG_STATUS = "wrong_status"
     MISSING_SANDBOX = "missing_sandbox"
     CORRUPT_CHECKPOINT = "corrupt_checkpoint"
+    MISSING_SNAPSHOT = "missing_snapshot"
     FAILED = "failed"
 
 
@@ -40,6 +41,25 @@ class RunRequest:
     auto_apply: bool = False
 
 
+class DefinitionRef(BaseModel):
+    """One snapshotted catalog item's resolved reference, content hash, and resolution time."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    ref: str
+    sha: str
+    resolved_at: str
+
+
+class DefinitionsManifest(BaseModel):
+    """Manifest of the blueprint and uses:-referenced steps snapshotted for a run's session."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    blueprint: DefinitionRef
+    steps: list[DefinitionRef] = Field(default_factory=list)
+
+
 class SessionRunPayload(BaseModel):
     """Persisted execution results and telemetry for a session."""
 
@@ -53,6 +73,7 @@ class SessionRunPayload(BaseModel):
     completed_at: str | None = None
     error_message: str | None = None
     step_results: list[StepResult] = Field(default_factory=list)
+    definitions: DefinitionsManifest | None = None
 
 
 class ReconciliationResult(BaseResult):

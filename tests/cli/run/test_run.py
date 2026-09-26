@@ -10,12 +10,13 @@ from typing import Any
 import pytest
 from typer.testing import CliRunner
 
-from tests.harness.catalog import write_runnable_blueprint
+from tests.harness.catalog import write_runnable_blueprint, write_runnable_step
 from worktree.cli import app
 from worktree.cli.ui.dispatcher import UiDispatcher, ui_dispatcher
 from worktree.common.filesystem import Filesystem
 from worktree.core.config.models import ConfigTier
 from worktree.core.db import RunStatus, WorktreeDb
+from worktree.core.engine.writer import get_session_dir, load_session_run
 from worktree.core.runtime import RunContext, RunOutcome
 
 
@@ -220,3 +221,23 @@ class RunCliIntegrationTests:
         captured_config = captured["context"].config
         assert captured_config is not None
         assert captured_config.model_dump(mode="json") == shown_config
+
+    def test_run_cli_writes_definitions_snapshot_for_uses_step(
+        self, cli_runner: CliRunner, run_workspace: Path
+    ) -> None:
+        """wt run --no-sandbox --session-id snap-1: a blueprint with one uses: step writes .../sessions/snap-1/definitions/{key}.yml and .../definitions/steps/{step_key}.yml, and run.json's definitions.steps has one entry."""
+        write_runnable_step(run_workspace, key="lint-check", definition={"id": "lint-check", "run": "true"})
+        write_runnable_blueprint(run_workspace, key="snapshot-task", steps=[{"id": "s1", "uses": "lint-check"}])
+
+        result = cli_runner.invoke(
+            app, ["-p", str(run_workspace), "run", "snapshot-task", "--no-sandbox", "--session-id", "snap-1"]
+        )
+
+        assert result.exit_code == 0
+        session_dir = get_session_dir(run_workspace, "snap-1")
+        assert (session_dir / "definitions" / "snapshot-task.yml").is_file()
+        assert (session_dir / "definitions" / "steps" / "lint-check.yml").is_file()
+        payload = load_session_run(run_workspace, "snap-1")
+        assert payload is not None
+        assert payload.definitions is not None
+        assert len(payload.definitions.steps) == 1

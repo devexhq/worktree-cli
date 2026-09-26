@@ -13,9 +13,9 @@ from worktree.core.catalog import Catalog
 from worktree.core.config import Config
 from worktree.core.db import RunsRepository, RunStatus
 from worktree.core.engine.exceptions import EngineInputError
-from worktree.core.engine.models import RunRequest, SessionRunPayload
+from worktree.core.engine.models import DefinitionsManifest, RunRequest, SessionRunPayload
 from worktree.core.engine.resumable import ResumableRun
-from worktree.core.engine.writer import get_session_dir, write_session_run_json
+from worktree.core.engine.writer import get_session_dir, load_session_run, snapshot_definitions, write_session_run_json
 from worktree.core.inputs import InputResolveResult
 from worktree.core.runtime import (
     ExecutionIdentity,
@@ -73,6 +73,7 @@ class Engine:
         sid = req.session_id or f"blueprint_{uuid.uuid4().hex[:8]}"
         engine_warnings: list[str] = list(resolved.warnings)
         pause_store = self._start_run(blueprint, sid, engine_warnings)
+        definitions = self._snapshot_definitions(blueprint, sid, engine_warnings)
         caller_sandbox = True if req.use_sandbox is None else req.use_sandbox
         identity = ExecutionIdentity(blueprint_name=blueprint.name, blueprint_key=blueprint.key)
 
@@ -102,6 +103,7 @@ class Engine:
                 engine_warnings,
                 blueprint=blueprint,
                 started_at=start_time,
+                definitions=definitions,
             )
 
         return self._finalize_outcome(outcome, sid, engine_warnings)
@@ -149,12 +151,15 @@ class Engine:
             )
         )
 
+        prior_run = load_session_run(self.path, session_id)
+        definitions = prior_run.definitions if prior_run is not None else None
         self._finish_run(
             pause_store,
             outcome,
             engine_warnings,
             blueprint=loaded,
             started_at=start_time,
+            definitions=definitions,
         )
 
         return self._finalize_outcome(outcome, session_id, engine_warnings)
@@ -175,6 +180,16 @@ class Engine:
 
         return _DbPauseStore(self.db, session_id)
 
+    def _snapshot_definitions(
+        self,
+        blueprint: Blueprint,
+        session_id: str,
+        warnings: list[str],
+    ) -> DefinitionsManifest | None:
+        """Snapshot the resolved blueprint and its uses: step references into the session directory."""
+        session_dir = get_session_dir(self.path, session_id)
+        return snapshot_definitions(self.catalog, blueprint, session_dir, warnings)
+
     def _persist_session_run_json(
         self,
         session_id: str,
@@ -182,6 +197,8 @@ class Engine:
         outcome: RunOutcome,
         started_at: str,
         warnings: list[str],
+        *,
+        definitions: DefinitionsManifest | None = None,
     ) -> None:
         """Persist structured run results and step telemetry to run.json."""
         try:
@@ -195,6 +212,7 @@ class Engine:
                 completed_at=datetime.now(UTC).isoformat(),
                 error_message=outcome.errors[0] if outcome.errors else None,
                 step_results=outcome.step_results,
+                definitions=definitions,
             )
             write_session_run_json(session_dir, payload)
         except Exception as exc:
@@ -208,6 +226,7 @@ class Engine:
         *,
         blueprint: Blueprint | None = None,
         started_at: str | None = None,
+        definitions: DefinitionsManifest | None = None,
     ) -> None:
         """Persist the outcome status when the start insert succeeded."""
         with WorkspaceLock(self.path):
@@ -224,6 +243,7 @@ class Engine:
                     outcome,
                     started_at,
                     warnings,
+                    definitions=definitions,
                 )
 
     def _insert_running(self, blueprint: Blueprint, session_id: str) -> None:

@@ -1,8 +1,21 @@
 """Blueprint execution engine: persist a run and drive sequential steps."""
 
 from worktree.core.engine.engine import Engine
-from worktree.core.engine.exceptions import EngineError, EngineInputError, EngineResumeError, EngineRuntimeError
-from worktree.core.engine.models import EngineResumeStatus, ReconciliationResult, RunRequest, SessionRunPayload
+from worktree.core.engine.exceptions import (
+    EngineError,
+    EngineInputError,
+    EngineResumeError,
+    EngineRuntimeError,
+    EngineSnapshotMissingError,
+)
+from worktree.core.engine.models import (
+    DefinitionRef,
+    DefinitionsManifest,
+    EngineResumeStatus,
+    ReconciliationResult,
+    RunRequest,
+    SessionRunPayload,
+)
 from worktree.core.engine.resumable import ResumableRun
 from worktree.core.engine.services import (
     STALE_RUN_ERROR_MESSAGE,
@@ -16,7 +29,9 @@ from worktree.core.engine.services import (
 )
 from worktree.core.engine.writer import (
     get_session_dir,
+    load_blueprint_from_snapshot,
     load_session_run,
+    snapshot_definitions,
     write_session_diff,
     write_session_run_json,
 )
@@ -25,12 +40,15 @@ __all__ = [
     "STALE_RUN_ERROR_MESSAGE",
     "BlueprintResumeService",
     "BlueprintRunService",
+    "DefinitionRef",
+    "DefinitionsManifest",
     "Engine",
     "EngineError",
     "EngineInputError",
     "EngineResumeError",
     "EngineResumeStatus",
     "EngineRuntimeError",
+    "EngineSnapshotMissingError",
     "ReconciliationResult",
     "ResumableRun",
     "RunRequest",
@@ -40,8 +58,10 @@ __all__ = [
     "get_session_dir",
     "is_pid_alive",
     "is_run_stale",
+    "load_blueprint_from_snapshot",
     "load_session_run",
     "reconcile_stale_runs",
+    "snapshot_definitions",
     "write_session_diff",
     "write_session_run_json",
 ]

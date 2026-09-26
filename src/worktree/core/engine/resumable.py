@@ -12,8 +12,9 @@ from worktree.core.blueprint.exceptions import (
 )
 from worktree.core.catalog import Catalog
 from worktree.core.db import RunRecord, RunsRepository, RunStatus
-from worktree.core.engine.exceptions import EngineResumeError
-from worktree.core.engine.models import EngineResumeStatus
+from worktree.core.engine.exceptions import EngineResumeError, EngineSnapshotMissingError
+from worktree.core.engine.models import DefinitionsManifest, EngineResumeStatus
+from worktree.core.engine.writer import get_session_dir, load_blueprint_from_snapshot, load_session_run
 from worktree.core.runtime import RunCheckpoint, parse_checkpoint
 from worktree.core.step import LoopStepBlock, StepDefinition
 
@@ -209,6 +210,21 @@ class ResumableRun:
         *,
         catalog: Catalog,
     ) -> Blueprint | ResumableRun:
+        """Load the session's snapshot blueprint when run.json carries a definitions manifest, else the catalog blueprint."""
+        payload = load_session_run(path, session_id)
+        if payload is not None and payload.definitions is not None:
+            return cls._load_blueprint_from_snapshot(session_id, path, payload.definitions)
+        return cls._load_blueprint_from_catalog(session_id, row, path, catalog=catalog)
+
+    @classmethod
+    def _load_blueprint_from_catalog(
+        cls,
+        session_id: str,
+        row: RunRecord,
+        path: Path,
+        *,
+        catalog: Catalog,
+    ) -> Blueprint | ResumableRun:
         """Load the catalog blueprint keyed by the paused row."""
         key = row.blueprint_key
 
@@ -220,4 +236,30 @@ class ResumableRun:
                 path,
                 EngineResumeStatus.FAILED,
                 f"Cannot resume session '{session_id}': blueprint '{key}' not found.",
+            )
+
+    @classmethod
+    def _load_blueprint_from_snapshot(
+        cls,
+        session_id: str,
+        path: Path,
+        manifest: DefinitionsManifest,
+    ) -> Blueprint | ResumableRun:
+        """Load and resolve the session's own snapshot files, classifying missing-file and validation failures."""
+        session_dir = get_session_dir(path, session_id)
+        try:
+            return load_blueprint_from_snapshot(session_dir, manifest)
+        except EngineSnapshotMissingError as exc:
+            return cls._rejected(
+                session_id,
+                path,
+                EngineResumeStatus.MISSING_SNAPSHOT,
+                f"Cannot resume session '{session_id}': {exc}",
+            )
+        except (BlueprintNotFoundError, BlueprintLoadError, BlueprintValidationError) as exc:
+            return cls._rejected(
+                session_id,
+                path,
+                EngineResumeStatus.FAILED,
+                f"Cannot resume session '{session_id}': {exc}",
             )
