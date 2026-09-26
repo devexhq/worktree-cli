@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import subprocess
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +12,7 @@ import pytest
 from typer.testing import CliRunner
 
 from worktree.common.constants import REQUIRED_SUBDIRS
+from worktree.common.filesystem import Filesystem
 from worktree.common.filesystem.services.global_root import resolve_global_paths
 from worktree.core.config.models import ConfigTier
 from worktree.core.project.services.identity import generate_project_identity, save_project_identity
@@ -26,6 +27,19 @@ def _isolated_worktree_home(tmp_path_factory: pytest.TempPathFactory, monkeypatc
     read and write the real machine's global Worktree directory.
     """
     monkeypatch.setenv("WORKTREE_HOME", str(tmp_path_factory.mktemp("worktree_home")))
+
+
+@pytest.fixture(autouse=True)
+def _reset_filesystem_singleton() -> Generator[None]:
+    """Reset the Filesystem process-level singleton before and after each test.
+
+    Filesystem.configure() mutates class-level state that outlives the test
+    that called it. Without this reset, a later test on the same xdist worker
+    can observe a stale configured root from an earlier test.
+    """
+    Filesystem.reset()
+    yield
+    Filesystem.reset()
 
 
 @pytest.fixture
