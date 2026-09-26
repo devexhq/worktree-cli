@@ -1,6 +1,6 @@
 # `wt init`
 
-The `wt init` command initializes a project repository for Worktree (`wt`), provisioning the `.worktree/` directory structure, a stable project identity, canonical configuration defaults, a local `.worktree/.gitignore`, the state database, and blueprint catalog folders.
+The `wt init` command initializes a project repository for Worktree (`wt`), provisioning the `.worktree/` directory structure, a stable project identity, canonical configuration defaults, a local `.worktree/.gitignore`, catalog folders, and centrally stored runtime state scoped to the project.
 
 ## Usage
 
@@ -86,5 +86,5 @@ wt init --id my-project --format json
 Emits a structured NDJSON payload (see [`WorkspaceInitView`](../../src/worktree/cli/ui/formatters/init/init_view.py) for the full field list):
 
 ```json
-{"event_type": "WorkspaceInitResult", "payload": {"ok": true, "root_path": "/path/to/my-repo/.worktree", "root_path_relative": ".worktree", "bootstrap_outcome": "initialized", "dirs_created": [".worktree/.meta"], "project_id": "my-project", "identity_path_relative": ".worktree/project.json", "identity_preserved": false, "gitignore_path_relative": ".worktree/.gitignore", "gitignore_tracked_entries": ["config.json", "project.json", "catalog/"], "config_created": true, "config_overwritten": false, "config_repaired": false, "config_skipped_existing": false, "config_path_relative": ".worktree/config.json", "inserted_keys": [], "seeded_files": [".worktree/catalog/blueprints/wt/fix-tests.yml", ".worktree/catalog/blueprints/wt/review-fix.yml"], "skipped_seed_files": [], "overwritten_seed_files": [], "failure_mode": null, "errors": [], "warnings": [], "fixes": []}}
+{"event_type": "WorkspaceInitResult", "payload": {"ok": true, "root_path": "/path/to/my-repo/.worktree", "root_path_relative": ".worktree", "bootstrap_outcome": "initialized", "dirs_created": [".worktree/.meta"], "project_id": "my-project", "identity_path_relative": ".worktree/project.json", "identity_preserved": false, "gitignore_path_relative": ".worktree/.gitignore", "gitignore_tracked_entries": ["config.json", "project.json", "catalog/"], "config_created": true, "config_overwritten": false, "config_repaired": false, "config_skipped_existing": false, "config_path_relative": ".worktree/config.json", "inserted_keys": [], "seeded_files": [".worktree/catalog/blueprints/wt/fix-tests.yml", ".worktree/catalog/blueprints/wt/review-fix.yml", ".worktree/catalog/steps/wt/ai-code-patcher.yml", ".worktree/catalog/steps/wt/ai-planner.yml", ".worktree/catalog/steps/wt/ai-reviewer.yml", ".worktree/catalog/steps/wt/git-sync-base.yml", ".worktree/catalog/steps/wt/run-tests.yml"], "skipped_seed_files": [], "overwritten_seed_files": [], "failure_mode": null, "errors": [], "warnings": [], "fixes": []}}
 ```

@@ -1,6 +1,6 @@
 # `wt history`
 
-The `wt history` command inspects past blueprint executions (tasks and workflows), enabling developers to filter past runs and view granular step details, error messages, and checkpoint data.
+The `wt history` command inspects past blueprint executions, enabling developers to filter past runs and view granular step details, error messages, and checkpoint data.
 
 ## Usage
 
@@ -15,7 +15,6 @@ wt history list [OPTIONS]
 | --- | --- |
 | `--limit, -l <int>` | Maximum number of history records to display (default: 20). |
 | `--status, -s <status>` | Filter runs by lifecycle status (`running`, `completed`, `failed`, `cancelled`, `paused`). |
-| `--kind, -k <kind>` | Filter runs by blueprint kind (`task`, `workflow`). |
 | `--format [terminal\|json]` | Presentation format (`terminal` or `json`). |
 
 ## Subcommands
@@ -63,12 +62,6 @@ List failed executions limited to the 5 most recent runs:
 wt history --status failed --limit 5
 ```
 
-List workflow executions only:
-
-```bash
-wt history --kind workflow
-```
-
 Output history list as structured NDJSON envelopes:
 
 ```bash
@@ -78,11 +71,11 @@ wt history list --format json
 Inspect details for a specific session:
 
 ```bash
-wt history show task_a1b2c3d4
+wt history show blueprint_a1b2c3d4
 ```
 
 Inspect session details in JSON format:
 
 ```bash
-wt history show task_a1b2c3d4 --format json
+wt history show blueprint_a1b2c3d4 --format json
 ```

@@ -13,17 +13,17 @@ This reference documents the YAML specification for step-level quality gates and
 | `output_not_contains` | `string \| list[string]` | `null` | Substring(s) that must NOT appear in output. |
 | `regex_match` | `string` | `null` | Regular expression pattern that must match within the combined output. |
 | `json_match` | `JSONMatchObject` | `null` | Dot-path assertion evaluated against parsed JSON on `stdout`. |
-| `file_exists` | `string \| list[string]` | `null` | Relative path(s) within the sandbox that must exist as files. |
-| `file_not_exists` | `string \| list[string]` | `null` | Relative path(s) within the sandbox that must NOT exist. |
-| `file_not_empty` | `string \| list[string]` | `null` | Relative path(s) within the sandbox that must exist and have non-zero size. |
+| `file_exists` | `string \| list[string]` | `null` | Relative path(s) in the execution root that must exist as files. |
+| `file_not_exists` | `string \| list[string]` | `null` | Relative path(s) in the execution root that must NOT exist. |
+| `file_not_empty` | `string \| list[string]` | `null` | Relative path(s) in the execution root that must exist and have non-zero size. |
 
 ---
 
 ## File Path Validation Rules
 
-All file assertions (`file_exists`, `file_not_exists`, `file_not_empty`) must adhere to sandbox safety constraints:
+All file assertions (`file_exists`, `file_not_exists`, `file_not_empty`) resolve against the execution root: normally the sandbox, or the working tree when `wt run --no-sandbox` is used. They must adhere to these safety constraints:
 * Must be non-empty strings.
-* Must be relative paths inside the sandbox (absolute paths starting with `/` or drive letters like `C:/` are rejected).
+* Must be relative paths inside the execution root (absolute paths starting with `/` or drive letters like `C:/` are rejected).
 * Parent directory traversal (`..`) is strictly prohibited.
 
 ---

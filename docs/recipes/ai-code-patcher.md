@@ -1,17 +1,17 @@
-# Recipe: AI Planner, Patcher & Reviewer
+# Recipe: Agent-Step Placeholders and Quality Gates
 
-This recipe demonstrates an end-to-end multi-agent workflow that plans an architectural change, patches the codebase, verifies tests, and performs an automated code review before finalizing.
+This recipe demonstrates a blueprint containing agent-step placeholders alongside explicit quality-gate commands. Today, an agent step selects an adapter and records a placeholder result; it does not plan, patch, review, invoke a provider, or edit files.
 
 ---
 
-## The Workflow Blueprint
+## The Blueprint
 
-Create `.worktree/catalog/workflows/ai-feature-dev.yml`:
+Create `.worktree/catalog/blueprints/ai-feature-dev.yml`:
 
 ```yaml
 name: ai-feature-dev
-description: Autonomous feature development with planner, patcher, and reviewer
-summary: Multi-agent planning, implementation, and review pipeline
+description: Record agent-step placeholders and run quality gates
+summary: Placeholder agent steps with explicit verification commands
 version: 1
 use_sandbox: true
 
@@ -27,18 +27,18 @@ steps:
   - id: git-sync
     uses: wt/git-sync-base
 
-  # 2. Plan changes
+  # 2. Record a planning placeholder
   - id: ai-planner
-    name: Generate Implementation Plan
+    name: Record implementation-plan placeholder
     type: agent
-    prompt: "Analyze the codebase and create a step-by-step implementation plan for: ${{ inputs.issue_description }}"
+    prompt: "Record a planning placeholder for: ${{ inputs.issue_description }}"
     timeout_seconds: 180
 
-  # 3. Patch code
+  # 3. Record a patching placeholder
   - id: ai-patcher
-    name: Implement Code Changes
+    name: Record implementation placeholder
     type: agent
-    prompt: "Implement the planned changes for: ${{ inputs.issue_description }}. Ensure code conforms to formatting and type checks."
+    prompt: "Record an implementation placeholder for: ${{ inputs.issue_description }}"
     timeout_seconds: 300
 
   # 4. Verification & Quality Gates
@@ -59,11 +59,11 @@ steps:
     assert:
       exit_code: 0
 
-  # 5. Final AI Code Review
+  # 5. Record a review placeholder
   - id: ai-reviewer
-    name: Automated Code Review
+    name: Record code-review placeholder
     type: agent
-    prompt: "Review the git diff generated in this sandbox. Verify that all requirements were met, no regressions were introduced, and tests cover the new code."
+    prompt: "Record a code-review placeholder for: ${{ inputs.issue_description }}"
     timeout_seconds: 180
 ```
 
@@ -71,10 +71,10 @@ steps:
 
 ## Running the Recipe
 
-Execute the workflow with a feature description:
+Execute the blueprint with a feature description:
 
 ```bash
 wt run ai-feature-dev --desc "Add support for custom HTTP timeouts in the API client"
 ```
 
-If any step fails, you can interactively choose to retry, or later resume with `wt resume <session-id>`.
+If a command step fails, you can interactively choose to retry, or later resume with `wt resume blueprint_<id>`.

@@ -6,7 +6,7 @@ Blueprints are declarative YAML files stored in your project's catalog (`.worktr
 
 ## Blueprint Anatomy
 
-Both tasks (`.worktree/catalog/tasks/*.yml`) and workflows (`.worktree/catalog/workflows/*.yml`) share a unified top-level document structure:
+Blueprints are stored under `.worktree/catalog/blueprints/*.yml` and use one generic top-level document structure:
 
 ```yaml
 name: build-and-test
@@ -46,33 +46,24 @@ steps:
 
 ---
 
-## Tasks vs. Workflows
+## Generic Blueprints
 
-While tasks and workflows share the same YAML structure, they have different architectural roles:
-
-### Task (`.worktree/catalog/tasks/`)
-- Represents a **single job** composed of sequential steps (e.g., code formatting, linting, or asset compilation).
-- Fast and focused.
-- **Restriction**: Tasks cannot contain composite loop step blocks.
-
-### Workflow (`.worktree/catalog/workflows/`)
-- Represents an **orchestrated multi-step pipeline** (e.g., TDD loop, automated bug repair, code review).
-- Can contain loop steps, interactive human-in-the-loop decisions, and multi-agent coordination.
+A blueprint may contain sequential steps, assertions, failure policies, and loop blocks. Catalog item type does not restrict whether a blueprint can contain loops.
 
 ---
 
 ## Top-Level Blueprint Fields
 
 ### 1. Identity & Metadata
-* `name` *(string, required)*: Unique display name.
+* `name` *(string, optional)*: Unique display name; when omitted, it defaults to the catalog key.
 * `description` *(string, optional)*: In-depth explanation of the blueprint's purpose.
 * `summary` *(string, optional)*: Short single-sentence summary shown in `wt blueprint list`.
 * `version` *(integer | string, default `1`)*: Format schema version.
 
 ### 2. Execution Controls
 * `use_sandbox` *(boolean, default `true`)*: Whether to create an isolated Git worktree sandbox for execution.
-* `timeout_seconds` *(integer, optional)*: Overall execution timeout for the entire blueprint.
-* `env` *(map[string, string], optional)*: Global environment variables injected into all child steps.
+* `timeout_seconds` *(integer, optional)*: Accepted blueprint metadata; the current runtime does not apply it as an overall timeout.
+* `env` *(map[string, string], optional)*: Accepted blueprint metadata; the current runtime does not inject it into child steps.
 
 ### 3. Parameter Inputs (`inputs:`)
 Declare typed parameters that can be customized at runtime via CLI flags or `-i/--input`:

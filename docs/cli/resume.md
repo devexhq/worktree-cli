@@ -1,6 +1,6 @@
 # `wt resume`
 
-The `wt resume` command continues a paused blueprint execution session (task or workflow), either by specifying an explicit session ID or by automatically resuming the latest paused run.
+The `wt resume` command continues a paused blueprint execution session, either by specifying an explicit session ID or by automatically resuming the latest paused run.
 
 ## Usage
 
@@ -19,6 +19,8 @@ wt resume [session_id] [OPTIONS]
 | Flag | Description |
 | --- | --- |
 | `--no-tty` | Disable interactive prompts; prompt_user failures abort the run instead of prompting. |
+| `--format <terminal\|json>` | Presentation format (`terminal` or `json`). Defaults to `terminal`. |
+| `--display <ansi\|live>` | Display format (`ansi` or `live`). Defaults to `ansi`. |
 
 ### Behavior
 
@@ -43,7 +45,7 @@ wt resume
 Resume a specific session by ID:
 
 ```bash
-wt resume task_a1b2c3d4
+wt resume blueprint_a1b2c3d4
 ```
 
 Resume non-interactively (e.g. in automated scripts):

@@ -6,7 +6,7 @@ Worktree allows blueprint authors to define dynamic parameter inputs. Inputs can
 
 ## Declaring Inputs in Blueprints
 
-Inputs are declared under the top-level `inputs:` map in your task or workflow YAML file:
+Inputs are declared under the top-level `inputs:` map in your blueprint YAML file:
 
 ```yaml
 name: test-runner
@@ -99,7 +99,7 @@ Interpolation is evaluated at runtime in the following step fields:
 
 ### Interpolation Namespaces & Behavior
 * **Inputs**: `${{ inputs.<name> }}` or `{{ inputs.<name> }}` evaluates declared blueprint parameter values.
-* **Execution Metadata**: `step.*`, `task.*`, `workflow.*`, `previous_step.*`, and historical `steps[...]` / `steps.<id>.*` evaluate runtime execution properties (see [Working with Steps](working-with-steps.md#runtime-execution-metadata--environment-variables)).
+* **Execution Metadata**: `step.*`, `blueprint.*`, `previous_step.*`, and historical `steps[...]` / `steps.<id>.*` evaluate runtime execution properties (see [Working with Steps](working-with-steps.md#runtime-execution-metadata--environment-variables)). `task.*` and `workflow.*` are legacy aliases; use `blueprint.*` in new documents.
 * If a placeholder references an unknown name, the placeholder is preserved verbatim as literal text.
 
 
