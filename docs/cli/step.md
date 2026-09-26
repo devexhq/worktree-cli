@@ -17,10 +17,10 @@ wt step ls [--format terminal|json]
 
 ### `wt step create`
 
-Creates a new step file under the REPO tier only — `.worktree/catalog/steps/<name>.yml`, seeded from the packaged `default.yml` scaffold.
+Creates a new step file, seeded from the packaged `default.yml` scaffold. By default it writes under the REPO tier (`.worktree/catalog/steps/<name>.yml`). Pass `--user` to write into the USER tier (`~/.worktree/user/catalog/steps/<name>.yml`) or `--global` for the GLOBAL tier (`~/.worktree/global/catalog/steps/<name>.yml`) instead; the two flags are mutually exclusive.
 
 ```bash
-wt step create --name <name> [--format terminal|json]
+wt step create --name <name> [--user | --global] [--format terminal|json]
 ```
 
 ### `wt step show`

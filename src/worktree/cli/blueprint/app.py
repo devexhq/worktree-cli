@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Annotated
+
 import typer
 
 from worktree.cli.context import CliContext
@@ -57,15 +59,21 @@ def blueprint_show(
 def blueprint_create(
     ctx: typer.Context,
     name: str = typer.Option(..., "--name", help="Name for the new blueprint file."),
+    user: Annotated[
+        bool, typer.Option("--user", help="Create in the personal user-tier catalog (~/.worktree/user/catalog/).")
+    ] = False,
+    global_: Annotated[
+        bool, typer.Option("--global", help="Create in the shared global-tier catalog (~/.worktree/global/catalog/).")
+    ] = False,
     format: str = typer.Option(
         "terminal",
         "--format",
         help="Presentation format ('terminal' or 'json').",
     ),
 ):
-    """Create a new blueprint under the repo tier's .worktree/catalog/blueprints/<name>.yml."""
+    """Create a new blueprint at the REPO tier by default, or at USER/GLOBAL tier with --user/--global."""
     context: CliContext = ctx.obj["context"]
-    result = blueprint_create_command(context, name, output_format=format)
+    result = blueprint_create_command(context, name, user=user, global_=global_, output_format=format)
     if not result.ok:
         raise typer.Exit(code=1)
 

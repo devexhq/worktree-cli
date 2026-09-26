@@ -25,11 +25,30 @@ _RECORD = CatalogRecord(
     checksum="1234567890abcdef",
     tier=CatalogTier.REPO,
 )
+_REPO_RESOLVED_PATH = Path("/repo/.worktree/catalog/blueprints/test-blueprint.yml")
+
+_USER_RECORD = CatalogRecord(
+    key="user-blueprint",
+    sha="blueprint_89abcde",
+    item_type=CatalogItemType.BLUEPRINT,
+    name="user-blueprint",
+    namespace=None,
+    path=Path("blueprints/user-blueprint.yml"),
+    checksum="89abcdef01234567",
+    tier=CatalogTier.USER,
+)
+_USER_RESOLVED_PATH = Path("/home/user/.worktree/user/catalog/blueprints/user-blueprint.yml")
 
 CREATED_BLUEPRINT = FormatterCase(
-    data=CatalogCreateResult(item=_RECORD),
-    view=CatalogCreateResult(item=_RECORD),
-    render_expectations=[_RECORD.sha, _RECORD.item_type.value, ".worktree/catalog/blueprints/test-blueprint.yml"],
+    data=CatalogCreateResult(item=_RECORD, resolved_path=_REPO_RESOLVED_PATH),
+    view=CatalogCreateResult(item=_RECORD, resolved_path=_REPO_RESOLVED_PATH),
+    render_expectations=["blueprint", "test-blueprint", "repo", ".worktree/catalog/blueprints/test-blueprint.yml"],
+)
+
+CREATED_USER_BLUEPRINT = FormatterCase(
+    data=CatalogCreateResult(item=_USER_RECORD, resolved_path=_USER_RESOLVED_PATH),
+    view=CatalogCreateResult(item=_USER_RECORD, resolved_path=_USER_RESOLVED_PATH),
+    render_expectations=["blueprint", "user-blueprint", "user", str(_USER_RESOLVED_PATH)],
 )
 
 CREATION_ERROR = FormatterCase(
@@ -48,6 +67,7 @@ CREATION_ERROR = FormatterCase(
 
 CATALOG_CREATE_CASES = [
     pytest.param(CREATED_BLUEPRINT, id="created_blueprint"),
+    pytest.param(CREATED_USER_BLUEPRINT, id="created_user_blueprint"),
     pytest.param(CREATION_ERROR, id="creation_error"),
 ]
 
@@ -69,8 +89,30 @@ CATALOG_CREATE_PAYLOAD_CASES = [
                 "checksum": "1234567890abcdef",
                 "tier": "repo",
             },
+            "resolved_path": str(_REPO_RESOLVED_PATH),
         },
         id="created_blueprint",
+    ),
+    pytest.param(
+        CREATED_USER_BLUEPRINT,
+        {
+            "errors": [],
+            "warnings": [],
+            "fixes": [],
+            "error_code": None,
+            "item": {
+                "key": "user-blueprint",
+                "sha": "blueprint_89abcde",
+                "item_type": "blueprint",
+                "name": "user-blueprint",
+                "namespace": None,
+                "path": "blueprints/user-blueprint.yml",
+                "checksum": "89abcdef01234567",
+                "tier": "user",
+            },
+            "resolved_path": str(_USER_RESOLVED_PATH),
+        },
+        id="created_user_blueprint",
     ),
     pytest.param(
         CREATION_ERROR,
@@ -80,6 +122,7 @@ CATALOG_CREATE_PAYLOAD_CASES = [
             "fixes": ["Choose a different name"],
             "error_code": None,
             "item": None,
+            "resolved_path": None,
         },
         id="creation_error",
     ),
