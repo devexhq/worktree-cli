@@ -261,32 +261,35 @@ class Step:
             return None
 
         base_definition = base_step.resolve(path=path, catalog=catalog) or base_step.instance
-        fields_set = self.instance.model_fields_set
+        return merge_uses_step(self.instance, base_definition)
 
-        def _pick(field_name: str) -> object:
-            return (
-                getattr(self.instance, field_name) if field_name in fields_set else getattr(base_definition, field_name)
-            )
 
-        try:
-            return StepDefinition.model_validate(
-                {
-                    "id": self.instance.id,
-                    "name": _pick("name"),
-                    "type": base_definition.type,
-                    "description": _pick("description"),
-                    "command": base_definition.command,
-                    "prompt": _pick("prompt"),
-                    "script_path": _pick("script_path"),
-                    "tools": _pick("tools"),
-                    "env": {**base_definition.env, **self.instance.env},
-                    "timeout_seconds": _pick("timeout_seconds"),
-                    "assert": _pick("assert_"),
-                    "on_failure": _pick("on_failure"),
-                }
-            )
-        except (ValidationError, ValueError):
-            return None
+def merge_uses_step(using: StepDefinition, base_definition: StepDefinition) -> StepDefinition | None:
+    """Merge a uses: step's explicitly-set fields onto a resolved base step definition, or None on validation failure."""
+    fields_set = using.model_fields_set
+
+    def _pick(field_name: str) -> object:
+        return getattr(using, field_name) if field_name in fields_set else getattr(base_definition, field_name)
+
+    try:
+        return StepDefinition.model_validate(
+            {
+                "id": using.id,
+                "name": _pick("name"),
+                "type": base_definition.type,
+                "description": _pick("description"),
+                "command": base_definition.command,
+                "prompt": _pick("prompt"),
+                "script_path": _pick("script_path"),
+                "tools": _pick("tools"),
+                "env": {**base_definition.env, **using.env},
+                "timeout_seconds": _pick("timeout_seconds"),
+                "assert": _pick("assert_"),
+                "on_failure": _pick("on_failure"),
+            }
+        )
+    except (ValidationError, ValueError):
+        return None
 
 
 def resolve_step_definition(

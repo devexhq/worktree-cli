@@ -41,6 +41,7 @@ Comprehensive reference for the shape of entities across the Worktree CLI codeba
   - `EngineRuntimeError`: Execution runtime error.
   - `EngineInputError`: Input resolution failure before run creation.
   - `EngineResumeError`: Incompatible or invalid run state during resume.
+  - `EngineSnapshotMissingError`: A `run.json` `definitions` manifest references a session snapshot file that is missing from disk at resume time.
 - **Git** (`core/git/exceptions.py`):
   - `GitError`: Base Git failure.
   - `GitCommandError`: Non-zero exit code from git subprocess.
@@ -122,7 +123,10 @@ All operations that can fail return a Pydantic result object subclassing `BaseRe
 - `RunCheckpoint`: JSON-serializable state for paused runs (`sandbox_path`, `sandbox_id`, `sandbox_branch`, `use_sandbox`, `keep`, `agent`, `inputs`, `pending_step_id`, `pending_result`, `diagnostic`, `next_step_index`).
 - `RunRequest`: Facade execution parameters for `Engine.run` (`inputs`, `cli_args`, `use_sandbox`, `keep`, `agent`, `session_id`, `observer`, `failure_prompter`, `no_tty`).
 - `ResumableRun`: Non-raising inspector and loader for paused runs.
-- `EngineResumeStatus`: `StrEnum` (`ok`, `not_found`, `wrong_status`, `missing_sandbox`, `corrupt_checkpoint`, `failed`).
+- `EngineResumeStatus`: `StrEnum` (`ok`, `not_found`, `wrong_status`, `missing_sandbox`, `corrupt_checkpoint`, `missing_snapshot`, `failed`).
+- `SessionRunPayload`: Persisted `run.json` execution results and telemetry for a session (`version`, `session_id`, `name`, `status`, `started_at`, `completed_at`, `error_message`, `step_results`, `definitions`). Written via `write_session_run_json` / read via `load_session_run` (`core/engine/writer.py`).
+- `DefinitionRef`: One snapshotted catalog item's resolved reference, content SHA, and resolution timestamp (`ref`, `sha`, `resolved_at`); `ref` is `"<tier>:<item_type>:<key>"`.
+- `DefinitionsManifest`: The blueprint's `DefinitionRef` plus a `DefinitionRef` per transitively-resolved `uses:` step (`blueprint`, `steps`), snapshotted by `Engine.run` into `<session_dir>/definitions/` and consumed by `ResumableRun`/`load_blueprint_from_snapshot` to resume without a live catalog read.
 
 ### Agent Provider Models
 **Relevant sources:** `src/worktree/core/agents/models.py`, `src/worktree/core/agents/cli_mutation.py`.

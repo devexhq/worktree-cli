@@ -1,4 +1,4 @@
-"""Contract tests for Engine.resume(): checkpoint-driven context rebuild, DB finalize, error propagation."""
+"""Contract tests for Engine.run()/resume(): context rebuild, definitions snapshotting, DB finalize, error propagation."""
 
 from __future__ import annotations
 
@@ -10,12 +10,15 @@ from unittest.mock import MagicMock
 import pytest
 
 from tests.harness.builders import BlueprintBuilder, StepBuilder, WorkspaceBuilder
+from tests.harness.catalog import write_runnable_blueprint, write_runnable_step
 from worktree.common.models import FailurePolicy, OnFailureSpec
 from worktree.core.blueprint import Blueprint
 from worktree.core.catalog import Catalog
 from worktree.core.config.models import ConfigTier
 from worktree.core.db import RunsRepository, RunStatus
-from worktree.core.engine import Engine, EngineResumeError, EngineResumeStatus
+from worktree.core.engine import Engine, EngineResumeError, EngineResumeStatus, RunRequest
+from worktree.core.engine.models import DefinitionRef, DefinitionsManifest, SessionRunPayload
+from worktree.core.engine.writer import get_session_dir, load_session_run, write_session_run_json
 from worktree.core.runtime import ExecutionIdentity, RunCheckpoint, RunContext, RunOutcome
 from worktree.core.step.models import LoopStepBlock, StepDefinition
 
@@ -406,3 +409,95 @@ class EngineConfigResolutionTests:
         assert context.config is not None
         assert context.config.agent.model == "user-tier-model"
         assert context.config.sandbox.base_ref == "main"
+
+
+class EngineRunSnapshotsDefinitionsTests:
+    """[tier-1/unit] Engine.run: definitions snapshotting on run start."""
+
+    def test_run_writes_snapshot_files_and_populates_run_json_definitions(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """[tier-1/unit] Engine.run: a catalog-backed blueprint with one uses: step produces session_dir/definitions/<key>.yml, session_dir/definitions/steps/<step_key>.yml, and run.json's definitions manifest referencing both."""
+        workspace = WorkspaceBuilder(tmp_path / "workspace").with_database().build()
+        write_runnable_step(workspace, key="lint-check", definition={"id": "lint-check", "run": "echo lint"})
+        write_runnable_blueprint(workspace, key="snap-task", steps=[{"id": "s1", "uses": "lint-check"}])
+        catalog = Catalog(workspace)
+        blueprint = Blueprint.load("snap-task", catalog=catalog)
+        runs_repo = RunsRepository(workspace)
+        monkeypatch.setattr(
+            "worktree.core.engine.engine.run_steps",
+            lambda _context: RunOutcome(status=RunStatus.COMPLETED, sandbox_path=workspace),
+        )
+
+        outcome = Engine(workspace, db=runs_repo, catalog=catalog).run(
+            blueprint, RunRequest(session_id="snap-1", use_sandbox=False)
+        )
+
+        assert outcome.status == RunStatus.COMPLETED
+        session_dir = get_session_dir(workspace, "snap-1")
+        assert (session_dir / "definitions" / "snap-task.yml").is_file()
+        assert (session_dir / "definitions" / "steps" / "lint-check.yml").is_file()
+        payload = load_session_run(workspace, "snap-1")
+        assert payload is not None
+        assert payload.definitions is not None
+        assert payload.definitions.blueprint.ref == "repo:blueprint:snap-task"
+        assert [ref.ref for ref in payload.definitions.steps] == ["repo:step:lint-check"]
+
+    def test_run_blueprint_not_catalog_backed_leaves_definitions_none_and_still_completes(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """[tier-1/unit] Engine.run: an in-memory-only Blueprint (BlueprintBuilder, no catalog record) completes the run with RunOutcome.warnings naming the snapshot failure and run.json's definitions left None."""
+        workspace = WorkspaceBuilder(tmp_path / "workspace").with_database().build()
+        runs_repo = RunsRepository(workspace)
+        blueprint, _ = _task_blueprint()
+        monkeypatch.setattr(
+            "worktree.core.engine.engine.run_steps",
+            lambda _context: RunOutcome(status=RunStatus.COMPLETED, sandbox_path=workspace),
+        )
+
+        outcome = Engine(workspace, db=runs_repo, catalog=Catalog(workspace)).run(
+            blueprint, RunRequest(session_id="snap-2", use_sandbox=False)
+        )
+
+        assert outcome.status == RunStatus.COMPLETED
+        assert outcome.warnings == ["Failed to snapshot run definitions: blueprint 'lint' not found in catalog."]
+        payload = load_session_run(workspace, "snap-2")
+        assert payload is not None
+        assert payload.definitions is None
+
+
+class EngineResumePreservesDefinitionsTests:
+    """[tier-1/unit] Engine.resume: run.json rewritten after resume carries the same definitions manifest captured by the original Engine.run, not None."""
+
+    def test_resume_rewritten_run_json_keeps_original_definitions_manifest(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        workspace = WorkspaceBuilder(tmp_path / "workspace").with_database().build()
+        runs_repo = RunsRepository(workspace)
+        blueprint, _ = _task_blueprint()
+        checkpoint = _checkpoint()
+        _seed_paused_run(runs_repo, "task_defs", checkpoint)
+        manifest = DefinitionsManifest(
+            blueprint=DefinitionRef(ref="repo:blueprint:lint", sha="abc123", resolved_at="2026-09-25T19:04:00+00:00"),
+            steps=[],
+        )
+        write_session_run_json(
+            get_session_dir(workspace, "task_defs"),
+            SessionRunPayload(
+                session_id="task_defs",
+                name="lint",
+                status="paused",
+                started_at="2026-09-25T19:00:00+00:00",
+                definitions=manifest,
+            ),
+        )
+        monkeypatch.setattr(
+            "worktree.core.engine.engine.run_steps",
+            lambda _context: RunOutcome(status=RunStatus.COMPLETED, sandbox_path=workspace),
+        )
+
+        Engine(workspace, db=runs_repo, catalog=Catalog(workspace)).resume("task_defs", blueprint=blueprint)
+
+        payload = load_session_run(workspace, "task_defs")
+        assert payload is not None
+        assert payload.definitions == manifest

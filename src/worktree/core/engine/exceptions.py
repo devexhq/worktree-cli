@@ -1,5 +1,7 @@
 """Exceptions for the blueprint execution engine."""
 
+from pathlib import Path
+
 from worktree.core.engine.models import EngineResumeStatus
 from worktree.core.inputs import InputResolveResult
 
@@ -32,3 +34,11 @@ class EngineResumeError(EngineError):
     def __init__(self, status: EngineResumeStatus, message: str) -> None:
         self.status = status
         super().__init__(message)
+
+
+class EngineSnapshotMissingError(EngineError):
+    """Raised when a manifest-referenced session snapshot definition file is missing from disk."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        super().__init__(f"Snapshot definition file is missing: '{path}'.")

@@ -30,3 +30,17 @@ def write_runnable_blueprint(
     }
     blueprint_path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
     scan_and_index_catalog(repo_root=workspace)
+
+
+def write_runnable_step(
+    workspace: Path,
+    *,
+    key: str,
+    definition: dict[str, object],
+) -> None:
+    """Write a minimal step YAML under .worktree/catalog/steps/ and index it into the catalog DB."""
+    catalog_dir = ensure_catalog_dirs(workspace)
+    step_path = catalog_dir / "steps" / f"{key}.yml"
+    step_path.parent.mkdir(parents=True, exist_ok=True)
+    step_path.write_text(yaml.safe_dump(definition, sort_keys=False), encoding="utf-8")
+    scan_and_index_catalog(repo_root=workspace)

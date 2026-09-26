@@ -19,7 +19,7 @@ from worktree.core.step.models import (
     StepType,
 )
 from worktree.core.step.runner import StepExecution
-from worktree.core.step.step import Step, resolve_step_definition
+from worktree.core.step.step import Step, merge_uses_step, resolve_step_definition
 
 __all__ = [
     "DEFAULT_STEP_TIMEOUT_SECONDS",
@@ -41,5 +41,6 @@ __all__ = [
     "StepResult",
     "StepType",
     "StepValidationError",
+    "merge_uses_step",
     "resolve_step_definition",
 ]

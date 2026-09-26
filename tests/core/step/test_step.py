@@ -5,7 +5,14 @@ from pathlib import Path
 import pytest
 
 from worktree.core.project.services.identity import generate_project_identity, save_project_identity
-from worktree.core.step import Step, StepDefinition, StepType, StepValidationError, resolve_step_definition
+from worktree.core.step import (
+    Step,
+    StepDefinition,
+    StepType,
+    StepValidationError,
+    merge_uses_step,
+    resolve_step_definition,
+)
 
 
 def _persist_project_identity(root: Path) -> None:
@@ -151,3 +158,33 @@ class StepResolutionTests:
         """Malformed dictionary passed to resolve_step_definition raises StepValidationError."""
         with pytest.raises(StepValidationError, match="Step validation failed"):
             resolve_step_definition({"id": "bad", "timeout_seconds": "invalid-int"})
+
+
+class MergeUsesStepTests:
+    """Contract tests for merge_uses_step's field-overlay semantics."""
+
+    def test_merge_uses_step_overlays_only_explicitly_set_fields(self) -> None:
+        """merge_uses_step: a using-step with only name/env set inherits base command/type/timeout and overlays name plus merged env."""
+        base = StepDefinition(
+            id="base-step",
+            type=StepType.COMMAND,
+            command="echo base",
+            env={"BASE_VAR": "base", "SHARED_VAR": "base_val"},
+            timeout_seconds=60,
+        )
+        using = StepDefinition(
+            id="derived-step",
+            uses="base-step",
+            name="Derived Step Name",
+            env={"OVERRIDE_VAR": "derived", "SHARED_VAR": "overridden"},
+        )
+
+        merged = merge_uses_step(using, base)
+
+        assert merged is not None
+        assert merged.id == "derived-step"
+        assert merged.name == "Derived Step Name"
+        assert merged.type == StepType.COMMAND
+        assert merged.command == "echo base"
+        assert merged.timeout_seconds == 60
+        assert merged.env == {"BASE_VAR": "base", "SHARED_VAR": "overridden", "OVERRIDE_VAR": "derived"}
