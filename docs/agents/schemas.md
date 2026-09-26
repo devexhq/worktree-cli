@@ -112,7 +112,7 @@ All operations that can fail return a Pydantic result object subclassing `BaseRe
 - `FailurePolicy`: `StrEnum` (`abort`, `continue`, `prompt_user`, `retry`). Terminal policies exclude `retry`.
 - `FailureSpec`: Normalized failure policy (`action`, `max_retries`, `backoff_ms`, `on_max_retries`).
 - `LoopStepBlock`: Step container repeating `do: []` until `until` condition or `max_iterations` (`id`, `type="loop"`, `max_iterations`, `until`, `do`, `on_max_iterations`).
-- `StepResult`: Step execution outcome (`step_id`, `status`, `exit_code`, `stdout`, `stderr`, `duration_seconds`, `attempts`, `error_message`, `ok`).
+- `StepResult`: Step execution outcome (`step_id`, `status`, `exit_code`, `stdout`, `stderr`, `duration_seconds`, `attempts`, `error_message`, `outputs`, `ok`).
 - `AssertionResult`: Assertion evaluation outcome (`passed`, `failed_conditions`, `message`).
 
 ### Runtime & Process Engine Models

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -11,6 +12,7 @@ from worktree.core.config import ConfigLoadError
 from worktree.core.db import RunStatus, SandboxesRepository
 from worktree.core.diff.writer import get_session_dir, write_session_diff
 from worktree.core.git.runner import GitRunner
+from worktree.core.project.services.storage import resolve_project_filesystem_paths
 from worktree.core.runtime.exceptions import PromptUserInterruptedError
 from worktree.core.runtime.failure import (
     effective_terminal_policy,
@@ -365,6 +367,7 @@ def _execute_one_step(
                 identity=context.identity,
                 previous_step=previous_step,
                 steps=steps,
+                session_tmp_dir=state.session_tmp_dir,
             )
         ).run()
         _notify_step_done(context, idx, total, result)
@@ -497,6 +500,7 @@ def _dispatch_step(
             step_index=step_index + 1,
             identity=context.identity,
             resume_from=context.resume_from,
+            session_tmp_dir=state.session_tmp_dir,
         )
         return runner.run(state)
 
@@ -625,6 +629,31 @@ def _finalize_sandbox_cleanup(
     return _cleanup_sandbox(context, manager, session, target_dir)
 
 
+def _prepare_session_tmp_dir(context: RunContext, warnings: list[str]) -> Path | None:
+    """Resolve and create the session scratch directory tree, or warn and return None."""
+    if context.session_id is None:
+        return None
+    tmp_dir = resolve_project_filesystem_paths(context.cwd).tmp_dir
+    session_tmp_dir = tmp_dir / context.session_id
+    try:
+        (session_tmp_dir / "steps").mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        warnings.append(f"Failed to create session scratch directory: {exc}")
+        return None
+    return session_tmp_dir
+
+
+def _cleanup_session_tmp_dir(session_tmp_dir: Path | None, *, keep: bool, status: RunStatus) -> None:
+    """Best-effort delete of the session scratch directory on completed, unkept runs."""
+    if session_tmp_dir is None or keep or status != RunStatus.COMPLETED:
+        return
+    try:
+        shutil.rmtree(session_tmp_dir)
+    except OSError:
+        # Best-effort cleanup: scratch directory removal is independent of run outcome.
+        pass
+
+
 def run_steps(context: RunContext) -> RunOutcome:
     """Execute a sequence of steps under optional sandbox isolation and observer reporting.
 
@@ -646,7 +675,9 @@ def run_steps(context: RunContext) -> RunOutcome:
         )
 
     prior = list(context.resume_from.step_results) if context.resume_from is not None else []
-    state = StepLoopState(target_dir=target_dir, session=session, step_results=prior)
+    setup_warnings: list[str] = []
+    session_tmp_dir = _prepare_session_tmp_dir(context, setup_warnings)
+    state = StepLoopState(target_dir=target_dir, session=session, step_results=prior, session_tmp_dir=session_tmp_dir)
 
     status: RunStatus = RunStatus.FAILED
     step_results: list[StepResult] = []
@@ -655,6 +686,7 @@ def run_steps(context: RunContext) -> RunOutcome:
     apply_failed = False
     try:
         status, step_results, errors, warnings = _run_step_loop(context, state)
+        warnings = [*setup_warnings, *warnings]
         if status == RunStatus.COMPLETED:
             new_status, apply_failed = _handle_auto_apply(context, manager, session, errors, warnings)
             if new_status is not None:
@@ -663,6 +695,7 @@ def run_steps(context: RunContext) -> RunOutcome:
         process_registry.terminate_all(grace_seconds=0.5)
         _capture_and_persist_diff(context, session, warnings)
         sandbox_kept = _finalize_sandbox_cleanup(context, manager, session, target_dir, status, apply_failed)
+        _cleanup_session_tmp_dir(session_tmp_dir, keep=context.keep, status=status)
 
     return RunOutcome(
         status=status,

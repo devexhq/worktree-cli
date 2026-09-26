@@ -166,7 +166,11 @@ Every step execution receives the complete set of `WT_*` environment variables. 
 | `WT_PREVIOUS_STEP_INDEX` | `previous_step.index` | 1-based index of the previous step (empty on first step). |
 | `WT_PREVIOUS_STEP_STATUS` | `previous_step.status` | Recorded status of previous step (`completed`, `failed`, `ignored`). |
 | `WT_PREVIOUS_STEP_EXIT_CODE` | `previous_step.exit_code` | Decimal exit code of previous step (`0`, `1`, etc.; empty on first step). |
-| `WT_STEPS_JSON` | `steps` | JSON array of all finished step metadata objects in run order (`[]` when none finished yet). |
+| `WT_STEPS_JSON` | `steps` | JSON array of all finished step metadata objects in run order (`[]` when none finished yet); step outputs are never included here — use `{{ steps.<id>.outputs.<key> }}` instead. |
+| `WT_TEMP` | `tmp.session_dir` | Session scratch directory, shared across every step in the run (empty when no session ID is set). |
+| `WT_RUNNER_TEMP` | `tmp.session_dir` | Alias for `WT_TEMP`, for GitHub Actions parity. |
+| `WT_STEP_TEMP` | `tmp.step_dir` | Step-specific scratch subdirectory under `WT_TEMP`. |
+| `WT_OUTPUT` | `tmp.output_file` | Path to append `key=value` (or heredoc) lines that become this step's `outputs`. |
 
 ### Environment Precedence
 
@@ -186,6 +190,7 @@ Step fields (`run`, `command`, `prompt`, `script_path`, and `env`) can reference
   * `{{ steps[0].id }}`: First completed step ID
   * `{{ steps[-1].status }}`: Most recently finished step status (equivalent to `{{ previous_step.status }}`)
   * `{{ steps.build.exit_code }}`: Exit code of step with `id: build`
+  * `{{ steps.build.outputs.artifact_path }}` / `{{ steps['build'].outputs.artifact_path }}`: A specific output value step `build` wrote to `$WT_OUTPUT` (see [Step Outputs](#step-outputs-wt_output) below). An unknown step ID or output key resolves to an empty string.
   * Historical steps contain only completed/finished steps — the in-flight current step is never included in `steps`. Out-of-range indices or unknown step IDs resolve safely to an empty string.
 
 ```yaml
@@ -213,6 +218,38 @@ steps:
       echo "First step was {{ steps[0].id }} with status {{ steps[0].status }}"
       echo "Test step {{ steps.test-with-retry.id }} exit code: {{ steps.test-with-retry.exit_code }}"
       echo "Previous step {{ previous_step.id }} finished with status {{ steps[-1].status }}"
+```
+
+### Step Outputs (`$WT_OUTPUT`)
+
+A step can write `key=value` lines to the file at `$WT_OUTPUT` to expose values to later steps. Blank lines and lines starting with `#` are ignored, and a malformed line (missing `=`) is skipped with a warning rather than failing the step:
+
+```yaml
+steps:
+  - id: build
+    name: Build artifact
+    run: |
+      echo "artifact_path=dist/app.tar.gz" >> "$WT_OUTPUT"
+
+  - id: publish
+    name: Publish built artifact
+    run: echo "Publishing {{ steps.build.outputs.artifact_path }}"
+```
+
+For a value spanning multiple lines, use the heredoc form (mirrors GitHub Actions' `$GITHUB_OUTPUT`); everything between the `key<<DELIM` line and the matching `DELIM` terminator is captured verbatim and joined with newlines, so pick a delimiter unlikely to collide with the body itself:
+
+```yaml
+steps:
+  - id: changelog
+    name: Collect changelog entries
+    run: |
+      echo "entries<<CHANGELOG_EOF" >> "$WT_OUTPUT"
+      git log --oneline -5 >> "$WT_OUTPUT"
+      echo "CHANGELOG_EOF" >> "$WT_OUTPUT"
+
+  - id: notify
+    name: Print collected changelog
+    run: echo "{{ steps.changelog.outputs.entries }}"
 ```
 
 ---

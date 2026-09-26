@@ -88,7 +88,11 @@ Step executions receive structured runtime context through `WT_*` environment va
 | `WT_PREVIOUS_STEP_INDEX` | `previous_step.index` | 1-based index of immediately prior step (or empty) |
 | `WT_PREVIOUS_STEP_STATUS` | `previous_step.status` | Recorded status of immediately prior step (`completed`, `failed`, `ignored`, or empty) |
 | `WT_PREVIOUS_STEP_EXIT_CODE` | `previous_step.exit_code` | Decimal exit code of immediately prior step (or empty) |
-| `WT_STEPS_JSON` | `steps` | JSON array of finished step objects (`[{"id": "...", "name": "...", "index": "...", "status": "...", "exit_code": "..."}]`) |
+| `WT_STEPS_JSON` | `steps` | JSON array of finished step objects (`[{"id": "...", "name": "...", "index": "...", "status": "...", "exit_code": "..."}]`) — step outputs are never included here (see `outputs.<key>` interpolation below) |
+| `WT_TEMP` | `tmp.session_dir` | Session scratch directory, shared across all steps in the run (empty when no session ID is set) |
+| `WT_RUNNER_TEMP` | `tmp.session_dir` | Alias for `WT_TEMP`, for GitHub Actions parity |
+| `WT_STEP_TEMP` | `tmp.step_dir` | Step-specific scratch subdirectory under `WT_TEMP` |
+| `WT_OUTPUT` | `tmp.output_file` | Path to append `key=value` (or heredoc) lines that become this step's `outputs` |
 
 ### Interpolation Paths
 
@@ -100,7 +104,29 @@ Step executions receive structured runtime context through `WT_*` environment va
   - `{{ steps[-1].<field> }}`: Python-style negative index (`-1` is the last finished step; matches `previous_step`).
   - `{{ steps.<id>.<field> }}` / `{{ steps['<id>'].<field> }}`: Keyed access by completed step ID.
   - Valid historical fields: `id`, `name`, `index` (1-based ordinal), `status`, `exit_code`.
+  - `{{ steps.<id>.outputs.<key> }}` / `{{ steps['<id>'].outputs.<key> }}`: A specific output value a completed step wrote to `$WT_OUTPUT`. An unknown step ID or output key resolves to an empty string.
   - The in-flight current step is never present in `steps`. Out-of-range indices or unknown step IDs safely resolve to empty strings.
+
+### Step Outputs (`$WT_OUTPUT`)
+
+A step can write `key=value` lines to the file at `$WT_OUTPUT` to expose values to later steps:
+
+```bash
+echo "greeting=hello" >> "$WT_OUTPUT"
+```
+
+Blank lines and lines starting with `#` are ignored. A line missing `=` is skipped with a warning rather than failing the step. `$WT_OUTPUT` is truncated before each attempt, so only the final attempt's writes are kept.
+
+For a multi-line value, use the heredoc form (mirrors GitHub Actions' `$GITHUB_OUTPUT`):
+
+```bash
+echo "body<<EOF_random_delimiter" >> "$WT_OUTPUT"
+echo "line one" >> "$WT_OUTPUT"
+echo "line two" >> "$WT_OUTPUT"
+echo "EOF_random_delimiter" >> "$WT_OUTPUT"
+```
+
+Everything between the opening `key<<DELIM` line and the matching `DELIM` terminator line is captured verbatim (no `#`/blank-line/`=` handling applied inside the block) and joined with `\n`. Choose a delimiter unlikely to appear in the body itself, such as a random or UUID string — the parser treats any body line that exactly matches the delimiter as the terminator, with no escape mechanism. A heredoc missing its terminator drops the key and records a warning rather than failing the step.
 
 ### Precedence
 1. Explicit step `env` key

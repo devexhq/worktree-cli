@@ -77,13 +77,13 @@ common/  ->  core/project/  ->  core/{db,git,sandbox,catalog,inputs,patch,histor
 ```
 
 - `common/` never depends on `core/` or `cli/`.
-- `core/project/` depends only on `common/`; `core/db/`, `core/diff/`, `core/engine/`, `core/sandbox/`, and `core/doctor/` may resolve project identity via `core/project/services/storage`.
+- `core/project/` depends only on `common/`; `core/db/`, `core/diff/`, `core/engine/`, `core/sandbox/`, `core/doctor/`, and `core/runtime/` may resolve project identity via `core/project/services/storage`.
 - `core/` and `common/` never import `cli/` or `rich`. All terminal rendering is driven through `ui_dispatcher.dispatch(result)`.
 - `core/inputs/` must not import `step`, `runtime`, `agents`, or `patch`.
 - `core/patch/` must not import `agents`, `step`, or `runtime`.
 - `core/agents/` may use `patch/` and `config/`; must not import `step` or `runtime`.
 - `core/step/` must not import `runtime`.
-- `core/runtime/` may use `step/`, `db/`, `sandbox/`; must not import `blueprint/`, `engine/`, or `cli/`.
+- `core/runtime/` may use `step/`, `db/`, `sandbox/`, `project/`; must not import `blueprint/`, `engine/`, or `cli/`.
 - `core/blueprint/` may use `catalog/`, `inputs/`, `step/`; must not import `runtime/`, `engine/`, or `cli/`.
 - `core/engine/` may use `runtime/`, `blueprint/`, `db/`; must not import `cli/`.
 - `cli/` may import `core/` and `common/`; lower layers never import `cli/`.
