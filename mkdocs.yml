@@ -56,7 +56,6 @@ nav:
       - Resume (wt resume): cli/resume.md
       - History (wt history): cli/history.md
       - Sandbox (wt sandbox): cli/sandbox.md
-      - Catalog (wt catalog): cli/catalog.md
 exclude_docs: |
   agents/*
   agents/**/*
