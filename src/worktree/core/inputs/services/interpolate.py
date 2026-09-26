@@ -9,6 +9,7 @@ _PLACEHOLDER_RE = re.compile(r"\$?\{\{\s*([^}]+?)\s*\}\}")
 _INTERPOLATED_FIELDS = ("command", "prompt", "script_path", "run")
 _STEP_ENTRY_FIELDS = {"id", "name", "index", "status", "exit_code"}
 _STEPS_BRACKET_RE = re.compile(r"^steps\s*\[\s*(['\"]?)(.*?)\1\s*\]\s*\.\s*([A-Za-z0-9_]+)$")
+_STEPS_OUTPUTS_BRACKET_RE = re.compile(r"^steps\s*\[\s*(['\"])(.*?)\1\s*\]\s*\.\s*outputs\s*\.\s*(.+)$")
 
 
 def _extract_iteration_index(meta: Any) -> str:
@@ -104,6 +105,31 @@ def _resolve_steps_placeholder(key: str, metadata: Any) -> tuple[bool, str]:
     return True, _resolve_step_entry_field(entry, field_name)
 
 
+def _parse_steps_outputs_selector(key: str) -> tuple[str, str] | None:
+    """Parse `steps.<id>.outputs.<key>` or `steps['<id>'].outputs.<key>` into (step_id, output_key)."""
+    bracket_match = _STEPS_OUTPUTS_BRACKET_RE.match(key)
+    if bracket_match:
+        return bracket_match.group(2), bracket_match.group(3)
+    if key.startswith("steps.") and ".outputs." in key:
+        remainder = key[len("steps.") :]
+        step_id, _, output_key = remainder.partition(".outputs.")
+        if step_id and output_key:
+            return step_id, output_key
+    return None
+
+
+def _resolve_step_outputs_placeholder(key: str, metadata: Any) -> tuple[bool, str]:
+    """Resolve steps.<id>.outputs.<key> to the step's output value, or "" when the step or key is unknown."""
+    parsed = _parse_steps_outputs_selector(key)
+    if parsed is None:
+        return False, ""
+    step_id, output_key = parsed
+    steps_list = getattr(metadata, "steps", None) or []
+    entry = _find_step_by_id(steps_list, step_id)
+    outputs = getattr(entry, "outputs", None) if entry is not None else None
+    return True, str((outputs or {}).get(output_key, ""))
+
+
 def _resolve_metadata_placeholder(key: str, metadata: Any) -> tuple[bool, str]:
     """Extract a placeholder value from execution metadata if matched."""
     extractor = _METADATA_EXTRACTORS.get(key)
@@ -113,6 +139,9 @@ def _resolve_metadata_placeholder(key: str, metadata: Any) -> tuple[bool, str]:
         except AttributeError:
             pass
     if key.startswith("steps[") or key.startswith("steps."):
+        found, value = _resolve_step_outputs_placeholder(key, metadata)
+        if found:
+            return True, value
         return _resolve_steps_placeholder(key, metadata)
     return False, ""
 

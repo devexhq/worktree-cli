@@ -115,6 +115,7 @@ class StepLoopState:
     target_dir: Path
     session: SandboxSession | None
     step_results: list[StepResult] = field(default_factory=list)
+    session_tmp_dir: Path | None = None
     warnings: list[str] = field(default_factory=list)
 
 

@@ -212,6 +212,7 @@ class PreviousStepMetadata(BaseModel):
     index: str = ""
     status: str = ""
     exit_code: str = ""
+    outputs: dict[str, str] = Field(default_factory=dict, exclude=True)
 
 
 class ExecutionIdentity(BaseModel):
@@ -231,6 +232,16 @@ class IterationMetadata(BaseModel):
     index: int = Field(default=1, ge=1)
 
 
+class TempMetadata(BaseModel):
+    """Execution metadata for session/step scratch directories and the step output file."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    session_dir: str = ""
+    step_dir: str = ""
+    output_file: str = ""
+
+
 class ExecutionMetadata(BaseModel):
     """Structured metadata exposed to step execution (env + interpolation)."""
 
@@ -241,6 +252,7 @@ class ExecutionMetadata(BaseModel):
     previous_step: PreviousStepMetadata = Field(default_factory=PreviousStepMetadata)
     steps: list[PreviousStepMetadata] = Field(default_factory=list)
     iteration: IterationMetadata = Field(default_factory=IterationMetadata)
+    tmp: TempMetadata = Field(default_factory=TempMetadata)
 
 
 class StepExecutionContext(BaseModel):
@@ -258,6 +270,7 @@ class StepExecutionContext(BaseModel):
     identity: ExecutionIdentity | None = None
     previous_step: PreviousStepMetadata | None = None
     steps: Sequence[PreviousStepMetadata] | None = None
+    session_tmp_dir: Path | None = None
 
 
 class StepDispatchOutcome(BaseModel):
@@ -284,6 +297,7 @@ class StepResult(BaseResult):
     duration_seconds: float
     attempts: int = 1
     error_message: str | None = None
+    outputs: dict[str, str] = Field(default_factory=dict)
 
     @property
     def ok(self) -> bool:

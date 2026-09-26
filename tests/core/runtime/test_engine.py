@@ -987,3 +987,158 @@ class RunStepsRobustnessTests:
             outcome.step_results,
             [_step_result("s1", status="completed", exit_code=0, stdout="change\n")],
         )
+
+
+class RunStepsSessionScratchDirectoryTests:
+    """[tier-1/integration] run_steps: session-scoped tmp directory lifecycle under the global storage root."""
+
+    def test_run_steps_creates_session_and_steps_scratch_directories_before_first_step_dispatches(
+        self, tmp_path: Path
+    ) -> None:
+        """[tier-1/integration] run_steps: with a session_id set, a step command asserting `[ -d "$WT_TEMP/steps" ]` exits 0, proving both directories exist before the step's own dispatch."""
+        context = RunContext(
+            steps=[StepBuilder.command('[ -d "$WT_TEMP/steps" ]').with_id("s1").build()],
+            cwd=tmp_path,
+            use_sandbox=False,
+            session_id="session-abc",
+        )
+
+        outcome = run_steps(context)
+
+        assert outcome.status == RunStatus.COMPLETED
+        _assert_step_results(outcome.step_results, [_step_result("s1", status="completed", exit_code=0)])
+
+    @pytest.mark.parametrize(
+        ("keep", "step_command", "expect_preserved"),
+        [
+            pytest.param(False, "exit 0", False, id="completed_no_keep_deletes"),
+            pytest.param(True, "exit 0", True, id="completed_keep_preserves"),
+            pytest.param(False, "exit 1", True, id="failed_preserves_regardless_of_keep"),
+        ],
+    )
+    def test_run_steps_session_scratch_directory_deleted_or_preserved_by_keep_and_final_status(
+        self, tmp_path: Path, keep: bool, step_command: str, expect_preserved: bool
+    ) -> None:
+        """[tier-1/integration] run_steps: tmp_dir/<session_id>/ existence after return equals expect_preserved for (keep, final RunOutcome.status) combinations completed+no-keep=deleted, completed+keep=preserved, failed=preserved."""
+        context = RunContext(
+            steps=[StepBuilder.command(step_command).with_id("s1").build()],
+            cwd=tmp_path,
+            use_sandbox=False,
+            keep=keep,
+            session_id="session-keep",
+        )
+
+        run_steps(context)
+
+        session_tmp_dir = resolve_project_filesystem_paths(tmp_path).tmp_dir / "session-keep"
+        assert session_tmp_dir.exists() is expect_preserved
+
+    def test_run_steps_skips_session_scratch_directory_when_context_session_id_is_none(self, tmp_path: Path) -> None:
+        """[tier-1/integration] run_steps: with RunContext.session_id left as the default None, no subdirectory is created anywhere under resolve_project_filesystem_paths(workspace).tmp_dir, and the step's command sees WT_TEMP as unset (empty string via `echo "[$WT_TEMP]"`)."""
+        context = RunContext(
+            steps=[StepBuilder.command('echo "[$WT_TEMP]"').with_id("s1").build()],
+            cwd=tmp_path,
+            use_sandbox=False,
+        )
+
+        outcome = run_steps(context)
+
+        assert outcome.status == RunStatus.COMPLETED
+        _assert_step_results(outcome.step_results, [_step_result("s1", status="completed", exit_code=0, stdout="[]\n")])
+        tmp_dir = resolve_project_filesystem_paths(tmp_path).tmp_dir
+        assert not tmp_dir.exists() or not any(tmp_dir.iterdir())
+
+
+class RunStepsResumeSessionScratchDirectoryTests:
+    """[tier-1/integration] run_steps via Engine.resume(): session scratch directory reuse and stale-output truncation across a pause/resume boundary."""
+
+    def test_resume_reuses_same_session_tmp_dir_as_the_paused_run(self, tmp_path: Path) -> None:
+        """[tier-1/integration] Engine.resume(): a run paused after step_a completes, then resumed with the same session_id, sees step_b's command assert `[ -f "$WT_TEMP/step_step_a.output" ]` exits 0 — step_a's scratch files from before the pause are still present under the resumed run's WT_TEMP, proving it is the same directory, not freshly created."""
+        session_id = "session-resume"
+        first_context = RunContext(
+            steps=[
+                StepBuilder.command('echo "marker=yes" >> "$WT_OUTPUT"').with_id("step_a").build(),
+                StepBuilder.command("exit 1").with_id("step_b").with_on_failure(FailurePolicy.ABORT).build(),
+            ],
+            cwd=tmp_path,
+            use_sandbox=False,
+            session_id=session_id,
+        )
+        first_outcome = run_steps(first_context)
+        assert first_outcome.status == RunStatus.FAILED
+
+        checkpoint = RunCheckpoint(
+            next_step_index=1,
+            step_results=[first_outcome.step_results[0]],
+            sandbox_path=str(tmp_path),
+            use_sandbox=False,
+            keep=False,
+            pending_step_id="step_b",
+            diagnostic="Step 'step_b' failed: Command failed with exit code 1.",
+            pending_result=first_outcome.step_results[1],
+        )
+        resume_context = RunContext(
+            steps=[
+                StepBuilder.command('echo "marker=yes" >> "$WT_OUTPUT"').with_id("step_a").build(),
+                StepBuilder.command('[ -f "$WT_TEMP/step_step_a.output" ]')
+                .with_id("step_b")
+                .with_on_failure(FailurePolicy.PROMPT_USER)
+                .build(),
+            ],
+            cwd=tmp_path,
+            use_sandbox=False,
+            session_id=session_id,
+            failure_prompter=_ScriptedFailurePrompter([FailurePromptDecision.RETRY]),
+            resume_from=checkpoint,
+        )
+
+        resumed_outcome = run_steps(resume_context)
+
+        assert resumed_outcome.status == RunStatus.COMPLETED
+        assert resumed_outcome.step_results[-1].exit_code == 0
+
+    def test_resume_truncates_stale_output_file_of_a_step_re_run_after_pause(self, tmp_path: Path) -> None:
+        """[tier-1/integration] Engine.resume(): a step that wrote 'stale=yes' to $WT_OUTPUT before the run was paused mid-attempt, then is re-run from scratch on resume and writes only 'fresh=yes', yields StepResult.outputs == {'fresh': 'yes'} for that step with no 'stale' key — the resumed attempt's truncation (FR-3) applies identically to a resumed step as to any ordinary retry attempt."""
+        session_id = "session-resume-truncate"
+        first_context = RunContext(
+            steps=[
+                StepBuilder.command('echo "stale=yes" >> "$WT_OUTPUT"; exit 1')
+                .with_id("step_a")
+                .with_on_failure(FailurePolicy.ABORT)
+                .build(),
+            ],
+            cwd=tmp_path,
+            use_sandbox=False,
+            session_id=session_id,
+        )
+        first_outcome = run_steps(first_context)
+        assert first_outcome.status == RunStatus.FAILED
+
+        checkpoint = RunCheckpoint(
+            next_step_index=0,
+            step_results=[],
+            sandbox_path=str(tmp_path),
+            use_sandbox=False,
+            keep=False,
+            pending_step_id="step_a",
+            diagnostic="Step 'step_a' failed: Command failed with exit code 1.",
+            pending_result=first_outcome.step_results[0],
+        )
+        resume_context = RunContext(
+            steps=[
+                StepBuilder.command('echo "fresh=yes" >> "$WT_OUTPUT"')
+                .with_id("step_a")
+                .with_on_failure(FailurePolicy.PROMPT_USER)
+                .build(),
+            ],
+            cwd=tmp_path,
+            use_sandbox=False,
+            session_id=session_id,
+            failure_prompter=_ScriptedFailurePrompter([FailurePromptDecision.RETRY]),
+            resume_from=checkpoint,
+        )
+
+        resumed_outcome = run_steps(resume_context)
+
+        assert resumed_outcome.status == RunStatus.COMPLETED
+        assert resumed_outcome.step_results[-1].outputs == {"fresh": "yes"}

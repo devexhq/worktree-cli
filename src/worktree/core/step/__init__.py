@@ -17,6 +17,7 @@ from worktree.core.step.models import (
     StepMetadata,
     StepResult,
     StepType,
+    TempMetadata,
 )
 from worktree.core.step.runner import StepExecution
 from worktree.core.step.step import Step, merge_uses_step, resolve_step_definition
@@ -41,6 +42,7 @@ __all__ = [
     "StepResult",
     "StepType",
     "StepValidationError",
+    "TempMetadata",
     "merge_uses_step",
     "resolve_step_definition",
 ]

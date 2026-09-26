@@ -226,3 +226,57 @@ class RunStepsMetadataPropagationTests:
             '"status": "completed", "exit_code": "0"}, {"id": "step_b", "name": "Step Beta", '
             '"index": "2", "status": "completed", "exit_code": "0"}]\n'
         )
+
+
+class RunStepsOutputsPropagationTests:
+    """[tier-1/integration] run_steps: a step's $WT_OUTPUT is readable by a later step via ${{ steps.<id>.outputs.<key> }}."""
+
+    def test_run_steps_downstream_step_reads_upstream_step_output_via_dot_outputs_placeholder(
+        self, tmp_path: Path
+    ) -> None:
+        """[tier-1/integration] run_steps: step_a runs `echo "greeting=hello" >> "$WT_OUTPUT"`; step_b's command '{{ steps.step_a.outputs.greeting }}' interpolates to 'hello' before dispatch, so step_b's stdout contains 'hello'."""
+        context = RunContext(
+            steps=[
+                StepDefinition(
+                    id="step_a",
+                    type=StepType.COMMAND,
+                    command='echo "greeting=hello" >> "$WT_OUTPUT"',
+                ),
+                StepDefinition(
+                    id="step_b",
+                    type=StepType.COMMAND,
+                    command='echo "{{ steps.step_a.outputs.greeting }}"',
+                ),
+            ],
+            cwd=tmp_path,
+            use_sandbox=False,
+            session_id="session-outputs",
+        )
+
+        outcome = run_steps(context)
+
+        assert outcome.status == RunStatus.COMPLETED
+        assert outcome.step_results[1].stdout == "hello\n"
+
+    def test_run_steps_downstream_step_output_reference_to_unknown_key_resolves_empty_string(
+        self, tmp_path: Path
+    ) -> None:
+        """[tier-1/integration] run_steps: step_a writes no output; step_b's command echoing '[{{ steps.step_a.outputs.missing }}]' produces stdout '[]\\n'."""
+        context = RunContext(
+            steps=[
+                StepDefinition(id="step_a", type=StepType.COMMAND, command="echo done"),
+                StepDefinition(
+                    id="step_b",
+                    type=StepType.COMMAND,
+                    command='echo "[{{ steps.step_a.outputs.missing }}]"',
+                ),
+            ],
+            cwd=tmp_path,
+            use_sandbox=False,
+            session_id="session-outputs-missing",
+        )
+
+        outcome = run_steps(context)
+
+        assert outcome.status == RunStatus.COMPLETED
+        assert outcome.step_results[1].stdout == "[]\n"

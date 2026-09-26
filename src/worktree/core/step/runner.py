@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -29,7 +30,11 @@ from worktree.core.step.models import (
     StepResult,
     StepType,
 )
-from worktree.core.step.services.metadata import build_execution_metadata, metadata_to_env
+from worktree.core.step.services.metadata import (
+    build_execution_metadata,
+    metadata_to_env,
+    resolve_step_temp_paths,
+)
 
 from .step import Step
 
@@ -58,6 +63,63 @@ def _int_from_context_or_default(context: dict[str, Any], key: str, default: int
     return int(context[key])
 
 
+_HEREDOC_START_RE = re.compile(r"^([^=<\s]+)<<(.+)$")
+
+
+def _consume_heredoc_block(lines: list[str], start: int, delimiter: str) -> tuple[int, str | None, bool]:
+    """Consume raw lines from start until the delimiter line; return (next_index, joined_value, unterminated)."""
+    body: list[str] = []
+    i = start
+    while i < len(lines):
+        if lines[i] == delimiter:
+            return i + 1, "\n".join(body), False
+        body.append(lines[i])
+        i += 1
+    return i, None, True
+
+
+def _parse_step_output_line(stripped: str) -> tuple[str, str] | None:
+    """Parse a plain KEY=VALUE line, or return None when malformed (missing '=')."""
+    if "=" not in stripped:
+        return None
+    key, _, value = stripped.partition("=")
+    return key, value
+
+
+def _handle_heredoc_line(
+    lines: list[str],
+    i: int,
+    heredoc_match: re.Match[str],
+    outputs: dict[str, str],
+    warnings: list[str],
+) -> int:
+    """Consume a heredoc block starting at i, recording its value or an unterminated-block warning."""
+    key, delimiter = heredoc_match.group(1), heredoc_match.group(2)
+    next_i, value, unterminated = _consume_heredoc_block(lines, i + 1, delimiter)
+    if unterminated:
+        warnings.append(f"Malformed step output heredoc, missing terminator {delimiter!r} for key {key!r}")
+    else:
+        outputs[key] = value or ""
+    return next_i
+
+
+def _process_step_output_line(lines: list[str], i: int, outputs: dict[str, str], warnings: list[str]) -> int:
+    """Process one output-file line (or heredoc block) starting at i; return the next index."""
+    stripped = lines[i].strip()
+    if not stripped or stripped.startswith("#"):
+        return i + 1
+    heredoc_match = _HEREDOC_START_RE.match(stripped)
+    if heredoc_match:
+        return _handle_heredoc_line(lines, i, heredoc_match, outputs, warnings)
+    parsed = _parse_step_output_line(stripped)
+    if parsed is None:
+        warnings.append(f"Malformed step output line, missing '=': {stripped!r}")
+        return i + 1
+    key, value = parsed
+    outputs[key] = value
+    return i + 1
+
+
 class StepExecution:
     """Synchronous executor for a single StepDefinition within a sandbox directory."""
 
@@ -75,6 +137,9 @@ class StepExecution:
         self.previous_step = (
             metadata.previous_step or self.context.get("previous_step") or (self.steps[-1] if self.steps else None)
         )
+        self.session_tmp_dir = metadata.session_tmp_dir
+        self.step_scratch_dir: Path | None = None
+        self.output_file: Path | None = None
         self.max_attempts = 1
         self._uninterpolated_step: Step = Step(instance=metadata.step)
 
@@ -91,10 +156,19 @@ class StepExecution:
         start_time = time.monotonic()
         outcome = self._run_attempts()
         duration = time.monotonic() - start_time
+        outputs, output_warnings = self._collect_step_outputs()
 
         if outcome.status == "completed":
-            return _step_result(self.step.instance.id, outcome, duration, status="completed", exit_code=0)
-        return self._finalize_failure(outcome, duration)
+            return _step_result(
+                self.step.instance.id,
+                outcome,
+                duration,
+                status="completed",
+                exit_code=0,
+                outputs=outputs,
+                warnings=output_warnings,
+            )
+        return self._finalize_failure(outcome, duration, outputs=outputs, warnings=output_warnings)
 
     def _prepare(self) -> bool:
         """Resolve shorthand aliases and compute retry budget."""
@@ -109,6 +183,10 @@ class StepExecution:
             if self.step.instance.on_failure.action == FailurePolicy.RETRY
             else 1
         )
+        if self.session_tmp_dir is not None:
+            self.step_scratch_dir, self.output_file = resolve_step_temp_paths(
+                self.session_tmp_dir, self.step.instance.id
+            )
         return True
 
     def _run_attempts(self) -> StepDispatchOutcome:
@@ -125,6 +203,7 @@ class StepExecution:
                 identity=self.identity,
                 previous_step=self.previous_step,
                 steps=self.steps,
+                session_tmp_dir=self.session_tmp_dir,
             )
             inputs = self.context.get("inputs")
             inputs_dict = inputs if isinstance(inputs, dict) else None
@@ -135,6 +214,7 @@ class StepExecution:
             )
             # Replace the step
             self.step = Step(instance=interpolated_step_definition)
+            self._reset_step_output_file()
             outcome = self._dispatch_primitive(metadata)
             outcome = outcome.model_copy(update={"attempts": attempt})
             outcome = self._apply_assertions(outcome)
@@ -378,14 +458,50 @@ class StepExecution:
             }
         )
 
-    def _finalize_failure(self, outcome: StepDispatchOutcome, duration: float) -> StepResult:
+    def _reset_step_output_file(self) -> None:
+        """Create the step scratch directory and truncate the step output file before dispatch."""
+        if self.step_scratch_dir is None or self.output_file is None:
+            return
+        self.step_scratch_dir.mkdir(parents=True, exist_ok=True)
+        self.output_file.write_text("", encoding="utf-8")
+
+    def _collect_step_outputs(self) -> tuple[dict[str, str], list[str]]:
+        """Parse KEY=VALUE and KEY<<DELIM heredoc lines from the step output file."""
+        if self.output_file is None or not self.output_file.exists():
+            return {}, []
+        outputs: dict[str, str] = {}
+        warnings: list[str] = []
+        lines = self.output_file.read_text(encoding="utf-8").splitlines()
+        i = 0
+        while i < len(lines):
+            i = _process_step_output_line(lines, i, outputs, warnings)
+        return outputs, warnings
+
+    def _finalize_failure(
+        self,
+        outcome: StepDispatchOutcome,
+        duration: float,
+        *,
+        outputs: dict[str, str],
+        warnings: list[str],
+    ) -> StepResult:
         """Apply the on_failure escalation once retries (if any) are exhausted."""
         on_failure = self._uninterpolated_step.instance.on_failure
         escalation = on_failure.on_max_retries if on_failure.action == FailurePolicy.RETRY else on_failure.action
 
         if escalation == FailurePolicy.CONTINUE:
-            return _step_result(self.step.instance.id, outcome, duration, status="ignored", exit_code=0)
-        return _step_result(self.step.instance.id, outcome, duration, status="failed")
+            return _step_result(
+                self.step.instance.id,
+                outcome,
+                duration,
+                status="ignored",
+                exit_code=0,
+                outputs=outputs,
+                warnings=warnings,
+            )
+        return _step_result(
+            self.step.instance.id, outcome, duration, status="failed", outputs=outputs, warnings=warnings
+        )
 
 
 def _resolve_script_invocation(script_file: Path) -> tuple[str | list[str], bool]:
@@ -406,6 +522,8 @@ def _step_result(
     *,
     status: str | None = None,
     exit_code: int | None = None,
+    outputs: dict[str, str] | None = None,
+    warnings: list[str] | None = None,
 ) -> StepResult:
     """Convert a StepDispatchOutcome into a finalized StepResult model."""
     return StepResult(
@@ -417,6 +535,8 @@ def _step_result(
         duration_seconds=duration,
         attempts=outcome.attempts,
         error_message=outcome.error_message,
+        outputs=outputs or {},
+        warnings=warnings or [],
     )
 
 

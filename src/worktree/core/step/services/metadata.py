@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Sequence
+from pathlib import Path
 
 from worktree.core.step.models import (
     BlueprintMetadata,
@@ -14,7 +15,21 @@ from worktree.core.step.models import (
     StepDefinition,
     StepMetadata,
     StepResult,
+    TempMetadata,
 )
+
+
+def resolve_step_temp_paths(session_tmp_dir: Path, step_id: str) -> tuple[Path, Path]:
+    """Compute the step scratch directory and step output file path rooted at session_tmp_dir."""
+    return session_tmp_dir / "steps" / step_id, session_tmp_dir / f"step_{step_id}.output"
+
+
+def _build_tmp_metadata(session_tmp_dir: Path | None, step_id: str) -> TempMetadata:
+    """Build TempMetadata paths rooted at session_tmp_dir, or empty when no scratch space exists."""
+    if session_tmp_dir is None:
+        return TempMetadata()
+    step_dir, output_file = resolve_step_temp_paths(session_tmp_dir, step_id)
+    return TempMetadata(session_dir=str(session_tmp_dir), step_dir=str(step_dir), output_file=str(output_file))
 
 
 def build_execution_metadata(
@@ -26,6 +41,7 @@ def build_execution_metadata(
     identity: ExecutionIdentity | None = None,
     previous_step: PreviousStepMetadata | None = None,
     steps: Sequence[PreviousStepMetadata] | None = None,
+    session_tmp_dir: Path | None = None,
 ) -> ExecutionMetadata:
     """Build structured execution metadata for a single step attempt."""
     step_metadata = StepMetadata(
@@ -53,12 +69,13 @@ def build_execution_metadata(
         previous_step=prior_metadata,
         steps=historical_steps,
         iteration=IterationMetadata(index=iteration_index),
+        tmp=_build_tmp_metadata(session_tmp_dir, step.id),
     )
 
 
 def metadata_to_env(metadata: ExecutionMetadata) -> dict[str, str]:
     """Format full WT_* process environment variable map."""
-    return {
+    env = {
         "WT_STEP_ID": metadata.step.id,
         "WT_STEP_NAME": metadata.step.name,
         "WT_STEP_INDEX": str(metadata.step.index),
@@ -73,6 +90,12 @@ def metadata_to_env(metadata: ExecutionMetadata) -> dict[str, str]:
         "WT_PREVIOUS_STEP_EXIT_CODE": metadata.previous_step.exit_code,
         "WT_STEPS_JSON": json.dumps([item.model_dump() for item in metadata.steps]),
     }
+    if metadata.tmp.session_dir:
+        env["WT_TEMP"] = metadata.tmp.session_dir
+        env["WT_RUNNER_TEMP"] = metadata.tmp.session_dir
+        env["WT_STEP_TEMP"] = metadata.tmp.step_dir
+        env["WT_OUTPUT"] = metadata.tmp.output_file
+    return env
 
 
 def previous_step_metadata_from_result(
@@ -88,4 +111,5 @@ def previous_step_metadata_from_result(
         index=str(step_index),
         status=result.status,
         exit_code=str(result.exit_code),
+        outputs=result.outputs,
     )

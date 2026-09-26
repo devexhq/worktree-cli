@@ -52,6 +52,7 @@ class LoopBlockRunner:
         step_index: int = 1,
         identity: ExecutionIdentity | None = None,
         resume_from: RunCheckpoint | None = None,
+        session_tmp_dir: Path | None = None,
     ) -> None:
         self.loop = loop
         self.sandbox_path = sandbox_path.resolve()
@@ -64,6 +65,7 @@ class LoopBlockRunner:
         self.step_index = step_index
         self.identity = identity
         self.resume_from = resume_from
+        self.session_tmp_dir = session_tmp_dir
 
     def _notify_start(self, max_iterations: int) -> None:
         """Notify observer that loop execution has started."""
@@ -178,6 +180,7 @@ class LoopBlockRunner:
                 iteration_index=turn,
                 identity=self.identity,
                 steps=historical_steps,
+                session_tmp_dir=self.session_tmp_dir,
             )
         )
         result = execution.run()
