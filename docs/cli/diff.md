@@ -12,7 +12,7 @@ wt diff [session_id] [OPTIONS]
 
 | Argument | Description |
 | --- | --- |
-| `session_id` | Optional session identifier (e.g. `sbx_a1b2c3d4`). If omitted, displays the latest session diff. |
+| `session_id` | Optional session identifier (e.g. `blueprint_a1b2c3d4`). If omitted, displays the latest session diff. |
 
 ### Options
 
@@ -24,25 +24,24 @@ wt diff [session_id] [OPTIONS]
 
 ## Behavior
 
-1. **Initialization Gate**: Verifies that `.worktree/config.json` exists and is valid. If uninitialized, displays a **Worktree Not Initialized** error panel and exits with code `1`.
-2. **Session Resolution**:
+1. **Session Resolution**:
    - For a workspace with `.worktree/project.json`, sessions resolve below `WORKTREE_HOME/storage/projects/<project-id>/sessions/` (or `~/.worktree/storage/projects/<project-id>/sessions/` when `WORKTREE_HOME` is unset).
    - A workspace without a project identity retains the legacy `.worktree/sessions/` location.
    - When `session_id` is supplied: resolves that session's `diff.patch`.
    - When `session_id` is omitted: discovers the most recently modified session directory in the selected session store.
    - If no session exists: displays a **Session Not Found** error panel and exits with code `1`.
-3. **Artifact Loading**:
+2. **Artifact Loading**:
    - If `diff.patch` is missing: displays a **Diff Not Found** error panel and exits with code `1`.
    - If `diff.patch` is empty (0 bytes or whitespace-only): prints `No changes recorded for session <session_id>.` and exits with code `0`.
-4. **Rendering & Truncation**:
+3. **Rendering & Truncation**:
    - Interactive formatted output renders a header with the session ID and artifact path, followed by syntax-highlighted diff text.
    - In an interactive terminal (TTY), if formatted diff output exceeds 500 lines (and `--full` is not provided), output is truncated at line 500 followed by a dim notice banner with hints to view the complete diff, page with `less -R`, or view raw/artifact contents.
    - Passing `--full` renders all formatted lines without truncation.
    - Non-TTY stdout (e.g. piped to `cat` or redirected to a file) and `--raw` mode automatically bypass truncation limits.
    - When `--raw` is passed, outputs the exact patch content directly to stdout for redirection or piping into `git apply` / `patch`.
-5. **Exit Codes**:
+4. **Exit Codes**:
    - `0`: Diff successfully displayed, or empty diff.
-   - `1`: Uninitialized repository, session not found, diff artifact not found, or read failure.
+   - `1`: Session not found, diff artifact not found, or read failure.
 
 ## Examples
 
@@ -55,11 +54,11 @@ wt diff
 View diff for an explicit session ID:
 
 ```bash
-wt diff sbx_a1b2c3d4
+wt diff blueprint_a1b2c3d4
 ```
 
 Output raw patch text (useful for piping into `git apply` or saving to a file):
 
 ```bash
-wt diff sbx_a1b2c3d4 --raw > latest_fix.patch
+wt diff blueprint_a1b2c3d4 --raw > latest_fix.patch
 ```

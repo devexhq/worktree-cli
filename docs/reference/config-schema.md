@@ -13,14 +13,15 @@ This reference documents the complete JSON schema for `.worktree/config.json` (V
     "name": "my-project",
     "initialized_at": "2026-08-06T00:00:00Z"
   },
+  "ignore_global_root_error": false,
   "sandbox": {
     "base_ref": "HEAD",
     "max_active_sandboxes": 3,
     "default_timeout_seconds": 900
   },
   "agent": {
-    "provider": "gemini",
-    "model": "gemini-2.5-pro",
+    "provider": "local",
+    "model": null,
     "endpoint": null,
     "temperature": 0.2,
     "max_tokens": 4096
@@ -46,6 +47,9 @@ This reference documents the complete JSON schema for `.worktree/config.json` (V
   },
   "telemetry": {
     "enabled": false
+  },
+  "concurrency": {
+    "lock_timeout_seconds": 30.0
   }
 }
 ```
@@ -56,28 +60,29 @@ This reference documents the complete JSON schema for `.worktree/config.json` (V
 
 ### 1. Root
 * `version` *(integer, required)*: Must be integer `1`.
+* `ignore_global_root_error` *(boolean)*: Controls global-root validation behavior (default: `false`).
 
 ### 2. `project`
 * `name` *(string)*: Project identifier. Defaults to directory name or `"unnamed_project"`.
-* `initialized_at` *(string \| null)*: ISO 8601 creation timestamp.
+* `initialized_at` *(string \| null)*: Unrestricted creation-timestamp string or `null`; the schema does not validate ISO 8601 format.
 
 ### 3. `sandbox`
 * `base_ref` *(string)*: Base Git reference to branch from (default: `"HEAD"`).
 * `max_active_sandboxes` *(integer)*: Maximum allowed concurrent sandboxes (default: `3`).
-* `default_timeout_seconds` *(integer)*: Sandbox timeout ceiling in seconds (default: `900`).
+* `default_timeout_seconds` *(integer)*: Accepted sandbox timeout setting (default: `900`); the current runtime does not consume it.
 
 ### 4. `agent`
-* `provider` *(string)*: Agent provider: `local`, `ollama`, `cursor`, `gemini`, `copilot`, `openai`, `anthropic`, `azure_openai`, `custom`.
-* `model` *(string \| null)*: Target LLM model name.
+* `provider` *(string)*: Schema-accepted value: `local`, `ollama`, `cursor`, `gemini`, `copilot`, `openai`, `anthropic`, `azure_openai`, or `custom`. Runtime adapters are only `local`, `ollama`, `cursor`, `gemini`, and `copilot`.
+* `model` *(string \| null)*: Agent model metadata (default: `null`).
 * `endpoint` *(string \| null)*: Custom API endpoint URL (e.g. for Ollama).
 * `temperature` *(number)*: Sampling temperature (default: `0.2`).
 * `max_tokens` *(integer)*: Maximum generation tokens (default: `4096`).
 
 ### 5. `history`
-* `save_attempt_logs` *(boolean)*: Record individual step attempt outputs (default: `true`).
-* `save_agent_payloads` *(boolean)*: Record LLM prompts and responses (default: `true`).
-* `save_final_diff` *(boolean)*: Record git diffs on session completion (default: `true`).
-* `max_sessions` *(integer)*: Maximum historical sessions to retain (default: `1000`).
+* `save_attempt_logs` *(boolean)*: Accepted history setting (default: `true`); currently stored but not applied as a runtime switch.
+* `save_agent_payloads` *(boolean)*: Accepted history setting (default: `true`); currently stored but not applied as a runtime switch.
+* `save_final_diff` *(boolean)*: Accepted history setting (default: `true`); currently stored but not applied as a runtime switch.
+* `max_sessions` *(integer)*: Accepted history retention setting (default: `1000`); currently stored but not applied as a retention limit.
 
 ### 6. `doctor`
 * `check_git` *(boolean)*: Verify Git binary presence and repository state (default: `true`).
@@ -87,10 +92,13 @@ This reference documents the complete JSON schema for `.worktree/config.json` (V
 * `check_required_binaries` *(boolean)*: Verify required tool binaries (default: `true`).
 
 ### 7. `prune`
-* `remove_stale_worktrees` *(boolean)*: Prune dead worktrees during cleanup (default: `true`).
-* `remove_orphaned_sandboxes` *(boolean)*: Delete unindexed sandbox directories (default: `true`).
-* `remove_expired_artifacts` *(boolean)*: Delete artifacts past TTL (default: `false`).
-* `artifact_ttl_days` *(integer)*: Artifact retention window in days (default: `30`).
+* `remove_stale_worktrees` *(boolean)*: Accepted prune setting (default: `true`); currently stored but not applied as an automatic runtime policy.
+* `remove_orphaned_sandboxes` *(boolean)*: Accepted prune setting (default: `true`); currently stored but not applied as an automatic runtime policy.
+* `remove_expired_artifacts` *(boolean)*: Accepted prune setting (default: `false`); currently stored but not applied as an automatic runtime policy.
+* `artifact_ttl_days` *(integer)*: Accepted artifact retention setting (default: `30`); currently stored but not applied as an automatic runtime policy.
 
 ### 8. `telemetry`
-* `enabled` *(boolean)*: Anonymous telemetry collection flag (default: `false`).
+* `enabled` *(boolean)*: Accepted telemetry setting (default: `false`); currently stored but not applied as a runtime switch.
+
+### 9. `concurrency`
+* `lock_timeout_seconds` *(number)*: Lock-acquisition timeout in seconds (default: `30.0`).

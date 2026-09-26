@@ -1,6 +1,6 @@
 # Installation
 
-Worktree CLI (`wt`) can be installed using Python package managers or system installers.
+Worktree CLI (`wt`) can be installed using Python package managers.
 
 ## Recommended Installation
 
@@ -52,5 +52,5 @@ wt --version
 Output:
 
 ```text
-wt version 0.1.1
+wt version <installed-version>
 ```

@@ -16,10 +16,12 @@ This provisions the local `.worktree/` directory structure:
 
 ```text
 .worktree/
+├── .gitignore          # Local state exclusions
+├── .meta/              # Catalog metadata
 ├── config.json         # Workspace configuration settings
+├── project.json        # Project identity
 └── catalog/            # Project blueprint definitions
-    ├── workflows/
-    ├── tasks/
+    ├── blueprints/
     └── steps/
 ```
 
@@ -40,7 +42,7 @@ wt init --overwrite
 
 ## Workspace Status (`wt status`)
 
-Inspect the current workspace status, database health, tracked sandboxes, and active sessions:
+Inspect workspace health, configuration, catalog, sandboxes, and recorded sessions:
 
 ```bash
 wt status
@@ -49,7 +51,7 @@ wt status
 Output includes:
 * Project configuration validation status.
 * Database path and session record counts.
-* Active and historical Git worktree sandboxes (`wt/` branches).
+* Active Git worktree sandboxes (`worktree/sandbox-*` branches).
 
 ---
 
@@ -100,14 +102,15 @@ Below is the canonical `.worktree/config.json` structure:
     "name": "my-project",
     "initialized_at": "2026-08-06T00:00:00Z"
   },
+  "ignore_global_root_error": false,
   "sandbox": {
     "base_ref": "HEAD",
     "max_active_sandboxes": 3,
     "default_timeout_seconds": 900
   },
   "agent": {
-    "provider": "gemini",
-    "model": "gemini-2.5-pro",
+    "provider": "local",
+    "model": null,
     "endpoint": null,
     "temperature": 0.2,
     "max_tokens": 4096
@@ -133,6 +136,9 @@ Below is the canonical `.worktree/config.json` structure:
   },
   "telemetry": {
     "enabled": false
+  },
+  "concurrency": {
+    "lock_timeout_seconds": 30.0
   }
 }
 ```
@@ -143,17 +149,11 @@ For full details on each field and validation rule, see the [Project Config Sche
 
 ## API Keys & Environment Setup
 
-Worktree supports multiple LLM agent providers: `gemini`, `openai`, `anthropic`, `cursor`, `copilot`, `ollama`, and `local`. Environment variables supply provider credentials:
+The configuration schema accepts `local`, `ollama`, `cursor`, `gemini`, `copilot`, `openai`, `anthropic`, `azure_openai`, and `custom`. Runtime adapter selection supports only `local`, `ollama`, `cursor`, `gemini`, and `copilot`; agent steps currently select an adapter and record a placeholder result rather than invoking a provider. Credentials can be checked by `wt doctor`, but setting them does not enable provider execution.
 
 ```bash
 # Gemini Provider
 export GEMINI_API_KEY="AIzaSy..."
-
-# OpenAI Provider
-export OPENAI_API_KEY="sk-..."
-
-# Anthropic Provider
-export ANTHROPIC_API_KEY="sk-ant-..."
 
 # GitHub Copilot Provider
 export GITHUB_TOKEN="ghp_..."
@@ -167,4 +167,4 @@ export OLLAMA_HOST="http://localhost:11434"
 
 For persistent environment setup, save provider credentials to your local shell profile (`.bashrc` / `.zshrc`) or local `.env` file (ensure `.env` is listed in `.gitignore`).
 
-For detailed configuration of each provider, see the [AI Agent Providers Guide](../guides/agent-providers.md).
+For the runtime adapter distinction and current limitation, see the [AI Agent Providers Guide](../guides/agent-providers.md).

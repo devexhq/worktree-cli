@@ -1,6 +1,6 @@
 # Working with Steps
 
-Steps are the fundamental building blocks of Worktree blueprints. A step executes an isolated operation—such as invoking a shell command, prompting an AI agent to edit files, or executing a custom script.
+Steps are the fundamental building blocks of Worktree blueprints. A step executes a shell command or script, resolves a reusable catalog step, or records an agent-step placeholder result.
 
 ---
 
@@ -52,18 +52,13 @@ steps:
 ```
 
 #### Curated Built-in Steps (`wt/*`)
-Worktree ships with curated step templates under `wt/`:
-* `wt/git-sync-base`: Syncs the worktree branch with the base branch.
-* `wt/ai-planner`: Prompts an AI agent to analyze an issue and produce an implementation plan.
-* `wt/ai-code-patcher`: Directs an AI agent to implement changes and apply code patches in the sandbox.
-* `wt/run-tests`: Runs the test suite and captures assertion outputs.
-* `wt/ai-reviewer`: Prompts an AI reviewer to evaluate changes against requirements.
+Worktree can provide curated step templates under `wt/`. Inspect the checked-out catalog before relying on a particular template; an agent step still records only a placeholder result.
 
 ---
 
 ### 3. Explicit Inline Steps (`type:`)
 
-For advanced step configuration (such as AI agent interactions or custom scripts), use explicit `type:` primitives:
+For advanced step configuration, use explicit `type:` primitives:
 
 #### A. Command Step (`type: command`)
 Executes a shell command with custom timeouts and environment variables:
@@ -79,7 +74,7 @@ Executes a shell command with custom timeouts and environment variables:
 ```
 
 #### B. Agent Step (`type: agent`)
-Directs an AI agent to inspect, modify, or generate code within the isolated sandbox:
+Selects an adapter and records a completed placeholder result. It does not invoke a provider, enable listed tools, inspect files, or modify the sandbox. `tools` is accepted metadata with no execution effect:
 
 ```yaml
 - id: fix-bug
@@ -122,9 +117,9 @@ Every step can be configured with the following properties:
 
 ---
 
-## Loop Step Blocks (Workflows Only)
+## Loop Step Blocks
 
-Workflows support iterative loops using `type: loop`. Loops repeat a series of nested steps until a condition is met or `max_iterations` is reached:
+Generic blueprints support iterative loops using `type: loop`. Loops repeat a series of nested steps until a condition is met or `max_iterations` is reached:
 
 ```yaml
 steps:
@@ -136,8 +131,9 @@ steps:
       - steps.step_pytest_verify.exit_code == 0
     on_max_iterations: prompt_user
     do:
-      - id: ai-code-patcher
-        uses: wt/ai-code-patcher
+      - id: record-agent-placeholder
+        type: agent
+        prompt: "Record a placeholder result for this test run."
 
       - id: step_pytest_verify
         name: Verify test suite
@@ -162,10 +158,9 @@ Every step execution receives the complete set of `WT_*` environment variables. 
 | `WT_STEP_NAME` | `step.name` | Display name of the current step (empty if unset). |
 | `WT_STEP_INDEX` | `step.index` | 1-based index of this step in the run sequence. |
 | `WT_STEP_ATTEMPT` | `step.attempt` | 1-based attempt counter (increments on retries and prompt resume). |
-| `WT_TASK_NAME` | `task.name` | Name of parent task blueprint (empty if unset or not a task). |
-| `WT_TASK_SHA` | `task.sha` | Task run session ID (empty if unknown). |
-| `WT_WORKFLOW_NAME` | `workflow.name` | Name of parent workflow blueprint (empty if unset or not a workflow). |
-| `WT_WORKFLOW_SHA` | `workflow.sha` | Workflow run session ID (empty if unknown). |
+| `WT_ITERATION_INDEX` | `iteration.index` | 1-based loop iteration index. |
+| `WT_BLUEPRINT_NAME` | `blueprint.name` | Name of the parent blueprint (empty if unknown). |
+| `WT_BLUEPRINT_SHA` | `blueprint.sha` | Catalog key of the parent blueprint (empty if unknown). |
 | `WT_PREVIOUS_STEP_ID` | `previous_step.id` | ID of the immediately prior completed step (empty on first step). |
 | `WT_PREVIOUS_STEP_NAME` | `previous_step.name` | Name of the immediately prior completed step (empty if unset). |
 | `WT_PREVIOUS_STEP_INDEX` | `previous_step.index` | 1-based index of the previous step (empty on first step). |
@@ -185,7 +180,7 @@ When resolving environment variables for step execution:
 Step fields (`run`, `command`, `prompt`, `script_path`, and `env`) can reference execution metadata using `{{ <namespace>.<field> }}` or `${{ <namespace>.<field> }}` syntax:
 
 * **Current Step**: `{{ step.id }}`, `{{ step.name }}`, `{{ step.index }}`, `{{ step.attempt }}`
-* **Task / Workflow**: `{{ task.name }}`, `{{ task.sha }}`, `{{ workflow.name }}`, `{{ workflow.sha }}`
+* **Blueprint**: `{{ blueprint.name }}`, `{{ blueprint.sha }}`. `task.*` and `workflow.*` are legacy aliases; use `blueprint.*` in new documents.
 * **Immediate Previous Step**: `{{ previous_step.id }}`, `{{ previous_step.name }}`, `{{ previous_step.index }}`, `{{ previous_step.status }}`, `{{ previous_step.exit_code }}`
 * **Historical Steps (`steps`)**: Access any prior completed step by 0-based index (`steps[0]`), Python-style negative index (`steps[-1]`), or step ID (`steps.<id>` or `steps['<id>']`):
   * `{{ steps[0].id }}`: First completed step ID
