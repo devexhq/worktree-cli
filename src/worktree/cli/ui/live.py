@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 from collections import deque
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -14,7 +14,14 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from worktree.cli.ui.events import SandboxLifecycleEvent, StepDoneEvent, StepOutputEvent, StepStartEvent
+from worktree.cli.ui.events import (
+    LoopConditionView,
+    LoopLifecycleEvent,
+    SandboxLifecycleEvent,
+    StepDoneEvent,
+    StepOutputEvent,
+    StepStartEvent,
+)
 
 DEFAULT_OUTPUT_BUFFER_SIZE = 8
 
@@ -99,20 +106,71 @@ def build_live_output_panel(
     return Panel(body_text, title=f"Output: {step_name}", title_align="left")
 
 
+def _format_turn_marker(turn_number: int, current_turn: int | None, turn_results: Mapping[int, bool]) -> Text:
+    """Format a single turn-history marker: pass, fail, or pending, current turn distinguished."""
+    result = turn_results.get(turn_number)
+    if result is True:
+        marker = Text(f"{turn_number} ✔", style="bold green")
+    elif result is False:
+        marker = Text(f"{turn_number} ✖", style="bold red")
+    else:
+        marker = Text(f"{turn_number} ○", style="dim")
+    if turn_number == current_turn:
+        marker.stylize("underline")
+    return marker
+
+
+def build_loop_status_panel(
+    loop_id: str,
+    turn: int | None,
+    max_iterations: int | None,
+    conditions: Sequence[LoopConditionView],
+    turn_results: Mapping[int, bool],
+) -> Panel:
+    """Build the Rich Panel showing current loop/turn status and turn history."""
+    lines: list[Text] = []
+
+    header = Text(loop_id, style="bold cyan")
+    if turn is not None and max_iterations is not None:
+        header.append(f"  turn {turn}/{max_iterations}", style="dim")
+    lines.append(header)
+
+    for condition in conditions:
+        detail_line = Text("until: ")
+        detail_line.append(condition.expression)
+        detail_line.append(" → ")
+        outcome = condition.detail or ("passed" if condition.passed else "failed")
+        detail_line.append(outcome, style="bold green" if condition.passed else "bold red")
+        lines.append(detail_line)
+
+    if max_iterations is not None:
+        strip = Text("turns  ")
+        for turn_number in range(1, max_iterations + 1):
+            if turn_number > 1:
+                strip.append("  ")
+            strip.append_text(_format_turn_marker(turn_number, turn, turn_results))
+        lines.append(strip)
+
+    return Panel(Group(*lines), title="Loop", title_align="left")
+
+
 def build_live_renderable(
     steps: list[LiveStepItem],
     *,
     active_step_name: str | None = None,
     output_lines: Sequence[str] | None = None,
     sandbox_info: str | None = None,
-    now: float | None = None,
+    loop_panel: Panel | None = None,
 ) -> Table | Group:
-    """Build the composite Rich renderable with step progress table and optional output panel."""
-    table = build_live_step_table(steps, sandbox_info=sandbox_info, now=now)
+    """Build the composite Rich renderable with loop status, step table, and optional output panel."""
+    table = build_live_step_table(steps, sandbox_info=sandbox_info)
+    body: Table | Group = table
     if active_step_name is not None:
         panel = build_live_output_panel(active_step_name, output_lines or [])
-        return Group(table, Text(""), panel)
-    return table
+        body = Group(table, Text(""), panel)
+    if loop_panel is None:
+        return body
+    return Group(loop_panel, Text(""), body)
 
 
 class LiveDisplayManager:
@@ -137,6 +195,11 @@ class LiveDisplayManager:
         self._active_step_name: str | None = None
         self._active_output: deque[str] = deque(maxlen=output_buffer_size)
         self._live: Live | None = None
+        self._loop_id: str | None = None
+        self._loop_turn: int | None = None
+        self._loop_max_iterations: int | None = None
+        self._loop_conditions: list[LoopConditionView] = []
+        self._turn_results: dict[int, bool] = {}
 
     @property
     def is_active(self) -> bool:
@@ -200,6 +263,21 @@ class LiveDisplayManager:
         self._active_output.clear()
         self._refresh()
 
+    def handle_loop_lifecycle(self, event: LoopLifecycleEvent) -> None:
+        """Update tracked loop/turn state from a loop lifecycle event and refresh."""
+        if event.action == "start":
+            self._loop_id = event.loop_id
+            self._loop_max_iterations = event.max_iterations
+        elif event.action == "turn_start":
+            self._loop_turn = event.turn
+            self._loop_conditions = []
+            self.steps = []
+        elif event.action == "conditions_evaluated":
+            self._loop_conditions = event.conditions
+            if self._loop_turn is not None:
+                self._turn_results[self._loop_turn] = all(condition.passed for condition in event.conditions)
+        self._refresh()
+
     def handle_sandbox(self, event: SandboxLifecycleEvent, rendered: Text) -> None:
         """Handle sandbox lifecycle event by updating title info and printing above live table."""
         if event.action == "ready":
@@ -215,12 +293,24 @@ class LiveDisplayManager:
             self.console.print(renderable)
 
     def _build_renderable(self) -> Table | Group:
-        """Build the combined renderable containing steps table, active output, and sandbox info."""
+        """Build the combined renderable containing loop status, steps table, active output, and sandbox info."""
+        loop_panel = (
+            build_loop_status_panel(
+                self._loop_id,
+                self._loop_turn,
+                self._loop_max_iterations,
+                self._loop_conditions,
+                self._turn_results,
+            )
+            if self._loop_id is not None
+            else None
+        )
         return build_live_renderable(
             self.steps,
             active_step_name=self._active_step_name,
             output_lines=list(self._active_output),
             sandbox_info=self.sandbox_info,
+            loop_panel=loop_panel,
         )
 
     def _refresh(self) -> None:

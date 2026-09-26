@@ -8,6 +8,7 @@ from typing import Any, TypeVar, overload
 from rich.console import Console
 
 from worktree.cli.ui.events import (
+    LoopLifecycleEvent,
     PromptEvent,
     SandboxLifecycleEvent,
     StepDoneEvent,
@@ -219,6 +220,8 @@ class UiDispatcher:
             self._live_display.handle_step_done(data)
         elif isinstance(data, SandboxLifecycleEvent):
             self._live_display.handle_sandbox(data, formatter.to_rich(data))
+        elif isinstance(data, LoopLifecycleEvent):
+            self._live_display.handle_loop_lifecycle(data)
         else:
             self._live_display.print_above(formatter.to_rich(data))
 

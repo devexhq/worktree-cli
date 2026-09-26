@@ -101,6 +101,16 @@ class SandboxLifecycleEvent(BaseModel):
     kept: bool | None = None
 
 
+class LoopConditionView(BaseModel):
+    """Presentation view of a single evaluated until-condition."""
+
+    model_config = {"extra": "forbid", "strict": True}
+
+    expression: str
+    passed: bool
+    detail: str
+
+
 class LoopLifecycleEvent(BaseModel):
     """UI event representing loop block progress and evaluation."""
 
@@ -112,6 +122,8 @@ class LoopLifecycleEvent(BaseModel):
     max_iterations: int | None = None
     status: str | None = None
     message: str | None = None
+    conditions: list[LoopConditionView] = []
+    next_turn: int | None = None
 
 
 class WelcomeBannerEvent(BaseModel):
