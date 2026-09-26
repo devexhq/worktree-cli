@@ -1,6 +1,6 @@
 # Quickstart Tutorial
 
-Get up and running with Worktree (`wt`) in 5 minutes. In this tutorial, you will initialize a workspace, inspect the default blueprint catalog, create an isolated sandbox, and run your first automated task.
+Get up and running with Worktree (`wt`) in 5 minutes. In this tutorial, you will initialize a workspace, inspect the default blueprint catalog, create an isolated sandbox, and run your first blueprint.
 
 ---
 
@@ -16,7 +16,10 @@ This provisions the `.worktree/` state directory:
 
 ```text
 .worktree/
-├── config.json         # Project settings and provider configuration
+├── .gitignore          # Ignores local catalog metadata, locks, and sandboxes
+├── .meta/              # Local catalog metadata
+├── config.json         # Project settings
+├── project.json        # Project identity
 └── catalog/            # Project blueprint definitions (this repo's REPO tier)
     ├── blueprints/
     └── steps/
@@ -46,7 +49,7 @@ wt step show wt/git-sync-base
 
 ---
 
-## 3. Create a Custom Task Blueprint
+## 3. Create a Custom Blueprint
 
 Create a new blueprint called `lint-and-format`:
 
@@ -54,7 +57,7 @@ Create a new blueprint called `lint-and-format`:
 wt blueprint create --name lint-and-format
 ```
 
-Open `.worktree/catalog/blueprints/lint-and-format.yml` in your editor and configure your task steps:
+Open `.worktree/catalog/blueprints/lint-and-format.yml` in your editor and configure its steps:
 
 ```yaml
 name: lint-and-format
@@ -75,19 +78,19 @@ steps:
 
 ---
 
-## 4. Run the Task in an Isolated Sandbox
+## 4. Run the Blueprint in an Isolated Sandbox
 
-Execute your newly created task:
+Execute your newly created blueprint:
 
 ```bash
 wt run lint-and-format
 ```
 
 ### What Happens Behind the Scenes:
-1. `wt` creates an ephemeral Git worktree sandbox on a temporary branch (`wt/lint-and-format-...`).
+1. `wt` creates an ephemeral Git worktree sandbox on a temporary `worktree/sandbox-*` branch.
 2. Each step executes sequentially inside the isolated sandbox directory.
 3. If all steps succeed, the sandbox is cleanly removed.
-4. The execution result and attempt duration are saved into the SQLite database.
+4. The execution result, step output, and duration are recorded for the session.
 
 ---
 
@@ -109,6 +112,6 @@ wt history show <session-id>
 
 ## Next Steps
 
-- Explore [Core Concepts](../guides/concepts.md) to learn how Worktree manages sandboxes and multi-step workflows.
+- Explore [Core Concepts](../guides/concepts.md) to learn how Worktree manages sandboxes and multi-step blueprints.
 - Learn how to [Author Blueprints](../guides/authoring-blueprints.md) with typed parameter inputs and assertions.
-- Set up [AI Agent Providers](../guides/agent-providers.md) like Gemini, OpenAI, Claude, Cursor, or Ollama.
+- Review [AI Agent Providers](../guides/agent-providers.md) for the current adapter set and agent-step limitation.

@@ -1,6 +1,6 @@
 # Failure Handling & Session Resumption
 
-Worktree provides robust error recovery, declarative quality assertions, and durable session checkpoints so that long-running workflows can recover gracefully from failures.
+Worktree provides declarative quality assertions and durable session checkpoints so that long-running blueprints can recover gracefully from failures.
 
 ---
 
@@ -101,7 +101,7 @@ If you exit or interrupt an interactive session (or if a prompt is left unresolv
 
 ```bash
 # Resume by session ID
-wt resume workflow_a1b2c3d4
+wt resume blueprint_a1b2c3d4
 ```
 
 Worktree will reload the sandbox and re-execute the pending step without re-running earlier completed steps.

@@ -26,7 +26,7 @@ wt config set <key> <value>
 
 #### Arguments
 
-- `key`: Key or nested dot-path (e.g. `agent.provider`, `agent.model`, `sandbox.default_branch_prefix`).
+- `key`: Key or nested dot-path (e.g. `agent.provider`, `agent.model`, `sandbox.base_ref`).
 - `value`: New value to store.
 
 #### Examples
@@ -38,8 +38,8 @@ wt config set agent.provider ollama
 # Set model name
 wt config set agent.model llama3.1
 
-# Configure custom branch prefix
-wt config set sandbox.default_branch_prefix "agent/"
+# Configure the sandbox base ref
+wt config set sandbox.base_ref main
 ```
 
 ### `wt config unset`

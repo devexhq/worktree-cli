@@ -13,9 +13,8 @@ Worktree (`wt`) is designed around a clean separation between **isolated sandbox
 │  ┌───────────────────────┐         ┌─────────────────────────────────┐  │
 │  │ Blueprint Catalog     │         │ Git Sandbox Manager             │  │
 │  │ (.worktree/catalog/)  │         │                                 │  │
-│  │  - workflows/*.yml    │         │  Creates isolated worktree      │  │
-│  │  - tasks/*.yml        │         │  Branch: wt/<blueprint>-<id>    │  │
-│  │  - steps/*.yml        │         │  Path: .worktree/sandboxes/...  │  │
+│  │  - blueprints/*.yml   │         │  Creates isolated worktree      │  │
+│  │  - steps/*.yml        │         │  Branch: worktree/sandbox-*     │  │
 │  └───────────┬───────────┘         └────────────────┬────────────────┘  │
 │              │                                      │                   │
 │              └──────────────────┬───────────────────┘                   │
@@ -38,36 +37,35 @@ Worktree (`wt`) is designed around a clean separation between **isolated sandbox
 
 ## 1. Ephemeral Git Sandboxes
 
-When you execute a blueprint or task, Worktree creates an isolated **Git worktree** using a dedicated branch (prefixed with `wt/`).
+When you execute a blueprint, Worktree normally creates an isolated **Git worktree** using a dedicated `worktree/sandbox-*` branch.
 
 ### Why Sandboxes?
-- **Zero Pollution**: Your active working directory and branch remain untouched while automated tasks run or AI agents edit files.
+- **Zero Pollution**: Your active working directory and branch remain untouched while steps run.
 - **Safety**: Broken code, test failures, or unintended edits are contained within the sandbox.
 - **Automatic Lifecycle**: Unless `--keep` is specified or execution is paused, the sandbox worktree and branch are automatically cleaned up when the run finishes.
 
 If you ever want to run a blueprint directly in your current working directory without sandbox isolation (e.g. in CI or a container), use the `--no-sandbox` flag:
 
 ```bash
-wt run my-workflow --no-sandbox
+wt run my-blueprint --no-sandbox
 ```
 
 ---
 
-## 2. Blueprint Taxonomy
+## 2. Blueprints and Steps
 
-A **Blueprint** is a declarative YAML document that defines an automated task or multi-step workflow.
+A **Blueprint** is a declarative YAML document that defines a sequence of steps. It can contain ordinary steps and loop blocks.
 
 ```text
 Blueprint
- ├── Task (Single discrete job; sequential list of steps)
- └── Workflow (Multi-step pipeline; supports loops, assertions, and checkpoints)
+ ├── Step (command, agent placeholder, script, or reusable `uses:` reference)
+ └── Loop block (repeats nested steps until its conditions pass)
 ```
 
 | Concept | Type | Description | File Location |
 |---|---|---|---|
-| **Step** | Primitive | The smallest unit of execution: a shell command, an AI agent prompt, or a script. | `.worktree/catalog/steps/` |
-| **Task** | Blueprint | A sequential list of steps targeting a single goal (e.g., formatting, running tests). Cannot contain loop steps. | `.worktree/catalog/tasks/` |
-| **Workflow** | Blueprint | A multi-step orchestration pipeline with assertions, error handling policies, and session pause/resumption. | `.worktree/catalog/workflows/` |
+| **Step** | Catalog item | A reusable shell-command, agent-placeholder, or script definition. | `.worktree/catalog/steps/` |
+| **Blueprint** | Catalog item | A sequence of steps with inputs, assertions, failure policies, and optional loop blocks. | `.worktree/catalog/blueprints/` |
 
 ---
 
@@ -77,14 +75,13 @@ Blueprints live in your project's `.worktree/catalog/` directory:
 
 ```text
 .worktree/catalog/
-├── workflows/          # Workflow blueprints (e.g. fix-tests.yml)
-├── tasks/              # Task blueprints (e.g. audit-code.yml)
+├── blueprints/         # Executable blueprints (e.g. fix-tests.yml)
 └── steps/              # Reusable step definitions (e.g. run-tests.yml)
 ```
 
 ### Local Blueprints vs. Curated Templates
 - **Local Blueprints**: Created and maintained within your repository for project-specific automation.
-- **Curated Templates (`wt/*`)**: Built-in steps and workflows provided out of the box (e.g., `wt/git-sync-base`, `wt/ai-planner`, `wt/ai-code-patcher`, `wt/ai-reviewer`). Blueprints can reference these using `uses: wt/<name>`.
+- **Curated Templates (`wt/*`)**: Built-in catalog steps can be referenced using `uses: wt/<name>`.
 
 ---
 
@@ -99,7 +96,7 @@ Every execution via `wt run` is tracked as a **Session**:
 5. **Resilience & Resumption**:
    - On error, `on_failure` policies determine whether to `abort`, `continue`, `retry`, or `prompt_user`.
    - If an interactive prompt is interrupted or paused, a **checkpoint** is saved in the centralized database.
-   - The session can be resumed at any time using `wt resume <session-id>`.
+   - The session can be resumed at any time using `wt resume blueprint_<id>`.
 6. **Audit History**: All runs, durations, and outputs are recorded and accessible via `wt history`.
 
 ---

@@ -1,7 +1,6 @@
 # `wt run`
 
-The `wt run` command executes any blueprint by name (task or workflow) from the
-catalog without requiring the user to specify the blueprint kind.
+The `wt run` command executes a blueprint by name from the catalog.
 
 ## Usage
 
@@ -16,30 +15,31 @@ wt run <name> [OPTIONS] [-- <input-overrides>]
 | `--no-sandbox` | Run execution in-place in the working tree without creating a Git sandbox. |
 | `--keep` | Retain the sandbox worktree after execution. |
 | `--auto-apply` | Automatically apply sandbox changes to the main workspace on successful completion. |
-| `--agent <name>` | Override the default target agent adapter. |
+| `--agent <name>` | Override the adapter identifier selected for agent-step placeholders; this does not enable provider invocation. |
 | `--session-id <id>` | Explicit session identifier. |
 | `--no-tty` | Disable interactive prompts; prompt_user failures abort the run instead of blocking for input. |
+| `--format <terminal\|json>` | Presentation format (`terminal` or `json`). Defaults to `terminal`. |
+| `--display <ansi\|live>` | Display format (`ansi` or `live`). Defaults to `ansi`. |
 
 Trailing CLI arguments (after options) are forwarded to declared blueprint inputs.
 
 ### Behavior
 
 1. **Resolution**: Resolves `<name>` from `.worktree/catalog/` via `Blueprint.load`.
-2. **Kind Detection**: Automatically detects whether the resolved blueprint is a `task` or `workflow`.
-3. **Execution**: Runs the blueprint through the unified runtime engine (`BlueprintRunService`).
-4. **Exit Codes**:
+2. **Execution**: Runs the blueprint through the unified runtime engine (`BlueprintRunService`).
+3. **Exit Codes**:
    - `0`: Successful run or paused run (with checkpoint saved).
    - `1`: Failed or cancelled run.
 
 ## Examples
 
-Run a task blueprint:
+Run a blueprint:
 
 ```bash
 wt run build-task
 ```
 
-Run a workflow blueprint in-place without sandbox:
+Run a blueprint in-place without sandbox:
 
 ```bash
 wt run release-flow --no-sandbox
