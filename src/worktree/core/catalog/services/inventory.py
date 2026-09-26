@@ -25,12 +25,12 @@ def get_catalog_dir(path: Path) -> Path:
     return Filesystem(path).catalog_dir
 
 
-def ensure_catalog_dirs(path: Path) -> Path:
-    """Ensure standard `.worktree/catalog/{blueprints,steps}` subdirectories exist and return catalog root."""
-    catalog_dir = get_catalog_dir(path)
-    (catalog_dir / "blueprints").mkdir(parents=True, exist_ok=True)
-    (catalog_dir / "steps").mkdir(parents=True, exist_ok=True)
-    return catalog_dir
+def ensure_tier_catalog_dirs(tier: CatalogTier, *, repo_root: Path, global_root: Path | None) -> Path:
+    """Ensure one tier's `blueprints`/`steps` subdirectories exist and return that tier's catalog root."""
+    tier_dir = tier_root(tier, repo_root=repo_root, global_root=global_root)
+    (tier_dir / "blueprints").mkdir(parents=True, exist_ok=True)
+    (tier_dir / "steps").mkdir(parents=True, exist_ok=True)
+    return tier_dir
 
 
 def compute_catalog_sha(item_type: CatalogItemType | str, content: str) -> tuple[str, str]:
@@ -281,34 +281,41 @@ def _get_initial_template_content(type_enum: CatalogItemType, stem: str) -> str:
         return f"name: {stem}\ndescription: Custom step blueprint\naction: run\n"
 
 
+def coerce_catalog_item_type(item_type: CatalogItemType | str) -> CatalogItemType:
+    """Parse a catalog item type, or raise ValueError with allowed choices."""
+    try:
+        return item_type if isinstance(item_type, CatalogItemType) else CatalogItemType(str(item_type).lower())
+    except ValueError as exc:
+        allowed = ", ".join([t.value for t in CatalogItemType])
+        raise ValueError(f"Invalid item_type '{item_type}'. Allowed choices: {allowed}") from exc
+
+
 def create_catalog_item(
     item_type: CatalogItemType | str,
     name: str,
     *,
+    tier: CatalogTier = CatalogTier.REPO,
     repo_root: Path,
+    global_root: Path | None = None,
 ) -> CatalogRecord:
-    """Create a new catalog blueprint under the REPO tier's `<type>s/<name>.yml` and reindex that tier."""
-    with WorkspaceLock(repo_root):
-        try:
-            type_enum = item_type if isinstance(item_type, CatalogItemType) else CatalogItemType(str(item_type).lower())
-        except ValueError as exc:
-            allowed = ", ".join([t.value for t in CatalogItemType])
-            raise ValueError(f"Invalid item_type '{item_type}'. Allowed choices: {allowed}") from exc
-
-        catalog_dir = ensure_catalog_dirs(repo_root)
+    """Create a new catalog item under the selected tier's `<type>s/<name>.yml` and reindex that tier."""
+    lock_root = repo_root if tier is CatalogTier.REPO else resolve_global_paths(global_root).root
+    with WorkspaceLock(lock_root):
+        type_enum = coerce_catalog_item_type(item_type)
+        tier_dir = ensure_tier_catalog_dirs(tier, repo_root=repo_root, global_root=global_root)
         stem = name[:-4] if name.endswith(".yml") or name.endswith(".yaml") else name
         filename = f"{stem}.yml"
-        target_path = catalog_dir / f"{type_enum.value}s" / filename
+        target_path = tier_dir / f"{type_enum.value}s" / filename
 
         if target_path.exists():
-            rel_path = target_path.relative_to(catalog_dir)
+            rel_path = target_path.relative_to(tier_dir)
             raise FileExistsError(f"Catalog blueprint collision at path '{rel_path}'")
 
         content = _get_initial_template_content(type_enum, stem)
         Filesystem.atomic_write_text(target_path, content)
 
-        scan_result = scan_and_index_tier(CatalogTier.REPO, repo_root=repo_root, global_root=None)
-        rel_path = target_path.relative_to(catalog_dir)
+        scan_result = scan_and_index_tier(tier, repo_root=repo_root, global_root=global_root)
+        rel_path = target_path.relative_to(tier_dir)
         record = next((r for r in scan_result.items if r.path == rel_path), None)
         if record is None:
             raise CatalogWriteError(f"Failed to reindex newly created catalog blueprint '{rel_path}'.")

@@ -156,6 +156,7 @@ The catalog is disk-only: each of the REPO, USER, and GLOBAL tiers keeps its own
 - `CatalogIndex`: On-disk contents of one tier root's `index.json` (`items: list[CatalogIndexEntry]`).
 - `CatalogRecord`: A `CatalogIndexEntry` plus the `tier` it was resolved from — the shape returned by `Catalog.list/show/get/create/delete`.
 - `SeedResult`: Template seeding outcome (`created_files`, `skipped_existing_files`, `overwritten_files`, `warnings`, `errors`, `ok`).
+- `CatalogCreateResult`: Result of creating a catalog blueprint or step (`item`, `resolved_path`, `errors`, `warnings`, `fixes`, `ok`).
 - `CatalogValidateResult`: Result of validating a catalog blueprint or step definition without executing it (`status`, `valid`, `target`, `resolved_path`, `item_type`, `errors`, `warnings`, `ok`); `CatalogValidateStatus`: `StrEnum` (`ok`, `invalid`, `syntax_error`, `not_found`, `unreadable`, `type_required`).
 
 ### Database SQLModel Records

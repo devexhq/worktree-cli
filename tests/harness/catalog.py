@@ -7,7 +7,8 @@ from pathlib import Path
 
 import yaml
 
-from worktree.core.catalog.services.inventory import ensure_catalog_dirs, scan_and_index_catalog
+from worktree.core.catalog.models import CatalogTier
+from worktree.core.catalog.services.inventory import ensure_tier_catalog_dirs, scan_and_index_catalog
 
 
 def write_runnable_blueprint(
@@ -18,7 +19,7 @@ def write_runnable_blueprint(
     timeout_seconds: int = 60,
 ) -> None:
     """Write a minimal blueprint YAML under .worktree/catalog/blueprints/ and index it into the catalog DB."""
-    catalog_dir = ensure_catalog_dirs(workspace)
+    catalog_dir = ensure_tier_catalog_dirs(CatalogTier.REPO, repo_root=workspace, global_root=None)
     blueprint_path = catalog_dir / "blueprints" / f"{key}.yml"
     payload = {
         "version": "1.0",
@@ -39,7 +40,7 @@ def write_runnable_step(
     definition: dict[str, object],
 ) -> None:
     """Write a minimal step YAML under .worktree/catalog/steps/ and index it into the catalog DB."""
-    catalog_dir = ensure_catalog_dirs(workspace)
+    catalog_dir = ensure_tier_catalog_dirs(CatalogTier.REPO, repo_root=workspace, global_root=None)
     step_path = catalog_dir / "steps" / f"{key}.yml"
     step_path.parent.mkdir(parents=True, exist_ok=True)
     step_path.write_text(yaml.safe_dump(definition, sort_keys=False), encoding="utf-8")

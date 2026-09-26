@@ -21,10 +21,10 @@ wt blueprint ls [--format terminal|json]
 
 ### `wt blueprint create`
 
-Creates a new blueprint file under the REPO tier only — `.worktree/catalog/blueprints/<name>.yml`, seeded from the packaged `default.yml` scaffold. There is no `--tier` flag; creating directly into USER or GLOBAL tiers is out of scope for this command.
+Creates a new blueprint file, seeded from the packaged `default.yml` scaffold. By default it writes under the REPO tier (`.worktree/catalog/blueprints/<name>.yml`). Pass `--user` to write into the USER tier (`~/.worktree/user/catalog/blueprints/<name>.yml`) or `--global` for the GLOBAL tier (`~/.worktree/global/catalog/blueprints/<name>.yml`) instead; the two flags are mutually exclusive.
 
 ```bash
-wt blueprint create --name <name> [--format terminal|json]
+wt blueprint create --name <name> [--user | --global] [--format terminal|json]
 ```
 
 ### `wt blueprint show`

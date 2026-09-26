@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Annotated
+
 import typer
 
 from worktree.cli.context import CliContext
@@ -57,15 +59,21 @@ def step_show(
 def step_create(
     ctx: typer.Context,
     name: str = typer.Option(..., "--name", help="Name for the new step file."),
+    user: Annotated[
+        bool, typer.Option("--user", help="Create in the personal user-tier catalog (~/.worktree/user/catalog/).")
+    ] = False,
+    global_: Annotated[
+        bool, typer.Option("--global", help="Create in the shared global-tier catalog (~/.worktree/global/catalog/).")
+    ] = False,
     format: str = typer.Option(
         "terminal",
         "--format",
         help="Presentation format ('terminal' or 'json').",
     ),
 ):
-    """Create a new step under the repo tier's .worktree/catalog/steps/<name>.yml."""
+    """Create a new step at the REPO tier by default, or at USER/GLOBAL tier with --user/--global."""
     context: CliContext = ctx.obj["context"]
-    result = step_create_command(context, name, output_format=format)
+    result = step_create_command(context, name, user=user, global_=global_, output_format=format)
     if not result.ok:
         raise typer.Exit(code=1)
 

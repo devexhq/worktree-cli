@@ -31,9 +31,10 @@ from worktree.core.catalog.models import (
     YamlParseOutcome,
 )
 from worktree.core.catalog.services.inventory import (
+    coerce_catalog_item_type,
     create_catalog_item,
     delete_catalog_item_by_sha_or_name,
-    ensure_catalog_dirs,
+    ensure_tier_catalog_dirs,
     find_catalog_record_matches,
     find_packaged_templates,
     list_packaged_template_defaults,
@@ -111,7 +112,7 @@ class Catalog:
         if filter_value is None:
             return None, None
         try:
-            return self._coerce_item_type(filter_value), None
+            return coerce_catalog_item_type(filter_value), None
         except ValueError:
             allowed = ", ".join(t.value for t in CatalogItemType)
             return None, f"Invalid --type argument '{filter_value}'. Allowed choices: {allowed}"
@@ -143,7 +144,7 @@ class Catalog:
     ) -> DefinitionResolutionResult[CatalogRecord]:
         """Retrieve the highest-precedence catalog record matching key_or_sha, optionally validating its content into definition_cls."""
         self.sync()
-        parsed_item_type = self._coerce_item_type(item_type) if item_type is not None else None
+        parsed_item_type = coerce_catalog_item_type(item_type) if item_type is not None else None
         matches = find_catalog_record_matches(
             key_or_sha, parsed_item_type, repo_root=self.path, global_root=self.global_root
         )
@@ -193,15 +194,20 @@ class Catalog:
         self,
         item_type: CatalogItemType | str,
         name: str,
+        *,
+        tier: CatalogTier = CatalogTier.REPO,
     ) -> CatalogCreateResult:
-        """Create a new REPO-tier catalog blueprint file and reindex."""
+        """Create a new catalog blueprint or step file at the selected tier and reindex."""
         try:
             record = create_catalog_item(
-                item_type=self._coerce_item_type(item_type),
+                item_type=coerce_catalog_item_type(item_type),
                 name=name,
+                tier=tier,
                 repo_root=self.path,
+                global_root=self.global_root,
             )
-            return CatalogCreateResult(item=record)
+            resolved_path = resolve_catalog_record_path(record, repo_root=self.path, global_root=self.global_root)
+            return CatalogCreateResult(item=record, resolved_path=resolved_path)
         except Exception as exc:
             return CatalogCreateResult(errors=[str(exc)])
 
@@ -226,8 +232,8 @@ class Catalog:
     ) -> CatalogRecord:
         """Write YAML under the REPO tier's type folder and reindex. Overwrites an existing file."""
         with WorkspaceLock(self.path):
-            type_enum = self._coerce_item_type(item_type)
-            catalog_dir = ensure_catalog_dirs(self.path)
+            type_enum = coerce_catalog_item_type(item_type)
+            catalog_dir = ensure_tier_catalog_dirs(CatalogTier.REPO, repo_root=self.path, global_root=self.global_root)
             stem = self._strip_yaml_suffix(name)
             rel_path = Path(f"{type_enum.value}s") / f"{stem}.yml"
             target_path = catalog_dir / rel_path
@@ -354,17 +360,6 @@ class Catalog:
             detail = yaml_file.error or "invalid or non-object YAML content."
             raise CatalogYamlError(f"Failed to load catalog blueprint '{path}': {detail}")
         return yaml_file.parsed
-
-    @staticmethod
-    def _coerce_item_type(value: CatalogItemType | str) -> CatalogItemType:
-        """Parse a catalog item type or raise ValueError with allowed choices."""
-        if isinstance(value, CatalogItemType):
-            return value
-        try:
-            return CatalogItemType(str(value).lower())
-        except ValueError as exc:
-            allowed = ", ".join(item.value for item in CatalogItemType)
-            raise ValueError(f"Invalid item_type '{value}'. Allowed choices: {allowed}") from exc
 
     @staticmethod
     def _strip_yaml_suffix(name: str) -> str:

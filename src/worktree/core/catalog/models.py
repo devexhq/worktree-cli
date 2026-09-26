@@ -200,9 +200,10 @@ class CatalogDeleteResult(BaseResult):
 
 
 class CatalogCreateResult(BaseResult):
-    """Result of creating a catalog blueprint."""
+    """Result of creating a catalog blueprint or step."""
 
     item: CatalogRecord | None = None
+    resolved_path: Path | None = None
 
     @property
     def ok(self) -> bool:
