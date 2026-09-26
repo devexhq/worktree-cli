@@ -10,8 +10,10 @@ import pytest
 from tests.harness.builders import StepBuilder, WorkspaceBuilder
 from worktree.common.models import FailurePolicy, OnFailureSpec
 from worktree.core.db import RunStatus
+from worktree.core.project.services.storage import resolve_project_filesystem_paths
 from worktree.core.runtime import (
     USER_CONTINUED_MARKER,
+    ExecutionIdentity,
     FailurePromptDecision,
     FailurePrompter,
     LoopPromptDecision,
@@ -306,6 +308,44 @@ class RunStepsExecutionTests:
             [_step_result("s1", status="completed", exit_code=0, stdout="sandboxed\n")],
         )
         assert not outcome.sandbox_path.exists()
+
+
+class RunStepsDiffSessionColocationTests:
+    """[tier-2/integration] run_steps: diff.patch, run.json, and definitions/ land under one session directory."""
+
+    def test_run_steps_persists_diff_under_context_session_id_not_sandbox_key(self, tmp_path: Path) -> None:
+        """[tier-2/integration] run_steps: with RunContext.session_id set and identity.blueprint_key containing '/', diff.patch is written to sessions/<session_id>/diff.patch, not a nested sessions/<namespace>/<name>/ directory."""
+        workspace = WorkspaceBuilder(tmp_path / "workspace").with_git().with_database().build()
+        context = RunContext(
+            steps=[StepBuilder.command("echo change > tracked.txt").with_id("s1").build()],
+            cwd=workspace,
+            use_sandbox=True,
+            identity=ExecutionIdentity(blueprint_name="fix-tests", blueprint_key="wt/fix-tests"),
+            session_id="blueprint_abcd1234",
+        )
+
+        outcome = run_steps(context)
+
+        assert outcome.status == RunStatus.COMPLETED
+        paths = resolve_project_filesystem_paths(workspace)
+        assert (paths.session_dir("blueprint_abcd1234") / "diff.patch").is_file()
+        assert not (paths.session_dir("wt/fix-tests") / "diff.patch").exists()
+
+    def test_run_steps_skips_diff_persistence_when_context_session_id_is_none(self, tmp_path: Path) -> None:
+        """[tier-2/integration] run_steps: with RunContext.session_id left as the default None, no diff.patch is written anywhere under sessions/, since there is no canonical id to address it by."""
+        workspace = WorkspaceBuilder(tmp_path / "workspace").with_git().with_database().build()
+        context = RunContext(
+            steps=[StepBuilder.command("echo change > tracked.txt").with_id("s1").build()],
+            cwd=workspace,
+            use_sandbox=True,
+            identity=ExecutionIdentity(blueprint_name="fix-tests", blueprint_key="wt/fix-tests"),
+        )
+
+        outcome = run_steps(context)
+
+        assert outcome.status == RunStatus.COMPLETED
+        paths = resolve_project_filesystem_paths(workspace)
+        assert not (paths.session_dir("wt/fix-tests") / "diff.patch").exists()
 
     def test_run_steps_abort_on_failure_stops_before_later_steps(self, tmp_path: Path) -> None:
         context = RunContext(

@@ -595,10 +595,10 @@ def _capture_and_persist_diff(
     warnings: list[str],
 ) -> None:
     """Capture cumulative unified diff from sandbox and persist diff.patch."""
-    if session is None or not Path(session.sandbox_path).is_dir():
+    if session is None or context.session_id is None or not Path(session.sandbox_path).is_dir():
         return
 
-    session_id = session.session_id
+    session_id = context.session_id
     try:
         GitRunner.add_intent_to_add(session.sandbox_path, target=".")
         diff_text = GitRunner.diff(session.sandbox_path, base_commit=session.base_commit, binary=True)

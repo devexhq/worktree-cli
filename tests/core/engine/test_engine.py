@@ -133,6 +133,7 @@ class EngineResumeOrchestrationTests:
             observer=observer,
             inputs={"name": "demo"},
             identity=ExecutionIdentity(blueprint_name="lint", blueprint_key="lint"),
+            session_id="task_resume",
             no_tty=True,
             failure_prompter=None,
             pause_store=context.pause_store,
@@ -185,6 +186,7 @@ class EngineResumeOrchestrationTests:
             observer=None,
             inputs=None,
             identity=ExecutionIdentity(blueprint_name="lint", blueprint_key="lint"),
+            session_id="task_catalog",
             no_tty=False,
             failure_prompter=None,
             pause_store=context.pause_store,
@@ -409,6 +411,74 @@ class EngineConfigResolutionTests:
         assert context.config is not None
         assert context.config.agent.model == "user-tier-model"
         assert context.config.sandbox.base_ref == "main"
+
+
+class EngineRunContextSessionIdTests:
+    """[tier-1/unit] Engine.run/resume: RunContext.session_id observes the canonical run session id."""
+
+    def test_run_passes_generated_session_id_into_run_context(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """[tier-1/unit] Engine.run: RunContext.session_id captured via monkeypatched run_steps equals the generated blueprint_<hex> sid also used for run.json."""
+        workspace = WorkspaceBuilder(tmp_path / "workspace").with_database().build()
+        runs_repo = RunsRepository(workspace)
+        blueprint, _ = _task_blueprint()
+        captured: dict[str, RunContext] = {}
+
+        def fake_run_steps(context: RunContext) -> RunOutcome:
+            captured["context"] = context
+            return RunOutcome(status=RunStatus.COMPLETED, sandbox_path=workspace)
+
+        monkeypatch.setattr("worktree.core.engine.engine.run_steps", fake_run_steps)
+
+        outcome = Engine(workspace, db=runs_repo, catalog=Catalog(workspace)).run(blueprint)
+
+        context = captured["context"]
+        assert context.session_id is not None
+        assert context.session_id == outcome.session_id
+        assert context.session_id.startswith("blueprint_")
+
+    def test_run_passes_explicit_request_session_id_into_run_context(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """[tier-1/unit] Engine.run: RunContext.session_id captured via monkeypatched run_steps equals RunRequest.session_id when explicitly provided."""
+        workspace = WorkspaceBuilder(tmp_path / "workspace").with_database().build()
+        runs_repo = RunsRepository(workspace)
+        blueprint, _ = _task_blueprint()
+        captured: dict[str, RunContext] = {}
+
+        def fake_run_steps(context: RunContext) -> RunOutcome:
+            captured["context"] = context
+            return RunOutcome(status=RunStatus.COMPLETED, sandbox_path=workspace)
+
+        monkeypatch.setattr("worktree.core.engine.engine.run_steps", fake_run_steps)
+
+        Engine(workspace, db=runs_repo, catalog=Catalog(workspace)).run(
+            blueprint, RunRequest(session_id="explicit-session")
+        )
+
+        assert captured["context"].session_id == "explicit-session"
+
+    def test_resume_passes_resumed_session_id_into_run_context(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """[tier-1/unit] Engine.resume: RunContext.session_id captured via monkeypatched run_steps equals the resumed session_id argument."""
+        workspace = WorkspaceBuilder(tmp_path / "workspace").with_database().build()
+        runs_repo = RunsRepository(workspace)
+        blueprint, _ = _task_blueprint()
+        checkpoint = _checkpoint()
+        _seed_paused_run(runs_repo, "task_resume_ctx", checkpoint)
+        captured: dict[str, RunContext] = {}
+
+        def fake_run_steps(context: RunContext) -> RunOutcome:
+            captured["context"] = context
+            return RunOutcome(status=RunStatus.COMPLETED, sandbox_path=workspace)
+
+        monkeypatch.setattr("worktree.core.engine.engine.run_steps", fake_run_steps)
+
+        Engine(workspace, db=runs_repo, catalog=Catalog(workspace)).resume("task_resume_ctx", blueprint=blueprint)
+
+        assert captured["context"].session_id == "task_resume_ctx"
 
 
 class EngineRunSnapshotsDefinitionsTests:
