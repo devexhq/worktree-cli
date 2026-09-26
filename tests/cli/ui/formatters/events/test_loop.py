@@ -10,8 +10,9 @@ from tests.harness.formatter import (
     FormatterCase,
     assert_json_payload_matches_published_shape,
     assert_rich_render_shows_every_view_value,
+    render_rich,
 )
-from worktree.cli.ui.events import LoopLifecycleEvent
+from worktree.cli.ui.events import LoopConditionView, LoopLifecycleEvent
 from worktree.cli.ui.formatters.events.loop import LoopLifecycleFormatter
 
 LOOP_START = FormatterCase(
@@ -62,6 +63,10 @@ CONDITIONS_EVALUATED = FormatterCase(
         max_iterations=None,
         status=None,
         message="Evaluated 1 condition(s)",
+        conditions=[
+            LoopConditionView(expression="steps.run-tests.exit_code == 0", passed=False, detail="FALSE (was 127)"),
+        ],
+        next_turn=2,
     ),
     view=LoopLifecycleEvent(
         loop_id="loop_1",
@@ -70,8 +75,12 @@ CONDITIONS_EVALUATED = FormatterCase(
         max_iterations=None,
         status=None,
         message="Evaluated 1 condition(s)",
+        conditions=[
+            LoopConditionView(expression="steps.run-tests.exit_code == 0", passed=False, detail="FALSE (was 127)"),
+        ],
+        next_turn=2,
     ),
-    render_expectations=["Evaluated 1 condition(s)"],
+    render_expectations=["loop_1", "steps.run-tests.exit_code == 0", "FALSE (was 127)"],
 )
 
 LOOP_DONE = FormatterCase(
@@ -111,6 +120,8 @@ LOOP_PAYLOAD_CASES = [
             "max_iterations": 5,
             "status": None,
             "message": None,
+            "conditions": [],
+            "next_turn": None,
         },
         id="loop_start",
     ),
@@ -123,6 +134,8 @@ LOOP_PAYLOAD_CASES = [
             "max_iterations": 5,
             "status": None,
             "message": None,
+            "conditions": [],
+            "next_turn": None,
         },
         id="turn_start",
     ),
@@ -135,6 +148,10 @@ LOOP_PAYLOAD_CASES = [
             "max_iterations": None,
             "status": None,
             "message": "Evaluated 1 condition(s)",
+            "conditions": [
+                {"expression": "steps.run-tests.exit_code == 0", "passed": False, "detail": "FALSE (was 127)"},
+            ],
+            "next_turn": 2,
         },
         id="conditions_evaluated",
     ),
@@ -147,6 +164,8 @@ LOOP_PAYLOAD_CASES = [
             "max_iterations": 5,
             "status": "completed",
             "message": None,
+            "conditions": [],
+            "next_turn": None,
         },
         id="loop_done",
     ),
@@ -171,3 +190,8 @@ class LoopLifecycleFormatterTests:
     ) -> None:
         """Verify that all non-null semantic view model values reach the Rich renderable output."""
         assert_rich_render_shows_every_view_value(LoopLifecycleFormatter, case.data, case.render_expectations)
+
+    def test_conditions_evaluated_renders_no_literal_backslash(self) -> None:
+        """[tier-2/formatter] LoopLifecycleFormatter.to_rich: conditions_evaluated Text contains no literal backslash before the loop id."""
+        rendered = render_rich(LoopLifecycleFormatter().to_rich(CONDITIONS_EVALUATED.data))
+        assert "\\[" not in rendered

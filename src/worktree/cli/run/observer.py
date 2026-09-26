@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from worktree.cli.ui.dispatcher import UiDispatcher
 from worktree.cli.ui.events import (
+    LoopConditionView,
     LoopLifecycleEvent,
     SandboxLifecycleEvent,
     StepDoneEvent,
@@ -130,6 +131,10 @@ class DispatcherRunObserver(RunObserver):
                 loop_id=loop_id,
                 action="conditions_evaluated",
                 message="\n".join(lines),
+                conditions=[
+                    LoopConditionView(expression=r.expression, passed=r.passed, detail=r.detail) for r in results
+                ],
+                next_turn=next_turn,
             )
         )
 
